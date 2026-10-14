@@ -304,9 +304,20 @@ export interface Column<T> { key: string; label: string; className?: string; ren
 export interface RowAction<T> { label: string; icon?: React.ComponentType<{ className?: string }>; onClick: (row: T) => void; className?: string; show?: (row: T) => boolean }
 export interface Pagination { page: number; limit: number; total: number; pages: number }
 
-export function DataTable<T extends { id: string }>({ data, columns, loading, pagination, onPageChange, onRowClick, actions = [], emptyMessage = 'Nothing here yet.' }: {
+export function DataTable<T extends { id: string }>({ data, columns, loading, pagination, onPageChange, onRowClick, actions = [], emptyMessage = 'Nothing here yet.', emptyHint, emptyAction }: {
   data: T[]; columns: Column<T>[]; loading?: boolean; pagination?: Pagination | null; onPageChange?: (p: number) => void; onRowClick?: (row: T) => void; actions?: RowAction<T>[]; emptyMessage?: string
+  /** What to do next when there is nothing yet — a new company's every list is empty, and "No contacts found" alone left the owner to work it out. (E2E run 1) */
+  emptyHint?: string
+  /** The button for that next step, shown under the hint. Pass it only when this person may take the step. */
+  emptyAction?: React.ReactNode
 }) {
+  const emptyBody = (
+    <>
+      <div className="font-medium text-gray-700 dark:text-slate-200">{emptyMessage}</div>
+      {emptyHint && <p className="mt-1 text-sm">{emptyHint}</p>}
+      {emptyAction && <div className="mt-4 flex justify-center">{emptyAction}</div>}
+    </>
+  )
   const [menu, setMenu] = useState<{ id: string; x: number; y: number; top: number; anchor: HTMLElement } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -357,7 +368,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
           CLIENT and pushed amount and status off-screen, which are the columns the list exists for. */}
       <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-800">
         {loading && <div className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">Loading…</div>}
-        {!loading && data.length === 0 && <div className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">{emptyMessage}</div>}
+        {!loading && data.length === 0 && <div className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">{emptyBody}</div>}
         {!loading && data.map(row => {
           const head = columns[0]
           const rest = columns.slice(1)
@@ -394,7 +405,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
             {loading && <tr><td colSpan={columns.length + 1} className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">Loading…</td></tr>}
-            {!loading && data.length === 0 && <tr><td colSpan={columns.length + 1} className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">{emptyMessage}</td></tr>}
+            {!loading && data.length === 0 && <tr><td colSpan={columns.length + 1} className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">{emptyBody}</td></tr>}
             {!loading && data.map(row => (
               <tr key={row.id} onClick={onRowClick ? () => onRowClick(row) : undefined} className={`text-gray-900 dark:text-slate-100 ${onRowClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800' : ''}`}>
                 {/* Bound cell content so one pathological value (e.g. a 300-char contact name) neither

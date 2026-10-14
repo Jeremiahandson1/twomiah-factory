@@ -105,10 +105,16 @@ export function EmailAliasesPage(): React.ReactElement {
       <h1 className="text-2xl font-bold mb-2">Email Addresses</h1>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Create branded email addresses on your domain. Each one can forward to wherever you read email, or route replies into the CRM as conversation threads.</p>
 
+      {/* Onboarding saves the addresses before there is a domain, so "connect a domain FIRST" beside a list of them
+          read as a contradiction (E2E run 1, 10/14). Say what is true: they are kept, and receive mail once one is connected. */}
       {!domain && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-4 mb-6">
-          <div className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">Connect a domain first</div>
-          <div className="text-sm text-yellow-800 dark:text-yellow-200">Email aliases require a domain. Go to <strong>Settings → Email Domain</strong> to connect one.</div>
+          <div className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">{aliases.length ? 'Waiting for your domain' : 'Connect a domain first'}</div>
+          <div className="text-sm text-yellow-800 dark:text-yellow-200">
+            {aliases.length
+              ? <>These addresses are saved. They start receiving mail once your domain is connected in <strong>Settings → Email Domain</strong>.</>
+              : <>Email addresses need a domain. Go to <strong>Settings → Email Domain</strong> to connect one.</>}
+          </div>
         </div>
       )}
 

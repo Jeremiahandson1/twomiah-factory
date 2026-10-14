@@ -12,7 +12,7 @@ import { TwoFactorCard } from '../auth/TwoFactorCard'
 interface CompanyForm { name: string; email: string; phone: string; address: string; city: string; state: string; zip: string; website: string; licenseNumber: string; defaultTaxRate: string; paymentTermsDays: string; logo: string; primaryColor: string }
 /** The colour the portal header and the Stripe payment form fall back to when a tenant has not set one. */
 const DEFAULT_BRAND = '#f97316'
-interface NewUserForm { firstName: string; lastName: string; email: string; password: string; role: RoleOption['value'] }
+interface NewUserForm { firstName: string; lastName: string; email: string; password: string; role: RoleOption['value']; invite: boolean }
 
 /**
  * The side links, each with the lowest rung its own page will serve. Every one of these was shown to
@@ -32,7 +32,7 @@ const SUB_PAGES = [
   { to: '/crm/settings/migration', label: 'Migrate Data', icon: ArrowRightLeft, needs: 'admin' },
   { to: '/crm/settings/import', label: 'Import from CSV', icon: Upload, needs: 'admin' },
 ]
-const emptyUser = (): NewUserForm => ({ firstName: '', lastName: '', email: '', password: '', role: 'field' })
+const emptyUser = (): NewUserForm => ({ firstName: '', lastName: '', email: '', password: '', role: 'field', invite: true })
 
 export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const confirm = useConfirm()
@@ -156,15 +156,29 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     } catch (err) { toast.error(errMsg(err, 'Failed to change password')) } finally { setSaving(false) }
   }
 
-  // Adding a teammate is what makes the seat-based plan real. The admin sets the first password and
-  // passes it along — no invite email, because tenant outbound mail isn't guaranteed.
+  // Adding a teammate is what makes the seat-based plan real. By default they are EMAILED a link to choose their own
+  // password (7 days, once); an admin who hands logins over in person can still set the first password. (E2E run 1)
   const addUser = async () => {
     if (!newUser.firstName.trim() || !newUser.lastName.trim()) { toast.error('First and last name are required'); return }
     if (!newUser.email.trim()) { toast.error('Email is required'); return }
-    if (newUser.password.length < 8) { toast.error('Password must be at least 8 characters'); return }
+    if (!newUser.invite && newUser.password.length < 8) { toast.error('Password must be at least 8 characters'); return }
     setAddingUser(true)
-    try { await api.post('/api/company/users', newUser); toast.success('User added'); setAddUserOpen(false); setNewUser(emptyUser()); loadUsers() }
+    try {
+      const { invite, password, ...person } = newUser
+      const created: any = await api.post('/api/company/users', invite ? person : { ...person, password })
+      if (!created?.invited) toast.success('User added')
+      else if (created.inviteSent) toast.success(`Invite sent to ${person.email}`)
+      else toast.error(`${person.firstName} was added, but the invite email could not be sent. Use Resend invite, or set their password instead.`)
+      setAddUserOpen(false); setNewUser(emptyUser()); loadUsers()
+    }
     catch (err) { toast.error(errMsg(err, 'Could not add the user')) } finally { setAddingUser(false) }
+  }
+  const resendInvite = async (u: any) => {
+    try {
+      const r: any = await api.post(`/api/company/users/${u.id}/invite`, {})
+      if (r?.inviteSent) toast.success(`A new invite is on its way to ${u.email}`)
+      else toast.error('The invite email could not be sent. Try again in a moment.')
+    } catch (err) { toast.error(errMsg(err, 'Could not resend the invite')) }
   }
   // Revoking access is a deactivation, not a delete — jobs and quotes point at this user, and the seat
   // count is of ACTIVE users, so this is also what frees a seat.
@@ -431,6 +445,10 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                               {mayTransfer && u.role !== 'owner' && u.isActive && (
                                 <button type="button" onClick={() => setTransferTo(u)} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">Make owner</button>
                               )}
+                              {/* Never signed in: the invite may have expired or gone to spam. */}
+                              {u.isActive && !u.lastLogin && (
+                                <button type="button" onClick={() => resendInvite(u)} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mr-3 dark:text-indigo-300 dark:hover:text-indigo-200">Resend invite</button>
+                              )}
                               <button type="button" onClick={() => toggleAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400' : 'text-green-700 hover:text-green-800 dark:hover:text-green-300 dark:text-green-300'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
                             </>
                           ) : null}
@@ -479,7 +497,13 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         <Field label="Last name *"><input value={newUser.lastName} onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })} className={inputCls} /></Field>
                       </div>
                       <Field label="Email *"><input type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} className={inputCls} /></Field>
-                      <Field label="Temporary password *" hint="Share this with them — they can change it after signing in."><input type="password" autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="At least 8 characters" className={inputCls} /></Field>
+                      <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
+                        <input type="checkbox" className="mt-0.5" checked={newUser.invite} onChange={(e) => setNewUser({ ...newUser, invite: e.target.checked })} />
+                        <span>Email them an invite to choose their own password<span className="block text-xs text-gray-500 dark:text-slate-400">The link works once, for 7 days.</span></span>
+                      </label>
+                      {!newUser.invite && (
+                        <Field label="Temporary password *" hint="Share this with them — they can change it after signing in."><input type="password" autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="At least 8 characters" className={inputCls} /></Field>
+                      )}
                       <Field label="Access Role">
                         <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as RoleOption['value'] })} className={inputCls}>
                           {roles.map((r) => <option key={r.value} value={r.value}>{r.label} — {r.description}</option>)}
@@ -488,7 +512,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                     </div>
                     <div className="flex justify-end gap-2 mt-6">
                       <Button variant="secondary" onClick={() => setAddUserOpen(false)}>Cancel</Button>
-                      <Button onClick={addUser} disabled={addingUser}>{addingUser ? 'Adding...' : 'Add User'}</Button>
+                      <Button onClick={addUser} disabled={addingUser}>{addingUser ? 'Adding...' : newUser.invite ? 'Send invite' : 'Add User'}</Button>
                     </div>
                   </div>
                 </div>

@@ -259,7 +259,11 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
         )}
       </div>
 
-      <DataTable<JobRow> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={(row) => navigate(`/crm/jobs/${row.id}`)} actions={actions} emptyMessage={`No ${cfg.labels.plural.toLowerCase()} found`} />
+      <DataTable<JobRow> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={(row) => navigate(`/crm/jobs/${row.id}`)} actions={actions}
+        emptyMessage={search || statusFilter || projectFilter || branchFilter ? `No ${cfg.labels.plural.toLowerCase()} match` : `No ${cfg.labels.plural.toLowerCase()} yet`}
+        emptyHint={search || statusFilter || projectFilter || branchFilter ? 'Try a different search or clear the filters.' : `Schedule work for a customer here — or turn an accepted quote into a ${cfg.labels.singular.toLowerCase()}.`}
+        emptyAction={!search && !statusFilter && !projectFilter && !branchFilter && mayCreate ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline" />{cfg.labels.add}</Button> : undefined}
+      />
 
       {/* The dialog echoes the button that opened it, and keeps echoing it when a vertical renames the button:
           "Add Job" opened something headed "New Job". (T14 L3) */}

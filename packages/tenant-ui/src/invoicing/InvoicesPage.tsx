@@ -202,7 +202,11 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
           {statuses.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
         </select>
       </div>
-      <DataTable<Row> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={row => navigate(`/crm/invoices/${row.id}`)} emptyMessage="No invoices yet." actions={[
+      <DataTable<Row> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={row => navigate(`/crm/invoices/${row.id}`)}
+        emptyMessage={statusFilter ? 'No invoices match' : 'No invoices yet'}
+        emptyHint={statusFilter ? 'Try a different status or clear the filter.' : 'Bill a customer here, or turn an accepted quote into an invoice. Payments are recorded against it.'}
+        emptyAction={!statusFilter && mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4" /> New Invoice</Button> : undefined}
+        actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit, show: r => mayUpdate && !['void', 'refunded'].includes(r.status) },
         { label: 'Send', icon: Send, onClick: handleSend, show: r => mayUpdate && !['void', 'refunded'].includes(r.status) },
         { label: 'Record Payment', icon: DollarSign, onClick: openPayment, show: r => mayTakeMoney && !['void', 'refunded'].includes(r.status) && balanceOf(r) > 0.005 },

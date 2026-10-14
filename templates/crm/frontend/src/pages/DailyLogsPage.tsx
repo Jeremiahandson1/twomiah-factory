@@ -133,7 +133,11 @@ export default function DailyLogsPage() {
           </Link>
         </div>
       )}
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[{ label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('daily-logs:update') }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('daily-logs:delete') }]} />
+      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
+        emptyMessage='No daily logs yet'
+        emptyHint="Record each day on site — crew, weather, work done and any delays."
+        emptyAction={can('daily-logs:create') ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>New Log</Button> : undefined}
+        actions={[{ label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('daily-logs:update') }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('daily-logs:delete') }]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Log' : 'New Daily Log'} size="lg">
         <div className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">

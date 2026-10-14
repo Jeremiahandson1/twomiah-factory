@@ -121,7 +121,11 @@ export default function InspectionsPage() {
   return (
     <div>
       <PageHeader title="Inspections" action={can('inspections:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Schedule Inspection</Button> : undefined} />
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
+      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
+        emptyMessage='No inspections yet'
+        emptyHint="Schedule permit and quality inspections and record whether each one passed."
+        emptyAction={can('inspections:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Schedule Inspection</Button> : undefined}
+        actions={[
         // A result is recorded once, so Pass and Fail are offered only while there is no result.
         { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => can('inspections:update') && AWAITING.includes(r.status as string) },
         { label: 'Pass', icon: Check, onClick: handlePass, show: (r: Record<string, unknown>) => can('inspections:update') && AWAITING.includes(r.status as string) },

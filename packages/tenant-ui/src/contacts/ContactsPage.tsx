@@ -280,7 +280,11 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
         onPageChange={setPage}
         onRowClick={(row) => navigate(`/crm/contacts/${row.id}`)}
         actions={actions}
-        emptyMessage="No contacts found"
+        // A search or a type filter that matches nothing is a different empty from a new company's: only the
+        // second is told how to start. (E2E run 1)
+        emptyMessage={search || typeFilter ? 'No contacts match' : 'No contacts yet'}
+        emptyHint={search || typeFilter ? 'Try a different search or clear the filter.' : 'Add your customers and leads here — every job, quote and invoice starts from a contact.'}
+        emptyAction={!search && !typeFilter && mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Contact</Button> : undefined}
       />
 
       {/* The dialog echoes the button that opened it: "Add Contact" opened something headed "New Contact". (T14 L3) */}

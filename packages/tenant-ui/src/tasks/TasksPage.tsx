@@ -208,7 +208,18 @@ export default function TasksPage({ api }: TasksPageProps) {
       ) : tasks.length === 0 ? (
         <div className="text-center py-12 text-gray-500 dark:text-slate-400">
           <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>No tasks found</p>
+          {/* A filter that matches nothing is not a new company's empty list; only the second is told how to start. (E2E run 1) */}
+          <p className="font-medium text-gray-700 dark:text-slate-200">{filter === 'all' ? 'No tasks yet' : `No ${filter} tasks`}</p>
+          {filter === 'all' && <p className="mt-1 text-sm">Keep the follow-ups and to-dos for your team here, each with a due date and who it is for.</p>}
+          {filter === 'all' && mayCreate && (
+            <button
+              onClick={() => { setEditingTask(null); setShowForm(true); }}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+            >
+              <Plus className="w-4 h-4" />
+              New Task
+            </button>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-xl border divide-y dark:bg-slate-900">

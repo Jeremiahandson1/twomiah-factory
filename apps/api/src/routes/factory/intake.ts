@@ -237,6 +237,11 @@ function signupImages(b: any): { logo?: string; favicon?: string; heroPhoto?: st
 // differ. SIGNUP_WEBSITE_ENGINE=premium (a factory env var, flipped on Render): the premium site,
 // composed instantly from the signup's answers (instantComposer) and deployed on its own disk.
 // Unset: the standard template, as before. Flipping it back is the rollback.
+/** A short free-text signup answer, trimmed and capped; anything that is not a string is no answer. */
+function signupText(v: unknown, max = 80): string | undefined {
+  return typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined
+}
+
 function signupWebsiteEngine(): 'premium' | 'standard' {
   return String(process.env.SIGNUP_WEBSITE_ENGINE || '').trim().toLowerCase() === 'premium' ? 'premium' : 'standard'
 }
@@ -445,6 +450,10 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
         industry: body.industry || undefined,
         plan: body.plan || 'starter10',
         defaultPassword: body.admin_password || undefined,
+        // The owner's own name for their CRM login. Signup asked for it and only ever wrote it into `notes`
+        // ("Admin: John Test"), so every owner was seeded as "Admin User". (E2E run 1, 10/14)
+        ownerFirstName: signupText(body.owner_first_name),
+        ownerLastName: signupText(body.owner_last_name),
       },
       branding: {
         primaryColor: body.primary_color || '#FF3D00',

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, Globe, Palette, Settings,
   Clock, LogOut, ArrowRight, ExternalLink,
-  Camera, Sparkles, BookOpen, Ruler,
+  Sparkles, BookOpen, Ruler,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { brandSurfaceUnderWhite } from '../shared';
@@ -175,29 +175,6 @@ export default function CustomerPortal() {
               <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Pricebook</h3>
               <p className="text-sm text-slate-500">
                 Standardized pricing catalog — consistent quotes, faster estimates
-              </p>
-            </div>
-          )}
-
-          {/* Exterior Visualizer Promo */}
-          {!hasFeature('visualizer') && (
-            <div
-              onClick={() => navigate('/crm/visualizer-trial')}
-              className="bg-white rounded-xl border border-violet-200 border-dashed p-6 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center">
-                  <Camera className="w-6 h-6 text-violet-600" />
-                </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-violet-100 text-violet-700 px-2 py-1 rounded-full dark:bg-violet-950/40 dark:text-violet-300">
-                  <Sparkles className="w-3 h-3" />
-                  FREE TRIAL
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-slate-100">Exterior Visualizer</h3>
-              <p className="text-sm text-slate-500">
-                Show customers what their home will look like — AI-powered exterior renderings
               </p>
             </div>
           )}

@@ -166,7 +166,11 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
         </select>
         <div className="relative"><Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" /><input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Search number or name" className={`${inputCls} pl-9 w-64`} /></div>
       </div>
-      <DataTable<Row> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={row => navigate(`/crm/quotes/${row.id}`)} emptyMessage="No quotes yet." actions={[
+      <DataTable<Row> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={row => navigate(`/crm/quotes/${row.id}`)}
+        emptyMessage={search || statusFilter ? 'No quotes match' : 'No quotes yet'}
+        emptyHint={search || statusFilter ? 'Try a different search or clear the filter.' : 'Price a job for a customer, send it, and turn it into a job or an invoice when they accept.'}
+        emptyAction={!search && !statusFilter && mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4" /> New Quote</Button> : undefined}
+        actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit, show: r => mayUpdate && EDITABLE.includes(r.status) },
         { label: 'Send', icon: Send, onClick: r => act(`/api/quotes/${r.id}/send`, 'Quote sent'), show: r => mayUpdate && EDITABLE.includes(r.status) },
         { label: 'Mark approved', icon: Check, onClick: r => act(`/api/quotes/${r.id}/approve`, 'Quote approved'), show: r => mayUpdate && EDITABLE.includes(r.status) },

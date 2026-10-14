@@ -39,7 +39,6 @@ import ImportPage from './pages/roofing/ImportPage'
 import AdsPage from './pages/ads/AdsPage'
 import RoofReportsPage from './pages/roofReports/RoofReportsPage'
 import RoofReportDetail from './pages/roofReports/RoofReportDetail'
-import VisualizerTrialPage from './pages/VisualizerTrialPage'
 import PricebookTrialPage from './pages/PricebookTrialPage'
 import EstimatorTrialPage from './pages/EstimatorTrialPage'
 import EstimatorPage from './pages/EstimatorPage'
@@ -222,7 +221,6 @@ export default function App() {
                 <Route path="import" element={<ImportPage />} />
                 <Route path="roof-reports" element={<FeatureRoute feature="measurement_reports"><RoofReportsPage /></FeatureRoute>} />
                 <Route path="roof-reports/:id" element={<FeatureRoute feature="measurement_reports"><RoofReportDetail /></FeatureRoute>} />
-                <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
                 <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                 <Route path="estimator-trial" element={<EstimatorTrialPage />} />
                 <Route path="reviews" element={<FeatureRoute feature="google_reviews"><ReviewsPage /></FeatureRoute>} />

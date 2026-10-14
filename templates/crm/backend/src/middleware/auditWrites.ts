@@ -162,6 +162,9 @@ export const actionFromPath = (path: string, method: string): string => {
 const singular = (word: string): string => {
   if (/ies$/.test(word)) return word.replace(/ies$/, 'y')
   if (/(ss|ch|sh|x|z)es$/.test(word)) return word.replace(/es$/, '')
+  // aliases → alias: a word that already ends in -ias takes -es. Kept to -iases — purchases, leases and phases
+  // are -ase words and keep their e. (E2E run 1, 10/14: the audit filter read "Email aliase")
+  if (/iases$/.test(word)) return word.replace(/es$/, '')
   if (/(us|ss|is)$/.test(word)) return word
   if (/s$/.test(word)) return word.replace(/s$/, '')
   return word

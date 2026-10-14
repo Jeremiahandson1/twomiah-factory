@@ -100,6 +100,9 @@ export interface GenerateConfig {
     zip?: string
     domain?: string
     ownerName?: string
+    /** Signup asks for first and last separately; kept apart so "Mary Ann Smith" is not split at the first space. */
+    ownerFirstName?: string
+    ownerLastName?: string
     industry?: string
     serviceRegion?: string
     nearbyCities?: string[]
@@ -354,7 +357,8 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       const crmTemplate = crmTemplateFor(crmIndustry)
       const crmOutputDir = crmTemplate
       console.log('[Generator] CRM template:', crmTemplate, '→', path.join(workDir, crmOutputDir))
-      copyTemplate(crmTemplate, path.join(workDir, crmOutputDir), tokens)
+      const crmTokens = crmTokenMap(config, tokens)
+      copyTemplate(crmTemplate, path.join(workDir, crmOutputDir), crmTokens)
       // Verify critical files were copied
       const backendIndex = path.join(workDir, crmOutputDir, 'backend', 'src', 'index.ts')
       if (!fs.existsSync(backendIndex)) {
@@ -364,8 +368,8 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       }
       // Vendor shared packages into the tenant's src/shared/ so the generated
       // repo stays fully standalone (no @twomiah/* workspace imports at runtime).
-      vendorSharedCode(path.join(workDir, crmOutputDir), tokens)
-      processCRM(path.join(workDir, crmOutputDir), config, tokens)
+      vendorSharedCode(path.join(workDir, crmOutputDir), crmTokens)
+      processCRM(path.join(workDir, crmOutputDir), config, crmTokens)
       await writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding, config.company?.name)
     }
 
@@ -518,6 +522,21 @@ function websiteTokenMap(config: GenerateConfig, tokens: Record<string, string>)
   }
 }
 
+// The CRM stores these as the company's own record — Settings › Company and onboarding step 1 show them as saved
+// values. buildTokenMap's stand-ins (Your City, ST, 00000) were written there whenever signup left them out, and the
+// owner was asked to confirm them as if they were theirs (E2E run 1, 10/14). A blank field is one the owner fills in.
+function crmTokenMap(config: GenerateConfig, tokens: Record<string, string>): Record<string, string> {
+  const c = config.company || ({} as GenerateConfig['company'])
+  return {
+    ...tokens,
+    '{{COMPANY_ADDRESS}}': c.address || '',
+    '{{CITY}}': c.city || '',
+    '{{STATE}}': c.state || '',
+    '{{STATE_FULL}}': c.stateFull || c.state || '',
+    '{{ZIP}}': c.zip || '',
+  }
+}
+
 function buildTokenMap(config: GenerateConfig, slug: string): Record<string, string> {
   const c = config.company || ({} as GenerateConfig['company'])
   const b = config.branding || {}
@@ -538,8 +557,8 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
   const siteOrigin = c.domain ? 'https://' + c.domain : (hasSite ? renderSiteOrigin : '')
 
   const ownerParts = (c.ownerName || 'Admin User').split(' ')
-  const firstName = ownerParts[0] || 'Admin'
-  const lastName = ownerParts.slice(1).join(' ') || 'User'
+  const firstName = c.ownerFirstName?.trim() || ownerParts[0] || 'Admin'
+  const lastName = c.ownerLastName?.trim() || ownerParts.slice(1).join(' ') || 'User'
   const defaultPassword = c.defaultPassword || generatePassword()
 
   // Deduped, real service areas (city + any operator-entered nearby cities).
@@ -666,7 +685,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       : industry === 'dispensary'
       ? 'Browse our menu and order online.'
       : 'Ready to start your project? Get in touch today.'),
-    '{{OWNER_NAME}}': c.ownerName || 'Admin',
+    '{{OWNER_NAME}}': c.ownerName || [c.ownerFirstName, c.ownerLastName].map((s) => (s || '').trim()).filter(Boolean).join(' ') || 'Admin',
     '{{OWNER_FIRST_NAME}}': firstName,
     '{{OWNER_LAST_NAME}}': lastName,
     '{{ADMIN_EMAIL}}': c.adminEmail || c.email || 'admin@' + slug + '.com',

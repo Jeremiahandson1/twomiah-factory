@@ -54,7 +54,16 @@ export interface CompanyDeps {
   options?: { roles?: string[] }
   /** Called (not awaited) after a successful feature save with the saved list — e.g. the Ads connector registers the tenant when paid_ads turns on. */
   onFeaturesChanged?: (features: string[]) => void
+  /**
+   * Email a new teammate a link to choose their own password — the template's teamInvite email, its link built on
+   * the reset-password page from `resetToken`. Not wired → adding a user still needs a password set by the admin,
+   * which is all there was until 10/14 (E2E run 1: "no invite email is sent").
+   */
+  sendInvite?: (to: string, data: { firstName: string; inviterName: string; companyName: string; role: string; resetToken: string }) => Promise<unknown>
 }
+
+/** How long an emailed invite link works. The teamInvite email says so: "This invitation expires in 7 days." */
+export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 export const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword'] as const
 export function sanitizeCompany<T extends Record<string, any>>(row: T): T {
@@ -166,7 +175,7 @@ const withCanonicalRole = <T extends { role?: unknown }>(row: T): T =>
   (row && row.role === 'user' ? { ...row, role: 'field' } : row)
 
 export function createCompanyRoutes(deps: CompanyDeps) {
-  const { db, tables: t, authenticate, requireAdmin, requirePermission, requireAnyPermission, canSee, invalidateExtraPermissions, template, roleLabel } = deps
+  const { db, tables: t, authenticate, requireAdmin, requirePermission, requireAnyPermission, canSee, invalidateExtraPermissions, template, roleLabel, sendInvite } = deps
   const roles = (deps.options?.roles && deps.options.roles.length ? deps.options.roles : DEFAULT_ROLES) as [string, ...string[]]
   const app = new Hono()
   app.use('*', authenticate)
@@ -540,17 +549,25 @@ export function createCompanyRoutes(deps: CompanyDeps) {
      * users, because that is what a plan charges for, and refusing to create a suspended account on
      * a full plan would make the one safe thing an admin can do impossible.
      */
-    const schema = z.object({ email: z.string().email(), password: z.string().min(8), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(roles).default('user'), isActive: z.boolean().optional() })
+    // No password = an INVITE: the person is emailed a link to choose their own, which works once and for
+    // INVITE_TTL_MS. A password the admin sets is still accepted, for a shop that hands logins over in person.
+    const schema = z.object({ email: z.string().email(), password: z.string().min(8).optional(), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(roles).default('user'), isActive: z.boolean().optional() })
     const body = await readBody(c)
     if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
+    if (body.password === '') delete body.password
     const parsed = schema.safeParse(body)
     if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid user details' }, 400)
     const { password, ...rest } = parsed.data
+    const invite = !password
+    if (invite && !sendInvite) return c.json({ error: 'Set a first password for them (at least 8 characters).' }, 400)
+    if (invite && rest.isActive === false) return c.json({ error: 'An invite is for someone who can sign in — set a password to create a suspended account.' }, 400)
     // One spelling from here on — see canonicalRole. The schema still DEFAULTS to 'user' because
     // that default is also what older callers rely on; what changes is what gets stored. (T51)
     rest.role = canonicalRole(rest.role) as typeof rest.role
-    // Hash before opening the transaction — bcrypt takes ~100ms and must not run under a row lock.
-    const passwordHash = await Bun.password.hash(password, 'bcrypt')
+    // Hash before opening the transaction — bcrypt takes ~100ms and must not run under a row lock. An invited
+    // person's stored password is random and never told to anyone; the link replaces it.
+    const passwordHash = await Bun.password.hash(password || crypto.randomUUID() + crypto.randomUUID(), 'bcrypt')
+    const inviteFields = invite ? { resetToken: crypto.randomUUID(), resetTokenExp: new Date(Date.now() + INVITE_TTL_MS) } : {}
 
     // Seat cap: SEAT_LIMIT (env, written by the Factory) wins; settings.seatLimit lets staff change it
     // without a redeploy; neither set => no cap. The count and the insert happen under a lock on the
@@ -568,10 +585,49 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       }
       const [existing] = await tx.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.email, rest.email), eq(t.user.companyId, currentUser.companyId))).limit(1)
       if (existing) return { status: 409 as const, body: { error: 'Email already exists' } }
-      const [created] = await tx.insert(t.user).values({ ...rest, passwordHash, companyId: currentUser.companyId }).returning(USER_COLUMNS(t.user))
-      return { status: 201 as const, body: created }
+      const [created] = await tx.insert(t.user).values({ ...rest, ...inviteFields, passwordHash, companyId: currentUser.companyId }).returning(USER_COLUMNS(t.user))
+      return { status: 201 as const, body: created, companyName: companyRow?.name as string | undefined }
     })
-    return c.json(outcome.body as any, outcome.status)
+    if (outcome.status !== 201 || !invite) return c.json(outcome.body as any, outcome.status)
+    // Sent after the row is committed. A failed send leaves the seat in place, says so, and Resend invite retries it.
+    const inviteSent = await emailInvite(currentUser, { email: rest.email, firstName: rest.firstName, role: rest.role }, (inviteFields as any).resetToken, outcome.companyName)
+    return c.json({ ...(outcome.body as any), invited: true, inviteSent }, 201)
+  })
+
+  /** The teamInvite email — true when the provider accepted it. Never throws: the seat already exists. */
+  const emailInvite = async (currentUser: any, to: { email: string; firstName: string; role: string }, resetToken: string, companyName?: string): Promise<boolean> => {
+    if (!sendInvite) return false
+    try {
+      const [inviter] = await db.select({ firstName: t.user.firstName, lastName: t.user.lastName }).from(t.user).where(eq(t.user.id, currentUser.userId)).limit(1)
+      let name = companyName
+      if (!name) { const [co] = await db.select({ name: t.company.name }).from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1); name = co?.name }
+      const result: any = await sendInvite(to.email, {
+        firstName: to.firstName,
+        inviterName: [inviter?.firstName, inviter?.lastName].filter(Boolean).join(' ') || 'Your team',
+        companyName: name || 'your company',
+        role: roleLabel ? roleLabel(to.role) : to.role,
+        resetToken,
+      })
+      // The template email services answer { success } rather than throwing on a refused send.
+      return !(result && typeof result === 'object' && result.success === false)
+    } catch { return false }
+  }
+
+  /**
+   * Send the invite again — a fresh 7-day link, for someone who has never signed in (the first one expired, went
+   * to spam, or was never sent). Anyone who has signed in uses Forgot password like everyone else.
+   */
+  app.post('/users/:id/invite', requireAdmin, async (c) => {
+    const currentUser = c.get('user') as any
+    if (!sendInvite) return c.json({ error: 'Invites are not available here — set their password instead.' }, 400)
+    const [target] = await db.select().from(t.user).where(and(eq(t.user.id, c.req.param('id')), eq(t.user.companyId, currentUser.companyId))).limit(1)
+    if (!target) return c.json({ error: 'User not found' }, 404)
+    if (!target.isActive) return c.json({ error: 'Restore their access first — a suspended account cannot sign in.' }, 409)
+    if (target.lastLogin) return c.json({ error: 'They have already signed in. If they have lost their password, Forgot password on the sign-in page sends them a new link.' }, 409)
+    const resetToken = crypto.randomUUID()
+    await db.update(t.user).set({ resetToken, resetTokenExp: new Date(Date.now() + INVITE_TTL_MS), updatedAt: new Date() }).where(eq(t.user.id, target.id))
+    const inviteSent = await emailInvite(currentUser, { email: target.email, firstName: target.firstName, role: target.role }, resetToken)
+    return c.json({ invited: true, inviteSent })
   })
 
   const findTarget = async (id: string, companyId: string) => {

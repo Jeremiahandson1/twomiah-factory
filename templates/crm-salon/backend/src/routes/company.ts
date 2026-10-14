@@ -7,6 +7,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { requirePermission, invalidateExtraPermissions, roleLabel, requireAnyPermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
 import audit from '../services/audit.ts'
+import emailService from '../services/email.ts'
 import { adsConnector } from './ads.ts'
 
 export default createCompanyRoutes({
@@ -26,4 +27,7 @@ export default createCompanyRoutes({
   audit,
   template: CRM_TEMPLATE,
   onFeaturesChanged: (features) => adsConnector.onFeaturesChanged(features),
+  // Add User can email the person a link to choose their own password; it lands on the reset-password page,
+  // the same one Forgot password uses, and works once for 7 days. (E2E run 1, 10/14)
+  sendInvite: (to, data) => emailService.sendTeamInvite(to, { ...data, inviteLink: `${process.env.FRONTEND_URL || ''}/reset-password?token=${data.resetToken}` }),
 })

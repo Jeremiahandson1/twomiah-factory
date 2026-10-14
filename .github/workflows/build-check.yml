@@ -2311,6 +2311,9 @@ jobs:
       # happy-dom, so this needs the root dev dependencies — the two above are dependency-free.
       - name: "The cart keeps a shopper's email and reward across a re-render"
         run: bun install --frozen-lockfile && bun run tests/shared/cart-dom.test.ts
+      # after the install above: factoryStripe imports the stripe package from apps/api
+      - name: "A plan subscription's renewals and cancellation reach its tenant, trial or not"
+        run: bun run tests/shared/factory-stripe-subscription.test.ts
 
   store-suite:
     name: "Store behaviour suite (real PGlite)"

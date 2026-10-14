@@ -146,11 +146,13 @@ export async function createSubscriptionCheckout(
     },
   }
 
-  if (trialDays > 0) {
-    sessionParams.subscription_data = {
-      trial_period_days: trialDays,
-      metadata: { factory_customer_id: factoryCustomer.id, plan_id: planId },
-    }
+  // The subscription carries the tenant on EVERY checkout. This was set only for a trial, and signup stopped
+  // offering trials — so customer.subscription.updated and .deleted arrived as "Not a factory subscription": the
+  // next billing date was never recorded, and a subscription canceled in Stripe never suspended its tenant.
+  // (E2E run 1, 10/14)
+  sessionParams.subscription_data = {
+    ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
+    metadata: { factory_customer_id: factoryCustomer.id, plan_id: planId },
   }
 
   const session = await stripe.checkout.sessions.create(sessionParams)
@@ -358,6 +360,19 @@ async function effectiveMonthlyAmount(sub: Stripe.Subscription): Promise<number>
 
 // ── Webhook handling ─────────────────────────────────────────────────────────
 
+/**
+ * Which tenant a plan subscription event is about. The tenant id on the subscription's metadata when it has one;
+ * otherwise the tenant whose stripe_subscription_id IS this subscription — every subscription made before the
+ * metadata was set on all checkouts (10/14) has none. An add-on subscription (messaging, AI) carries `addon` and is
+ * handled by the webhook route itself, so it is never mistaken for the plan.
+ */
+function planSubscriptionTarget(sub: Stripe.Subscription): { factoryCustomerId: string } | { lookupField: string; lookupValue: string } | null {
+  const meta = sub.metadata || {}
+  if (meta.addon) return null
+  if (meta.factory_customer_id) return { factoryCustomerId: meta.factory_customer_id }
+  return sub.id ? { lookupField: 'stripe_subscription_id', lookupValue: sub.id } : null
+}
+
 export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
   handled: boolean; factoryCustomerId?: string; lookupField?: string; lookupValue?: string; updates?: Record<string, any>; reason?: string; crmAddonTenantId?: string
 }> {
@@ -379,6 +394,14 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
         updates.stripe_subscription_id = session.subscription
         updates.status = 'active'
         if (meta.billing_cycle) updates.billing_cycle = meta.billing_cycle
+        // The first charge date is known now — Settings › Billing showed "Next billing date —" until a renewal.
+        // Read from the subscription itself; a failure here never blocks provisioning.
+        if (stripe && typeof session.subscription === 'string') {
+          try {
+            const sub = await stripe.subscriptions.retrieve(session.subscription)
+            if (sub.current_period_end) updates.next_billing_date = new Date(sub.current_period_end * 1000).toISOString()
+          } catch (err: any) { console.warn('[Stripe] Could not read the new subscription for its billing date:', err?.message) }
+        }
       } else if (meta.billing_type === 'one_time') {
         updates.billing_type = 'one_time'
         updates.billing_status = 'active'
@@ -394,8 +417,8 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
 
     case 'customer.subscription.updated': {
       const sub = event.data.object as Stripe.Subscription
-      const meta = sub.metadata || {}
-      if (!meta.factory_customer_id) return { handled: false, reason: 'Not a factory subscription' }
+      const target = planSubscriptionTarget(sub)
+      if (!target) return { handled: false, reason: 'Not a factory subscription' }
 
       const updates: Record<string, any> = {
         billing_status: sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : sub.status === 'canceled' ? 'canceled' : sub.status,
@@ -406,16 +429,16 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
       if (sub.current_period_end) {
         updates.next_billing_date = new Date(sub.current_period_end * 1000).toISOString()
       }
-      return { handled: true, factoryCustomerId: meta.factory_customer_id, updates }
+      return { handled: true, ...target, updates }
     }
 
     case 'customer.subscription.deleted': {
       const sub = event.data.object as Stripe.Subscription
-      const meta = sub.metadata || {}
-      if (!meta.factory_customer_id) return { handled: false }
+      const target = planSubscriptionTarget(sub)
+      if (!target) return { handled: false }
       return {
         handled: true,
-        factoryCustomerId: meta.factory_customer_id,
+        ...target,
         updates: { billing_status: 'canceled', status: 'suspended', stripe_subscription_id: null },
       }
     }
@@ -423,11 +446,16 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
     case 'invoice.paid': {
       const invoice = event.data.object as Stripe.Invoice
       if (!invoice.subscription) return { handled: false }
+      // The paid period's end is the next charge — kept current on every renewal, the first one included.
+      const periodEnd = invoice.lines?.data?.find((l) => l.type === 'subscription')?.period?.end
       return {
         handled: true,
         lookupField: 'stripe_subscription_id',
         lookupValue: invoice.subscription as string,
-        updates: { billing_status: 'active', paid_at: new Date().toISOString() },
+        updates: {
+          billing_status: 'active', paid_at: new Date().toISOString(),
+          ...(periodEnd ? { next_billing_date: new Date(periodEnd * 1000).toISOString() } : {}),
+        },
       }
     }
 

@@ -34,6 +34,10 @@ interface DataTableProps<T = Record<string, unknown>> {
   onRowClick?: (row: T) => void;
   actions?: DataTableAction<T>[];
   emptyMessage?: string;
+  /** What to do next when there is nothing yet — a new company's every list is empty. (E2E run 1) */
+  emptyHint?: string;
+  /** The button for that next step. Pass it only when this person may take the step. */
+  emptyAction?: React.ReactNode;
   searchPlaceholder?: string;
   onSearch?: (value: string) => void;
   searchValue?: string;
@@ -48,6 +52,8 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
   onRowClick,
   actions,
   emptyMessage = 'No data found',
+  emptyHint,
+  emptyAction,
   searchPlaceholder = 'Search...',
   onSearch,
   searchValue = '',
@@ -130,7 +136,9 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
             ) : data.length === 0 ? (
               <tr>
                 <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
-                  {emptyMessage}
+                  <div className="font-medium text-gray-700 dark:text-slate-200">{emptyMessage}</div>
+                  {emptyHint && <p className="mt-1 text-sm">{emptyHint}</p>}
+                  {emptyAction && <div className="mt-4 flex justify-center">{emptyAction}</div>}
                 </td>
               </tr>
             ) : (

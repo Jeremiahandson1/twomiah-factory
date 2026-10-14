@@ -127,7 +127,11 @@ export default function PunchListsPage() {
           </Link>
         </div>
       )}
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
+      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
+        emptyMessage={projectFilter ? 'No punch list items yet on this project' : 'No punch list items yet'}
+        emptyHint="Near the end of a project, list what is left to fix or finish and check each item off."
+        emptyAction={can('punch-lists:create') ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>Add Item</Button> : undefined}
+        actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('punch-lists:update') },
         { label: 'Complete', icon: Check, onClick: handleComplete, show: () => can('punch-lists:update') },
         { label: 'Verify', icon: CheckCheck, onClick: handleVerify, show: () => can('punch-lists:update') },

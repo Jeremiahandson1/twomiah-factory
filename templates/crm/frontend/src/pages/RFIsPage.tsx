@@ -140,7 +140,11 @@ export default function RFIsPage() {
           </Link>
         </div>
       )}
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
+      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
+        emptyMessage={projectFilter ? 'No RFIs yet on this project' : 'No RFIs yet'}
+        emptyHint="When a question for the architect, engineer or owner comes up on a project, log it here and track the answer."
+        emptyAction={can('rfis:create') ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>New RFI</Button> : undefined}
+        actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('rfis:update') },
         { label: 'Respond', icon: MessageSquare, show: () => can('rfis:update'), onClick: (r: Record<string, unknown>) => { setRespondRfi(r); setResponse((r.response as string) || ''); setRespondOpen(true); } },
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('rfis:delete') },
