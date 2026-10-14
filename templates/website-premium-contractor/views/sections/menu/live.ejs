@@ -1,0 +1,200 @@
+<%
+  // The shop's real menu, fetched by the server from the CRM's public menu (CRM_MENU=1) — never
+  // composed. Products, prices, stock and potency are the register's. When the shop has Order Ahead
+  // on in the CRM, products get an Add button and a pickup checkout that posts to /api/order.
+  const categories = Array.isArray(data.categories) ? data.categories : []
+  const ordering = data.ordering === true
+  const money = (v) => {
+    const n = Number(v)
+    return Number.isFinite(n) && n > 0 ? '$' + n.toFixed(2) : ''
+  }
+  const pct = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? '' : Number(v) + '%')
+%>
+<section class="crm-menu" id="menu" aria-label="Menu">
+  <div class="container">
+    <% if (!categories.length) { %>
+      <p class="crm-menu__empty">Our menu is being updated — please call us for what's in stock today.</p>
+    <% } else { %>
+      <div class="crm-menu__tools">
+        <nav class="crm-menu__cats" aria-label="Menu categories">
+          <% categories.forEach(function (cat) { %><a href="#cat-<%= cat.key %>"><%= cat.label %></a><% }) %>
+        </nav>
+        <input class="crm-menu__search" type="search" placeholder="Search the menu" aria-label="Search the menu" data-menu-search>
+      </div>
+      <% categories.forEach(function (cat) { %>
+        <div class="crm-menu__cat" id="cat-<%= cat.key %>">
+          <h2 class="crm-menu__cat-title"><%= cat.label %></h2>
+          <ul class="crm-menu__grid">
+            <% cat.products.forEach(function (p) { %>
+              <li class="crm-menu__item<%= p.inStock ? '' : ' is-out' %>" data-name="<%= (p.name + ' ' + (p.brand || '') + ' ' + (p.strainType || '')).toLowerCase() %>">
+                <% if (p.image) { %><img class="crm-menu__img" src="<%= p.image %>" alt="<%= p.name %>" loading="lazy"><% } %>
+                <div class="crm-menu__body">
+                  <% if (p.brand) { %><div class="crm-menu__brand"><%= p.brand %></div><% } %>
+                  <div class="crm-menu__name"><%= p.name %></div>
+                  <div class="crm-menu__meta">
+                    <% if (p.strainType) { %><span class="crm-menu__chip"><%= p.strainType %></span><% } %>
+                    <% if (pct(p.thc)) { %><span>THC <%= pct(p.thc) %></span><% } %>
+                    <% if (pct(p.cbd)) { %><span>CBD <%= pct(p.cbd) %></span><% } %>
+                    <% if (p.weight) { %><span><%= p.weight %><%= p.weightUnit || '' %></span><% } %>
+                  </div>
+                  <div class="crm-menu__row">
+                    <span class="crm-menu__price"><%= money(p.price) %></span>
+                    <% if (!p.inStock) { %>
+                      <span class="crm-menu__out">Out of stock</span>
+                    <% } else if (ordering) { %>
+                      <button type="button" class="btn btn--primary crm-menu__add" data-add="<%= JSON.stringify({ id: p.id, name: p.name, price: Number(p.price) || 0, cannabis: !!p.isCannabis }) %>">Add</button>
+                    <% } %>
+                  </div>
+                </div>
+              </li>
+            <% }) %>
+          </ul>
+        </div>
+      <% }) %>
+      <p class="crm-menu__none" hidden data-menu-none>Nothing on the menu matches that.</p>
+    <% } %>
+  </div>
+
+  <% if (ordering && categories.length) { %>
+    <div class="crm-cart" data-cart hidden>
+      <button type="button" class="crm-cart__bar btn btn--primary" data-cart-open>
+        <span data-cart-count>0</span> in your order · <span data-cart-total>$0.00</span> — Check out
+      </button>
+    </div>
+    <div class="crm-checkout" data-checkout hidden role="dialog" aria-modal="true" aria-labelledby="crm-checkout-h">
+      <div class="crm-checkout__card">
+        <div class="crm-checkout__head">
+          <h2 id="crm-checkout-h">Your pickup order</h2>
+          <button type="button" class="crm-checkout__close" data-cart-close aria-label="Close">×</button>
+        </div>
+        <ul class="crm-checkout__lines" data-cart-lines></ul>
+        <p class="crm-checkout__note">Taxes are added by the shop and shown on your confirmation. Pay when you pick up.</p>
+        <form class="crm-checkout__form" data-checkout-form>
+          <label>Name<input name="customerName" required autocomplete="name"></label>
+          <label>Phone<input name="customerPhone" type="tel" required autocomplete="tel"></label>
+          <label>Email (optional)<input name="customerEmail" type="email" autocomplete="email"></label>
+          <label data-dob hidden>Date of birth<input name="dateOfBirth" type="date"></label>
+          <label>When will you pick up? (optional)<input name="pickupTime" placeholder="e.g. today around 5pm"></label>
+          <label>Notes (optional)<textarea name="notes" rows="2"></textarea></label>
+          <p class="crm-checkout__msg" role="status" aria-live="polite" data-checkout-msg></p>
+          <button type="submit" class="btn btn--primary btn--lg">Place pickup order</button>
+        </form>
+        <div class="crm-checkout__done" data-checkout-done hidden></div>
+      </div>
+    </div>
+    <script>(function () {
+      var KEY = 'crm-cart-v1', cart = []
+      try { cart = JSON.parse(localStorage.getItem(KEY) || '[]') || [] } catch (e) { cart = [] }
+      var root = document.getElementById('menu')
+      var bar = root.querySelector('[data-cart]'), dlg = root.querySelector('[data-checkout]')
+      var fmt = function (n) { return '$' + (Math.round(n * 100) / 100).toFixed(2) }
+      var save = function () { try { localStorage.setItem(KEY, JSON.stringify(cart)) } catch (e) {} }
+      function render() {
+        var count = 0, total = 0
+        cart.forEach(function (l) { count += l.qty; total += l.qty * l.price })
+        bar.hidden = count === 0
+        root.querySelector('[data-cart-count]').textContent = count
+        root.querySelector('[data-cart-total]').textContent = fmt(total)
+        var ul = root.querySelector('[data-cart-lines]')
+        ul.innerHTML = ''
+        cart.forEach(function (l, i) {
+          var li = document.createElement('li')
+          var name = document.createElement('span'); name.textContent = l.name
+          var q = document.createElement('span'); q.className = 'crm-checkout__qty'
+          var minus = document.createElement('button'); minus.type = 'button'; minus.textContent = '−'; minus.setAttribute('aria-label', 'One fewer ' + l.name)
+          var n = document.createElement('span'); n.textContent = l.qty
+          var plus = document.createElement('button'); plus.type = 'button'; plus.textContent = '+'; plus.setAttribute('aria-label', 'One more ' + l.name)
+          minus.onclick = function () { l.qty -= 1; if (l.qty <= 0) cart.splice(i, 1); save(); render() }
+          plus.onclick = function () { l.qty = Math.min(99, l.qty + 1); save(); render() }
+          q.append(minus, n, plus)
+          var price = document.createElement('span'); price.textContent = fmt(l.qty * l.price)
+          li.append(name, q, price); ul.appendChild(li)
+        })
+        root.querySelector('[data-dob]').hidden = !cart.some(function (l) { return l.cannabis })
+        root.querySelector('[data-dob] input').required = cart.some(function (l) { return l.cannabis })
+        if (!count) dlg.hidden = true
+      }
+      root.querySelectorAll('[data-add]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var p = JSON.parse(b.getAttribute('data-add'))
+          var line = cart.find(function (l) { return l.id === p.id })
+          if (line) line.qty = Math.min(99, line.qty + 1); else cart.push({ id: p.id, name: p.name, price: p.price, cannabis: p.cannabis, qty: 1 })
+          save(); render(); b.textContent = 'Added'; setTimeout(function () { b.textContent = 'Add' }, 1200)
+        })
+      })
+      root.querySelector('[data-cart-open]').onclick = function () { dlg.hidden = false; render() }
+      root.querySelector('[data-cart-close]').onclick = function () { dlg.hidden = true }
+      root.querySelector('[data-checkout-form]').addEventListener('submit', function (e) {
+        e.preventDefault()
+        var f = e.target, msg = root.querySelector('[data-checkout-msg]'), btn = f.querySelector('button[type="submit"]')
+        var fd = new FormData(f), body = { items: cart.map(function (l) { return { productId: l.id, quantity: l.qty } }) }
+        fd.forEach(function (v, k) { if (String(v).trim()) body[k] = String(v).trim() })
+        btn.disabled = true; msg.textContent = 'Sending your order…'
+        fetch('/api/order', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) })
+          .then(function (r) { return r.json().catch(function () { return {} }).then(function (d) { return { ok: r.ok, d: d } }) })
+          .then(function (x) {
+            if (!x.ok) { msg.textContent = x.d.error || 'That didn’t go through. Please try again, or call us.'; btn.disabled = false; return }
+            cart = []; save(); render(); dlg.hidden = false
+            f.hidden = true
+            var done = root.querySelector('[data-checkout-done]'); done.hidden = false
+            done.textContent = 'Order ' + (x.d.orderNumber || '') + ' is in. Total ' + (x.d.total ? '$' + x.d.total : '') + ' — pay when you pick up. Bring your ID.'
+          })
+          .catch(function () { msg.textContent = 'We couldn’t reach the shop. Please check your connection, or call us.'; btn.disabled = false })
+      })
+      render()
+    })();</script>
+  <% } %>
+  <script>(function () {
+    var root = document.getElementById('menu'), input = root && root.querySelector('[data-menu-search]')
+    if (!input) return
+    input.addEventListener('input', function () {
+      var q = input.value.trim().toLowerCase(), shown = 0
+      root.querySelectorAll('.crm-menu__item').forEach(function (li) { var on = !q || li.getAttribute('data-name').indexOf(q) >= 0; li.hidden = !on; if (on) shown++ })
+      root.querySelectorAll('.crm-menu__cat').forEach(function (cat) { cat.hidden = !cat.querySelector('.crm-menu__item:not([hidden])') })
+      root.querySelector('[data-menu-none]').hidden = shown > 0
+    })
+  })();</script>
+</section>
+<style>
+  .crm-menu{padding:var(--space,64px) 0}
+  .crm-menu__tools{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:28px}
+  .crm-menu__cats{display:flex;flex-wrap:wrap;gap:8px}
+  .crm-menu__cats a{padding:8px 14px;border:1px solid var(--line,#e5e7eb);border-radius:999px;color:var(--ink,#0f172a);text-decoration:none;font-weight:600;font-size:14px}
+  .crm-menu__cats a:hover,.crm-menu__cats a:focus-visible{border-color:var(--brand);color:var(--brand)}
+  .crm-menu__search{padding:10px 14px;border:1px solid var(--line,#e5e7eb);border-radius:10px;min-width:220px;font:inherit}
+  .crm-menu__cat{margin:0 0 40px;scroll-margin-top:90px}
+  .crm-menu__cat-title{font-family:var(--font-display,serif);font-size:28px;margin:0 0 16px;color:var(--ink)}
+  .crm-menu__grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+  .crm-menu__item{border:1px solid var(--line,#e5e7eb);border-radius:12px;overflow:hidden;background:var(--white,#fff);display:flex;flex-direction:column}
+  .crm-menu__item.is-out{opacity:.6}
+  .crm-menu__img{width:100%;height:170px;object-fit:cover;display:block}
+  .crm-menu__body{padding:14px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
+  .crm-menu__brand{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#64748b)}
+  .crm-menu__name{font-weight:700;color:var(--ink);line-height:1.3}
+  .crm-menu__meta{display:flex;flex-wrap:wrap;gap:8px;font-size:13px;color:var(--ink-soft,#334155)}
+  .crm-menu__chip{padding:1px 8px;border-radius:999px;background:var(--paper,#fafaf7);border:1px solid var(--line,#e5e7eb);text-transform:capitalize}
+  .crm-menu__row{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px}
+  .crm-menu__price{font-weight:700;font-size:17px;color:var(--ink)}
+  .crm-menu__out{font-size:13px;color:var(--muted,#64748b)}
+  .crm-menu__add{padding:8px 16px}
+  .crm-menu__empty,.crm-menu__none{color:var(--ink-soft,#334155);text-align:center}
+  .crm-cart{position:fixed;left:0;right:0;bottom:16px;display:flex;justify-content:center;z-index:40;padding:0 16px}
+  .crm-cart__bar{box-shadow:0 10px 30px rgba(0,0,0,.18);max-width:520px;width:100%}
+  .crm-checkout{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+  .crm-checkout[hidden],.crm-cart[hidden]{display:none}
+  .crm-checkout__card{background:var(--white,#fff);border-radius:16px;max-width:480px;width:100%;max-height:90vh;overflow:auto;padding:24px}
+  .crm-checkout__head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .crm-checkout__head h2{margin:0;font-size:22px}
+  .crm-checkout__close{background:none;border:0;font-size:28px;line-height:1;cursor:pointer;color:var(--ink)}
+  .crm-checkout__lines{list-style:none;margin:0 0 8px;padding:0}
+  .crm-checkout__lines li{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line,#e5e7eb)}
+  .crm-checkout__qty{display:inline-flex;gap:8px;align-items:center}
+  .crm-checkout__qty button{width:28px;height:28px;border-radius:8px;border:1px solid var(--line,#e5e7eb);background:var(--white,#fff);cursor:pointer}
+  .crm-checkout__note{font-size:13px;color:var(--muted,#64748b)}
+  .crm-checkout__form{display:grid;gap:10px}
+  .crm-checkout__form label{display:grid;gap:4px;font-size:14px;font-weight:600;color:var(--ink)}
+  .crm-checkout__form label[hidden]{display:none}
+  .crm-checkout__form input,.crm-checkout__form textarea{padding:10px 12px;border:1px solid var(--line,#e5e7eb);border-radius:8px;font:inherit;font-weight:400}
+  .crm-checkout__msg{min-height:1.2em;font-size:14px;color:var(--ink-soft,#334155);margin:0}
+  .crm-checkout__done{font-size:16px;line-height:1.5}
+</style>
