@@ -370,6 +370,12 @@ for (const file of callers) {
     check(srv.indexOf("app.get('/inventory/:unit'") > 0 && srv.indexOf("app.get('/inventory/:unit'") < srv.indexOf("app.get('/:slug'"), `templates/${t}: /inventory/:unit must be registered before the /:slug catch-all`)
     check(/if \(u\.protocol !== 'https:'\) return null/.test(srv) && /h === 'localhost'/.test(srv), `templates/${t}: the inventory feed must be https and never a local address`)
     check(existsSync(ROOT + 'templates/' + t + '/views/sections/inventory/live.ejs') && existsSync(ROOT + 'templates/' + t + '/views/sections/inventory/unit.ejs'), `templates/${t}: inventory partials missing`)
+    // Visualizer + estimator: only when the site has them, and each page widens the security policy
+    // for its one origin — every other page stays 'self'-only.
+    check(/app\.get\('\/visualize', async \(c, next\) => \{\r?\n\s*if \(!VISION_ORIGIN\) return next\(\)/.test(srv), `templates/${t}: /visualize must fall through without VISION_URL`)
+    check(/app\.get\('\/estimate', async \(c, next\) => \{\r?\n\s*if \(!\(await estimatorOn\(\)\)\) return next\(\)/.test(srv), `templates/${t}: /estimate must fall through unless the CRM's estimator is on`)
+    check(/if \(!h\.has\('Permissions-Policy'\)\)/.test(read('templates/' + t + '/lib/security.ts')) && /if \(!h\.has\('Content-Security-Policy'\)\)/.test(read('templates/' + t + '/lib/security.ts')), `templates/${t}: security headers must let a page send its own policy`)
+    check(existsSync(ROOT + 'templates/' + t + '/views/sections/tools/visualizer.ejs') && existsSync(ROOT + 'templates/' + t + '/views/sections/tools/estimator.ejs'), `templates/${t}: tools partials missing`)
   }
   check(/contentGaps:\s*Array\.isArray\(composed\.contentGaps\)/.test(src), 'site-bootstrap must seed contentGaps')
   check(/parseIntakeFacts\(/.test(src), '/public/intake must parse the owner\'s fact fields')

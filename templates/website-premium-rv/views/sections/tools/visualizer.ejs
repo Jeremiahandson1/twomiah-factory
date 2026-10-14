@@ -1,0 +1,16 @@
+<%
+  // The Twomiah Visualizer for this business (VISION_URL, set when they have it), embedded. The
+  // route sends a page-specific policy that allows exactly this frame and its camera.
+  const src = data.src || ''
+%>
+<% if (src) { %>
+<section class="tool-embed" aria-label="Visualizer">
+  <div class="container">
+    <iframe class="tool-embed__frame" src="<%= src %>" title="Visualizer — try materials and colors on your home" allow="camera; clipboard-write" allowfullscreen loading="lazy"></iframe>
+  </div>
+</section>
+<style>
+  .tool-embed{padding:0 0 var(--space,64px)}
+  .tool-embed__frame{display:block;width:100%;height:min(86vh,900px);min-height:560px;border:1px solid var(--line,#e5e7eb);border-radius:14px;background:var(--white,#fff)}
+</style>
+<% } %>
