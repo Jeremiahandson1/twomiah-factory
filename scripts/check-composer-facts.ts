@@ -364,6 +364,12 @@ for (const file of callers) {
     check(srv.indexOf("app.get('/menu'") < srv.indexOf("app.get('/:slug'"), `templates/${t}: /menu must be registered before the /:slug catch-all`)
     check(/orderType: 'pickup',/.test(srv) && srv.includes("if (!CRM_MENU) return c.json({ error: 'Online ordering is not available here.' }, 404)"), `templates/${t}: /api/order must be pickup-only and off without CRM_MENU`)
     check(existsSync(ROOT + 'templates/' + t + '/views/sections/menu/live.ejs'), `templates/${t}: menu/live partial missing`)
+    // Dealer inventory comes only from the owner's feed — https, never an address inside the network —
+    // and without a feed /inventory is the composed page as before.
+    check(/app\.get\('\/inventory', async \(c, next\) => \{[\s\S]{0,200}if \(!all\) return next\(\)/.test(srv), `templates/${t}: /inventory must fall through when there is no feed`)
+    check(srv.indexOf("app.get('/inventory/:unit'") > 0 && srv.indexOf("app.get('/inventory/:unit'") < srv.indexOf("app.get('/:slug'"), `templates/${t}: /inventory/:unit must be registered before the /:slug catch-all`)
+    check(/if \(u\.protocol !== 'https:'\) return null/.test(srv) && /h === 'localhost'/.test(srv), `templates/${t}: the inventory feed must be https and never a local address`)
+    check(existsSync(ROOT + 'templates/' + t + '/views/sections/inventory/live.ejs') && existsSync(ROOT + 'templates/' + t + '/views/sections/inventory/unit.ejs'), `templates/${t}: inventory partials missing`)
   }
   check(/contentGaps:\s*Array\.isArray\(composed\.contentGaps\)/.test(src), 'site-bootstrap must seed contentGaps')
   check(/parseIntakeFacts\(/.test(src), '/public/intake must parse the owner\'s fact fields')

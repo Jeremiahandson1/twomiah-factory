@@ -103,7 +103,7 @@
       <a class="brand<%= headerLogo ? ' brand--logo' : '' %>" href="<%= settings.homeHref || '/' %>"><% if (headerLogo) { %><img src="<%= headerLogo %>" alt="<%= settings.companyName || 'Home' %>" style="display:block;height:44px;width:auto;max-width:min(340px,58vw);"><% } else { %><%= settings.companyName || 'Your Company' %><% } %></a>
       <nav class="primary-nav" aria-label="Primary">
         <% (settings.nav || []).forEach(function(item) { %>
-          <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>
+          <a href="<%= item.href %>"<%- currentPath && currentPath === ('/' + String(item.href || '').replace(/^\//, '')) ? ' aria-current="page"' : '' %>><%= item.label %></a>
         <% }) %>
       </nav>
       <a class="header-cta" href="<%= settings.contactHref || '/contact' %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
@@ -113,7 +113,7 @@
     </div>
     <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile primary" hidden>
       <% (settings.nav || []).forEach(function(item) { %>
-        <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>
+        <a href="<%= item.href %>"<%- currentPath && currentPath === ('/' + String(item.href || '').replace(/^\//, '')) ? ' aria-current="page"' : '' %>><%= item.label %></a>
       <% }) %>
       <a class="mobile-nav__cta" href="<%= settings.contactHref || '/contact' %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
     </nav>

@@ -184,12 +184,29 @@ async function renderSections(
   currentPath: string,
   origin: string,
 ): Promise<string> {
+  // A dealer with a live feed: a composed "featured inventory" section shows real units, linked.
+  if (settingsRow?.inventoryFeedUrl && sections.some((s: any) => s?.type === 'inventory' && s?.variant === 'showcase')) {
+    const live = await feedUnits(settingsRow)
+    if (live && live.length) {
+      sections = sections.map((s: any) => s?.type === 'inventory' && s?.variant === 'showcase'
+        ? { ...s, data: { ...s.data, ctaUrl: '/inventory', units: live.slice(0, 6).map((u) => ({
+          title: u.title, type: [u.condition, u.category].filter(Boolean).join(' · '), price: u.price,
+          length: u.lengthFt ? u.lengthFt + ' ft' : '', mileage: u.mileage ? Number(u.mileage).toLocaleString('en-US') + ' mi' : '',
+          image: u.photos[0] || '', url: '/inventory/' + u.slug,
+        })) } }
+        : s)
+    }
+  }
   const homepage = { sections }
   const settings = settingsRow || { companyName: 'Your Company', nav: [], contactCtaLabel: 'Get in touch' }
 
   // Per-page SEO overrides. siteOrigin drives base.ejs's canonical, og:url and
   // business markup — without it none of the three render.
-  const baseNav = Array.isArray(settings.nav) ? settings.nav : []
+  let baseNav = Array.isArray(settings.nav) ? settings.nav : []
+  // A dealer with a live inventory feed: "Inventory" in the nav even when the site was seeded without it.
+  if (feedUrlOk(settings.inventoryFeedUrl) && !baseNav.some((n: any) => /^\/?inventory\/?$/.test(String(n?.href || '')))) {
+    baseNav = [{ label: 'Inventory', href: '/inventory' }, ...baseNav]
+  }
   const effectiveSettings = {
     ...settings,
     // A dispensary with the live CRM menu: "Menu" in the nav even when the site was seeded before it.
@@ -472,6 +489,144 @@ app.post('/api/order', async (c) => {
     console.warn('[Order] CRM order failed:', e.message)
     return c.json({ error: 'We couldn\'t reach the shop just now. Please call us to order.' }, 502)
   }
+})
+
+// ── Live dealer inventory (RV / marine / powersports) ─────────────────────────
+// settings.inventoryFeedUrl: the dealer's inventory feed — the CRM's marketplace feed (CRM: Inventory →
+// Feed URL, the .json or .csv link) or any feed with the same columns. When it's set, /inventory and
+// /inventory/<stock> are the real units and a composed "featured inventory" section shows real ones.
+// Never composed; with no feed nothing changes.
+function feedUrlOk(raw: unknown): string | null {
+  try {
+    const u = new URL(String(raw || '').trim())
+    if (u.protocol !== 'https:') return null
+    const h = u.hostname.toLowerCase()
+    // The response is shown publicly, so never an address inside the network.
+    if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || /^[\d.]+$/.test(h) || h.includes(':')) return null
+    return u.toString()
+  } catch { return null }
+}
+function parseCsvRows(text: string): Record<string, string>[] {
+  const rows: string[][] = []
+  let row: string[] = [], cell = '', quoted = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (quoted) {
+      if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++ } else quoted = false } else cell += ch
+      continue
+    }
+    if (ch === '"') quoted = true
+    else if (ch === ',') { row.push(cell); cell = '' }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = '' }
+    else cell += ch
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row) }
+  const head = (rows.shift() || []).map((h) => h.trim())
+  // The CRM's CSV prefixes cells that start with = + - @ with a quote (formula-injection guard).
+  return rows.filter((r) => r.some((v) => v.trim())).map((r) => Object.fromEntries(head.map((h, i) => [h, (r[i] || '').replace(/^'(?=[=+\-@])/, '')])))
+}
+const feedNum = (v: unknown) => { const n = Number(String(v ?? '').replace(/[^0-9.]/g, '')); return Number.isFinite(n) && n > 0 ? n : null }
+function unitFromListing(l: any) {
+  const s = (v: unknown) => String(v ?? '').trim()
+  const stock = s(l.stockNumber || l.stock || l.vin).slice(0, 60)
+  const year = s(l.year), make = s(l.make), model = s(l.model), trim = s(l.trim)
+  const photos = (Array.isArray(l.photoUrls) ? l.photoUrls : s(l.photoUrls).split('|')).map(s).filter((u: string) => /^https:\/\//i.test(u)).slice(0, 40)
+  return {
+    stock, slug: stock.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
+    title: [year, make, model, trim].filter(Boolean).join(' '),
+    year, make, model, trim, vin: s(l.vin), condition: s(l.condition).toLowerCase() || 'used', category: s(l.category),
+    rvClass: s(l.rvClass), towableType: s(l.towableType), price: feedNum(l.price), msrp: feedNum(l.msrp),
+    lengthFt: s(l.lengthFt), sleeps: s(l.sleeps), slideOuts: s(l.slideOuts), mileage: feedNum(l.mileage), hours: s(l.hours), engineCc: s(l.engineCc),
+    beamFt: s(l.beamFt), draftFt: s(l.draftFt), hullMaterial: s(l.hullMaterial), engineType: s(l.engineType), engineHp: s(l.engineHp),
+    engineCount: s(l.engineCount), fuelCapacityGal: s(l.fuelCapacityGal), maxPersons: s(l.maxPersons), trailerIncluded: s(l.trailerIncluded),
+    exteriorColor: s(l.exteriorColor), photos, description: s(l.description).slice(0, 5000),
+  }
+}
+type FeedUnit = ReturnType<typeof unitFromListing>
+function unitSpecs(u: FeedUnit) {
+  const rows: Array<[string, unknown]> = [
+    ['Year', u.year], ['Make', u.make], ['Model', u.model], ['Trim', u.trim], ['Class', u.rvClass], ['Type', u.towableType],
+    ['Length', u.lengthFt && u.lengthFt + ' ft'], ['Sleeps', u.sleeps], ['Slide-outs', u.slideOuts],
+    ['Mileage', u.mileage && Number(u.mileage).toLocaleString('en-US') + ' mi'], ['Hours', u.hours], ['Engine size', u.engineCc && u.engineCc + ' cc'],
+    ['Beam', u.beamFt && u.beamFt + ' ft'], ['Draft', u.draftFt && u.draftFt + ' ft'], ['Hull', u.hullMaterial], ['Engine', u.engineType],
+    ['Horsepower', u.engineHp], ['Engines', u.engineCount], ['Fuel', u.fuelCapacityGal && u.fuelCapacityGal + ' gal'],
+    ['Capacity', u.maxPersons && u.maxPersons + ' people'], ['Trailer', u.trailerIncluded === 'yes' ? 'Included' : u.trailerIncluded === 'no' ? 'Not included' : ''],
+    ['Color', u.exteriorColor],
+  ]
+  return rows.filter(([, v]) => v && String(v) !== '0').map(([label, value]) => ({ label, value: String(value) }))
+}
+let feedCache: { url: string; at: number; units: FeedUnit[] } | null = null
+async function feedUnits(settingsRow: any): Promise<FeedUnit[] | null> {
+  const url = feedUrlOk(settingsRow?.inventoryFeedUrl)
+  if (!url) return null
+  if (feedCache && feedCache.url === url && Date.now() - feedCache.at < 10 * 60_000) return feedCache.units
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10_000), redirect: 'error' })
+    if (!r.ok) throw new Error('HTTP ' + r.status)
+    const text = (await r.text()).slice(0, 8_000_000)
+    const head = text.trimStart()
+    let listings: any[]
+    if (head.startsWith('{') || head.startsWith('[')) {
+      const j = JSON.parse(text)
+      listings = Array.isArray(j) ? j : Array.isArray(j?.listings) ? j.listings : []
+    } else listings = parseCsvRows(text)
+    const seen = new Set<string>()
+    const units = listings.slice(0, 2000).map(unitFromListing).filter((u) => {
+      if (!u.slug || !u.title || seen.has(u.slug)) return false
+      seen.add(u.slug)
+      return true
+    })
+    feedCache = { url, at: Date.now(), units }
+    return units
+  } catch (e: any) {
+    console.warn('[Inventory] feed fetch failed:', e.message)
+    return feedCache && feedCache.url === url ? feedCache.units : null
+  }
+}
+
+app.get('/inventory', async (c, next) => {
+  const settingsRow = await loadSettings()
+  const all = await feedUnits(settingsRow)
+  if (!all) return next()  // no feed (or it's down with nothing cached): the composed /inventory page, if any
+  const q = {
+    q: (c.req.query('q') || '').slice(0, 80), condition: c.req.query('condition') || '', category: c.req.query('category') || '',
+    make: c.req.query('make') || '', sort: c.req.query('sort') || '',
+  }
+  const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort()
+  const facets = { conditions: uniq(all.map((u) => u.condition)), categories: uniq(all.map((u) => u.category)), makes: uniq(all.map((u) => u.make)) }
+  const needle = q.q.toLowerCase()
+  let units = all.filter((u) => (!q.condition || u.condition === q.condition) && (!q.category || u.category === q.category)
+    && (!q.make || u.make === q.make) && (!needle || (u.title + ' ' + u.stock).toLowerCase().includes(needle)))
+  if (q.sort === 'price-asc') units = [...units].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+  else if (q.sort === 'price-desc') units = [...units].sort((a, b) => (b.price ?? -1) - (a.price ?? -1))
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const page = await loadPage('inventory')
+  const composedHero = page?.isPublished && Array.isArray(page.sections) ? (page.sections as any[]).find((s) => s?.type === 'hero') : null
+  const sections = [
+    composedHero || { type: 'hero', variant: 'centered-stats', data: { eyebrow: company, title: 'Inventory' } },
+    { type: 'inventory', variant: 'live', data: { units, total: all.length, facets, query: q } },
+    contactCta(settingsRow, company),
+  ]
+  countView('/inventory')
+  return c.html(await renderSections(sections, {
+    title: 'Inventory', metaTitle: 'Inventory | ' + company, metaDescription: company + ' — ' + all.length + ' unit' + (all.length === 1 ? '' : 's') + ' for sale.',
+  }, settingsRow, '/inventory', getSiteOrigin(c)))
+})
+
+app.get('/inventory/:unit', async (c) => {
+  const settingsRow = await loadSettings()
+  const all = await feedUnits(settingsRow)
+  if (!all) return c.notFound()
+  const u = all.find((x) => x.slug === c.req.param('unit'))
+  // Sold or delisted: the lot, not a dead end.
+  if (!u) return c.redirect('/inventory', 302)
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  countView('/inventory/' + u.slug)
+  return c.html(await renderSections([{ type: 'inventory', variant: 'unit', data: { unit: u, specs: unitSpecs(u) } }], {
+    title: u.title,
+    metaTitle: u.title + (u.price ? ' — $' + Number(u.price).toLocaleString('en-US') : '') + ' | ' + company,
+    metaDescription: (u.description || u.title + ' at ' + company + '.').slice(0, 300),
+  }, settingsRow, '/inventory/' + u.slug, getSiteOrigin(c)))
 })
 
 // Blog routes — must register before the catch-all `/:slug` below or
@@ -1333,6 +1488,11 @@ app.get('/sitemap.xml', async (c) => {
   for (const r of projectList) {
     const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
     urls.push(`  <url><loc>${escapeXml(origin + '/projects/' + r.slug)}</loc><lastmod>${lastmod}</lastmod></url>`)
+  }
+  const invUnits = await feedUnits(await loadSettings())
+  if (invUnits && invUnits.length) {
+    if (!pageRows.some((r) => r.slug === 'inventory')) urls.push(`  <url><loc>${escapeXml(origin + '/inventory')}</loc></url>`)
+    for (const u of invUnits) urls.push(`  <url><loc>${escapeXml(origin + '/inventory/' + u.slug)}</loc></url>`)
   }
   const areaList = serviceAreasOf(await loadSettings())
   if (areaList.length) {
