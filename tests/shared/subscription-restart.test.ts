@@ -81,6 +81,10 @@ const API = (p: string) => readFileSync(new URL('../../apps/api/src/' + p, impor
   check('the restart route exists, checks the sync key, and asks restartRefusal BEFORE opening a checkout', body.length > 0
     && body.indexOf('checkFactoryKey(c, tenant)') > 0 && body.indexOf('restartRefusal(tenant)') > body.indexOf('checkFactoryKey(c, tenant)')
     && body.indexOf('createSubscriptionCheckout') > body.indexOf('restartRefusal(tenant)'))
+  // Asking is not enough — the answer must stop the checkout. (A mutation that deleted this line survived the check above.)
+  const asked = body.indexOf('const refusal = restartRefusal(tenant)')
+  const acted = body.indexOf('if (refusal) return c.json({ error: refusal.error, code: refusal.code }, refusal.status)')
+  check('…and a refusal RETURNS its 409/410 before any checkout is opened — never a second subscription', asked > 0 && acted > asked && acted < body.indexOf('createSubscriptionCheckout'), { asked, acted })
   check('…for the company\'s own plan, back to the lock page that waits for the payment', /planId: tenant\.plan/.test(body) && /successUrl: crm \+ '\/crm\/paywall\?restarted=1'/.test(body))
   const gate = API('routes/factory.ts')
   check('the route is let past staff auth only as a POST on an exact id path (the CRM has no staff token)', /c\.req\.method === 'POST' && \/\\\/customers\\\/\[0-9a-f-\]\{36\}\\\/restart-checkout\$\/i\.test\(c\.req\.path\)/.test(gate))
