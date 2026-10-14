@@ -39,6 +39,22 @@ const END = 1_800_000_000 // 2027-01-15
   check('a paid invoice moves the next billing date to the end of the period it paid for', r.handled && r.updates?.next_billing_date === new Date(END * 1000).toISOString() && r.updates?.billing_status === 'active', r)
 }
 {
+  // The Factory endpoint is on 2026-02-25.clover: since 2025-03-31.basil the invoice names its subscription under
+  // parent, its lines say what they are under parent.type, and the period end is on the subscription's items.
+  const paid = await handleFactoryWebhook(ev('invoice.paid', {
+    parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_clover', metadata: {} } },
+    lines: { data: [{ parent: { type: 'subscription_item_details', subscription_item_details: { subscription: 'sub_clover' } }, period: { start: END - 2_592_000, end: END } }] },
+  }))
+  check('clover: a paid invoice finds its tenant by the subscription under parent', paid.handled && paid.lookupField === 'stripe_subscription_id' && paid.lookupValue === 'sub_clover', paid)
+  check('clover: …and records the next billing date from the line\'s period', paid.updates?.next_billing_date === new Date(END * 1000).toISOString(), paid.updates)
+  const failedPay = await handleFactoryWebhook(ev('invoice.payment_failed', { parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_clover' } } }))
+  check('clover: a failed payment marks that tenant past due', failedPay.handled && failedPay.lookupValue === 'sub_clover' && failedPay.updates?.billing_status === 'past_due', failedPay)
+  const upd = await handleFactoryWebhook(ev('customer.subscription.updated', { id: 'sub_clover', status: 'active', metadata: {}, items: { data: [{ current_period_end: END, price: {} }] } }))
+  check('clover: a subscription update reads the period end from its item', upd.handled && upd.updates?.next_billing_date === new Date(END * 1000).toISOString(), upd.updates)
+  const oneOff = await handleFactoryWebhook(ev('invoice.paid', { parent: { type: 'quote_details' }, lines: { data: [] } }))
+  check('an invoice with no subscription is not a plan renewal', !oneOff.handled, oneOff)
+}
+{
   // every checkout tags its subscription, trial or not
   const src = readFileSync(SRC, 'utf8')
   const block = src.slice(src.indexOf('export async function createSubscriptionCheckout'), src.indexOf('const session = await stripe.checkout.sessions.create(sessionParams)'))

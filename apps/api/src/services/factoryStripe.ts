@@ -340,6 +340,28 @@ export async function createAutoSubscription(
 // discounted tenant (a comp, a family rate) showed full price everywhere the factory
 // reads it. Webhook payloads carry discounts as ids, so expand them. On any lookup
 // failure, fall back to the list price — the previous behaviour — rather than throw.
+/**
+ * WEBHOOK PAYLOADS ARE SHAPED BY THE ENDPOINT'S API VERSION, NOT THIS SDK'S. (10/14)
+ *
+ * The Factory endpoint is on 2026-02-25.clover. Since 2025-03-31.basil an invoice names its subscription at
+ * parent.subscription_details.subscription (invoice.subscription is gone), a line item says what it is in
+ * parent.type (line.type is gone), and a subscription's period end is on each item (sub.current_period_end is
+ * gone). Read as the SDK types them, invoice.paid and invoice.payment_failed matched no tenant at all — a
+ * renewal was never recorded and a failed card never marked past_due. These read both shapes: the endpoint's,
+ * and the older one this SDK's own API calls still return.
+ */
+export const invoiceSubscriptionId = (invoice: any): string | null => {
+  const s = invoice?.subscription ?? invoice?.parent?.subscription_details?.subscription
+  return typeof s === 'string' ? s : (s?.id ?? null)
+}
+export const subscriptionPeriodEnd = (sub: any): number | null =>
+  sub?.current_period_end ?? sub?.items?.data?.[0]?.current_period_end ?? null
+export const invoicePeriodEnd = (invoice: any): number | null => {
+  const lines: any[] = invoice?.lines?.data || []
+  const line = lines.find((l) => l?.type === 'subscription' || l?.parent?.type === 'subscription_item_details') || null
+  return line?.period?.end ?? null
+}
+
 async function effectiveMonthlyAmount(sub: Stripe.Subscription): Promise<number> {
   const item = sub.items.data[0]
   let amount = ((item.price.unit_amount || 0) * (item.quantity || 1)) / 100
@@ -399,7 +421,8 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
         if (stripe && typeof session.subscription === 'string') {
           try {
             const sub = await stripe.subscriptions.retrieve(session.subscription)
-            if (sub.current_period_end) updates.next_billing_date = new Date(sub.current_period_end * 1000).toISOString()
+            const end = subscriptionPeriodEnd(sub)
+            if (end) updates.next_billing_date = new Date(end * 1000).toISOString()
           } catch (err: any) { console.warn('[Stripe] Could not read the new subscription for its billing date:', err?.message) }
         }
       } else if (meta.billing_type === 'one_time') {
@@ -426,9 +449,8 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
       if (sub.items?.data?.[0]?.price?.unit_amount) {
         updates.monthly_amount = await effectiveMonthlyAmount(sub)
       }
-      if (sub.current_period_end) {
-        updates.next_billing_date = new Date(sub.current_period_end * 1000).toISOString()
-      }
+      const end = subscriptionPeriodEnd(sub)
+      if (end) updates.next_billing_date = new Date(end * 1000).toISOString()
       return { handled: true, ...target, updates }
     }
 
@@ -445,13 +467,14 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
 
     case 'invoice.paid': {
       const invoice = event.data.object as Stripe.Invoice
-      if (!invoice.subscription) return { handled: false }
+      const subId = invoiceSubscriptionId(invoice)
+      if (!subId) return { handled: false }
       // The paid period's end is the next charge — kept current on every renewal, the first one included.
-      const periodEnd = invoice.lines?.data?.find((l) => l.type === 'subscription')?.period?.end
+      const periodEnd = invoicePeriodEnd(invoice)
       return {
         handled: true,
         lookupField: 'stripe_subscription_id',
-        lookupValue: invoice.subscription as string,
+        lookupValue: subId,
         updates: {
           billing_status: 'active', paid_at: new Date().toISOString(),
           ...(periodEnd ? { next_billing_date: new Date(periodEnd * 1000).toISOString() } : {}),
@@ -461,11 +484,12 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
 
     case 'invoice.payment_failed': {
       const invoice = event.data.object as Stripe.Invoice
-      if (!invoice.subscription) return { handled: false }
+      const subId = invoiceSubscriptionId(invoice)
+      if (!subId) return { handled: false }
       return {
         handled: true,
         lookupField: 'stripe_subscription_id',
-        lookupValue: invoice.subscription as string,
+        lookupValue: subId,
         updates: { billing_status: 'past_due' },
       }
     }
