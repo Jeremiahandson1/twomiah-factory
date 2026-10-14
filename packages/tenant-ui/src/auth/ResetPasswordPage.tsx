@@ -5,6 +5,8 @@ import { Lock, CheckCircle, XCircle } from 'lucide-react'
 import type { AuthApi } from './types'
 import { PASSWORD_RULE_TEXT, passwordMeetsRule } from './types'
 import { NavLink as RouterLink } from '../invoicing/ui'
+import { useAuth } from './AuthContext'
+import { useTheme } from '../shell/hooks'
 
 const inputCls = 'w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 border-gray-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100'
 
@@ -12,6 +14,10 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const token = searchParams.get('token')
+  // This page is reachable while signed in (an owner opening an invite they sent, a shared computer). Saving signs that
+  // session out, so the sign-in page that follows is for the account whose password was just set. (10/14)
+  const { isAuthenticated, user, logout } = useAuth()
+  useTheme()
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -30,6 +36,7 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
     try {
       await api.resetPassword(token!, password)
       setSuccess(true)
+      if (isAuthenticated) await logout().catch(() => { /* the sign-in page still follows */ })
       setTimeout(() => navigate('/login'), 3000)
     } catch (err) {
       setError((err as Error).message || 'Failed to reset password')
@@ -74,6 +81,11 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
         <div className="bg-white rounded-xl shadow-lg p-8 dark:bg-slate-900 dark:border dark:border-slate-800">
           <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Set new password</h1>
           <p className="text-gray-600 mb-6 dark:text-slate-400">Your new password must be {PASSWORD_RULE_TEXT}.</p>
+          {isAuthenticated && (
+            <div className="mb-4 p-3 rounded-lg text-sm bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+              This browser is signed in as <strong>{user?.email || 'someone else'}</strong>. Saving this password signs that account out, so the person this link was sent to can sign in.
+            </div>
+          )}
 
           {error && (
             <div role="alert" className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm dark:bg-red-950/40 dark:text-red-300">{error}</div>

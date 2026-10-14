@@ -913,6 +913,17 @@ jobs:
       - name: "Check every website posts to /api/webhooks/leads and every paired CRM answers there"
         run: bun run scripts/check-website-lead-webhook.ts
 
+  reset-link-while-signed-in:
+    name: "An invite or reset link works in a signed-in browser"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check /reset-password is never wrapped and the old session is ended"
+        run: bun run scripts/check-reset-link-while-signed-in.ts
+
   no-hand-sent-bearer:
     name: "A screen's session token is refreshed when it expires"
     runs-on: ubuntu-latest

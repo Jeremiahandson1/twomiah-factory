@@ -22,6 +22,9 @@ export default function ResetPasswordPage() {
     setBusy(true)
     try {
       await api.resetPassword(token, password)
+      // Signed in here as someone else (a shared computer, an owner opening a link)? Sign-in is PublicOnly, so the old
+      // session would carry straight past it. End it first. (10/14)
+      if (api.hasToken) await api.logout().catch(() => { /* tokens are cleared either way */ })
       setDone(true)
     } catch (err: any) {
       setError(err?.message || 'Reset failed')

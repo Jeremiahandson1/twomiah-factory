@@ -141,7 +141,8 @@ function App() {
                   {/* Public auth routes */}
                   <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
                   <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
-                  <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
+                  {/* Not behind PublicRoute: an invite or reset link opened where someone is already signed in must still show its form. (10/14) */}
+                  <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                   {/* Customer Portal — unified hub after login */}
                   <Route path="/" element={<ProtectedRoute><CustomerPortal /></ProtectedRoute>} />
