@@ -67,6 +67,8 @@ factory.use('*', async (c, next) => {
     // Stripe portal link with X-Factory-Key (checked in lifecycle.ts). Exact match on the id segment so
     // the admin-only POST /customers/:id/checkout/subscription is NOT let through.
     || /\/customers\/[0-9a-f-]{36}\/(subscription|billing-portal-link)$/i.test(c.req.path)
+    // Restart after the subscription ended: the CRM's lock page asks for a checkout with X-Factory-Key (lifecycle.ts).
+    || (c.req.method === 'POST' && /\/customers\/[0-9a-f-]{36}\/restart-checkout$/i.test(c.req.path))
     // Twomiah Ads registration after deploy: the tenant CRM calls it with X-Factory-Key (checked in lifecycle.ts).
     || (c.req.method === 'POST' && /\/customers\/[0-9a-f-]{36}\/ads\/register$/i.test(c.req.path))
     // Stripe Connect: the tenant CRM reports its connected account with X-Factory-Key (checked in lifecycle.ts).

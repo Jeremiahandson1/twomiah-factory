@@ -361,6 +361,15 @@ export function createNamecheapProvider(): RegistrarProvider {
       }
     },
 
+    async lock(domain: string) {
+      try {
+        await callApi('namecheap.domains.setRegistrarLock', { DomainName: domain, LockAction: 'LOCK' })
+        return { success: true }
+      } catch (err: any) {
+        return { success: false, error: err.message }
+      }
+    },
+
     async getEppCode(domain: string) {
       // Namecheap: the EPP code is obtained via domains.getInfo; there's no
       // separate "email me the code" call. We return it and let the caller

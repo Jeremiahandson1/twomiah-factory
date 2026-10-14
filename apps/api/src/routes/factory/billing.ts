@@ -3,12 +3,13 @@ import { findRenderServicesBySlug, wireDomainInfrastructure } from '../../servic
 import factoryStripe from '../../services/factoryStripe'
 import { pushSubscriptionToTenant } from '../../services/tenantSubscription'
 import { forwardConnectEvent, responseStatusFor } from '../../services/connectWebhook'
-import { notifyBillingPastDue, notifyMessagingEnabled } from '../../services/email'
+import { notifyBillingPastDue, notifyMessagingEnabled, notifyReactivated } from '../../services/email'
 import { portalUrlFor } from '../../lib/portal'
 import { PRODUCTS, getProductDefaults } from '../../config/pricing'
 import { getRegistrar } from '../../services/registrar'
 import { type FactoryApp, UUID_RE, DOMAIN_RE, parseJsonBody, logTenantAudit, diffTenantChanges, FRONTEND_URL, checkCronSecret } from './shared'
 import { triggerAutoDeploy } from './deploy'
+import { finishRestart } from '../../services/subscriptionRestart'
 
 // Apply a webhook's tenant updates so that activation NEVER depends on an optional attribute.
 // PostgREST rejects the whole update when it names a column the table lacks (PGRST204) — that is how
@@ -208,6 +209,17 @@ factory.post('/stripe/webhook', async (c) => {
       await applyTenantUpdates({ field: 'id', value: result.factoryCustomerId }, result.updates)
       // The tenant CRM mirrors this state (Settings → Billing, trial gate) — push it, never block on it.
       pushSubscriptionToTenant(result.factoryCustomerId).catch(() => {})
+      // A subscription paid by a company that was offboarding is a RESTART (the lock page's checkout): stop the
+      // offboard timer and put the domain lock back. A sign-up has no offboard and is left alone. (10/14)
+      if (event.type === 'checkout.session.completed' && result.updates.billing_type === 'subscription' && preTenant?.offboard_started_at) {
+        const done = await finishRestart(preTenant, {
+          clearOffboard: async (id) => supabase.from('tenants').update({ offboard_started_at: null, offboard_grace_ends_at: null, epp_code_sent_at: null }).eq('id', id),
+          relockDomain: async (domain) => (await getRegistrar()).lock(domain),
+          audit: async (id, changes) => { await logTenantAudit(id, 'offboard_reactivate', changes, 'stripe-webhook', 'Restarted — the subscription was paid again') },
+          notifyReactivated: (t) => notifyReactivated(t as any),
+        })
+        console.log('[Restart]', result.factoryCustomerId, JSON.stringify(done))
+      }
       if (preTenant) {
         const changes = diffTenantChanges(preTenant, result.updates)
         if (Object.keys(changes).length > 0) {

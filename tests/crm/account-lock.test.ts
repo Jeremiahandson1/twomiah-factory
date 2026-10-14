@@ -29,8 +29,15 @@ globalThis.fetch = (async (input: any, init?: any) => {
   if (!url.startsWith(process.env.FACTORY_URL!)) return realFetch(input, init)
   const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } })
   if (url.endsWith('/subscription')) return json(factorySays)
+  if (url.endsWith('/restart-checkout')) {
+    restartCalls.push(url)
+    return new Response(JSON.stringify(restartReply.body), { status: restartReply.status, headers: { 'content-type': 'application/json' } })
+  }
   return json({})
 }) as any
+// What the Factory answers the restart: a checkout page, or its refusal.
+const restartCalls: string[] = []
+let restartReply: { status: number; body: any } = { status: 200, body: { url: 'https://checkout.stripe.test/c/restart' } }
 
 const { setupSchema } = await import('./setup.ts')
 await setupSchema()
@@ -41,7 +48,7 @@ const [co] = await db.insert(company).values({ name: 'Lock Co', slug: 'lock-co',
 const mk = async (role: string, tag: string) => (await db.insert(user).values({
   email: `${tag}-lock@test.local`, passwordHash: 'x', firstName: tag, lastName: 'U', role, companyId: co.id, isActive: true,
 } as any).returning())[0]
-const owner = await mk('owner', 'owner'), field = await mk('field', 'field')
+const owner = await mk('owner', 'owner'), admin = await mk('admin', 'admin'), field = await mk('field', 'field')
 
 const app = new Hono()
 app.route('/api/auth', (await import('./src/routes/auth.ts')).default)
@@ -84,6 +91,24 @@ const contacts = async () => Number((await db.select({ n: count() }).from(contac
   check('locked: …and so is the field tech, who is NOT sent the subscription status itself', f.json?.company?.settings?.accountLock === 'subscription_ended' && f.json?.company?.settings?.subscriptionStatus === undefined, f.json?.company?.settings)
   const b = await call(owner, 'GET', '/api/billing/subscription')
   check(`locked: billing stays open — the way back (${b.status})`, b.status === 200 && b.json?.subscription?.status === 'canceled', b.json)
+}
+{
+  // RESTART — "shouldnt they just be able to make a payment and restart it? why email?" (owner, 10/14)
+  const o = await call(owner, 'POST', '/api/billing/restart-checkout')
+  check(`restart: while locked, the owner gets a checkout page to pay and come back (${o.status})`, o.status === 200 && o.json?.url === 'https://checkout.stripe.test/c/restart' && restartCalls.length === 1, o.json)
+  check('restart: …asked of the Factory for THIS company, with its sync key', /\/customers\/tenant-lock-test\/restart-checkout$/.test(restartCalls[0] || ''), restartCalls)
+  const before = restartCalls.length
+  const a = await call(admin, 'POST', '/api/billing/restart-checkout'), f = await call(field, 'POST', '/api/billing/restart-checkout')
+  check(`restart: an admin and a field tech are refused — what the business pays for is the owner's (${a.status}, ${f.status})`, a.status === 403 && f.status === 403 && a.json?.code === 'owner_only' && restartCalls.length === before, { a: a.json, f: f.json })
+  restartReply = { status: 410, body: { error: 'The 30 days after this subscription ended have passed, so it can no longer be restarted here. Email support@twomiah.com and we will set it up again.', code: 'grace_ended' } }
+  const late = await call(owner, 'POST', '/api/billing/restart-checkout')
+  check(`restart: too late — the Factory's refusal reaches the owner in its own words, as a 410 (${late.status})`, late.status === 410 && /30 days/.test(late.json?.error || '') && late.json?.code === 'grace_ended', late.json)
+  restartReply = { status: 500, body: { error: 'Stripe is down' } }
+  const down = await call(owner, 'POST', '/api/billing/restart-checkout')
+  check(`restart: a Factory failure is a 502, never a 200 with no page (${down.status})`, down.status === 502 && down.json?.url === null, down.json)
+  restartReply = { status: 200, body: { url: 'https://checkout.stripe.test/c/restart' } }
+  const ms = await call(owner, 'GET', '/api/billing/subscription'), ma = await call(admin, 'GET', '/api/billing/subscription')
+  check('restart: the lock page is told who may press Restart — the owner yes, an admin no', ms.json?.mayManage === true && ma.json?.mayManage === false, { owner: ms.json?.mayManage, admin: ma.json?.mayManage })
 }
 {
   check('the Factory says they subscribed again', (await push(sub({}))) === 200)

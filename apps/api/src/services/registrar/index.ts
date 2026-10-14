@@ -88,6 +88,10 @@ export interface RegistrarProvider {
   // Transfer-out prep: remove the registrar lock
   unlock(domain: string): Promise<{ success: boolean; error?: string }>
 
+  // Put the registrar lock back — a company that restarts its subscription after cancelling (the offboard unlocked
+  // the domain for a transfer it no longer needs).
+  lock(domain: string): Promise<{ success: boolean; error?: string }>
+
   // Transfer-out prep: email the EPP (auth) code to the tenant so they can
   // paste it at their new registrar. Provider triggers the email directly.
   getEppCode(domain: string): Promise<{ success: boolean; eppCode?: string; error?: string }>

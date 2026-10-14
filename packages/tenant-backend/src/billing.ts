@@ -14,6 +14,7 @@ import { forgetAccountLock } from './auth/accountLock'
 export interface BillingFactoryClient extends FactoryApiClient {
   getSubscription(): Promise<TenantSubscription>
   getBillingPortalLink(): Promise<{ url: string | null; reason?: string }>
+  startRestartCheckout(): Promise<{ url: string }>
 }
 
 export interface BillingDeps {
@@ -121,6 +122,24 @@ export function createBillingRoutes(deps: BillingDeps): Hono {
       return c.json(result)
     } catch (err: any) {
       return c.json({ url: null, error: err?.message || 'Could not open billing portal' }, 502)
+    }
+  })
+
+  // POST /restart-checkout — the lock page's "Restart subscription" (10/14). A subscription that ENDED cannot be switched
+  // back on in the Stripe portal, so the owner was told to email support. Now the Factory opens a checkout for this
+  // company's own plan; paying unlocks the CRM. The owner's, like the portal: billing:manage, and it fails closed.
+  // Open while the company is locked — /api/billing is one of the doors a locked company keeps (auth/accountLock.ts).
+  app.post('/restart-checkout', async (c) => {
+    if (!deps.canManage || !(await deps.canManage(c))) {
+      return c.json({ error: "Restarting the subscription is the account owner's. Ask them to sign in and restart it.", code: 'owner_only', required: 'billing:manage' }, 403)
+    }
+    try {
+      const result = await deps.factoryApiClient.startRestartCheckout()
+      return c.json({ url: result?.url || null })
+    } catch (err: any) {
+      // The Factory's own refusals — still running (409), too late to restart here (410) — reach the owner in its words.
+      const status = err?.status === 409 || err?.status === 410 ? err.status : 502
+      return c.json({ url: null, error: err?.message || 'Could not open the checkout', code: err?.upstream?.code || null }, status)
     }
   })
 

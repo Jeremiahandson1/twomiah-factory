@@ -237,7 +237,9 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
               <div className="mt-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800 dark:text-amber-300 dark:bg-amber-950/40">Your last payment did not go through. {mayManage ? 'Update your card in the billing portal to keep the account active.' : 'Ask the account owner to update the card, to keep the account active.'}</div>
             )}
             {sub.status === 'canceled' && (
-              <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 text-sm text-red-800 dark:text-red-200">This subscription is not active. {mayManage ? 'Reactivate it in the billing portal or email support.' : 'The account owner can reactivate it, or email support.'}</div>
+              <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 text-sm text-red-800 dark:text-red-200">This subscription is not active. {mayManage
+                ? <>An ended subscription cannot be switched back on in the billing portal — <a href="/crm/paywall" className="font-semibold underline">restart it here</a> on the same plan, paid by card.</>
+                : 'The account owner can restart it.'}</div>
             )}
 
             <div className="flex flex-wrap gap-3 mt-6">

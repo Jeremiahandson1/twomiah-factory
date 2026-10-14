@@ -2338,6 +2338,8 @@ jobs:
         run: bun run tests/shared/factory-stripe-subscription.test.ts
       - name: "A domain renewal is billed to the customer, then renewed once — never before it is paid"
         run: bun run tests/shared/domain-renewal.test.ts
+      - name: "A cancelled company restarts by paying — the offboard stops and the domain is locked again"
+        run: bun run tests/shared/subscription-restart.test.ts
 
   store-suite:
     name: "Store behaviour suite (real PGlite)"
@@ -2404,6 +2406,30 @@ jobs:
           bun-version: latest
       - name: "Field service suite"
         run: bun run tests/fieldservice/harness/run.ts
+
+  # The base CRM's suite never ran in CI — only five of the twelve did. It holds account-lock (a cancelled company is
+  # refused on the server, and the owner restarts it by paying) among 50-odd others. (10/14)
+  crm-suite:
+    name: "Base CRM behaviour suite (real PGlite)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Base CRM suite"
+        run: bun run tests/crm/harness/run.ts
+
+  cancelled-company-locked:
+    name: "a cancelled company is locked, and its owner restarts it by paying"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Every CRM refuses a cancelled company on the server and offers the owner a restart"
+        run: bun run scripts/check-cancelled-company-is-locked.ts
 
   upsell-not-self-gated:
     name: "an upsell is not gated behind the thing it sells"

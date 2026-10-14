@@ -7,6 +7,7 @@ import { notifyPreviewFollowup, notifyPostLaunchTips, notifyDomainRenewal, notif
 import fs from 'fs'
 import path from 'path'
 import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
+import { restartRefusal } from '../../services/subscriptionRestart'
 import { ourPremiumSiteOrigin } from '../../services/premiumSiteUrl'
 import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
 
@@ -158,6 +159,46 @@ factory.post('/customers/:id/billing-portal-link', async (c) => {
   } catch (err: any) {
     console.error('[Stripe] Tenant billing portal error:', err)
     return c.json({ url: null, error: err.message }, 500)
+  }
+})
+
+// ─── Restart checkout (tenant → factory, X-Factory-Key auth) ────────────────
+// The lock page's "Restart subscription": a Stripe checkout for the company's own plan — the one sign-up uses — so a
+// company whose subscription ended pays and is back in. Payment is handled by the webhook like any checkout, and
+// services/subscriptionRestart.ts finishRestart() stops the offboard. Refused while the subscription still runs, and
+// once the grace period has passed (the teardown has run). (10/14)
+factory.post('/customers/:id/restart-checkout', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant, error } = await supabase.from('tenants')
+      .select('id, name, email, phone, plan, billing_cycle, billing_status, status, stripe_customer_id, stripe_subscription_id, offboard_started_at, offboard_grace_ends_at, factory_sync_key, render_frontend_url, render_backend_url')
+      .eq('id', tenantId).single()
+    if (error && error.code !== 'PGRST116') { console.error('[Restart] tenant lookup failed:', error.message); return c.json({ error: 'Lookup failed' }, 500) }
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    const refusal = restartRefusal(tenant)
+    if (refusal) return c.json({ error: refusal.error, code: refusal.code }, refusal.status)
+    const crm = String(tenant.render_frontend_url || tenant.render_backend_url || '').replace(/\/$/, '')
+    if (!crm) return c.json({ error: 'This company has no CRM address to come back to — email support@twomiah.com.' }, 409)
+    const checkout = await factoryStripe.createSubscriptionCheckout(
+      { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: tenant.stripe_customer_id },
+      {
+        planId: tenant.plan || 'starter10',
+        billingCycle: tenant.billing_cycle === 'annual' ? 'annual' : 'monthly',
+        // Back to the lock page, which waits for the payment to land and then opens the CRM.
+        successUrl: crm + '/crm/paywall?restarted=1',
+        cancelUrl: crm + '/crm/paywall',
+      },
+    )
+    if (checkout.stripeCustomerId && !tenant.stripe_customer_id) {
+      await supabase.from('tenants').update({ stripe_customer_id: checkout.stripeCustomerId }).eq('id', tenant.id)
+    }
+    if (!checkout.url) return c.json({ error: 'Stripe did not return a checkout page — try again in a moment.' }, 502)
+    await logTenantAudit(tenant.id, 'restart_checkout', {}, 'tenant', 'Plan ' + (tenant.plan || 'starter10') + ' — checkout opened from the lock page')
+    return c.json({ url: checkout.url })
+  } catch (err: any) {
+    console.error('[Restart] checkout failed:', err?.message || err)
+    return c.json({ error: 'Could not open the checkout: ' + (err?.message || 'unknown error') }, 500)
   }
 })
 

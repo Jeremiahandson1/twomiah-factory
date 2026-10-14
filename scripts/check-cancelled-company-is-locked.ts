@@ -48,6 +48,10 @@ for (const t of readdirSync(ROOT + 'templates').filter((d) => /^crm(-|$)/.test(d
   if (!/path=["'](\/crm\/)?paywall["']/.test(app)) fail(`${t}: App.tsx mounts no paywall route — the redirect would land on a 404`)
   const page = read(T + 'frontend/src/pages/PaywallPage.tsx')
   if (!/<PaywallScreen\b/.test(page)) fail(`${t}: pages/PaywallPage.tsx is not the shared PaywallScreen — its words would not follow why the company is locked`)
+  // The way back is a payment, not an email (owner, 10/14): the lock page needs this template's API client to open it.
+  else if (!/<PaywallScreen\b[^>]*\brequest=\{/.test(page)) fail(`${t}: the lock page is not given the API client (request=) — the owner could not restart by paying`)
+  const billing = read(T + 'backend/src/routes/billing.ts')
+  if (!/createBillingRoutes\(/.test(billing) || !/canManage:/.test(billing)) fail(`${t}: routes/billing.ts does not mount the shared billing routes with canManage — POST /api/billing/restart-checkout would refuse everyone`)
 
   // ── the API client: a refusal becomes the lock page, not "Request failed" on every screen
   const client = t === 'crm-roof' || t === 'crm-dispensary' ? read(T + 'frontend/src/services/api.ts') : read('packages/tenant-ui/src/api/client.ts')
@@ -67,5 +71,15 @@ if (!/forgetAccountLock\(\)/.test(apply.slice(0, apply.indexOf('\n}\n') + 1 || u
 const shared = read('packages/tenant-backend/src/auth/middleware.ts')
 if (!/refuseWhileLocked\(c, db, company\)/.test(shared)) fail('the shared createAuthMiddleware never calls refuseWhileLocked')
 
+// ── the way back: pay and restart (owner, 10/14: "why email?")
+const lockRule = read('packages/tenant-backend/src/auth/accountLock.ts')
+if (!/'\/api\/billing'/.test(lockRule)) fail('a locked company no longer keeps /api/billing — the Restart button would be refused by the lock it is meant to lift')
+if (!/app\.post\('\/restart-checkout'[\s\S]{0,400}deps\.canManage/.test(billing)) fail('POST /restart-checkout is missing from the shared billing routes, or does not ask canManage (owner only)')
+const screen = read('packages/tenant-ui/src/auth/PaywallScreen.tsx')
+if (!/'\/api\/billing\/restart-checkout'/.test(screen)) fail('the shared lock page never asks for the restart checkout — the owner is back to emailing support')
+if (/mailto:support@twomiah\.com\?subject=Restart/.test(screen)) fail('the shared lock page still sends the owner to email support to restart')
+const billingPage = read('packages/tenant-ui/src/settings/BillingPage.tsx')
+if (/Reactivate it in the billing portal/.test(billingPage)) fail('Settings › Billing tells a cancelled owner to reactivate in the Stripe portal — an ended subscription cannot be switched back on there')
+
 if (failed) { console.error(`\ncancelled company is locked: ${failed} check(s) FAILED`); process.exit(1) }
-console.log(`cancelled company is locked: ${crms} CRM(s) refuse on the server, send every role to the shared lock page, and turn a 402 into it`)
+console.log(`cancelled company is locked: ${crms} CRM(s) refuse on the server, send every role to the shared lock page, turn a 402 into it, and let the owner restart by paying`)

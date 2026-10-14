@@ -17,6 +17,7 @@ interface FullFactoryApiClient extends FactoryApiClient {
   reactivate(): Promise<{ success: boolean; error?: string }>
   getSubscription(): Promise<TenantSubscription>
   getBillingPortalLink(): Promise<{ url: string | null; reason?: string }>
+  startRestartCheckout(): Promise<{ url: string }>
   registerAds(): Promise<{ apiKey: string; adsUrl?: string; created: boolean }>
   registerStripeAccount(accountId: string | null): Promise<{ success: boolean }>
 }
@@ -80,6 +81,10 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     },
     async getBillingPortalLink() {
       return call('POST', tenantBase() + '/billing-portal-link')
+    },
+    // A subscription that ended: a Stripe checkout for this company's plan, to pay and come back (lock page).
+    async startRestartCheckout() {
+      return call('POST', tenantBase() + '/restart-checkout')
     },
     // Twomiah Ads: register this tenant (or get the key its Render service already holds). No campaign is created.
     async registerAds() {
