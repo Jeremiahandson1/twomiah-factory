@@ -946,7 +946,7 @@ factory.post('/internal/renewal-check', async (c) => {
   if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
 
   const now = new Date()
-  const results = { domain60: 0, domain30: 0, domain7: 0, sub60: 0, sub30: 0, sub7: 0, teardowns: 0, errors: [] as string[] }
+  const results = { domain60: 0, domain30: 0, domain7: 0, sub60: 0, sub30: 0, sub7: 0, teardowns: 0, domainRenewals: null as null | { billed: number; paid: number; awaitingPayment: number; skipped: number }, errors: [] as string[] }
 
   async function processDomainWindow(daysLower: number, daysUpper: number, sentinelCol: string, daysRemainingForEmail: number) {
     const lowerBound = new Date(now.getTime() + daysLower * 24 * 60 * 60 * 1000)
@@ -976,6 +976,19 @@ factory.post('/internal/renewal-check', async (c) => {
   results.domain60 = await processDomainWindow(55, 65, 'domain_renewal_warned_60d_at', 60)
   results.domain30 = await processDomainWindow(27, 33, 'domain_renewal_warned_30d_at', 30)
   results.domain7  = await processDomainWindow(5, 9, 'domain_renewal_warned_7d_at', 7)
+
+  // Bill the customer for a domain renewal that is due; the renewal itself happens when Stripe says it is paid.
+  // Its own try: a failure here never stops the warnings, subscriptions or teardowns around it. (10/14)
+  try {
+    const { chargeDueDomainRenewals } = await import('../../services/domainRenewal')
+    const { notifyDomainRenewalPaymentNeeded, notifyStaff } = await import('../../services/email')
+    const r = await chargeDueDomainRenewals(now, { supabase, createInvoice: (o) => factoryStripe.createDomainRenewalInvoice(o), notifyPaymentNeeded: notifyDomainRenewalPaymentNeeded, alertStaff: notifyStaff })
+    const { errors: renewalErrors, ...counts } = r
+    results.domainRenewals = counts
+    results.errors.push(...renewalErrors)
+  } catch (e: any) {
+    results.errors.push('domain renewals: ' + (e?.message || e))
+  }
 
   // Sub renewals: derive from tenants with active stripe_subscription_id + next_billing_date
   async function processSubWindow(daysLower: number, daysUpper: number, sentinelCol: string, daysRemainingForEmail: number) {

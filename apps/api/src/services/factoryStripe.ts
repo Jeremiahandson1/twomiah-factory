@@ -633,6 +633,51 @@ export async function refundLatestSubscriptionPayment(
 }
 
 /**
+ * Bill one year of a domain renewal (services/domainRenewal.ts). A Stripe invoice — so the customer gets a receipt
+ * and, if the card fails, a page to pay it on — charged off-session to the card they already pay with: the
+ * customer's default, else their subscription's, else any saved card. The renewal itself happens on invoice.paid.
+ * Idempotent per tenant + expiry, so a cron that runs twice cannot bill twice.
+ */
+export async function createDomainRenewalInvoice(
+  o: { customerId: string; amountCents: number; domain: string; tenantId: string; expiresAt: string },
+  client: any = stripe,
+): Promise<{ invoiceId: string; paid: boolean; hostedUrl?: string | null; error?: string }> {
+  if (!client) throw new Error('Stripe not configured')
+  const idOf = (pm: any) => (typeof pm === 'string' ? pm : pm?.id) || null
+  const customer: any = await client.customers.retrieve(o.customerId)
+  let pm = idOf(customer?.invoice_settings?.default_payment_method)
+  if (!pm) {
+    const subs = await client.subscriptions.list({ customer: o.customerId, status: 'all', limit: 10 })
+    pm = idOf((subs.data || []).find((s: any) => s.default_payment_method)?.default_payment_method)
+  }
+  if (!pm) {
+    const cards = await client.paymentMethods.list({ customer: o.customerId, type: 'card', limit: 1 })
+    pm = idOf(cards.data?.[0])
+  }
+  const year = new Date(o.expiresAt).getUTCFullYear()
+  const description = `Domain renewal — ${o.domain}, one year (renews ${new Date(o.expiresAt).toISOString().slice(0, 10)})`
+  const key = 'domain-renewal-' + o.tenantId + '-' + o.expiresAt.slice(0, 10)
+  const invoice = await client.invoices.create({
+    customer: o.customerId,
+    collection_method: 'charge_automatically',
+    auto_advance: false,
+    pending_invoice_items_behavior: 'exclude',
+    description,
+    metadata: { purpose: 'domain_renewal', tenant_id: o.tenantId, domain: o.domain, expires_at: o.expiresAt, renewal_year: String(year) },
+    ...(pm ? { default_payment_method: pm } : {}),
+  }, { idempotencyKey: key })
+  await client.invoiceItems.create({ customer: o.customerId, invoice: invoice.id, amount: o.amountCents, currency: 'usd', description }, { idempotencyKey: key + '-item' })
+  const finalized = await client.invoices.finalizeInvoice(invoice.id)
+  if (!pm) return { invoiceId: invoice.id, paid: false, hostedUrl: finalized.hosted_invoice_url, error: 'no saved card' }
+  try {
+    const paid = await client.invoices.pay(invoice.id, { payment_method: pm, off_session: true })
+    return { invoiceId: invoice.id, paid: paid.status === 'paid', hostedUrl: paid.hosted_invoice_url || finalized.hosted_invoice_url }
+  } catch (e: any) {
+    return { invoiceId: invoice.id, paid: false, hostedUrl: finalized.hosted_invoice_url, error: e.message }
+  }
+}
+
+/**
  * Path A++ helper — build a Stripe Checkout session against an existing
  * customer (used for the CRM add-on upgrade, where the customer already
  * has a Premium subscription on the same Stripe customer). The new
@@ -763,6 +808,7 @@ export default {
   createOneTimeCheckoutSession,
   refundPaymentIntent,
   refundLatestSubscriptionPayment,
+  createDomainRenewalInvoice,
   createAutoSubscription,
   createCustomer,
   cancelSubscription,

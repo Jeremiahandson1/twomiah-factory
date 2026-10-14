@@ -265,6 +265,19 @@ factory.post('/stripe/webhook', async (c) => {
       }
     }
 
+    // Domain renewal paid (services/domainRenewal.ts): renew it at Namecheap now, exactly once per invoice.
+    // Awaited — the renewal is one Namecheap call, and Stripe retries on an error, which the claim makes safe.
+    if (event.type === 'invoice.paid' && event.data?.object?.metadata?.purpose === 'domain_renewal') {
+      const { completePaidDomainRenewal } = await import('../../services/domainRenewal')
+      const { notifyStaff } = await import('../../services/email')
+      const done = await completePaidDomainRenewal(event.data.object, {
+        supabase,
+        renew: async (domain, years) => (await getRegistrar()).renew(domain, years),
+        alertStaff: notifyStaff,
+      })
+      console.log('[Domain] renewal invoice', event.data.object.id, JSON.stringify(done))
+    }
+
     // Messaging billing: wallet top-up paid → credit the wallet AT COST; the
     // $10/mo enable subscription checkout → mark the tenant messaging-enabled.
     if (event.type === 'checkout.session.completed') {
@@ -549,6 +562,16 @@ factory.post('/internal/domain/register-at-cost/:tenantId', async (c) => {
     if (avail.premium) return c.json({ error: 'Premium-priced domain — not registered automatically.' }, 422)
 
     const result = await handleDomainRegistration({ tenantId, domain, years })
+    // Registered at cost, renewed at cost: the yearly renewal bill (services/domainRenewal.ts) charges this,
+    // not the retail price. (10/14 — Higgs: "only charge them what we get charged")
+    if (result.ok) {
+      const { lookupDomainPrice } = await import('../../config/domainPricing')
+      const p = lookupDomainPrice(domain, 1)
+      if (p.ok) {
+        const { error: priceErr } = await supabase.from('tenants').update({ domain_renewal_price_cents: p.costCents }).eq('id', tenantId)
+        if (priceErr) console.warn('[Domain] could not record the at-cost renewal price:', priceErr.message)
+      }
+    }
     await logTenantAudit(tenantId, 'domain_registered_at_cost', { domain: { old: null, new: result.ok ? domain : null } }, 'operator', result.error || 'registered on registrar balance')
     return c.json({ domain, ...result }, result.ok ? 200 : 502)
   } catch (e: any) {

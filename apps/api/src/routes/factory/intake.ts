@@ -284,58 +284,24 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     }
 
     // ─── Domain mode handling ─────────────────────────────────────────────────
-    // domainMode: 'skip' (default, no domain) | 'byod' (customer owns domain) |
-    // 'buy' (we register via Namecheap synchronously before creating tenant —
-    // fail-fast so the customer isn't charged for a domain attached to a
-    // half-created account).
-    const domainMode: 'skip' | 'byod' | 'buy' = body.domainMode === 'byod' || body.domainMode === 'buy' ? body.domainMode : 'skip'
+    // domainMode: 'skip' (default, no domain) | 'byod' (customer owns domain).
+    //
+    // 'buy' used to register a domain at Namecheap right here — on OUR account, before any payment, from a public,
+    // unauthenticated endpoint. Nothing legitimate sent it (the signup forms only offer "a domain you have"), but anyone
+    // could, five times an hour per address. Refused now: a domain is bought after sign-up, from the website's custom
+    // domain page, where Stripe takes the money first and the paid webhook registers it. (10/14)
+    if (body.domainMode === 'buy') {
+      return c.json({ error: 'Domains are bought after sign-up, from your website settings. Leave the domain blank, or enter one you already own.' }, 400)
+    }
+    const domainMode: 'skip' | 'byod' = body.domainMode === 'byod' ? 'byod' : 'skip'
     let resolvedDomain: string | null = null
     let resolvedRegistrar: string | null = null
-    let resolvedExpiresAt: Date | null = null
 
     if (domainMode === 'byod') {
       const d = typeof body.domain === 'string' ? body.domain.trim().toLowerCase() : ''
       if (!d || !DOMAIN_RE.test(d)) return c.json({ error: 'Invalid domain format for BYOD' }, 400)
       resolvedDomain = d
       resolvedRegistrar = 'byod'
-    } else if (domainMode === 'buy') {
-      if (!isRegistrarConfigured()) {
-        return c.json({ error: 'Domain purchase is not configured on this environment' }, 503)
-      }
-      const d = typeof body.domain === 'string' ? body.domain.trim().toLowerCase() : ''
-      if (!d || !DOMAIN_RE.test(d)) return c.json({ error: 'Invalid domain format for purchase' }, 400)
-      const years = Math.max(1, Math.min(10, parseInt(body.purchaseYears, 10) || 1))
-      // Namecheap requires full registrant contact info. Fall back to company-level fields
-      // where reasonable; require the bits there's no sensible fallback for.
-      const ownerName = (body.owner_name || body.ownerName || body.name || '').trim()
-      const firstName = body.owner_first_name || body.ownerFirstName || ownerName.split(/\s+/)[0] || 'Admin'
-      const lastName = body.owner_last_name || body.ownerLastName || ownerName.split(/\s+/).slice(1).join(' ') || 'User'
-      const phone = body.phone || ''
-      if (!phone) return c.json({ error: 'Phone is required for domain registration' }, 400)
-      const country = (body.country || 'US').toUpperCase()
-      const registrar = await getRegistrar()
-      const reg = await registrar.register(d, {
-        years,
-        whoisPrivacy: true,
-        autoRenew: true,
-        registrantContact: {
-          firstName, lastName,
-          email: body.email,
-          phone,
-          address1: body.address || '',
-          city: body.city || '',
-          stateProvince: body.state || '',
-          postalCode: body.zip || '',
-          country,
-          organization: body.name,
-        },
-      })
-      if (!reg.success) {
-        return c.json({ error: 'Domain registration failed: ' + (reg.error || 'unknown') }, 400)
-      }
-      resolvedDomain = d
-      resolvedRegistrar = 'namecheap'
-      resolvedExpiresAt = reg.expiresAt || null
     }
 
     // Pay-then-deploy: the tenant is created 'pending' / awaiting-payment.
@@ -379,7 +345,8 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       zip: body.zip || null,
       domain: resolvedDomain,
       domain_registrar: resolvedRegistrar,
-      domain_expires_at: resolvedExpiresAt ? resolvedExpiresAt.toISOString() : null,
+      // set when a domain we registered is attached (paid webhook / register-at-cost), never at signup
+      domain_expires_at: null,
       primary_color: body.primary_color || '#FF3D00',
       plan: body.plan || 'starter10',
       deployment_model: body.deployment_model || 'saas',

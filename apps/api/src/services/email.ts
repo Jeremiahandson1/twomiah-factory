@@ -609,6 +609,30 @@ export async function notifyDomainRenewal(
   return sendEmail(to, subject, wrap('Domain Renewal Coming Up', body))
 }
 
+/** The renewal was billed but the card on file did not go through: pay it here, or the domain lapses. (10/14) */
+export async function notifyDomainRenewalPaymentNeeded(
+  tenant: { name: string; email?: string | null; domain?: string | null; admin_email?: string | null },
+  o: { amountCents: number; hostedUrl?: string | null; expiresAt: string }
+): Promise<boolean> {
+  const to = tenant.admin_email || tenant.email
+  if (!to) return false
+  const when = new Date(o.expiresAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const amount = '$' + (o.amountCents / 100).toFixed(2)
+  const subject = `Action needed: renew ${tenant.domain || 'your domain'} before ${when}`
+  const body = `
+    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    <p style="color:#333;line-height:1.6;">Your domain <strong>${tenant.domain || ''}</strong> is due to renew on <strong>${when}</strong>. We tried to charge the renewal (${amount} for one year) to your card on file and it did not go through.</p>
+    <p style="color:#333;line-height:1.6;">Pay it below and we will renew the domain straight away. If it is not paid by ${when}, the domain lapses — and your website and email on it stop working.</p>
+    ${o.hostedUrl ? btn(o.hostedUrl, 'Pay ' + amount + ' and renew') : ''}`
+  return sendEmail(to, subject, wrap('Domain Renewal Payment Needed', body))
+}
+
+/** Something staff must resolve by hand. Goes to STAFF_NOTIFY_EMAIL (else the intake inbox, else support@). */
+export async function notifyStaff(subject: string, detail: string, tenantId: string): Promise<boolean> {
+  const to = process.env.STAFF_NOTIFY_EMAIL || process.env.INTAKE_NOTIFY_EMAIL || 'support@twomiah.com'
+  return sendEmail(to, subject, '<p>' + detail + '</p><p>Tenant: <code>' + tenantId + '</code></p>')
+}
+
 export async function notifySubscriptionRenewal(
   tenant: { name: string; email?: string; admin_email?: string | null; plan?: string | null },
   daysRemaining: number,

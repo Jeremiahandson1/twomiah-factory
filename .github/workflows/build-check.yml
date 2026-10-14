@@ -2325,6 +2325,8 @@ jobs:
       # after the install above: factoryStripe imports the stripe package from apps/api
       - name: "A plan subscription's renewals and cancellation reach its tenant, trial or not"
         run: bun run tests/shared/factory-stripe-subscription.test.ts
+      - name: "A domain renewal is billed to the customer, then renewed once — never before it is paid"
+        run: bun run tests/shared/domain-renewal.test.ts
 
   store-suite:
     name: "Store behaviour suite (real PGlite)"
