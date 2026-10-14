@@ -428,6 +428,48 @@ for (const t of premium) {
   check(/<FinishYourSiteCard \/>/.test(read('templates/' + t + '/admin/src/pages/PagesListPage.tsx')), `templates/${t}: the checklist card is not mounted`)
 }
 
+// ─── 4. Every section the owner can see has an editor that writes what the partial reads ──
+// Trade sections are edited by one generic form from descriptions in admin/src/sectionFields.ts. A
+// description naming a key the partial never reads is an edit that silently does nothing; a partial
+// with no description is a section the owner can't change.
+{
+  const { TRADE_SECTIONS } = await import('../templates/website-premium-contractor/admin/src/sectionFields.ts')
+  const FORMS = new Set(['hero/full-bleed', 'hero/split', 'hero/centered-stats', 'services/cards-grid', 'services/alternating', 'cta/banner', 'cta/split',
+    'about/story', 'team/grid', 'contact/form-info', 'gallery/grid', 'testimonials/quotes', 'faq/accordion', 'stats/bar'])
+  const SERVER_BUILT = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator'])
+  const premium = readdirSync(ROOT + 'templates').filter((d) => d.startsWith('website-premium-'))
+  const partialFor = (key: string) => {
+    for (const t of premium) {
+      const p = 'templates/' + t + '/views/sections/' + key + '.ejs'
+      if (existsSync(ROOT + p)) return read(p)
+    }
+    return null
+  }
+  const described = new Set<string>()
+  for (const sec of TRADE_SECTIONS) {
+    const key = sec.type + '/' + sec.variant
+    described.add(key)
+    const src = partialFor(key)
+    check(!!src, `sectionFields: ${key} has no partial in any premium template`)
+    if (!src) continue
+    for (const f of sec.fields) {
+      check(new RegExp('\\bdata\\.' + f.key + '\\b').test(src), `sectionFields: ${key} edits "${f.key}", which ${key}.ejs never reads`)
+      const sub = (f as any).item || (f as any).fields
+      if (sub) for (const s of sub) check(new RegExp('\\.' + s.key + '\\b').test(src), `sectionFields: ${key} ${f.key}[].${s.key} is never read by ${key}.ejs`)
+    }
+  }
+  for (const t of premium) {
+    const dir = ROOT + 'templates/' + t + '/views/sections'
+    for (const type of readdirSync(dir)) {
+      for (const f of readdirSync(dir + '/' + type).filter((x) => x.endsWith('.ejs'))) {
+        const key = type + '/' + f.slice(0, -4)
+        if (!FORMS.has(key) && !SERVER_BUILT.has(key)) check(described.has(key), `templates/${t}: ${key} has no editor (add it to admin/src/sectionFields.ts)`)
+      }
+    }
+    check(read('templates/' + t + '/admin/src/sectionFields.ts') === read('templates/website-premium-contractor/admin/src/sectionFields.ts'), `templates/${t}: sectionFields.ts differs from the other templates`)
+  }
+}
+
 if (failed) {
   console.error(`\n${failed} failed, ${passed} passed`)
   process.exit(1)

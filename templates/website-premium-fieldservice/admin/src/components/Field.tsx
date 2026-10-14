@@ -1,4 +1,4 @@
-import { type ReactNode, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { useId, type ReactNode, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { Plus, X, Image as ImageIcon, FolderOpen } from 'lucide-react'
 import { usePhotoPicker } from '../contexts/PhotoPickerContext'
 
@@ -19,7 +19,10 @@ interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   hint?: string
 }
 export function TextField({ label, hint, id, ...rest }: TextFieldProps) {
-  const inputId = id || `f-${label.replace(/\s+/g, '-').toLowerCase()}`
+  // useId, not the label text: in a list every "Name" field had the same id, so each label
+  // pointed at the first item's input.
+  const autoId = useId()
+  const inputId = id || 'f' + autoId.replace(/:/g, '')
   return (
     <div>
       <Label htmlFor={inputId}>{label}</Label>
@@ -34,7 +37,10 @@ interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaElement>
   hint?: string
 }
 export function TextAreaField({ label, hint, id, rows = 3, ...rest }: TextAreaFieldProps) {
-  const inputId = id || `f-${label.replace(/\s+/g, '-').toLowerCase()}`
+  // useId, not the label text: in a list every "Name" field had the same id, so each label
+  // pointed at the first item's input.
+  const autoId = useId()
+  const inputId = id || 'f' + autoId.replace(/:/g, '')
   return (
     <div>
       <Label htmlFor={inputId}>{label}</Label>
