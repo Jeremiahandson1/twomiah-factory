@@ -133,6 +133,11 @@ export async function createSubscriptionCheckout(
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: options.successUrl || (FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success'),
     cancel_url: options.cancelUrl || (FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled'),
+    // An "Add promotion code" box on the Stripe page, so a promotion code made in the Stripe dashboard can be used —
+    // launch offers, and a 100%-off one-use code to run the real sign-up end to end without a charge. A code that
+    // takes the first invoice to $0 still completes the checkout (the card is still collected), and the webhook
+    // provisions on checkout.session.completed whatever the amount.
+    allow_promotion_codes: true,
     metadata: {
       factory_customer_id: factoryCustomer.id,
       plan_id: planId,
