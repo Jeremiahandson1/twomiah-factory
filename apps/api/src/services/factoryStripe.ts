@@ -611,6 +611,28 @@ export async function refundPaymentIntent(paymentIntentId: string, reason?: stri
 }
 
 /**
+ * Refund the most recent PAID invoice of a subscription, in full — the money-back-guarantee refund behind the
+ * Factory's "Cancel now". At most once: a payment that already has a refund is reported, not refunded again, so a
+ * retried cancel can never pay the customer twice. Nothing paid (a $0 first month, a 100%-off code) is reported too.
+ * `client` is the Stripe client — the module's own unless a test hands it a stand-in.
+ */
+export async function refundLatestSubscriptionPayment(
+  subscriptionId: string,
+  client: any = stripe,
+): Promise<{ refunded: number; refundId?: string; invoiceId?: string; skipped?: string }> {
+  if (!client) throw new Error('Stripe not configured')
+  const { data } = await client.invoices.list({ subscription: subscriptionId, status: 'paid', limit: 10 })
+  const invoice = (data || []).find((i: any) => (i.amount_paid || 0) > 0)
+  if (!invoice) return { refunded: 0, skipped: 'nothing has been paid on this subscription' }
+  const pi = typeof invoice.payment_intent === 'string' ? invoice.payment_intent : invoice.payment_intent?.id
+  if (!pi) return { refunded: 0, invoiceId: invoice.id, skipped: 'the last payment was not a card payment Stripe can refund' }
+  const prior = await client.refunds.list({ payment_intent: pi, limit: 1 })
+  if (prior?.data?.length) return { refunded: 0, invoiceId: invoice.id, refundId: prior.data[0].id, skipped: 'that payment has already been refunded' }
+  const refund = await client.refunds.create({ payment_intent: pi, reason: 'requested_by_customer' }, { idempotencyKey: 'cancel-now-refund-' + invoice.id })
+  return { refunded: refund.amount || invoice.amount_paid, refundId: refund.id, invoiceId: invoice.id }
+}
+
+/**
  * Path A++ helper — build a Stripe Checkout session against an existing
  * customer (used for the CRM add-on upgrade, where the customer already
  * has a Premium subscription on the same Stripe customer). The new
@@ -740,6 +762,7 @@ export default {
   createCheckoutSessionForExistingCustomer,
   createOneTimeCheckoutSession,
   refundPaymentIntent,
+  refundLatestSubscriptionPayment,
   createAutoSubscription,
   createCustomer,
   cancelSubscription,

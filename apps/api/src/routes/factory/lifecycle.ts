@@ -1,7 +1,7 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { findRenderServicesBySlug, wireDomainInfrastructure, ensureAdsTenant } from '../../services/deploy'
 import factoryStripe from '../../services/factoryStripe'
-import { buildTenantSubscription, TENANT_SUBSCRIPTION_COLUMNS } from '../../services/tenantSubscription'
+import { buildTenantSubscription, TENANT_SUBSCRIPTION_COLUMNS, pushSubscriptionToTenant } from '../../services/tenantSubscription'
 import { deleteZip } from '../../services/factoryStorage'
 import { notifyPreviewFollowup, notifyPostLaunchTips, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../../services/email'
 import fs from 'fs'
@@ -1130,6 +1130,85 @@ factory.post('/internal/renewal-check', async (c) => {
 
 
 // ─── Offboard + reactivate ──────────────────────────────────────────────────
+/**
+ * The offboarding that follows a cancellation, whichever way it was cancelled: release a domain we registered,
+ * set the 30-day grace, export the data and email the link, record it, tell the customer. Was the body of
+ * POST /customers/:id/offboard; "Cancel now" runs it too, so there is one offboarding, not two. (10/14)
+ */
+type OffboardStep = { step: string; status: string; detail?: string }
+async function beginOffboard(tenant: any, actor: string, firstSteps: OffboardStep[], opts: { reason?: string } = {}) {
+  const now = new Date()
+  const graceEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)  // 30-day grace per plan
+  const steps: OffboardStep[] = [...firstSteps]
+
+  // 2. Unlock domain at Namecheap + fetch EPP code (only if we registered it)
+  let eppCode: string | null = null
+  if (tenant.domain_registrar === 'namecheap' && tenant.domain) {
+    try {
+      if (isRegistrarConfigured()) {
+        const registrar = await getRegistrar()
+        const unlock = await registrar.unlock(tenant.domain)
+        if (!unlock.success) steps.push({ step: 'registrar_unlock', status: 'warning', detail: unlock.error })
+        else steps.push({ step: 'registrar_unlock', status: 'ok' })
+        const epp = await registrar.getEppCode(tenant.domain)
+        if (epp.success && epp.eppCode) {
+          eppCode = epp.eppCode
+          steps.push({ step: 'registrar_epp', status: 'ok' })
+        } else {
+          steps.push({ step: 'registrar_epp', status: 'warning', detail: epp.error })
+        }
+      } else {
+        steps.push({ step: 'registrar_unlock', status: 'skipped', detail: 'registrar not configured' })
+      }
+    } catch (e: any) {
+      steps.push({ step: 'registrar_unlock', status: 'warning', detail: e.message })
+    }
+  } else {
+    steps.push({ step: 'registrar_unlock', status: 'skipped', detail: tenant.domain_registrar === 'byod' ? 'BYOD domain — customer already owns it' : 'no domain' })
+  }
+
+  // 3. Set offboard sentinels
+  await supabase.from('tenants').update({
+    offboard_started_at: now.toISOString(),
+    offboard_grace_ends_at: graceEndsAt.toISOString(),
+    epp_code_sent_at: eppCode ? now.toISOString() : null,
+  }).eq('id', tenant.id)
+
+  // 4. Data export — dumps every public-schema table from the tenant DB to
+  // a JSON bundle on R2, emails a 7-day signed download link. Non-blocking
+  // so an R2 outage doesn't stop the offboard.
+  if (tenant.database_url) {
+    (async () => {
+      try {
+        const { exportTenantData } = await import('../../services/dataExport')
+        const result = await exportTenantData({ tenantId: tenant.id, tenantSlug: tenant.slug, tenantDatabaseUrl: tenant.database_url })
+        if (result.success && result.signedUrl && result.expiresAt) {
+          await notifyDataExportReady(tenant, result.signedUrl, result.expiresAt).catch(e => console.warn('[Offboard] Data export email failed:', e.message))
+          steps.push({ step: 'data_export', status: 'ok', detail: result.rowCount + ' rows across ' + result.tableCount + ' tables' })
+        } else {
+          steps.push({ step: 'data_export', status: 'warning', detail: result.error })
+        }
+      } catch (e: any) {
+        steps.push({ step: 'data_export', status: 'warning', detail: e.message })
+      }
+    })()
+  } else {
+    steps.push({ step: 'data_export', status: 'skipped', detail: 'no tenant database_url stored' })
+  }
+
+  // 5. Audit log + emails (non-blocking)
+  await logTenantAudit(tenant.id, 'offboard_start', {
+    offboard_grace_ends_at: { old: null, new: graceEndsAt.toISOString() },
+    stripe_subscription_id: { old: tenant.stripe_subscription_id, new: null },
+  }, actor, opts.reason ? 'Reason: ' + opts.reason : undefined)
+
+  const reactivationUrl = tenant.render_frontend_url ? (tenant.render_frontend_url.replace(/\/$/, '') + '/settings/account') : undefined
+  notifyOffboardStarted(tenant, graceEndsAt, reactivationUrl).catch(e => console.warn('[Offboard] email failed:', e.message))
+  if (eppCode) notifyEppCode(tenant, eppCode).catch(e => console.warn('[Offboard] EPP email failed:', e.message))
+
+  return { graceEndsAt, steps }
+}
+
 factory.post('/customers/:id/offboard', factoryKeyOrRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
@@ -1143,9 +1222,7 @@ factory.post('/customers/:id/offboard', factoryKeyOrRole('owner', 'admin'), asyn
     if (tenantErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (tenant.offboard_started_at) return c.json({ error: 'Offboard already started at ' + tenant.offboard_started_at }, 409)
 
-    const now = new Date()
-    const graceEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)  // 30-day grace per plan
-    const steps: Array<{ step: string; status: string; detail?: string }> = []
+    const steps: OffboardStep[] = []
 
     // 1. Cancel Stripe subscription at period end
     if (tenant.stripe_subscription_id) {
@@ -1159,76 +1236,13 @@ factory.post('/customers/:id/offboard', factoryKeyOrRole('owner', 'admin'), asyn
       steps.push({ step: 'stripe_cancel', status: 'skipped', detail: 'no subscription' })
     }
 
-    // 2. Unlock domain at Namecheap + fetch EPP code (only if we registered it)
-    let eppCode: string | null = null
-    if (tenant.domain_registrar === 'namecheap' && tenant.domain) {
-      try {
-        if (isRegistrarConfigured()) {
-          const registrar = await getRegistrar()
-          const unlock = await registrar.unlock(tenant.domain)
-          if (!unlock.success) steps.push({ step: 'registrar_unlock', status: 'warning', detail: unlock.error })
-          else steps.push({ step: 'registrar_unlock', status: 'ok' })
-          const epp = await registrar.getEppCode(tenant.domain)
-          if (epp.success && epp.eppCode) {
-            eppCode = epp.eppCode
-            steps.push({ step: 'registrar_epp', status: 'ok' })
-          } else {
-            steps.push({ step: 'registrar_epp', status: 'warning', detail: epp.error })
-          }
-        } else {
-          steps.push({ step: 'registrar_unlock', status: 'skipped', detail: 'registrar not configured' })
-        }
-      } catch (e: any) {
-        steps.push({ step: 'registrar_unlock', status: 'warning', detail: e.message })
-      }
-    } else {
-      steps.push({ step: 'registrar_unlock', status: 'skipped', detail: tenant.domain_registrar === 'byod' ? 'BYOD domain — customer already owns it' : 'no domain' })
-    }
-
-    // 3. Set offboard sentinels
-    await supabase.from('tenants').update({
-      offboard_started_at: now.toISOString(),
-      offboard_grace_ends_at: graceEndsAt.toISOString(),
-      epp_code_sent_at: eppCode ? now.toISOString() : null,
-    }).eq('id', tenantId)
-
-    // 4. Data export — dumps every public-schema table from the tenant DB to
-    // a JSON bundle on R2, emails a 7-day signed download link. Non-blocking
-    // so an R2 outage doesn't stop the offboard.
-    if (tenant.database_url) {
-      (async () => {
-        try {
-          const { exportTenantData } = await import('../../services/dataExport')
-          const result = await exportTenantData({ tenantId: tenant.id, tenantSlug: tenant.slug, tenantDatabaseUrl: tenant.database_url })
-          if (result.success && result.signedUrl && result.expiresAt) {
-            await notifyDataExportReady(tenant, result.signedUrl, result.expiresAt).catch(e => console.warn('[Offboard] Data export email failed:', e.message))
-            steps.push({ step: 'data_export', status: 'ok', detail: result.rowCount + ' rows across ' + result.tableCount + ' tables' })
-          } else {
-            steps.push({ step: 'data_export', status: 'warning', detail: result.error })
-          }
-        } catch (e: any) {
-          steps.push({ step: 'data_export', status: 'warning', detail: e.message })
-        }
-      })()
-    } else {
-      steps.push({ step: 'data_export', status: 'skipped', detail: 'no tenant database_url stored' })
-    }
-
-    // 5. Audit log + emails (non-blocking)
-    const user = c.get('user')
-    await logTenantAudit(tenantId, 'offboard_start', {
-      offboard_grace_ends_at: { old: null, new: graceEndsAt.toISOString() },
-      stripe_subscription_id: { old: tenant.stripe_subscription_id, new: null },
-    }, user?.email || 'system')
-
-    const reactivationUrl = tenant.render_frontend_url ? (tenant.render_frontend_url.replace(/\/$/, '') + '/settings/account') : undefined
-    notifyOffboardStarted(tenant, graceEndsAt, reactivationUrl).catch(e => console.warn('[Offboard] email failed:', e.message))
-    if (eppCode) notifyEppCode(tenant, eppCode).catch(e => console.warn('[Offboard] EPP email failed:', e.message))
+    const reason = typeof parsed.data.reason === 'string' ? parsed.data.reason.slice(0, 200) : undefined
+    const { graceEndsAt, steps: done } = await beginOffboard(tenant, c.get('user')?.email || 'system', steps, { reason })
 
     return c.json({
       success: true,
       offboardGraceEndsAt: graceEndsAt.toISOString(),
-      steps,
+      steps: done,
       nextStep: 'Grace period active. Reactivate via /customers/:id/reactivate before ' + graceEndsAt.toISOString() + ' to restore.',
     })
   } catch (err: any) {
@@ -1246,6 +1260,12 @@ factory.post('/customers/:id/reactivate', factoryKeyOrRole('owner', 'admin'), as
     if (!tenant.offboard_started_at) return c.json({ error: 'Tenant is not in an offboarding state' }, 400)
     const graceEnd = tenant.offboard_grace_ends_at ? new Date(tenant.offboard_grace_ends_at) : null
     if (graceEnd && graceEnd < new Date()) return c.json({ error: 'Grace period has ended — reactivation not available' }, 410)
+    // Reactivate undoes a cancellation that is still SCHEDULED. Once the subscription has ended — Cancel now, or the
+    // period ran out — Stripe cannot revive it, and this used to clear the offboarding flags anyway and report success
+    // while the company stayed locked. Say so instead. (10/14)
+    if (!tenant.stripe_subscription_id && (tenant.billing_status === 'canceled' || tenant.status === 'suspended')) {
+      return c.json({ error: 'This subscription has already ended, so it cannot be switched back on. The customer needs to subscribe again; their data is kept until ' + (tenant.offboard_grace_ends_at || 'the grace period ends') + '.' }, 409)
+    }
 
     // Reverse Stripe cancellation (remove cancel_at_period_end)
     if (tenant.stripe_subscription_id) {
@@ -1271,6 +1291,83 @@ factory.post('/customers/:id/reactivate', factoryKeyOrRole('owner', 'admin'), as
     return c.json({ success: true })
   } catch (err: any) {
     console.error('[Reactivate] failed:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+/**
+ * CANCEL NOW — for a refund under the money-back guarantee, a disputed or fraudulent payment, abuse, or a duplicate.
+ * Factory owners and admins only: a customer cancels from their CRM, at the end of what they paid for (offboard).
+ * Asks for an explicit confirm and a reason. In order:
+ *   1. the refund, if asked for — and if it fails NOTHING else happens, so the customer is never cut off unrefunded;
+ *   2. the subscription ends in Stripe now;
+ *   3. the company is marked suspended and the CRM is told, which locks it;
+ *   4. the same offboarding a normal cancellation gets (30-day grace, data export emailed), unless already started.
+ * A retry after a half-finished run is safe: a payment already refunded is never refunded again. (10/14)
+ */
+const CANCEL_REASONS = ['refund', 'payment_dispute', 'fraud', 'abuse', 'duplicate', 'test_account', 'other'] as const
+factory.post('/customers/:id/cancel-now', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const tenantId = c.req.param('id') || ''
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const body = parsed.data || {}
+    if (body.confirm !== true) return c.json({ error: 'Set body.confirm=true to cancel this subscription now' }, 400)
+    if (!CANCEL_REASONS.includes(body.reason)) return c.json({ error: 'A reason is required: ' + CANCEL_REASONS.join(', ') }, 400)
+    if (body.refund !== 'none' && body.refund !== 'last_payment') return c.json({ error: 'refund must be "none" or "last_payment"' }, 400)
+    const note = typeof body.note === 'string' ? body.note.trim().slice(0, 500) : ''
+
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (tenantErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+    if (!tenant.stripe_subscription_id) return c.json({ error: tenant.billing_status === 'canceled' ? 'This subscription has already ended.' : 'This company has no Stripe subscription to cancel.' }, 409)
+    const sub = tenant.stripe_subscription_id
+    const actor = c.get('user')?.email || 'system'
+    const steps: OffboardStep[] = []
+
+    let refund: Awaited<ReturnType<typeof factoryStripe.refundLatestSubscriptionPayment>> | null = null
+    if (body.refund === 'last_payment') {
+      try {
+        refund = await factoryStripe.refundLatestSubscriptionPayment(sub)
+        steps.push(refund.refunded ? { step: 'refund', status: 'ok', detail: '$' + (refund.refunded / 100).toFixed(2) + ' (' + refund.refundId + ')' } : { step: 'refund', status: 'skipped', detail: refund.skipped })
+      } catch (e: any) {
+        return c.json({ error: 'The refund failed, so nothing was cancelled: ' + e.message }, 502)
+      }
+    }
+
+    try {
+      await factoryStripe.cancelSubscription(sub)
+      steps.push({ step: 'stripe_cancel_now', status: 'ok' })
+    } catch (e: any) {
+      const refunded = refund?.refunded ? ' The refund of $' + (refund.refunded / 100).toFixed(2) + ' DID go through; trying again will not refund twice.' : ''
+      return c.json({ error: 'Stripe could not cancel the subscription: ' + e.message + '.' + refunded, steps, refund }, 502)
+    }
+
+    const ended = { billing_status: 'canceled', status: 'suspended', stripe_subscription_id: null, next_billing_date: null }
+    const { error: updErr } = await supabase.from('tenants').update(ended).eq('id', tenantId)
+    if (updErr) steps.push({ step: 'factory_record', status: 'warning', detail: updErr.message + ' — the Stripe webhook will also mark it' })
+    else steps.push({ step: 'factory_record', status: 'ok' })
+    const pushed = await pushSubscriptionToTenant(tenantId)
+    steps.push({ step: 'crm_locked', status: pushed ? 'ok' : 'warning', detail: pushed ? undefined : 'the CRM did not answer; it locks on its next subscription sync' })
+
+    let graceEndsAt: string | null = tenant.offboard_grace_ends_at || null
+    let allSteps = steps
+    if (!tenant.offboard_started_at) {
+      const begun = await beginOffboard({ ...tenant, ...ended }, actor, steps, { reason: body.reason })
+      graceEndsAt = begun.graceEndsAt.toISOString()
+      allSteps = begun.steps
+    }
+
+    await logTenantAudit(tenantId, 'cancel_now', {
+      billing_status: { old: tenant.billing_status, new: 'canceled' },
+      status: { old: tenant.status, new: 'suspended' },
+      stripe_subscription_id: { old: sub, new: null },
+      ...(refund?.refunded ? { refund: { old: null, new: '$' + (refund.refunded / 100).toFixed(2) + ' ' + refund.refundId } } : {}),
+    }, actor, 'Reason: ' + body.reason + (note ? ' — ' + note : ''))
+
+    return c.json({ success: true, steps: allSteps, refund, offboardGraceEndsAt: graceEndsAt })
+  } catch (err: any) {
+    console.error('[CancelNow] failed:', err)
     return c.json({ error: err.message }, 500)
   }
 })

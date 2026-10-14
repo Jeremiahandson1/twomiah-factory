@@ -55,6 +55,42 @@ const END = 1_800_000_000 // 2027-01-15
   check('an invoice with no subscription is not a plan renewal', !oneOff.handled, oneOff)
 }
 {
+  // Cancel now's refund: the last PAID invoice, in full, at most once — never twice, never a $0 one. (10/14)
+  const { refundLatestSubscriptionPayment } = await import(SRC.href)
+  const fake = (invoices: any[], priorRefunds: any[] = []) => {
+    const created: any[] = []
+    return {
+      created,
+      invoices: { list: async (q: any) => ({ data: q.subscription === 'sub_x' && q.status === 'paid' ? invoices : [] }) },
+      refunds: {
+        list: async (q: any) => ({ data: priorRefunds.filter((r) => r.payment_intent === q.payment_intent) }),
+        create: async (p: any, o: any) => { created.push({ p, o }); return { id: 're_1', amount: 9900 } },
+      },
+    }
+  }
+  const paid = fake([{ id: 'in_2', amount_paid: 9900, payment_intent: 'pi_2' }, { id: 'in_1', amount_paid: 0, payment_intent: null }])
+  const r1 = await refundLatestSubscriptionPayment('sub_x', paid)
+  check('refunds the last paid invoice in full', r1.refunded === 9900 && r1.refundId === 're_1' && paid.created.length === 1 && paid.created[0].p.payment_intent === 'pi_2', r1)
+  check('…with an idempotency key tied to that invoice', paid.created[0]?.o?.idempotencyKey === 'cancel-now-refund-in_2', paid.created[0]?.o)
+  const again = fake([{ id: 'in_2', amount_paid: 9900, payment_intent: 'pi_2' }], [{ id: 're_old', payment_intent: 'pi_2' }])
+  const r2 = await refundLatestSubscriptionPayment('sub_x', again)
+  check('a payment already refunded is not refunded again', r2.refunded === 0 && again.created.length === 0 && /already been refunded/.test(r2.skipped || ''), r2)
+  const free = fake([{ id: 'in_0', amount_paid: 0, payment_intent: null }])
+  const r3 = await refundLatestSubscriptionPayment('sub_x', free)
+  check('a $0 month (a 100%-off code) has nothing to refund', r3.refunded === 0 && free.created.length === 0 && /nothing has been paid/.test(r3.skipped || ''), r3)
+  const credit = fake([{ id: 'in_c', amount_paid: 5000, payment_intent: null }])
+  const r4 = await refundLatestSubscriptionPayment('sub_x', credit)
+  check('a payment with no card charge behind it is reported, not attempted', r4.refunded === 0 && credit.created.length === 0 && /not a card payment/.test(r4.skipped || ''), r4)
+}
+{
+  // Cancel now is the Factory's alone; the offboarding it shares with the customer's own cancel is one function.
+  const life = readFileSync(new URL('../../apps/api/src/routes/factory/lifecycle.ts', import.meta.url), 'utf8')
+  check("cancel-now is owner/admin only — never the tenant's factory key", /factory\.post\('\/customers\/:id\/cancel-now', requireRole\('owner', 'admin'\)/.test(life))
+  check('cancel-now refunds BEFORE it cancels, and stops if the refund fails', /refundLatestSubscriptionPayment\(sub\)[\s\S]*?return c\.json\(\{ error: 'The refund failed, so nothing was cancelled[\s\S]*?cancelSubscription\(sub\)/.test(life))
+  check('the offboard route and cancel-now share beginOffboard', (life.match(/await beginOffboard\(/g) || []).length === 2)
+  check('reactivate refuses a subscription that has already ended', /if \(!tenant\.stripe_subscription_id && \(tenant\.billing_status === 'canceled' \|\| tenant\.status === 'suspended'\)\) \{\r?\n\s*return c\.json\(\{ error: 'This subscription has already ended/.test(life))
+}
+{
   // every checkout tags its subscription, trial or not
   const src = readFileSync(SRC, 'utf8')
   const block = src.slice(src.indexOf('export async function createSubscriptionCheckout'), src.indexOf('const session = await stripe.checkout.sessions.create(sessionParams)'))

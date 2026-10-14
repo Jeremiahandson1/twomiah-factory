@@ -10,6 +10,7 @@ import {
 import FeatureManagement from '../components/factory/FeatureManagement'
 import A2pRegistration from '../components/factory/A2pRegistration'
 import MessagingBilling from '../components/factory/MessagingBilling'
+import SubscriptionControls from '../components/factory/SubscriptionControls'
 
 const V2_PLAN_IDS = ['website', 'starter10', 'team25', 'business50']
 
@@ -26,6 +27,7 @@ type Tenant = {
   render_frontend_url?: string; render_backend_url?: string; website_url?: string
   domain?: string
   twomiah_subdomain?: string | null
+  offboard_started_at?: string | null; offboard_grace_ends_at?: string | null
 }
 
 type FactoryJob = {
@@ -981,6 +983,8 @@ export default function CustomerDetailPage() {
                     ? 'Billing portal lets the customer self-manage payments, invoices, and subscriptions.'
                     : 'Creates a Stripe checkout link you can send to the customer. Link is also copied to clipboard.'}
                 </p>
+
+                <SubscriptionControls tenant={tenant} showToast={showToast} onChanged={load} />
               </div>
             )}
             {!stripeConfigured && !editMode && (
