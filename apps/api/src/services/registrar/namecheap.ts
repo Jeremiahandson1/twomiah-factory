@@ -126,6 +126,41 @@ function attr(xml: string, tag: string, attr: string): string | undefined {
   return m ? m[1] : undefined
 }
 
+/** A Namecheap MM/DD/YYYY date (may be non-zero-padded), or null. */
+function ncDate(s: string | undefined | null): Date | null {
+  const m = String(s || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!m) return null
+  const d = new Date(Date.UTC(Number(m[3]), Number(m[1]) - 1, Number(m[2])))
+  return isNaN(d.getTime()) ? null : d
+}
+
+/**
+ * Domain privacy as domains.getInfo reports it — WithheldforPrivacy, still spelled "Whoisguard" in the API:
+ *   <Whoisguard Enabled="True"><ID>53536</ID><ExpiredDate>11/04/2015</ExpiredDate>…</Whoisguard>
+ * Enabled is "True", "False" or "NotAlloted"; ID 0 means none is allotted. (Namecheap's go SDK docs + sample, 10/14)
+ */
+export function parsePrivacy(xml: string): { state: 'on' | 'off' | 'none'; id: string | null; expiresAt: Date | null } {
+  const block = xml.match(/<Whoisguard\b([^>]*)>([\s\S]*?)<\/Whoisguard>/i)
+  if (!block) return { state: 'none', id: null, expiresAt: null }
+  const enabled = (block[1].match(/\bEnabled="([^"]*)"/i)?.[1] || '').toLowerCase()
+  const id = block[2].match(/<ID>\s*(\d+)\s*<\/ID>/i)?.[1] || null
+  const expiresAt = ncDate(block[2].match(/<ExpiredDate>([^<]*)<\/ExpiredDate>/i)?.[1])
+  if (enabled === 'notalloted' || !id || id === '0') return { state: 'none', id: null, expiresAt: null }
+  return { state: enabled === 'true' ? 'on' : 'off', id, expiresAt }
+}
+
+/** Namecheap's own Auto-Renew for one domain, from a domains.getList response: <Domain … Name="x.com" … AutoRenew="false" />. */
+export function parseAutoRenew(xml: string, domain: string): boolean | null {
+  const want = domain.toLowerCase()
+  for (const m of xml.matchAll(/<Domain\b([^>]*)\/?>/gi)) {
+    const name = m[1].match(/\bName="([^"]*)"/i)?.[1]?.toLowerCase()
+    if (name !== want) continue
+    const v = m[1].match(/\bAutoRenew="([^"]*)"/i)?.[1]?.toLowerCase()
+    return v === 'true' ? true : v === 'false' ? false : null
+  }
+  return null
+}
+
 /**
  * One year's price for `tld`, in cents, from a users.getPricing response (REGISTER or RENEW) — what OUR account pays
  * (YourPrice, else Price) plus the per-year additional cost (the ICANN fee). Read defensively, because customers are
@@ -292,12 +327,16 @@ export function createNamecheapProvider(): RegistrarProvider {
         const xml = await callApi('namecheap.domains.getInfo', { DomainName: domain })
         const expires = xml.match(/<DomainDetails>[\s\S]*?<ExpiredDate>([^<]+)<\/ExpiredDate>/i)
         const locked = xml.match(/<LockDetails>[\s\S]*?<RegistrarLockStatus>([^<]+)<\/RegistrarLockStatus>/i)
-        const autoRenew = attr(xml, 'DomainGetInfoResult', 'IsOwner') // not perfect — Namecheap doesn't expose autoRenew on getInfo consistently
+        // getInfo has no auto-renew field — this used to read IsOwner and call every domain we own "auto-renewing".
+        // domains.getList carries the real AutoRenew; null when it cannot be read. (10/14)
+        let autoRenew: boolean | null = null
+        try { autoRenew = parseAutoRenew(await callApi('namecheap.domains.getList', { SearchTerm: domain, PageSize: '20' }), domain) } catch { autoRenew = null }
         return {
           domain,
           expiresAt: expires ? new Date(expires[1]) : undefined,
-          autoRenew: autoRenew !== undefined,
+          autoRenew,
           locked: locked ? locked[1].toLowerCase() === 'true' : false,
+          privacy: parsePrivacy(xml),
         }
       } catch {
         return null
@@ -358,6 +397,25 @@ export function createNamecheapProvider(): RegistrarProvider {
         return { success: true }
       } catch (err: any) {
         return { success: false, error: err.message }
+      }
+    },
+
+    // Keep the free privacy running at least to `until` (the domain's new expiry). Namecheap ties privacy's own
+    // auto-renew to the domain's, and a paying customer's domain auto-renew stays OFF (we renew after they pay), so
+    // privacy has to be renewed here, beside the domain. Free for life per Namecheap; renewed one year at a time.
+    async keepPrivacyThrough(domain: string, until: Date) {
+      try {
+        const p = parsePrivacy(await callApi('namecheap.domains.getInfo', { DomainName: domain }))
+        if (p.state === 'none') return { ok: false, renewed: false, detail: 'no privacy on this domain' }
+        if (p.state === 'off') return { ok: false, renewed: false, detail: 'privacy is switched off' }
+        if (p.expiresAt && p.expiresAt.getTime() >= until.getTime()) return { ok: true, renewed: false, detail: 'privacy already runs to ' + p.expiresAt.toISOString().slice(0, 10) }
+        const xml = await callApi('namecheap.whoisguard.renew', { WhoisguardID: String(p.id), Years: '1' })
+        const renewed = attr(xml, 'WhoisguardRenewResult', 'Renew') === 'true'
+        return renewed
+          ? { ok: true, renewed: true, detail: 'privacy renewed one year' }
+          : { ok: false, renewed: false, detail: 'privacy renew call did not confirm success' }
+      } catch (err: any) {
+        return { ok: false, renewed: false, detail: err?.message || 'privacy renew failed' }
       }
     },
 

@@ -286,6 +286,8 @@ factory.post('/stripe/webhook', async (c) => {
         supabase,
         renew: async (domain, years) => (await getRegistrar()).renew(domain, years),
         alertStaff: notifyStaff,
+        // the free WHOIS privacy, renewed beside the domain (its Namecheap auto-renew would turn the domain's on)
+        keepPrivacy: async (domain, until) => (await getRegistrar()).keepPrivacyThrough(domain, until),
       })
       console.log('[Domain] renewal invoice', event.data.object.id, JSON.stringify(done))
     }
@@ -607,11 +609,18 @@ factory.get('/customers/:id/domain/billing', requireRole('owner', 'admin'), asyn
   const liveRenewalCostCents = ours && tld?.ok ? await (await getRegistrar()).getCostCents(tld.tld, 'RENEW') : null
   const coveredByUs = t.domain_renewal_price_cents === 0
   const chargeCents = coveredByUs ? 0 : t.domain_renewal_price_cents && t.domain_renewal_price_cents > 0 ? t.domain_renewal_price_cents : renewalChargeCents(liveRenewalCostCents)
+  // Namecheap's own switches, read live, so staff see when one is wrong instead of finding out at expiry (10/14):
+  // a domain we BILL needs Namecheap auto-renew OFF (we renew once paid); one we COVER needs it ON (nobody else will).
+  const info = ours && t.domain ? await (await getRegistrar()).getDomain(t.domain).catch(() => null) : null
+  const namecheapAutoRenew = info ? info.autoRenew : null
   return c.json({
     domain: t.domain, registeredByUs: ours, registrar: t.domain_registrar, expiresAt: t.domain_expires_at,
     hasStripeCustomer: !!t.stripe_customer_id, supportedTld: tld ? tld.ok : null,
     liveRenewalCostCents, renewalChargeCents: chargeCents, priceSetByHand: !!(t.domain_renewal_price_cents && t.domain_renewal_price_cents > 0), coveredByUs,
     openInvoiceId: t.domain_renewal_invoice_id, renewalError: t.domain_renewal_error,
+    namecheapAutoRenew,
+    namecheapAutoRenewWanted: ours ? coveredByUs : null,
+    privacy: info?.privacy ? { state: info.privacy.state, expiresAt: info.privacy.expiresAt ? info.privacy.expiresAt.toISOString() : null } : null,
   })
 })
 

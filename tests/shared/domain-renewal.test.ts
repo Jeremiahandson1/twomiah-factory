@@ -146,6 +146,66 @@ const invoice = (id: string) => ({ id, metadata: { purpose: 'domain_renewal', te
 }
 check('any other paid invoice is not a domain renewal', (await R.completePaidDomainRenewal({ id: 'in_x', metadata: {} }, { supabase: table([]), renew: async () => ({ success: true }), alertStaff: async () => {} })).handled === false)
 
+// ══ the free WHOIS privacy, renewed beside the domain ══
+// Owner, 10/14: turning privacy's auto-renew on in Namecheap turned the DOMAIN's auto-renew on too — which a domain we
+// bill must not have. So the Factory keeps privacy running itself, right after the paid domain renewal.
+{
+  const db = table([{ ...higgs(), domain_renewal_invoice_id: 'in_p' }])
+  const asked: any[] = [], alerts: any[] = []
+  const r = await R.completePaidDomainRenewal(invoice('in_p'), {
+    supabase: db, renew: async () => ({ success: true }), alertStaff: async (...a: any[]) => alerts.push(a),
+    keepPrivacy: async (d: string, until: Date) => (asked.push([d, until.toISOString()]), { ok: true, renewed: true, detail: 'privacy renewed one year' }),
+  })
+  check('paid renewal → privacy kept running to the NEW expiry, for that domain', r.renewed === true && asked.length === 1 && asked[0][0] === 'higgsheritagebuilders.com' && asked[0][1] === '2028-10-03T23:29:41.000Z' && alerts.length === 0, { r, asked })
+}
+{
+  const db = table([{ ...higgs(), domain_renewal_invoice_id: 'in_q' }])
+  const alerts: any[] = []
+  const r = await R.completePaidDomainRenewal(invoice('in_q'), {
+    supabase: db, renew: async () => ({ success: true }), alertStaff: async (...a: any[]) => alerts.push(a),
+    keepPrivacy: async () => ({ ok: false, renewed: false, detail: 'privacy is switched off' }),
+  })
+  check('privacy that cannot be kept: staff alerted with the reason — and told to leave the DOMAIN auto-renew OFF', alerts.length === 1 && /privacy NOT renewed/.test(alerts[0][0]) && /switched off/.test(alerts[0][1]) && /auto-renew OFF/.test(alerts[0][1]), alerts)
+  check('…while the domain renewal stands: renewed, expiry moved, renewal closed', r.renewed === true && db.rows[0].domain_expires_at === '2028-10-03T23:29:41.000Z' && db.rows[0].domain_renewal_invoice_id === null && !db.rows[0].domain_renewal_error, db.rows[0])
+}
+{
+  const db = table([{ ...higgs(), domain_renewal_invoice_id: 'in_t' }])
+  const alerts: any[] = []
+  const r = await R.completePaidDomainRenewal(invoice('in_t'), {
+    supabase: db, renew: async () => ({ success: true }), alertStaff: async (...a: any[]) => alerts.push(a),
+    keepPrivacy: async () => { throw new Error('Namecheap timeout') },
+  })
+  check('a privacy call that throws is caught: the renewal still stands, staff are told', r.renewed === true && alerts.length === 1 && /Namecheap timeout/.test(alerts[0][1]), { r, alerts })
+}
+{
+  const db = table([{ ...higgs(), domain_renewal_invoice_id: 'in_n' }])
+  const alerts: any[] = []
+  await R.completePaidDomainRenewal(invoice('in_n'), { supabase: db, renew: async () => ({ success: true }), alertStaff: async (...a: any[]) => alerts.push(a) })
+  check('no privacy step wired → staff are told, never a silent skip', alerts.length === 1 && /not wired/.test(alerts[0][1]), alerts)
+}
+{
+  const db = table([{ ...higgs(), domain_renewal_invoice_id: 'in_f' }])
+  const asked: any[] = []
+  await R.completePaidDomainRenewal(invoice('in_f'), { supabase: db, renew: async () => ({ success: false, error: 'insufficient funds' }), alertStaff: async () => {}, keepPrivacy: async (...a: any[]) => (asked.push(a), { ok: true, renewed: true, detail: '' }) })
+  check('a domain renewal that FAILED never touches privacy', asked.length === 0, asked)
+}
+{
+  // The two readers of Namecheap's XML, against real response shapes (Namecheap's go SDK sample and docs, 10/14).
+  const { parsePrivacy, parseAutoRenew } = await import(new URL('../../apps/api/src/services/registrar/namecheap.ts', import.meta.url).href)
+  const on = parsePrivacy('<DomainGetInfoResult Status="Ok" ID="1" DomainName="a.com"><Whoisguard Enabled="True"><ID>53536</ID><ExpiredDate>11/04/2015</ExpiredDate><EmailDetails WhoisGuardEmail="x@whoisguard.com" ForwardedTo="y@z.com" /></Whoisguard></DomainGetInfoResult>')
+  check('privacy ON is read with its id and expiry (MM/DD/YYYY)', on.state === 'on' && on.id === '53536' && on.expiresAt?.toISOString() === '2015-11-04T00:00:00.000Z', on)
+  check('privacy OFF is read as off', parsePrivacy('<Whoisguard Enabled="False"><ID>9</ID><ExpiredDate>1/2/2027</ExpiredDate></Whoisguard>').state === 'off')
+  check('no privacy allotted ("NotAlloted", ID 0) is none', parsePrivacy('<Whoisguard Enabled="NotAlloted"><ID>0</ID><ExpiredDate>01/01/0001</ExpiredDate></Whoisguard>').state === 'none' && parsePrivacy('<DomainGetInfoResult />').state === 'none')
+  const list = '<DomainGetListResult><Domain ID="1" Name="higgsheritagebuilders.com.au" AutoRenew="true" /><Domain ID="2" Name="higgsheritagebuilders.com" User="u" Created="10/03/2026" Expires="10/03/2027" IsExpired="false" IsLocked="false" AutoRenew="false" WhoisGuard="ENABLED" IsPremium="false" IsOurDNS="false" /></DomainGetListResult>'
+  check('auto-renew is read for THAT domain — not a look-alike in the same search', parseAutoRenew(list, 'higgsheritagebuilders.com') === false && parseAutoRenew(list, 'HiggsHeritageBuilders.com.au') === true)
+  check('a domain missing from the list is unknown (null), never "off"', parseAutoRenew(list, 'other.com') === null)
+  const src = (p: string) => readFileSync(new URL('../../apps/api/src/' + p, import.meta.url), 'utf8')
+  check('the paid-renewal webhook wires the privacy step to the registrar', /completePaidDomainRenewal\(event\.data\.object, \{[\s\S]{0,400}keepPrivacy: async \(domain, until\) => \(await getRegistrar\(\)\)\.keepPrivacyThrough\(domain, until\)/.test(src('routes/factory/billing.ts')))
+  const nc = src('services/registrar/namecheap.ts')
+  check('auto-renew is no longer read from IsOwner (it called every domain we own "auto-renewing")', !/attr\(xml, 'DomainGetInfoResult', 'IsOwner'\)/.test(nc) && /parseAutoRenew\(await callApi\('namecheap\.domains\.getList'/.test(nc))
+  check('privacy is renewed with whoisguard.renew by its id, and only once getInfo says it is short of the new expiry', /p\.expiresAt\.getTime\(\) >= until\.getTime\(\)[\s\S]{0,200}callApi\('namecheap\.whoisguard\.renew', \{ WhoisguardID: String\(p\.id\), Years: '1' \}\)/.test(nc))
+}
+
 // ══ the Stripe invoice ══
 {
   const calls: any[] = []

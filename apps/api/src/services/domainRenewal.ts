@@ -115,6 +115,12 @@ type CompleteDeps = {
   supabase: any
   renew: (domain: string, years: number) => Promise<{ success: boolean; error?: string }>
   alertStaff: (subject: string, detail: string, tenantId: string) => Promise<unknown>
+  /**
+   * Keep the free WHOIS privacy running to the domain's new expiry. Owner, 10/14: turning privacy's auto-renew on in
+   * Namecheap turns the DOMAIN's auto-renew on with it — which a domain we bill must not have. So privacy is renewed
+   * here, beside the paid domain renewal. Missing → staff are told, never silently skipped.
+   */
+  keepPrivacy?: (domain: string, until: Date) => Promise<{ ok: boolean; renewed: boolean; detail: string }>
 }
 
 /**
@@ -122,7 +128,7 @@ type CompleteDeps = {
  * the tenant's outstanding renewal AND nobody has claimed it — so a second delivery of the same event, or two at once,
  * finds nothing to claim and renews nothing.
  */
-export async function completePaidDomainRenewal(invoice: any, deps: CompleteDeps): Promise<{ handled: boolean; renewed?: boolean; skipped?: string; error?: string }> {
+export async function completePaidDomainRenewal(invoice: any, deps: CompleteDeps): Promise<{ handled: boolean; renewed?: boolean; skipped?: string; error?: string; privacy?: string }> {
   const meta = invoice?.metadata || {}
   if (meta.purpose !== 'domain_renewal' || !meta.tenant_id || !invoice?.id) return { handled: false }
   const { data: claimed, error } = await deps.supabase.from('tenants')
@@ -142,11 +148,20 @@ export async function completePaidDomainRenewal(invoice: any, deps: CompleteDeps
     await deps.alertStaff('Paid domain renewal FAILED at Namecheap: ' + row.domain, msg + ' — invoice ' + invoice.id + '. Renew it by hand, then clear domain_renewal_* on the tenant.', row.id).catch(() => {})
     return { handled: true, renewed: false, error: msg }
   }
+  const newExpiry = nextExpiry(row.domain_expires_at)
   await deps.supabase.from('tenants').update({
-    domain_expires_at: nextExpiry(row.domain_expires_at).toISOString(),
+    domain_expires_at: newExpiry.toISOString(),
     domain_renewal_invoice_id: null, domain_renewal_paid_invoice_id: null, domain_renewal_error: null,
     // next year's 60/30/7-day reminders go out again
     domain_renewal_warned_60d_at: null, domain_renewal_warned_30d_at: null, domain_renewal_warned_7d_at: null,
   }).eq('id', row.id)
-  return { handled: true, renewed: true }
+  // The domain is renewed and recorded. Privacy follows; if it cannot be kept, staff renew it by hand — the domain
+  // renewal itself is never undone over it.
+  const privacy = deps.keepPrivacy
+    ? await deps.keepPrivacy(row.domain, newExpiry).catch((e: any) => ({ ok: false, renewed: false, detail: e?.message || 'failed' }))
+    : { ok: false, renewed: false, detail: 'the privacy step is not wired' }
+  if (!privacy.ok) {
+    await deps.alertStaff('Domain privacy NOT renewed: ' + row.domain, 'The domain renewed (invoice ' + invoice.id + ') but its free privacy did not: ' + privacy.detail + '. In Namecheap › Domain List › ' + row.domain + ', renew WithheldforPrivacy — and leave the DOMAIN auto-renew OFF.', row.id).catch(() => {})
+  }
+  return { handled: true, renewed: true, privacy: privacy.detail }
 }

@@ -12,6 +12,9 @@ type State = {
   hasStripeCustomer: boolean; supportedTld: boolean | null
   liveRenewalCostCents: number | null; renewalChargeCents: number | null; priceSetByHand: boolean; coveredByUs?: boolean
   openInvoiceId: string | null; renewalError: string | null
+  /** Namecheap's own auto-renew, read live (null = unreadable), and which way it should be: ON only for a domain we cover. */
+  namecheapAutoRenew?: boolean | null; namecheapAutoRenewWanted?: boolean | null
+  privacy?: { state: 'on' | 'off' | 'none'; expiresAt: string | null } | null
 }
 type Props = { tenantId: string; showToast: (msg: string, type?: 'success' | 'error') => void; onChanged: () => void }
 
@@ -103,8 +106,23 @@ export default function DomainBilling({ tenantId, showToast, onChanged }: Props)
               <dt className="text-gray-400">Namecheap renewal</dt><dd className="text-white">{money(s.liveRenewalCostCents)}{s.liveRenewalCostCents == null ? ' (unavailable right now)' : ''}</dd>
               <dt className="text-gray-400">We charge</dt><dd className="text-white">{s.coveredByUs ? 'Free — we cover it' : money(s.renewalChargeCents) + (s.priceSetByHand ? ' (set by hand)' : ' (at cost + card fee)')}</dd>
               <dt className="text-gray-400">Renewal invoice</dt><dd className="text-white">{s.openInvoiceId ? 'Open — ' + s.openInvoiceId : 'None open'}</dd>
+              <dt className="text-gray-400">Namecheap auto-renew</dt>
+              <dd className={s.namecheapAutoRenew == null ? 'text-gray-300' : s.namecheapAutoRenew === s.namecheapAutoRenewWanted ? 'text-emerald-300' : 'text-amber-300'}>
+                {s.namecheapAutoRenew == null ? 'Could not read it' : (s.namecheapAutoRenew ? 'On' : 'Off') + (s.namecheapAutoRenew === s.namecheapAutoRenewWanted ? ' — correct' : ' — should be ' + (s.namecheapAutoRenewWanted ? 'ON' : 'OFF'))}
+              </dd>
+              <dt className="text-gray-400">Privacy</dt>
+              <dd className={s.privacy?.state === 'on' ? 'text-emerald-300' : 'text-amber-300'}>
+                {!s.privacy ? 'Could not read it' : s.privacy.state === 'on' ? 'On' + (s.privacy.expiresAt ? ' until ' + day(s.privacy.expiresAt) : '') : s.privacy.state === 'off' ? 'Off — the owner’s details are public' : 'None on this domain'}
+              </dd>
             </>)}
           </dl>
+          {s.registeredByUs && s.namecheapAutoRenew != null && s.namecheapAutoRenewWanted != null && s.namecheapAutoRenew !== s.namecheapAutoRenewWanted && (
+            <p className="text-amber-300">
+              {s.namecheapAutoRenewWanted
+                ? 'We cover this domain, so nothing else renews it. In Namecheap › Domain List › Manage, turn Auto-Renew ON.'
+                : 'Namecheap will renew this domain on its own, before the customer has paid. In Namecheap › Domain List › Manage, turn the domain’s Auto-Renew OFF — the Factory renews it, and its free privacy, once the renewal invoice is paid.'}
+            </p>
+          )}
 
           {s.registeredByUs && !s.expiresAt && <p className="text-amber-300">The expiry date is unknown, so this domain's renewal is not being billed. Sync it from Namecheap.</p>}
           {s.registeredByUs && s.coveredByUs && <p className="text-gray-300">We cover this domain, so nobody is billed. Keep <strong>Auto-Renew ON</strong> for it in Namecheap — that is what renews it every year, on our account.</p>}

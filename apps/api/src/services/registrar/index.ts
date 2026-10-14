@@ -47,9 +47,12 @@ export interface RegisterResult {
 export interface DomainInfo {
   domain: string
   expiresAt?: Date
-  autoRenew: boolean
+  /** The registrar's OWN auto-renew. null = could not be read. A domain we bill must have it OFF; a comped one ON. */
+  autoRenew: boolean | null
   locked: boolean
   registrarStatusCodes?: string[]
+  /** WHOIS privacy: 'none' when the domain has none allotted. */
+  privacy?: { state: 'on' | 'off' | 'none'; id: string | null; expiresAt: Date | null }
 }
 
 export interface RegistrarProvider {
@@ -91,6 +94,10 @@ export interface RegistrarProvider {
   // Put the registrar lock back — a company that restarts its subscription after cancelling (the offboard unlocked
   // the domain for a transfer it no longer needs).
   lock(domain: string): Promise<{ success: boolean; error?: string }>
+
+  // Keep the domain's free WHOIS privacy running at least to `until` — renewed beside a paid domain renewal, because
+  // the registrar ties privacy's auto-renew to the domain's, which stays OFF for a domain we bill. (10/14)
+  keepPrivacyThrough(domain: string, until: Date): Promise<{ ok: boolean; renewed: boolean; detail: string }>
 
   // Transfer-out prep: email the EPP (auth) code to the tenant so they can
   // paste it at their new registrar. Provider triggers the email directly.
