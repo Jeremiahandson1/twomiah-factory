@@ -103,6 +103,8 @@ export async function renderPremiumPage(
   settings: PreviewSettings,
   previewBasePath: string,
   templateDir?: string,
+  // false for the twomiah.com instant preview: there's no intake yet to approve or send feedback on.
+  opts: { intakeWidgets?: boolean } = {},
 ): Promise<RenderedPage> {
   const resolvedDir = templateDir || path.join(TEMPLATES_ROOT, DEFAULT_TEMPLATE)
   const viewsDir = path.join(resolvedDir, 'views')
@@ -171,10 +173,12 @@ export async function renderPremiumPage(
   // leaving the preview. The script extracts the intake id from
   // window.location.pathname and POSTs to .../checkout-premium, then
   // redirects to Stripe Checkout.
-  inlined = injectApproveAndBuyWidget(inlined)
-  inlined = injectFeedbackWidget(inlined)
-  if (settings.contentGaps && settings.contentGaps.length) {
-    inlined = injectContentGapsPanel(inlined, settings.contentGaps)
+  if (opts.intakeWidgets !== false) {
+    inlined = injectApproveAndBuyWidget(inlined)
+    inlined = injectFeedbackWidget(inlined)
+    if (settings.contentGaps && settings.contentGaps.length) {
+      inlined = injectContentGapsPanel(inlined, settings.contentGaps)
+    }
   }
 
   return { html: inlined, bytes: inlined.length }

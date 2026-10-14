@@ -13,6 +13,7 @@ import { composeSite } from '../../services/sectionComposer'
 import { parseIntakeFacts, type ContentGap } from '../../services/composerFacts'
 import { renderPremiumPage, pickPremiumTemplateDir, safeColor } from '../../services/premiumSiteRenderer'
 import { collectImageUrls, heroCreditsForUrls } from '../../config/heroLibrary'
+import { composeInstant } from '../../services/instantComposer'
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../../services/unsplashPlus'
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
@@ -881,9 +882,37 @@ factory.post('/public/preview', rateLimit(10 * 60_000, 6), async (c) => {
     return c.json({ error: 'Enter a business name and what you do (e.g. "Joe\'s Roofing" and "roofing").' }, 422)
   }
 
-  const cacheKey = [businessName, businessType, city, state].join('|').toLowerCase()
+  // engine: 'premium' — the premium site, composed instantly from what they typed (no model call,
+  // ~$0, milliseconds): the site the premium engine builds, not the standard template. The default
+  // stays the standard preview until signups build premium too, so the preview never shows a
+  // different site from the one a signup gets.
+  const premium = body.engine === 'premium'
+  const cacheKey = [premium ? 'premium' : 'standard', businessName, businessType, city, state].join('|').toLowerCase()
   const cached = cacheGet(cacheKey)
   if (cached) return c.html(cached)
+
+  if (premium) {
+    if (!acquireInflight()) return c.json({ error: 'Busy rendering previews right now — try again in a few seconds.' }, 503)
+    try {
+      const site = composeInstant({ businessName, businessType, city: city || undefined, state: state || undefined })
+      const published = Object.keys(site.pages).filter((slug) => !site.heldPages.includes(slug))
+      const settings = {
+        companyName: businessName,
+        nav: buildPremiumNav(published),
+        // Credits for the library photo, as the deployed site shows them.
+        photoCredits: heroCreditsForUrls(collectImageUrls(site.pages.home)),
+      }
+      // Links inside the preview go nowhere ('#'): it's one page in an iframe on twomiah.com.
+      const { html } = await renderPremiumPage({ slug: 'home', title: businessName, sections: site.pages.home }, settings as any, '#', pickPremiumTemplateDir(businessType), { intakeWidgets: false })
+      cacheSet(cacheKey, html)
+      return c.html(html)
+    } catch (err: any) {
+      console.error('[PublicPreview] Premium render failed:', err?.message || err)
+      return c.json({ error: 'Preview failed to render — please try again.' }, 500)
+    } finally {
+      releaseInflight()
+    }
+  }
 
   let config: GenerateConfig
   const signupTrade = businessType.toLowerCase()
