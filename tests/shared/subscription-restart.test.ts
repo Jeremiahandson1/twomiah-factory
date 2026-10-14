@@ -86,6 +86,9 @@ const API = (p: string) => readFileSync(new URL('../../apps/api/src/' + p, impor
   const acted = body.indexOf('if (refusal) return c.json({ error: refusal.error, code: refusal.code }, refusal.status)')
   check('…and a refusal RETURNS its 409/410 before any checkout is opened — never a second subscription', asked > 0 && acted > asked && acted < body.indexOf('createSubscriptionCheckout'), { asked, acted })
   check('…for the company\'s own plan, back to the lock page that waits for the payment', /planId: tenant\.plan/.test(body) && /successUrl: crm \+ '\/crm\/paywall\?restarted=1'/.test(body))
+  // logTenantAudit returns early on an empty changes object — the first live restart's "checkout opened" row never landed.
+  check('opening a restart checkout is recorded — with a change, which the audit helper requires', /logTenantAudit\(tenant\.id, 'restart_checkout', \{ restart_checkout_plan: \{/.test(body)
+    && /if \(Object\.keys\(changes\)\.length === 0\) return/.test(API('routes/factory/shared.ts')))
   const gate = API('routes/factory.ts')
   check('the route is let past staff auth only as a POST on an exact id path (the CRM has no staff token)', /c\.req\.method === 'POST' && \/\\\/customers\\\/\[0-9a-f-\]\{36\}\\\/restart-checkout\$\/i\.test\(c\.req\.path\)/.test(gate))
   const bill = API('routes/factory/billing.ts')

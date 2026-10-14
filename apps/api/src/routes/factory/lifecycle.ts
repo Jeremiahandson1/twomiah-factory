@@ -194,7 +194,8 @@ factory.post('/customers/:id/restart-checkout', async (c) => {
       await supabase.from('tenants').update({ stripe_customer_id: checkout.stripeCustomerId }).eq('id', tenant.id)
     }
     if (!checkout.url) return c.json({ error: 'Stripe did not return a checkout page — try again in a moment.' }, 502)
-    await logTenantAudit(tenant.id, 'restart_checkout', {}, 'tenant', 'Plan ' + (tenant.plan || 'starter10') + ' — checkout opened from the lock page')
+    // logTenantAudit drops an entry with no changes, so name what was offered — an empty {} was never written. (10/14)
+    await logTenantAudit(tenant.id, 'restart_checkout', { restart_checkout_plan: { old: null, new: tenant.plan || 'starter10' } }, 'tenant', 'Checkout opened from the lock page')
     return c.json({ url: checkout.url })
   } catch (err: any) {
     console.error('[Restart] checkout failed:', err?.message || err)
