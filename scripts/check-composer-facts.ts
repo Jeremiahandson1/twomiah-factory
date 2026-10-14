@@ -307,6 +307,16 @@ const invented = (): Record<string, Section[]> => ({
     ['RV and boat dealership', 'rv'], ['lawn care and snow removal', 'landscaping'], ['senior home care', 'homecare'], ['coffee shop', 'showcase'], ['roofing', 'roofing'], ['bookkeeping', 'contractor']]) {
     check(premiumWebsiteTemplateFor(bt) === 'website-premium-' + tpl, `premium template for "${bt}" should be website-premium-${tpl}, got ${premiumWebsiteTemplateFor(bt)}`)
   }
+  // The signup's catch-all trade is never shown as a trade.
+  const other = JSON.stringify(composeInstant({ businessName: 'Hilltop Odd Jobs', businessType: 'other', city: 'Eau Claire', state: 'WI' }).pages)
+  check(!/"Other|Other ·/.test(other), 'composeInstant("other"): never labels the business "Other"')
+
+  // One switch for what a signup builds and what the twomiah.com preview shows, so they can't differ.
+  const intakeSrc = read('apps/api/src/routes/factory/intake.ts')
+  check(/function signupWebsiteEngine\(\)[\s\S]{0,200}process\.env\.SIGNUP_WEBSITE_ENGINE/.test(intakeSrc), 'intake.ts: signupWebsiteEngine() must read SIGNUP_WEBSITE_ENGINE')
+  check(/const premium = body\.engine \? body\.engine === 'premium' : signupWebsiteEngine\(\) === 'premium'/.test(intakeSrc), 'intake.ts: the preview must follow the same switch as signups')
+  check(/const premiumSite = signupWebsiteEngine\(\) === 'premium' && verticalFor\(body\.industry\) !== 'store'/.test(intakeSrc), "intake.ts: signups must follow the switch (and a store keeps its storefront)")
+  check(/preview_premium_pages: premiumPages/.test(intakeSrc) && /composeInstant\(\{\s*businessName: body\.name\.trim\(\)/.test(intakeSrc), 'intake.ts: a premium signup stores its instant composition for site-bootstrap')
 }
 
 // Numbers: what counts as a claim.
