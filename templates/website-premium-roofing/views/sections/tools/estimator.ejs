@@ -1,0 +1,19 @@
+<%
+  // The CRM's instant roof estimator (crm-roof /estimator.js), mounted for this company. Shown only
+  // when the roofer has it switched on in the CRM; prices are the ones they set there. The route
+  // sends a page-specific policy that allows exactly the CRM's origin.
+  const crm = data.crmOrigin || ''
+  const slug = data.slug || ''
+%>
+<% if (crm && slug) { %>
+<section class="tool-estimator" aria-label="Instant estimate">
+  <div class="container">
+    <div id="twomiah-estimator" data-slug="<%= slug %>"></div>
+    <script src="<%= crm %>/estimator.js" defer></script>
+  </div>
+</section>
+<style>
+  .tool-estimator{padding:0 0 var(--space,64px)}
+  #twomiah-estimator{max-width:760px;margin:0 auto}
+</style>
+<% } %>

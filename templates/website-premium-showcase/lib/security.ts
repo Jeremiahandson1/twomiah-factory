@@ -41,7 +41,8 @@ export function secureHeaders(): MiddlewareHandler {
     h.set('X-Frame-Options', 'DENY')
     h.set('X-Content-Type-Options', 'nosniff')
     h.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-    h.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()')
+    // A page can send its own (the Visualizer allows its frame the camera).
+    if (!h.has('Permissions-Policy')) h.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()')
     h.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   }
 }

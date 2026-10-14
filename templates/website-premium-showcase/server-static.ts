@@ -203,6 +203,10 @@ async function renderSections(
   // Per-page SEO overrides. siteOrigin drives base.ejs's canonical, og:url and
   // business markup — without it none of the three render.
   let baseNav = Array.isArray(settings.nav) ? settings.nav : []
+  // The Visualizer / instant estimator, when this site has them: in the nav even when seeded without.
+  for (const tool of await toolNav()) {
+    if (!baseNav.some((n: any) => '/' + String(n?.href || '').replace(/^\//, '') === tool.href)) baseNav = [...baseNav, tool]
+  }
   // A dealer with a live inventory feed: "Inventory" in the nav even when the site was seeded without it.
   if (feedUrlOk(settings.inventoryFeedUrl) && !baseNav.some((n: any) => /^\/?inventory\/?$/.test(String(n?.href || '')))) {
     baseNav = [{ label: 'Inventory', href: '/inventory' }, ...baseNav]
@@ -627,6 +631,76 @@ app.get('/inventory/:unit', async (c) => {
     metaTitle: u.title + (u.price ? ' — $' + Number(u.price).toLocaleString('en-US') : '') + ' | ' + company,
     metaDescription: (u.description || u.title + ' at ' + company + '.').slice(0, 300),
   }, settingsRow, '/inventory/' + u.slug, getSiteOrigin(c)))
+})
+
+// ── Visualizer + instant estimator ────────────────────────────────────────────
+// /visualize embeds the business's Twomiah Visualizer (VISION_URL — deploy sets it when they have it).
+// /estimate mounts crm-roof's instant estimator (CRM_API_URL + /estimator.js), only while the roofer
+// has it switched on in the CRM (its config answers 403 otherwise). Each page sends its own security
+// policy allowing exactly that one origin; every other page keeps the 'self'-only policy.
+const VISION_ORIGIN = (() => { try { const u = new URL(String(process.env.VISION_URL || '')); return u.protocol === 'https:' ? u.origin : '' } catch { return '' } })()
+const TOOL_CRM_ORIGIN = (() => { try { const u = new URL(String(process.env.CRM_API_URL || '')); return /^https?:$/.test(u.protocol) ? u.origin : '' } catch { return '' } })()
+let estimatorCache: { at: number; on: boolean } | null = null
+async function estimatorOn(): Promise<boolean> {
+  const slug = process.env.TENANT_SLUG || ''
+  if (!TOOL_CRM_ORIGIN || !slug) return false
+  if (estimatorCache && Date.now() - estimatorCache.at < 300_000) return estimatorCache.on
+  let on = false
+  try {
+    const r = await fetch(TOOL_CRM_ORIGIN + '/api/estimator/config/' + encodeURIComponent(slug), { signal: AbortSignal.timeout(6000) })
+    on = r.ok
+  } catch { on = false }
+  estimatorCache = { at: Date.now(), on }
+  return on
+}
+async function toolNav(): Promise<Array<{ label: string; href: string }>> {
+  const out: Array<{ label: string; href: string }> = []
+  if (await estimatorOn()) out.push({ label: 'Instant estimate', href: '/estimate' })
+  if (VISION_ORIGIN) out.push({ label: 'Visualizer', href: '/visualize' })
+  return out
+}
+function pagePolicy(extra: { frame?: string; script?: string; connect?: string }): string {
+  return [
+    "default-src 'self'",
+    "img-src 'self' data: https:",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "script-src 'self' 'unsafe-inline'" + (extra.script ? ' ' + extra.script : ''),
+    "connect-src 'self'" + (extra.connect ? ' ' + extra.connect : ''),
+    ...(extra.frame ? ['frame-src ' + extra.frame] : []),
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ')
+}
+
+app.get('/visualize', async (c, next) => {
+  if (!VISION_ORIGIN) return next()
+  const settingsRow = await loadSettings()
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const sections = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: company, title: 'See it on your home', subtitle: 'Upload a photo of your house and try materials and colors before any work begins.' } },
+    { type: 'tools', variant: 'visualizer', data: { src: VISION_ORIGIN + '/embed?tenant=' + encodeURIComponent(process.env.TENANT_SLUG || '') } },
+    contactCta(settingsRow, company),
+  ]
+  c.header('Content-Security-Policy', pagePolicy({ frame: VISION_ORIGIN }))
+  c.header('Permissions-Policy', 'camera=(self "' + VISION_ORIGIN + '"), microphone=(), geolocation=(), interest-cohort=()')
+  countView('/visualize')
+  return c.html(await renderSections(sections, { title: 'Visualizer', metaTitle: 'Visualizer | ' + company, metaDescription: 'Try materials and colors on a photo of your home with ' + company + '.' }, settingsRow, '/visualize', getSiteOrigin(c)))
+})
+
+app.get('/estimate', async (c, next) => {
+  if (!(await estimatorOn())) return next()
+  const settingsRow = await loadSettings()
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const sections = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: company, title: 'Instant roof estimate', subtitle: 'Enter your address to get a price range for your roof.' } },
+    { type: 'tools', variant: 'estimator', data: { crmOrigin: TOOL_CRM_ORIGIN, slug: process.env.TENANT_SLUG || '' } },
+    contactCta(settingsRow, company),
+  ]
+  c.header('Content-Security-Policy', pagePolicy({ script: TOOL_CRM_ORIGIN, connect: TOOL_CRM_ORIGIN }))
+  countView('/estimate')
+  return c.html(await renderSections(sections, { title: 'Instant estimate', metaTitle: 'Instant roof estimate | ' + company, metaDescription: 'Get a price range for your roof from ' + company + '.' }, settingsRow, '/estimate', getSiteOrigin(c)))
 })
 
 // Blog routes — must register before the catch-all `/:slug` below or
