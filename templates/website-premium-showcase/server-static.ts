@@ -189,8 +189,11 @@ async function renderSections(
 
   // Per-page SEO overrides. siteOrigin drives base.ejs's canonical, og:url and
   // business markup — without it none of the three render.
+  const baseNav = Array.isArray(settings.nav) ? settings.nav : []
   const effectiveSettings = {
     ...settings,
+    // A dispensary with the live CRM menu: "Menu" in the nav even when the site was seeded before it.
+    nav: CRM_MENU && !baseNav.some((n: any) => /^\/?menu\/?$/.test(String(n?.href || ''))) ? [{ label: 'Menu', href: '/menu' }, ...baseNav] : baseNav,
     siteOrigin: origin,
     seoTitle: meta.metaTitle || settings.seoTitle || meta.title,
     seoDescription: meta.metaDescription || settings.seoDescription || '',
@@ -367,6 +370,108 @@ app.get('/projects/:slug', async (c) => {
   return c.html(await renderSections(sections, {
     title: p.title, metaTitle: p.metaTitle || alt + ' | ' + company, metaDescription: p.metaDescription || p.summary || '',
   }, settingsRow, '/projects/' + p.slug, getSiteOrigin(c)))
+})
+
+// ── Live CRM menu (dispensary) ──────────────────────────────────────────────
+// CRM_MENU=1 (deploy sets it for a dispensary with a CRM): /menu is the shop's real menu from the
+// CRM's public menu — products, prices, stock, THC/CBD — and when the shop has Order Ahead on in the
+// CRM it takes pickup orders through it. Without the flag /menu is an ordinary page (food trucks and
+// restaurants compose one).
+const CRM_MENU = process.env.CRM_MENU === '1' && !!process.env.CRM_API_URL
+const crmBase = () => String(process.env.CRM_API_URL || '').replace(/\/+$/, '')
+let crmMenuCache: { at: number; data: { categories: any[]; total: number } } | null = null
+async function crmMenu(): Promise<{ categories: any[]; total: number } | null> {
+  if (crmMenuCache && Date.now() - crmMenuCache.at < 60_000) return crmMenuCache.data
+  try {
+    const r = await fetch(crmBase() + '/api/public/menu', { signal: AbortSignal.timeout(8000) })
+    if (!r.ok) throw new Error('HTTP ' + r.status)
+    const j: any = await r.json()
+    const categories = (Array.isArray(j?.menu) ? j.menu : []).map((cat: any) => ({
+      key: String(cat?.key || 'other').replace(/[^a-z0-9_-]/gi, ''),
+      label: String(cat?.label || cat?.key || ''),
+      products: (Array.isArray(cat?.products) ? cat.products : []).map((p: any) => ({
+        id: String(p.id), name: String(p.name || ''), brand: p.brand || '', strainType: p.strainType || '',
+        thc: p.thcPercent ?? null, cbd: p.cbdPercent ?? null, weight: p.weight ?? null, weightUnit: p.weightUnit || '',
+        price: p.price ?? null, image: p.imageUrl || (Array.isArray(p.images) ? p.images[0] : '') || '',
+        inStock: p.inStock !== false, isCannabis: !!p.isCannabis,
+      })),
+    })).filter((cat: any) => cat.products.length)
+    const data = { categories, total: categories.reduce((n: number, cat: any) => n + cat.products.length, 0) }
+    crmMenuCache = { at: Date.now(), data }
+    return data
+  } catch (e: any) {
+    console.warn('[Menu] CRM menu fetch failed:', e.message)
+    return crmMenuCache?.data || null
+  }
+}
+// Whether the shop takes online orders (Order Ahead on in the CRM). The CRM's public order route
+// refuses with 403 FEATURE_NOT_ENABLED before it looks up a single product and writes nothing on the
+// way — so an order for a product that doesn't exist answers the question without placing anything.
+let orderingCache: { at: number; on: boolean } | null = null
+async function crmOrderingOn(): Promise<boolean> {
+  if (orderingCache && Date.now() - orderingCache.at < 300_000) return orderingCache.on
+  let on = false
+  try {
+    const r = await fetch(crmBase() + '/api/public/menu/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(8000),
+      body: JSON.stringify({ items: [{ productId: '00000000-0000-0000-0000-000000000000', quantity: 1 }], customerName: 'availability check', customerPhone: '0', orderType: 'pickup' }),
+    })
+    const j: any = await r.json().catch(() => ({}))
+    on = r.status === 400 && /product not found/i.test(String(j?.error || ''))
+  } catch { on = false }
+  orderingCache = { at: Date.now(), on }
+  return on
+}
+
+app.get('/menu', async (c, next) => {
+  if (!CRM_MENU) return next()
+  const [settingsRow, menu, ordering] = await Promise.all([loadSettings(), crmMenu(), crmOrderingOn()])
+  if (!menu) return next()  // CRM unreachable and nothing cached: fall back to a composed /menu page, if any
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const gate = await firstSectionOfType('age', ['home'])  // the site's own age gate, when it has one
+  const sections: any[] = []
+  if (gate) sections.push(gate)
+  sections.push({ type: 'hero', variant: 'centered-stats', data: { eyebrow: company, title: 'Menu', subtitle: ordering ? 'Order ahead and pick up in store.' : '' } })
+  sections.push({ type: 'menu', variant: 'live', data: { categories: menu.categories, ordering } })
+  countView('/menu')
+  return c.html(await renderSections(sections, { title: 'Menu', metaTitle: 'Menu | ' + company, metaDescription: company + ' menu — ' + menu.categories.map((cat: any) => cat.label).join(', ') + '.' }, settingsRow, '/menu', getSiteOrigin(c)))
+})
+
+// Pickup orders, passed to the CRM with only the fields its order schema takes.
+const orderBuckets = new Map<string, number[]>()
+app.post('/api/order', async (c) => {
+  if (!CRM_MENU) return c.json({ error: 'Online ordering is not available here.' }, 404)
+  const ip = leadClientIp(c), now = Date.now()
+  const times = (orderBuckets.get(ip) || []).filter((t) => now - t < 15 * 60_000)
+  if (times.length >= 10) return c.json({ error: 'Too many orders from here. Please call us.' }, 429)
+  orderBuckets.set(ip, [...times, now])
+  const body: any = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Invalid order.' }, 400)
+  const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined)
+  const payload = {
+    items: (Array.isArray(body.items) ? body.items : []).slice(0, 50)
+      .map((i: any) => ({ productId: String(i?.productId || ''), quantity: Math.max(1, Math.min(99, parseInt(i?.quantity, 10) || 1)) }))
+      .filter((i: any) => i.productId),
+    customerName: str(body.customerName, 120) || '',
+    customerPhone: str(body.customerPhone, 40) || '',
+    customerEmail: str(body.customerEmail, 200),
+    dateOfBirth: str(body.dateOfBirth, 10),
+    orderType: 'pickup',
+    pickupTime: str(body.pickupTime, 60),
+    notes: str(body.notes, 1000),
+  }
+  if (!payload.items.length) return c.json({ error: 'Your order is empty.' }, 400)
+  try {
+    const r = await fetch(crmBase() + '/api/public/menu/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(15_000),
+    })
+    const j: any = await r.json().catch(() => ({}))
+    if (r.ok) { crmMenuCache = null; return c.json(j, 201) }
+    return c.json({ error: String(j?.error || 'The shop couldn\'t take that order. Please call us.') }, r.status === 403 ? 403 : 400)
+  } catch (e: any) {
+    console.warn('[Order] CRM order failed:', e.message)
+    return c.json({ error: 'We couldn\'t reach the shop just now. Please call us to order.' }, 502)
+  }
 })
 
 // Blog routes — must register before the catch-all `/:slug` below or

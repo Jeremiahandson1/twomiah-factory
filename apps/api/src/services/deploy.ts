@@ -1356,7 +1356,10 @@ export async function deployCustomer(
             const list = lookup.ok ? await lookup.json() as any[] : []
             const siteId = (list.map((x: any) => x.service || x).find((sv: any) => sv && sv.name === slug + '-site') || {}).id
             if (siteId) {
-              const ok = await updateRenderEnvVars(siteId, [{ key: 'CRM_API_URL', value: backendUrl }, { key: 'WEBHOOK_SECRET', value: jwtSecret }])
+              const ok = await updateRenderEnvVars(siteId, [
+                { key: 'CRM_API_URL', value: backendUrl }, { key: 'WEBHOOK_SECRET', value: jwtSecret },
+                ...(isDispensary ? [{ key: 'CRM_MENU', value: '1' }] : []),
+              ])
               await fetchWithTimeout(RENDER_API + '/services/' + siteId + '/deploys', { method: 'POST', headers: renderHeaders(), body: JSON.stringify({ clearCache: 'do_not_clear' }) })
               results.steps.push({ step: 'site_crm_link', status: ok ? 'ok' : 'warning', detail: siteId })
             }
@@ -1625,6 +1628,7 @@ export async function deployCustomer(
           // Salon: the website's /book embeds the CRM's booking widget (CRM is
           // the system of record) instead of the site's built-in engine.
           if (isSalon) siteEnvVars.push({ key: 'CRM_BOOKING_WIDGET', value: '1' })
+          if (isDispensary) siteEnvVars.push({ key: 'CRM_MENU', value: '1' })
           siteEnvVars.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
         }
         // Premium sites push their drizzle schema to the dedicated DB on
@@ -1705,6 +1709,7 @@ export async function deployCustomer(
           if (results.apiUrl) {
             siteEnvUpdates.push({ key: 'CRM_API_URL', value: results.apiUrl })
             if (isSalon) siteEnvUpdates.push({ key: 'CRM_BOOKING_WIDGET', value: '1' })
+            if (isDispensary) siteEnvUpdates.push({ key: 'CRM_MENU', value: '1' })
             siteEnvUpdates.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
           }
           if (siteEnvUpdates.length > 0) await updateRenderEnvVars(siteSvc.id, siteEnvUpdates)

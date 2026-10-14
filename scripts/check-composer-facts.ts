@@ -358,6 +358,12 @@ for (const file of callers) {
     check(/eq\(projectsTbl\.status, 'published'\)/.test(srv) && /p\.status !== 'published'/.test(srv), `templates/${t}: only published projects are public`)
     check(existsSync(ROOT + 'templates/' + t + '/views/sections/projects/grid.ejs') && existsSync(ROOT + 'templates/' + t + '/views/sections/projects/detail.ejs'), `templates/${t}: projects partials missing`)
     check(/app\.(?:post|patch|delete)\('\/projects[^']*', authMiddleware,/.test(read('templates/' + t + '/routes/admin.ts')), `templates/${t}: project writes must require a login`)
+    // The live CRM menu is the register's, never composed — and only behind the deploy's flag, so a
+    // food truck's or restaurant's own /menu page is untouched. Orders go to the CRM as pickup only.
+    check(/app\.get\('\/menu', async \(c, next\) => \{\r?\n\s*if \(!CRM_MENU\) return next\(\)/.test(srv), `templates/${t}: /menu must fall through to the page when CRM_MENU is off`)
+    check(srv.indexOf("app.get('/menu'") < srv.indexOf("app.get('/:slug'"), `templates/${t}: /menu must be registered before the /:slug catch-all`)
+    check(/orderType: 'pickup',/.test(srv) && srv.includes("if (!CRM_MENU) return c.json({ error: 'Online ordering is not available here.' }, 404)"), `templates/${t}: /api/order must be pickup-only and off without CRM_MENU`)
+    check(existsSync(ROOT + 'templates/' + t + '/views/sections/menu/live.ejs'), `templates/${t}: menu/live partial missing`)
   }
   check(/contentGaps:\s*Array\.isArray\(composed\.contentGaps\)/.test(src), 'site-bootstrap must seed contentGaps')
   check(/parseIntakeFacts\(/.test(src), '/public/intake must parse the owner\'s fact fields')
