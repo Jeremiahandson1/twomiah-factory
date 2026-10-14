@@ -367,22 +367,28 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
     if (!avail.available) return c.json({ error: 'That domain is no longer available. Try a different one.' }, 409)
     if (avail.premium) return c.json({ error: 'That is a Premium domain — pricing is non-standard and we do not auto-register Premium domains in this flow yet. Please contact support.' }, 422)
 
-    const { lookupDomainPrice } = await import('../../config/domainPricing')
-    const price = lookupDomainPrice(domain, years)
-    if (!price.ok) {
-      if (price.reason === 'unsupported_tld') {
+    // At cost plus the Stripe fee, from Namecheap's live prices (config/domainPricing.ts — decided 10/14).
+    const { checkTld, purchaseChargeCents, domainChargeDescription } = await import('../../config/domainPricing')
+    const tld = checkTld(domain)
+    if (!tld.ok) {
+      if (tld.reason === 'unsupported_tld') {
         return c.json({
-          error: 'We do not support .' + price.tld + ' yet. Supported TLDs: ' + price.supportedTlds.join(', '),
+          error: 'We do not support .' + tld.tld + ' yet. Supported TLDs: ' + tld.supportedTlds.join(', '),
         }, 422)
       }
       return c.json({ error: 'Malformed domain' }, 400)
     }
+    const registerCost = await registrar.getCostCents(tld.tld, 'REGISTER')
+    const renewCost = years > 1 ? await registrar.getCostCents(tld.tld, 'RENEW') : null
+    const charge = purchaseChargeCents(registerCost, renewCost, years)
+    if (!charge.ok) return c.json({ error: 'We could not get the current price for .' + tld.tld + ' from our registrar. Please try again in a few minutes.' }, 503)
+    const price = { amountCents: charge.cents, description: domainChargeDescription(domain, years) }
 
     const returnBase = (tenant.website_url || tenant.render_frontend_url || '').replace(/\/+$/, '')
     if (!returnBase) return c.json({ error: 'Tenant has no site URL recorded.' }, 409)
     const session = await factoryStripe.createOneTimeCheckoutSession({
       customerId: tenant.stripe_customer_id,
-      amountCents: price.retailCents,
+      amountCents: price.amountCents,
       productName: 'Domain registration — ' + domain,
       description: price.description,
       successUrl: returnBase + '/admin/domain?domain=registered&session={CHECKOUT_SESSION_ID}',
@@ -394,7 +400,7 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
         years: String(years),
       },
     })
-    return c.json({ url: session.url, sessionId: session.sessionId, priceCents: price.retailCents })
+    return c.json({ url: session.url, sessionId: session.sessionId, priceCents: price.amountCents })
   } catch (e: any) {
     console.error('[Domain] buy failed:', e)
     return c.json({ error: e.message || 'Buy flow failed' }, 500)
@@ -982,7 +988,13 @@ factory.post('/internal/renewal-check', async (c) => {
   try {
     const { chargeDueDomainRenewals } = await import('../../services/domainRenewal')
     const { notifyDomainRenewalPaymentNeeded, notifyStaff } = await import('../../services/email')
-    const r = await chargeDueDomainRenewals(now, { supabase, createInvoice: (o) => factoryStripe.createDomainRenewalInvoice(o), notifyPaymentNeeded: notifyDomainRenewalPaymentNeeded, alertStaff: notifyStaff })
+    const r = await chargeDueDomainRenewals(now, {
+      supabase,
+      renewalCostCents: async (tld) => (await getRegistrar()).getCostCents(tld, 'RENEW'),
+      createInvoice: (o) => factoryStripe.createDomainRenewalInvoice(o),
+      notifyPaymentNeeded: notifyDomainRenewalPaymentNeeded,
+      alertStaff: notifyStaff,
+    })
     const { errors: renewalErrors, ...counts } = r
     results.domainRenewals = counts
     results.errors.push(...renewalErrors)

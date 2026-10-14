@@ -11,6 +11,7 @@ import FeatureManagement from '../components/factory/FeatureManagement'
 import A2pRegistration from '../components/factory/A2pRegistration'
 import MessagingBilling from '../components/factory/MessagingBilling'
 import SubscriptionControls from '../components/factory/SubscriptionControls'
+import DomainBilling from '../components/factory/DomainBilling'
 
 const V2_PLAN_IDS = ['website', 'starter10', 'team25', 'business50']
 
@@ -792,6 +793,9 @@ export default function CustomerDetailPage() {
               showToast={showToast}
             />
           )}
+
+          {/* Domain billing — renewal at cost + card fee, and registering one (10/14) */}
+          <DomainBilling tenantId={tenant.id} showToast={showToast} onChanged={load} />
 
           {/* Messaging billing ($10/mo enable + at-cost wallet) */}
           <MessagingBilling tenantId={tenant.id} showToast={showToast} />

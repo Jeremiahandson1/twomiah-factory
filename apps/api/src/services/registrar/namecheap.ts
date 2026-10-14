@@ -126,6 +126,28 @@ function attr(xml: string, tag: string, attr: string): string | undefined {
   return m ? m[1] : undefined
 }
 
+/**
+ * One year's price for `tld`, in cents, from a users.getPricing response (REGISTER or RENEW) — what OUR account pays
+ * (YourPrice, else Price) plus the per-year additional cost (the ICANN fee). Read defensively, because customers are
+ * charged from it: the <Product Name="tld"> block, its 1-YEAR <Price>, and a total between $0.50 and $500. Anything
+ * else → null. Namecheap spells the attribute "YourAdditonalCost" (sic); both spellings are read.
+ */
+export function parseOneYearCostCents(xml: string, tld: string): number | null {
+  if (!xml || /Status="ERROR"/.test(xml)) return null
+  const escaped = tld.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const product = xml.match(new RegExp('<Product[^>]*\\bName="' + escaped + '"[^>]*>([\\s\\S]*?)</Product>', 'i'))
+  if (!product) return null
+  const prices = [...product[1].matchAll(/<Price\b([^>]*)\/?>/gi)].map((m) => m[1])
+  const oneYear = prices.find((p) => /\bDuration="1"/.test(p) && /\bDurationType="YEAR"/i.test(p))
+  if (!oneYear) return null
+  const num = (name: string) => { const m = oneYear.match(new RegExp('\\b' + name + '="([0-9.]+)"')); return m ? Number(m[1]) : null }
+  const base = num('YourPrice') ?? num('Price')
+  if (base == null || !Number.isFinite(base)) return null
+  const extra = num('YourAdditonalCost') ?? num('YourAdditionalCost') ?? num('AdditionalCost') ?? 0
+  const cents = Math.round((base + (Number.isFinite(extra) ? extra : 0)) * 100)
+  return cents >= 50 && cents <= 50_000 ? cents : null
+}
+
 export function createNamecheapProvider(): RegistrarProvider {
   return {
     name: 'namecheap',
@@ -250,6 +272,18 @@ export function createNamecheapProvider(): RegistrarProvider {
         return { success: renewed, expiresAt: expiryRaw ? new Date(expiryRaw) : fallback, error: renewed ? undefined : 'Renew call did not confirm success' }
       } catch (err: any) {
         return { success: false, error: err.message }
+      }
+    },
+
+    async getCostCents(tld: string, action: 'REGISTER' | 'RENEW'): Promise<number | null> {
+      try {
+        const xml = await callApi('namecheap.users.getPricing', {
+          ProductType: 'DOMAIN', ProductCategory: 'DOMAINS', ActionName: action, ProductName: tld.toLowerCase(),
+        })
+        return parseOneYearCostCents(xml, tld)
+      } catch (err: any) {
+        console.warn('[Namecheap] ' + action + ' price for .' + tld + ' unavailable:', err?.message)
+        return null
       }
     },
 

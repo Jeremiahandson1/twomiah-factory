@@ -562,20 +562,133 @@ factory.post('/internal/domain/register-at-cost/:tenantId', async (c) => {
     if (avail.premium) return c.json({ error: 'Premium-priced domain — not registered automatically.' }, 422)
 
     const result = await handleDomainRegistration({ tenantId, domain, years })
-    // Registered at cost, renewed at cost: the yearly renewal bill (services/domainRenewal.ts) charges this,
-    // not the retail price. (10/14 — Higgs: "only charge them what we get charged")
-    if (result.ok) {
-      const { lookupDomainPrice } = await import('../../config/domainPricing')
-      const p = lookupDomainPrice(domain, 1)
-      if (p.ok) {
-        const { error: priceErr } = await supabase.from('tenants').update({ domain_renewal_price_cents: p.costCents }).eq('id', tenantId)
-        if (priceErr) console.warn('[Domain] could not record the at-cost renewal price:', priceErr.message)
-      }
-    }
+    // Renewals are billed at cost plus the Stripe fee for every customer (services/domainRenewal.ts), so an at-cost
+    // registration needs nothing recorded for its renewals.
     await logTenantAudit(tenantId, 'domain_registered_at_cost', { domain: { old: null, new: result.ok ? domain : null } }, 'operator', result.error || 'registered on registrar balance')
     return c.json({ domain, ...result }, result.ok ? 200 : 502)
   } catch (e: any) {
     console.error('[Domain] register-at-cost failed:', e)
+    return c.json({ error: e.message || 'Registration failed' }, 500)
+  }
+})
+
+// ─── Factory: a company's domain — what renewing costs, its renewal status, and buying one ──────────────────
+// The company page's Domain renewal panel (platform DomainBilling). Staff only — owner/admin. (10/14)
+//   GET  …/domain/billing          what we know: expiry, Namecheap's live renewal price and what we would charge,
+//                                   the open renewal invoice, any problem waiting for staff
+//   POST …/domain/billing/sync     read the expiry from Namecheap — how a domain registered by hand joins billing,
+//                                   and how we learn it is not on our account at all
+//   PATCH …/domain/billing         clear a renewal problem once handled; set or remove a hand-set renewal price
+//   POST …/domain/register         buy one: { billing: 'customer' } → a Stripe checkout link for the customer (the paid
+//                                   webhook registers it); { billing: 'ours' } → registered now on our account (the
+//                                   at-cost path, for accounts we bill ourselves)
+const DOMAIN_BILLING_COLUMNS = 'id, name, slug, domain, domain_registrar, domain_expires_at, stripe_customer_id, domain_renewal_price_cents, domain_renewal_invoice_id, domain_renewal_paid_invoice_id, domain_renewal_error'
+
+factory.get('/customers/:id/domain/billing', requireRole('owner', 'admin'), async (c) => {
+  const id = c.req.param('id') || ''
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant id' }, 400)
+  const { data: t, error } = await supabase.from('tenants').select(DOMAIN_BILLING_COLUMNS).eq('id', id).single()
+  if (error || !t) return c.json({ error: error?.message || 'Tenant not found' }, error?.message?.includes('does not exist') ? 503 : 404)
+  const { checkTld, renewalChargeCents } = await import('../../config/domainPricing')
+  const tld = t.domain ? checkTld(t.domain) : null
+  const ours = t.domain_registrar === 'namecheap'
+  const liveRenewalCostCents = ours && tld?.ok ? await (await getRegistrar()).getCostCents(tld.tld, 'RENEW') : null
+  const chargeCents = t.domain_renewal_price_cents && t.domain_renewal_price_cents > 0 ? t.domain_renewal_price_cents : renewalChargeCents(liveRenewalCostCents)
+  return c.json({
+    domain: t.domain, registeredByUs: ours, registrar: t.domain_registrar, expiresAt: t.domain_expires_at,
+    hasStripeCustomer: !!t.stripe_customer_id, supportedTld: tld ? tld.ok : null,
+    liveRenewalCostCents, renewalChargeCents: chargeCents, priceSetByHand: !!(t.domain_renewal_price_cents && t.domain_renewal_price_cents > 0),
+    openInvoiceId: t.domain_renewal_invoice_id, renewalError: t.domain_renewal_error,
+  })
+})
+
+factory.post('/customers/:id/domain/billing/sync', requireRole('owner', 'admin'), async (c) => {
+  const id = c.req.param('id') || ''
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant id' }, 400)
+  const { data: t } = await supabase.from('tenants').select('id, domain, domain_registrar, domain_expires_at').eq('id', id).single()
+  if (!t?.domain) return c.json({ error: 'This company has no domain on record.' }, 404)
+  const info = await (await getRegistrar()).getDomain(t.domain)
+  if (!info?.expiresAt || isNaN(info.expiresAt.getTime())) {
+    return c.json({ error: 'Namecheap does not show ' + t.domain + ' on our account. If the customer registered it themselves, it is theirs to renew — it is not billed.' }, 404)
+  }
+  const { error } = await supabase.from('tenants').update({ domain_registrar: 'namecheap', domain_expires_at: info.expiresAt.toISOString() }).eq('id', id)
+  if (error) return c.json({ error: error.message }, 500)
+  await logTenantAudit(id, 'domain_synced', { domain_expires_at: { old: t.domain_expires_at, new: info.expiresAt.toISOString() }, domain_registrar: { old: t.domain_registrar, new: 'namecheap' } }, c.get('user')?.email || 'staff')
+  return c.json({ success: true, expiresAt: info.expiresAt.toISOString() })
+})
+
+factory.patch('/customers/:id/domain/billing', requireRole('owner', 'admin'), async (c) => {
+  const id = c.req.param('id') || ''
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant id' }, 400)
+  const parsed = await parseJsonBody(c)
+  if (parsed.error) return parsed.error
+  const body = parsed.data || {}
+  const patch: Record<string, any> = {}
+  if (body.clearError === true) Object.assign(patch, { domain_renewal_error: null, domain_renewal_invoice_id: null, domain_renewal_paid_invoice_id: null })
+  if ('priceCents' in body) {
+    if (body.priceCents === null) patch.domain_renewal_price_cents = null
+    else if (Number.isInteger(body.priceCents) && body.priceCents >= 50 && body.priceCents <= 50_000) patch.domain_renewal_price_cents = body.priceCents
+    else return c.json({ error: 'priceCents must be whole cents between 50 and 50000, or null' }, 400)
+  }
+  if (!Object.keys(patch).length) return c.json({ error: 'Nothing to change' }, 400)
+  const { data: before } = await supabase.from('tenants').select(DOMAIN_BILLING_COLUMNS).eq('id', id).single()
+  if (!before) return c.json({ error: 'Tenant not found' }, 404)
+  const { error } = await supabase.from('tenants').update(patch).eq('id', id)
+  if (error) return c.json({ error: error.message }, 500)
+  await logTenantAudit(id, 'domain_billing_changed', diffTenantChanges(before, patch), c.get('user')?.email || 'staff')
+  return c.json({ success: true })
+})
+
+factory.post('/customers/:id/domain/register', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const id = c.req.param('id') || ''
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant id' }, 400)
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const body = parsed.data || {}
+    const domain = String(body.domain || '').trim().toLowerCase()
+    const years = Math.max(1, Math.min(10, Math.floor(Number(body.years) || 1)))
+    if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
+    if (body.billing !== 'customer' && body.billing !== 'ours') return c.json({ error: 'billing must be "customer" or "ours"' }, 400)
+
+    const { data: tenant } = await supabase.from('tenants').select('id, domain, stripe_customer_id, phone').eq('id', id).single()
+    if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+    if (tenant.domain) return c.json({ error: 'This company already has a domain attached.' }, 409)
+    if (!tenant.phone) return c.json({ error: 'Add a phone number to the company first — the registrar requires one.' }, 409)
+
+    const { isRegistrarConfigured } = await import('../../services/registrar')
+    if (!isRegistrarConfigured()) return c.json({ error: 'Registrar is not configured on this environment' }, 503)
+    const registrar = await getRegistrar()
+    const avail = await registrar.checkAvailability(domain)
+    if (!avail.available) return c.json({ error: 'That domain is not available.' }, 409)
+    if (avail.premium) return c.json({ error: 'Premium-priced domain — not registered automatically.' }, 422)
+    const { checkTld, purchaseChargeCents, domainChargeDescription } = await import('../../config/domainPricing')
+    const tld = checkTld(domain)
+    if (!tld.ok) return c.json({ error: tld.reason === 'unsupported_tld' ? 'We do not sell .' + tld.tld + ' yet. We sell: ' + tld.supportedTlds.join(', ') : 'Malformed domain' }, 422)
+
+    if (body.billing === 'ours') {
+      const result = await handleDomainRegistration({ tenantId: id, domain, years })
+      await logTenantAudit(id, 'domain_registered_at_cost', { domain: { old: null, new: result.ok ? domain : null } }, c.get('user')?.email || 'staff', result.error || 'registered on our Namecheap account from the Factory')
+      return c.json({ domain, ...result }, result.ok ? 200 : 502)
+    }
+
+    if (!tenant.stripe_customer_id) return c.json({ error: 'This company has no Stripe customer yet — they need to have paid for their plan first.' }, 409)
+    const charge = purchaseChargeCents(await registrar.getCostCents(tld.tld, 'REGISTER'), years > 1 ? await registrar.getCostCents(tld.tld, 'RENEW') : null, years)
+    if (!charge.ok) return c.json({ error: 'Namecheap did not give us a current price for .' + tld.tld + ' — try again in a few minutes.' }, 503)
+    const back = FRONTEND_URL.replace(/\/+$/, '') + '/tenants/' + id
+    const session = await factoryStripe.createOneTimeCheckoutSession({
+      customerId: tenant.stripe_customer_id,
+      amountCents: charge.cents,
+      productName: 'Domain registration — ' + domain,
+      description: domainChargeDescription(domain, years),
+      successUrl: back + '?domain=paid',
+      cancelUrl: back + '?domain=cancelled',
+      metadata: { purpose: 'domain_registration', tenant_id: id, domain, years: String(years) },
+    })
+    await logTenantAudit(id, 'domain_checkout_created', { domain: { old: null, new: domain } }, c.get('user')?.email || 'staff', '$' + (charge.cents / 100).toFixed(2) + ' checkout for ' + years + ' year(s)')
+    return c.json({ url: session.url, amountCents: charge.cents })
+  } catch (e: any) {
+    console.error('[Domain] factory register failed:', e)
     return c.json({ error: e.message || 'Registration failed' }, 500)
   }
 })

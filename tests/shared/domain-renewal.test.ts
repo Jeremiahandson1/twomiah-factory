@@ -5,6 +5,8 @@ delete process.env.STRIPE_SECRET_KEY
 const { readFileSync } = await import('node:fs')
 const R = await import(new URL('../../apps/api/src/services/domainRenewal.ts', import.meta.url).href)
 const { createDomainRenewalInvoice } = await import(new URL('../../apps/api/src/services/factoryStripe.ts', import.meta.url).href)
+const P = await import(new URL('../../apps/api/src/config/domainPricing.ts', import.meta.url).href)
+const { parseOneYearCostCents } = await import(new URL('../../apps/api/src/services/registrar/namecheap.ts', import.meta.url).href)
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -32,12 +34,25 @@ function table(rows: any[]) {
   return { from: (_t: string) => ({ select: (_c: string) => q('select'), update: (p: any) => q('update', p) }), rows }
 }
 
-const higgs = () => ({ id: 'higgs', name: 'Higgs', domain: 'higgsheritagebuilders.com', domain_registrar: 'namecheap', domain_expires_at: '2027-10-03T23:29:41Z', stripe_customer_id: 'cus_h', status: 'active', domain_renewal_price_cents: 929, admin_email: 'w@h.test' })
+const higgs = () => ({ id: 'higgs', name: 'Higgs', domain: 'higgsheritagebuilders.com', domain_registrar: 'namecheap', domain_expires_at: '2027-10-03T23:29:41Z', stripe_customer_id: 'cus_h', status: 'active', domain_renewal_price_cents: null, admin_email: 'w@h.test' })
 
 // ══ pure rules ══
-check('an at-cost customer renews at their own price', R.renewalPriceCents({ domain: 'a.com', domain_renewal_price_cents: 929 }) === 929)
-check('everyone else renews at retail for the TLD', R.renewalPriceCents({ domain: 'a.com', domain_renewal_price_cents: null }) === 1900)
-check('an unsupported TLD has no price (never billed a guess)', R.renewalPriceCents({ domain: 'a.weird', domain_renewal_price_cents: null }) === null)
+// ── pricing: at cost plus the Stripe fee (owner's decision, 10/14) ──
+check('the Stripe fee is added so exactly the cost is left: $15.00 → $15.76', P.withStripeFee(1500) === 1576 && Math.floor(1576 * (1 - 0.029)) - 30 >= 1500)
+check('…and $9.29 → $9.88', P.withStripeFee(929) === 988)
+check('a renewal is the live renewal cost plus the fee — no markup', R.renewalPriceCents({ domain: 'a.com', domain_renewal_price_cents: null }, 1598) === P.withStripeFee(1598))
+check('a price staff set by hand wins', R.renewalPriceCents({ domain: 'a.com', domain_renewal_price_cents: 2000 }, 1598) === 2000)
+check('no live price → no price (never billed a guess)', R.renewalPriceCents({ domain: 'a.com', domain_renewal_price_cents: null }, null) === null)
+check('one year bought: the live registration price plus the fee', JSON.stringify(P.purchaseChargeCents(299, 3000, 1)) === JSON.stringify({ ok: true, cents: P.withStripeFee(299), costCents: 299 }))
+check('three years bought: year one at the registration price, years two and three at the RENEWAL price — one fee', (() => { const r = P.purchaseChargeCents(299, 3000, 3); return r.ok && r.costCents === 299 + 2 * 3000 && r.cents === P.withStripeFee(6299) })())
+check('more than a year with no live renewal price is refused, not guessed', P.purchaseChargeCents(299, null, 2).ok === false)
+check('a TLD we do not sell is refused', P.checkTld('a.weird').ok === false && P.checkTld('a.com').ok === true)
+// ── reading Namecheap's price (users.getPricing) — defensive, because customers are charged from it ──
+const pricingXml = (attrs: string, name = 'com') => '<ApiResponse Status="OK"><CommandResponse Type="namecheap.users.getPricing"><UserGetPricingResult><ProductType Name="domains"><ProductCategory Name="renew"><Product Name="' + name + '"><Price Duration="1" DurationType="YEAR" ' + attrs + ' /><Price Duration="2" DurationType="YEAR" Price="30.00" YourPrice="30.00" /></Product></ProductCategory></ProductType></UserGetPricingResult></CommandResponse></ApiResponse>'
+check("reads our account's 1-year price plus the ICANN fee", parseOneYearCostCents(pricingXml('Price="16.98" YourPrice="15.78" YourAdditonalCost="0.20" AdditionalCost="0.20"'), 'com') === 1598)
+check('falls back to the list price when there is no account price', parseOneYearCostCents(pricingXml('Price="14.98" AdditionalCost="0.20"'), 'com') === 1518)
+check('another TLD in the reply is not mistaken for this one', parseOneYearCostCents(pricingXml('Price="14.98"', 'net'), 'com') === null)
+check('an error reply, or a nonsense price, is null', parseOneYearCostCents('<ApiResponse Status="ERROR"></ApiResponse>', 'com') === null && parseOneYearCostCents(pricingXml('Price="0.01"'), 'com') === null && parseOneYearCostCents(pricingXml('Price="9999"'), 'com') === null)
 check('due inside 30 days → charge', R.renewalAction(higgs(), NOW).act === 'charge')
 check('more than 30 days out → not yet', R.renewalAction(higgs(), new Date('2027-08-01T00:00:00Z')).act === 'skip')
 check('already billed → skip', R.renewalAction({ ...higgs(), domain_renewal_invoice_id: 'in_1' }, NOW).act === 'skip')
@@ -51,27 +66,34 @@ check('the new expiry is a year after the OLD expiry, not after today', R.nextEx
   const db = table([higgs(), { ...higgs(), id: 'later', domain_expires_at: new Date(NOW.getTime() + 90 * DAY).toISOString() }, { ...higgs(), id: 'leaving', offboard_started_at: '2027-09-01T00:00:00Z' }])
   const invoices: any[] = [], mails: any[] = [], alerts: any[] = []
   const out = await R.chargeDueDomainRenewals(NOW, {
-    supabase: db,
+    supabase: db, renewalCostCents: async () => 1598,
     createInvoice: async (o: any) => (invoices.push(o), { invoiceId: 'in_' + o.tenantId, paid: true }),
     notifyPaymentNeeded: async (...a: any[]) => mails.push(a), alertStaff: async (...a: any[]) => alerts.push(a),
   })
-  check('bills the one that is due, at its own price', invoices.length === 1 && invoices[0].tenantId === 'higgs' && invoices[0].amountCents === 929 && invoices[0].customerId === 'cus_h', invoices)
+  check('bills the one that is due, at the live renewal cost plus the fee', invoices.length === 1 && invoices[0].tenantId === 'higgs' && invoices[0].amountCents === P.withStripeFee(1598) && invoices[0].customerId === 'cus_h', invoices)
   check('…and records the invoice on the tenant', db.rows.find((r: any) => r.id === 'higgs').domain_renewal_invoice_id === 'in_higgs')
   check('a paid charge emails nobody', mails.length === 0 && alerts.length === 0 && out.paid === 1, out)
-  const again = await R.chargeDueDomainRenewals(NOW, { supabase: db, createInvoice: async (o: any) => (invoices.push(o), { invoiceId: 'x', paid: true }), notifyPaymentNeeded: async () => {}, alertStaff: async () => {} })
+  const again = await R.chargeDueDomainRenewals(NOW, { supabase: db, renewalCostCents: async () => 1598, createInvoice: async (o: any) => (invoices.push(o), { invoiceId: 'x', paid: true }), notifyPaymentNeeded: async () => {}, alertStaff: async () => {} })
   check('running again the same day bills nothing twice', invoices.length === 1 && again.billed === 0, again)
 }
 {
   const db = table([higgs()])
   const mails: any[] = []
-  await R.chargeDueDomainRenewals(NOW, { supabase: db, createInvoice: async () => ({ invoiceId: 'in_open', paid: false, hostedUrl: 'https://pay.test/in_open' }), notifyPaymentNeeded: async (t: any, o: any) => mails.push(o), alertStaff: async () => {} })
-  check('a card that fails: the customer is emailed the pay link', mails.length === 1 && mails[0].hostedUrl === 'https://pay.test/in_open' && mails[0].amountCents === 929, mails)
+  await R.chargeDueDomainRenewals(NOW, { supabase: db, renewalCostCents: async () => 1598, createInvoice: async () => ({ invoiceId: 'in_open', paid: false, hostedUrl: 'https://pay.test/in_open' }), notifyPaymentNeeded: async (t: any, o: any) => mails.push(o), alertStaff: async () => {} })
+  check('a card that fails: the customer is emailed the pay link', mails.length === 1 && mails[0].hostedUrl === 'https://pay.test/in_open' && mails[0].amountCents === P.withStripeFee(1598), mails)
 }
 {
   const db = table([{ ...higgs(), stripe_customer_id: null }])
   const alerts: any[] = []
-  await R.chargeDueDomainRenewals(NOW, { supabase: db, createInvoice: async () => { throw new Error('should not be called') }, notifyPaymentNeeded: async () => {}, alertStaff: async (...a: any[]) => alerts.push(a) })
+  await R.chargeDueDomainRenewals(NOW, { supabase: db, renewalCostCents: async () => 1598, createInvoice: async () => { throw new Error('should not be called') }, notifyPaymentNeeded: async () => {}, alertStaff: async (...a: any[]) => alerts.push(a) })
   check('nobody to bill: staff are told, the reason is kept, nothing is charged', alerts.length === 1 && /no Stripe customer/.test(db.rows[0].domain_renewal_error || ''), db.rows[0])
+}
+
+{
+  const db = table([higgs()])
+  const invoices: any[] = [], alerts: any[] = []
+  await R.chargeDueDomainRenewals(NOW, { supabase: db, renewalCostCents: async () => null, createInvoice: async (o: any) => (invoices.push(o), { invoiceId: 'x', paid: true }), notifyPaymentNeeded: async () => {}, alertStaff: async (...a: any[]) => alerts.push(a) })
+  check("Namecheap's price unavailable: nobody is billed, staff are told", invoices.length === 0 && alerts.length === 1 && /could not price/.test(db.rows[0].domain_renewal_error || ''), db.rows[0])
 }
 
 // ══ the paid webhook ══
@@ -151,7 +173,8 @@ check('any other paid invoice is not a domain renewal', (await R.completePaidDom
   const signupBlock = intake.slice(intake.indexOf("factory.post('/public/signup'"), intake.indexOf("factory.get('/public/signup/:id/next'"))
   check('…and the signup handler calls the registrar nowhere', !/registrar\.register\(|getRegistrar\(/.test(signupBlock))
   const billing = src('routes/factory/billing.ts')
-  check('register-at-cost records the at-cost renewal price', /domain_renewal_price_cents: p\.costCents/.test(billing))
+  check('nothing sets a fixed renewal price behind the scenes (everyone is at cost + fee)', !/domain_renewal_price_cents: p\.costCents/.test(billing))
+  check('the Factory domain routes are staff-only', ['get(\'/customers/:id/domain/billing\'', 'post(\'/customers/:id/domain/billing/sync\'', 'patch(\'/customers/:id/domain/billing\'', 'post(\'/customers/:id/domain/register\''].every((r) => billing.includes('factory.' + r + ", requireRole('owner', 'admin')")))
   check('the paid webhook hands a domain_renewal invoice to completePaidDomainRenewal', /event\.type === 'invoice\.paid' && event\.data\?\.object\?\.metadata\?\.purpose === 'domain_renewal'[\s\S]{0,300}completePaidDomainRenewal\(event\.data\.object/.test(billing))
   check('the daily cron bills due renewals', /chargeDueDomainRenewals\(now, \{/.test(src('routes/factory/lifecycle.ts')))
 }

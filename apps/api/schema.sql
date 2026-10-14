@@ -452,7 +452,7 @@ alter table tenants add column if not exists sub_renewal_warned_30d_at timestamp
 alter table tenants add column if not exists sub_renewal_warned_7d_at timestamptz;
 
 -- Domain renewal billing (services/domainRenewal.ts; migrations/2026-10-14_tenants_domain_renewal_billing.sql)
-alter table tenants add column if not exists domain_renewal_price_cents integer;  -- null = retail for the TLD
+alter table tenants add column if not exists domain_renewal_price_cents integer;  -- staff override; null = live Namecheap renewal + Stripe fee
 alter table tenants add column if not exists domain_renewal_invoice_id text;      -- the Stripe invoice billing the coming renewal
 alter table tenants add column if not exists domain_renewal_paid_invoice_id text; -- claimed by the paid webhook: renew once
 alter table tenants add column if not exists domain_renewal_error text;           -- staff must resolve; the cron skips while set

@@ -5,16 +5,16 @@
  * customer for the years after: the 60/30/7-day emails said "renews automatically", and any renewal landed on our
  * Namecheap balance. Now, 30 days before a domain we registered expires:
  *
- *   1. chargeDueDomainRenewals (daily cron) bills the customer one year — retail, or their own
- *      domain_renewal_price_cents (an at-cost account such as Higgs) — on a Stripe invoice, paid off-session with the
- *      card they already use. A card that fails leaves the invoice open: they are emailed its pay link.
+ *   1. chargeDueDomainRenewals (daily cron) bills the customer one year — at cost plus the Stripe fee, from
+ *      Namecheap's live renewal price (config/domainPricing.ts) — on a Stripe invoice, paid off-session with the card
+ *      they already use. A card that fails leaves the invoice open: they are emailed its pay link.
  *   2. completePaidDomainRenewal (Stripe invoice.paid) renews the domain at Namecheap for exactly one year — only
  *      after the money is in, and only once per invoice however many times Stripe delivers the event.
  *
  * Unpaid means not renewed: we are never out of pocket. This relies on Namecheap's OWN auto-renew being off for
  * these domains (registration never sets it; it is an account setting) — otherwise Namecheap renews it too.
  */
-import { lookupDomainPrice } from '../config/domainPricing'
+import { renewalChargeCents } from '../config/domainPricing'
 
 const DAY = 24 * 60 * 60 * 1000
 /** Bill this far ahead of expiry: time for a failed card to be fixed before the domain lapses. */
@@ -28,13 +28,19 @@ export type RenewalTenant = {
   domain_renewal_error?: string | null; render_frontend_url?: string | null
 }
 
-/** What one year of renewal costs this customer: their own agreed price, else our retail price for the TLD. */
-export function renewalPriceCents(t: Pick<RenewalTenant, 'domain' | 'domain_renewal_price_cents'>): number | null {
+/**
+ * What one year of renewal costs this customer: a price staff set by hand (domain_renewal_price_cents) if there is
+ * one, else Namecheap's live renewal price plus the Stripe fee — at cost, for everyone. null when it cannot be worked
+ * out (no live price), and then nobody is billed.
+ */
+export function renewalPriceCents(t: Pick<RenewalTenant, 'domain' | 'domain_renewal_price_cents'>, liveRenewalCostCents: number | null): number | null {
   if (typeof t.domain_renewal_price_cents === 'number' && t.domain_renewal_price_cents > 0) return t.domain_renewal_price_cents
   if (!t.domain) return null
-  const p = lookupDomainPrice(t.domain, 1)
-  return p.ok ? p.retailCents : null
+  return renewalChargeCents(liveRenewalCostCents)
 }
+
+/** The TLD of a domain — what the registrar prices by. */
+export const tldOf = (domain: string) => domain.trim().toLowerCase().replace(/^[^.]+\./, '')
 
 /** Should the cron bill this tenant now? `charge`, or the reason it is left alone. */
 export function renewalAction(t: RenewalTenant, now: Date): { act: 'charge' } | { act: 'skip'; reason: string } {
@@ -60,6 +66,8 @@ export const RENEWAL_TENANT_COLUMNS = 'id, name, slug, email, admin_email, domai
 
 type Deps = {
   supabase: any
+  /** Namecheap's live price to renew one year of a TLD, in cents (registrar.getRenewalCostCents). */
+  renewalCostCents: (tld: string) => Promise<number | null>
   createInvoice: (o: { customerId: string; amountCents: number; domain: string; tenantId: string; expiresAt: string }) => Promise<{ invoiceId: string; paid: boolean; hostedUrl?: string | null; error?: string }>
   notifyPaymentNeeded: (t: RenewalTenant, o: { amountCents: number; hostedUrl?: string | null; expiresAt: string }) => Promise<unknown>
   alertStaff: (subject: string, detail: string, tenantId: string) => Promise<unknown>
@@ -78,8 +86,8 @@ export async function chargeDueDomainRenewals(now: Date, deps: Deps) {
     const action = renewalAction(t, now)
     if (action.act === 'skip') { out.skipped++; continue }
     try {
-      const amountCents = renewalPriceCents(t)
-      if (!amountCents) throw new Error('no renewal price for ' + t.domain)
+      const amountCents = renewalPriceCents(t, await deps.renewalCostCents(tldOf(t.domain!)))
+      if (!amountCents) throw new Error('could not price the renewal of ' + t.domain + " — Namecheap's renewal price was unavailable, or it is not a TLD we sell")
       if (!t.stripe_customer_id) throw new Error('no Stripe customer to bill')
       const inv = await deps.createInvoice({ customerId: t.stripe_customer_id, amountCents, domain: t.domain!, tenantId: t.id, expiresAt: t.domain_expires_at! })
       const { error: upErr } = await deps.supabase.from('tenants').update({ domain_renewal_invoice_id: inv.invoiceId }).eq('id', t.id)

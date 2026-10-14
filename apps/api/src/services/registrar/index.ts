@@ -66,6 +66,12 @@ export interface RegistrarProvider {
 
   renew(domain: string, years: number): Promise<{ success: boolean; expiresAt?: Date; error?: string }>
 
+  // What the registrar charges US for one year of this TLD right now — to REGISTER (the first year) or to RENEW —
+  // in US cents, ICANN fee included. Every domain charge is this plus the Stripe fee (config/domainPricing.ts), so it
+  // is read live: a .site is $2.99 to register and ~$30 to renew. null when it cannot be read with confidence —
+  // the caller then charges nothing rather than a guess.
+  getCostCents(tld: string, action: 'REGISTER' | 'RENEW'): Promise<number | null>
+
   // Point a domain WE registered at someone else's nameservers — in practice
   // Cloudflare's, once the zone exists. Without this a domain we sold keeps
   // resolving through the registrar's own DNS and never sees the zone the
