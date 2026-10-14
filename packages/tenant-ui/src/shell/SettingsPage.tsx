@@ -237,7 +237,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     // per-user `users:read` grant also opens it, which is what that grant is for. (T32 M8)
     ...(canManageUsers || (user?.extraPermissions || []).includes('users:read') ? [{ id: 'users', label: 'Users', icon: Users }] : []),
   ]
-  const set = (k: keyof CompanyForm) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
+  const set = (k: keyof CompanyForm) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
   const sideBtn = 'w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800'
 
   return (
@@ -374,9 +374,9 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
               {/* Two-factor first: it is the stronger of the two things on this tab. (T57) */}
               <TwoFactorCard api={api as any} toast={toast} />
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Change Password</h2>
-              <Field label="Current Password"><input type="password" autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })} className={inputCls} /></Field>
-              <Field label="New Password"><input type="password" autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw({ ...pw, newPassword: e.target.value })} className={inputCls} /></Field>
-              <Field label="Confirm Password"><input type="password" autoComplete="new-password" value={pw.confirmPassword} onChange={(e) => setPw({ ...pw, confirmPassword: e.target.value })} className={inputCls} /></Field>
+              <Field label="Current Password"><input type="password" autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw((prev) => ({ ...prev, currentPassword: e.target.value }))} className={inputCls} /></Field>
+              <Field label="New Password"><input type="password" autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw((prev) => ({ ...prev, newPassword: e.target.value }))} className={inputCls} /></Field>
+              <Field label="Confirm Password"><input type="password" autoComplete="new-password" value={pw.confirmPassword} onChange={(e) => setPw((prev) => ({ ...prev, confirmPassword: e.target.value }))} className={inputCls} /></Field>
               <Button onClick={changePassword} disabled={saving}>{saving ? 'Changing...' : 'Change Password'}</Button>
             </div>
           )}
@@ -494,19 +494,19 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                     <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Add User</h3>
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
-                        <Field label="First name *"><input value={newUser.firstName} onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })} className={inputCls} /></Field>
-                        <Field label="Last name *"><input value={newUser.lastName} onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })} className={inputCls} /></Field>
+                        <Field label="First name *"><input value={newUser.firstName} onChange={(e) => setNewUser((prev) => ({ ...prev, firstName: e.target.value }))} className={inputCls} /></Field>
+                        <Field label="Last name *"><input value={newUser.lastName} onChange={(e) => setNewUser((prev) => ({ ...prev, lastName: e.target.value }))} className={inputCls} /></Field>
                       </div>
-                      <Field label="Email *"><input type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} className={inputCls} /></Field>
+                      <Field label="Email *"><input type="email" value={newUser.email} onChange={(e) => setNewUser((prev) => ({ ...prev, email: e.target.value }))} className={inputCls} /></Field>
                       <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
-                        <input type="checkbox" className="mt-0.5" checked={newUser.invite} onChange={(e) => setNewUser({ ...newUser, invite: e.target.checked })} />
+                        <input type="checkbox" className="mt-0.5" checked={newUser.invite} onChange={(e) => setNewUser((prev) => ({ ...prev, invite: e.target.checked }))} />
                         <span>Email them an invite to choose their own password<span className="block text-xs text-gray-500 dark:text-slate-400">The link works once, for 7 days.</span></span>
                       </label>
                       {!newUser.invite && (
-                        <Field label="Temporary password *" hint="Share this with them — they can change it after signing in."><input type="password" autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="At least 8 characters" className={inputCls} /></Field>
+                        <Field label="Temporary password *" hint="Share this with them — they can change it after signing in."><input type="password" autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser((prev) => ({ ...prev, password: e.target.value }))} placeholder="At least 8 characters" className={inputCls} /></Field>
                       )}
                       <Field label="Access Role">
-                        <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as RoleOption['value'] })} className={inputCls}>
+                        <select value={newUser.role} onChange={(e) => setNewUser((prev) => ({ ...prev, role: e.target.value as RoleOption['value'] }))} className={inputCls}>
                           {roles.map((r) => <option key={r.value} value={r.value}>{r.label} — {r.description}</option>)}
                         </select>
                       </Field>

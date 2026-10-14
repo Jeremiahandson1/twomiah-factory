@@ -500,19 +500,46 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const expiryForCustomer = (current?.expiryDate as any) ?? stampedExpiry ?? null
 
     let recipient: { email: string; name: string } | null = null
+    // Can the customer approve this online? Only through their client portal, and only if that link works today.
+    let approveOnline = false
     if (deps.sendQuoteEmail) {
       const found = current
+      let contactRow: any = null
       if (found?.contactId) {
         const [ct] = await db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1)
+        contactRow = ct || null
         if (ct?.email) recipient = { email: ct.email, name: ct.name || 'there' }
       }
       if (found && !recipient) return c.json({ error: 'This quote has no contact email address to send to. Add an email to the contact first.' }, 400)
       if (found && recipient) {
         const [co] = await db.select().from(t.company).where(eq(t.company.id, cid)).limit(1)
+        /**
+         * THE EMAIL A CUSTOMER GETS IS THE QUOTE. (E2E run 1, 10/14)
+         *
+         * It arrived as "Quote from Test comnapny: undefined" — the template reads quoteName, and this passed only
+         * the number — with no lines and no way to approve. It now carries the quote's name and number, every line
+         * (description, quantity, price, line total — never the internal cost) and the totals.
+         *
+         * The approve button opens the customer's own client portal on this quote, where Approve and Decline
+         * already live — when that portal is switched on for them, the link is in date, and the Client Portal
+         * feature is on (the portal refuses entry otherwise, so a link would be a dead end). A customer without it
+         * is told to reply or call, and the sender is told they cannot approve online. The link is the customer's
+         * own portal credential, sent only to the customer's own address — what the portal invite does.
+         */
+        const features: string[] = Array.isArray(co?.enabledFeatures) ? co.enabledFeatures : []
+        const portalFeatureOn = !features.length || features.includes('client_portal')
+        const linkLive = !!(portalFeatureOn && contactRow?.portalEnabled && contactRow?.portalToken &&
+          (!contactRow.portalTokenExp || new Date(contactRow.portalTokenExp).getTime() > Date.now()))
+        approveOnline = linkLive
+        const lines = await lineRows(found.id)
         try {
           await deps.sendQuoteEmail(recipient.email, {
-            quoteNumber: found.number, companyName: co?.name || 'Your provider', companyEmail: co?.email || '',
+            quoteNumber: found.number, quoteName: found.name || '', companyName: co?.name || 'Your provider', companyEmail: co?.email || '',
+            companyPhone: co?.phone || '',
             contactName: recipient.name, total: found.total,
+            subtotal: found.subtotal, discount: found.discount, taxAmount: found.taxAmount, taxRate: found.taxRate,
+            lineItems: lines.map((l: any) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, total: l.total })),
+            portalQuotePath: linkLive ? '/portal/' + contactRow.portalToken + '/quotes/' + found.id : null,
             // The date the customer is about to be held to, including the one being stamped on by
             // this send. It used to be blank whenever the quote had none, so the offer went out
             // with no validity at all.
@@ -541,7 +568,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       // credential, and an allow entry written for this site is what hid the leak above. (T43)
       if (ct) o.onSent({ companyId: r.cid, quote: r.updated, contact: withoutPortalCredential(ct), company: co }).catch(() => {})
     }
-    return c.json(r.updated)
+    // approveOnline tells the screen whether the customer got an Approve button (their client portal is on).
+    return c.json({ ...r.updated, approveOnline })
   })
   app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
     const r: any = await setStatus(c, c.req.param('id'), { status: 'approved', approvedAt: new Date() }, ['draft', 'sent', 'approved'], EVENTS.QUOTE_APPROVED, q => ({ total: q.total }))

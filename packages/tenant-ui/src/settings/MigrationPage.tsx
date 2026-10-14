@@ -133,7 +133,7 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
               <div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">Connect to {selectedProvider.name}</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Enter your API credentials. Your data is imported directly — nothing is stored on third-party servers.</p></div>
               {(CREDENTIAL_FIELDS[selectedProvider.id] || []).map((field) => (
                 <div key={field.key}><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">{field.label}</label>
-                  <input type={field.type} value={credentials[field.key] || ''} onChange={(e) => setCredentials({ ...credentials, [field.key]: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white" placeholder={field.label} />
+                  <input type={field.type} value={credentials[field.key] || ''} onChange={(e) => setCredentials((prev) => ({ ...prev, [field.key]: e.target.value }))} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white" placeholder={field.label} />
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{field.help}</p></div>
               ))}
               {error && <div role="alert" className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 p-3 rounded-lg flex items-center gap-2 text-sm"><AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}</div>}

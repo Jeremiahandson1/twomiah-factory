@@ -266,14 +266,14 @@ function AppointmentModal({ api, toast, date, event, types, onClose, onSaved }: 
     <>
     <Modal isOpen onClose={onClose} title={editing ? 'Edit Appointment' : 'New Appointment'} size="md">
       <div className="space-y-4">
-        <Field label="Title *"><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Test drive — John Smith" className={inputCls} /></Field>
-        <Field label="Type"><select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className={inputCls}>{types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
+        <Field label="Title *"><input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="Test drive — John Smith" className={inputCls} /></Field>
+        <Field label="Type"><select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className={inputCls}>{types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
         <div className="grid grid-cols-3 gap-3">
-          <Field label="Date"><input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className={inputCls} /></Field>
-          <Field label="Start"><input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} className={inputCls} /></Field>
-          <Field label="End"><input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} className={inputCls} /></Field>
+          <Field label="Date"><input type="date" value={form.date} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} className={inputCls} /></Field>
+          <Field label="Start"><input type="time" value={form.startTime} onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} className={inputCls} /></Field>
+          <Field label="End"><input type="time" value={form.endTime} onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} className={inputCls} /></Field>
         </div>
-        <Field label="Notes"><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className={inputCls} /></Field>
+        <Field label="Notes"><textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className={inputCls} /></Field>
         <div className="flex justify-between gap-2 pt-2">
           <div>{editing && <Button variant="danger" onClick={() => setConfirmCancel(true)} disabled={deleting}>{deleting ? 'Cancelling…' : 'Cancel appointment'}</Button>}</div>
           <div className="flex gap-2">

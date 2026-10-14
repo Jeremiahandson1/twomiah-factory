@@ -4,7 +4,7 @@ import { Plus, Edit, Trash2, Send, DollarSign, Ban, RotateCcw } from 'lucide-rea
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
-import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dueDateLabel, errMsg, inputCls, money, moneyInputError, refundEffectNote, selectCls } from './ui'
+import { Button, ConfirmModal, DataTable, DialogError, Field, LineItemsEditor, Modal, NumberInput, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dueDateLabel, errMsg, inputCls, money, paymentAmountError, moneyInputError, refundEffectNote, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
 interface InvoiceForm { contactId: string; projectId: string; dueDate: string; taxRate: number; discount: number; notes: string; lineItems: LineItemInput[] }
@@ -71,6 +71,7 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
   const [voidTarget, setVoidTarget] = useState<Row | null>(null)
   const [paymentTarget, setPaymentTarget] = useState<Row | null>(null)
   const [payment, setPayment] = useState({ amount: '', method: 'card', reference: '', notes: '', tipAmount: '' })
+  const [paymentError, setPaymentError] = useState<string | null>(null)
   const [refundTarget, setRefundTarget] = useState<Row | null>(null)
   const [refund, setRefund] = useState({ amount: '', method: '', reference: '', notes: '' })
 
@@ -142,14 +143,17 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
   const handleDelete = async () => { if (!deleteTarget) return; try { await api.delete('/api/invoices', deleteTarget.id); toast.success('Invoice deleted'); setDeleteTarget(null); load() } catch (e) { toast.error(errMsg(e, 'Could not delete')) } }
   const handleSend = async (inv: Row) => { try { await api.post(`/api/invoices/${inv.id}/send`, {}); toast.success('Invoice sent'); load() } catch (e) { toast.error(errMsg(e, 'Could not send')) } }
   const handleVoid = async () => { if (!voidTarget) return; try { await api.post(`/api/invoices/${voidTarget.id}/void`, {}); toast.success('Invoice voided'); setVoidTarget(null); load() } catch (e) { toast.error(errMsg(e, 'Could not void')) } }
-  const openPayment = (inv: Row) => { setPaymentTarget(inv); setPayment({ amount: balanceOf(inv).toFixed(2), method: 'card', reference: '', notes: '', tipAmount: '' }) }
+  const openPayment = (inv: Row) => { setPaymentError(null); setPaymentTarget(inv); setPayment({ amount: balanceOf(inv).toFixed(2), method: 'card', reference: '', notes: '', tipAmount: '' }) }
   const handlePayment = async () => {
-    if (!paymentTarget || !(Number(payment.amount) > 0)) { toast.error('Enter a valid amount'); return }
+    if (!paymentTarget) return
+    const invalid = paymentAmountError(payment.amount, balanceOf(paymentTarget))
+    if (invalid) { setPaymentError(invalid); return }
+    setPaymentError(null)
     try {
       const body: any = { amount: Number(payment.amount), method: payment.method, reference: payment.reference || undefined, notes: payment.notes || undefined }
       if (cfg.tips && Number(payment.tipAmount) > 0) body.tipAmount = Number(payment.tipAmount)
       await api.post(`/api/invoices/${paymentTarget.id}/payments`, body); toast.success('Payment recorded'); setPaymentTarget(null); load()
-    } catch (e) { toast.error(errMsg(e, 'Could not record the payment')) }
+    } catch (e) { setPaymentError(errMsg(e, 'Could not record the payment')) }
   }
   const openRefund = (inv: Row) => { setRefundTarget(inv); setRefund({ amount: netPaid(inv).toFixed(2), method: '', reference: '', notes: '' }) }
   const handleRefund = async () => {
@@ -218,14 +222,14 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.number}` : 'New Invoice'} size="xl">
         <div className="space-y-4">
           <div className={`grid gap-4 ${cfg.projects ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-            <Field label={`${cfg.clientLabel} *`}><select value={form.contactId} onChange={e => setForm({ ...form, contactId: e.target.value })} className={inputCls}><option value="">Select…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-            {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
-            <Field label="Due Date" hint={`Defaults to ${termsDays === 0 ? 'the day it is created' : `${termsDays} days out`} from Settings → Company`}><input type="date" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} className={inputCls} /></Field>
+            <Field label={`${cfg.clientLabel} *`}><select value={form.contactId} onChange={e => setForm((f) => ({ ...f, contactId: e.target.value }))} className={inputCls}><option value="">Select…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+            {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => setForm((f) => ({ ...f, projectId: e.target.value }))} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
+            <Field label="Due Date" hint={`Defaults to ${termsDays === 0 ? 'the day it is created' : `${termsDays} days out`} from Settings → Company`}><input type="date" value={form.dueDate} onChange={e => setForm((f) => ({ ...f, dueDate: e.target.value }))} className={inputCls} /></Field>
           </div>
           <Field label="Line Items">
               <LineItemsEditor
                 items={form.lineItems}
-                onChange={items => setForm({ ...form, lineItems: items })}
+                onChange={items => setForm((f) => ({ ...f, lineItems: items }))}
                 /*
                  * canSeeCost: false is about the DOCUMENT, not the person. An invoice line is
                  * description + quantity + unitPrice and nothing else — invoices.ts's lineItemSchema
@@ -239,22 +243,23 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
               />
             </Field>
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Tax Rate (%)"><NumberInput min="0" max="100" step="0.01" value={form.taxRate} onValue={n => setForm({ ...form, taxRate: n })} className={inputCls} /></Field>
-            <Field label="Discount ($)"><NumberInput min="0" step="0.01" value={form.discount} onValue={n => setForm({ ...form, discount: n })} className={inputCls} /></Field>
+            <Field label="Tax Rate (%)"><NumberInput min="0" max="100" step="0.01" value={form.taxRate} onValue={n => setForm((f) => ({ ...f, taxRate: n }))} className={inputCls} /></Field>
+            <Field label="Discount ($)"><NumberInput min="0" step="0.01" value={form.discount} onValue={n => setForm((f) => ({ ...f, discount: n }))} className={inputCls} /></Field>
           </div>
           <TotalsBox subtotal={totals.subtotal} discount={totals.effectiveDiscount} taxRate={form.taxRate} taxAmount={totals.taxAmount} total={totals.total} warning={inputError || (totals.discountTooBig ? `Discount cannot exceed the subtotal (${money(totals.subtotal)})` : undefined)} />
-          <Field label="Notes"><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} className={inputCls} /></Field>
+          <Field label="Notes"><textarea value={form.notes} onChange={e => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className={inputCls} /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving || totals.discountTooBig}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Create invoice'}</Button></div>
       </Modal>
 
       <Modal isOpen={!!paymentTarget} onClose={() => setPaymentTarget(null)} title={`Record Payment · ${paymentTarget?.number || ''}`} size="sm">
         <div className="space-y-4">
-          <Field label="Amount *" hint={paymentTarget ? `${money(balanceOf(paymentTarget))} remaining` : undefined}><input type="number" step="0.01" min="0.01" value={payment.amount} onChange={e => setPayment({ ...payment, amount: e.target.value })} className={inputCls} /></Field>
-          {cfg.tips && <Field label="Tip (optional)" hint="Gratuity for the stylist. Recorded with the payment, never counted toward the invoice."><input type="number" step="0.01" min="0" value={payment.tipAmount} onChange={e => setPayment({ ...payment, tipAmount: e.target.value })} className={inputCls} placeholder="0.00" /></Field>}
-          <Field label="Method"><select value={payment.method} onChange={e => setPayment({ ...payment, method: e.target.value })} className={inputCls}>{PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
-          <Field label="Reference"><input value={payment.reference} onChange={e => setPayment({ ...payment, reference: e.target.value })} className={inputCls} placeholder="Check # or transaction ID" /></Field>
-          <Field label="Notes"><input value={payment.notes} onChange={e => setPayment({ ...payment, notes: e.target.value })} className={inputCls} /></Field>
+          <Field label="Amount *" hint={paymentTarget ? `${money(balanceOf(paymentTarget))} remaining` : undefined}><input type="number" step="0.01" min="0.01" value={payment.amount} onChange={e => { setPaymentError(null); setPayment((prev) => ({ ...prev, amount: e.target.value })) }} className={inputCls} /></Field>
+          <DialogError message={paymentError} />
+          {cfg.tips && <Field label="Tip (optional)" hint="Gratuity for the stylist. Recorded with the payment, never counted toward the invoice."><input type="number" step="0.01" min="0" value={payment.tipAmount} onChange={e => setPayment((prev) => ({ ...prev, tipAmount: e.target.value }))} className={inputCls} placeholder="0.00" /></Field>}
+          <Field label="Method"><select value={payment.method} onChange={e => setPayment((prev) => ({ ...prev, method: e.target.value }))} className={inputCls}>{PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
+          <Field label="Reference"><input value={payment.reference} onChange={e => setPayment((prev) => ({ ...prev, reference: e.target.value }))} className={inputCls} placeholder="Check # or transaction ID" /></Field>
+          <Field label="Notes"><input value={payment.notes} onChange={e => setPayment((prev) => ({ ...prev, notes: e.target.value }))} className={inputCls} /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setPaymentTarget(null)}>Cancel</Button><Button variant="success" onClick={handlePayment}>Record Payment</Button></div>
       </Modal>
@@ -262,10 +267,10 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
       <Modal isOpen={!!refundTarget} onClose={() => setRefundTarget(null)} title={`Record Refund · ${refundTarget?.number || ''}`} size="sm">
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-slate-400">{refundTarget ? refundEffectNote(refundTarget.total, refundTarget.amountPaid) : ''} Card refunds issued in Stripe are recorded here automatically — record only refunds made outside Stripe (cash, check…) so nothing is counted twice.</p>
-          <Field label="Amount *" hint={refundTarget ? `${money(netPaid(refundTarget))} refundable` : undefined}><input type="number" step="0.01" min="0.01" value={refund.amount} onChange={e => setRefund({ ...refund, amount: e.target.value })} className={inputCls} /></Field>
-          <Field label="Method" hint="Leave as-is to refund the way the money came in."><select value={refund.method} onChange={e => setRefund({ ...refund, method: e.target.value })} className={inputCls}><option value="">Same as payment</option>{PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
-          <Field label="Reference"><input value={refund.reference} onChange={e => setRefund({ ...refund, reference: e.target.value })} className={inputCls} /></Field>
-          <Field label="Reason"><input value={refund.notes} onChange={e => setRefund({ ...refund, notes: e.target.value })} className={inputCls} placeholder="Why the money went back" /></Field>
+          <Field label="Amount *" hint={refundTarget ? `${money(netPaid(refundTarget))} refundable` : undefined}><input type="number" step="0.01" min="0.01" value={refund.amount} onChange={e => setRefund((prev) => ({ ...prev, amount: e.target.value }))} className={inputCls} /></Field>
+          <Field label="Method" hint="Leave as-is to refund the way the money came in."><select value={refund.method} onChange={e => setRefund((prev) => ({ ...prev, method: e.target.value }))} className={inputCls}><option value="">Same as payment</option>{PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
+          <Field label="Reference"><input value={refund.reference} onChange={e => setRefund((prev) => ({ ...prev, reference: e.target.value }))} className={inputCls} /></Field>
+          <Field label="Reason"><input value={refund.notes} onChange={e => setRefund((prev) => ({ ...prev, notes: e.target.value }))} className={inputCls} placeholder="Why the money went back" /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setRefundTarget(null)}>Cancel</Button><Button variant="warn" onClick={handleRefund}>Record Refund</Button></div>
       </Modal>

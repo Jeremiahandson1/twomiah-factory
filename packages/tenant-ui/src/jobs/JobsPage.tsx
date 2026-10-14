@@ -220,7 +220,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     { label: 'Complete', icon: CheckCircle, show: (r: JobRow) => mayUpdate && r.status !== 'completed' && r.status !== 'cancelled', onClick: complete },
     { label: 'Delete', icon: Trash2, className: 'text-red-600', show: () => mayDelete, onClick: (r: JobRow) => { setToDelete(r); setDeleteOpen(true) } },
   ]
-  const set = (k: keyof JobForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value })
+  const set = (k: keyof JobForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   return (
     <div>
@@ -290,7 +290,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           )}
           {cfg.sites && sites.length > 0 && (
             <Field label={<span><MapPinned className="w-3.5 h-3.5 inline mr-1" />Location</span>}>
-              <select value={form.siteId} onChange={(e) => { const s = sites.find((x) => x.id === e.target.value); setForm({ ...form, siteId: e.target.value, ...(s?.address ? { address: s.address, city: s.city || '', state: s.state || '', zip: s.zip || '' } : {}) }); if (s?.address) setUseAddressOnFile(true) }} className={inputCls}>
+              <select value={form.siteId} onChange={(e) => { const s = sites.find((x) => x.id === e.target.value); setForm((f) => ({ ...f, siteId: e.target.value, ...(s?.address ? { address: s.address, city: s.city || '', state: s.state || '', zip: s.zip || '' } : {}) })); if (s?.address) setUseAddressOnFile(true) }} className={inputCls}>
                 <option value="">No specific location</option>
                 {sites.map((s) => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}
               </select>
@@ -304,7 +304,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Address</label>
               {useAddressOnFile && <button type="button" onClick={() => setUseAddressOnFile(false)} className="text-xs text-orange-500 hover:text-orange-600 dark:hover:text-orange-200 dark:text-orange-300">Using address on file — Use different address?</button>}
             </div>
-            <input value={form.address} onChange={(e) => { setUseAddressOnFile(false); setForm({ ...form, address: e.target.value }) }} className={inputCls} placeholder={useAddressOnFile ? 'From contact on file' : 'Street address'} />
+            <input value={form.address} onChange={(e) => { setUseAddressOnFile(false); setForm((f) => ({ ...f, address: e.target.value })) }} className={inputCls} placeholder={useAddressOnFile ? 'From contact on file' : 'Street address'} />
           </div>
           <Field label="City"><input value={form.city} onChange={set('city')} className={inputCls} /></Field>
           <div className="grid grid-cols-2 gap-4">

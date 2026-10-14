@@ -4,7 +4,7 @@ import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Briefcase,
 import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
-import { Button, ConfirmModal, NavLink, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, expiryLabel, isPastDay, money } from './ui'
+import { Button, ConfirmModal, NavLink, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, expiryLabel, isPastDay, money, quoteSentMessage } from './ui'
 
 type Q = Record<string, any>
 const EDITABLE = ['draft', 'sent']
@@ -33,7 +33,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
   if (loading) return <div className="p-8 text-gray-500 dark:text-slate-400">Loading…</div>
   if (error || !quote) return <div className="p-8 text-center"><p className="text-red-600 mb-3 dark:text-red-400">{error || 'Quote not found'}</p><Button variant="secondary" onClick={load}>Retry</Button></div>
 
-  const act = async (path: string, ok: string) => { setBusy(true); try { const r = await api.post(path, {}); toast.success(ok); await load(); return r } catch (e) { toast.error(errMsg(e, 'That did not work')) } finally { setBusy(false) } }
+  const act = async (path: string, ok: string | ((r: any) => string)) => { setBusy(true); try { const r = await api.post(path, {}); toast.success(typeof ok === 'function' ? ok(r) : ok); await load(); return r } catch (e) { toast.error(errMsg(e, 'That did not work')) } finally { setBusy(false) } }
   const handleDelete = async () => { try { await api.delete('/api/quotes', id); toast.success('Quote deleted'); navigate('/crm/quotes') } catch (e) { toast.error(errMsg(e, 'Could not delete')) } }
   const handlePdf = async () => { try { await downloadFile(`/api/quotes/${id}/pdf`, `quote-${quote.number}.pdf`) } catch (e) { toast.error(errMsg(e, 'Could not download the PDF')) } }
   const editable = EDITABLE.includes(quote.status)
@@ -53,7 +53,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {editable && mayUpdate && <Button variant="secondary" onClick={() => act(`/api/quotes/${id}/send`, 'Quote sent')} disabled={busy}><Send className="w-4 h-4" /> {quote.sentAt ? 'Send again' : 'Send'}</Button>}
+          {editable && mayUpdate && <Button variant="secondary" onClick={() => act(`/api/quotes/${id}/send`, quoteSentMessage)} disabled={busy}><Send className="w-4 h-4" /> {quote.sentAt ? 'Send again' : 'Send'}</Button>}
           {editable && mayUpdate && <Button variant="success" onClick={() => act(`/api/quotes/${id}/approve`, 'Quote approved')} disabled={busy}><Check className="w-4 h-4" /> Mark approved</Button>}
           {editable && mayUpdate && <Button variant="secondary" onClick={() => act(`/api/quotes/${id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected')} disabled={busy}><X className="w-4 h-4" /> {cfg.quoteDecline ? 'Mark declined' : 'Mark rejected'}</Button>}
           {quote.status === 'approved' && cfg.jobs && mayJob && !quote.convertedToJobId && <Button variant="success" onClick={async () => { const job = await act(`/api/quotes/${id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }} disabled={busy}><Briefcase className="w-4 h-4" /> Convert to Job</Button>}

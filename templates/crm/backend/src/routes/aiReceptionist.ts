@@ -58,13 +58,14 @@ app.post('/webhook/status/:companyId', async (c) => {
 
 // ─── Authenticated Routes ───────────────────────────────────────────────────────
 app.use('*', authenticate)
+// Reading is gated too, not only writing: the viewer and field seats have no ai-receptionist:read (E2E run 1, 10/14).
 // AI Receptionist off for this tenant → its own endpoints are refused, not just hidden in the menu. Registered after
 // the provider webhooks above, which stay public so inbound calls keep working. (Landscaping T14 M4 → #206)
 app.use('*', requireEnabledFeature('ai_receptionist'))
 
 // ─── Rules CRUD ─────────────────────────────────────────────────────────────────
 
-app.get('/rules', async (c) => {
+app.get('/rules', requirePermission('ai-receptionist:read'), async (c) => {
   const user = c.get('user') as any
   const rules = await aiReceptionist.getRules(user.companyId)
   return c.json({ data: rules })
@@ -95,7 +96,7 @@ app.delete('/rules/:id', requirePermission('ai-receptionist:delete'), async (c) 
 
 // ─── Settings ───────────────────────────────────────────────────────────────────
 
-app.get('/settings', async (c) => {
+app.get('/settings', requirePermission('ai-receptionist:read'), async (c) => {
   const user = c.get('user') as any
   const settings = await aiReceptionist.getSettings(user.companyId)
   return c.json(settings)

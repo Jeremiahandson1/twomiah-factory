@@ -131,31 +131,31 @@ export function LocationsPage({ api, toast }: LocationsPageProps) {
       <Modal isOpen={open} onClose={() => setOpen(false)} title={editing ? `Edit ${editing.name}` : 'New location'}>
         <form onSubmit={save} className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Name"><input required placeholder="e.g. Main office" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} /></Field>
-            <Field label="Short code" hint="Up to 10 letters, unique to this location."><input required placeholder="e.g. MAIN" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} maxLength={10} className={`${inputCls} font-mono`} /></Field>
+            <Field label="Name"><input required placeholder="e.g. Main office" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></Field>
+            <Field label="Short code" hint="Up to 10 letters, unique to this location."><input required placeholder="e.g. MAIN" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} maxLength={10} className={`${inputCls} font-mono`} /></Field>
           </div>
-          <Field label="Address"><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className={inputCls} /></Field>
+          <Field label="Address"><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} className={inputCls} /></Field>
           <div className="grid grid-cols-3 gap-3">
-            <Field label="City"><input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className={inputCls} /></Field>
-            <Field label="State"><input value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} maxLength={2} className={inputCls} /></Field>
-            <Field label="ZIP"><input value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value })} className={inputCls} /></Field>
+            <Field label="City"><input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} className={inputCls} /></Field>
+            <Field label="State"><input value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} maxLength={2} className={inputCls} /></Field>
+            <Field label="ZIP"><input value={form.zip} onChange={(e) => setForm((f) => ({ ...f, zip: e.target.value }))} className={inputCls} /></Field>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Phone"><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={inputCls} /></Field>
-            <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={inputCls} /></Field>
+            <Field label="Phone"><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={inputCls} /></Field>
+            <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls} /></Field>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Time zone"><input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} className={inputCls} /></Field>
-            <Field label="Service radius (miles)"><input type="number" min="0" step="1" value={form.serviceAreaRadiusMiles} onChange={(e) => setForm({ ...form, serviceAreaRadiusMiles: e.target.value })} className={inputCls} /></Field>
+            <Field label="Time zone"><input value={form.timezone} onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))} className={inputCls} /></Field>
+            <Field label="Service radius (miles)"><input type="number" min="0" step="1" value={form.serviceAreaRadiusMiles} onChange={(e) => setForm((f) => ({ ...f, serviceAreaRadiusMiles: e.target.value }))} className={inputCls} /></Field>
           </div>
           <Field label="Manager (optional)">
-            <select value={form.managerUserId} onChange={(e) => setForm({ ...form, managerUserId: e.target.value })} className={inputCls}>
+            <select value={form.managerUserId} onChange={(e) => setForm((f) => ({ ...f, managerUserId: e.target.value }))} className={inputCls}>
               <option value="">No manager</option>
               {people.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}</option>)}
               {form.managerUserId && !managerName(form.managerUserId) && <option value={form.managerUserId}>Current manager</option>}
             </select>
           </Field>
-          <Field label="Notes"><textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={inputCls} /></Field>
+          <Field label="Notes"><textarea rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} className={inputCls} /></Field>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={busy}>{editing ? 'Save' : 'Create'}</Button>

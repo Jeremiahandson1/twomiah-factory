@@ -117,6 +117,11 @@ console.log(`Email provider: ${PROVIDER}`);
 // EMAIL TEMPLATES
 // ============================================
 
+/** Text a person typed, made safe to put in an email's HTML. */
+function escHtml(v: unknown): string {
+  return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
 const baseStyles = `
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
   .container { max-width: 600px; margin: 0 auto; padding: 20px; }
@@ -262,28 +267,57 @@ const templates: Record<string, (data: any) => TemplateResult> = {
     text: `Payment of $${data.amount} received for invoice ${data.invoiceNumber}. Remaining: $${data.remainingBalance}`,
   }),
 
-  quoteSent: (data) => ({
-    subject: `Quote from ${data.companyName}: ${data.quoteName}`,
-    html: `
+  /**
+   * The quote, as the customer receives it. (E2E run 1, 10/14: it arrived as "Quote from …: undefined", with no
+   * number, no lines and no way to approve.) Everything here was typed by a person — escaped. The internal cost of a
+   * line is never passed in. The Approve button opens the customer's client portal on this quote when it is switched
+   * on for them; otherwise they are told how to accept.
+   */
+  quoteSent: (data) => {
+    const money = (v: unknown) => '$' + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const title = data.quoteName ? escHtml(data.quoteName) : 'Your quote'
+    const lines = Array.isArray(data.lineItems) ? (data.lineItems as any[]) : []
+    const rows = lines.map((l) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${escHtml(l.description)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${escHtml(Number(l.quantity || 0))}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${money(l.unitPrice)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${money(l.total)}</td></tr>`).join('')
+    const discount = Number(data.discount || 0), tax = Number(data.taxAmount || 0)
+    const approveUrl = data.portalQuotePath ? APP_URL + data.portalQuotePath : ''
+    const howToAccept = data.companyPhone
+      ? `To accept, reply to this email or call us on ${escHtml(data.companyPhone)}.`
+      : 'To accept, reply to this email.'
+    return {
+      subject: `Quote ${data.quoteNumber} from ${data.companyName}${data.quoteName ? ': ' + data.quoteName : ''}`,
+      html: `
       <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
       <body><div class="container">
-        <div class="header"><h1 style="margin:0;">${data.companyName}</h1></div>
+        <div class="header"><h1 style="margin:0;">${escHtml(data.companyName)}</h1></div>
         <div class="content">
-          <h2>${data.quoteName}</h2>
-          <p>Hi ${data.contactName},</p>
+          <h2 style="margin-bottom:4px;">${title}</h2>
+          <p style="margin-top:0;color:#6b7280;">Quote ${escHtml(data.quoteNumber)}</p>
+          <p>Hi ${escHtml(data.contactName)},</p>
           <p>Thank you for the opportunity to provide this quote.</p>
-          <div class="amount">$${Number(data.total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <p><strong>Valid until:</strong> ${data.expiryDate}</p>
-          <p style="text-align:center;">
-            ${data.approveLink ? `<a href="${data.approveLink}" class="button">Approve Quote</a>` : ''}
-            ${data.viewLink ? `<a href="${data.viewLink}" class="button button-secondary">View Details</a>` : ''}
-          </p>
+          ${rows ? `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
+            <tr style="background:#f3f4f6;"><th style="padding:6px 8px;text-align:left;">Item</th><th style="padding:6px 8px;text-align:right;">Qty</th><th style="padding:6px 8px;text-align:right;">Price</th><th style="padding:6px 8px;text-align:right;">Total</th></tr>
+            ${rows}
+          </table>` : ''}
+          <table style="width:100%;font-size:14px;margin:8px 0 16px;">
+            ${data.subtotal != null ? `<tr><td style="text-align:right;padding:2px 8px;">Subtotal</td><td style="text-align:right;width:120px;">${money(data.subtotal)}</td></tr>` : ''}
+            ${discount ? `<tr><td style="text-align:right;padding:2px 8px;">Discount</td><td style="text-align:right;">−${money(discount)}</td></tr>` : ''}
+            ${tax ? `<tr><td style="text-align:right;padding:2px 8px;">Tax${data.taxRate ? ' (' + escHtml(Number(data.taxRate)) + '%)' : ''}</td><td style="text-align:right;">${money(tax)}</td></tr>` : ''}
+            <tr><td style="text-align:right;padding:6px 8px;font-weight:700;">Total</td><td style="text-align:right;font-weight:700;">${money(data.total)}</td></tr>
+          </table>
+          ${data.expiryDate ? `<p><strong>Valid until:</strong> ${escHtml(data.expiryDate)}</p>` : ''}
+          ${approveUrl
+            ? `<p style="text-align:center;"><a href="${approveUrl}" class="button">Review and approve</a></p><p style="font-size:13px;color:#6b7280;text-align:center;">You can approve or decline it there, and see your other quotes and invoices with us.</p>`
+            : `<p>${howToAccept}</p>`}
         </div>
-        <div class="footer">${data.companyName}</div>
+        <div class="footer">${escHtml(data.companyName)}</div>
       </div></body></html>
     `,
-    text: `Quote from ${data.companyName}: ${data.quoteName}\n\nTotal: $${data.total}\nValid until: ${data.expiryDate}`,
-  }),
+      text: `Quote ${data.quoteNumber} from ${data.companyName}${data.quoteName ? ': ' + data.quoteName : ''}\n\n`
+        + lines.map((l) => `${l.description} — ${Number(l.quantity || 0)} × ${money(l.unitPrice)} = ${money(l.total)}`).join('\n')
+        + `\n\nTotal: ${money(data.total)}${data.expiryDate ? '\nValid until: ' + data.expiryDate : ''}\n\n`
+        + (approveUrl ? `Review and approve: ${approveUrl}` : howToAccept),
+    }
+  },
 
   quoteApproved: (data) => ({
     subject: `Quote ${data.quoteNumber} has been approved!`,

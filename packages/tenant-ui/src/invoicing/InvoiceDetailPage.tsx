@@ -4,7 +4,7 @@ import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download, Ban, RotateCcw, Re
 import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
-import { Button, ConfirmModal, NavLink, Field, Modal, PAYMENT_METHODS, paymentMethodsFor, refundMethodsFor, StatusBadge, balanceAfterCredit, dateTime, downloadFile, dueDateLabel, errMsg, inputCls, isPastDay, money, refundEffectNote } from './ui'
+import { Button, ConfirmModal, DialogError, NavLink, Field, Modal, PAYMENT_METHODS, paymentMethodsFor, refundMethodsFor, StatusBadge, balanceAfterCredit, dateTime, downloadFile, dueDateLabel, errMsg, inputCls, paymentAmountError, isPastDay, money, refundEffectNote } from './ui'
 
 type Inv = Record<string, any>
 
@@ -38,6 +38,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   const [voidOpen, setVoidOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [payment, setPayment] = useState({ amount: '', method: 'card', reference: '', notes: '', tipAmount: '' })
+  const [paymentError, setPaymentError] = useState<string | null>(null)
   const [refundOpen, setRefundOpen] = useState(false)
   const [refund, setRefund] = useState({ amount: '', method: '', reference: '', notes: '' })
   const [creditOpen, setCreditOpen] = useState(false)
@@ -78,10 +79,16 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   const handleDelete = async () => { try { await api.delete('/api/invoices', id); toast.success('Invoice deleted'); navigate('/crm/invoices') } catch (e) { toast.error(errMsg(e, 'Could not delete')) } }
   const handleVoid = async () => { if (await run(() => api.post(`/api/invoices/${id}/void`, {}), 'Invoice voided', 'Could not void')) setVoidOpen(false) }
   const handlePayment = async () => {
-    if (!(Number(payment.amount) > 0)) { toast.error('Enter a valid amount'); return }
+    const invalid = paymentAmountError(payment.amount, balance)
+    if (invalid) { setPaymentError(invalid); return }
+    setPaymentError(null)
     const body: any = { amount: Number(payment.amount), method: payment.method, reference: payment.reference || undefined, notes: payment.notes || undefined }
     if (cfg.tips && Number(payment.tipAmount) > 0) body.tipAmount = Number(payment.tipAmount)
-    if (await run(() => api.post(`/api/invoices/${id}/payments`, body), 'Payment recorded', 'Could not record the payment')) setPaymentOpen(false)
+    // The refusal goes in the dialog, where the person is looking. (10/14)
+    setBusy(true)
+    try { await api.post(`/api/invoices/${id}/payments`, body); toast.success('Payment recorded'); setPaymentOpen(false); await load() }
+    catch (e) { setPaymentError(errMsg(e, 'Could not record the payment')) }
+    finally { setBusy(false) }
   }
   const handleRefund = async () => {
     if (!(Number(refund.amount) > 0)) { toast.error('Enter a valid amount'); return }
@@ -114,7 +121,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {!closed && mayBill && <Button variant="secondary" onClick={handleSend} disabled={busy}><Send className="w-4 h-4" /> {invoice.sentAt ? 'Send again' : 'Send'}</Button>}
-          {!closed && balance > 0.005 && mayBill && <Button variant="success" onClick={() => { setPayment({ amount: balance.toFixed(2), method: 'card', reference: '', notes: '', tipAmount: '' }); setPaymentOpen(true) }}><DollarSign className="w-4 h-4" /> Record Payment</Button>}
+          {!closed && balance > 0.005 && mayBill && <Button variant="success" onClick={() => { setPaymentError(null); setPayment({ amount: balance.toFixed(2), method: 'card', reference: '', notes: '', tipAmount: '' }); setPaymentOpen(true) }}><DollarSign className="w-4 h-4" /> Record Payment</Button>}
           {/*
             * MONEY GOING BACK OUT IS ADMIN-TIER, AND THE SCREEN SAYS SO NOW. (T35 N4)
             *
@@ -228,13 +235,14 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
 
       <Modal isOpen={paymentOpen} onClose={() => setPaymentOpen(false)} title="Record Payment" size="sm">
         <div className="space-y-4">
-          <Field label="Amount *" hint={`${money(balance)} remaining`}><input type="number" step="0.01" min="0.01" value={payment.amount} onChange={e => setPayment({ ...payment, amount: e.target.value })} className={inputCls} /></Field>
-          {cfg.tips && <Field label="Tip (optional)" hint="Gratuity for the stylist. Recorded with the payment, never counted toward the invoice."><input type="number" step="0.01" min="0" value={payment.tipAmount} onChange={e => setPayment({ ...payment, tipAmount: e.target.value })} className={inputCls} placeholder="0.00" /></Field>}
+          <Field label="Amount *" hint={`${money(balance)} remaining`}><input type="number" step="0.01" min="0.01" value={payment.amount} onChange={e => { setPaymentError(null); setPayment((prev) => ({ ...prev, amount: e.target.value })) }} className={inputCls} /></Field>
+          <DialogError message={paymentError} />
+          {cfg.tips && <Field label="Tip (optional)" hint="Gratuity for the stylist. Recorded with the payment, never counted toward the invoice."><input type="number" step="0.01" min="0" value={payment.tipAmount} onChange={e => setPayment((prev) => ({ ...prev, tipAmount: e.target.value }))} className={inputCls} placeholder="0.00" /></Field>}
           {/* "Account balance" is offered only when this client has money on account — the API sends
               the figure, and sends null on verticals that keep no balances, where nothing changes. */}
-          <Field label="Method"><select value={payment.method} onChange={e => setPayment({ ...payment, method: e.target.value })} className={inputCls}>{paymentMethodsFor(invoice.accountBalance).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
-          <Field label="Reference"><input value={payment.reference} onChange={e => setPayment({ ...payment, reference: e.target.value })} className={inputCls} placeholder="Check #, transaction ID…" /></Field>
-          <Field label="Notes"><textarea value={payment.notes} onChange={e => setPayment({ ...payment, notes: e.target.value })} rows={2} className={inputCls} /></Field>
+          <Field label="Method"><select value={payment.method} onChange={e => setPayment((prev) => ({ ...prev, method: e.target.value }))} className={inputCls}>{paymentMethodsFor(invoice.accountBalance).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
+          <Field label="Reference"><input value={payment.reference} onChange={e => setPayment((prev) => ({ ...prev, reference: e.target.value }))} className={inputCls} placeholder="Check #, transaction ID…" /></Field>
+          <Field label="Notes"><textarea value={payment.notes} onChange={e => setPayment((prev) => ({ ...prev, notes: e.target.value }))} rows={2} className={inputCls} /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setPaymentOpen(false)}>Cancel</Button><Button variant="success" onClick={handlePayment} disabled={busy}>{busy ? 'Recording…' : 'Record Payment'}</Button></div>
       </Modal>
@@ -242,13 +250,13 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
       <Modal isOpen={refundOpen} onClose={() => setRefundOpen(false)} title="Record Refund" size="sm">
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-slate-400">{refundEffectNote(invoice.total, invoice.amountPaid)} Card refunds issued in Stripe are recorded here automatically — record only refunds made outside Stripe (cash, check…) so nothing is counted twice.</p>
-          <Field label="Amount *" hint={`${money(netPaid)} refundable`}><input type="number" step="0.01" min="0.01" value={refund.amount} onChange={e => setRefund({ ...refund, amount: e.target.value })} className={inputCls} /></Field>
+          <Field label="Amount *" hint={`${money(netPaid)} refundable`}><input type="number" step="0.01" min="0.01" value={refund.amount} onChange={e => setRefund((prev) => ({ ...prev, amount: e.target.value }))} className={inputCls} /></Field>
           {/* Card, or left on the client's account. Offering the choice AT THE MOMENT OF REFUNDING is
               what every established platform does, and it is the only honest answer to "they overpaid
               by $5.43" — where that money goes is the client's to decide, not the software's. */}
-          <Field label="Method" hint="Leave as-is to refund the way the money came in."><select value={refund.method} onChange={e => setRefund({ ...refund, method: e.target.value })} className={inputCls}><option value="">Same as payment</option>{refundMethodsFor(invoice.accountBalance != null && !!invoice.contactId).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
-          <Field label="Reference"><input value={refund.reference} onChange={e => setRefund({ ...refund, reference: e.target.value })} className={inputCls} /></Field>
-          <Field label="Reason"><input value={refund.notes} onChange={e => setRefund({ ...refund, notes: e.target.value })} className={inputCls} placeholder="Why the money went back" /></Field>
+          <Field label="Method" hint="Leave as-is to refund the way the money came in."><select value={refund.method} onChange={e => setRefund((prev) => ({ ...prev, method: e.target.value }))} className={inputCls}><option value="">Same as payment</option>{refundMethodsFor(invoice.accountBalance != null && !!invoice.contactId).map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
+          <Field label="Reference"><input value={refund.reference} onChange={e => setRefund((prev) => ({ ...prev, reference: e.target.value }))} className={inputCls} /></Field>
+          <Field label="Reason"><input value={refund.notes} onChange={e => setRefund((prev) => ({ ...prev, notes: e.target.value }))} className={inputCls} placeholder="Why the money went back" /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setRefundOpen(false)}>Cancel</Button><Button variant="warn" onClick={handleRefund} disabled={busy}>{busy ? 'Recording…' : 'Record Refund'}</Button></div>
       </Modal>
@@ -256,8 +264,8 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
       <Modal isOpen={creditOpen} onClose={() => setCreditOpen(false)} title="Apply credit" size="sm">
         <div className="space-y-4">
           <p className="text-sm text-gray-600 dark:text-slate-400">Lowers what the client owes without returning any money — for goodwill, a price adjustment or a complaint. It is recorded on the invoice with your reason. To give money back, use Refund.</p>
-          <Field label="Credit amount *" hint={`${money(balance)} still owed${Number(invoice.taxRate) > 0 ? ` · taken off the price, tax is recalculated at ${Number(invoice.taxRate)}%` : ''}`}><input type="number" step="0.01" min="0.01" value={creditForm.amount} onChange={e => setCreditForm({ ...creditForm, amount: e.target.value })} className={inputCls} /></Field>
-          <Field label="Reason *"><input value={creditForm.reason} onChange={e => setCreditForm({ ...creditForm, reason: e.target.value })} className={inputCls} placeholder="Why the credit is given" /></Field>
+          <Field label="Credit amount *" hint={`${money(balance)} still owed${Number(invoice.taxRate) > 0 ? ` · taken off the price, tax is recalculated at ${Number(invoice.taxRate)}%` : ''}`}><input type="number" step="0.01" min="0.01" value={creditForm.amount} onChange={e => setCreditForm((prev) => ({ ...prev, amount: e.target.value }))} className={inputCls} /></Field>
+          <Field label="Reason *"><input value={creditForm.reason} onChange={e => setCreditForm((prev) => ({ ...prev, reason: e.target.value }))} className={inputCls} placeholder="Why the credit is given" /></Field>
           {Number(creditForm.amount) > 0 && <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Balance due: {money(balance)} → {money(balanceAfterCredit(invoice, Number(creditForm.amount)))}</p>}
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setCreditOpen(false)}>Cancel</Button><Button onClick={handleCredit} disabled={busy}>{busy ? 'Applying…' : 'Apply credit'}</Button></div>

@@ -129,26 +129,25 @@ export default function RecurringForm({ api }: RecurringPageProps) {
   };
 
   const handleChange = (field: string, value: string | number | boolean) => {
-    setForm({ ...form, [field]: value });
+    setForm((f) => ({ ...f, [field]: value }));
   };
 
   const handleLineItemChange = (index: number, field: string, value: string | number) => {
     const items = [...form.lineItems];
     items[index] = { ...items[index], [field]: value };
-    setForm({ ...form, lineItems: items });
+    setForm((f) => ({ ...f, lineItems: items }));
   };
 
   const addLineItem = () => {
-    setForm({
-      ...form,
+    setForm((f) => ({ ...f,
       lineItems: [...form.lineItems, { description: '', quantity: 1, unitPrice: 0 }],
-    });
+    }));
   };
 
   const removeLineItem = (index: number) => {
     if (form.lineItems.length <= 1) return;
     const items = form.lineItems.filter((_: LineItem, i: number) => i !== index);
-    setForm({ ...form, lineItems: items });
+    setForm((f) => ({ ...f, lineItems: items }));
   };
 
   const calculateTotals = (): { subtotal: number; taxAmount: number; total: number } => {

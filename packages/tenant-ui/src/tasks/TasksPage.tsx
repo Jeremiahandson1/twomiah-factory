@@ -473,7 +473,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
               <input
                 type="text"
                 value={form.title}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, title: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, title: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="What needs to be done?"
                 required
@@ -484,7 +484,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea
                 value={form.description}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f) => ({ ...f, description: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 rows={2}
               />
@@ -496,7 +496,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                 <input
                   type="date"
                   value={form.dueDate}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, dueDate: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -504,7 +504,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Priority</label>
                 <select
                   value={form.priority}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, priority: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, priority: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="low">Low</option>
@@ -520,7 +520,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Assign To</label>
                 <select
                   value={form.assignedToId}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, assignedToId: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, assignedToId: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="">Myself</option>
@@ -538,7 +538,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                   <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Project</label>
                   <select
                     value={form.projectId}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, projectId: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, projectId: e.target.value }))}
                     className="w-full px-3 py-2 border rounded-lg"
                   >
                     <option value="">None</option>

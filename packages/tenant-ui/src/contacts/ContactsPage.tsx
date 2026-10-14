@@ -233,7 +233,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
     { label: 'Delete', icon: Trash2, className: 'text-red-600', show: () => mayDelete, onClick: (row: ContactRow) => { setToDelete(row); setDeleteOpen(true) } },
   ]
 
-  const set = (k: keyof ContactForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value })
+  const set = (k: keyof ContactForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   return (
     <div>
@@ -304,7 +304,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
           <Field label="Phone"><input type="tel" value={form.phone} onChange={set('phone')} className={inputCls} /></Field>
           <Field label="Mobile"><input type="tel" value={form.mobile} onChange={set('mobile')} className={inputCls} /></Field>
           {/* The company's source choices, plus Other for one-offs; managers and up edit the list. (T63) */}
-          <SourceField api={api as any} value={form.source} onChange={(v) => setForm({ ...form, source: v })} toast={toast} />
+          <SourceField api={api as any} value={form.source} onChange={(v) => setForm((f) => ({ ...f, source: v }))} toast={toast} />
           <div className="md:col-span-2"><Field label="Address"><input type="text" value={form.address} onChange={set('address')} className={inputCls} /></Field></div>
           <Field label="City"><input type="text" value={form.city} onChange={set('city')} className={inputCls} /></Field>
           <div className="grid grid-cols-2 gap-4">

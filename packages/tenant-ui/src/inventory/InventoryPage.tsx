@@ -676,7 +676,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                   required
                 />
@@ -686,7 +686,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 <input
                   type="text"
                   value={form.sku}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, sku: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, sku: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="Auto-generated"
                 />
@@ -696,7 +696,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 <input
                   type="text"
                   value={form.category}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, category: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, category: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -706,7 +706,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                   type="number"
                   step="0.01"
                   value={form.unitCost}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, unitCost: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, unitCost: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -716,7 +716,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                   type="number"
                   step="0.01"
                   value={form.unitPrice}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, unitPrice: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, unitPrice: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -724,7 +724,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Unit</label>
                 <select
                   value={form.unit}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, unit: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, unit: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="each">Each</option>
@@ -739,7 +739,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 <input
                   type="number"
                   value={form.reorderPoint}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, reorderPoint: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, reorderPoint: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -804,7 +804,7 @@ function LocationFormModal({ location, onSave, onClose }: LocationFormModalProps
               <input
                 type="text"
                 value={form.name}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="Main Warehouse, Truck #1, etc."
                 required
@@ -814,7 +814,7 @@ function LocationFormModal({ location, onSave, onClose }: LocationFormModalProps
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
               <select
                 value={form.type}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, type: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
               >
                 <option value="warehouse">Warehouse</option>
@@ -827,7 +827,7 @@ function LocationFormModal({ location, onSave, onClose }: LocationFormModalProps
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Branch</label>
                 <select
                   value={form.branchId}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, branchId: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, branchId: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="">No branch</option>
@@ -894,7 +894,7 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Item</label>
               <select
                 value={form.itemId}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, itemId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, itemId: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
@@ -908,7 +908,7 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">From</label>
               <select
                 value={form.fromLocationId}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, fromLocationId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, fromLocationId: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
@@ -922,7 +922,7 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">To</label>
               <select
                 value={form.toLocationId}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, toLocationId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, toLocationId: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
@@ -937,7 +937,7 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
               <input
                 type="number"
                 value={form.quantity}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, quantity: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 min="1"
                 required
@@ -1027,7 +1027,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
               <select
                 value={form.locationId}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, locationId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, locationId: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
@@ -1042,7 +1042,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
               <input
                 type="number"
                 value={form.quantity}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, quantity: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 min="1"
                 required
@@ -1053,7 +1053,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
               <input
                 type="text"
                 value={form.reason}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, reason: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, reason: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="Received shipment, damaged, etc."
               />

@@ -830,7 +830,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
               <input
                 type="text"
                 value={form.name}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="e.g., HVAC Maintenance Plan"
                 required
@@ -841,7 +841,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea
                 value={form.description}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f) => ({ ...f, description: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 rows={2}
               />
@@ -853,7 +853,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 <input
                   type="number"
                   value={form.price}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, price: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, price: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                   required
                 />
@@ -862,7 +862,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Billing</label>
                 <select
                   value={form.billingFrequency}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, billingFrequency: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, billingFrequency: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="monthly">Monthly</option>
@@ -880,7 +880,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 <input
                   type="number"
                   value={form.visitsIncluded}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, visitsIncluded: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, visitsIncluded: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -889,7 +889,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 <input
                   type="number"
                   value={form.discountPercent}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, discountPercent: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, discountPercent: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -898,7 +898,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 <input
                   type="number"
                   value={form.durationMonths}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, durationMonths: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, durationMonths: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -909,7 +909,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 <input
                   type="checkbox"
                   checked={form.priorityService}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, priorityService: e.target.checked })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, priorityService: e.target.checked }))}
                   className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
                 />
                 <span className="text-sm text-gray-700 dark:text-slate-200">Priority Service</span>
@@ -918,7 +918,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 <input
                   type="checkbox"
                   checked={form.autoRenew}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, autoRenew: e.target.checked })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, autoRenew: e.target.checked }))}
                   className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
                 />
                 <span className="text-sm text-gray-700 dark:text-slate-200">Auto-Renew</span>
@@ -1040,7 +1040,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer</label>
               <select
                 value={form.contactId}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, contactId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, contactId: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
@@ -1058,7 +1058,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan</label>
               <select
                 value={form.planId}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, planId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, planId: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
@@ -1085,7 +1085,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
               <input
                 type="date"
                 value={form.startDate}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, startDate: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, startDate: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               />
@@ -1095,7 +1095,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
               <input
                 type="checkbox"
                 checked={form.autoRenew}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, autoRenew: e.target.checked })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, autoRenew: e.target.checked }))}
                 className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
               />
               <span className="text-sm text-gray-700 dark:text-slate-200">Auto-renew when term ends</span>
@@ -1108,7 +1108,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 <input
                   type="checkbox"
                   checked={form.autoSchedule}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, autoSchedule: e.target.checked })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, autoSchedule: e.target.checked }))}
                   className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Auto-schedule recurring visits</span>
@@ -1120,7 +1120,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                     <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Frequency</label>
                     <select
                       value={form.recurrenceFrequency}
-                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, recurrenceFrequency: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, recurrenceFrequency: e.target.value }))}
                       className="w-full px-3 py-2 border rounded-lg"
                     >
                       <option value="monthly">Monthly</option>
@@ -1135,7 +1135,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                     <input
                       type="date"
                       value={form.nextServiceDate}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, nextServiceDate: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, nextServiceDate: e.target.value }))}
                       className="w-full px-3 py-2 border rounded-lg"
                     />
                   </div>
@@ -1145,7 +1145,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                     <input
                       type="number"
                       value={form.reminderDaysBefore}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, reminderDaysBefore: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, reminderDaysBefore: e.target.value }))}
                       className="w-full px-3 py-2 border rounded-lg"
                       min="0"
                       max="60"

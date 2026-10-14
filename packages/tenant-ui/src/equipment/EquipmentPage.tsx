@@ -658,7 +658,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer</label>
                 <select
                   value={form.contactId}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, contactId: e.target.value, siteId: '' })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, contactId: e.target.value, siteId: '' }))}
                   className="w-full px-3 py-2 border rounded-lg"
                   required
                 >
@@ -675,7 +675,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                   <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
                   <select
                     value={form.siteId}
-                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, siteId: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, siteId: e.target.value }))}
                     className="w-full px-3 py-2 border rounded-lg"
                   >
                     <option value="">No specific location</option>
@@ -691,7 +691,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="e.g., Main AC Unit"
                   required
@@ -702,7 +702,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category</label>
                 <select
                   value={form.categoryId}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, categoryId: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="">No category</option>
@@ -757,7 +757,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <input
                   type="text"
                   value={form.brand}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, brand: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, brand: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="e.g., Carrier"
                 />
@@ -768,7 +768,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <input
                   type="text"
                   value={form.model}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, model: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, model: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -778,7 +778,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <input
                   type="text"
                   value={form.serialNumber}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, serialNumber: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, serialNumber: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -788,7 +788,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <input
                   type="text"
                   value={form.location}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, location: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, location: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="e.g., Basement, Attic"
                 />
@@ -799,7 +799,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <input
                   type="date"
                   value={form.installDate}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, installDate: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, installDate: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -809,7 +809,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <input
                   type="number"
                   value={form.warrantyMonths}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, warrantyMonths: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, warrantyMonths: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -819,7 +819,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <input
                   type="number"
                   value={form.maintenanceIntervalMonths}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, maintenanceIntervalMonths: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, maintenanceIntervalMonths: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -828,7 +828,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Condition</label>
                 <select
                   value={form.condition}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, condition: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, condition: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="excellent">Excellent</option>
@@ -842,7 +842,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
                 <textarea
                   value={form.notes}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, notes: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f) => ({ ...f, notes: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                   rows={2}
                 />

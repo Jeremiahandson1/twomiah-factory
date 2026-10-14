@@ -114,7 +114,7 @@ export function LoginPage({ companyName }: { companyName: string }) {
               {/* A way back, because a wrong account is the other reason somebody is stuck here. */}
               <button
                 type="button"
-                onClick={() => { setChallenge(null); setCode(''); setLocalError(''); setFormData({ ...formData, password: '' }) }}
+                onClick={() => { setChallenge(null); setCode(''); setLocalError(''); setFormData((prev) => ({ ...prev, password: '' })) }}
                 className="w-full text-sm text-gray-600 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200"
               >
                 Start again
@@ -133,7 +133,7 @@ export function LoginPage({ companyName }: { companyName: string }) {
                 autoCapitalize="none"
                 autoCorrect="off"
                 value={formData.email}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                 className={inputCls}
                 placeholder="you@example.com"
               />
@@ -151,7 +151,7 @@ export function LoginPage({ companyName }: { companyName: string }) {
                 autoCorrect="off"
                 spellCheck={false}
                 value={formData.password}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, password: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
                 className={inputCls}
                 placeholder="••••••••"
               />

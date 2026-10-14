@@ -291,7 +291,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // timesheet follows. (Salon RR6 E7)
     'time:create', 'time:update', 'expenses:read', 'expenses:create', 'expenses:update',
     'expenses:delete', 'documents:read',
-    'documents:create', 'rfis:read', 'rfis:create', 'punch-lists:read',
+    // punch-lists:create — the crew on site is who finds what is left to fix (owner's decision, 10/14).
+    'documents:create', 'rfis:read', 'rfis:create', 'punch-lists:read', 'punch-lists:create',
     'punch-lists:update', 'daily-logs:read', 'daily-logs:create', 'inspections:read',
     'company:read', 'dashboard:read', 'schedule:read',
     // create + read any; update/delete gated to own tasks (assignee or creator) in the routes

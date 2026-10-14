@@ -636,12 +636,12 @@ function VehicleFormModal({ vehicle, onSave, onClose }: VehicleFormModalProps) {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
-                <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
+                <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., Truck 1" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
-                <select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })}
+                <select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, type: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg">
                   <option value="truck">Truck</option>
                   <option value="van">Van</option>
@@ -651,27 +651,27 @@ function VehicleFormModal({ vehicle, onSave, onClose }: VehicleFormModalProps) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Year</label>
-                <input type="number" value={form.year} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, year: e.target.value })}
+                <input type="number" value={form.year} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, year: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Make</label>
-                <input type="text" value={form.make} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, make: e.target.value })}
+                <input type="text" value={form.make} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, make: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., Ford" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Model</label>
-                <input type="text" value={form.model} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, model: e.target.value })}
+                <input type="text" value={form.model} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, model: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., F-150" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">License Plate</label>
-                <input type="text" value={form.licensePlate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, licensePlate: e.target.value })}
+                <input type="text" value={form.licensePlate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, licensePlate: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Current Mileage</label>
-                <input type="number" value={form.currentMileage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, currentMileage: e.target.value })}
+                <input type="number" value={form.currentMileage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, currentMileage: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
@@ -731,18 +731,18 @@ function FuelEntryModal({ vehicle, onSave, onClose }: FuelEntryModalProps) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
-              <input type="date" value={form.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, date: e.target.value })}
+              <input type="date" value={form.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, date: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Gallons</label>
-                <input type="number" step="0.01" value={form.gallons} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, gallons: e.target.value })}
+                <input type="number" step="0.01" value={form.gallons} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, gallons: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price/Gallon</label>
-                <input type="number" step="0.01" value={form.pricePerGallon} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, pricePerGallon: e.target.value })}
+                <input type="number" step="0.01" value={form.pricePerGallon} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, pricePerGallon: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
             </div>
@@ -752,7 +752,7 @@ function FuelEntryModal({ vehicle, onSave, onClose }: FuelEntryModalProps) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Current Mileage</label>
-              <input type="number" value={form.mileage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, mileage: e.target.value })}
+              <input type="number" value={form.mileage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, mileage: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="flex gap-3 pt-4">
@@ -810,12 +810,12 @@ function MaintenanceModal({ vehicle, onSave, onClose }: MaintenanceModalProps) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
-                <input type="date" value={form.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, date: e.target.value })}
+                <input type="date" value={form.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, date: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
-                <select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })}
+                <select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, type: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg">
                   <option value="oil_change">Oil Change</option>
                   <option value="tire">Tires</option>
@@ -828,18 +828,18 @@ function MaintenanceModal({ vehicle, onSave, onClose }: MaintenanceModalProps) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
-              <textarea value={form.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
+              <textarea value={form.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f) => ({ ...f, description: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg" rows={2} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Mileage</label>
-                <input type="number" value={form.mileage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, mileage: e.target.value })}
+                <input type="number" value={form.mileage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, mileage: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Cost</label>
-                <input type="number" step="0.01" value={form.cost} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, cost: e.target.value })}
+                <input type="number" step="0.01" value={form.cost} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, cost: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>

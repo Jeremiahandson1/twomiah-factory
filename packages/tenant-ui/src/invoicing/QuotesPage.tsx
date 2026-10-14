@@ -5,7 +5,7 @@ import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { todayKey } from '../time/day'
-import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, selectCls } from './ui'
+import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, quoteSentMessage, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
 interface QuoteForm { name: string; contactId: string; projectId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[] }
@@ -138,12 +138,12 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       let saved: any
       if (editing) { saved = await api.put(`/api/quotes/${editing.id}`, payload); toast.success('Quote updated') }
       else { saved = await api.post('/api/quotes', payload); toast.success('Quote created') }
-      if (sendAfter && saved?.id) { await api.post(`/api/quotes/${saved.id}/send`, {}); toast.success('Quote sent') }
+      if (sendAfter && saved?.id) { const sentQ = await api.post(`/api/quotes/${saved.id}/send`, {}); toast.success(quoteSentMessage(sentQ)) }
       setModalOpen(false); load()
     } catch (e) { toast.error(errMsg(e, 'Could not save the quote')) }
     finally { setSaving(false) }
   }
-  const act = async (path: string, ok: string) => { try { const r = await api.post(path, {}); toast.success(ok); load(); return r } catch (e) { toast.error(errMsg(e, 'That did not work')) } }
+  const act = async (path: string, ok: string | ((r: any) => string)) => { try { const r = await api.post(path, {}); toast.success(typeof ok === 'function' ? ok(r) : ok); load(); return r } catch (e) { toast.error(errMsg(e, 'That did not work')) } }
   const handleDelete = async () => { if (!deleteTarget) return; try { await api.delete('/api/quotes', deleteTarget.id); toast.success('Quote deleted'); setDeleteTarget(null); load() } catch (e) { toast.error(errMsg(e, 'Could not delete')) } }
 
   const columns = [
@@ -172,7 +172,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
         emptyAction={!search && !statusFilter && mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4" /> New Quote</Button> : undefined}
         actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit, show: r => mayUpdate && EDITABLE.includes(r.status) },
-        { label: 'Send', icon: Send, onClick: r => act(`/api/quotes/${r.id}/send`, 'Quote sent'), show: r => mayUpdate && EDITABLE.includes(r.status) },
+        { label: 'Send', icon: Send, onClick: r => act(`/api/quotes/${r.id}/send`, quoteSentMessage), show: r => mayUpdate && EDITABLE.includes(r.status) },
         { label: 'Mark approved', icon: Check, onClick: r => act(`/api/quotes/${r.id}/approve`, 'Quote approved'), show: r => mayUpdate && EDITABLE.includes(r.status) },
         { label: cfg.quoteDecline ? 'Mark declined' : 'Mark rejected', icon: X, onClick: r => act(`/api/quotes/${r.id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected'), show: r => mayUpdate && EDITABLE.includes(r.status) },
         { label: 'Convert to Invoice', icon: FileText, onClick: async r => { const inv = await act(`/api/quotes/${r.id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }, show: r => mayInvoice && r.status === 'approved' },
@@ -183,16 +183,16 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.number}` : 'New Quote'} size="xl">
         <div className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
-            <div className="md:col-span-2"><Field label="Name *"><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={inputCls} placeholder={cfg.quoteNamePlaceholder} /></Field></div>
-            <Field label={cfg.clientLabel}><select value={form.contactId} onChange={e => { setForm({ ...form, contactId: e.target.value, siteId: '', equipmentId: '' }); loadCustomerExtras(e.target.value) }} className={inputCls}><option value="">Select…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-            {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
-            {cfg.quoteSites && sites.length > 0 && <Field label="Location"><select value={form.siteId} onChange={e => setForm({ ...form, siteId: e.target.value })} className={inputCls}><option value="">No specific location</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}</select></Field>}
-            {cfg.quoteEquipment && equipment.length > 0 && <Field label="Equipment"><select value={form.equipmentId} onChange={e => setForm({ ...form, equipmentId: e.target.value })} className={inputCls}><option value="">No specific unit</option>{equipment.map(eq => <option key={eq.id} value={eq.id}>{eq.name}{eq.manufacturer ? ` — ${eq.manufacturer}` : ''}{eq.model ? ` ${eq.model}` : ''}</option>)}</select></Field>}
+            <div className="md:col-span-2"><Field label="Name *"><input value={form.name} onChange={e => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} placeholder={cfg.quoteNamePlaceholder} /></Field></div>
+            <Field label={cfg.clientLabel}><select value={form.contactId} onChange={e => { setForm((f) => ({ ...f, contactId: e.target.value, siteId: '', equipmentId: '' })); loadCustomerExtras(e.target.value) }} className={inputCls}><option value="">Select…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+            {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => setForm((f) => ({ ...f, projectId: e.target.value }))} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
+            {cfg.quoteSites && sites.length > 0 && <Field label="Location"><select value={form.siteId} onChange={e => setForm((f) => ({ ...f, siteId: e.target.value }))} className={inputCls}><option value="">No specific location</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}</select></Field>}
+            {cfg.quoteEquipment && equipment.length > 0 && <Field label="Equipment"><select value={form.equipmentId} onChange={e => setForm((f) => ({ ...f, equipmentId: e.target.value }))} className={inputCls}><option value="">No specific unit</option>{equipment.map(eq => <option key={eq.id} value={eq.id}>{eq.name}{eq.manufacturer ? ` — ${eq.manufacturer}` : ''}{eq.model ? ` ${eq.model}` : ''}</option>)}</select></Field>}
           </div>
           <Field label="Line Items">
             <LineItemsEditor
               items={form.lineItems}
-              onChange={items => setForm({ ...form, lineItems: items })}
+              onChange={items => setForm((f) => ({ ...f, lineItems: items }))}
               /*
                * Only passed where the vertical records line cost, so every other template gets the
                * editor exactly as it was. canSeeCost follows the same permission the Pricebook
@@ -209,16 +209,16 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
             />
           </Field>
           <div className="grid md:grid-cols-3 gap-4">
-            <Field label="Tax Rate (%)"><NumberInput min="0" max="100" step="0.01" value={form.taxRate} onValue={n => setForm({ ...form, taxRate: n })} className={inputCls} /></Field>
-            <Field label="Discount ($)"><NumberInput min="0" step="0.01" value={form.discount} onValue={n => setForm({ ...form, discount: n })} className={inputCls} /></Field>
+            <Field label="Tax Rate (%)"><NumberInput min="0" max="100" step="0.01" value={form.taxRate} onValue={n => setForm((f) => ({ ...f, taxRate: n }))} className={inputCls} /></Field>
+            <Field label="Discount ($)"><NumberInput min="0" step="0.01" value={form.discount} onValue={n => setForm((f) => ({ ...f, discount: n }))} className={inputCls} /></Field>
             {/* Blank means "our usual validity", the same way a blank due date on an invoice means "our payment
                 terms" — say so, rather than letting it read as "no expiry". (Field Service T26 L2) */}
-            <Field label="Expiry Date" hint="Leave blank for the default validity (30 days)"><input type="date" value={form.expiryDate} onChange={e => setForm({ ...form, expiryDate: e.target.value })} className={inputCls} /></Field>
+            <Field label="Expiry Date" hint="Leave blank for the default validity (30 days)"><input type="date" value={form.expiryDate} onChange={e => setForm((f) => ({ ...f, expiryDate: e.target.value }))} className={inputCls} /></Field>
           </div>
           <TotalsBox subtotal={totals.subtotal} discount={totals.effectiveDiscount} taxRate={form.taxRate} taxAmount={totals.taxAmount} total={totals.total} warning={inputError || (totals.discountTooBig ? `Discount cannot exceed the subtotal (${money(totals.subtotal)})` : undefined)} />
-          {cfg.quoteCustomerMessage && <Field label={<>Customer Message <span className="text-gray-500 dark:text-slate-400 font-normal">(shown on the quote)</span></>}><textarea value={form.customerMessage} onChange={e => setForm({ ...form, customerMessage: e.target.value })} rows={2} className={inputCls} placeholder="Thank you for choosing us…" /></Field>}
-          <Field label={<>Notes <span className="text-gray-500 dark:text-slate-400 font-normal">(internal)</span></>}><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} className={inputCls} /></Field>
-          <Field label="Terms"><textarea value={form.terms} onChange={e => setForm({ ...form, terms: e.target.value })} rows={2} className={inputCls} /></Field>
+          {cfg.quoteCustomerMessage && <Field label={<>Customer Message <span className="text-gray-500 dark:text-slate-400 font-normal">(shown on the quote)</span></>}><textarea value={form.customerMessage} onChange={e => setForm((f) => ({ ...f, customerMessage: e.target.value }))} rows={2} className={inputCls} placeholder="Thank you for choosing us…" /></Field>}
+          <Field label={<>Notes <span className="text-gray-500 dark:text-slate-400 font-normal">(internal)</span></>}><textarea value={form.notes} onChange={e => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className={inputCls} /></Field>
+          <Field label="Terms"><textarea value={form.terms} onChange={e => setForm((f) => ({ ...f, terms: e.target.value }))} rows={2} className={inputCls} /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>

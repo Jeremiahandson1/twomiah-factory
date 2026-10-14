@@ -113,18 +113,18 @@ export function JobPartsPanel({ api, toast, jobId }: { api: JobPartsApi; toast: 
       <Modal isOpen={adding} onClose={() => setAdding(false)} title="Add a part to this job">
         <form onSubmit={add} className="space-y-3">
           <Field label="Item">
-            <select required value={form.itemId} onChange={(e) => setForm({ ...form, itemId: e.target.value })} className={inputCls}>
+            <select required value={form.itemId} onChange={(e) => setForm((f) => ({ ...f, itemId: e.target.value }))} className={inputCls}>
               <option value="">Choose an item…</option>
               {items.map((i) => <option key={i.id} value={i.id}>{i.name}{i.sku ? ` (${i.sku})` : ''}</option>)}
             </select>
           </Field>
           <Field label="Taken from">
-            <select required value={form.locationId} onChange={(e) => setForm({ ...form, locationId: e.target.value })} className={inputCls}>
+            <select required value={form.locationId} onChange={(e) => setForm((f) => ({ ...f, locationId: e.target.value }))} className={inputCls}>
               <option value="">Choose a stock location…</option>
               {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </Field>
-          <Field label="Quantity"><input type="number" min="1" step="1" required value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} className={inputCls} /></Field>
+          <Field label="Quantity"><input type="number" min="1" step="1" required value={form.quantity} onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))} className={inputCls} /></Field>
           {items.length === 0 && <p className="text-sm text-gray-600 dark:text-slate-400">No inventory items yet. Add them on the Inventory page first.</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setAdding(false)}>Cancel</Button>
@@ -136,10 +136,10 @@ export function JobPartsPanel({ api, toast, jobId }: { api: JobPartsApi; toast: 
       <Modal isOpen={!!returning} onClose={() => setReturning(null)} title={`Return ${returning?.item?.name || 'part'} to stock`}>
         <form onSubmit={giveBack} className="space-y-3">
           <Field label="How many" hint={returning ? `Up to ${Number(returning.quantity) - Number(returning.returnedQuantity || 0)}.` : undefined}>
-            <input type="number" min="1" step="1" required value={returnForm.quantity} onChange={(e) => setReturnForm({ ...returnForm, quantity: e.target.value })} className={inputCls} />
+            <input type="number" min="1" step="1" required value={returnForm.quantity} onChange={(e) => setReturnForm((prev) => ({ ...prev, quantity: e.target.value }))} className={inputCls} />
           </Field>
           <Field label="Back to">
-            <select required value={returnForm.locationId} onChange={(e) => setReturnForm({ ...returnForm, locationId: e.target.value })} className={inputCls}>
+            <select required value={returnForm.locationId} onChange={(e) => setReturnForm((prev) => ({ ...prev, locationId: e.target.value }))} className={inputCls}>
               <option value="">Choose a stock location…</option>
               {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>

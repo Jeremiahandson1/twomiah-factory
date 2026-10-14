@@ -142,7 +142,7 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
       <ConfirmModal isOpen={!!confirmSend} onClose={() => setConfirmSend(null)} onConfirm={send} title="Send campaign" message={`Send "${confirmSend?.name || ''}" to its audience now? Contacts who unsubscribed are always excluded.`} confirmText="Send now" danger={false} />
       <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={remove} title="Delete campaign" message={`Delete "${toDelete?.name || ''}"${toDelete?.status === 'sent' ? ' and its delivery history' : ''}?`} confirmText="Delete" />
       <Modal isOpen={!!schedule} onClose={() => setSchedule(null)} title="Schedule campaign" size="sm">
-        <Field label="Send at"><input type="datetime-local" value={schedule?.when || ''} onChange={(e) => schedule && setSchedule({ ...schedule, when: e.target.value })} className={inputCls} /></Field>
+        <Field label="Send at"><input type="datetime-local" value={schedule?.when || ''} onChange={(e) => setSchedule((prev) => (prev ? { ...prev, when: e.target.value } : prev))} className={inputCls} /></Field>
         <p className="text-xs text-gray-500 mt-2 dark:text-slate-400">Scheduled campaigns go out within 15 minutes of the time you pick.</p>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setSchedule(null)}>Cancel</Button><Button onClick={doSchedule} disabled={!schedule?.when}>Schedule</Button></div>
       </Modal>
@@ -176,19 +176,19 @@ function CampaignForm({ api, toast, campaign, contactTypes, onSaved, onClose }: 
     <Modal isOpen onClose={onClose} title={campaign ? 'Edit Campaign' : 'New Campaign'} size="lg">
       <div className="space-y-4">
         <ErrorBox msg={error} />
-        <Field label="Campaign name *"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} /></Field>
-        <Field label="Subject line *"><input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} className={inputCls} /></Field>
+        <Field label="Campaign name *"><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></Field>
+        <Field label="Subject line *"><input value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} className={inputCls} /></Field>
         <Field label="Audience">
-          <select value={form.audienceType} onChange={(e) => setForm({ ...form, audienceType: e.target.value })} className={inputCls}><option value="all">All contacts with an email</option><option value="segment">Segment</option></select>
+          <select value={form.audienceType} onChange={(e) => setForm((f) => ({ ...f, audienceType: e.target.value }))} className={inputCls}><option value="all">All contacts with an email</option><option value="segment">Segment</option></select>
           {form.audienceType === 'segment' && (
             <div className="mt-3 grid sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg dark:bg-slate-800">
-              <Field label="Contact type"><select value={form.segmentType} onChange={(e) => setForm({ ...form, segmentType: e.target.value })} className={inputCls}><option value="">Any type</option>{contactTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
-              <Field label="Added on or after"><input type="date" value={form.segmentCreatedAfter} onChange={(e) => setForm({ ...form, segmentCreatedAfter: e.target.value })} className={inputCls} /></Field>
+              <Field label="Contact type"><select value={form.segmentType} onChange={(e) => setForm((f) => ({ ...f, segmentType: e.target.value }))} className={inputCls}><option value="">Any type</option>{contactTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
+              <Field label="Added on or after"><input type="date" value={form.segmentCreatedAfter} onChange={(e) => setForm((f) => ({ ...f, segmentCreatedAfter: e.target.value }))} className={inputCls} /></Field>
             </div>
           )}
           <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">{audience === null ? 'Counting recipients…' : `This campaign will go to ${audience} contact${audience === 1 ? '' : 's'}.`} Contacts who unsubscribed are always excluded.</p>
         </Field>
-        <Field label="Email body (HTML)" hint="Variables: {{name}}, {{firstName}}, {{company}}"><textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} className={`${inputCls} font-mono text-sm`} rows={10} /></Field>
+        <Field label="Email body (HTML)" hint="Variables: {{name}}, {{firstName}}, {{company}}"><textarea value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} className={`${inputCls} font-mono text-sm`} rows={10} /></Field>
       </div>
       <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
     </Modal>
@@ -249,12 +249,12 @@ function TemplateForm({ api, toast, template, onSaved, onClose }: { api: Marketi
       <div className="space-y-4">
         <ErrorBox msg={error} />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Name *"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} /></Field>
-          <Field label="Category"><select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputCls}>{TEMPLATE_CATEGORIES.map((c) => <option key={c} value={c}>{c === 'followup' ? 'Follow-up' : c.charAt(0).toUpperCase() + c.slice(1)}</option>)}</select></Field>
+          <Field label="Name *"><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></Field>
+          <Field label="Category"><select value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className={inputCls}>{TEMPLATE_CATEGORIES.map((c) => <option key={c} value={c}>{c === 'followup' ? 'Follow-up' : c.charAt(0).toUpperCase() + c.slice(1)}</option>)}</select></Field>
         </div>
-        <Field label="Subject *"><input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} className={inputCls} /></Field>
-        <Field label="Body (HTML)" hint="Variables: {{name}}, {{firstName}}, {{company}}"><textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} className={`${inputCls} font-mono text-sm`} rows={10} /></Field>
-        {template && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} className="rounded" /> Active</label>}
+        <Field label="Subject *"><input value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} className={inputCls} /></Field>
+        <Field label="Body (HTML)" hint="Variables: {{name}}, {{firstName}}, {{company}}"><textarea value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} className={`${inputCls} font-mono text-sm`} rows={10} /></Field>
+        {template && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} className="rounded" /> Active</label>}
       </div>
       <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
     </Modal>
@@ -319,7 +319,7 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
   const [form, setForm] = useState<{ name: string; active: boolean; steps: Step[] }>({ name: sequence?.name || '', active: sequence ? !!sequence.active : true, steps: sequence?.steps?.length ? sequence.steps.map((s) => ({ delayDays: Number(s.delayDays || 0), delayHours: Number(s.delayHours || 0), subject: s.subject || '', body: s.body || '' })) : [{ delayDays: 0, delayHours: 0, subject: '', body: '' }] })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const setStep = (i: number, patch: Partial<Step>) => setForm({ ...form, steps: form.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) })
+  const setStep = (i: number, patch: Partial<Step>) => setForm((f) => ({ ...f, steps: f.steps.map((s, j) => (j === i ? { ...s, ...patch } : s)) }))
   const save = async () => {
     if (!form.name.trim()) { setError('Sequence name is required'); return }
     const bad = form.steps.findIndex((s) => !s.subject.trim())
@@ -342,12 +342,12 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
       <div className="space-y-4">
         <ErrorBox msg={error} />
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Name *"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} /></Field>
-          <Field label="Status"><select value={form.active ? 'active' : 'paused'} onChange={(e) => setForm({ ...form, active: e.target.value === 'active' })} className={inputCls}><option value="active">Active — contacts can be enrolled</option><option value="paused">Paused</option></select></Field>
+          <Field label="Name *"><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></Field>
+          <Field label="Status"><select value={form.active ? 'active' : 'paused'} onChange={(e) => setForm((f) => ({ ...f, active: e.target.value === 'active' }))} className={inputCls}><option value="active">Active — contacts can be enrolled</option><option value="paused">Paused</option></select></Field>
         </div>
         <p className="text-xs text-gray-500 dark:text-slate-400">Contacts are enrolled by hand from the sequence card. Step 1 goes out within 15 minutes of enrolling; each later step waits its delay after the previous one.</p>
         <div className="space-y-3">
-          <div className="flex items-center justify-between"><h3 className="font-medium text-gray-900 dark:text-slate-100">Steps</h3><button type="button" onClick={() => setForm({ ...form, steps: [...form.steps, { delayDays: 1, delayHours: 0, subject: '', body: '' }] })} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">+ Add step</button></div>
+          <div className="flex items-center justify-between"><h3 className="font-medium text-gray-900 dark:text-slate-100">Steps</h3><button type="button" onClick={() => setForm((f) => ({ ...f, steps: [...form.steps, { delayDays: 1, delayHours: 0, subject: '', body: '' }] }))} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">+ Add step</button></div>
           {form.steps.map((s, i) => (
             <div key={i} className="p-4 border rounded-lg space-y-3 dark:border-slate-700">
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -357,7 +357,7 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
                   <input type="number" min={0} value={s.delayDays} onChange={(e) => setStep(i, { delayDays: e.target.value })} className={`${controlNoWidthCls} w-16 py-1`} /> days
                   <input type="number" min={0} max={23} value={s.delayHours} onChange={(e) => setStep(i, { delayHours: e.target.value })} className={`${controlNoWidthCls} w-16 py-1`} /> hours
                   <span>{i === 0 ? 'after enrolling' : 'after the previous step'}</span>
-                  {form.steps.length > 1 && <button type="button" onClick={() => setForm({ ...form, steps: form.steps.filter((_, j) => j !== i) })} className="p-1 text-gray-400 hover:text-red-600" title="Remove step"><X className="w-4 h-4" /></button>}
+                  {form.steps.length > 1 && <button type="button" onClick={() => setForm((f) => ({ ...f, steps: f.steps.filter((_, j) => j !== i) }))} className="p-1 text-gray-400 hover:text-red-600" title="Remove step"><X className="w-4 h-4" /></button>}
                 </div>
               </div>
               <input value={s.subject} onChange={(e) => setStep(i, { subject: e.target.value })} className={inputCls} placeholder="Subject line *" />

@@ -102,7 +102,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     { key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' && Number.isFinite(Number(v)) ? `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/hr` : '-') },
     { key: 'active', label: 'Status', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>) },
   ]
-  const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value })
+  const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   /**
    * Add Member was already gated (canManageRoster); Edit and Delete on the rows were not. (T42)

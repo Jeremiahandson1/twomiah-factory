@@ -648,3 +648,29 @@ export function refundMethodsFor(hasClient: boolean): Array<{ value: string; lab
   if (!hasClient) return PAYMENT_METHODS
   return [...PAYMENT_METHODS, { value: ACCOUNT_BALANCE_METHOD, label: 'Leave it on their account' }]
 }
+
+/**
+ * What to say once a quote is sent. The email carries an Approve button only when the customer's client portal is on
+ * (the API answers approveOnline); otherwise they were told to reply or call, and the sender should know. (10/14)
+ */
+export const quoteSentMessage = (r: any): string =>
+  r && r.approveOnline === false
+    ? "Quote sent. They can't approve it online yet — switch on their client portal (on the contact) to give them an Approve button."
+    : 'Quote sent'
+
+/**
+ * Why this payment amount cannot be recorded, in words — or null. Checked before sending so the person sees it in the
+ * dialog beside the amount; the server checks the same and its own refusal is shown in the same place. (10/14)
+ */
+export const paymentAmountError = (amount: string, balance: number): string | null => {
+  const n = Number(amount)
+  if (!(n > 0)) return 'Enter the amount received, more than $0.00.'
+  if (n > balance + 0.005) return 'That is more than the ' + money(balance) + ' owing. Record ' + money(balance) + ', or less for a part payment.'
+  return null
+}
+
+/** The refusal, shown inside a dialog where the person is looking — not only as a toast that fades. */
+export function DialogError({ message }: { message: string | null }) {
+  if (!message) return null
+  return <p role="alert" className="text-sm rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-800 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-200">{message}</p>
+}

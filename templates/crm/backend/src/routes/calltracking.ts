@@ -52,6 +52,7 @@ function mapProviderPayload(provider: string, payload: any) {
 
 // Apply auth to remaining routes
 app.use('*', authenticate)
+// Reading is gated too, not only writing: the viewer and field seats have no calltracking:read (E2E run 1, 10/14).
 // Call Tracking off for this tenant → its own endpoints are refused, not just hidden in the menu. Registered after
 // the provider webhooks above, which stay public so inbound calls keep working. (Landscaping T14 M4 → #206)
 app.use('*', requireEnabledFeature('call_tracking'))
@@ -60,7 +61,7 @@ app.use('*', requireEnabledFeature('call_tracking'))
 // TRACKING NUMBERS
 // ============================================
 
-app.get('/numbers', async (c) => {
+app.get('/numbers', requirePermission('calltracking:read'), async (c) => {
   const user = c.get('user') as any
   const source = c.req.query('source')
   const active = c.req.query('active')
@@ -90,7 +91,7 @@ app.put('/numbers/:id', requirePermission('calltracking:update'), async (c) => {
 // CALLS
 // ============================================
 
-app.get('/calls', async (c) => {
+app.get('/calls', requirePermission('calltracking:read'), async (c) => {
   const user = c.get('user') as any
   const { source, status, startDate, endDate, contactId, firstTimeOnly, page, limit } = c.req.query() as any
   const calls = await calltracking.getCalls(user.companyId, {
@@ -106,7 +107,7 @@ app.get('/calls', async (c) => {
   return c.json(calls)
 })
 
-app.get('/calls/:id', async (c) => {
+app.get('/calls/:id', requirePermission('calltracking:read'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const call = await calltracking.getCall(id, user.companyId)
@@ -141,7 +142,7 @@ app.post('/calls', requirePermission('calltracking:create'), async (c) => {
 // REPORTS
 // ============================================
 
-app.get('/reports/attribution', async (c) => {
+app.get('/reports/attribution', requirePermission('calltracking:read'), async (c) => {
   const user = c.get('user') as any
   const { startDate, endDate } = c.req.query() as any
   const report = await calltracking.getAttributionReport(user.companyId, {
@@ -151,7 +152,7 @@ app.get('/reports/attribution', async (c) => {
   return c.json(report)
 })
 
-app.get('/reports/volume', async (c) => {
+app.get('/reports/volume', requirePermission('calltracking:read'), async (c) => {
   const user = c.get('user') as any
   const { startDate, endDate, groupBy } = c.req.query() as any
   const report = await calltracking.getCallVolumeReport(user.companyId, {

@@ -18,6 +18,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+// Reading is gated too, not only writing: the viewer and field seats have no submittals:read (E2E run 1, 10/14).
 
 const submittalSchema = z.object({
   projectId: z.string(),
@@ -32,7 +33,7 @@ const submittalSchema = z.object({
 })
 
 // List submittals for the tenant, with optional status/project filters
-app.get('/', async (c) => {
+app.get('/', requirePermission('submittals:read'), async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
   const projectId = c.req.query('projectId')
@@ -61,7 +62,7 @@ app.get('/', async (c) => {
   return c.json({ data: enriched, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
-app.get('/:id', async (c) => {
+app.get('/:id', requirePermission('submittals:read'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

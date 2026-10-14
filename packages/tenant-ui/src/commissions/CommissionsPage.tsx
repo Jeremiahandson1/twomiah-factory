@@ -321,10 +321,10 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
 
       <Modal isOpen={planOpen} onClose={() => setPlanOpen(false)} title={editingPlan ? 'Edit commission plan' : 'New commission plan'}>
         <form onSubmit={savePlan} className="space-y-3">
-          <Field label="Plan name"><input required placeholder={`e.g. ${config.planExample}`} value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} className={inputCls} /></Field>
+          <Field label="Plan name"><input required placeholder={`e.g. ${config.planExample}`} value={planForm.name} onChange={(e) => setPlanForm((prev) => ({ ...prev, name: e.target.value }))} className={inputCls} /></Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="How it is worked out">
-              <select value={planForm.planType} onChange={(e) => setPlanForm({ ...planForm, planType: e.target.value })} className={inputCls} disabled={editingPlan?.planType === 'tiered'}>
+              <select value={planForm.planType} onChange={(e) => setPlanForm((prev) => ({ ...prev, planType: e.target.value }))} className={inputCls} disabled={editingPlan?.planType === 'tiered'}>
                 <option value="flat_rate">{PLAN_TYPE_WORDS.flat_rate}</option>
                 <option value="percent_of_invoice">{PLAN_TYPE_WORDS.percent_of_invoice}</option>
                 <option value="percent_of_margin">{PLAN_TYPE_WORDS.percent_of_margin}</option>
@@ -333,16 +333,16 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
             </Field>
             {/* "Intended for" is a note on the plan: a commission is recorded against a person, and nothing matches a plan to anyone by role. (T51) */}
             <Field label="Intended for">
-              <select value={planForm.appliesToRole} onChange={(e) => setPlanForm({ ...planForm, appliesToRole: e.target.value })} className={inputCls}>
+              <select value={planForm.appliesToRole} onChange={(e) => setPlanForm((prev) => ({ ...prev, appliesToRole: e.target.value }))} className={inputCls}>
                 {Object.entries(config.roleWords).map(([value, word]) => <option key={value} value={value}>{word}</option>)}
               </select>
             </Field>
           </div>
           {planForm.planType === 'flat_rate'
-            ? <Field label="Amount per job ($)"><input type="number" min="0" step="0.01" required value={planForm.flatRateAmount} onChange={(e) => setPlanForm({ ...planForm, flatRateAmount: e.target.value })} className={inputCls} /></Field>
-            : planForm.planType !== 'tiered' && <Field label="Rate (%)" hint="Between 0 and 100."><input type="number" min="0" max="100" step="0.1" required value={planForm.percentRate} onChange={(e) => setPlanForm({ ...planForm, percentRate: e.target.value })} className={inputCls} /></Field>}
+            ? <Field label="Amount per job ($)"><input type="number" min="0" step="0.01" required value={planForm.flatRateAmount} onChange={(e) => setPlanForm((prev) => ({ ...prev, flatRateAmount: e.target.value }))} className={inputCls} /></Field>
+            : planForm.planType !== 'tiered' && <Field label="Rate (%)" hint="Between 0 and 100."><input type="number" min="0" max="100" step="0.1" required value={planForm.percentRate} onChange={(e) => setPlanForm((prev) => ({ ...prev, percentRate: e.target.value }))} className={inputCls} /></Field>}
           <Field label="Pay it automatically?" hint={planForm.planType === 'percent_of_margin' ? 'A margin plan is recorded by hand — the margin has to be entered.' : 'Only invoices paid in full from now on. A full refund takes it back.'}>
-            <select value={planForm.planType === 'percent_of_margin' ? 'none' : planForm.autoEarn} disabled={planForm.planType === 'percent_of_margin'} onChange={(e) => setPlanForm({ ...planForm, autoEarn: e.target.value })} className={inputCls}>
+            <select value={planForm.planType === 'percent_of_margin' ? 'none' : planForm.autoEarn} disabled={planForm.planType === 'percent_of_margin'} onChange={(e) => setPlanForm((prev) => ({ ...prev, autoEarn: e.target.value }))} className={inputCls}>
               {Object.entries(AUTO_WORDS).map(([value, word]) => <option key={value} value={value}>{word}</option>)}
             </select>
           </Field>
@@ -356,26 +356,26 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
       <Modal isOpen={recordOpen} onClose={() => setRecordOpen(false)} title="Record a commission">
         <form onSubmit={saveRecord} className="space-y-3">
           <Field label="Who earned it">
-            <select required value={recordForm.userId} onChange={(e) => setRecordForm({ ...recordForm, userId: e.target.value })} className={inputCls}>
+            <select required value={recordForm.userId} onChange={(e) => setRecordForm((prev) => ({ ...prev, userId: e.target.value }))} className={inputCls}>
               <option value="">Choose a person…</option>
               {people.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}</option>)}
             </select>
           </Field>
           <Field label="Plan" hint={plan ? `${PLAN_TYPE_WORDS[plan.planType] || plan.planType}. The amount is worked out from the plan when you save.` : 'No plan: enter the agreed amount yourself.'}>
-            <select value={recordForm.planId} onChange={(e) => setRecordForm({ ...recordForm, planId: e.target.value })} className={inputCls}>
+            <select value={recordForm.planId} onChange={(e) => setRecordForm((prev) => ({ ...prev, planId: e.target.value }))} className={inputCls}>
               <option value="">No plan — an agreed amount</option>
               {plans.filter((p) => p.isActive !== false).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Invoice (optional)">
-              <select value={recordForm.invoiceId} onChange={(e) => setRecordForm({ ...recordForm, invoiceId: e.target.value })} className={inputCls}>
+              <select value={recordForm.invoiceId} onChange={(e) => setRecordForm((prev) => ({ ...prev, invoiceId: e.target.value }))} className={inputCls}>
                 <option value="">None</option>
                 {invoices.map((i) => <option key={i.id} value={i.id}>{i.number}{i.contact?.name ? ` — ${i.contact.name}` : ''} · {money(i.total)}</option>)}
               </select>
             </Field>
             <Field label="Job (optional)">
-              <select value={recordForm.jobId} onChange={(e) => setRecordForm({ ...recordForm, jobId: e.target.value })} className={inputCls}>
+              <select value={recordForm.jobId} onChange={(e) => setRecordForm((prev) => ({ ...prev, jobId: e.target.value }))} className={inputCls}>
                 <option value="">None</option>
                 {jobs.map((j) => <option key={j.id} value={j.id}>{j.number} — {j.title}</option>)}
               </select>
@@ -383,15 +383,15 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           </div>
           {needsBase && (
             <Field label={plan?.planType === 'percent_of_margin' ? 'Margin it is worked out on ($)' : 'Amount it is worked out on ($)'}>
-              <input type="number" min="0" step="0.01" required value={recordForm.baseAmount} onChange={(e) => setRecordForm({ ...recordForm, baseAmount: e.target.value })} className={inputCls} />
+              <input type="number" min="0" step="0.01" required value={recordForm.baseAmount} onChange={(e) => setRecordForm((prev) => ({ ...prev, baseAmount: e.target.value }))} className={inputCls} />
             </Field>
           )}
           {!recordForm.planId && (
             <Field label="Commission amount ($)">
-              <input type="number" min="0" step="0.01" required value={recordForm.commissionAmount} onChange={(e) => setRecordForm({ ...recordForm, commissionAmount: e.target.value })} className={inputCls} />
+              <input type="number" min="0" step="0.01" required value={recordForm.commissionAmount} onChange={(e) => setRecordForm((prev) => ({ ...prev, commissionAmount: e.target.value }))} className={inputCls} />
             </Field>
           )}
-          <Field label="Notes (optional)"><textarea rows={2} value={recordForm.notes} onChange={(e) => setRecordForm({ ...recordForm, notes: e.target.value })} className={inputCls} /></Field>
+          <Field label="Notes (optional)"><textarea rows={2} value={recordForm.notes} onChange={(e) => setRecordForm((prev) => ({ ...prev, notes: e.target.value }))} className={inputCls} /></Field>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={() => setRecordOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={busy}><DollarSign className="w-4 h-4" />Record</Button>

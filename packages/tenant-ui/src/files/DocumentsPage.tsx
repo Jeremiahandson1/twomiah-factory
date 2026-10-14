@@ -230,10 +230,10 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 mb-6">
         <div className={`grid gap-3 md:grid-cols-${showProjects ? 4 : 3}`}>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search documents…" className={inputCls} aria-label="Search documents" />
-          <select value={filter.type} onChange={e => { setFilter({ ...filter, type: e.target.value }); setPage(1) }} className={inputCls} aria-label="Type">
+          <select value={filter.type} onChange={e => { setFilter((prev) => ({ ...prev, type: e.target.value })); setPage(1) }} className={inputCls} aria-label="Type">
             <option value="">All types</option>{cfg.types.map(t => <option key={t} value={t}>{label(t)}</option>)}
           </select>
-          {showProjects && <select value={filter.projectId} onChange={e => { setFilter({ ...filter, projectId: e.target.value }); setPage(1) }} className={inputCls} aria-label="Project">
+          {showProjects && <select value={filter.projectId} onChange={e => { setFilter((prev) => ({ ...prev, projectId: e.target.value })); setPage(1) }} className={inputCls} aria-label="Project">
             <option value="">All projects</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>}
           <Button variant="secondary" onClick={() => { setSearch(''); setFilter({ type: '', projectId: '', search: '' }); setPage(1) }}>Clear filters</Button>
@@ -263,12 +263,12 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
           <div className="p-3 rounded-lg bg-gray-50 dark:bg-slate-800/60 text-sm">
             {selected.map((f, i) => <p key={i} className="truncate"><span className="font-medium">{f.name}</span> <span className="text-gray-500 dark:text-slate-400">· {formatSize(f.size)}</span></p>)}
           </div>
-          {selected.length === 1 && <Field label="Name"><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className={inputCls} /></Field>}
+          {selected.length === 1 && <Field label="Name"><input value={form.name} onChange={e => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} /></Field>}
           <div className={`grid gap-3 ${showProjects ? 'grid-cols-2' : ''}`}>
-            <Field label="Type"><select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className={inputCls}>{cfg.types.map(t => <option key={t} value={t}>{label(t)}</option>)}</select></Field>
-            {showProjects && <Field label="Project (optional)"><select value={form.projectId} onChange={e => setForm({ ...form, projectId: e.target.value })} className={inputCls}><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
+            <Field label="Type"><select value={form.type} onChange={e => setForm((f) => ({ ...f, type: e.target.value }))} className={inputCls}>{cfg.types.map(t => <option key={t} value={t}>{label(t)}</option>)}</select></Field>
+            {showProjects && <Field label="Project (optional)"><select value={form.projectId} onChange={e => setForm((f) => ({ ...f, projectId: e.target.value }))} className={inputCls}><option value="">No project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
           </div>
-          <Field label="Description (optional)"><textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={2} className={inputCls} /></Field>
+          <Field label="Description (optional)"><textarea value={form.description} onChange={e => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} className={inputCls} /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <Button variant="secondary" onClick={() => setSelected([])}>Cancel</Button>

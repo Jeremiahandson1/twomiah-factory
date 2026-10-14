@@ -319,7 +319,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     { key: 'approved', label: 'Approved', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Yes</span> : <span className="text-gray-500 dark:text-slate-400">No</span>) },
     { key: 'reimbursable', label: 'Reimburse', render: (v: any, row: Expense) => (row.reimbursed ? <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Done</span> : v ? <span className="text-amber-700 dark:text-amber-300">Pending</span> : '-') },
   ]
-  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value })
+  const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   /**
    * Claiming, approving and deleting are three permissions, and the screen asks all three. (T42)
@@ -387,7 +387,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           {showJobs && <Field label={jobLabel}><select value={form.jobId} onChange={set('jobId')} className={inputCls}><option value="">None</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.number ? `${j.number} - ` : ''}{j.title}</option>)}</select></Field>}
           {showProjects && <Field label="Project"><select value={form.projectId} onChange={set('projectId')} className={inputCls}><option value="">None</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
           <div className="flex gap-6">
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.billable} onChange={(e) => setForm({ ...form, billable: e.target.checked })} className="rounded" /> Billable to customer</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.billable} onChange={(e) => setForm((f) => ({ ...f, billable: e.target.checked }))} className="rounded" /> Billable to customer</label>
             {/*
               "REIMBURSE ME" IS WRONG WHEN IT IS NOT YOUR CLAIM. (T41)
 
@@ -397,7 +397,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
               now names it (the row carries submittedByName), and it still says "me" where that is
               the truth: creating a claim, or editing your own.
             */}
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.reimbursable} onChange={(e) => setForm({ ...form, reimbursable: e.target.checked })} className="rounded" /> {reimburseLabel}</label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.reimbursable} onChange={(e) => setForm((f) => ({ ...f, reimbursable: e.target.checked }))} className="rounded" /> {reimburseLabel}</label>
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
@@ -448,21 +448,21 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           )}
           <Field label="Amount over-paid *">
             <input type="number" min="0.01" step="0.01" max={repayFor ? outstanding(repayFor) : undefined}
-              value={repayForm.amount} onChange={(e) => setRepayForm({ ...repayForm, amount: e.target.value })} className={inputCls} />
+              value={repayForm.amount} onChange={(e) => setRepayForm((prev) => ({ ...prev, amount: e.target.value }))} className={inputCls} />
           </Field>
           {/* The whole question: is the money back, or owed? */}
           <div className="space-y-2">
             <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
-              <input type="radio" name="repay-settled" checked={repayForm.settled} onChange={() => setRepayForm({ ...repayForm, settled: true })} className="mt-1" />
+              <input type="radio" name="repay-settled" checked={repayForm.settled} onChange={() => setRepayForm((prev) => ({ ...prev, settled: true }))} className="mt-1" />
               <span><span className="font-medium">They have paid it back</span><br /><span className="text-xs text-gray-500 dark:text-slate-400">Records the money as returned against this claim.</span></span>
             </label>
             <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
-              <input type="radio" name="repay-settled" checked={!repayForm.settled} onChange={() => setRepayForm({ ...repayForm, settled: false })} className="mt-1" />
+              <input type="radio" name="repay-settled" checked={!repayForm.settled} onChange={() => setRepayForm((prev) => ({ ...prev, settled: false }))} className="mt-1" />
               <span><span className="font-medium">They still owe it</span><br /><span className="text-xs text-gray-500 dark:text-slate-400">Puts it on their balance, to settle in cash, off their next claim, or off their pay.</span></span>
             </label>
           </div>
           <Field label="What happened *">
-            <input value={repayForm.reason} onChange={(e) => setRepayForm({ ...repayForm, reason: e.target.value })}
+            <input value={repayForm.reason} onChange={(e) => setRepayForm((prev) => ({ ...prev, reason: e.target.value }))}
               placeholder="e.g. overpaid by $10 — wrong figure on the receipt" className={inputCls} />
           </Field>
         </div>
@@ -484,10 +484,10 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           )}
           <Field label="Amount *">
             <input type="number" min="0.01" step="0.01" max={settleFor?.owed} value={settleForm.amount}
-              onChange={(e) => setSettleForm({ ...settleForm, amount: e.target.value })} className={inputCls} />
+              onChange={(e) => setSettleForm((prev) => ({ ...prev, amount: e.target.value }))} className={inputCls} />
           </Field>
           <Field label="How *">
-            <select value={settleForm.via} onChange={(e) => setSettleForm({ ...settleForm, via: e.target.value })} className={inputCls}>
+            <select value={settleForm.via} onChange={(e) => setSettleForm((prev) => ({ ...prev, via: e.target.value }))} className={inputCls}>
               <option value="cash">They paid it back</option>
               <option value="offset">Take it off one of their claims</option>
               <option value="payroll" disabled={!owed?.payrollDeductionsAllowed}>
@@ -498,7 +498,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           </Field>
           {settleForm.via === 'offset' && (
             <Field label="Which claim *">
-              <select value={settleForm.againstExpenseId} onChange={(e) => setSettleForm({ ...settleForm, againstExpenseId: e.target.value })} className={inputCls}>
+              <select value={settleForm.againstExpenseId} onChange={(e) => setSettleForm((prev) => ({ ...prev, againstExpenseId: e.target.value }))} className={inputCls}>
                 <option value="">Choose a claim</option>
                 {offsettable(settleFor).map((r) => <option key={r.id} value={r.id}>{money(r.amount)} — {r.description}</option>)}
               </select>
@@ -511,12 +511,12 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           )}
           {settleForm.via === 'payroll' && (
             <Field label="Authorised by *">
-              <input value={settleForm.authorisation} onChange={(e) => setSettleForm({ ...settleForm, authorisation: e.target.value })}
+              <input value={settleForm.authorisation} onChange={(e) => setSettleForm((prev) => ({ ...prev, authorisation: e.target.value }))}
                 placeholder="who agreed it, and where the signed authorisation is kept" className={inputCls} />
             </Field>
           )}
           <Field label="Note *">
-            <input value={settleForm.reason} onChange={(e) => setSettleForm({ ...settleForm, reason: e.target.value })}
+            <input value={settleForm.reason} onChange={(e) => setSettleForm((prev) => ({ ...prev, reason: e.target.value }))}
               placeholder="e.g. returned in cash at close" className={inputCls} />
           </Field>
         </div>

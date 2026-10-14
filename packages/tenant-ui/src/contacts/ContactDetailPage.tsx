@@ -709,14 +709,14 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
       {sections.sites && (
         <Modal isOpen={siteModalOpen} onClose={() => setSiteModalOpen(false)} title="Add Location" size="md">
           <div className="space-y-4">
-            <Field label="Location Name *"><input value={siteForm.name} onChange={(e) => setSiteForm({ ...siteForm, name: e.target.value })} className={inputCls} placeholder='e.g. "Main Warehouse", "Downtown Office"' /></Field>
-            <Field label="Address"><input value={siteForm.address} onChange={(e) => setSiteForm({ ...siteForm, address: e.target.value })} className={inputCls} /></Field>
+            <Field label="Location Name *"><input value={siteForm.name} onChange={(e) => setSiteForm((prev) => ({ ...prev, name: e.target.value }))} className={inputCls} placeholder='e.g. "Main Warehouse", "Downtown Office"' /></Field>
+            <Field label="Address"><input value={siteForm.address} onChange={(e) => setSiteForm((prev) => ({ ...prev, address: e.target.value }))} className={inputCls} /></Field>
             <div className="grid grid-cols-3 gap-3">
-              <Field label="City"><input value={siteForm.city} onChange={(e) => setSiteForm({ ...siteForm, city: e.target.value })} className={inputCls} /></Field>
-              <Field label="State"><input value={siteForm.state} onChange={(e) => setSiteForm({ ...siteForm, state: e.target.value })} className={inputCls} /></Field>
-              <Field label="ZIP"><input value={siteForm.zip} onChange={(e) => setSiteForm({ ...siteForm, zip: e.target.value })} className={inputCls} /></Field>
+              <Field label="City"><input value={siteForm.city} onChange={(e) => setSiteForm((prev) => ({ ...prev, city: e.target.value }))} className={inputCls} /></Field>
+              <Field label="State"><input value={siteForm.state} onChange={(e) => setSiteForm((prev) => ({ ...prev, state: e.target.value }))} className={inputCls} /></Field>
+              <Field label="ZIP"><input value={siteForm.zip} onChange={(e) => setSiteForm((prev) => ({ ...prev, zip: e.target.value }))} className={inputCls} /></Field>
             </div>
-            <Field label="Access Notes"><textarea value={siteForm.accessNotes} onChange={(e) => setSiteForm({ ...siteForm, accessNotes: e.target.value })} rows={2} className={inputCls} placeholder="Gate codes, contact on site, parking instructions..." /></Field>
+            <Field label="Access Notes"><textarea value={siteForm.accessNotes} onChange={(e) => setSiteForm((prev) => ({ ...prev, accessNotes: e.target.value }))} rows={2} className={inputCls} placeholder="Gate codes, contact on site, parking instructions..." /></Field>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="secondary" onClick={() => setSiteModalOpen(false)}>Cancel</Button>
               <Button onClick={createSite} disabled={savingSite || !siteForm.name.trim()}>{savingSite ? 'Saving...' : 'Add Location'}</Button>

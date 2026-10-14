@@ -579,7 +579,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Warranty</label>
               <select
                 value={form.warrantyId}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, warrantyId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, warrantyId: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
@@ -597,7 +597,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
               <input
                 type="text"
                 value={form.title}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, title: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, title: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="e.g., Leak in master bathroom"
                 required
@@ -608,7 +608,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea
                 value={form.description}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f) => ({ ...f, description: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 rows={3}
                 placeholder="Describe the issue..."
@@ -621,7 +621,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
               <input
                 type="text"
                 value={form.location}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, location: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, location: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="e.g., Master bathroom, near shower"
               />
@@ -632,7 +632,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Priority</label>
                 <select
                   value={form.priority}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, priority: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, priority: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="low">Low</option>
@@ -645,7 +645,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reported Via</label>
                 <select
                   value={form.reportedMethod}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, reportedMethod: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, reportedMethod: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="phone">Phone</option>
