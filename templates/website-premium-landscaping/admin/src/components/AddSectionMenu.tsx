@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { SECTION_DEFS, type SectionDef } from '../sectionSchema'
+import { api } from '../api/client'
 
 interface Props {
   onAdd: (def: SectionDef) => void
@@ -8,6 +9,15 @@ interface Props {
 
 export function AddSectionMenu({ onAdd }: Props) {
   const [open, setOpen] = useState(false)
+  // Only the sections this site's template can draw (a contractor isn't offered a strain grid).
+  // If the list can't be loaded, everything is offered, as before.
+  const [available, setAvailable] = useState<Set<string> | null>(null)
+  useEffect(() => {
+    if (!open || available) return
+    api.get<{ types: string[] }>('/api/admin/section-types')
+      .then(({ types }) => setAvailable(new Set(types)))
+      .catch(() => {})
+  }, [open, available])
 
   if (!open) {
     return (
@@ -21,6 +31,7 @@ export function AddSectionMenu({ onAdd }: Props) {
   // Group by type
   const grouped: Record<string, SectionDef[]> = {}
   for (const def of SECTION_DEFS) {
+    if (available && !available.has(def.type + '/' + def.variant)) continue
     if (!grouped[def.type]) grouped[def.type] = []
     grouped[def.type].push(def)
   }

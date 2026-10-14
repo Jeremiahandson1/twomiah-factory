@@ -167,6 +167,7 @@ async function authMiddleware(c: Context<{ Variables: AdminVars }>, next: () => 
         (p === '/api/admin/me' && m === 'GET') ||
         (p === '/api/admin/logout' && m === 'POST') ||
         (p.startsWith('/api/admin/pages') && (m === 'GET' || m === 'PATCH')) ||
+        (p === '/api/admin/section-types' && m === 'GET') ||
         (p.startsWith('/api/admin/photos') && (m === 'GET' || m === 'POST' || m === 'DELETE')) ||
         (p === '/api/admin/settings' && m === 'GET')
       if (!allow) return c.json({ error: 'Customer access does not include this action.' }, 403)
@@ -676,6 +677,31 @@ app.delete('/users/:id', authMiddleware, requireAdmin, async (c) => {
 })
 
 // ─── Pages ────────────────────────────────────────────────────────────────
+
+// The sections this template can draw — one views/sections/<type>/<variant>.ejs each — so the admin's
+// "Add a section" offers only those. The server fills some in itself (live menu, inventory, projects,
+// service areas, tools); those aren't offered.
+const SERVER_BUILT_SECTIONS = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator'])
+app.get('/section-types', authMiddleware, async (c) => {
+  const fs = await import('node:fs')
+  const path = await import('node:path')
+  const dir = path.join(import.meta.dir, '..', 'views', 'sections')
+  const types: string[] = []
+  try {
+    for (const type of fs.readdirSync(dir)) {
+      const sub = path.join(dir, type)
+      if (!fs.statSync(sub).isDirectory()) continue
+      for (const f of fs.readdirSync(sub)) {
+        if (!f.endsWith('.ejs')) continue
+        const key = type + '/' + f.slice(0, -4)
+        if (!SERVER_BUILT_SECTIONS.has(key)) types.push(key)
+      }
+    }
+  } catch (e: any) {
+    return c.json({ error: 'Could not list sections: ' + e.message }, 500)
+  }
+  return c.json({ types: types.sort() })
+})
 
 app.get('/pages', authMiddleware, async (_c) => {
   const rows = await db.select().from(pagesTbl).orderBy(asc(pagesTbl.navOrder), asc(pagesTbl.title))

@@ -4,6 +4,8 @@
 // needs both an EJS partial in views/sections/ AND a form component
 // registered here.
 
+import { TRADE_SECTIONS } from './sectionFields'
+
 export interface SectionDef {
   type: string
   variant: string
@@ -192,6 +194,10 @@ export const SECTION_DEFS: SectionDef[] = [
       items: [{ question: '', answer: '' }],
     },
   },
+
+  // ── Trade sections + the shared ones without a form of their own: described in
+  // sectionFields.ts and edited by GenericSectionForm.
+  ...TRADE_SECTIONS.map(({ fields: _fields, ...def }) => def),
 ]
 
 export function findSectionDef(type: string, variant: string): SectionDef | undefined {
