@@ -22,6 +22,7 @@
 import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
+import { migrateDb } from '../db/migrate'
 import { users, settings, pages } from '../db/schema'
 
 interface BootstrapPayload {
@@ -101,6 +102,8 @@ function buildLocalPayload(): BootstrapPayload {
 }
 
 async function main() {
+  // Schema first: a fresh disk gets every table, an existing one any new migration.
+  migrateDb()
   const fromFactory = await tryFetchFromFactory()
   const payload = fromFactory || buildLocalPayload()
 

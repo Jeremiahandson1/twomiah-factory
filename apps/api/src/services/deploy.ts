@@ -1498,56 +1498,10 @@ export async function deployCustomer(
         await findAndDeleteRenderService(slug + '-site')
         const siteBunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
 
-        // ── Premium-site DB provisioning ──────────────────────────────────
-        // The premium templates (templates/website-premium-*) need their own
-        // dedicated Postgres for CMS data (pages.sections jsonb, users,
-        // photos, leads, settings). The Hono server reads DATABASE_URL on
-        // boot and crashes ENOTFOUND when the host is unresolvable, which
-        // 500s every request — discovered via test harness 2026-06-04
-        // probe-final3. Skipped for standard websites (they don't query
-        // any DB from server-static.ts).
+        // Premium sites keep their data in a SQLite file on the service's own disk (website/persistent,
+        // the same 1 GB disk a standard site keeps its files on) — no Postgres per site (~$7/mo each).
+        // The disk is mounted below; the boot command applies the template's migrations to it.
         const isPremiumSite = products.includes('website-premium')
-        let siteDbConnectionString: string | null = null
-        if (isPremiumSite) {
-          try {
-            const siteDbName = slug + '-site'  // creates {slug}-site-db once -db suffix is applied by createRenderDatabase
-            const existingSiteDb = await findExistingDatabase(siteDbName + '-db')
-            if (existingSiteDb) {
-              console.log('[Deploy] Reusing existing premium site DB:', siteDbName + '-db', existingSiteDb.id)
-              createdResources.push({ type: 'database', id: existingSiteDb.id, name: siteDbName + '-db' })
-              if (existingSiteDb.id) deployedResourceIds.push(existingSiteDb.id)
-              const connInfo = await getDatabaseConnectionInfo(existingSiteDb.id)
-              if (connInfo?.internalConnectionString) siteDbConnectionString = connInfo.internalConnectionString
-            }
-            if (!siteDbConnectionString) {
-              console.log('[Deploy] Creating premium site DB:', siteDbName + '-db')
-              const siteDb = await createRenderDatabase(siteDbName, region, dbPlan)
-              createdResources.push({ type: 'database', id: siteDb.id, name: siteDbName + '-db' })
-              if (siteDb.id) deployedResourceIds.push(siteDb.id)
-              // Poll for connection string — same pattern as CRM DB above.
-              for (let attempt = 0; attempt < 20; attempt++) {
-                await sleep(15000)
-                try {
-                  const connInfo = await getDatabaseConnectionInfo(siteDb.id)
-                  if (connInfo?.internalConnectionString) {
-                    siteDbConnectionString = connInfo.internalConnectionString
-                    console.log('[Deploy] Premium site DB connection string received (attempt ' + (attempt + 1) + ')')
-                    break
-                  }
-                } catch (_e) { /* not ready yet */ }
-              }
-              if (!siteDbConnectionString) throw new Error('Premium site DB did not become ready in time')
-            }
-            results.steps.push({ step: 'render_site_db', status: 'ok' })
-          } catch (siteDbErr: any) {
-            results.steps.push({ step: 'render_site_db', status: 'error', error: siteDbErr.message })
-            results.errors.push('Premium site DB: ' + siteDbErr.message)
-            // Don't bail — let the site service get created without DB and
-            // surface the failure via /health. (The site will 500 until
-            // DATABASE_URL is set manually, but at least the deploy completes
-            // far enough to be diagnosable.)
-          }
-        }
 
         const siteEnvVars: Array<{ key: string; value: string }> = [
             { key: 'NODE_ENV', value: 'production' },
@@ -1562,9 +1516,6 @@ export async function deployCustomer(
         if (isStore) siteEnvVars.push({ key: 'CRM_STORE_API_URL', value: results.apiUrl || ('https://' + buildCrmApiHost(slug, factoryCustomer.config?.company?.industry)) })
         // AI sales chatbot on the public site calls Claude directly.
         if (process.env.ANTHROPIC_API_KEY) siteEnvVars.push({ key: 'ANTHROPIC_API_KEY', value: process.env.ANTHROPIC_API_KEY })
-        if (siteDbConnectionString) {
-          siteEnvVars.push({ key: 'DATABASE_URL', value: siteDbConnectionString })
-        }
         // Premium site bootstrap requires identity to itself + auth back to
         // the factory so initDb.ts can fetch the customer's composed pages
         // and admin credentials. Mirrors the pattern used by the CRM side.
@@ -1631,48 +1582,12 @@ export async function deployCustomer(
           if (isDispensary) siteEnvVars.push({ key: 'CRM_MENU', value: '1' })
           siteEnvVars.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
         }
-        // Premium sites push their drizzle schema to the dedicated DB on
-        // boot (no migration files exist — they're greenfield templates).
-        // Realistic Render Postgres readiness is 2-5 min after the API
-        // returns a connection string.
-        //
-        // First attempt used `bunx drizzle-kit push --force && break ||
-        // sleep 10` but probe-final-final 2026-06-05 02:30 showed the
-        // server starting 1s after the first push failed — the shell
-        // construct exited the loop early (suspected: a sub-shell or
-        // signal interaction with bunx). Refactored to explicit if-check
-        // with RC capture, plus a final exit 1 when all 60 attempts fail
-        // so Render marks the deploy update_failed instead of incorrectly
-        // booting a broken server.
-        //
-        // Standard sites have no DB query path so they skip push entirely.
-        // Two important shell things to know:
-        // 1. `for ... do <CMD>` doesn't accept a `;` between `do` and the
-        //    first command — `do; bunx ...` is a syntax error. Same for
-        //    `if ... then`. Space-separated, not semicolon-separated.
-        // 2. drizzle-kit push exits 0 even on connection failures (saw
-        //    ECONNREFUSED + immediate exit 0 in landscaping 2026-06-05
-        //    probe-dns). So `$? -eq 0` is a misleading success signal.
-        //    Reliable signal: look for 'Changes applied' or 'No changes'
-        //    in stdout — drizzle prints one of those when push really
-        //    works against a real DB.
+        // Premium boot: bring the SQLite schema up to date (db/migrations, each applied once — a failure
+        // stops the deploy rather than serving on a half-made schema), seed the composed pages and the
+        // admin from the factory (non-fatal: the site still boots), then serve.
         const premiumBoot =
           'export PATH=$HOME/.bun/bin:$PATH; ' +
-          'PUSH_OK=false; ' +
-          'for i in $(seq 1 60); do ' +
-            // timeout bounds a hung push (drizzle rename prompt) — see dbReconcileStep.
-            // `-k 10` sends SIGKILL 10s after SIGTERM so a push that ignores SIGTERM
-            // can't hang boot past the bound (matches the CRM dbReconcileStep pattern).
-            'OUT=$(timeout -k 10 180 bunx drizzle-kit push --force 2>&1); ' +
-            'echo "$OUT"; ' +
-            'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] push verified on attempt $i"; PUSH_OK=true; break; fi; ' +
-            'echo "[boot] push attempt $i did not verify (likely DB not ready), retrying in 10s"; ' +
-            'sleep 10; ' +
-          'done; ' +
-          'if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never verified"; exit 1; fi; ' +
-          // Seed step: tries to fetch composed pages + admin from the
-          // factory, falls back to env-var defaults. Non-fatal if it
-          // fails — the site still boots and renders the placeholder.
+          'bun run db/migrate.ts || { echo "[boot] FATAL: migrations failed"; exit 1; }; ' +
           'bun run scripts/initDb.ts || echo "[boot] WARN: initDb.ts exited non-zero — server will start anyway"; ' +
           'NODE_ENV=production exec bun server-static.ts'
         const siteStartCommand = isPremiumSite
@@ -1687,8 +1602,8 @@ export async function deployCustomer(
           // A standard site keeps everything the owner changes — /admin edits, pages, settings,
           // leads — under website/persistent/ in production (config/paths.ts), which only a
           // disk keeps across restarts and deploys; without one every deploy put the site back
-          // to its generated text. Premium sites keep theirs in their own Postgres instead.
-          ...(isPremiumSite ? {} : { disk: { name: slug + '-site-data', mountPath: SITE_PERSISTENT_MOUNT, sizeGB: 1 } }),
+          // to its generated text. A premium site's SQLite database lives on the same disk.
+          disk: { name: slug + '-site-data', mountPath: SITE_PERSISTENT_MOUNT, sizeGB: 1 },
         })
         console.log('[Deploy] Website creation response:', JSON.stringify(site, null, 2))
         const siteSvc = site.service || site

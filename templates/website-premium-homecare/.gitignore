@@ -1,0 +1,2 @@
+# The site's SQLite database (db/index.ts) — on the Render disk in production, never in git.
+persistent/
