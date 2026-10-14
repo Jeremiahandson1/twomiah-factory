@@ -353,6 +353,11 @@ for (const file of callers) {
     const srv = read('templates/' + t + '/server-static.ts')
     check(srv.includes("app.get('/service-areas/:area'") && srv.indexOf("app.get('/service-areas/:area'") < srv.indexOf("app.get('/:slug'"), `templates/${t}: /service-areas/:area must be registered before the /:slug catch-all`)
     check(existsSync(ROOT + 'templates/' + t + '/views/sections/areas/list.ejs'), `templates/${t}: areas/list partial missing`)
+    // Projects are the owner's own records: served from the projects table, never part of a composition.
+    check(srv.includes("app.get('/projects/:slug'") && srv.indexOf("app.get('/projects/:slug'") < srv.indexOf("app.get('/:slug'"), `templates/${t}: /projects/:slug must be registered before the /:slug catch-all`)
+    check(/eq\(projectsTbl\.status, 'published'\)/.test(srv) && /p\.status !== 'published'/.test(srv), `templates/${t}: only published projects are public`)
+    check(existsSync(ROOT + 'templates/' + t + '/views/sections/projects/grid.ejs') && existsSync(ROOT + 'templates/' + t + '/views/sections/projects/detail.ejs'), `templates/${t}: projects partials missing`)
+    check(/app\.(?:post|patch|delete)\('\/projects[^']*', authMiddleware,/.test(read('templates/' + t + '/routes/admin.ts')), `templates/${t}: project writes must require a login`)
   }
   check(/contentGaps:\s*Array\.isArray\(composed\.contentGaps\)/.test(src), 'site-bootstrap must seed contentGaps')
   check(/parseIntakeFacts\(/.test(src), '/public/intake must parse the owner\'s fact fields')

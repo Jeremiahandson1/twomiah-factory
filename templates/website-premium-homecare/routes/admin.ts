@@ -31,7 +31,7 @@ import crypto from 'crypto'
 import { db } from '../db'
 import {
   users as usersTbl, pages as pagesTbl, photos as photosTbl, settings as settingsTbl,
-  leads as leadsTbl, posts as postsTbl, userTokens as userTokensTbl, auditLog as auditLogTbl,
+  leads as leadsTbl, posts as postsTbl, projects as projectsTbl, userTokens as userTokensTbl, auditLog as auditLogTbl,
   sessions as sessionsTbl,
   bookingServices as bookingServicesTbl,
   bookingAvailabilityRules as bookingAvailabilityRulesTbl,
@@ -1019,6 +1019,94 @@ app.delete('/posts/:slug', authMiddleware, async (c) => {
   const slug = c.req.param('slug')!
   const result = await db.delete(postsTbl).where(eq(postsTbl.slug, slug)).returning({ id: postsTbl.id })
   if (result.length === 0) return c.json({ error: 'Post not found' }, 404)
+  return c.json({ ok: true })
+})
+
+// ─── Projects ─────────────────────────────────────────────────────────────
+// Jobs the owner shows off — /projects/<slug> on the site. Same shape as posts, plus where it was
+// and its photos.
+const PROJECT_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,80}[a-z0-9])?$/
+const projectPhotos = (v: unknown): string[] =>
+  (Array.isArray(v) ? v : []).map((u) => String(u ?? '').trim()).filter((u) => u && u.length <= 2000).slice(0, 40)
+const optText = (v: unknown, max: number) => (typeof v === 'string' ? (v.trim() ? v.slice(0, max) : null) : v === null ? null : undefined)
+
+// The first published project puts "Projects" in the site's nav (once — the owner can remove it).
+async function ensureProjectsInNav(): Promise<void> {
+  const s = (await db.select().from(settingsTbl).limit(1))[0]
+  if (!s) return
+  const nav = Array.isArray(s.nav) ? (s.nav as Array<{ label: string; href: string }>) : []
+  if (nav.some((n) => /^\/?projects\/?$/.test(String(n?.href || '')))) return
+  await db.update(settingsTbl).set({ nav: [...nav, { label: 'Projects', href: '/projects' }], updatedAt: new Date() }).where(eq(settingsTbl.id, s.id))
+}
+
+app.get('/projects', authMiddleware, async (c) => {
+  const rows = await db.select().from(projectsTbl).orderBy(asc(projectsTbl.sortOrder), desc(projectsTbl.createdAt))
+  return c.json({
+    projects: rows.map((r) => ({ id: r.id, slug: r.slug, title: r.title, location: r.location, status: r.status, coverImageUrl: r.coverImageUrl, updatedAt: r.updatedAt })),
+  })
+})
+
+app.get('/projects/:slug', authMiddleware, async (c) => {
+  const rows = await db.select().from(projectsTbl).where(eq(projectsTbl.slug, c.req.param('slug')!)).limit(1)
+  if (!rows[0]) return c.json({ error: 'Project not found' }, 404)
+  return c.json({ project: rows[0] })
+})
+
+app.post('/projects', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const title = String(body.title || '').trim().slice(0, 200)
+  const slug = String(body.slug || '').trim().toLowerCase()
+  if (!title) return c.json({ error: 'title is required' }, 400)
+  if (!slug || !PROJECT_SLUG_RE.test(slug)) return c.json({ error: 'URL must be lowercase letters, numbers, and hyphens' }, 400)
+  const existing = await db.select({ id: projectsTbl.id }).from(projectsTbl).where(eq(projectsTbl.slug, slug)).limit(1)
+  if (existing[0]) return c.json({ error: 'A project with that URL already exists' }, 409)
+  const published = body.status === 'published'
+  const [created] = await db.insert(projectsTbl).values({
+    slug, title,
+    location: optText(body.location, 200) ?? null,
+    summary: optText(body.summary, 600) ?? null,
+    body: typeof body.body === 'string' ? body.body : '',
+    coverImageUrl: optText(body.coverImageUrl, 2000) ?? null,
+    photos: projectPhotos(body.photos),
+    status: published ? 'published' : 'draft',
+    publishedAt: published ? new Date() : null,
+  }).returning()
+  if (published) await ensureProjectsInNav().catch(() => {})
+  return c.json({ project: created }, 201)
+})
+
+app.patch('/projects/:slug', authMiddleware, async (c) => {
+  const slug = c.req.param('slug')!
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const patch: Record<string, any> = {}
+  if (typeof body.title === 'string' && body.title.trim()) patch.title = body.title.trim().slice(0, 200)
+  for (const [k, max] of [['location', 200], ['summary', 600], ['coverImageUrl', 2000], ['metaTitle', 200], ['metaDescription', 400]] as const) {
+    const v = optText(body[k], max)
+    if (v !== undefined) patch[k] = v
+  }
+  if (typeof body.body === 'string') patch.body = body.body
+  if ('photos' in body) patch.photos = projectPhotos(body.photos)
+  if (typeof body.sortOrder === 'number' && Number.isFinite(body.sortOrder)) patch.sortOrder = Math.trunc(body.sortOrder)
+  let nowPublished = false
+  if (body.status === 'draft' || body.status === 'published') {
+    patch.status = body.status
+    if (body.status === 'published') {
+      nowPublished = true
+      const existing = await db.select().from(projectsTbl).where(eq(projectsTbl.slug, slug)).limit(1)
+      if (existing[0] && !existing[0].publishedAt) patch.publishedAt = new Date()
+    }
+  }
+  if (Object.keys(patch).length === 0) return c.json({ error: 'No allowed fields in patch' }, 400)
+  patch.updatedAt = new Date()
+  const result = await db.update(projectsTbl).set(patch).where(eq(projectsTbl.slug, slug)).returning()
+  if (result.length === 0) return c.json({ error: 'Project not found' }, 404)
+  if (nowPublished) await ensureProjectsInNav().catch(() => {})
+  return c.json({ project: result[0] })
+})
+
+app.delete('/projects/:slug', authMiddleware, async (c) => {
+  const result = await db.delete(projectsTbl).where(eq(projectsTbl.slug, c.req.param('slug')!)).returning({ id: projectsTbl.id })
+  if (result.length === 0) return c.json({ error: 'Project not found' }, 404)
   return c.json({ ok: true })
 })
 
