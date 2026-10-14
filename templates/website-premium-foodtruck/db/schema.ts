@@ -28,6 +28,8 @@ export const settings = pgTable('settings', {
   contentGaps: jsonb('content_gaps').notNull().default([]),
   // Places the owner serves — one /service-areas page each.
   serviceAreas: jsonb('service_areas').notNull().default([]),
+  // Dealers: the inventory feed (CRM: Inventory → Feed URL) behind /inventory.
+  inventoryFeedUrl: text('inventory_feed_url'),
   contactCtaLabel: text('contact_cta_label').notNull().default('Get in touch'),
   // Brand colors (consumed via CSS variables in build/styles/main.css).
   primaryColor: text('primary_color'),

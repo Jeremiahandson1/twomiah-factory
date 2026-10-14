@@ -18,6 +18,7 @@ interface Settings {
   email?: string | null
   address?: string | null
   serviceAreas?: string[]
+  inventoryFeedUrl?: string | null
   seoTitle?: string | null
   seoDescription?: string | null
   contactCtaLabel?: string
@@ -140,6 +141,7 @@ export function SettingsPage() {
           </div>
           <TextAreaField label="Address" rows={2} value={settings.address || ''} onChange={(e) => update({ address: e.target.value })} />
           <TextAreaField label="Service areas — one town per line. Each gets its own page at /service-areas." rows={4} value={(settings.serviceAreas || []).join('\n')} onChange={(e) => update({ serviceAreas: e.target.value.split('\n') })} />
+          <TextField label="Dealers: inventory feed URL (optional) — in your CRM, Inventory → Feed URL, copy the .json link. Your units then show at /inventory." value={settings.inventoryFeedUrl || ''} onChange={(e) => update({ inventoryFeedUrl: e.target.value })} />
           <TextField label="Contact CTA button label" value={settings.contactCtaLabel || ''} onChange={(e) => update({ contactCtaLabel: e.target.value })} />
         </div>
       </section>

@@ -793,6 +793,8 @@ const SETTINGS_FIELDS = [
   'contentGaps',
   // Places the owner serves — one /service-areas page each.
   'serviceAreas',
+  // Dealers: the inventory feed behind /inventory.
+  'inventoryFeedUrl',
 ] as const
 
 app.get('/settings', authMiddleware, async (c) => {
@@ -805,6 +807,11 @@ app.patch('/settings', authMiddleware, async (c) => {
   const patch: Record<string, any> = {}
   for (const f of SETTINGS_FIELDS) {
     if (f in body) patch[f] = body[f]
+  }
+  if ('inventoryFeedUrl' in patch) {
+    const v = String(patch.inventoryFeedUrl ?? '').trim()
+    if (v && !/^https:\/\/[^\s]+$/i.test(v)) return c.json({ error: 'The inventory feed URL must be an https:// link.' }, 400)
+    patch.inventoryFeedUrl = v ? v.slice(0, 2000) : null
   }
   if ('serviceAreas' in patch) {
     patch.serviceAreas = Array.isArray(patch.serviceAreas) ? patch.serviceAreas.slice(0, 60).map((v: unknown) => String(v ?? '').slice(0, 80)) : []

@@ -1,0 +1,95 @@
+<%
+  // One unit from the dealer's live feed: photos, price, specs and the dealer's own description,
+  // with an "ask about this unit" form that goes to /api/leads (and on to the CRM) naming the unit.
+  const u = data.unit || {}
+  const photos = Array.isArray(u.photos) ? u.photos : []
+  const money = (v) => (Number(v) > 0 ? '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '')
+  const specs = Array.isArray(data.specs) ? data.specs : []
+  const pretty = (v) => { const t = String(v || '').replace(/[_-]+/g, ' ').trim(); return /^(atv|utv|rv|sxs)$/i.test(t) ? t.toUpperCase() : t.charAt(0).toUpperCase() + t.slice(1) }
+%>
+<article class="unit" aria-labelledby="unit-title">
+  <div class="container">
+    <a class="unit__back" href="/inventory">← All inventory</a>
+    <div class="unit__layout">
+      <div class="unit__media">
+        <% if (photos.length) { %>
+          <img class="unit__main" src="<%= photos[0] %>" alt="<%= u.title %>" data-unit-main>
+          <% if (photos.length > 1) { %>
+            <div class="unit__thumbs">
+              <% photos.forEach(function (p, i) { %><button type="button" data-unit-thumb="<%= p %>" aria-label="Photo <%= i + 1 %> of <%= photos.length %>"><img src="<%= p %>" alt="" loading="lazy"></button><% }) %>
+            </div>
+          <% } %>
+        <% } else { %>
+          <div class="unit__nophoto">Photos coming soon</div>
+        <% } %>
+      </div>
+      <div class="unit__info">
+        <div class="unit__badge"><%= [pretty(u.condition), pretty(u.category)].filter(Boolean).join(' · ') %></div>
+        <h1 class="unit__title" id="unit-title"><%= u.title %></h1>
+        <div class="unit__price"><%= money(u.price) || 'Call for price' %></div>
+        <% if (money(u.msrp) && Number(u.msrp) > Number(u.price)) { %><div class="unit__msrp">MSRP <%= money(u.msrp) %></div><% } %>
+        <div class="unit__stock">Stock #<%= u.stock %><%= u.vin ? ' · VIN ' + u.vin : '' %></div>
+        <% if (specs.length) { %>
+          <dl class="unit__specs">
+            <% specs.forEach(function (s) { %><div><dt><%= s.label %></dt><dd><%= s.value %></dd></div><% }) %>
+          </dl>
+        <% } %>
+        <form class="unit__ask" action="/api/leads" method="post">
+          <h2>Ask about this unit</h2>
+          <input type="hidden" name="source" value="inventory">
+          <input type="hidden" name="unit" value="<%= u.title %> (stock #<%= u.stock %>)">
+          <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;"><input name="website" tabindex="-1" autocomplete="off"></div>
+          <input type="hidden" name="t" value="" data-form-stamp>
+          <label>Your name<input name="name" required autocomplete="name"></label>
+          <label>Email<input name="email" type="email" required autocomplete="email"></label>
+          <label>Phone (optional)<input name="phone" type="tel" autocomplete="tel"></label>
+          <label>Question<textarea name="message" rows="3" required>Is the <%= u.title %> still available?</textarea></label>
+          <button type="submit" class="btn btn--primary btn--lg">Send</button>
+          <p class="unit__status" role="status" aria-live="polite" hidden></p>
+        </form>
+      </div>
+    </div>
+    <% if (u.description) { %><div class="unit__desc blog-post__body"><h2>About this unit</h2><p><%= u.description %></p></div><% } %>
+  </div>
+</article>
+<script>(function () {
+  var main = document.querySelector('[data-unit-main]')
+  document.querySelectorAll('[data-unit-thumb]').forEach(function (b) { b.addEventListener('click', function () { if (main) main.src = b.getAttribute('data-unit-thumb') }) })
+  var f = document.querySelector('.unit__ask'); if (!f) return
+  var stamp = f.querySelector('[data-form-stamp]'); if (stamp) stamp.value = Date.now()
+  if (!window.fetch || !window.FormData) return
+  f.addEventListener('submit', function (e) {
+    e.preventDefault()
+    var b = f.querySelector('button[type="submit"]'), s = f.querySelector('.unit__status'); b.disabled = true
+    fetch(f.action, { method: 'POST', body: new FormData(f), headers: { Accept: 'application/json' } })
+      .then(function (r) { return r.json().catch(function () { return {} }).then(function (d) { return { ok: r.ok, d: d } }) })
+      .then(function (x) { s.hidden = false; s.textContent = x.ok ? (x.d.message || 'Sent — thanks.') : (x.d.error || 'That didn’t go through. Please try again.'); if (!x.ok) b.disabled = false })
+      .catch(function () { s.hidden = false; s.textContent = 'That didn’t go through. Please check your connection.'; b.disabled = false })
+  })
+})();</script>
+<style>
+  .unit{padding:40px 0 var(--space,64px)}
+  .unit__back{display:inline-block;margin-bottom:20px;color:var(--muted,#64748b);text-decoration:none;font-size:14px}
+  .unit__layout{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:40px;align-items:start}
+  @media (max-width:860px){.unit__layout{grid-template-columns:1fr}}
+  .unit__main{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:12px;display:block}
+  .unit__nophoto{aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;border-radius:12px;background:var(--paper,#fafaf7);border:1px solid var(--line,#e5e7eb);color:var(--muted,#64748b)}
+  .unit__thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:10px}
+  .unit__thumbs button{padding:0;border:1px solid var(--line,#e5e7eb);border-radius:8px;overflow:hidden;cursor:pointer;background:none}
+  .unit__thumbs img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+  .unit__badge{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#64748b)}
+  .unit__title{font-family:var(--font-display,serif);font-size:clamp(28px,3.4vw,40px);line-height:1.15;margin:6px 0 10px;color:var(--ink)}
+  .unit__price{font-size:30px;font-weight:700;color:var(--ink)}
+  .unit__msrp{color:var(--muted,#64748b);text-decoration:line-through}
+  .unit__stock{font-size:13px;color:var(--muted,#64748b);margin:6px 0 18px}
+  .unit__specs{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin:0 0 24px;padding:16px;border:1px solid var(--line,#e5e7eb);border-radius:12px}
+  .unit__specs div{display:flex;flex-direction:column}
+  .unit__specs dt{font-size:12px;color:var(--muted,#64748b)}
+  .unit__specs dd{margin:0;font-weight:600;color:var(--ink)}
+  .unit__ask{display:grid;gap:10px;padding:20px;border:1px solid var(--line,#e5e7eb);border-radius:12px;background:var(--white,#fff)}
+  .unit__ask h2{margin:0 0 4px;font-size:20px}
+  .unit__ask label{display:grid;gap:4px;font-size:14px;font-weight:600;color:var(--ink)}
+  .unit__ask input,.unit__ask textarea{padding:10px 12px;border:1px solid var(--line,#e5e7eb);border-radius:8px;font:inherit;font-weight:400}
+  .unit__status{margin:0;font-size:14px}
+  .unit__desc{margin-top:40px;max-width:760px}
+</style>

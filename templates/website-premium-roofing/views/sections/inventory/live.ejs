@@ -1,0 +1,68 @@
+<%
+  // The dealer's live inventory, read by the server from the feed in Settings (the CRM's marketplace
+  // feed, or any feed in the same shape) — never composed. Filters are a plain GET form, so they work
+  // without script and every filtered view has its own URL.
+  const units = Array.isArray(data.units) ? data.units : []
+  const total = Number(data.total) || units.length
+  const facets = data.facets || {}
+  const q = data.query || {}
+  const money = (v) => (Number(v) > 0 ? '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '')
+  const pretty = (v) => { const t = String(v || '').replace(/[_-]+/g, ' ').trim(); return /^(atv|utv|rv|sxs)$/i.test(t) ? t.toUpperCase() : t.charAt(0).toUpperCase() + t.slice(1) }
+  const opt = (list, cur) => (Array.isArray(list) ? list : []).map((v) => '<option value="' + String(v).replace(/"/g, '&quot;') + '"' + (String(v) === String(cur || '') ? ' selected' : '') + '>' + pretty(v).replace(/[<>&]/g, '') + '</option>').join('')
+%>
+<section class="inv" id="inventory" aria-label="Inventory">
+  <div class="container">
+    <form class="inv__filters" method="get" action="/inventory" role="search">
+      <input type="search" name="q" value="<%= q.q || '' %>" placeholder="Search year, make, model" aria-label="Search inventory">
+      <% if ((facets.conditions || []).length > 1) { %><select name="condition" aria-label="Condition"><option value="">New &amp; used</option><%- opt(facets.conditions, q.condition) %></select><% } %>
+      <% if ((facets.categories || []).length > 1) { %><select name="category" aria-label="Type"><option value="">All types</option><%- opt(facets.categories, q.category) %></select><% } %>
+      <% if ((facets.makes || []).length > 1) { %><select name="make" aria-label="Make"><option value="">All makes</option><%- opt(facets.makes, q.make) %></select><% } %>
+      <select name="sort" aria-label="Sort">
+        <option value="">Newest first</option>
+        <option value="price-asc"<%= q.sort === 'price-asc' ? ' selected' : '' %>>Price: low to high</option>
+        <option value="price-desc"<%= q.sort === 'price-desc' ? ' selected' : '' %>>Price: high to low</option>
+      </select>
+      <button type="submit" class="btn btn--primary">Show</button>
+    </form>
+    <p class="inv__count"><%= units.length %> of <%= total %> unit<%= total === 1 ? '' : 's' %><% if (units.length < total) { %> · <a href="/inventory">Clear filters</a><% } %></p>
+    <% if (!units.length) { %>
+      <p class="inv__empty">Nothing matches that right now. <a href="/inventory">See everything on the lot</a> or ask us what's coming in.</p>
+    <% } else { %>
+      <ul class="inv__grid">
+        <% units.forEach(function (u) { %>
+          <li class="inv__card">
+            <a href="/inventory/<%= u.slug %>">
+              <% if (u.photos && u.photos[0]) { %><img src="<%= u.photos[0] %>" alt="<%= u.title %>" loading="lazy"><% } else { %><span class="inv__nophoto">Photos coming soon</span><% } %>
+              <span class="inv__body">
+                <span class="inv__badge"><%= [pretty(u.condition), pretty(u.category)].filter(Boolean).join(' · ') %></span>
+                <span class="inv__title"><%= u.title %></span>
+                <span class="inv__specs"><%= [u.lengthFt ? u.lengthFt + ' ft' : '', u.sleeps ? 'Sleeps ' + u.sleeps : '', u.mileage ? Number(u.mileage).toLocaleString('en-US') + ' mi' : '', u.hours ? u.hours + ' hrs' : ''].filter(Boolean).join(' · ') %></span>
+                <span class="inv__price"><%= money(u.price) || 'Call for price' %></span>
+                <span class="inv__stock">Stock #<%= u.stock %></span>
+              </span>
+            </a>
+          </li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+</section>
+<style>
+  .inv{padding:var(--space,64px) 0}
+  .inv__filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+  .inv__filters input,.inv__filters select{padding:10px 12px;border:1px solid var(--line,#e5e7eb);border-radius:10px;font:inherit;background:var(--white,#fff);color:var(--ink)}
+  .inv__filters input{flex:1 1 220px}
+  .inv__count{color:var(--muted,#64748b);font-size:14px;margin:0 0 20px}
+  .inv__count a,.inv__empty a{color:var(--brand)}
+  .inv__grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px}
+  .inv__card a{display:flex;flex-direction:column;height:100%;border:1px solid var(--line,#e5e7eb);border-radius:12px;overflow:hidden;background:var(--white,#fff);color:var(--ink);text-decoration:none;transition:transform .2s,box-shadow .2s}
+  .inv__card a:hover,.inv__card a:focus-visible{transform:translateY(-3px);box-shadow:0 12px 30px rgba(20,20,30,.08)}
+  .inv__card img,.inv__nophoto{width:100%;height:190px;object-fit:cover;display:block}
+  .inv__nophoto{display:flex;align-items:center;justify-content:center;background:var(--paper,#fafaf7);color:var(--muted,#64748b);font-size:14px}
+  .inv__body{display:flex;flex-direction:column;gap:6px;padding:16px;flex:1}
+  .inv__badge{align-self:flex-start;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--paper,#fafaf7);border:1px solid var(--line,#e5e7eb)}
+  .inv__title{font-weight:700;font-size:17px;line-height:1.3}
+  .inv__specs{font-size:13px;color:var(--ink-soft,#334155)}
+  .inv__price{font-weight:700;font-size:20px;margin-top:auto}
+  .inv__stock{font-size:12px;color:var(--muted,#64748b)}
+</style>
