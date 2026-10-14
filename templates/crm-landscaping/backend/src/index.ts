@@ -97,8 +97,10 @@ import mediaRoutes from './routes/media.ts'
 import jobCostingRoutes from './routes/jobCosting.ts'
 import { authenticate } from './middleware/auth.ts'
 import { requireEnabledFeature } from './middleware/enabledFeature.ts'
-let webhooksRoutes: any = null
-try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
+// The website's contact-form webhook (POST /api/webhooks/leads). Imported like every other route: it was loaded inside a
+// try/catch that swallowed the failure, which is how crm-dispensary ran for seven months with no such file and every
+// website enquiry answering 404. A missing or broken file now stops the boot instead.
+import webhooksRoutes from './routes/webhooks.ts'
 
 handleUncaughtExceptions()
 
@@ -224,7 +226,7 @@ app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
 
 // API routes
-if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
+app.route('/api/webhooks', webhooksRoutes)
 
 // Modules outside this tenant's enabled features are refused at the API, not just hidden in the menu —
 // the families the sidebar gates (shellConfig `features`; the shared shell already bounces the URL). A

@@ -116,8 +116,10 @@ import { ensureIntegrationPartners } from './services/integrationCatalog.ts'
 import { ensureEquivalencyRules } from './services/equivalency.ts'
 import { startLoyaltyTierSweep } from './services/loyaltyTierSweep.ts'
 
-let webhooksRoutes: any = null
-try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
+// The website's contact-form webhook (POST /api/webhooks/leads). Imported like every other route: it was loaded inside a
+// try/catch that swallowed the failure, which is how crm-dispensary ran for seven months with no such file and every
+// website enquiry answering 404. A missing or broken file now stops the boot instead.
+import webhooksRoutes from './routes/webhooks.ts'
 
 handleUncaughtExceptions()
 
@@ -236,7 +238,7 @@ app.use('/api/*', async (c, next) => {
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
 
 // API routes
-if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
+app.route('/api/webhooks', webhooksRoutes)
 
 // A module switched off is refused at the API, not merely hidden in the menu. The nav has gated these
 // families for a long time and the routes never were: with digital_signage, curbside and training_lms

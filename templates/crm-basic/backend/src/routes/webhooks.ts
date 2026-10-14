@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import crypto from 'crypto'
 import { db } from '../../db/index.ts'
 import { contact, company, lead } from '../../db/schema.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -14,7 +15,10 @@ function verifyWebhook(c: any): boolean {
   const secret = c.req.header('x-webhook-secret')
   const expected = process.env.WEBHOOK_SECRET || process.env.JWT_SECRET
   if (!expected || !secret) return false
-  return secret === expected
+  // Timing-safe, as every other CRM's copy: === returns as soon as a character differs, which leaks how much of a
+  // guess was right.
+  if (secret.length !== expected.length) return false
+  return crypto.timingSafeEqual(Buffer.from(secret), Buffer.from(expected))
 }
 
 // POST /api/webhooks/leads - receive leads from website contact forms

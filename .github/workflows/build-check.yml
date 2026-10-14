@@ -902,6 +902,17 @@ jobs:
       - name: "Check Twomiah Ads and the Instant Estimator cannot be switched on"
         run: bun run scripts/check-parked-features.ts
 
+  website-lead-webhook:
+    name: "A website's enquiries reach its CRM"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check every website posts to /api/webhooks/leads and every paired CRM answers there"
+        run: bun run scripts/check-website-lead-webhook.ts
+
   booking-species:
     name: "Booked pets get a species the chart knows"
     runs-on: ubuntu-latest

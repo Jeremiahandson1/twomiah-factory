@@ -40,6 +40,9 @@ import canvassingRoutes from './routes/canvassing.ts'
 import stormRoutes from './routes/storms.ts'
 import quickbooksRoutes from './routes/quickbooks.ts'
 import leadsRoutes from './routes/leads.ts'
+// The website's contact-form webhook (POST /api/webhooks/leads) — every website template posts here; this CRM never
+// had it, so a roofing site's enquiries answered 404.
+import webhooksRoutes from './routes/webhooks.ts'
 import dashboardRoutes from './routes/dashboard.ts'
 import documentsRoutes from './routes/documents.ts'
 import calltrackingRoutes from './routes/calltracking.ts'
@@ -297,6 +300,7 @@ app.route('/api/canvassing', canvassingRoutes)
 app.route('/api/storms', stormRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/leads', leadsRoutes)
+app.route('/api/webhooks', webhooksRoutes)
 // Home figures for the mobile app's roofing dashboard — it asked for this route and got a 404. (T59)
 app.route('/api/dashboard', dashboardRoutes)
 // The audit trail, which this template never had. Behind reports:read, like every other CRM. (T59)
