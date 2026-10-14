@@ -30,6 +30,8 @@ const titleCase = (s: string) => s.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').t
 
 /** "Roofing", "Heating & Cooling", "Dog Grooming" — how the site names the trade. */
 export function tradeLabelFor(businessType: string): string {
+  // "Other" (the signup's catch-all) or nothing: no trade to name — never "Other · Eau Claire".
+  if (/^\s*(other|business|local business|general)?\s*$/i.test(businessType || '')) return ''
   return websiteTradeFor(businessType.toLowerCase().replace(/\s+/g, '_'))?.label || titleCase(businessType)
 }
 
@@ -69,7 +71,8 @@ export function composeInstant(input: ComposerInput): SiteResult {
   const label = tradeLabelFor(input.businessType || '')
   const place = [input.city, input.state].filter(Boolean).join(', ')
   const services = (input.services || []).map((s) => String(s).trim()).filter(Boolean)
-  const serviceNames = services.length ? services : [websiteTradeFor(input.businessType?.toLowerCase().replace(/\s+/g, '_'))?.service || label]
+  // Their services, else one card for the trade (as the standard site does), else none.
+  const serviceNames = services.length ? services : label ? [websiteTradeFor(input.businessType?.toLowerCase().replace(/\s+/g, '_'))?.service || label] : []
   const ownPhotos = (input.customerPhotos || []).map((p) => p.url).filter(Boolean)
   const heroImage = ownPhotos[0] || libraryHeroFor(input.businessType || '')
   const contactCta = { label: 'Get in touch', href: 'contact' }
@@ -79,11 +82,11 @@ export function composeInstant(input: ComposerInput): SiteResult {
     // A photo hero when there's a photo; with none, the centered hero (no empty image box).
     { type: 'hero', variant: heroImage ? 'full-bleed' : 'centered-stats', data: {
       ...(heroImage ? { image: heroImage } : {}), eyebrow: [label, place].filter(Boolean).join(' · '), title: name,
-      subtitle: firstSentence(input.description) || (place ? label + ' in ' + place + '.' : ''),
+      subtitle: firstSentence(input.description) || (place ? (label ? label + ' in ' + place : 'Serving ' + place) + '.' : ''),
       primaryCta: contactCta,
     } },
-    { type: 'services', variant: 'cards-grid', data: { heading: 'What we do', items: serviceNames.map((title) => ({ title })) } },
   ]
+  if (serviceNames.length) home.push({ type: 'services', variant: 'cards-grid', data: { heading: 'What we do', items: serviceNames.map((title) => ({ title })) } })
   if (f.credentials?.length) home.push({ type: 'trust', variant: 'badges', data: { heading: 'Credentials', items: f.credentials.map((n) => ({ name: n })) } })
   if (f.testimonials?.length) home.push({ type: 'testimonials', variant: 'quotes', data: { heading: 'What customers say', items: f.testimonials.map((t) => ({ quote: t.quote, author: t.author || '' })) } })
   if (ownPhotos.length >= 3) home.push({ type: 'gallery', variant: 'grid', data: { heading: 'Our work', photos: ownPhotos.slice(0, 9).map((url) => ({ url })) } })
@@ -97,8 +100,8 @@ export function composeInstant(input: ComposerInput): SiteResult {
   if (/\bemergency\/bar\b/.test(homeSeq)) home.unshift({ type: 'emergency', variant: 'bar', data: { phone: input.phone || '' } })
 
   const pages: Record<string, Section[]> = { home }
-  pages.services = [
-    { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Services', title: place ? label + ' in ' + place : label } },
+  if (serviceNames.length) pages.services = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Services', title: label ? (place ? label + ' in ' + place : label) : 'What we do' } },
     { type: 'services', variant: 'cards-grid', data: { heading: 'What we do', items: serviceNames.map((title) => ({ title })) } },
     { type: 'cta', variant: 'banner', data: { heading: 'Ask us about your project', primaryCta: contactCta } },
   ]

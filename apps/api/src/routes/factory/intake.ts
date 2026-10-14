@@ -233,6 +233,14 @@ function signupImages(b: any): { logo?: string; favicon?: string; heroPhoto?: st
 // services section is built from exactly these (generator injectWizardContent); with none
 // it shows one card for the owner's trade. Names only: trimmed, markup/token characters
 // stripped, de-duplicated, capped. Anything else is dropped, not rejected.
+// The website a signup builds — and the twomiah.com instant preview shows, so the two can never
+// differ. SIGNUP_WEBSITE_ENGINE=premium (a factory env var, flipped on Render): the premium site,
+// composed instantly from the signup's answers (instantComposer) and deployed on its own disk.
+// Unset: the standard template, as before. Flipping it back is the rollback.
+function signupWebsiteEngine(): 'premium' | 'standard' {
+  return String(process.env.SIGNUP_WEBSITE_ENGINE || '').trim().toLowerCase() === 'premium' ? 'premium' : 'standard'
+}
+
 function signupServices(v: any): string[] {
   if (!Array.isArray(v)) return []
   const out: string[] = []
@@ -331,6 +339,28 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // site + CRM only after the card is charged. No free trial: the free
     // homepage preview is the "try before you buy," and the CRM carries a
     // 30-day money-back guarantee (a refund policy, not a deployed trial).
+    // Premium website (the switch is on): the products the premium deploy builds, and the site,
+    // composed now from these answers — stored where the premium path keeps a composition
+    // (preview_premium_pages), so site-bootstrap seeds the deployed site with exactly it. A retail
+    // store keeps its storefront; a signup with no website (none today) keeps what it asked for.
+    const requestedProducts: string[] = Array.isArray(body.products) && body.products.length ? body.products : ['crm', 'website']
+    const premiumSite = signupWebsiteEngine() === 'premium' && verticalFor(body.industry) !== 'store'
+      && requestedProducts.some((x) => String(x).startsWith('website'))
+    const signupProducts = premiumSite ? deployProductsForVertical(body.industry, requestedProducts) : requestedProducts
+    let premiumPages: Record<string, any> | null = null
+    if (premiumSite) {
+      const site = composeInstant({
+        businessName: body.name.trim(), businessType: body.industry || 'other',
+        city: body.city || undefined, state: body.state || undefined,
+        phone: body.phone || undefined, email: body.email.trim(),
+        services: signupServices(body.services), goals: signupChoices(body).goals,
+      })
+      premiumPages = {
+        pages: Object.fromEntries(Object.entries(site.pages).map(([pageSlug, sections]) => [pageSlug, { sections }])),
+        heldPages: site.heldPages, contentGaps: site.contentGaps, composer: 'instant', composedAt: new Date().toISOString(),
+      }
+    }
+
     const tenantRecord: Record<string, any> = {
       name: body.name.trim(),
       slug,
@@ -352,7 +382,8 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       billing_status: 'pending',
       monthly_amount: body.monthly_amount || null,
       status: 'pending',
-      products: body.products || ['crm', 'website'],
+      products: [...signupProducts],
+      ...(premiumPages ? { preview_premium_pages: premiumPages } : {}),
       // Seed a lean, sensible default (core features for the trade) rather than an empty
       // list — an empty list is what used to get back-filled to ALL ~40 modules. All other
       // feature code still ships, so the owner toggles extras on in Settings → Features.
@@ -398,7 +429,8 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     const genConfig: GenerateConfig = {
       tenant_id: tenant.id,
       tenant_slug: tenant.slug,
-      products: body.products || ['crm', 'website'],
+      // Its own copy: generate() adds to the list it's given.
+      products: [...signupProducts],
       websiteTheme: body.website_theme || undefined,
       company: {
         name: body.name.trim(),
@@ -886,7 +918,7 @@ factory.post('/public/preview', rateLimit(10 * 60_000, 6), async (c) => {
   // ~$0, milliseconds): the site the premium engine builds, not the standard template. The default
   // stays the standard preview until signups build premium too, so the preview never shows a
   // different site from the one a signup gets.
-  const premium = body.engine === 'premium'
+  const premium = body.engine ? body.engine === 'premium' : signupWebsiteEngine() === 'premium'
   const cacheKey = [premium ? 'premium' : 'standard', businessName, businessType, city, state].join('|').toLowerCase()
   const cached = cacheGet(cacheKey)
   if (cached) return c.html(cached)
