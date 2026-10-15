@@ -393,6 +393,20 @@ const plusDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T12:00:
   check('roster optimizer apply creates the good proposal and reports the bad one', rp.json?.created === 1 && rp.json?.errors === 1, rp.json)
   const created = ((await db.execute(sql`SELECT to_char(start_time, 'HH24:MI') AS s, to_char(end_time, 'HH24:MI') AS e FROM schedules WHERE notes LIKE 'Created by % Optimizer' ORDER BY s`)) as any).rows
   check('…with the wall-clock times the optimizer proposed', JSON.stringify(created) === JSON.stringify([{ s: '13:00', e: '15:30' }, { s: '22:00', e: '06:00' }]), created)
+  // Caregiver preferred days (session-only): the visit lands on the day the caregiver prefers, not the
+  // optimizer's default Monday-first order. A weekend day (never Monday, which the default picks
+  // anyway), and not today's weekday, where Dana is booked all day.
+  const pref = [6, 0, 5].find((d) => d !== nowLocal.dow)!
+  const C2 = await mkClient('Devon', {})
+  for (const [path, cgKey, hoursKey] of [['/api/roster-optimizer/run', 'targetHours', 'targetHours'], ['/api/optimizer/run', 'allocatedHours', 'allocatedHours']] as const) {
+    const run = await office('POST', path, {
+      caregivers: [{ id: cg2.id, [cgKey]: 40, preferredDays: [pref] }],
+      clients: [{ id: C2.id, hoursPerWeek: 2, visitsPerWeek: 1 }],
+    })
+    const p = (run.json?.proposals || [])[0]
+    check(`${path}: a caregiver's preferred day is the day the visit is proposed (${pref})`, run.status === 200 && p?.dayOfWeek === pref, { status: run.status, p, err: run.json?.error })
+    void hoursKey
+  }
   const { shiftSpan } = await import('./src/routes/rosterOptimizer.ts')
   check('an overnight 22:00 → 06:00 shift is 8 hours, not −16', shiftSpan('22:00', '06:00') === 8)
   const roster = await office('GET', '/api/roster-optimizer/roster')

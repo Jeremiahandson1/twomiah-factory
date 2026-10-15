@@ -222,6 +222,12 @@ app.post('/run', async (c) => {
       cgRemaining[cg.id] = Math.max(0, parseFloat(cg.targetHours) - existingHrs)
     })
 
+    // Caregiver preferred days for this run (session-only; empty = any day)
+    const cgPreferredDaysMap: Record<string, Set<number>> = {}
+    inputCaregivers.forEach((cg: any) => {
+      if (Array.isArray(cg.preferredDays) && cg.preferredDays.length > 0) cgPreferredDaysMap[cg.id] = new Set(cg.preferredDays.map(Number))
+    })
+
     const proposals: any[] = []
     const unscheduled: any[] = []
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -261,6 +267,8 @@ app.post('/run', async (c) => {
           if (placedDays.has(day)) continue
           for (const cg of ranked) {
             if (cgRemaining[cg.id] < hrsPerVisit - 0.01) continue
+            // A caregiver with preferred days set for this run is only placed on those days
+            if (cgPreferredDaysMap[cg.id] && !cgPreferredDaysMap[cg.id].has(day)) continue
             const cgInfo = cgMap[cg.id]
             const AVAIL_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
             const dayKey = AVAIL_KEYS[day]

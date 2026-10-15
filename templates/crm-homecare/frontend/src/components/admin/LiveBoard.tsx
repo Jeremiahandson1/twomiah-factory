@@ -46,6 +46,8 @@ const LiveBoard = () => {
   const [closeReason, setCloseReason] = useState('');
   const [closeEvvReason, setCloseEvvReason] = useState('1');
   const [closing, setClosing] = useState(false);
+  // A refusal is shown in the dialog, beside the field it is about — not in a native pop-up.
+  const [closeError, setCloseError] = useState('');
 
   const loadBoard = async () => {
     try {
@@ -63,14 +65,15 @@ const LiveBoard = () => {
 
   const submitForceClose = async () => {
     if (!closeTarget) return;
+    setCloseError('');
     if (['5', '8'].includes(closeEvvReason) && !closeReason.trim()) {
-      window.alert('EVV reason codes 5 and 8 require a reason note — please fill in the reason field.');
+      setCloseError('EVV reason codes 5 and 8 require a reason note — please fill in the reason field.');
       return;
     }
     const body: any = { reason: closeReason || null, evvReasonCode: closeEvvReason, evvReasonMemo: closeReason || null };
     if (closeMode === 'scheduled') body.scheduled = true;
     else if (closeMode === 'time') {
-      if (!closeEndTime) { window.alert('Pick an end time.'); return; }
+      if (!closeEndTime) { setCloseError('Pick an end time.'); return; }
       body.endTime = new Date(closeEndTime).toISOString();
     } // 'now' → neither (the server uses now)
     setClosing(true);
@@ -85,7 +88,7 @@ const LiveBoard = () => {
       setCloseTarget(null);
       loadBoard();
     } catch (err: any) {
-      window.alert('Failed to close shift: ' + err.message);
+      setCloseError('Failed to close shift: ' + err.message);
     } finally {
       setClosing(false);
     }
@@ -183,7 +186,7 @@ const LiveBoard = () => {
 
                 {shift.shift_status === 'clocked_in' && shift.time_entry_id && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); setCloseTarget(shift); setCloseMode('scheduled'); setCloseEndTime(''); setCloseReason(''); setCloseEvvReason('1'); }}
+                    onClick={(e) => { e.stopPropagation(); setCloseTarget(shift); setCloseMode('scheduled'); setCloseEndTime(''); setCloseReason(''); setCloseEvvReason('1'); setCloseError(''); }}
                     style={{ marginTop: '0.5rem', width: '100%', padding: '0.45rem 0.6rem', background: '#fff', color: '#92400E', border: '1px solid #FCD34D', borderRadius: 6, fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
                   >🛑 Force Clock Out</button>
                 )}
@@ -266,6 +269,11 @@ const LiveBoard = () => {
             </select>
             <input type="text" placeholder={['5', '8'].includes(closeEvvReason) ? 'Reason (required for this EVV code)' : 'Reason (optional)'} value={closeReason} onChange={(e) => setCloseReason(e.target.value)} style={{ width: '100%', padding: '0.4rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '0.88rem', marginBottom: '0.6rem', boxSizing: 'border-box' }} />
             <div style={{ fontSize: '0.75rem', color: '#92400E', marginBottom: '0.9rem' }}>The shift will be flagged for approval before billing/payroll.</div>
+            {closeError && (
+              <div role="alert" style={{ background: '#FEE2E2', color: '#991B1B', border: '1px solid #FECACA', borderRadius: 6, padding: '0.5rem 0.65rem', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.75rem' }}>
+                {closeError}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
               <button onClick={() => setCloseTarget(null)} disabled={closing} className="btn btn-sm btn-secondary">Cancel</button>
               <button onClick={submitForceClose} disabled={closing} className="btn btn-sm btn-primary">{closing ? 'Closing…' : 'Close shift'}</button>
