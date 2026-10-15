@@ -242,7 +242,9 @@ class ApiClient {
     this.setTokens(data.accessToken, data.refreshToken)
     return { user: data.user, permissions: Array.isArray(data.permissions) ? data.permissions : [] } as Session
   }
-  async logout() { try { await this.request('/api/auth/logout', { method: 'POST' }) } finally { this.clearTokens() } }
+  // Send THIS device's refresh token: the server ends only that session. Sent bare, it ends every session the person
+  // has — signing out of one window signed them out everywhere, 15 minutes later. (E2E Run 2, 10/15)
+  async logout() { try { await this.request('/api/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: this.refreshToken }) }) } finally { this.clearTokens() } }
   async getMe(): Promise<Session> {
     const data = await this.request<{ user: User; permissions?: string[]; accountLock?: string | null; storeName?: string | null }>('/api/auth/me')
     return { user: data.user, permissions: Array.isArray(data.permissions) ? data.permissions : [], accountLock: data.accountLock ?? null, storeName: data.storeName ?? null }

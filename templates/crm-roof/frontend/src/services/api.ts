@@ -175,8 +175,10 @@ class ApiClient {
     return result;
   }
 
+  // Send THIS device's refresh token: the server ends only that session. Sent bare, it ends every session the person
+  // has — signing out of one window signed them out everywhere, 15 minutes later. (E2E Run 2, 10/15)
   async logout() {
-    await this.request('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    await this.request('/api/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: this.refreshToken }) }).catch(() => {});
     this.clearTokens();
   }
 

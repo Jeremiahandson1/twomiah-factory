@@ -2494,6 +2494,17 @@ jobs:
       - name: "Vet suite"
         run: bun run tests/vet/harness/run.ts
 
+  logout-ends-one-session:
+    name: "Sign out ends this session, not every session the person has"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Every sign-out names its own refresh token"
+        run: bun run scripts/check-logout-ends-one-session.ts
+
   cancelled-company-locked:
     name: "a cancelled company is locked, and its owner restarts it by paying"
     runs-on: ubuntu-latest
