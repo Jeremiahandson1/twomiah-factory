@@ -7,6 +7,7 @@
     "dev": "expo start",
     "dev:build": "cross-env APP_VARIANT=build expo start",
     "dev:roofer": "cross-env APP_VARIANT=roofer expo start",
+    "dev:care": "cross-env APP_VARIANT=care expo start",
     "build": "echo 'Use eas build for native builds'",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -16,10 +17,13 @@
     "build:production": "eas build --platform all --profile production",
     "apk:build": "eas build --platform android --profile build-preview",
     "apk:roofer": "eas build --platform android --profile roofer-preview",
+    "apk:care": "eas build --platform android --profile care-preview",
     "ios:build": "eas build --platform ios --profile build-preview",
     "ios:roofer": "eas build --platform ios --profile roofer-preview",
+    "ios:care": "eas build --platform ios --profile care-preview",
     "prod:build": "eas build --platform all --profile build-production",
-    "prod:roofer": "eas build --platform all --profile roofer-production"
+    "prod:roofer": "eas build --platform all --profile roofer-production",
+    "prod:care": "eas build --platform all --profile care-production"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.0",

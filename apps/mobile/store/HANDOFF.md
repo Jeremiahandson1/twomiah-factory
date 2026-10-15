@@ -153,3 +153,24 @@ eas build --platform all --profile roofer-production   # Twomiah Roofer
 - [ ] iOS review usually takes 24–48 hrs first time
 - [ ] Google Play review is typically ≤1 day for new apps
 - [ ] Watch for rejection reasons in App Store Connect — most common: missing demo credentials, broken privacy URL, unclear what the app does without login
+
+## 12. Twomiah Care (the home care caregiver app, `APP_VARIANT=care`)
+
+Code is written; NOTHING has run on a phone yet — no build has been made.
+
+- [ ] **Create the EAS project** on expo.dev: account `jeremiahandson` → Projects → Create, slug
+      **exactly** `twomiah-care`. Paste its Project ID into `CARE_EAS_PROJECT_ID` in
+      `apps/mobile/app.config.ts`. Until then `eas build --profile care-preview|care-production`
+      stops with that instruction, and the config ships with OTA updates off.
+- [ ] **App Store Connect app record**: bundle ID `com.twomiah.care`, name `Twomiah Care`; note its ASC
+      App ID and add a `care-production` submit profile to `eas.json` (the current `production`
+      submit profile is the generic app's).
+- [ ] **Google Play app**: package `com.twomiah.care`, title `Twomiah Care`. If push is wanted later,
+      `google-services.care.json` (Firebase app for `com.twomiah.care`) goes next to `app.config.ts`.
+- [ ] **Artwork** in `apps/mobile/assets/care/`: `icon.png`, `adaptive-icon.png`, `splash.png`,
+      `notification-icon.png` (sizes as in section 5). Brand colour is teal `#0f766e`.
+- [ ] **Listing copy + screenshots** for a caregiver app (Today, Clock, the open visit with the task
+      checklist, Schedule, Open shifts). Privacy answers must cover location (EVV at clock in/out),
+      camera/photos (visit + incident photos) and health data (vitals, medications).
+- [ ] **Review account**: a home care test agency with a caregiver user who has visits today.
+- Build (only after the above): `cd apps/mobile && APP_VARIANT=care eas build --profile care-preview`.

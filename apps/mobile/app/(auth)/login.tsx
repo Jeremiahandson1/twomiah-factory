@@ -12,11 +12,13 @@ import { getApiUrl } from '../../src/api/client'
 const APP_NAME: string = (Constants.expoConfig?.extra as any)?.appName || 'Twomiah'
 const VARIANT: string = (Constants.expoConfig?.extra as any)?.appVariant || ''
 const PRIMARY: string = (Constants.expoConfig?.extra as any)?.primaryColor || '#1e40af'
-const VARIANT_ICON: 'home' | 'construct' =
-  VARIANT === 'roofer' ? 'home' : 'construct'
+const VARIANT_ICON: 'home' | 'construct' | 'heart' =
+  VARIANT === 'roofer' ? 'home' : VARIANT === 'care' ? 'heart' : 'construct'
 const TAGLINE =
   VARIANT === 'roofer'
     ? 'Sign in to your roofing CRM'
+    : VARIANT === 'care'
+    ? 'Caregivers: sign in to your home care agency'
     : VARIANT === 'build'
     ? 'Sign in to your contractor CRM'
     : 'Sign in to your CRM'
@@ -137,8 +139,9 @@ export default function LoginScreen() {
           </View>
 
           <Text style={styles.footer}>
-            The Server URL is the address of your CRM website (e.g. acme.onrender.com).
-            Your administrator can provide it if you don't have it.
+            {VARIANT === 'care'
+              ? "The Server URL is your agency's Twomiah address (e.g. acme.onrender.com). Ask your office for it, along with your email and password."
+              : "The Server URL is the address of your CRM website (e.g. acme.onrender.com). Your administrator can provide it if you don't have it."}
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -171,5 +174,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: 20,
   },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  footer: { textAlign: 'center', color: '#64748b', fontSize: 12, marginTop: 24 },
+  footer: { textAlign: 'center', color: '#94a3b8', fontSize: 12, marginTop: 24, lineHeight: 17 },
 })
