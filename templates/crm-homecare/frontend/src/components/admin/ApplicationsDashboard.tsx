@@ -10,7 +10,7 @@ const ApplicationsDashboard = () => {
   const { token } = useAuth();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('applied');
+  const [filter, setFilter] = useState('new');
   const [selectedApp, setSelectedApp] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [hireModal, setHireModal] = useState(null);
@@ -45,13 +45,18 @@ const ApplicationsDashboard = () => {
 
   const handleHire = async () => {
     if (!hireModal) return;
+    const rateText = String(hireForm.hourlyRate).trim();
+    if (rateText !== '' && (!Number.isFinite(Number(rateText)) || Number(rateText) < 0)) {
+      toast('Hourly rate must be a number of zero or more', 'error');
+      return;
+    }
     setHiring(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/applications/${hireModal.id}/hire`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
-          hourlyRate: parseFloat(hireForm.hourlyRate) || 15.00,
+          hourlyRate: String(hireForm.hourlyRate).trim() === '' ? undefined : Number(hireForm.hourlyRate),
           email: hireForm.email,
           password: hireForm.password || undefined
         })
@@ -73,9 +78,9 @@ const ApplicationsDashboard = () => {
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         return (
-          app.first_name.toLowerCase().includes(term) ||
-          app.last_name.toLowerCase().includes(term) ||
-          app.email.toLowerCase().includes(term)
+          (app.first_name || '').toLowerCase().includes(term) ||
+          (app.last_name || '').toLowerCase().includes(term) ||
+          (app.email || '').toLowerCase().includes(term)
         );
       }
       return true;
@@ -89,7 +94,7 @@ const ApplicationsDashboard = () => {
       case 'interviewed': return 'badge-info';
       case 'reviewing': return 'badge-warning';
       case 'rejected': return 'badge-danger';
-      case 'applied': return 'badge-secondary';
+      case 'new': return 'badge-secondary';
       default: return 'badge-secondary';
     }
   };
@@ -101,6 +106,7 @@ const ApplicationsDashboard = () => {
     if (app.has_rn) certs.push('RN');
     if (app.has_cpr) certs.push('CPR');
     if (app.has_first_aid) certs.push('First Aid');
+    for (const c of (Array.isArray(app.certifications) ? app.certifications : [])) if (!certs.includes(c)) certs.push(c);
     return certs;
   };
 
@@ -135,7 +141,7 @@ const ApplicationsDashboard = () => {
         </div>
 
         <div className="filter-tabs">
-          {['all', 'applied', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected'].map(f => (
+          {['all', 'new', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected'].map(f => (
             <button
               key={f}
               className={`filter-tab ${filter === f ? 'active' : ''}`}
@@ -171,7 +177,7 @@ const ApplicationsDashboard = () => {
                   <p className="app-date">{formatDate(app.created_at)}</p>
                 </div>
                 <span className={`badge ${getStatusColor(app.status)}`}>
-                  {(app.status ?? '').toUpperCase()}
+                  {(app.status || 'new').toUpperCase()}
                 </span>
               </div>
 
@@ -179,8 +185,8 @@ const ApplicationsDashboard = () => {
                 <p><strong>Email:</strong> {app.email}</p>
                 <p><strong>Phone:</strong> {app.phone}</p>
                 
-                {app.years_of_experience && (
-                  <p><strong>Experience:</strong> {app.years_of_experience} years</p>
+                {app.years_experience > 0 && (
+                  <p><strong>Experience:</strong> {app.years_experience} years</p>
                 )}
 
                 {getCertificationBadges(app).length > 0 && (
@@ -191,8 +197,8 @@ const ApplicationsDashboard = () => {
                   </div>
                 )}
 
-                {app.expected_hourly_rate && (
-                  <p><strong>Expected Rate:</strong> {app.expected_hourly_rate}</p>
+                {app.desired_pay_rate && (
+                  <p><strong>Expected Rate:</strong> ${app.desired_pay_rate}/hr</p>
                 )}
               </div>
 
@@ -246,7 +252,7 @@ const ApplicationsDashboard = () => {
                   </div>
                   <div style={{ marginBottom: '1rem' }}>
                     <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: '600', fontSize: '0.85rem' }}>Hourly Rate ($)</label>
-                    <input type="number" step="0.25" value={hireForm.hourlyRate} onChange={(e) => setHireForm(p => ({ ...p, hourlyRate: e.target.value }))}
+                    <input inputMode="decimal" value={hireForm.hourlyRate} onChange={(e) => setHireForm(p => ({ ...p, hourlyRate: e.target.value }))}
                       style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', border: '1px solid #ddd', fontSize: '0.95rem' }} />
                   </div>
 
@@ -278,6 +284,12 @@ const ApplicationsDashboard = () => {
                   <div style={{ fontSize: '0.9rem' }}><strong>Email:</strong> {hireForm.email}</div>
                   <div style={{ fontSize: '0.9rem' }}><strong>Temp Password:</strong> {hireResult.tempPassword}</div>
                 </div>
+                {hireResult.message && <p style={{ color: '#374151', fontSize: '0.88rem', textAlign: 'left', marginBottom: '1rem' }}>{hireResult.message}</p>}
+                {hireResult.packetUrl && (
+                  <p style={{ color: '#374151', fontSize: '0.8rem', textAlign: 'left', marginBottom: '1.5rem', wordBreak: 'break-all' }}>
+                    Onboarding packet link: <a href={hireResult.packetUrl} target="_blank" rel="noreferrer" style={{ color: '#1D4ED8' }}>{hireResult.packetUrl}</a>
+                  </p>
+                )}
                 <button onClick={() => { setHireModal(null); setHireResult(null); }}
                   style={{ padding: '0.6rem 2rem', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: '600' }}>
                   Done

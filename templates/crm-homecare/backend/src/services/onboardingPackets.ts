@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { backgroundChecks, onboardingPacketEvents, onboardingPackets } from '../../db/schema.ts'
 import { decrypt } from '../utils/encryption.ts'
+import { notFound } from '../utils/errors.ts'
 import { submitBackgroundCheck } from './worcsService.ts'
 import { getAgencyProfile, isWisconsin, type AgencyProfile } from './agencyProfile.ts'
 import { sendOnboardingPacketInvite } from './staffEmails.ts'
@@ -112,7 +113,7 @@ export const awaitLastWorcsSubmission = () => lastWorcsSubmission
  */
 export async function submitPacketToWorcs(packetId: string, meta: { ip?: string | null; userAgent?: string | null } = {}) {
   const [p] = await db.select().from(onboardingPackets).where(eq(onboardingPackets.id, packetId))
-  if (!p) throw new Error('Packet not found')
+  if (!p) throw notFound('Packet not found')
   if (p.status !== 'submitted' || !p.bgcConsentSignedAt) throw new Error('The packet has not been signed yet')
   const ssn = decrypt(p.ssnTransientEncrypted)
   if (!ssn) throw new Error('No SSN is on file for this packet — it was already submitted to WORCS, or never collected')

@@ -27,7 +27,7 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
       const data = await response.json();
       setApp(data);
       setStatus(data.status);
-      setInterviewNotes(data.interview_notes || '');
+      setInterviewNotes('');
     } catch (error) {
       console.error('Failed to load application:', error);
     } finally {
@@ -72,9 +72,11 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
       });
 
       if (!response.ok) throw new Error('Failed to save notes');
-      
+
       setMessage('Notes saved');
       setTimeout(() => setMessage(''), 2000);
+      setInterviewNotes('');
+      loadApplication();
     } catch (error) {
       toast('Failed to save notes: ' + error.message, 'error');
     }
@@ -96,13 +98,12 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
         })
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to hire');
-      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to hire');
 
-      setMessage('✓ Applicant hired and caregiver account created!');
-      setTimeout(() => onBack(), 2000);
+      // The temporary password is shown once, here; the welcome email carries it too.
+      setMessage(`✓ ${data.message || 'Applicant hired and caregiver account created!'} Temporary password: ${data.tempPassword}`);
+      loadApplication();
     } catch (error) {
       toast('Failed to hire: ' + error.message, 'error');
     } finally {
@@ -119,7 +120,9 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
   }
 
   // Parse certifications from comma-separated string
-  const certifications = app.certifications ? app.certifications.split(',').map(c => c.trim()).filter(Boolean) : [];
+  const certifications = Array.isArray(app.certifications) ? app.certifications : (app.certifications ? String(app.certifications).split(',').map(c => c.trim()).filter(Boolean) : []);
+  // References: the template keeps them as a list ([{ name, relationship, phone, email }]).
+  const references = Array.isArray(app.references) ? app.references.filter(r => r && (r.name || r.phone || r.email)) : [];
   
   // Parse availability days
   const availabilityDays = app.availability_days ? app.availability_days.split(',').map(d => d.trim()).filter(Boolean) : [];
@@ -197,22 +200,15 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
       <div className="card">
         <h3>Professional References</h3>
         <div className="grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          {app.ref1_name && (
-            <div className="reference-item">
-              <p><strong>{app.ref1_name}</strong> ({app.ref1_relationship})</p>
-              <p>Phone: <a href={`tel:${app.ref1_phone}`}>{app.ref1_phone}</a></p>
-              {app.ref1_email && <p>Email: <a href={`mailto:${app.ref1_email}`}>{app.ref1_email}</a></p>}
+          {references.map((r, i) => (
+            <div className="reference-item" key={i}>
+              <p><strong>{r.name}</strong>{r.relationship ? ` (${r.relationship})` : ''}</p>
+              {r.phone && <p>Phone: <a href={`tel:${r.phone}`}>{r.phone}</a></p>}
+              {r.email && <p>Email: <a href={`mailto:${r.email}`}>{r.email}</a></p>}
             </div>
-          )}
-          {app.ref2_name && (
-            <div className="reference-item">
-              <p><strong>{app.ref2_name}</strong> ({app.ref2_relationship})</p>
-              <p>Phone: <a href={`tel:${app.ref2_phone}`}>{app.ref2_phone}</a></p>
-              {app.ref2_email && <p>Email: <a href={`mailto:${app.ref2_email}`}>{app.ref2_email}</a></p>}
-            </div>
-          )}
+          ))}
         </div>
-        {!app.ref1_name && !app.ref2_name && <p style={{ color: '#666' }}>No references provided</p>}
+        {references.length === 0 && <p style={{ color: '#666' }}>No references provided</p>}
       </div>
 
       {/* Availability & Expectations */}
@@ -226,8 +222,8 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
             <p><strong>Shifts:</strong> {shifts.join(', ')}</p>
           )}
           {app.hours_desired && <p><strong>Hours Desired:</strong> {app.hours_desired}</p>}
-          {app.earliest_start_date && (
-            <p><strong>Can Start:</strong> {formatDate(app.earliest_start_date)}</p>
+          {app.available_start_date && (
+            <p><strong>Can Start:</strong> {formatDate(app.available_start_date)}</p>
           )}
         </div>
 
@@ -239,10 +235,10 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
               <p style={{ color: '#666' }}>{app.why_interested}</p>
             </div>
           )}
-          {app.additional_info && (
+          {app.notes && (
             <div style={{ marginTop: '1rem' }}>
               <p><strong>Additional Notes:</strong></p>
-              <p style={{ color: '#666' }}>{app.additional_info}</p>
+              <p style={{ color: '#666' }}>{app.notes}</p>
             </div>
           )}
         </div>
@@ -251,21 +247,27 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
       {/* Interview Notes */}
       <div className="card">
         <h3>Interview Notes</h3>
+        {/* Saved notes are kept, each dated; a save ADDS the note below to them. */}
+        {app.interview_notes && (
+          <div style={{ whiteSpace: 'pre-wrap', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '0.75rem', marginBottom: '0.75rem', color: '#374151' }}>
+            {String(app.interview_notes).trim()}
+          </div>
+        )}
         <textarea
           value={interviewNotes}
           onChange={(e) => setInterviewNotes(e.target.value)}
           placeholder="Add interview observations, concerns, or recommendations..."
-          rows="5"
+          rows={5}
           style={{ width: '100%', marginBottom: '1rem' }}
         ></textarea>
-        <button className="btn btn-secondary" onClick={handleSaveNotes}>Save Notes</button>
+        <button className="btn btn-secondary" onClick={handleSaveNotes} disabled={!interviewNotes.trim()}>Add Note</button>
       </div>
 
       {/* Status & Actions */}
       <div className="card">
         <h3>Application Status</h3>
         <div className="status-buttons" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {['new', 'reviewing', 'interviewed', 'offered', 'hired', 'rejected'].map(s => (
+          {['new', 'reviewing', 'interviewed', 'offered', 'rejected'].map(s => (
             <button
               key={s}
               className={`btn ${status === s ? 'btn-primary' : 'btn-secondary'}`}

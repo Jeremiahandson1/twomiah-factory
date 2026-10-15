@@ -8,6 +8,8 @@ import CaregiverDashboard from './components/CaregiverDashboard';
 import CustomerPortal from './pages/CustomerPortal';
 import OnboardingWizard from './pages/OnboardingWizard';
 import PaymentPage, { PaymentSuccess } from './components/PaymentPage';
+import CareersPage from './pages/CareersPage';
+import OnboardingPacketPage from './components/OnboardingPacketPage';
 import PortalLogin from './components/portal/PortalLogin';
 import PortalSetup from './components/portal/PortalSetup';
 import ClientPortal from './components/portal/ClientPortal';
@@ -40,6 +42,11 @@ const App = () => {
         {/* Public payment routes */}
         <Route path="/pay/:invoiceId"    element={<PaymentPage />} />
         <Route path="/payment-success"   element={<PaymentSuccess />} />
+
+        {/* Public careers page + the new hire's tokenized onboarding packet (no sign-in) */}
+        <Route path="/careers"           element={<CareersPage />} />
+        <Route path="/careers/:slug"     element={<CareersPage />} />
+        <Route path="/onboarding/:token" element={<OnboardingPacketPage />} />
 
         {/* Client portal setup (invite link) */}
         <Route path="/portal/setup"      element={<PortalSetup />} />
