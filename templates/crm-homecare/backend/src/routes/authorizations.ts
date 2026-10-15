@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and, asc } from 'drizzle-orm'
+import { eq, and, asc, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { authorizations, clients, referralSources } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
@@ -58,6 +58,19 @@ app.get('/', async (c) => {
   }))
 
   return c.json(result)
+})
+
+// GET /summary — counts for the Claims & EVV Engine's authorizations tab (CVHC authorizationRoutes).
+app.get('/summary', async (c) => {
+  const r: any = await db.execute(sql`
+    SELECT COUNT(*)::int AS total,
+           COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+           COUNT(*) FILTER (WHERE end_date < CURRENT_DATE)::int AS expired,
+           COUNT(*) FILTER (WHERE status = 'active' AND end_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 30)::int AS expiring_soon,
+           COUNT(*) FILTER (WHERE status = 'active' AND (authorized_units - used_units) <= low_units_alert_threshold)::int AS low_units,
+           COUNT(*) FILTER (WHERE status = 'exhausted')::int AS exhausted
+      FROM authorizations`)
+  return c.json((r?.rows ?? r)[0])
 })
 
 // POST /

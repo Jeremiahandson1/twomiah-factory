@@ -260,16 +260,16 @@ export function generate837P({ claims, provider, payer, interchangeControlNum }:
 /**
  * Get agency provider info from environment / agency record
  */
-export function getProviderInfo(agency?: { name?: string; npi?: string; address?: string; city?: string; state?: string; zip?: string; phone?: string }): ProviderInfo {
+export function getProviderInfo(agency?: { name?: string; npi?: string | null; medicaidId?: string | null; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; phone?: string | null }): ProviderInfo {
   return {
     agencyName: agency?.name || process.env.AGENCY_NAME || '{{COMPANY_NAME}}',
     npi: agency?.npi || process.env.AGENCY_NPI || '',
     taxId: process.env.AGENCY_TAX_ID || '',
-    medicaidId: process.env.AGENCY_MEDICAID_ID || '',
+    medicaidId: agency?.medicaidId || process.env.AGENCY_MEDICAID_ID || '',
     taxonomyCode: process.env.AGENCY_TAXONOMY || '374700000X',
     address: agency?.address || process.env.AGENCY_ADDRESS || '',
     city: agency?.city || process.env.AGENCY_CITY || '',
-    state: agency?.state || process.env.AGENCY_STATE || 'WI',
+    state: agency?.state || process.env.AGENCY_STATE || '',
     zip: agency?.zip || process.env.AGENCY_ZIP || '',
     phone: agency?.phone || process.env.AGENCY_PHONE || '',
     contactName: process.env.AGENCY_CONTACT || '',

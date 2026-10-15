@@ -62,6 +62,16 @@ export interface ReferralSourceInput {
   payer_id_number?: string | null
   name?: string | null
   submission_method?: string | null
+  /** referral_sources.claim_portal — this payer's insurer-portal export (e.g. MIDAS), when set */
+  claim_portal?: unknown
+}
+
+/** The portal name from a payer's claim_portal setting, or null when it has none. */
+function portalNameOf(v: unknown): string | null {
+  let o: any = v
+  if (typeof o === 'string') { try { o = JSON.parse(o) } catch { return null } }
+  const name = o && typeof o === 'object' && typeof o.name === 'string' ? o.name.trim() : ''
+  return name || null
 }
 
 export interface RouteResult {
@@ -76,6 +86,13 @@ export interface RouteResult {
 export function routeClaim(referralSource: ReferralSourceInput | null | undefined): RouteResult {
   if (!referralSource) {
     return { method: 'manual', destination: 'Unknown', payerName: 'Unknown' }
+  }
+
+  // A payer configured with an insurer-portal export submits through that portal. (This replaces a
+  // name match on "My Choice": the portal is the payer's setting, not a guess from its name.)
+  const portal = portalNameOf(referralSource.claim_portal)
+  if (portal) {
+    return { method: 'portal_export', destination: `${portal} Portal`, payerName: referralSource.name || portal }
   }
 
   const payerType = (referralSource.payer_type || 'other').toUpperCase()
@@ -104,10 +121,6 @@ export function routeClaim(referralSource: ReferralSourceInput | null | undefine
 
   if (referralSource.submission_method === 'edi') {
     return { method: 'edi837', destination: 'Clearinghouse', payerName: referralSource.name || 'Unknown' }
-  }
-
-  if (/my\s*choice/i.test(referralSource.name || '')) {
-    return { method: 'midas_export', destination: 'MIDAS Portal', payerName: 'My Choice Wisconsin' }
   }
 
   return { method: 'manual', destination: 'Manual Submission', payerName: referralSource.name || 'Unknown' }
@@ -139,9 +152,11 @@ interface ClaimExportRecord {
 }
 
 /**
- * Generate MIDAS upload packet CSV for My Choice Wisconsin
+ * Generate an insurer-portal upload packet CSV (CVHC's MIDAS upload packet for My Choice Wisconsin;
+ * the title names whichever portal the payer is configured with).
+ * No "Generated <time>" line: a printed/exported document carries its content's dates only (CVHC 368d9aa).
  */
-export function generateMidasExport(claims: ClaimExportRecord[], provider: ProviderInfo): string {
+export function generateMidasExport(claims: ClaimExportRecord[], provider: ProviderInfo, portalName = 'MIDAS'): string {
   const headers = [
     'Client Name', 'Medicaid ID', 'MCO Member ID',
     'Service Date', 'Procedure Code', 'Modifier', 'Units',
@@ -165,8 +180,7 @@ export function generateMidasExport(claims: ClaimExportRecord[], provider: Provi
   ])
 
   const csvRows = [
-    `"MIDAS Upload Packet - ${provider.agencyName}"`,
-    `"Generated: ${new Date().toLocaleString()}"`,
+    `"${portalName} Upload Packet - ${provider.agencyName}"`,
     '',
     headers.map(h => `"${h}"`).join(','),
     ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')),

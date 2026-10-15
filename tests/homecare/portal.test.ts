@@ -286,11 +286,11 @@ const tylerTok = (await login('tyler@test.local', 'tylerpass1')).json.token
   const other = await bearer(maryTok)('GET', `/api/portal/caregivers/${stranger.id}/background-checks`)
   check('a caregiver who does not serve this client is refused', other.status === 403 && /not assigned to you/.test(other.json.error), other)
 
-  const [invRow] = await db.insert(invoices).values({ invoiceNumber: 'INV-P1', clientId: mary.id, billingPeriodStart: '2026-09-01', billingPeriodEnd: '2026-09-07', subtotal: '90', total: '90' } as any).returning()
+  const [invRow] = await db.insert(invoices).values({ invoiceNumber: 'INV-P1', clientId: mary.id, billingPeriodStart: '2026-09-01', billingPeriodEnd: '2026-09-07', subtotal: '90', total: '90', sentAt: new Date() } as any).returning()
   for (const [d, h, amt] of [['2026-09-03', '2.00', '60'], [null, '0.50', '15'], ['2026-09-01', '0.50', '15']] as const) {
     await db.insert(invoiceLineItems).values({ invoiceId: invRow.id, caregiverId: caregiver.id, description: 'Personal care', serviceDate: d, hours: h, rate: '30', amount: amt } as any)
   }
-  await db.insert(invoices).values({ invoiceNumber: 'INV-B1', clientId: bob.id, billingPeriodStart: '2026-09-01', billingPeriodEnd: '2026-09-07', subtotal: '1', total: '1' } as any)
+  await db.insert(invoices).values({ invoiceNumber: 'INV-B1', clientId: bob.id, billingPeriodStart: '2026-09-01', billingPeriodEnd: '2026-09-07', subtotal: '1', total: '1', sentAt: new Date() } as any)
   const iv = await bearer(maryTok)('GET', '/api/portal/invoices')
   const lines = iv.json?.[0]?.lineItems || []
   check('a client sees only their own invoices', iv.status === 200 && iv.json.length === 1 && iv.json[0].invoiceNumber === 'INV-P1', iv.json)

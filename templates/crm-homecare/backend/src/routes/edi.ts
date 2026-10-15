@@ -211,6 +211,7 @@ app.post('/route-claim', async (c) => {
     payer_id_number: payer.payerIdNumber,
     name: payer.name,
     submission_method: payer.submissionMethod,
+    claim_portal: payer.claimPortal,
   })
 
   return c.json(route)

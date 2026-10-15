@@ -246,6 +246,9 @@ export const referralSources = pgTable('referral_sources', {
   sandataPayerId: text('sandata_payer_id'),
   sandataPayerProgram: text('sandata_payer_program'),
   sandataEvvRequired: boolean('sandata_evv_required').default(false).notNull(),
+  // Billing port (0015): this payer's insurer-portal export, e.g. My Choice Wisconsin's MIDAS —
+  // { name, evvCode, evvLabel, otherCode, otherLabel }. NULL = no portal export for this payer.
+  claimPortal: json('claim_portal'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -296,6 +299,10 @@ export const clients = pgTable('clients', {
   serviceAllowedDays: json('service_allowed_days'),
   assistanceNeeds: text('assistance_needs'),
   billingNotes: text('billing_notes'),
+  // Billing port (0015, CVHC v62): invoice cadence in weeks (1-8; NULL = manual only) and the last
+  // day already covered by an invoice — "Create Due Invoices" resumes the day after.
+  billingFrequencyWeeks: integer('billing_frequency_weeks'),
+  billedThrough: date('billed_through'),
   latitude: decimal('latitude', { precision: 10, scale: 8 }),
   longitude: decimal('longitude', { precision: 11, scale: 8 }),
   ivrCode: text('ivr_code').unique(),
@@ -715,9 +722,17 @@ export const invoices = pgTable('invoices', {
   amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }),
   amountAdjusted: decimal('amount_adjusted', { precision: 12, scale: 2 }),
   notes: text('notes'),
+  // Billing port (0015): the friendly "Invoice #42". Its DB default is nextval('invoice_seq_number_seq')
+  // from migration 0015 — never set it from code, and never derive it from a count (a delete would
+  // hand the same number out twice).
+  seqNumber: integer('seq_number'),
+  // NULL = draft: the family portal and the public pay page do not show it until it is sent,
+  // released, or has a payment recorded (CVHC v55).
+  sentAt: timestamp('sent_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
+  uniqueIndex('invoices_seq_number_unique').on(t.seqNumber),
   index('invoices_client_id_idx').on(t.clientId),
   index('invoices_payment_status_idx').on(t.paymentStatus),
   index('invoices_period_status_idx').on(t.billingPeriodStart, t.billingPeriodEnd, t.paymentStatus),
@@ -734,6 +749,14 @@ export const invoiceLineItems = pgTable('invoice_line_items', {
   hours: decimal('hours', { precision: 6, scale: 2 }).notNull(),
   rate: decimal('rate', { precision: 10, scale: 2 }).notNull(),
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  // Billing port (0015, CVHC v58): why this line is the number it is.
+  billedBasis: text('billed_basis'), // 'scheduled' | 'clocked' | 'unscheduled'
+  scheduledMinutes: integer('scheduled_minutes'),
+  clockedMinutes: integer('clocked_minutes'),
+  // The visit this line bills: service_date + start_time (the SCHEDULED start) + caregiver_id is
+  // the same identity a visit's care note carries, so the note can print on the invoice.
+  startTime: time('start_time'),
+  endTime: time('end_time'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('invoice_line_items_invoice_id_idx').on(t.invoiceId),
@@ -791,9 +814,20 @@ export const claims = pgTable('claims', {
   voidedAt: timestamp('voided_at'),
   voidedBy: text('voided_by'),
   notes: text('notes'),
+  // Billing port (0015, CVHC v16). CVHC's charge_amount / submitted_date / procedure_code / units
+  // are this table's billed_amount / submission_date / service_code / units_billed.
+  invoiceId: text('invoice_id'),
+  modifier: text('modifier'),
+  diagnosisCode: text('diagnosis_code'),
+  serviceDateFrom: date('service_date_from'),
+  serviceDateTo: date('service_date_to'),
+  placeOfService: text('place_of_service'),
+  createdById: text('created_by_id'),
+  unitsDeductedAt: timestamp('units_deducted_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
+  index('claims_invoice_id_idx').on(t.invoiceId),
   index('claims_edi_batch_id_idx').on(t.ediBatchId),
   index('claims_evv_visit_id_idx').on(t.evvVisitId),
   index('claims_status_idx').on(t.status),

@@ -4,6 +4,7 @@ import { invoices, clients } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import logger from '../services/logger.ts'
+import { isClientVisibleInvoice } from '../services/invoiceEngine.ts'
 
 let stripe: any = null
 if (process.env.STRIPE_SECRET_KEY) {
@@ -96,7 +97,7 @@ app.post('/create-payment-link', authenticate, requireAdmin, requireStripe, asyn
   if (!rows.length) return c.json({ error: 'Invoice not found' }, 404)
 
   const { invoice, firstName, lastName } = rows[0]
-  const amountDue = parseFloat(invoice.total)
+  const amountDue = parseFloat(invoice.total) - parseFloat(invoice.amountPaid || '0')
   if (amountDue <= 0) return c.json({ error: 'No amount due' }, 400)
 
   const price = await stripe.prices.create({
@@ -114,6 +115,10 @@ app.post('/create-payment-link', authenticate, requireAdmin, requireStripe, asyn
     },
   })
 
+  // A shareable pay link is an explicit "send it out", so it also releases the draft to the family
+  // portal (billing port, CVHC v55).
+  await db.update(invoices).set({ sentAt: invoice.sentAt ?? new Date(), updatedAt: new Date() } as any).where(eq(invoices.id, invoiceId))
+
   return c.json({ paymentLink: paymentLink.url, linkId: paymentLink.id })
 })
 
@@ -126,6 +131,8 @@ app.get('/invoice/:invoiceId/pay', requireStripe, async (c) => {
       id: invoices.id,
       invoiceNumber: invoices.invoiceNumber,
       total: invoices.total,
+      amountPaid: invoices.amountPaid,
+      sentAt: invoices.sentAt,
       paymentStatus: invoices.paymentStatus,
       billingPeriodStart: invoices.billingPeriodStart,
       billingPeriodEnd: invoices.billingPeriodEnd,
@@ -139,11 +146,15 @@ app.get('/invoice/:invoiceId/pay', requireStripe, async (c) => {
   if (!rows.length) return c.json({ error: 'Invoice not found' }, 404)
 
   const inv = rows[0]
+  // A draft — never sent, or rescinded — is not payable: an old emailed link must stop working.
+  if (!isClientVisibleInvoice(inv)) {
+    return c.json({ error: 'This invoice is no longer available. Please contact the office.' }, 404)
+  }
   return c.json({
     invoiceNumber: inv.invoiceNumber,
     clientName: `${inv.firstName} ${inv.lastName}`,
     total: inv.total,
-    amountDue: inv.total,
+    amountDue: (parseFloat(inv.total) - parseFloat(inv.amountPaid || '0')).toFixed(2),
     status: inv.paymentStatus,
     billingPeriod: { start: inv.billingPeriodStart, end: inv.billingPeriodEnd },
   })
@@ -167,9 +178,14 @@ app.post('/invoice/:invoiceId/pay', requireStripe, async (c) => {
   if (!rows.length) return c.json({ error: 'Invoice not found' }, 404)
 
   const { invoice, firstName, lastName, clientEmail } = rows[0]
+  // Same draft gate as the GET above — no checkout for an invoice that was never sent or was pulled back.
+  if (!isClientVisibleInvoice(invoice)) {
+    return c.json({ error: 'This invoice is no longer available. Please contact the office.' }, 404)
+  }
   if (invoice.paymentStatus === 'paid') return c.json({ error: 'Invoice already paid' }, 400)
 
-  const amountDue = parseFloat(invoice.total)
+  const amountDue = parseFloat(invoice.total) - parseFloat(invoice.amountPaid || '0')
+  if (amountDue <= 0) return c.json({ error: 'No amount due' }, 400)
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ['card'],
@@ -225,6 +241,9 @@ app.post('/webhook', requireStripe, async (c) => {
         const amountPaid = session.amount_total / 100
         await db.update(invoices).set({
           paymentStatus: 'paid',
+          // amount_paid is what every balance reads (portal, reminders, the line-item edit lock).
+          amountPaid: String(amountPaid),
+          paidAt: new Date(),
           paymentMethod: 'stripe',
           paymentDate: new Date().toISOString().split('T')[0],
           stripePaymentIntentId: session.payment_intent,

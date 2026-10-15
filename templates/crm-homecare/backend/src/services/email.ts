@@ -262,6 +262,36 @@ If you would rather sign on paper, or have questions about anything in it, conta
     text: `Hi ${data.contactName}, Invoice #${data.invoiceNumber} for $${data.amountDue} is due ${data.dueDate}. ${data.payUrl ? `Pay online: ${data.payUrl}` : ''}`,
   }),
 
+  // Payment reminder (billing port, CVHC sendInvoiceReminder): "due soon" before the due date,
+  // "N days past due" after it.
+  invoiceReminder: (data) => {
+    const overdue = Number(data.daysOverdue) > 0
+    const headline = overdue
+      ? `Your payment is ${data.daysOverdue} day${Number(data.daysOverdue) === 1 ? '' : 's'} past due`
+      : 'Friendly reminder: your invoice is due soon'
+    return {
+      subject: overdue
+        ? `Payment Reminder — Invoice #${data.invoiceNumber} ($${data.amountDue} past due)`
+        : `Payment Reminder — Invoice #${data.invoiceNumber} ($${data.amountDue} due ${data.dueDate})`,
+      html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1></div>
+        <div class="content">
+          <p>Hello ${data.contactName},</p>
+          <div class="highlight"><p style="margin:0;"><strong>${headline}</strong></p></div>
+          <p>This is a reminder that invoice <strong>#${data.invoiceNumber}</strong> for
+            <strong>$${data.amountDue}</strong> is ${overdue ? 'past due' : `due on ${data.dueDate}`}.</p>
+          ${data.payUrl ? `<p style="text-align:center;"><a href="${data.payUrl}" class="button">Pay Now — $${data.amountDue}</a></p>` : ''}
+          <p><small>If you've already paid, thank you — please disregard this notice. Otherwise, please contact our office with any questions or to set up a payment plan.</small></p>
+        </div>
+        <div class="footer">${data.companyName}</div>
+      </div></body></html>
+    `,
+      text: `Hello ${data.contactName}, ${headline}. Invoice #${data.invoiceNumber} for $${data.amountDue}. ${data.payUrl ? `Pay online: ${data.payUrl}` : ''}`,
+    }
+  },
+
   familyPortalWelcome: (data) => ({
     subject: `Welcome to ${data.companyName} Family Portal`,
     html: `
@@ -369,6 +399,7 @@ const emailService = {
   sendDocumentSignatureRequest: (to: string, data: Record<string, unknown>) => send(to, 'documentSignatureRequest', data),
   sendPortalSetupInvite: (to: string, data: Record<string, unknown>) => send(to, 'portalSetupInvite', data),
   sendInvoiceEmail: (to: string, data: Record<string, unknown>) => send(to, 'invoiceEmail', data),
+  sendInvoiceReminder: (to: string, data: Record<string, unknown>) => send(to, 'invoiceReminder', data),
   sendFamilyPortalWelcome: (to: string, data: Record<string, unknown>) => send(to, 'familyPortalWelcome', data),
   sendFamilyPasswordReset: (to: string, data: Record<string, unknown>) => send(to, 'familyPasswordReset', data),
   sendFamilyPasswordSetByAdmin: (to: string, data: Record<string, unknown>) => send(to, 'familyPasswordSetByAdmin', data),

@@ -319,8 +319,8 @@ const ClaimsManagement = () => {
 
       {/* Create Claim Modal */}
       {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Create Claim from Invoice</h3>
               <button className="modal-close" onClick={() => setShowCreateModal(false)}>×</button>
@@ -336,8 +336,8 @@ const ClaimsManagement = () => {
 
       {/* Update Status Modal */}
       {showStatusModal && currentClaim && (
-        <div className="modal-overlay" onClick={() => setShowStatusModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowStatusModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Update Claim Status</h3>
               <button className="modal-close" onClick={() => setShowStatusModal(false)}>×</button>
@@ -385,7 +385,7 @@ const CreateClaimForm = ({ invoices, onSubmit, onCancel }) => {
           <option value="">Select Invoice</option>
           {invoices.map(inv => (
             <option key={inv.id} value={inv.id}>
-              {inv.invoice_number} - {inv.client_first_name} {inv.client_last_name} - ${(parseFloat(inv.total) || 0).toFixed(2)}
+              {inv.seq_number != null ? `#${inv.seq_number}` : inv.invoice_number} - {inv.first_name ?? inv.client_first_name} {inv.last_name ?? inv.client_last_name} - ${(parseFloat(inv.total) || 0).toFixed(2)}
             </option>
           ))}
         </select>

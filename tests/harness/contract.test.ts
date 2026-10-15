@@ -458,6 +458,7 @@ const KNOWN_HOLE = [
     // honest starting points, not targets that have been worked.
     // 19 -> 18 (care port, 10/15): POST /api/care-plans with an empty body is a 400 (clientId and
     // serviceType are required), not a NOT NULL violation.
+    // 19 -> 18 (billing port): POST /api/billing/invoices/generate answered 500 "Invalid Date" on an empty body.
     'crm-homecare': 18,
     'crm-store': 1,
   }
