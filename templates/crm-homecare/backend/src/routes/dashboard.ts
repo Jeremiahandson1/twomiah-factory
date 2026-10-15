@@ -288,7 +288,7 @@ app.get('/action-items', async (c) => {
   const tz = await agencyTimezone()
   const today = await agencyToday(tz)
   const n = async (q: SQL) => parseInt((await one(q)).n) || 0
-  const [pendingApprovals, openShiftsCount, lowAuths, expiringAuths, expiringCerts, stuckPunches, pendingPayrollReviews] = await Promise.all([
+  const [pendingApprovals, openShiftsCount, lowAuths, expiringAuths, expiringCerts, stuckPunches, pendingPayrollReviews, incidentResponsesDue] = await Promise.all([
     n(sql`SELECT COUNT(*)::int AS n FROM time_entries WHERE needs_approval = true AND is_complete = true`),
     n(sql`SELECT COUNT(*)::int AS n FROM open_shifts WHERE status = 'open' AND date >= (${today})::date AND date <= (${today})::date + 7`),
     n(sql`SELECT COUNT(*)::int AS n FROM authorizations WHERE status = 'active' AND (authorized_units - used_units) <= low_units_alert_threshold`),
@@ -296,6 +296,12 @@ app.get('/action-items', async (c) => {
     n(sql`SELECT COUNT(*)::int AS n FROM certification_records WHERE expiry_date BETWEEN (${today})::date AND (${today})::date + 30`),
     n(sql`SELECT COUNT(*)::int AS n FROM time_entries WHERE is_complete = false AND start_time < ${nowUtc} - INTERVAL '24 hours'`),
     n(sql`SELECT COUNT(*)::int AS n FROM payroll_shift_reviews WHERE status IN ('pending', 'flagged', 'missing_punch') AND created_at > ${nowUtc} - INTERVAL '30 days'`),
+    // Payer/MCO incident responses due within 3 days (or overdue) and not yet sent — the same rule
+    // as GET /api/incidents/responses-due.
+    n(sql`SELECT COUNT(*)::int AS n FROM incidents
+           WHERE COALESCE(investigation_status, 'open') <> 'closed'
+             AND response_due_date IS NOT NULL AND response_sent_date IS NULL
+             AND response_due_date <= (${today})::date + 3`),
   ])
   const items = [
     { key: 'shift_approvals', label: 'Time entries awaiting approval', count: pendingApprovals, page: 'shift-approvals', severity: 'high' },
@@ -305,6 +311,7 @@ app.get('/action-items', async (c) => {
     { key: 'expiring_auths', label: 'Authorizations expiring within 14 days', count: expiringAuths, page: 'authorizations', severity: 'high' },
     { key: 'expiring_certs', label: 'Caregiver certifications expiring within 30 days', count: expiringCerts, page: 'compliance', severity: 'med' },
     { key: 'payroll_reviews', label: 'Payroll shift reviews still pending', count: pendingPayrollReviews, page: 'payroll', severity: 'med' },
+    { key: 'incident_responses_due', label: 'Incident responses due within 3 days or overdue', count: incidentResponsesDue, page: 'incidents', severity: 'high' },
   ].filter((item) => item.count > 0)
   return c.json({ items, totalCount: items.reduce((s, i) => s + i.count, 0) })
 })

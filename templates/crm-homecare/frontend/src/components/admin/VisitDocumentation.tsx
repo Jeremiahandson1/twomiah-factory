@@ -1,7 +1,9 @@
 // src/components/admin/VisitDocumentation.tsx — office-entered care notes for each scheduled visit
 // (ported from the CVHC home care CRM). Built for clients whose caregiver doesn't use the app: visits
 // come from the schedule, so a cancelled visit never appears and a date can't be typed in.
-// (Building an invoice from picked visits and the invoice + notes packet belong to billing.)
+// Tick visits to bill them: "Create invoice" builds a draft invoice from exactly those visits through
+// billing's POST /api/billing/invoices/from-visits (the same engine as Billing → Invoice from visits;
+// it re-checks each visit against the schedule and refuses one an invoice already bills).
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
@@ -33,6 +35,8 @@ const VisitDocumentation = () => {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkNote, setBulkNote] = useState('Personal care provided. Walked hallways with assistance. Vacuumed and dusted.');
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [creating, setCreating] = useState(false);
 
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
@@ -65,6 +69,35 @@ const VisitDocumentation = () => {
   }, [clientId, from, to, headers]);
 
   useEffect(() => { load(); }, [load]);
+  // A new client or date range starts with nothing ticked.
+  useEffect(() => { setSelected(new Set()); }, [clientId, from, to]);
+
+  const billable = (data?.visits || []).filter((v) => !v.invoiced);
+  const pickedVisits = (data?.visits || []).filter((v) => selected.has(vkey(v)));
+  const pickedUndocumented = pickedVisits.filter((v) => !v.doc).length;
+  const toggle = (v) => setSelected((s) => {
+    const n = new Set(s); const k = vkey(v);
+    if (n.has(k)) n.delete(k); else n.add(k);
+    return n;
+  });
+
+  const createInvoice = async () => {
+    if (!pickedVisits.length || creating) return;
+    setCreating(true); setMessage(null);
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/billing/invoices/from-visits`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, visits: pickedVisits.map((v) => ({ visitDate: v.visit_date, startTime: v.start_time, caregiverId: v.caregiver_id })) }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+      setSelected(new Set());
+      setMessage({ type: 'success', text: `Created draft invoice ${body.invoice_number || body.invoiceNumber || ''} — ${money(body.total || 0)}. Send it from Billing when it's ready.` });
+      await load(true);
+    } catch (e) {
+      setMessage({ type: 'error', text: `Invoice not created: ${e.message}` });
+    } finally { setCreating(false); }
+  };
 
   const openVisit = (v) => {
     const k = vkey(v);
@@ -138,7 +171,7 @@ const VisitDocumentation = () => {
         <h2>📝 Visit Documentation</h2>
       </div>
       <p style={{ color: '#4B5563', marginTop: 0 }}>
-        Enter the care note for each scheduled visit. Print the notes for a date range for a payer, a chart or the client's file.
+        Enter the care note for each scheduled visit, then tick visits to put on an invoice. Print the notes for a date range for a payer, a chart or the client's file.
       </p>
 
       <div className="card" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -185,6 +218,20 @@ const VisitDocumentation = () => {
             </button>
           </div>
 
+          <div className="card" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button className="btn btn-sm btn-secondary" disabled={!billable.length}
+              onClick={() => setSelected(new Set(billable.map(vkey)))}>Select all not invoiced ({billable.length})</button>
+            <button className="btn btn-sm btn-secondary" disabled={!selected.size} onClick={() => setSelected(new Set())}>Clear</button>
+            <span style={{ color: '#374151' }}>
+              {selected.size
+                ? <>{selected.size} selected{pickedUndocumented ? <span style={{ color: '#92400E' }}> · {pickedUndocumented} without a note</span> : null}</>
+                : 'Tick visits to invoice'}
+            </span>
+            <button className="btn btn-primary" style={{ marginLeft: 'auto' }} disabled={!selected.size || creating} onClick={createInvoice}>
+              {creating ? 'Creating…' : `Create invoice from ${selected.size || ''} selected`}
+            </button>
+          </div>
+
           {bulkOpen && (
             <div className="card" style={{ border: '1px solid #93C5FD', background: '#EFF6FF', color: '#111827' }}>
               <strong>Fill {missing} visits without a note</strong>
@@ -205,6 +252,7 @@ const VisitDocumentation = () => {
             <table className="table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
               <thead>
                 <tr style={{ textAlign: 'left' }}>
+                  <th style={{ padding: '0.5rem', width: 32 }}><span className="sr-only">Invoice this visit</span></th>
                   <th style={{ padding: '0.5rem' }}>Date</th>
                   <th style={{ padding: '0.5rem' }}>Time</th>
                   <th style={{ padding: '0.5rem' }}>Caregiver</th>
@@ -215,7 +263,7 @@ const VisitDocumentation = () => {
               </thead>
               <tbody>
                 {data.visits.length === 0 && (
-                  <tr><td colSpan={6} style={{ padding: '1rem', color: '#4B5563' }}>No scheduled visits in this date range.</td></tr>
+                  <tr><td colSpan={7} style={{ padding: '1rem', color: '#4B5563' }}>No scheduled visits in this date range.</td></tr>
                 )}
                 {data.visits.map((v) => {
                   const k = vkey(v);
@@ -223,6 +271,11 @@ const VisitDocumentation = () => {
                   return (
                     <React.Fragment key={k}>
                       <tr style={{ borderTop: '1px solid #E5E7EB', ...(openKey === k ? { background: '#EFF6FF', color: '#111827' } : {}) }}>
+                        <td style={{ padding: '0.5rem' }}>
+                          <input type="checkbox" disabled={!!v.invoiced} checked={selected.has(k)} onChange={() => toggle(v)}
+                            aria-label={v.invoiced ? `Already on invoice ${v.invoiced.invoiceNumber}` : `Invoice the visit on ${fmtDate(v.visit_date)}`}
+                            title={v.invoiced ? `Already on invoice ${v.invoiced.invoiceNumber}` : 'Include on the next invoice'} />
+                        </td>
                         <td style={{ padding: '0.5rem', whiteSpace: 'nowrap' }}>{weekday(v.visit_date)} {fmtDate(v.visit_date)}</td>
                         <td style={{ padding: '0.5rem', whiteSpace: 'nowrap' }}>
                           {fmtTime(v.start_time)} – {fmtTime(v.end_time)}
@@ -241,7 +294,7 @@ const VisitDocumentation = () => {
                       </tr>
                       {openKey === k && (
                         <tr style={{ background: '#EFF6FF', color: '#111827' }}>
-                          <td colSpan={6} style={{ padding: '0.5rem 0.5rem 1rem' }}>
+                          <td colSpan={7} style={{ padding: '0.5rem 0.5rem 1rem' }}>
                             {draft.tasks.length === 0 && <div style={{ color: '#4B5563', marginBottom: 6 }}>This client has no care tasks set.</div>}
                             {draft.tasks.map((t, i) => (
                               <label key={t.taskId} style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '4px 0', cursor: 'pointer' }}>

@@ -130,7 +130,7 @@ app.post('/overview', async (c) => {
         UNION ALL
         SELECT cl.billed_amount FROM claims cl
         WHERE cl.service_date BETWEEN (${startDate})::date AND (${endDate})::date
-          AND COALESCE(cl.status, '') <> 'voided'
+          AND COALESCE(cl.status, '') <> 'voided' AND cl.invoice_id IS NULL
           AND (${clientId}::text IS NULL OR cl.client_id = ${clientId})
       ) u`),
     // Top caregivers by SCHEDULED hours; labour COST (hours × pay rate), not revenue.
@@ -383,7 +383,9 @@ app.post('/revenue', async (c) => {
   const invF = clientId ? sql`AND i.client_id = ${clientId}` : sql``
   const clmF = clientId ? sql`AND cl.client_id = ${clientId}` : sql``
   const invIn = sql`i.billing_period_start >= (${startDate})::date AND i.billing_period_end <= (${endDate})::date`
-  const clmIn = sql`cl.service_date BETWEEN (${startDate})::date AND (${endDate})::date AND COALESCE(cl.status, '') <> 'voided'`
+  // A claim made FROM an invoice (claims.invoice_id) bills the same money as that invoice: the
+  // invoice already counts it, so such claims are left out everywhere invoices are counted too.
+  const clmIn = sql`cl.service_date BETWEEN (${startDate})::date AND (${endDate})::date AND COALESCE(cl.status, '') <> 'voided' AND cl.invoice_id IS NULL`
 
   const [inv, clm, hours, byServiceType, byPayer, aging, byClient] = await Promise.all([
     // Outstanding is net of adjustments/write-offs, matching the Billing Dashboard.
@@ -435,7 +437,7 @@ app.post('/revenue', async (c) => {
                (COALESCE(cl.submission_date, cl.service_date) + COALESCE(rs.expected_pay_days, 30))
         FROM claims cl LEFT JOIN referral_sources rs ON rs.id = cl.payer_id
         WHERE (COALESCE(cl.billed_amount, 0) - COALESCE(cl.paid_amount, 0)) > 0.005
-          AND COALESCE(cl.status, '') NOT IN ('voided', 'draft') ${clmF}
+          AND COALESCE(cl.status, '') NOT IN ('voided', 'draft') AND cl.invoice_id IS NULL ${clmF}
       ) t`),
     rows(sql`SELECT id, first_name, last_name, COALESCE(SUM(revenue), 0) AS revenue, COALESCE(SUM(outstanding), 0) AS outstanding FROM (
         SELECT c.id, c.first_name, c.last_name, i.total AS revenue,
@@ -492,6 +494,7 @@ app.get('/pnl', async (c) => {
         UNION ALL
         SELECT COALESCE(cl.billed_amount, 0), COALESCE(cl.paid_amount, 0)
         FROM claims cl WHERE cl.service_date BETWEEN (${start})::date AND (${end})::date AND COALESCE(cl.status, '') <> 'voided'
+          AND cl.invoice_id IS NULL
       ) u`),
     rows(sql`SELECT payer_name, SUM(cnt)::int AS invoice_count, COALESCE(SUM(billed), 0) AS billed, COALESCE(SUM(collected), 0) AS collected FROM (
         SELECT COALESCE(rs.name, 'Private Pay') AS payer_name, 1 AS cnt,
@@ -503,6 +506,7 @@ app.get('/pnl', async (c) => {
         SELECT COALESCE(rs.name, 'Unknown Payer'), 1, cl.billed_amount, COALESCE(cl.paid_amount, 0)
         FROM claims cl LEFT JOIN referral_sources rs ON cl.payer_id = rs.id
         WHERE cl.service_date BETWEEN (${start})::date AND (${end})::date AND COALESCE(cl.status, '') <> 'voided'
+          AND cl.invoice_id IS NULL
       ) u GROUP BY payer_name ORDER BY billed DESC`),
     rows(sql`SELECT category, COALESCE(SUM(amount), 0) AS category_total
       FROM expenses WHERE date >= (${start})::date AND date <= (${end})::date

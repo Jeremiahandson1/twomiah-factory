@@ -25,7 +25,7 @@ import { getClientVisitSchedule } from '../services/carePlanSchedule.ts'
 import { carePlanPdf, pdfFileName } from '../services/carePdf.ts'
 import { isAssessmentSource } from '../services/assessmentImports.ts'
 import { checkAuthorizationBalance } from '../helpers/authorizationCheck.ts'
-import { shiftHours } from '../helpers/shiftHours.ts'
+import { shiftHours } from '../services/scheduleOccurrences.ts'
 import { agencyTimezone } from '../services/agencyTime.ts'
 import { userIdOf, writeCareAudit, rowsOf } from '../helpers/careAudit.ts'
 

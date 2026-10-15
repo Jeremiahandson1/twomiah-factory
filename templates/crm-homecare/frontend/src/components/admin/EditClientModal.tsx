@@ -5,8 +5,26 @@ import { useAuth } from '../../contexts/AuthContext';
 import { formatDateForInput } from '../../utils/date';
 import InsuranceCardUploader from './InsuranceCardUploader';
 
+// A JSON list column shown in a textarea, one entry per line, and back.
+const listText = (x) => (Array.isArray(x) ? x.map((e) => (typeof e === 'string' ? e : (e?.name ?? JSON.stringify(e)))).join('\n') : (x ? String(x) : ''));
+const textList = (t) => String(t || '').split(/\r?\n|,/).map((e) => e.trim()).filter(Boolean);
+const idList = (x) => (Array.isArray(x) ? x.map(String) : []);
+
 const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen, onClose, onSuccess }) => {
   const { token } = useAuth();
+  const [caregivers, setCaregivers] = useState([]);
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch(`${API_BASE_URL}/api/caregivers?limit=500`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setCaregivers(Array.isArray(d) ? d : (d?.caregivers || d?.data || [])))
+      .catch(() => setCaregivers([]));
+  }, [isOpen, token]);
+  const toggleId = (field, id) => setFormData((f) => {
+    const cur = new Set(f[field] || []);
+    if (cur.has(id)) cur.delete(id); else cur.add(id);
+    return { ...f, [field]: [...cur] };
+  });
   const [activeTab, setActiveTab] = useState('basic');
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
@@ -24,11 +42,14 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
 
   useEffect(() => {
     if (client && isOpen) {
+      // GET /api/clients sends the client in camelCase (drizzle's property names); older callers
+      // passed snake_case. Read either, so every field opens with what is on file.
+      const v = (camel: string, snake: string) => (client[camel] !== undefined && client[camel] !== null ? client[camel] : client[snake]);
       setFormData({
         // Basic Info
-        firstName: client.first_name || '',
-        lastName: client.last_name || '',
-        dateOfBirth: formatDateForInput(client.date_of_birth),
+        firstName: v('firstName', 'first_name') || '',
+        lastName: v('lastName', 'last_name') || '',
+        dateOfBirth: formatDateForInput(v('dateOfBirth', 'date_of_birth')),
         gender: client.gender || '',
         phone: client.phone || '',
         email: client.email || '',
@@ -37,33 +58,32 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
         city: client.city || '',
         state: client.state || '{{STATE}}',
         zip: client.zip || '',
-        // Billing/Referral (backend field is referredById -> referred_by_id;
-        // the older referral_source_id alias never existed, so it read blank)
-        referralSourceId: client.referral_source_id || client.referred_by_id || client.referredById || '',
-        careTypeId: client.care_type_id || '',
-        isPrivatePay: client.is_private_pay || false,
-        privatePayRate: client.private_pay_rate || '',
-        privatePayRateType: client.private_pay_rate_type || 'hourly',
-        billingNotes: client.billing_notes || '',
-        weeklyAuthorizedUnits: client.weekly_authorized_units || '',
-        // Emergency Contact
-        emergencyContactName: client.emergency_contact_name || '',
-        emergencyContactPhone: client.emergency_contact_phone || '',
-        emergencyContactRelationship: client.emergency_contact_relationship || '',
-        // Medical
-        medicalConditions: client.medical_conditions || '',
-        medications: client.medications || '',
-        allergies: client.allergies || '',
-        medicalNotes: client.medical_notes || '',
-        mobilityAssistanceNeeds: client.mobility_assistance_needs || '',
+        // Billing/Referral (the column is referred_by_id; referralSourceId is the form's name for it)
+        referralSourceId: v('referredById', 'referred_by_id') || client.referral_source_id || '',
+        careTypeId: v('careTypeId', 'care_type_id') || '',
+        isPrivatePay: v('isPrivatePay', 'is_private_pay') || false,
+        privatePayRate: v('privatePayRate', 'private_pay_rate') ?? '',
+        privatePayRateType: v('privatePayRateType', 'private_pay_rate_type') || 'hourly',
+        billingNotes: v('billingNotes', 'billing_notes') || '',
+        weeklyAuthorizedUnits: v('weeklyAuthorizedUnits', 'weekly_authorized_units') ?? '',
+        // Emergency Contact (filled from the client's contacts below)
+        emergencyContactName: '',
+        emergencyContactPhone: '',
+        emergencyContactRelationship: '',
+        // Medical: these three are lists on the client (JSON arrays); the form edits them one per line
+        medicalConditions: listText(v('medicalConditions', 'medical_conditions')),
+        medications: listText(client.medications),
+        allergies: listText(client.allergies),
+        medicalNotes: '',
+        mobilityAssistanceNeeds: v('assistanceNeeds', 'assistance_needs') || '',
         // Insurance
-        insuranceProvider: client.insurance_provider || '',
-        insuranceId: client.insurance_id || '',
-        insuranceGroup: client.insurance_group || '',
-        // Caregiver Preferences
-        carePreferences: client.care_preferences || '',
-        preferredCaregivers: client.preferred_caregivers || '',
-        doNotUseCaregivers: client.do_not_use_caregivers || '',
+        insuranceProvider: v('insuranceProvider', 'insurance_provider') || '',
+        insuranceId: v('insuranceId', 'insurance_id') || '',
+        insuranceGroup: v('insuranceGroup', 'insurance_group') || '',
+        // Caregiver Preferences: caregiver ids (the matching engine and the optimizers read them)
+        carePreferences: '',
+        preferredCaregivers: idList(v('preferredCaregivers', 'preferred_caregivers')),
+        doNotUseCaregivers: idList(v('doNotUseCaregivers', 'do_not_use_caregivers')),
         // Notes
         notes: client.notes || ''
       });
@@ -141,15 +161,16 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
           privatePayRateType: formData.privatePayRateType,
           billingNotes: formData.billingNotes || null,
           weeklyAuthorizedUnits: formData.weeklyAuthorizedUnits ? parseInt(formData.weeklyAuthorizedUnits) : null,
-          medicalConditions: formData.medicalConditions || null,
-          medications: formData.medications || null,
-          allergies: formData.allergies || null,
+          // List columns are NOT NULL JSON arrays: an empty box is [], never null.
+          medicalConditions: textList(formData.medicalConditions),
+          medications: textList(formData.medications),
+          allergies: textList(formData.allergies),
           assistanceNeeds: formData.mobilityAssistanceNeeds || null,
           insuranceProvider: formData.insuranceProvider || null,
           insuranceId: formData.insuranceId || null,
           insuranceGroup: formData.insuranceGroup || null,
-          preferredCaregivers: formData.preferredCaregivers || null,
-          doNotUseCaregivers: formData.doNotUseCaregivers || null,
+          preferredCaregivers: formData.preferredCaregivers || [],
+          doNotUseCaregivers: formData.doNotUseCaregivers || [],
           notes: formData.notes || null
         })
       });
@@ -379,7 +400,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
     <div className="modal active">
       <div className="modal-content modal-large">
         <div className="modal-header">
-          <h2>Edit: {client.first_name} {client.last_name}</h2>
+          <h2>Edit: {client.firstName ?? client.first_name} {client.lastName ?? client.last_name}</h2>
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
@@ -782,22 +803,22 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
 
               <h4 style={{ borderBottom: '2px solid #007bff', paddingBottom: '0.5rem', marginTop: '1rem', marginBottom: '1rem' }}>Preferred Caregivers</h4>
               <div className="form-group">
-                <textarea
-                  value={formData.preferredCaregivers}
-                  onChange={(e) => setFormData({ ...formData, preferredCaregivers: e.target.value })}
-                  placeholder="List preferred caregivers or qualities the client prefers..."
-                  rows="3"
-                />
+                {caregivers.length === 0 ? <p>No caregivers yet.</p> : caregivers.map((cg) => (
+                  <label key={cg.id} style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '2px 0' }}>
+                    <input type="checkbox" checked={(formData.preferredCaregivers || []).includes(cg.id)} onChange={() => toggleId('preferredCaregivers', cg.id)} />
+                    {cg.firstName ?? cg.first_name} {cg.lastName ?? cg.last_name}
+                  </label>
+                ))}
               </div>
 
               <h4 style={{ borderBottom: '2px solid #007bff', paddingBottom: '0.5rem', marginTop: '1rem', marginBottom: '1rem' }}>Do Not Assign</h4>
               <div className="form-group">
-                <textarea
-                  value={formData.doNotUseCaregivers}
-                  onChange={(e) => setFormData({ ...formData, doNotUseCaregivers: e.target.value })}
-                  placeholder="List any caregivers who should NOT be assigned to this client..."
-                  rows="3"
-                />
+                {caregivers.length === 0 ? <p>No caregivers yet.</p> : caregivers.map((cg) => (
+                  <label key={cg.id} style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '2px 0' }}>
+                    <input type="checkbox" checked={(formData.doNotUseCaregivers || []).includes(cg.id)} onChange={() => toggleId('doNotUseCaregivers', cg.id)} />
+                    {cg.firstName ?? cg.first_name} {cg.lastName ?? cg.last_name}
+                  </label>
+                ))}
               </div>
 
               <div className="alert alert-info">

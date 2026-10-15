@@ -52,10 +52,12 @@ const ShiftMissReport = ({ userId, onClose }) => {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error();
+      const body = await res.json().catch(() => ({}));
+      // A refusal says why (e.g. that visit is not on your schedule) — show it, not a generic error.
+      if (!res.ok) throw new Error(body.error || 'Failed to submit.');
       setSubmitted(true);
-    } catch {
-      toast('Failed to submit. Please call the office directly.', 'error');
+    } catch (e) {
+      toast(`${e?.message || 'Failed to submit.'} If this is urgent, please call the office directly.`, 'error');
     } finally {
       setSubmitting(false);
     }

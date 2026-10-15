@@ -4,17 +4,8 @@ import { toast } from '../Toast';
 // Complete billing system: Invoicing, A/R Aging, Authorizations, Claims, Payments
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
-// Why a cancelled visit was not billed (schedule_exceptions.cancel_reason, CVHC v63).
-const CANCEL_REASON_LABELS = {
-  client_refused: 'Client refused care',
-  client_not_home: 'Client not home',
-  client_hospital: 'Client in hospital',
-  client_cancelled: 'Client cancelled ahead',
-  caregiver_callout: 'Caregiver called out',
-  admin_cancelled: 'Cancelled by the office',
-  other: 'Other',
-};
-const cancelReasonLabel = (r) => CANCEL_REASON_LABELS[r] || r || '—';
+// Why a cancelled visit was not billed (schedule_exceptions.cancel_reason) — the one label list.
+import { cancelReasonLabel } from '../../utils/cancelReasons';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Helper to parse date without timezone shift

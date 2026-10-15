@@ -1,7 +1,7 @@
 // src/App.tsx — Main application component (AuthContext + Router pattern)
 import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import AuthContext, { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
 import CaregiverDashboard from './components/CaregiverDashboard';
@@ -239,7 +239,8 @@ const FamilyApp = () => {
 
 // ── Staff App (uses AuthContext) ─────────────────────────────────────────────
 const MainApp = () => {
-  const { user, company, loading, isAdmin, isCaregiver, token, login, logout } = useAuth();
+  const auth = useAuth();
+  const { user, company, loading, isAdmin, isCaregiver, token, login, logout } = auth;
 
   // Impersonation state — keeps original admin session intact
   const [impersonationToken, setImpersonationToken] = useState(null);
@@ -303,9 +304,22 @@ const MainApp = () => {
         <div style={{ paddingTop: '2.5rem' }}>
           {impersonationUser.role === 'client'
             ? <ClientPortal user={impersonationUser} token={impersonationToken} onLogout={exitImpersonation} />
-            : impersonationUser.role === 'admin'
-              ? <AdminDashboard onLogout={exitImpersonation} />
-              : <CaregiverDashboard onLogout={exitImpersonation} />
+            : (
+              // The viewed user's screens read the session from useAuth(): hand them that user and the
+              // View As token (POST /api/auth/impersonate/:id), so they load THAT user's data.
+              <AuthContext.Provider value={{
+                ...auth,
+                user: impersonationUser,
+                token: impersonationToken,
+                isAdmin: impersonationUser.role === 'admin' || impersonationUser.role === 'owner',
+                isCaregiver: impersonationUser.role === 'caregiver',
+                logout: exitImpersonation,
+              }}>
+                {impersonationUser.role === 'admin' || impersonationUser.role === 'owner'
+                  ? <AdminDashboard onLogout={exitImpersonation} />
+                  : <CaregiverDashboard onLogout={exitImpersonation} />}
+              </AuthContext.Provider>
+            )
           }
         </div>
       </ErrorBoundary>

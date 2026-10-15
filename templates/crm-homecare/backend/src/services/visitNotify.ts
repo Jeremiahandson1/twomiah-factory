@@ -7,6 +7,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { notifications, clientNotifications, users, auditLogs, pushSubscriptions, agencies } from '../../db/schema.ts'
 import { reportSmsUsage } from './messagingUsage.ts'
+import { shouldNotify } from './notificationPrefs.ts'
 
 export const OFFICE_ROLES = ['admin', 'owner']
 
@@ -123,8 +124,10 @@ export async function recordAudit(userId: string | null | undefined, action: str
 }
 
 // ── The one door for background caregiver / office alerts ───────────────────────────────
-// Shift reminders (push) and over-visit-length texts (SMS) both go through here, so a per-person
-// notification preference (shouldNotify) can be applied in exactly one place.
+// Shift reminders (push) and over-visit-length texts (SMS) both go through here, so the person's
+// notification preferences (portal's services/notificationPrefs.shouldNotify: the channel switch,
+// the shift-reminder switch, quiet hours — an urgent over-visit text still goes out during quiet
+// hours unless the person turned that off) are applied in exactly one place, as CVHC's jobs do.
 export async function sendCaregiverAlert(a: {
   userId: string | null | undefined
   alertType: 'shift_reminder' | 'overtime_alert'
@@ -134,6 +137,10 @@ export async function sendCaregiverAlert(a: {
   payload?: Record<string, unknown>
   urgent?: boolean
 }): Promise<boolean> {
+  if (a.userId) {
+    const eventType = a.alertType === 'shift_reminder' ? 'shift_reminder' : null
+    if (!(await shouldNotify(a.userId, a.channel, eventType, { urgent: !!a.urgent }))) return false
+  }
   if (a.channel === 'sms') return sendText({ phone: a.phone, body: a.body })
   return (await sendPush(a.userId, a.payload || { title: a.body })) > 0
 }

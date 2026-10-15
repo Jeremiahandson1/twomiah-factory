@@ -1780,7 +1780,7 @@ const CaregiverDashboard = ({ onLogout }) => {
           {currentPage === 'open-shifts' && renderOpenShiftsPage()}
           {currentPage === 'availability' && renderAvailabilityPage()}
           {currentPage === 'time-off' && renderTimeOffPage()}
-          {currentPage === 'miss-report' && renderMissReportPage()}
+          {currentPage === 'miss-report' && <ShiftMissReport userId={user?.id} onClose={() => setCurrentPage('home')} />}
           {currentPage === 'incident-report' && <IncidentReportForm onClose={() => setCurrentPage('home')} />}
           {currentPage === 'settings' && renderSettingsPage()}
         </div>

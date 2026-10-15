@@ -387,6 +387,7 @@ async function scheduledVisits(clientId: string, from: string, to: string) {
            o.minutes, o.caregiver_id, o.schedule_id, u.first_name || ' ' || u.last_name AS caregiver_name
       FROM o LEFT JOIN users u ON u.id = o.caregiver_id
      WHERE o.client_id = ${clientId}
+       AND o.is_training IS NOT TRUE -- a training shift is paid, never billed
      ORDER BY o.occ_date, o.start_time`))
 }
 async function billedVisitMap(clientId: string, from: string, to: string) {

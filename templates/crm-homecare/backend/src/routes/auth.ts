@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import jwt from 'jsonwebtoken'
 import { eq, asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { users, caregiverProfiles, agencies } from '../../db/schema.ts'
+import { users, caregiverProfiles, agencies, auditLogs } from '../../db/schema.ts'
 import { authenticate, requireAdmin, logAuthEvent } from '../middleware/auth.ts'
 import { markUserLoggedOut } from '../services/tokenRevocation.ts'
 
@@ -133,6 +133,43 @@ app.get('/users', authenticate, requireAdmin, async (c) => {
     email: users.email, role: users.role, isActive: users.isActive,
   }).from(users).where(eq(users.isActive, true)).orderBy(asc(users.lastName))
   return c.json(rows)
+})
+
+// POST /api/auth/impersonate/:userId — "View As" a staff member (ported from CVHC authRoutes.js).
+// Office only, and audited (ADMIN_IMPERSONATE, who viewed whom). The token is short-lived (2 h),
+// marked `impersonation`, and carries no refresh token; signing out of it never ends the viewed
+// user's own sessions (POST /logout above). An admin may not view as an OWNER: that token would carry
+// the owner's role — more than the admin has. An owner may view anyone.
+export const IMPERSONATION_HOURS = 2
+app.post('/impersonate/:userId', authenticate, requireAdmin, async (c) => {
+  const actor = c.get('user') as any
+  const [target] = await db.select({
+    id: users.id, email: users.email, role: users.role, firstName: users.firstName, lastName: users.lastName, isActive: users.isActive,
+  }).from(users).where(eq(users.id, c.req.param('userId'))).limit(1)
+  if (!target) return c.json({ error: 'User not found' }, 404)
+  if (target.isActive === false) return c.json({ error: 'This user is deactivated.' }, 400)
+  if (target.role === 'owner' && actor.role !== 'owner') return c.json({ error: 'Only an owner can view as an owner.' }, 403)
+
+  const [agency] = await db.select({ id: agencies.id }).from(agencies).limit(1)
+  const name = `${target.firstName || ''} ${target.lastName || ''}`.trim()
+  try {
+    await db.insert(auditLogs).values({
+      userId: actor.userId, action: 'ADMIN_IMPERSONATE', tableName: 'users', recordId: target.id,
+      newData: { impersonating: target.email, impersonatedBy: actor.email } as any,
+    } as any)
+  } catch (err) {
+    // The audit row is the point of this route: no row, no token.
+    return c.json({ error: 'Could not record the View As in the audit log — try again.' }, 500)
+  }
+  const token = jwt.sign(
+    { userId: target.id, email: target.email, role: target.role, companyId: agency?.id, name, impersonatedBy: actor.email, impersonation: true },
+    process.env.JWT_SECRET!,
+    { expiresIn: `${IMPERSONATION_HOURS}h` },
+  )
+  return c.json({
+    token,
+    user: { id: target.id, email: target.email, name, firstName: target.firstName, lastName: target.lastName, role: target.role, impersonatedBy: actor.email },
+  })
 })
 
 // PUT /api/auth/change-password

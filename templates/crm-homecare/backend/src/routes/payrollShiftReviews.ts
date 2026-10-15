@@ -23,13 +23,13 @@ app.post('/generate-shifts', async (c) => {
     // Every scheduled occurrence in the period, through the ONE schedule engine (one-time and
     // weekly / bi-weekly patterns, effective and end dates, cancelled and modified exceptions,
     // suspended service, overnight shifts) — the same visits billing and the reports count.
-    const occ = rowsOf(await db.execute(sql`
+    const occ = await rowsOf(db, sql`
       WITH ${occurrencesCte(startDate, endDate)}
       SELECT occ.schedule_id, to_char(occ.occ_date, 'YYYY-MM-DD') AS shift_date, occ.caregiver_id, occ.client_id,
              to_char(occ.start_time, 'HH24:MI') AS start_hhmm, to_char(occ.end_time, 'HH24:MI') AS end_hhmm, occ.minutes
         FROM occ
        WHERE occ.caregiver_id IS NOT NULL
-       ORDER BY occ.occ_date, occ.start_time`))
+       ORDER BY occ.occ_date, occ.start_time`)
 
     // Completed time entries whose start falls on a day of the period on the AGENCY's calendar.
     const entries = await db.select({

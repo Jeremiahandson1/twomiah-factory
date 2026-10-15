@@ -58,15 +58,18 @@ export async function generateClaimFromEVV(evvVisitId: string, userId: string) {
   const visit = rowsOf(await db.execute(sql`
     SELECT ev.*, to_char(ev.service_date, 'YYYY-MM-DD') AS service_date_text,
            c.referred_by_id, c.care_type_id, c.primary_diagnosis_code,
-           te.billable_minutes, te.duration_minutes,
+           te.billable_minutes, te.duration_minutes, COALESCE(ts.is_training, false) AS is_training,
            rs.name AS payer_name, rs.payer_type, rs.payer_id_number, rs.submission_method, rs.claim_portal
       FROM evv_visits ev
       JOIN clients c ON ev.client_id = c.id
       JOIN users u ON ev.caregiver_id = u.id
       LEFT JOIN referral_sources rs ON c.referred_by_id = rs.id
       LEFT JOIN time_entries te ON te.id = ev.time_entry_id
+      LEFT JOIN schedules ts ON ts.id = te.schedule_id
      WHERE ev.id = ${evvVisitId}`))[0]
   if (!visit) throw notFound('EVV visit not found')
+  // A training (shadow) shift is paid through payroll and never billed — no claim either.
+  if (visit.is_training === true) throw new Error('This visit is a training shift — training shifts are never billed.')
 
   const existing = rowsOf(await db.execute(sql`SELECT id FROM claims WHERE evv_visit_id = ${evvVisitId}`))
   if (existing.length) throw new Error('Claim already exists for this EVV visit')
@@ -139,8 +142,10 @@ export async function batchGenerateClaims(startDate: string, endDate: string, us
       JOIN clients c ON c.id = ev.client_id
       JOIN referral_sources rs ON rs.id = c.referred_by_id
       LEFT JOIN claims cl ON cl.evv_visit_id = ev.id
+      LEFT JOIN schedules ts ON ts.id = te.schedule_id
      WHERE ev.service_date BETWEEN ${startDate}::date AND ${endDate}::date
        AND te.is_complete = true
+       AND ts.is_training IS NOT TRUE
        AND COALESCE(te.billable_minutes, te.duration_minutes) > 0
        AND COALESCE(c.is_private_pay, false) = false
        AND rs.payer_type IS NOT NULL
