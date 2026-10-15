@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { certificationRecords } from '../../db/schema.ts'
 import { eq, desc } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -32,7 +32,7 @@ app.get('/caregiver/:id', async (c) => {
 })
 
 // POST /api/certifications
-app.post('/', async (c) => {
+app.post('/', requireAdmin, async (c) => {
   const body = await c.req.json()
 
   if (!body.caregiverId || !body.certificationType) {
@@ -56,7 +56,7 @@ app.post('/', async (c) => {
 })
 
 // DELETE /api/certifications/:id
-app.delete('/:id', async (c) => {
+app.delete('/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
 
   const [row] = await db

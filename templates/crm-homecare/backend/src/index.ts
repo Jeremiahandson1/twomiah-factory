@@ -124,6 +124,13 @@ import inboundParseRoutes from './routes/inboundParse.ts'
 import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import gbpRoutes, { gbpInternal } from './routes/gbp.ts'
 import onboardingRoutes from './routes/onboarding.ts'
+// Staff: hiring, onboarding packets, background checks, payday verification
+import jobPostingsRoutes from './routes/jobPostings.ts'
+import careersPublicRoutes from './routes/careersPublic.ts'
+import onboardingPacketsRoutes from './routes/onboardingPackets.ts'
+import onboardingPacketsPublicRoutes from './routes/onboardingPacketsPublic.ts'
+import payrollVerificationRoutes from './routes/payrollVerification.ts'
+import { startWorcsPoll } from './jobs/worcsPoll.ts'
 // The website's contact-form webhook (POST /api/webhooks/leads). Imported like every other route: it was loaded inside a
 // try/catch that swallowed the failure, which is how crm-dispensary ran for seven months with no such file and every
 // website enquiry answering 404. A missing or broken file now stops the boot instead.
@@ -207,6 +214,11 @@ const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATCH' || m
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 6000 : 100000, (m) => !isWrite(m)))
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 1200 : 100000, isWrite))
 app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
+// The public careers form: 10 applications an hour per address (bots), reads stay cheap.
+app.use('/api/public/careers/*', createRateLimiter(60 * 60 * 1000, 10, isWrite))
+app.use('/api/public/careers/*', createRateLimiter(60 * 1000, 60, (m) => !isWrite(m)))
+// The tokenized onboarding packet: 60 requests per 15 minutes per address.
+app.use('/api/public/onboarding-packets/*', createRateLimiter(15 * 60 * 1000, 60))
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
@@ -251,6 +263,11 @@ app.route('/api/inbound-messages', inboundMessagesRoutes)
 app.route('/api/gbp', gbpRoutes)
 app.route('/api/internal/gbp', gbpInternal)
 app.route('/api/onboarding', onboardingRoutes)
+app.route('/api/job-postings', jobPostingsRoutes)
+app.route('/api/public/careers', careersPublicRoutes)
+app.route('/api/onboarding-packets', onboardingPacketsRoutes)
+app.route('/api/public/onboarding-packets', onboardingPacketsPublicRoutes)
+app.route('/api/payroll-verification', payrollVerificationRoutes)
 app.route('/api/stripe', stripeRoutes)
 app.route('/api/help', helpRoutes)
 app.route('/api/optimizer', optimizerRoutes)
@@ -481,6 +498,10 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 
 // Socket.IO
 initializeSocket(server as any)
+
+// Background schedules. WORCS polling runs for a Wisconsin agency only, every 30 minutes; it is
+// off under NODE_ENV=test and when WORCS_POLL_DISABLED=true, and never overlaps itself.
+startWorcsPoll().catch((err) => logger.error('[worcsPoll] failed to start', { error: err?.message }))
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

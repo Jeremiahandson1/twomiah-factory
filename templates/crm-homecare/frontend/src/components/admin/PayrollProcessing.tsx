@@ -5,6 +5,7 @@ import { formatDate } from '../../utils/date';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import PaydayVerificationSetting from './PaydayVerificationSetting';
 
 const PayrollProcessing = () => {
   const { token } = useAuth();
@@ -447,6 +448,7 @@ const PayrollProcessing = () => {
 
   return (
     <div>
+      <PaydayVerificationSetting />
       <div className="page-header">
         <h2>💰 Payroll Processing</h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>

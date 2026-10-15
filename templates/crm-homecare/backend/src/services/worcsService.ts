@@ -45,8 +45,8 @@ const buildSOAPRequest = (credentials: WORCSCredentials, applicantData: Applican
       <wor:request>
         <wor:FirstName>${escapeXml(firstName)}</wor:FirstName>
         <wor:LastName>${escapeXml(lastName)}</wor:LastName>
-        <wor:DateOfBirth>${dateOfBirth}</wor:DateOfBirth>
-        <wor:SSN>${ssn}</wor:SSN>
+        <wor:DateOfBirth>${escapeXml(dateOfBirth)}</wor:DateOfBirth>
+        <wor:SSN>${escapeXml(ssn)}</wor:SSN>
         <wor:RequestPurpose>${requestPurpose}</wor:RequestPurpose>
         <wor:RequesterReference>${Date.now()}</wor:RequesterReference>
       </wor:request>
@@ -141,6 +141,7 @@ export const submitBackgroundCheck = async (applicantData: ApplicantData) => {
 }
 
 export const getCheckResults = async (referenceNumber: string) => {
+  if (!referenceNumber) throw new Error('referenceNumber is required')
   if (referenceNumber.startsWith('MOCK-')) {
     return {
       referenceNumber,
@@ -187,7 +188,9 @@ export const getCheckResults = async (referenceNumber: string) => {
 
     return {
       referenceNumber,
-      status: parsed.status === 'Completed' ? 'completed' : 'pending',
+      // "Complete" as well as "Completed": the result mapping above accepts both, and a status that
+      // disagreed with it left a finished check polling forever.
+      status: (parsed.status === 'Completed' || parsed.status === 'Complete') ? 'completed' : 'pending',
       result,
       hasRecord: parsed.hasRecord,
       rawResult: parsed.result,

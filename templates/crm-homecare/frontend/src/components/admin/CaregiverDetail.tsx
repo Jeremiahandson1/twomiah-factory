@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
 import { useAuth } from '../../contexts/AuthContext';
+import EligibilityCard, { isWisconsinAgency } from './EligibilityCard';
 
 const fmt$ = (n) => n != null ? `$${parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')}` : '—';
 const fmtHrs = (n) => n != null ? `${parseFloat(n||0).toFixed(2)}h` : '—';
@@ -36,7 +37,7 @@ const TABS = [
 ];
 
 export default function CaregiverDetail({ caregiverId, onBack, onHireComplete }) {
-  const { token } = useAuth();
+  const { token, company } = useAuth();
   const [tab, setTab] = useState('overview');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -888,6 +889,8 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
   // ── BACKGROUND CHECKS ─────────────────────────────────────────────────────────
   const renderBackground = () => (
     <div>
+      {/* Automated WI caregiver eligibility from the latest WORCS check (Wisconsin agencies) */}
+      {isWisconsinAgency(company) && <EligibilityCard caregiverId={caregiverId} token={token} />}
       <div style={{...s.card}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
           <div style={{fontWeight:800,fontSize:'0.95rem'}}>🔍 Background Checks</div>

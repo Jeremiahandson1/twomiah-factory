@@ -8,6 +8,7 @@ import MileageTracker from './MileageTracker';
 import ShiftMissReport from './caregiver/ShiftMissReport';
 import CaregiverHelp from './caregiver/CaregiverHelp';
 import CaregiverMessages from './caregiver/CaregiverMessages';
+import PaydayVerificationModal from './caregiver/PaydayVerificationModal';
 import { useGeolocation, useHaptics, useOfflineSync, useBackgroundGeolocation, isNative, platform } from '../hooks/useNative';
 import OfflineBanner from './OfflineBanner';
 import { useAuth } from '../contexts/AuthContext';
@@ -112,6 +113,15 @@ const CaregiverDashboard = ({ onLogout }) => {
   const [showMissReport, setShowMissReport] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
+  // Payday verification: last pay period's hours to confirm. Null unless the agency switched the prompt on.
+  const [pendingVerification, setPendingVerification] = useState<any>(null);
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_BASE_URL}/api/payroll-verification/me/pending`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.pending) setPendingVerification(d.pending); })
+      .catch(() => {});
+  }, [token]);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [showMoreDrawer, setShowMoreDrawer] = useState(false);
 
@@ -1228,6 +1238,16 @@ const CaregiverDashboard = ({ onLogout }) => {
 
       {/* Messages Modal */}
       {showMessages && <CaregiverMessages onClose={() => { setShowMessages(false); setUnreadMessages(0); }} />}
+
+      {/* Payday verification — can be put off, so it never blocks clocking in or out */}
+      {pendingVerification && !showMessages && (
+        <PaydayVerificationModal
+          pending={pendingVerification}
+          token={token}
+          onResolved={() => setPendingVerification(null)}
+          onLater={() => setPendingVerification(null)}
+        />
+      )}
 
       {/* Help Modal */}
       {showHelp && <CaregiverHelp onClose={() => setShowHelp(false)} />}

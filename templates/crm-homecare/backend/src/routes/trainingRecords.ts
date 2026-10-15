@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { trainingRecords, users } from '../../db/schema.ts'
 import { eq, desc } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -64,11 +64,31 @@ app.get('/:id', async (c) => {
   return c.json(rows)
 })
 
-// POST /api/training-records
-app.post('/', async (c) => {
-  const body = await c.req.json()
-  const [row] = await db.insert(trainingRecords).values(body).returning()
+// POST /api/training-records — the office records training
+app.post('/', requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as any
+  if (!body.caregiverId || !body.trainingName) return c.json({ error: 'caregiverId and trainingName are required' }, 400)
+  const user = c.get('user') as any
+  const [row] = await db.insert(trainingRecords).values({
+    caregiverId: body.caregiverId,
+    trainingName: body.trainingName,
+    provider: body.provider || null,
+    completedDate: body.completedDate || null,
+    expiryDate: body.expiryDate || null,
+    hoursCompleted: body.hoursCompleted === '' || body.hoursCompleted == null ? null : String(body.hoursCompleted),
+    certificateUrl: body.certificateUrl || null,
+    certificationNumber: body.certificationNumber || null,
+    status: body.status || 'completed',
+    recordedById: user?.userId || null,
+  }).returning()
   return c.json(row, 201)
+})
+
+// DELETE /api/training-records/:id
+app.delete('/:id', requireAdmin, async (c) => {
+  const [row] = await db.delete(trainingRecords).where(eq(trainingRecords.id, c.req.param('id'))).returning({ id: trainingRecords.id })
+  if (!row) return c.json({ error: 'Training record not found' }, 404)
+  return c.json({ success: true })
 })
 
 export default app

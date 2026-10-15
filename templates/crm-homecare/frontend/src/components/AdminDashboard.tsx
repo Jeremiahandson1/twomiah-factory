@@ -31,6 +31,8 @@ import ExpenseManagement from './admin/ExpenseManagement';
 import CaregiverProfile from './admin/CaregiverProfile';
 import CaregiverHistory from './admin/CaregiverHistory';
 import ApplicationsDashboard from './admin/ApplicationsDashboard';
+import JobPostingsAdmin from './admin/JobPostingsAdmin';
+import OnboardingPacketsAdmin from './admin/OnboardingPacketsAdmin';
 import CarePlans from './admin/CarePlans';
 import IncidentReporting from './admin/IncidentReporting';
 import NotificationCenter from './admin/NotificationCenter';
@@ -108,6 +110,8 @@ const NAV_SECTIONS = [
       { id: 'caregivers', label: 'Caregivers', icon: '👥' },
       { id: 'performance', label: 'Performance', icon: '⭐' },
       { id: 'applications', label: 'Job Applications', icon: '📝' },
+      { id: 'job-postings', label: 'Job Postings', icon: '📋' },
+      { id: 'onboarding-packets', label: 'Onboarding Queue', icon: '📬' },
     ]
   },
   {
@@ -320,6 +324,8 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'onboarding': return <ClientOnboarding />;
       case 'performance': return <PerformanceRatings />;
       case 'applications': return <ApplicationsDashboard />;
+      case 'job-postings': return <JobPostingsAdmin />;
+      case 'onboarding-packets': return <OnboardingPacketsAdmin />;
       case 'care-plans': return <CarePlans />;
       case 'incidents': return <IncidentReporting />;
       case 'notifications': return <NotificationCenter />;
