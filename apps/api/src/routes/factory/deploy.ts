@@ -162,7 +162,7 @@ factory.post('/customers/:id/redeploy', requireRole('owner', 'admin'), async (c)
   const id = c.req.param('id')
   if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
 
-  const { data: tenant } = await supabase.from('tenants').select('slug').eq('id', id).maybeSingle()
+  const { data: tenant } = await supabase.from('tenants').select('slug, render_backend_url').eq('id', id).maybeSingle()
   const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (!job) return c.json({ error: 'No deployed services found' }, 400)
 
@@ -170,7 +170,7 @@ factory.post('/customers/:id/redeploy', requireRole('owner', 'admin'), async (c)
   // Fallback: look up services on Render by tenant slug if IDs weren't saved
   if ((!serviceIds || Object.keys(serviceIds).length === 0) && tenant?.slug) {
     console.log('[Redeploy] No stored service IDs, looking up by slug:', tenant.slug)
-    serviceIds = await findRenderServicesBySlug(tenant.slug)
+    serviceIds = await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
     // Save discovered IDs back to the job for next time
     if (Object.keys(serviceIds).length > 0) {
       await supabase.from('factory_jobs').update({ render_service_ids: serviceIds }).eq('id', job.id)
@@ -201,7 +201,7 @@ factory.post('/customers/:id/update-code', requireRole('owner', 'admin'), async 
   // Get service IDs for redeploy trigger
   let serviceIds = job?.render_service_ids || {}
   if (Object.keys(serviceIds).length === 0 && tenant.slug) {
-    serviceIds = await findRenderServicesBySlug(tenant.slug)
+    serviceIds = await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
   }
 
   // Regenerate the code from template using existing config
@@ -395,7 +395,7 @@ factory.post('/customers/:id/resync-shared-code', requireRole('owner', 'admin'),
 
     let serviceIds = job?.render_service_ids || {}
     if (Object.keys(serviceIds).length === 0 && tenant.slug) {
-      serviceIds = await findRenderServicesBySlug(tenant.slug)
+      serviceIds = await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
     }
 
     const config = (job.config || tenant.config || buildConfigFromTenantAndJob(tenant, job)) as GenerateConfig

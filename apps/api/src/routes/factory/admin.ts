@@ -214,7 +214,7 @@ factory.get('/customers/:id/domain/status', requireRole('owner', 'admin', 'edito
     // Fallback: try to find via Render API
     if (!renderHost && tenant.slug) {
       try {
-        const serviceIds = await findRenderServicesBySlug(tenant.slug)
+        const serviceIds = await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
         const primaryId = serviceIds.site || serviceIds.frontend
         if (primaryId && process.env.RENDER_API_KEY) {
           const svcRes = await fetch('https://api.render.com/v1/services/' + primaryId, {

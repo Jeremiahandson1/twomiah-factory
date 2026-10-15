@@ -446,7 +446,7 @@ async function handleDomainRegistration(opts: {
 
   // Wire Cloudflare + Resend + Render custom-domain attachment.
   const { findRenderServicesBySlug, wireDomainInfrastructure } = await import('../../services/deploy')
-  const services = await findRenderServicesBySlug(tenant.slug)
+  const services = await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
   const siteServiceId = services.site || services['website-premium'] || services.website
   const backendServiceId = services.backend || services.api
   let nameserversSet = false

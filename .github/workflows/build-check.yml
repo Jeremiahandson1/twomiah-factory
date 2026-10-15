@@ -2340,6 +2340,8 @@ jobs:
         run: bun run tests/shared/domain-renewal.test.ts
       - name: "A cancelled company restarts by paying — the offboard stops and the domain is locked again"
         run: bun run tests/shared/subscription-restart.test.ts
+      - name: "Every vertical's CRM backend is found on Render — a bought domain reaches the admin"
+        run: bun run tests/shared/render-service-lookup.test.ts
 
   store-suite:
     name: "Store behaviour suite (real PGlite)"

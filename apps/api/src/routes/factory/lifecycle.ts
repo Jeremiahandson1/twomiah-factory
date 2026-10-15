@@ -474,7 +474,7 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
     if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
 
     const { data: tenant, error: tErr } = await supabase.from('tenants')
-      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, sendgrid_domain_auth_id')
+      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, sendgrid_domain_auth_id, render_backend_url')
       .eq('id', tenantId).single()
     if (tErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
@@ -498,7 +498,7 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
     // Find the tenant's Render service IDs so we can attach Render custom
     // domains too. Reuses the wireDomainInfrastructure path that signup uses.
     const { findRenderServicesBySlug, wireDomainInfrastructure } = await import('../../services/deploy')
-    const services = await findRenderServicesBySlug(tenant.slug)
+    const services = await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
     const siteServiceId = services.site || services['website-premium'] || services.website
     const backendServiceId = services.backend || services.api
 

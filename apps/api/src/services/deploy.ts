@@ -2007,8 +2007,25 @@ export async function updateCustomerCode(
   }
 }
 
-export async function findRenderServicesBySlug(slug: string): Promise<Record<string, string>> {
+/**
+ * Every name a CRM backend is given at deploy (crmApiName above): slug + one of these. Kept beside the lookup so the two
+ * cannot drift — tests/shared/render-service-lookup.test.ts fails if the naming line gains a suffix this list lacks.
+ *
+ * The lookup used to know only '-api' and '-care-api', so for every other vertical (-shop-api, -roof-api, -wrench-api…)
+ * it found NO backend: a domain bought for a store or a roofer never had app.<domain> attached to its admin on Render,
+ * and a redeploy/visualizer lookup by slug came back empty. (10/14, found writing the store E2E script)
+ */
+export const CRM_API_SUFFIXES = ['-api', '-care-api', '-wrench-api', '-drive-api', '-roof-api', '-landscape-api', '-leaf-api', '-rv-api', '-vet-api', '-salon-api', '-events-api', '-shop-api', '-basic-api'] as const
+
+/**
+ * The tenant's Render services, by role. `backendUrl` (tenants.render_backend_url) names the backend exactly — preferred,
+ * because names can collide across tenants ("acme" + "-roof-api" is also tenant "acme-roof" + "-api"). Without it, the
+ * backend is found by CRM_API_SUFFIXES.
+ */
+export async function findRenderServicesBySlug(slug: string, opts: { backendUrl?: string | null } = {}): Promise<Record<string, string>> {
   const serviceIds: Record<string, string> = {}
+  const hostOf = (u?: string | null) => (u || '').replace(/^https?:\/\//, '').split('/')[0].toLowerCase()
+  const wantBackendHost = hostOf(opts.backendUrl)
   try {
     // Paged: the list used to stop at the first 100 services, so a tenant past that silently had "no services".
     const list: any[] = []
@@ -2023,15 +2040,18 @@ export async function findRenderServicesBySlug(slug: string): Promise<Record<str
       if (!cursor || batch.length < 100) break
     }
     const suffixes: Record<string, string> = {
-      '-api': 'backend', '-care-api': 'backend',
+      ...Object.fromEntries(CRM_API_SUFFIXES.map((s) => [s, 'backend'])),
       '-frontend': 'frontend', '-care': 'frontend',
       '-site': 'site',
       '-pricing-api': 'pricing',
       '-vision': 'vision',
     }
+    let backendByUrl: string | undefined
     for (const item of list) {
       const svc = item.service || item
       const name: string = svc.name || ''
+      // The stored URL is the backend's own host — the one exact answer, whatever the name.
+      if (wantBackendHost && hostOf(svc.serviceDetails?.url) === wantBackendHost) backendByUrl = svc.id
       if (!name.startsWith(slug)) continue
       for (const [suffix, role] of Object.entries(suffixes)) {
         if (name === slug + suffix || name.startsWith(slug + suffix + '-')) {
@@ -2040,6 +2060,8 @@ export async function findRenderServicesBySlug(slug: string): Promise<Record<str
         }
       }
     }
+    // The stored URL wins; the name match stays the fallback (a URL that matches nothing — stale, or a tenant with none).
+    if (backendByUrl) serviceIds.backend = backendByUrl
   } catch (e: any) {
     console.warn('[Deploy] Could not look up services by slug:', e.message)
   }
