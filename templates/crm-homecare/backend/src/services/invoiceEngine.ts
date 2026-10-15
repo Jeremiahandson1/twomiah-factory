@@ -32,14 +32,14 @@
 //     and refuses with the same message when there is none.
 //   · A per-15-minute rate bills units on EVERY path (CVHC's manual/edit paths multiplied hours by
 //     a per-unit rate).
-//   · Times are the AGENCY's clock (agencies.settings.timezone, else its state), not a hard-coded
-//     America/Chicago; a punch belongs to the local day it happened on.
+//   · Times are the AGENCY's clock (services/agencyTime.ts), not a hard-coded America/Chicago; a
+//     punch belongs to the local day it happened on.
 //   · Each line's amount is rounded to the cent, and the invoice total is the sum of its lines.
 import { sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { db } from '../../db/index.ts'
-import { agencies, invoices } from '../../db/schema.ts'
-import { companyRowTimeZone } from '../shared/index.ts'
+import { invoices } from '../../db/schema.ts'
+import { agencyTimezone, addDays } from './agencyTime.ts'
 import { occurrencesCte } from './scheduleOccurrences.ts'
 
 type Dbc = { execute: (q: any) => Promise<any> }
@@ -61,26 +61,6 @@ export const MAX_LINE_ITEM_DESC = 255
 export const round2 = (n: number) => Math.round(n * 100) / 100
 
 
-/** The agency's clock: what it configured, else its state's zone, else UTC. */
-export async function agencyTimeZone(): Promise<string> {
-  try {
-    const [a] = await db.select({ settings: agencies.settings, state: agencies.state }).from(agencies).limit(1)
-    return companyRowTimeZone(a || null)
-  } catch {
-    return 'UTC'
-  }
-}
-
-/** Today's date (YYYY-MM-DD) on the agency's clock. */
-export function localToday(tz: string, at: Date = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
-}
-
-export const addDays = (dateStr: string, n: number) => {
-  const d = new Date(dateStr + 'T12:00:00Z')
-  d.setUTCDate(d.getUTCDate() + n)
-  return d.toISOString().slice(0, 10)
-}
 
 // "HH:MM[:SS]" → minutes since midnight
 export const minutesOf = (hms: any): number | null => {
@@ -255,7 +235,7 @@ export async function generateLineItems(
   if (!resolved || !(resolved.rate > 0)) throw noRateRefusal(client)
   const privatePay = !!client.is_private_pay
   const amountFor = (hours: number) => lineAmount(hours, resolved)
-  const tz = await agencyTimeZone()
+  const tz = await agencyTimezone()
 
   // Training shifts are paid, never billed: neither their punches nor their occurrences bill.
   const trainingJoin = sql.raw(`LEFT JOIN schedules ts ON te.schedule_id = ts.id`)

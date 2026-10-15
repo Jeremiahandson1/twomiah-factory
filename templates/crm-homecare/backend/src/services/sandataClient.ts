@@ -14,32 +14,16 @@
 import { db } from '../../db/index.ts'
 import { agencies } from '../../db/schema.ts'
 import { decrypt } from '../utils/encryption.ts'
+import { resolveTimezone } from './agencyTime.ts'
 
 export const UAT_BASE = 'https://uat-api.sandata.com/interfaces/intake'
 export const PROD_BASE = 'https://api.sandata.com/interfaces/intake'
-
-// Fallback when the agency has not set an EVV timezone: the primary zone of its state.
-const STATE_TZ: Record<string, string> = {}
-for (const s of ['CT', 'DE', 'DC', 'FL', 'GA', 'IN', 'KY', 'ME', 'MD', 'MA', 'MI', 'NH', 'NJ', 'NY', 'NC', 'OH', 'PA', 'RI', 'SC', 'VT', 'VA', 'WV']) STATE_TZ[s] = 'America/New_York'
-for (const s of ['AL', 'AR', 'IL', 'IA', 'KS', 'LA', 'MN', 'MS', 'MO', 'NE', 'ND', 'OK', 'SD', 'TN', 'TX', 'WI']) STATE_TZ[s] = 'America/Chicago'
-for (const s of ['CO', 'ID', 'MT', 'NM', 'UT', 'WY']) STATE_TZ[s] = 'America/Denver'
-STATE_TZ.AZ = 'America/Phoenix'
-for (const s of ['CA', 'NV', 'OR', 'WA']) STATE_TZ[s] = 'America/Los_Angeles'
-STATE_TZ.AK = 'America/Anchorage'
-STATE_TZ.HI = 'Pacific/Honolulu'
-
-// The template's existing default zone (ai_receptionist_settings.timezone) when nothing else is known.
-const DEFAULT_TZ = 'America/Chicago'
 
 const STATE_NAMES: Record<string, string> = { WISCONSIN: 'WI' }
 
 export function stateCode(state: string | null | undefined): string {
   const s = String(state || '').trim().toUpperCase()
   return STATE_NAMES[s] || s.slice(0, 2)
-}
-
-export function isValidTimeZone(tz: string): boolean {
-  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true } catch { return false }
 }
 
 // Sandata's VisitTimeZone / ClientTimezone vocabulary.
@@ -83,8 +67,8 @@ export async function getConfig(): Promise<SandataConfig> {
   const providerId = agency?.medicaidId || env.SANDATA_PROVIDER_ID || env.AGENCY_MEDICAID_ID || null
   const baseUrl = String(agency?.sandataApiUrl || env.SANDATA_API_URL || UAT_BASE).replace(/\/+$/, '')
   const state = stateCode(agency?.state)
-  const tzSet = agency?.evvTimezone && isValidTimeZone(agency.evvTimezone) ? agency.evvTimezone : null
-  const timezone = tzSet || STATE_TZ[state] || DEFAULT_TZ
+  // EVV weeks and visit dates are on the agency's one clock (services/agencyTime.ts).
+  const timezone = resolveTimezone(agency ? { timezone: agency.timezone, state } : null)
   return {
     baseUrl, username, password, accountId, providerId,
     isConfigured: !!(username && password && accountId && providerId),

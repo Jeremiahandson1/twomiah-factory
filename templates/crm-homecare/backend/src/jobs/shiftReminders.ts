@@ -11,7 +11,7 @@
 import { sql } from 'drizzle-orm'
 import { rows } from '../helpers/scheduleRows.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
-import { agencyNow } from '../helpers/agencyTime.ts'
+import { agencyNow } from '../services/agencyTime.ts'
 import { sendCaregiverAlert } from '../services/visitNotify.ts'
 
 export async function scanShiftReminders(at: Date = new Date()): Promise<number> {

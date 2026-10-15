@@ -15,13 +15,16 @@ import jwt from 'jsonwebtoken'
 import { db } from '../../db/index.ts'
 import {
   clients, agencies, familyMembers, familyMessages, carePlans, medications, timeEntries, users,
-  schedules, portalMessageThreads, portalMessages,
+  portalMessageThreads, portalMessages,
 } from '../../db/schema.ts'
 import { eq, desc, asc, and, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
 import { caregiversServingClient, backgroundCheckSummary } from './portal.ts'
+import { occurrencesCte } from '../services/scheduleOccurrences.ts'
+import { agencyToday, addDays } from '../services/agencyTime.ts'
+import { listClientVitals } from '../services/vitals.ts'
 import type { Context, Next } from 'hono'
 
 const app = new Hono()
@@ -377,27 +380,26 @@ app.get('/portal/client', familyAuth, async (c) => {
   return c.json({ ...client, agencyName: agency?.name || null, agencyState: agency?.state || null })
 })
 
-// Dated shifts from today on (the source CRM's rule for this screen).
+// The next four weeks of visits from the agency's today, through the ONE schedule engine: weekly and
+// bi-weekly patterns as well as one-time visits, cancelled days gone, a covering caregiver's name on
+// the day they cover, nothing after a suspension. (The source CRM listed only dated one-time rows.)
+export const FAMILY_SCHEDULE_DAYS = 28
 app.get('/portal/schedule', familyAuth, async (c) => {
   if (!allowed(c, 'canViewSchedule')) return c.json({ error: 'Access denied' }, 403)
-  const rows = await db.select({
-    id: schedules.id,
-    date: schedules.date,
-    startTime: sql<string>`to_char(${schedules.startTime}, 'HH24:MI')`,
-    endTime: sql<string>`to_char(${schedules.endTime}, 'HH24:MI')`,
-    notes: schedules.notes,
-    caregiverFirst: users.firstName,
-    caregiverLast: users.lastName,
-  })
-    .from(schedules)
-    .leftJoin(users, eq(schedules.caregiverId, users.id))
-    .where(and(
-      eq(schedules.clientId, c.get('familyClientId') as string),
-      eq(schedules.isActive, true),
-      sql`${schedules.date} >= CURRENT_DATE`,
-    ))
-    .orderBy(asc(schedules.date), asc(schedules.startTime))
-  return c.json(rows)
+  const clientId = c.get('familyClientId') as string
+  const today = await agencyToday()
+  const r: any = await db.execute(sql`
+    WITH ${occurrencesCte(today, addDays(today, FAMILY_SCHEDULE_DAYS - 1))}
+    SELECT occ.schedule_id || ':' || to_char(occ.occ_date, 'YYYY-MM-DD') AS id, occ.schedule_id,
+           to_char(occ.occ_date, 'YYYY-MM-DD') AS date,
+           to_char(occ.start_time, 'HH24:MI') AS "startTime", to_char(occ.end_time, 'HH24:MI') AS "endTime",
+           s.notes, u.first_name AS "caregiverFirst", u.last_name AS "caregiverLast"
+      FROM occ
+      JOIN schedules s ON s.id = occ.schedule_id
+      LEFT JOIN users u ON u.id = occ.caregiver_id
+     WHERE occ.client_id = ${clientId}
+     ORDER BY occ.occ_date, occ.start_time`)
+  return c.json(r?.rows ?? r)
 })
 
 // Caregivers are part of the schedule tier. No phone numbers for relatives.
@@ -447,6 +449,19 @@ app.get('/portal/medications', familyAuth, async (c) => {
     .where(and(eq(medications.clientId, c.get('familyClientId') as string), eq(medications.status, 'active')))
     .orderBy(asc(medications.name))
   return c.json(rows)
+})
+
+// Vitals are part of the same clinical tier as medications (the source CRM's rule): the latest 60.
+app.get('/portal/vitals', familyAuth, async (c) => {
+  if (!allowed(c, 'canViewMedications')) return c.json({ error: 'Access denied' }, 403)
+  const rows = await listClientVitals(c.get('familyClientId') as string, 60)
+  return c.json(rows.map((v: any) => ({
+    id: v.id, recorded_at: v.recorded_at,
+    systolic_bp: v.systolic_bp, diastolic_bp: v.diastolic_bp, pulse: v.pulse, respirations: v.respirations,
+    oxygen_saturation: v.oxygen_saturation, temperature_f: v.temperature_f, blood_glucose: v.blood_glucose,
+    weight_lbs: v.weight_lbs, pain_scale: v.pain_scale, pain_location: v.pain_location, notes: v.notes,
+    caregiver_first: v.caregiver_first, caregiver_last: v.caregiver_last,
+  })))
 })
 
 // Visit notes are part of the care-plan tier.

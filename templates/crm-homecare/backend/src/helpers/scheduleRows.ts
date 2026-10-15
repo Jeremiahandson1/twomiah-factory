@@ -33,6 +33,12 @@ export async function one<T = any>(q: SQL): Promise<T | null> {
   return (await rows<T>(q))[0] ?? null
 }
 
+/** Rows of a query run on `q` — `db` or a transaction handle (inside a transaction, never `db`). */
+export async function rowsOf(q: { execute: (q: SQL) => Promise<any> }, query: SQL): Promise<any[]> {
+  const r: any = await q.execute(query)
+  return (r?.rows ?? r ?? []) as any[]
+}
+
 /** One schedule row in the API shape, or null. */
 export async function scheduleById(id: string, activeOnly = false): Promise<any | null> {
   return one(sql`SELECT ${SCHED_COLS()} FROM schedules s WHERE s.id = ${id} ${activeOnly ? sql`AND s.is_active = true` : sql``}`)

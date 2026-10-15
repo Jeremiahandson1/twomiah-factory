@@ -11,7 +11,7 @@ import { eq, and, desc, asc, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { formTemplates, formSubmissions, users, clients, agencies } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
-import { agencyState, agencyTimeZone, formatInZone } from '../utils/agencyTimezone.ts'
+import { agencyState, agencyTimezone, formatInZone } from '../services/agencyTime.ts'
 import { formSubmissionPdf, pdfFileName, ymdToUs } from '../services/carePdf.ts'
 import { isOffice, userIdOf, rowsOf } from '../helpers/careAudit.ts'
 
@@ -180,7 +180,7 @@ app.get('/submissions/:id/pdf', async (c) => {
     entityLine = s.entity_name
   }
   const [agency] = await db.select({ name: agencies.name }).from(agencies).limit(1)
-  const tz = await agencyTimeZone()
+  const tz = await agencyTimezone()
   const pdf = await formSubmissionPdf({
     agencyName: agency?.name || '',
     templateName: s.template_name || 'Form',

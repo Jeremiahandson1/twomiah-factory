@@ -22,7 +22,6 @@ import { db } from '../../db/index.ts'
 import {
   clients,
   agencies,
-  schedules,
   timeEntries,
   invoices,
   invoiceLineItems,
@@ -43,6 +42,8 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
 import { clientVisibleInvoiceSql } from '../services/invoiceEngine.ts'
+import { occurrencesCte } from '../services/scheduleOccurrences.ts'
+import { agencyToday, addDays } from '../services/agencyTime.ts'
 import type { Context, Next } from 'hono'
 
 const app = new Hono()
@@ -864,11 +865,12 @@ app.get('/me', portalAuth, async (c) => {
     .from(timeEntries)
     .where(and(eq(timeEntries.clientId, clientId), eq(timeEntries.isComplete, true)))
 
-  // Upcoming visits
-  const [upcomingResult] = await db
-    .select({ value: count() })
-    .from(schedules)
-    .where(and(eq(schedules.clientId, clientId), eq(schedules.isActive, true)))
+  // Upcoming visits: the next four weeks' occurrences, through the one schedule engine (the
+  // client's My Schedule lists the same ones).
+  const today = await agencyToday()
+  const upcomingRows: any = await db.execute(sql`WITH ${occurrencesCte(today, addDays(today, 27))}
+    SELECT COUNT(*)::int AS value FROM occ WHERE occ.client_id = ${clientId}`)
+  const upcomingResult = { value: Number((upcomingRows?.rows ?? upcomingRows)[0]?.value || 0) }
 
   // Outstanding balance
   const [balanceResult] = await db

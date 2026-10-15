@@ -1,7 +1,10 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { payrollShiftReviews, schedules, scheduleExceptions, timeEntries, users, clients } from '../../db/schema.ts'
-import { eq, and, gte, lte, sql, inArray } from 'drizzle-orm'
+import { payrollShiftReviews, timeEntries, users, clients } from '../../db/schema.ts'
+import { eq, and, sql, inArray } from 'drizzle-orm'
+import { occurrencesCte } from '../services/scheduleOccurrences.ts'
+import { agencyTimezone, localDate, isYmd } from '../services/agencyTime.ts'
+import { rowsOf } from '../helpers/scheduleRows.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
 
@@ -14,182 +17,83 @@ app.post('/generate-shifts', async (c) => {
     const { startDate, endDate } = await c.req.json()
     if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
 
-    const start = new Date(startDate)
-    const end = new Date(endDate)
+    if (!isYmd(startDate) || !isYmd(endDate) || endDate < startDate) return c.json({ error: 'startDate and endDate must be YYYY-MM-DD, start first' }, 400)
+    const tz = await agencyTimezone()
 
-    // Get all active schedules
-    const activeSchedules = await db.select({
-      schedule: schedules,
-      caregiverFirstName: users.firstName,
-      caregiverLastName: users.lastName,
+    // Every scheduled occurrence in the period, through the ONE schedule engine (one-time and
+    // weekly / bi-weekly patterns, effective and end dates, cancelled and modified exceptions,
+    // suspended service, overnight shifts) — the same visits billing and the reports count.
+    const occ = rowsOf(await db.execute(sql`
+      WITH ${occurrencesCte(startDate, endDate)}
+      SELECT occ.schedule_id, to_char(occ.occ_date, 'YYYY-MM-DD') AS shift_date, occ.caregiver_id, occ.client_id,
+             to_char(occ.start_time, 'HH24:MI') AS start_hhmm, to_char(occ.end_time, 'HH24:MI') AS end_hhmm, occ.minutes
+        FROM occ
+       WHERE occ.caregiver_id IS NOT NULL
+       ORDER BY occ.occ_date, occ.start_time`))
+
+    // Completed time entries whose start falls on a day of the period on the AGENCY's calendar.
+    const entries = await db.select({
+      id: timeEntries.id, caregiverId: timeEntries.caregiverId, clientId: timeEntries.clientId,
+      startTime: timeEntries.startTime, endTime: timeEntries.endTime,
+      durationMinutes: timeEntries.durationMinutes, billableMinutes: timeEntries.billableMinutes,
+      localDate: sql<string>`to_char(${localDate(sql`${timeEntries.startTime}`, tz)}, 'YYYY-MM-DD')`,
     })
-      .from(schedules)
-      .leftJoin(users, eq(schedules.caregiverId, users.id))
-      .where(eq(schedules.isActive, true))
-
-    // Get all completed time entries for the period
-    const entries = await db.select()
       .from(timeEntries)
       .where(and(
-        gte(timeEntries.startTime, start),
-        lte(timeEntries.startTime, end),
         eq(timeEntries.isComplete, true),
+        sql`${localDate(sql`${timeEntries.startTime}`, tz)} BETWEEN ${startDate}::date AND ${endDate}::date`,
       ))
+      .orderBy(timeEntries.startTime)
 
-    // Build a lookup map of time entries by caregiver+date+client
+    // Lookup of time entries by caregiver + agency day + client
     const entryMap = new Map<string, typeof entries[0][]>()
-    entries.forEach(e => {
-      const date = new Date(e.startTime).toISOString().split('T')[0]
-      const key = `${e.caregiverId}|${date}|${e.clientId}`
+    for (const e of entries) {
+      const key = `${e.caregiverId}|${e.localDate}|${e.clientId}`
       if (!entryMap.has(key)) entryMap.set(key, [])
       entryMap.get(key)!.push(e)
-    })
+    }
 
-    // Also build a looser map (caregiver+date only) for schedules with null clientId
-    const entryByDateMap = new Map<string, typeof entries[0][]>()
-    entries.forEach(e => {
-      const date = new Date(e.startTime).toISOString().split('T')[0]
-      const key = `${e.caregiverId}|${date}`
-      if (!entryByDateMap.has(key)) entryByDateMap.set(key, [])
-      entryByDateMap.get(key)!.push(e)
-    })
-
-    // Load schedule exceptions for the period
-    const exceptions = await db.select()
-      .from(scheduleExceptions)
-      .where(and(
-        gte(scheduleExceptions.exceptionDate, startDate),
-        lte(scheduleExceptions.exceptionDate, endDate),
-      ))
-    const exceptionMap = new Map<string, typeof exceptions[0]>()
-    exceptions.forEach(ex => {
-      exceptionMap.set(`${ex.scheduleId}|${ex.exceptionDate}`, ex)
-    })
-
-    // Expand schedules into shift occurrences
     const reviews: any[] = []
     let matched = 0, missingPunch = 0
 
-    for (const row of activeSchedules) {
-      const sched = row.schedule
-      if (!sched.caregiverId) continue
+    for (const o of occ) {
+      const candidates = entryMap.get(`${o.caregiver_id}|${o.shift_date}|${o.client_id}`)
+      const matchedEntry = candidates?.shift() // one punch answers one visit
+      const scheduledMinutes: number | null = o.minutes == null ? null : Number(o.minutes)
 
-      // Generate dates this schedule applies to
-      let dates: string[] = []
-      if (sched.scheduleType === 'one-time' && sched.date) {
-        // Only include if the one-time date falls within the pay period
-        const d = new Date(sched.date)
-        if (d >= start && d <= end) {
-          dates.push(sched.date)
-        }
-      } else if (sched.dayOfWeek !== null && sched.dayOfWeek !== undefined) {
-        // Determine the effective end: min of pay period end, schedule endDate
-        let schedEnd = end
-        if (sched.endDate) {
-          const se = new Date(sched.endDate)
-          if (se < schedEnd) schedEnd = se
-        }
+      let status = 'pending'
+      let actualMinutes: number | null = null
 
-        // Recurring: generate all matching dates in the period
-        const cursor = new Date(start)
-        while (cursor <= schedEnd) {
-          if (cursor.getDay() === sched.dayOfWeek) {
-            dates.push(cursor.toISOString().split('T')[0])
-          }
-          cursor.setDate(cursor.getDate() + 1)
+      if (matchedEntry) {
+        actualMinutes = matchedEntry.durationMinutes
+        // Auto-verify if within 15 minutes of scheduled
+        if (scheduledMinutes && actualMinutes && Math.abs(actualMinutes - scheduledMinutes) <= 15) {
+          status = 'verified'
         }
-
-        // Filter for bi-weekly: only include every other week based on anchorDate
-        if (sched.frequency === 'bi-weekly' && sched.anchorDate) {
-          const anchor = new Date(sched.anchorDate).getTime()
-          const weekMs = 7 * 24 * 60 * 60 * 1000
-          dates = dates.filter(d => {
-            const diffWeeks = Math.floor((new Date(d).getTime() - anchor) / weekMs)
-            return diffWeeks % 2 === 0
-          })
-        }
+        matched++
+      } else {
+        status = 'missing_punch'
+        missingPunch++
       }
 
-      for (const shiftDate of dates) {
-        // Check for schedule exceptions
-        const exception = exceptionMap.get(`${sched.id}|${shiftDate}`)
-        if (exception?.exceptionType === 'cancelled') {
-          // Skip cancelled occurrences entirely
-          continue
-        }
-
-        // Use override caregiver/times if exception is 'modified'
-        const effectiveCaregiverId = exception?.overrideCaregiverId || sched.caregiverId
-        const effectiveClientId = exception?.overrideClientId || sched.clientId
-
-        // Find matching time entry
-        let matchedEntry: typeof entries[0] | undefined
-        if (effectiveClientId) {
-          const candidates = entryMap.get(`${effectiveCaregiverId}|${shiftDate}|${effectiveClientId}`)
-          matchedEntry = candidates?.[0]
-        } else {
-          const candidates = entryByDateMap.get(`${effectiveCaregiverId}|${shiftDate}`)
-          matchedEntry = candidates?.[0]
-        }
-
-        // Calculate scheduled minutes from start/end time
-        let scheduledMinutes: number | null = null
-        // Exception overrides are `time` type ("08:00"), schedule fields are `timestamp` type
-        const effectiveStart = exception?.overrideStartTime || sched.startTime
-        const effectiveEnd = exception?.overrideEndTime || sched.endTime
-        if (effectiveStart && effectiveEnd) {
-          // Extract hours:minutes regardless of whether input is time ("08:00") or timestamp
-          const parseMinutesOfDay = (val: any): number => {
-            const str = String(val)
-            // Try HH:MM or HH:MM:SS format first (time type)
-            const timeMatch = str.match(/^(\d{1,2}):(\d{2})/)
-            if (timeMatch) return parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2])
-            // Otherwise parse as Date (timestamp type)
-            const d = new Date(str)
-            if (!isNaN(d.getTime())) return d.getUTCHours() * 60 + d.getUTCMinutes()
-            return -1
-          }
-          const startMins = parseMinutesOfDay(effectiveStart)
-          const endMins = parseMinutesOfDay(effectiveEnd)
-          if (startMins >= 0 && endMins >= 0) {
-            scheduledMinutes = endMins >= startMins ? endMins - startMins : (1440 - startMins) + endMins
-          }
-        }
-
-        let status = 'pending'
-        let actualMinutes: number | null = null
-
-        if (matchedEntry) {
-          actualMinutes = matchedEntry.durationMinutes
-          // Auto-verify if within 15 minutes of scheduled
-          if (scheduledMinutes && actualMinutes && Math.abs(actualMinutes - scheduledMinutes) <= 15) {
-            status = 'verified'
-          }
-          matched++
-        } else {
-          status = 'missing_punch'
-          missingPunch++
-        }
-
-        reviews.push({
-          id: createId(),
-          payPeriodStart: startDate,
-          payPeriodEnd: endDate,
-          caregiverId: effectiveCaregiverId,
-          clientId: effectiveClientId,
-          scheduleId: sched.id,
-          timeEntryId: matchedEntry?.id || null,
-          shiftDate,
-          scheduledStart: effectiveStart ? String(effectiveStart).match(/(\d{1,2}:\d{2})/)?.[1] || null : null,
-          scheduledEnd: effectiveEnd ? String(effectiveEnd).match(/(\d{1,2}:\d{2})/)?.[1] || null : null,
-          scheduledMinutes,
-          actualStart: matchedEntry?.startTime || null,
-          actualEnd: matchedEntry?.endTime || null,
-          actualMinutes,
-          payableMinutes: matchedEntry ? (matchedEntry.billableMinutes || actualMinutes) : null,
-          status,
-        })
-      }
+      reviews.push({
+        id: createId(),
+        payPeriodStart: startDate,
+        payPeriodEnd: endDate,
+        caregiverId: o.caregiver_id,
+        clientId: o.client_id,
+        scheduleId: o.schedule_id,
+        timeEntryId: matchedEntry?.id || null,
+        shiftDate: o.shift_date,
+        scheduledStart: o.start_hhmm || null,
+        scheduledEnd: o.end_hhmm || null,
+        scheduledMinutes,
+        actualStart: matchedEntry?.startTime || null,
+        actualEnd: matchedEntry?.endTime || null,
+        actualMinutes,
+        payableMinutes: matchedEntry ? (matchedEntry.billableMinutes || actualMinutes) : null,
+        status,
+      })
     }
 
     // Batch insert reviews in a transaction (atomic delete + insert)

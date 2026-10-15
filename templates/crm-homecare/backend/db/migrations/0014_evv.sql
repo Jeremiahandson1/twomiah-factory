@@ -17,8 +17,6 @@ ALTER TABLE "agencies" ADD COLUMN IF NOT EXISTS "sandata_api_url" text;
 --> statement-breakpoint
 ALTER TABLE "agencies" ADD COLUMN IF NOT EXISTS "sandata_agency_id" text;
 --> statement-breakpoint
-ALTER TABLE "agencies" ADD COLUMN IF NOT EXISTS "evv_timezone" text;
---> statement-breakpoint
 
 -- ── Payer Sandata settings ──────────────────────────────────────────────────────────────────
 -- sandata_evv_required: this payer's clients (with a Medicaid ID on file) are in Sandata, so

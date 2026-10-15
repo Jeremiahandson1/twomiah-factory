@@ -31,7 +31,7 @@ await setupSchema()
 const TZ = 'America/Chicago'
 const [ag] = await db.insert(agencies).values({
   name: 'Riverbend Home Care', slug: 'riverbend', state: 'WI', city: 'Springfield', phone: '555-0100',
-  settings: { timezone: TZ },
+  timezone: TZ,
 } as any).returning()
 
 const mkUser = async (role: string, first: string, last: string) => (await db.insert(users).values({
@@ -529,7 +529,7 @@ check('return summary says exactly what happened', back.json.summary ===
 {
   const root = process.env.FACTORY_ROOT + 'templates/crm-homecare/'
   const files = [
-    'backend/src/routes/incidents.ts', 'backend/src/services/incidentPdf.ts', 'backend/src/services/incidentSchedule.ts', 'backend/src/config/incidentOptions.ts',
+    'backend/src/routes/incidents.ts', 'backend/src/services/incidentPdf.ts', 'backend/src/services/scheduleOccurrences.ts', 'backend/src/config/incidentOptions.ts',
     ...readdirSync(root + 'frontend/src/components/admin').filter((f) => /^Incident/.test(f)).map((f) => `frontend/src/components/admin/${f}`),
     'frontend/src/components/caregiver/IncidentReportForm.tsx', 'frontend/src/utils/incidentOptions.ts',
   ]

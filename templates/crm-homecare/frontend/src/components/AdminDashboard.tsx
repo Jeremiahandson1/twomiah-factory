@@ -15,7 +15,6 @@ import FeaturesPage from './admin/FeaturesPage';
 
 // Admin pages
 import SubscriptionPricingPage from '../pages/billing/PricingPage';
-import ForecastPage from '../pages/ForecastPage';
 import AiReceptionistPage from '../pages/AiReceptionistPage';
 import PerformanceReviewsPage from '../pages/PerformanceReviewsPage';
 import NoShowPage from '../pages/NoShowPage';
@@ -60,6 +59,8 @@ import CommunicationLog from './admin/CommunicationLog';
 import NoShowAlerts from './admin/NoShowAlerts';
 import FormBuilder from './admin/FormBuilder';
 import RevenueForecast from './admin/RevenueForecast';
+import LiveBoard from './admin/LiveBoard';
+import ClientWeekHours from './admin/ClientWeekHours';
 import AIReceptionist from './admin/AIReceptionist';
 import AdsPage from '../pages/ads/AdsPage';
 import PayersServiceCodes from './admin/PayersServiceCodes';
@@ -94,6 +95,7 @@ const NAV_SECTIONS = [
     id: 'scheduling', label: 'Scheduling', icon: '📅',
     items: [
       { id: 'scheduling', label: 'Schedule Hub', icon: '📅' },
+      { id: 'live-board', label: 'Live Board', icon: '📡' },
       { id: 'emergency-coverage', label: 'Emergency Coverage', icon: '🚨' },
       { id: 'no-show-alerts', label: 'No-Show Alerts', icon: '⏰' },
       { id: 'shift-approvals', label: 'Shift Approvals', icon: '⚠️' },
@@ -131,6 +133,7 @@ const NAV_SECTIONS = [
       { id: 'billing-engine', label: 'Claims & EVV Engine', icon: '⚡' },
       { id: 'payers-service-codes', label: 'Payers & Codes', icon: '🏦' },
       { id: 'authorizations', label: 'Authorizations', icon: '📋' },
+      { id: 'client-week', label: 'Client Hours by Week', icon: '🗓️' },
       { id: 'payroll', label: 'Payroll', icon: '💵' },
       { id: 'expenses', label: 'Expenses', icon: '💳' },
       { id: 'reports', label: 'Reports & Analytics', icon: '📊' },
@@ -325,7 +328,9 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'portal-claim-days': return <PortalClaimDays />;
       case 'billing-engine': return <BillingEngine />;
       case 'subscription-pricing': return <SubscriptionPricingPage />;
-      case 'forecast': return <ForecastPage />;
+      case 'forecast': return <RevenueForecast />;
+      case 'live-board': return <LiveBoard />;
+      case 'client-week': return <ClientWeekHours />;
       case 'ai-receptionist': return <AiReceptionistPage />;
       case 'performance-reviews': return <PerformanceReviewsPage />;
       case 'no-show': return <NoShowPage />;

@@ -11,7 +11,7 @@ import { schedTs, hms, shiftHours, DATE_RE } from '../services/scheduleOccurrenc
 import { CANCEL_REASONS } from '../helpers/cancelReasons.ts'
 import { checkAuthorizationBalance } from '../helpers/authorizationCheck.ts'
 
-import { agencyNow, addDaysYmd } from '../helpers/agencyTime.ts'
+import { agencyNow, addDays } from '../services/agencyTime.ts'
 import { recordAudit } from '../services/visitNotify.ts'
 
 const app = new Hono()
@@ -199,7 +199,7 @@ app.delete('/:scheduleId', requireAdmin, async (c) => {
   }
 
   if (scope === 'following') {
-    const endDate = addDaysYmd(date!, -1)
+    const endDate = addDays(date!, -1)
     await rows(sql`UPDATE schedules SET end_date = ${endDate}::date, updated_at = NOW() WHERE id = ${scheduleId} AND is_active = true`)
     const after = await scheduleById(scheduleId)
     await recordAudit(actor, 'END_PATTERN', 'schedules', scheduleId, shift, after, reason)
@@ -220,7 +220,7 @@ app.delete('/:scheduleId', requireAdmin, async (c) => {
   // scope=all on a recurring pattern: END it today; past occurrences stay visible and billable.
   if (isRecurring) {
     const { date: today } = await agencyNow()
-    const endStr = addDaysYmd(today, -1)
+    const endStr = addDays(today, -1)
     const effStr = shift.effective_date || (shift.created_at ? new Date(shift.created_at).toISOString().slice(0, 10) : today)
     if (endStr < effStr) {
       // It had not started yet — nothing to protect, remove it outright.

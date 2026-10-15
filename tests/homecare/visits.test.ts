@@ -29,7 +29,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'visits-test-secret'
 await setupSchema()
 
 // ── the agency runs on UTC here so "today" is the same day the test computes ─────────────────────────
-const [ag] = await db.insert(agencies).values({ name: 'Visits Care', slug: 'visitscare', settings: { timezone: 'UTC' } } as any).returning()
+const [ag] = await db.insert(agencies).values({ name: 'Visits Care', slug: 'visitscare', timezone: 'UTC' } as any).returning()
 const mkUser = async (role: string, tag: string, phone: string | null = null) => (await db.insert(users).values({
   email: `${tag}-visits@test.local`, passwordHash: 'x', firstName: tag, lastName: 'Tester', role, phone,
 } as any).returning())[0]

@@ -9,7 +9,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { rows, one, isOffice, userIdOf } from '../helpers/scheduleRows.ts'
 import { occurrencesCte, DATE_RE } from '../services/scheduleOccurrences.ts'
-import { agencyNow, addDaysYmd } from '../helpers/agencyTime.ts'
+import { agencyNow, addDays } from '../services/agencyTime.ts'
 import { notifyUser, recordAudit } from '../services/visitNotify.ts'
 
 const app = new Hono()
@@ -69,7 +69,7 @@ app.post('/', async (c) => {
   if (shiftDate && !DATE_RE.test(shiftDate)) return c.json({ error: 'shiftDate must be YYYY-MM-DD' }, 400)
   if (isRecurring && !shiftDate) {
     const { date: today } = await agencyNow()
-    const next = await one<any>(sql`WITH ${occurrencesCte(today, addDaysYmd(today, 90))}
+    const next = await one<any>(sql`WITH ${occurrencesCte(today, addDays(today, 90))}
       SELECT to_char(occ.occ_date, 'YYYY-MM-DD') AS d FROM occ WHERE occ.schedule_id = ${b.scheduleId}
       ORDER BY occ.occ_date ASC LIMIT 1`)
     if (!next) return c.json({ error: 'This shift has no upcoming occurrences to swap.' }, 400)

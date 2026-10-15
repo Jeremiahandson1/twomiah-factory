@@ -26,7 +26,9 @@ import {
   ENTRY_TYPES, ATTACHMENT_CATEGORIES, TRAINING_ACK_METHODS, TRAINING_ACK_TRAINING_NAMES,
   ATTACHMENT_MAX_DATA_URI_LENGTH, ATTACHMENT_ALLOWED_MIME,
 } from '../config/incidentOptions.ts'
-import { agencyTimeZone, agencyToday, addDays, occurrencesCte, localDate, rowsOf, type Q } from '../services/incidentSchedule.ts'
+import { occurrencesCte } from '../services/scheduleOccurrences.ts'
+import { agencyTimezone, agencyToday, addDays, localDate, type Q } from '../services/agencyTime.ts'
+import { rowsOf } from '../helpers/scheduleRows.ts'
 import { loadIncidentCase, incidentPdfBuffer } from '../services/incidentPdf.ts'
 
 const app = new Hono()
@@ -170,7 +172,7 @@ async function insertIncident(tx: Q, b: any, reportedById: string, status = 'ope
 }
 
 async function addTimelineNote(q: Q, incidentId: string, entryType: string, summary: string, byId: string, entryDate?: string) {
-  const d = entryDate || await agencyToday(q)
+  const d = entryDate || await agencyToday(undefined, q)
   await q.execute(sql`
     INSERT INTO incident_investigation_notes (id, incident_id, entry_date, entry_type, summary, created_by_id)
     VALUES (${createId()}, ${incidentId}, ${d}::date, ${entryType}, ${summary}, ${byId})`)
@@ -212,7 +214,7 @@ app.get('/summary', requireAdmin, async (c) => {
 // Payer responses due within 3 days (or overdue) and not yet sent — the dashboard's action item.
 app.get('/responses-due', requireAdmin, async (c) => {
   try {
-    const today = await agencyToday(db)
+    const today = await agencyToday()
     const items = await rowsOf(db, sql`
       SELECT i.id, i.incident_number, to_char(i.response_due_date, 'YYYY-MM-DD') AS response_due_date_ymd,
              i.reported_by, NULLIF(TRIM(COALESCE(c.first_name, '') || ' ' || COALESCE(c.last_name, '')), '') AS client_name
@@ -230,7 +232,7 @@ app.get('/responses-due', requireAdmin, async (c) => {
 app.get('/my-clients', async (c) => {
   try {
     if (!FIELD_ROLES.has(role(c))) return c.json({ error: 'Not allowed' }, 403)
-    const today = await agencyToday(db)
+    const today = await agencyToday()
     const rule = role(c) === 'caregiver' ? sql`AND ${caregiverClientRule(userId(c), today)}` : sql``
     const rows = await rowsOf(db, sql`
       SELECT c.id, c.first_name, c.last_name FROM clients c
@@ -251,7 +253,7 @@ app.post('/caregiver-report', async (c) => {
     if (!validYmd(b.incidentDate)) return c.json({ error: 'Please enter the date' }, 400)
     if (isBlank(b.description)) return c.json({ error: 'Please describe what happened' }, 400)
     if (!isBlank(b.incidentTime) && !HHMM_RE.test(String(b.incidentTime))) return c.json({ error: 'Time must be HH:MM' }, 400)
-    const today = await agencyToday(db)
+    const today = await agencyToday()
     if (b.incidentDate > today) return c.json({ error: "The date can't be in the future" }, 400)
 
     const photos: any[] = Array.isArray(b.photos) ? b.photos : []
@@ -370,7 +372,7 @@ app.put('/:id', requireAdmin, async (c) => {
 
     const status = b.status || p.investigation_status || 'open'
     let closedDate: string | null = orNull(b.closedDate)
-    if (status === 'closed' && !closedDate) closedDate = await agencyToday(db)
+    if (status === 'closed' && !closedDate) closedDate = await agencyToday()
     if (status !== 'closed') closedDate = null
     const resolvedBy = status === 'closed' ? (p.resolved_by_id || userId(c)) : null
 
@@ -550,8 +552,8 @@ app.get('/:id/caregiver-schedule', requireAdmin, async (c) => {
         FROM incidents i WHERE i.id = ${c.req.param('id')}`)
     if (!i) return c.json({ error: 'Incident not found' }, 404)
     if (!i.caregiver_id || !i.client_id) return c.json({ caregiverId: i.caregiver_id || null, schedules: [], upcomingVisits: 0, lastVisit: null })
-    const tz = await agencyTimeZone(db)
-    const today = await agencyToday(db, tz)
+    const tz = await agencyTimezone()
+    const today = await agencyToday(tz)
     const removal = parseRemoval(i.caregiver_removal)
     const removalActive = !!(i.removed_from && !i.returned_on)
     // The rows this removal took off the schedule still belong in the list, shown as paused.
@@ -589,7 +591,10 @@ app.get('/:id/caregiver-schedule', requireAdmin, async (c) => {
 // ─── Remove caregiver from this client pending investigation ─────────────────
 // Takes THIS caregiver off THIS client's schedule from fromDate: a recurring pattern is end-dated
 // the day before, a one-time visit on/after fromDate is deactivated. Every reader in this template
-// (calendar, coverage, payroll review, the caregiver's phone) already honours both. Before that:
+// (calendar, coverage, payroll review, the caregiver's phone) already honours both. Not
+// schedules.suspended_from: that column is the CLIENT's "suspend service" switch (visits'
+// Suspend Service panel sets and clears it for all of a client's patterns), so pausing one caregiver
+// through it would be undone by resuming the client's service. Before that:
 //   · their upcoming visits are expanded and posted as open shifts for coverage (when asked);
 //   · visits on their patterns already covered by ANOTHER caregiver (a per-day override) become that
 //     caregiver's own one-time visits, or ending the pattern would erase them;
@@ -618,7 +623,7 @@ app.post('/:id/remove-caregiver', requireAdmin, async (c) => {
       if (!inc.client_id) throw new IncidentHttpError(400, 'This incident has no client.')
       if (inc.removed_from && !inc.caregiver_returned_on) throw new IncidentHttpError(409, `This caregiver is already removed, effective ${inc.removed_from}.`)
 
-      const today = await agencyToday(tx)
+      const today = await agencyToday(undefined, tx)
       const fromDate = isBlank(b.fromDate) ? today : String(b.fromDate)
       if (!validYmd(fromDate)) throw new IncidentHttpError(400, 'Start date must be a valid date')
       if (fromDate < today) throw new IncidentHttpError(400, 'Removal can start today or later. Visits already worked stay as they are.')
@@ -771,7 +776,7 @@ app.post('/:id/return-caregiver', requireAdmin, async (c) => {
       if (!inc) throw new IncidentHttpError(404, 'Incident not found')
       if (!inc.removed_from || inc.caregiver_returned_on) throw new IncidentHttpError(409, 'The caregiver is not currently removed from this schedule.')
       const removal = parseRemoval(inc.caregiver_removal) || {}
-      const today = await agencyToday(tx)
+      const today = await agencyToday(undefined, tx)
       const dayBefore = addDays(removal.from_date || inc.removed_from, -1)
 
       const restored: string[] = [], skipped: string[] = []
@@ -867,7 +872,7 @@ app.post('/:id/training-acknowledgement', requireAdmin, async (c) => {
       if (!inc) throw new IncidentHttpError(404, 'Incident not found')
       if (!inc.caregiver_id) throw new IncidentHttpError(400, 'This incident has no caregiver')
       if (inc.training_ack_signed_at) throw new IncidentHttpError(409, 'The acknowledgement for this incident is already signed')
-      const today = await agencyToday(tx)
+      const today = await agencyToday(undefined, tx)
       const [ag] = await rowsOf(tx, sql`SELECT name FROM agencies ORDER BY created_at LIMIT 1`)
 
       await tx.execute(sql`

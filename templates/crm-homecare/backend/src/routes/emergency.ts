@@ -8,7 +8,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { rows, one, isOffice, userIdOf } from '../helpers/scheduleRows.ts'
 import { occurrencesCte, hms, schedTs, DATE_RE } from '../services/scheduleOccurrences.ts'
 import { CLIENT_UNAVAILABLE_REASONS } from '../helpers/cancelReasons.ts'
-import { agencyNow, addDaysYmd } from '../helpers/agencyTime.ts'
+import { agencyNow, addDays } from '../services/agencyTime.ts'
 import { notifyUser, notifyAdmins, sendPush, recordAudit } from '../services/visitNotify.ts'
 
 const app = new Hono()
@@ -142,8 +142,8 @@ app.get('/miss-reports', requireAdmin, async (c) => {
 app.get('/available-caregivers', requireAdmin, async (c) => {
   const { date, startTime, endTime, clientId } = c.req.query()
   if (!date || !DATE_RE.test(date) || !hms(startTime) || !hms(endTime)) return c.json({ error: 'date, startTime, and endTime are required' }, 400)
-  const weekStart = addDaysYmd(date, -new Date(`${date}T12:00:00Z`).getUTCDay())
-  const weekEnd = addDaysYmd(weekStart, 6)
+  const weekStart = addDays(date, -new Date(`${date}T12:00:00Z`).getUTCDay())
+  const weekEnd = addDays(weekStart, 6)
   const preferred = clientId ? await one<any>(sql`SELECT preferred_caregivers FROM clients WHERE id = ${clientId}`) : null
   const preferredIds = new Set<string>(Array.isArray(preferred?.preferred_caregivers) ? preferred.preferred_caregivers.map(String) : [])
   const list = await rows<any>(sql`
@@ -219,7 +219,7 @@ app.post('/client-unavailable', async (c) => {
 
   if (!office) {
     const { date: today } = await agencyNow()
-    if (date < addDaysYmd(today, -7) || date > addDaysYmd(today, 1)) {
+    if (date < addDays(today, -7) || date > addDays(today, 1)) {
       return c.json({ error: 'You can report a client as unavailable for the last 7 days through tomorrow. For older dates, contact the office.' }, 400)
     }
   }

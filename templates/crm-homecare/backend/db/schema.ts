@@ -38,7 +38,9 @@ export const agencies = pgTable('agencies', {
   sandataAccountId: text('sandata_account_id'),
   sandataApiUrl: text('sandata_api_url'),
   sandataAgencyId: text('sandata_agency_id'),
-  evvTimezone: text('evv_timezone'),
+  // The agency's own clock (IANA zone, e.g. America/Chicago). Reports count calendar days and
+  // "today" on this clock. NULL = not set; services/agencyTime.ts derives one from `state`.
+  timezone: text('timezone'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -2028,6 +2030,10 @@ export const routePlans = pgTable('route_plans', {
   totalDurationMinutes: integer('total_duration_minutes'),
   optimizedAt: timestamp('optimized_at'),
   status: text('status').default('draft').notNull(),
+  totalServiceMinutes: integer('total_service_minutes'),
+  stopCount: integer('stop_count'),
+  notes: text('notes'),
+  createdById: text('created_by_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -2046,6 +2052,12 @@ export const routePlanStops = pgTable('route_plan_stops', {
   departureTime: timestamp('departure_time'),
   distanceFromPrevMiles: decimal('distance_from_prev_miles', { precision: 8, scale: 2 }),
   durationFromPrevMinutes: integer('duration_from_prev_minutes'),
+  serviceUnits: integer('service_units'),
+  notes: text('notes'),
+  // Live route tracking: pending → en_route → arrived → in_progress → completed | skipped
+  status: text('status').default('pending').notNull(),
+  actualArrival: timestamp('actual_arrival'),
+  actualDeparture: timestamp('actual_departure'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('route_plan_stops_route_plan_id_idx').on(t.routePlanId),

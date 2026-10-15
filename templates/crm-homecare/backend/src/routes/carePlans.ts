@@ -26,7 +26,7 @@ import { carePlanPdf, pdfFileName } from '../services/carePdf.ts'
 import { isAssessmentSource } from '../services/assessmentImports.ts'
 import { checkAuthorizationBalance } from '../helpers/authorizationCheck.ts'
 import { shiftHours } from '../helpers/shiftHours.ts'
-import { agencyTimeZone } from '../utils/agencyTimezone.ts'
+import { agencyTimezone } from '../services/agencyTime.ts'
 import { userIdOf, writeCareAudit, rowsOf } from '../helpers/careAudit.ts'
 
 const app = new Hono()
@@ -207,7 +207,7 @@ app.get('/:id/pdf', requireAdmin, async (c) => {
     SELECT task_name, category, weekly_frequency, allotted_minutes, assessment_source
       FROM client_task_templates WHERE client_id = ${r.plan.clientId} AND is_active = true
      ORDER BY sort_order, created_at`))
-  const tz = await agencyTimeZone()
+  const tz = await agencyTimezone()
   const createdOn = new Date(r.plan.createdAt).toLocaleDateString('en-US', { timeZone: tz })
   const pdf = await carePlanPdf({
     agencyName: agency?.name || '',

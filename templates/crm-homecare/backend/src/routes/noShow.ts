@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { noshowAlerts, noshowAlertConfig, users, clients } from '../../db/schema.ts'
-import { eq, count, desc } from 'drizzle-orm'
+import { eq, count, desc, sql } from 'drizzle-orm'
+import { agencyToday } from '../services/agencyTime.ts'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -56,16 +57,21 @@ app.get('/alerts', async (c) => {
 })
 
 // GET /api/no-show/stats
+// The No-Show screen and the dashboard's no-show banner read CVHC's shape (open_count, today_count,
+// week_count, resolved_count, false_alarm_count); this answered { total, resolved, pending }, so both
+// showed 0 open alerts. "Today" is the agency's calendar day. The old keys stay for any other reader.
 app.get('/stats', async (c) => {
-  const [totalRows] = await db.select({ value: count() }).from(noshowAlerts)
-  const [resolvedRows] = await db.select({ value: count() }).from(noshowAlerts).where(eq(noshowAlerts.status, 'resolved'))
-  const [pendingRows] = await db.select({ value: count() }).from(noshowAlerts).where(eq(noshowAlerts.status, 'open'))
-
-  return c.json({
-    total: totalRows.value,
-    resolved: resolvedRows.value,
-    pending: pendingRows.value,
-  })
+  const today = await agencyToday()
+  const r = ((await db.execute(sql`
+    SELECT
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE status = 'open')::int AS open_count,
+      COUNT(*) FILTER (WHERE status = 'resolved')::int AS resolved_count,
+      COUNT(*) FILTER (WHERE status = 'false_alarm')::int AS false_alarm_count,
+      COUNT(*) FILTER (WHERE shift_date = (${today})::date)::int AS today_count,
+      COUNT(*) FILTER (WHERE shift_date >= (${today})::date - 7)::int AS week_count
+    FROM noshow_alerts`)) as any).rows[0] || {}
+  return c.json({ ...r, resolved: r.resolved_count, pending: r.open_count })
 })
 
 // GET /api/no-show/config

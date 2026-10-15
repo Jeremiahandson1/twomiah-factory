@@ -63,6 +63,14 @@ app.get('/', async (c) => {
         defaultPayRate: users.defaultPayRate,
         certifications: users.certifications,
         certificationsExpiry: users.certificationsExpiry,
+        // Home address + coordinates: the route optimizer plans each day from the caregiver's home
+        // and says "not geocoded yet" when these are missing.
+        address: users.address,
+        city: users.city,
+        state: users.state,
+        zip: users.zip,
+        latitude: users.latitude,
+        longitude: users.longitude,
       })
       .from(users)
       .where(whereClause)

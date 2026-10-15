@@ -14,7 +14,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { authenticate } from '../middleware/auth.ts'
 import { rows, one, isOffice, userIdOf } from '../helpers/scheduleRows.ts'
 import { occurrencesCte, hms, schedTs, DATE_RE } from '../services/scheduleOccurrences.ts'
-import { agencyNow, addDaysYmd } from '../helpers/agencyTime.ts'
+import { agencyNow, addDays } from '../services/agencyTime.ts'
 import { notifyUser, notifyAdmins, notifyClient } from '../services/visitNotify.ts'
 
 export const VCR_COLS = sql.raw(`

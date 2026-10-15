@@ -8,7 +8,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { rows, one, isOffice, userIdOf } from '../helpers/scheduleRows.ts'
 import { occurrencesCte, hms, schedTs, shiftHours, DATE_RE } from '../services/scheduleOccurrences.ts'
 import { checkAuthorizationBalance } from '../helpers/authorizationCheck.ts'
-import { agencyNow } from '../helpers/agencyTime.ts'
+import { agencyNow } from '../services/agencyTime.ts'
 import { notifyUser, notifyAdmins, sendText, sendPush, agencyShortName } from '../services/visitNotify.ts'
 
 const app = new Hono()

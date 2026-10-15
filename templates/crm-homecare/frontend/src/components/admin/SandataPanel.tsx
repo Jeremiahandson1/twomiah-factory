@@ -132,7 +132,7 @@ export default function SandataPanel({ token, visits = [], onChanged }: { token:
             <input className={input} value={form.agencyId} onChange={(e) => setForm({ ...form, agencyId: e.target.value })} />
           </div>
           <div>
-            <label className={label}>EVV time zone {settings ? `(now ${settings.effectiveTimezone})` : ''}</label>
+            <label className={label}>Agency time zone — EVV weeks, reports and reminders all use it {settings ? `(now ${settings.effectiveTimezone})` : ''}</label>
             <input className={input} value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} placeholder="e.g. America/Chicago — blank = your state's" />
           </div>
           <div className="md:col-span-2">

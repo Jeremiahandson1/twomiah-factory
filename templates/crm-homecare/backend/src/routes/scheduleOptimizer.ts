@@ -3,6 +3,8 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { wallClock } from '../services/scheduleOccurrences.ts'
+import { agencyToday } from '../services/agencyTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -16,6 +18,13 @@ function timeToHours(timeStr: string | null | undefined): number {
   if (!timeStr) return 0
   const [h, m] = timeStr.split(':').map(Number)
   return h + m / 60
+}
+
+// Hours between two HH:MM times, wrapping past midnight (an overnight shift is not negative hours).
+export function shiftSpan(startT: string | null | undefined, endT: string | null | undefined): number {
+  if (!startT || !endT) return 0
+  const h = timeToHours(endT) - timeToHours(startT)
+  return h <= 0 ? h + 24 : h
 }
 
 function addMinutes(timeStr: string, minutes: number): string {
@@ -151,7 +160,7 @@ app.get('/client-data/:clientId', async (c) => {
     }
 
     const schedRes = await db.execute(sql`
-      SELECT s.day_of_week, s.start_time, s.end_time, s.caregiver_id,
+      SELECT s.day_of_week, to_char(s.start_time, 'HH24:MI') AS start_time, to_char(s.end_time, 'HH24:MI') AS end_time, s.caregiver_id,
              u.first_name as caregiver_first, u.last_name as caregiver_last
       FROM schedules s
       JOIN users u ON s.caregiver_id = u.id
@@ -198,7 +207,8 @@ app.post('/run', async (c) => {
 
     // Fetch existing schedules for selected caregivers
     const existingRes = await db.execute(sql`
-      SELECT s.id, s.caregiver_id, s.client_id, s.day_of_week, s.start_time, s.end_time,
+      SELECT s.id, s.caregiver_id, s.client_id, s.day_of_week,
+             to_char(s.start_time, 'HH24:MI') AS start_time, to_char(s.end_time, 'HH24:MI') AS end_time,
              s.schedule_type, s.frequency,
              u.first_name as cg_first, u.last_name as cg_last,
              c.first_name as cl_first, c.last_name as cl_last
@@ -276,9 +286,15 @@ app.post('/run', async (c) => {
     selectedCaregivers.forEach((cg: any) => {
       let alreadyBooked = 0
       existingSchedules.filter(s => s.caregiver_id === cg.id).forEach(s => {
-        alreadyBooked += timeToHours(s.end_time) - timeToHours(s.start_time)
+        alreadyBooked += shiftSpan(s.start_time, s.end_time)
       })
       cgRemainingHours[cg.id] = Math.max(0, parseFloat(cg.allocatedHours) - alreadyBooked)
+    })
+
+    // Caregiver preferred days for this run (session-only; empty = any day)
+    const cgPreferredDaysMap: Record<string, Set<number>> = {}
+    selectedCaregivers.forEach((cg: any) => {
+      if (Array.isArray(cg.preferredDays) && cg.preferredDays.length > 0) cgPreferredDaysMap[cg.id] = new Set(cg.preferredDays.map(Number))
     })
 
     // Run optimization
@@ -334,6 +350,9 @@ app.post('/run', async (c) => {
 
           for (const cg of scoredCaregivers) {
             if (cgRemainingHours[cg.id] < hoursPerVisit - 0.01) continue
+
+            // A caregiver with preferred days set for this run is only placed on those days
+            if (cgPreferredDaysMap[cg.id] && !cgPreferredDaysMap[cg.id].has(day)) continue
 
             const cgInfo = cgMap[cg.id]
             const dayKey = AVAIL_KEYS[day]
@@ -412,7 +431,7 @@ app.post('/run', async (c) => {
           .reduce((sum: number, p: any) => sum + p.hoursPerVisit, 0)
         const existingHours = existingSchedules
           .filter(s => s.caregiver_id === cg.id)
-          .reduce((sum: number, s: any) => sum + (timeToHours(s.end_time) - timeToHours(s.start_time)), 0)
+          .reduce((sum: number, s: any) => sum + shiftSpan(s.start_time, s.end_time), 0)
         return {
           id: cg.id,
           name,
@@ -474,6 +493,7 @@ app.post('/apply', async (c) => {
     if (!proposals?.length) {
       return c.json({ error: 'No proposals to apply' }, 400)
     }
+    const today = await agencyToday()
 
     const created: string[] = []
     const errors: Array<{ proposal: any; error: string }> = []
@@ -484,7 +504,7 @@ app.post('/apply', async (c) => {
         await db.execute(sql`
           INSERT INTO schedules
             (id, caregiver_id, client_id, schedule_type, day_of_week, start_time, end_time, notes, is_active)
-          VALUES (${id}, ${p.caregiverId}, ${p.clientId}, 'recurring', ${p.dayOfWeek}, ${p.startTime}, ${p.endTime},
+          VALUES (${id}, ${p.caregiverId}, ${p.clientId}, 'recurring', ${p.dayOfWeek}, ${wallClock(today, p.startTime)}, ${wallClock(today, p.endTime)},
                   'Created by Schedule Optimizer', true)
         `)
         created.push(id)

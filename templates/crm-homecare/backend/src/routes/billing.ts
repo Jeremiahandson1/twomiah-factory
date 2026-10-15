@@ -13,8 +13,9 @@ import emailService from '../services/email.ts'
 import {
   BillingRefusal, generateLineItems, loadBillingClient, resolveClientRate, noRateRefusal, applyRate,
   createInvoiceWithLines, insertLineItems, clampLineItemDescription, reformatTimesIn, to12h, round2,
-  agencyTimeZone, localToday, addDays, fmtTime12, generateInvoiceNumber,
+  fmtTime12, generateInvoiceNumber,
 } from '../services/invoiceEngine.ts'
+import { agencyTimezone, agencyToday, ymdIn, addDays } from '../services/agencyTime.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { portalClaimWeek, parseClaimPortal, WISCONSIN_PRESETS } from '../services/portalClaimDays.ts'
 
@@ -85,8 +86,8 @@ app.get('/invoices', async (c) => {
 
 // GET /invoices/billing-schedule — every active client's cadence and where their billing stands.
 app.get('/invoices/billing-schedule', async (c) => {
-  const tz = await agencyTimeZone()
-  const today = localToday(tz)
+  const tz = await agencyTimezone()
+  const today = ymdIn(new Date(), tz)
   const rows = rowsOf(await db.execute(sql`
     SELECT c.id, c.first_name, c.last_name, c.is_private_pay, c.billing_frequency_weeks,
            to_char(c.billed_through, 'YYYY-MM-DD') AS billed_through, rs.name AS payer_name
@@ -232,7 +233,7 @@ app.post('/invoices/manual', refusalAware(async (c) => {
 
 /** Clients who have something to bill in a period: a completed punch OR a scheduled occurrence. */
 async function clientsWithActivity(start: string, end: string, filter: { clientFilter?: string; referralSourceId?: string; clientIds?: string[] }) {
-  const tz = await agencyTimeZone()
+  const tz = await agencyTimezone()
   const ids = Array.isArray(filter.clientIds) && filter.clientIds.length ? filter.clientIds.map(String) : null
   return rowsOf(await db.execute(sql`
     WITH ${occurrencesCte(start, end, 'occ')},
@@ -301,7 +302,7 @@ app.post('/invoices/generate-due', async (c) => {
   const MAX_PERIODS_PER_CLIENT = 6 // catch-up backstop
   const b = await body(c)
   const dryRun = b.dryRun === true
-  const today = localToday(await agencyTimeZone())
+  const today = await agencyToday()
   const list = rowsOf(await db.execute(sql`
     SELECT id FROM clients WHERE is_active = true AND billing_frequency_weeks IS NOT NULL ORDER BY last_name, first_name`))
   const created: any[] = [], skipped: any[] = [], emptyPeriods: any[] = []
@@ -638,9 +639,9 @@ app.post('/invoices/:id/rescind', async (c) => {
   if (num(inv.amount_paid) > 0 || ['paid', 'partial'].includes(inv.payment_status)) {
     return c.json({ error: 'A payment has been recorded on this invoice, so the portal will show it regardless. Adjust or refund the payment first.' }, 400)
   }
-  const tz = await agencyTimeZone()
+  const tz = await agencyTimezone()
   await db.execute(sql`
-    UPDATE invoices SET sent_at = NULL, notes = COALESCE(notes, '') || ${`\nRescinded (returned to draft) on ${localToday(tz)}`}, updated_at = NOW()
+    UPDATE invoices SET sent_at = NULL, notes = COALESCE(notes, '') || ${`\nRescinded (returned to draft) on ${ymdIn(new Date(), tz)}`}, updated_at = NOW()
      WHERE id = ${id}`)
   return c.json({ success: true })
 })
@@ -689,9 +690,9 @@ app.post('/invoices/:id/send-email', async (c) => {
   } catch (e: any) {
     return c.json({ error: `Email send failed: ${e.message}` }, 502)
   }
-  const tz = await agencyTimeZone()
+  const tz = await agencyTimezone()
   await db.execute(sql`
-    UPDATE invoices SET notes = COALESCE(notes, '') || ${`\nEmailed to ${to} on ${localToday(tz)}`},
+    UPDATE invoices SET notes = COALESCE(notes, '') || ${`\nEmailed to ${to} on ${ymdIn(new Date(), tz)}`},
            sent_at = COALESCE(sent_at, NOW()), updated_at = NOW()
      WHERE id = ${id}`)
   return c.json({ success: true, sentTo: to })
@@ -709,8 +710,8 @@ app.post('/invoices/:id/send-reminder', async (c) => {
   if (!emailService.isConfigured) return c.json({ error: 'Email service not configured on server.' }, 503)
   const amountDue = num(invoice.total) - num(invoice.amount_paid) - num(invoice.amount_adjusted)
   if (amountDue <= 0) return c.json({ error: 'No balance due on this invoice.' }, 400)
-  const tz = await agencyTimeZone()
-  const today = localToday(tz)
+  const tz = await agencyTimezone()
+  const today = ymdIn(new Date(), tz)
   const daysOverdue = invoice.due_text
     ? Math.floor((new Date(today + 'T12:00:00Z').getTime() - new Date(invoice.due_text + 'T12:00:00Z').getTime()) / 86400000)
     : 0
@@ -777,7 +778,7 @@ app.post('/invoice-payments', refusalAware(async (c) => {
   const amt = Number(b.amount)
   if (!invoiceId) return c.json({ error: 'invoiceId is required' }, 400)
   if (!Number.isFinite(amt) || amt <= 0) return c.json({ error: 'Payment amount must be a positive number' }, 400)
-  const paymentDate = isDate(b.paymentDate || b.payment_date) ? (b.paymentDate || b.payment_date) : localToday(await agencyTimeZone())
+  const paymentDate = isDate(b.paymentDate || b.payment_date) ? (b.paymentDate || b.payment_date) : await agencyToday()
   const payment = await db.transaction(async (tx) => {
     const inv = rowsOf(await tx.execute(sql`
       SELECT total, COALESCE(amount_paid, 0) AS amount_paid, COALESCE(amount_adjusted, 0) AS amount_adjusted
@@ -906,7 +907,7 @@ const createRate = async (c: any) => {
   if (!referralSourceId) return c.json({ error: 'Choose a payer' }, 400)
   if (!Number.isFinite(rateAmount) || rateAmount <= 0) return c.json({ error: 'Rate must be a positive amount' }, 400)
   if (!['hourly', '15min'].includes(rateType)) return c.json({ error: "rateType must be 'hourly' or '15min'" }, 400)
-  const effective = isDate(b.effectiveDate || b.effective_date) ? (b.effectiveDate || b.effective_date) : localToday(await agencyTimeZone())
+  const effective = isDate(b.effectiveDate || b.effective_date) ? (b.effectiveDate || b.effective_date) : await agencyToday()
   const rate = await db.transaction(async (tx) => {
     await tx.execute(sql`
       UPDATE referral_source_rates SET is_active = false, end_date = ${effective}::date, updated_at = NOW()
@@ -971,7 +972,7 @@ app.get('/export/invoices-csv', async (c) => {
            CASE WHEN i.sent_at IS NULL THEN 'draft' ELSE 'sent' END AS sent, to_char(i.created_at, 'YYYY-MM-DD') AS created
       FROM invoices i JOIN clients c ON i.client_id = c.id LEFT JOIN referral_sources rs ON i.referral_source_id = rs.id
      ORDER BY i.created_at DESC`))
-  const today = localToday(await agencyTimeZone())
+  const today = await agencyToday()
   return csvResponse(c, `invoices-${today}.csv`, [
     ['Invoice #', 'Invoice Number', 'Period Start', 'Period End', 'Client', 'Payer', 'Total', 'Paid', 'Balance', 'Status', 'Due Date', 'Sent', 'Created'],
     ...rows.map((r) => [r.seq_number, r.invoice_number, r.s, r.e, r.client_name, r.payer, num(r.total).toFixed(2), num(r.amount_paid).toFixed(2), num(r.balance).toFixed(2), r.payment_status, r.due, r.sent, r.created]),
@@ -996,7 +997,7 @@ app.get('/export/evv', async (c) => {
      WHERE te.start_time >= NOW() - INTERVAL '30 days' AND te.is_complete = true
      ORDER BY te.start_time DESC`))
   const loc = (v: any) => { let o = v; if (typeof o === 'string') { try { o = JSON.parse(o) } catch { o = {} } } return o || {} }
-  const today = localToday(await agencyTimeZone())
+  const today = await agencyToday()
   return csvResponse(c, `evv-export-${today}.csv`, [
     ['ServiceDate', 'ClientFirstName', 'ClientLastName', 'MedicaidID', 'ProviderFirstName', 'ProviderLastName', 'NPI',
       'ClockInTime', 'ClockOutTime', 'TotalHours', 'ClockInLatitude', 'ClockInLongitude', 'ClockOutLatitude', 'ClockOutLongitude', 'VerificationMethod'],
@@ -1119,8 +1120,8 @@ app.get('/portal-claim-days', async (c) => {
   if (!payer) return c.json({ error: 'Payer not found' }, 404)
   const cfg = parseClaimPortal(payer.claim_portal)
   if (!cfg) return c.json({ error: `${payer.name} has no portal export set up yet.` }, 400)
-  const tz = await agencyTimeZone()
-  const day = isDate(weekStart) ? weekStart : addDays(localToday(tz), -7)
+  const tz = await agencyTimezone()
+  const day = isDate(weekStart) ? weekStart : addDays(ymdIn(new Date(), tz), -7)
   const week = await portalClaimWeek(db, payerId, day, tz)
   return c.json({ payer: { id: payer.id, name: payer.name }, portal: cfg, ...week })
 })

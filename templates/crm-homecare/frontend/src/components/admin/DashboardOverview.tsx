@@ -1,6 +1,6 @@
 // src/components/admin/DashboardOverview.jsx
 import React, { useState, useEffect } from 'react';
-import { getDashboardReferrals, getDashboardHours } from '../../config';
+import { getDashboardReferrals, getDashboardHours, API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import IncidentResponsesDue from './IncidentResponsesDue';
 
@@ -9,10 +9,29 @@ const DashboardOverview = ({ summary, onNavigate }) => {
   const [referrals, setReferrals] = useState([]);
   const [caregiverHours, setCaregiverHours] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [noShowStats, setNoShowStats] = useState<any>(null);
+  const [actionItems, setActionItems] = useState<{ items: any[]; totalCount: number }>({ items: [], totalCount: 0 });
 
   useEffect(() => {
     loadAnalytics();
+    loadNoShowStats();
+    loadActionItems();
   }, []);
+
+  // The office's to-do list (GET /api/dashboard/action-items): only non-zero items come back.
+  const loadActionItems = async () => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/dashboard/action-items`, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setActionItems(await r.json());
+    } catch { /* the dashboard still renders without it */ }
+  };
+
+  const loadNoShowStats = async () => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/no-show/stats`, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setNoShowStats(await r.json());
+    } catch { /* ignore */ }
+  };
 
   const loadAnalytics = async () => {
     try {
@@ -47,6 +66,21 @@ const DashboardOverview = ({ summary, onNavigate }) => {
   return (
     <>
       <IncidentResponsesDue onNavigate={onNavigate} />
+      {/* No-Show Alert Banner */}
+      {noShowStats && parseInt(noShowStats.open_count) > 0 && (
+        <div onClick={() => onNavigate && onNavigate('no-show-alerts')}
+          style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: 12, padding: '0.75rem 1.25rem',
+            marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+          <span style={{ fontSize: '1.5rem' }}>&#x1F6A8;</span>
+          <div>
+            <strong style={{ color: '#991B1B' }}>{noShowStats.open_count} active no-show alert{parseInt(noShowStats.open_count) !== 1 ? 's' : ''}</strong>
+            <span style={{ color: '#991B1B', marginLeft: 8, fontSize: '0.85rem' }}>
+              ({noShowStats.today_count || 0} today) — Click to review
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Key Metrics */}
       <div className="grid">
         <div className="stat-card">
@@ -66,13 +100,51 @@ const DashboardOverview = ({ summary, onNavigate }) => {
             {summary?.pendingInvoices?.count || 0} invoices
           </p>
         </div>
-        <div className="stat-card">
-          <h3>This Month Revenue</h3>
+        <div className="stat-card" title="Sum of payments received this calendar month. Outstanding A/R and future-dated invoices are not counted.">
+          <h3>This Month Revenue <span style={{ fontSize: '0.7rem', color: '#6B7280', fontWeight: 400 }}>(collected)</span></h3>
           <div className="value value-success">
             ${formatCurrency(summary?.thisMonthRevenue)}
           </div>
+          <p style={{ fontSize: '0.72rem', color: '#6B7280', margin: '0.25rem 0 0', fontWeight: 400 }}>
+            Payments received this month — A/R not counted
+          </p>
         </div>
       </div>
+
+      {/* Action Items — the day's to-do list */}
+      {actionItems.items.length > 0 && (
+        <div className="card" style={{ borderLeft: '4px solid #DC2626' }}>
+          <div className="card-title">
+            🎯 Action Items
+            <span style={{ marginLeft: 8, background: '#B91C1C', color: '#fff', borderRadius: 10, padding: '2px 10px', fontSize: '0.75rem', fontWeight: 700 }}>
+              {actionItems.totalCount} total
+            </span>
+          </div>
+          <div style={{ display: 'grid', gap: '0.5rem' }}>
+            {actionItems.items.map(item => (
+              <button
+                key={item.key}
+                onClick={() => onNavigate && onNavigate(item.page)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '0.75rem 1rem', borderRadius: 8, border: 'none',
+                  background: item.severity === 'high' ? '#FEF2F2' : '#FFFBEB',
+                  borderLeft: `3px solid ${item.severity === 'high' ? '#DC2626' : '#D97706'}`,
+                  cursor: onNavigate ? 'pointer' : 'default', textAlign: 'left',
+                  fontSize: '0.9rem',
+                }}
+              >
+                <span style={{ color: '#374151' }}>{item.label}</span>
+                <span style={{
+                  background: item.severity === 'high' ? '#B91C1C' : '#B45309',
+                  color: '#fff', borderRadius: 12, padding: '2px 10px',
+                  fontWeight: 700, fontSize: '0.85rem', minWidth: 28, textAlign: 'center',
+                }}>{item.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Referral Sources Performance */}
       <div className="card">

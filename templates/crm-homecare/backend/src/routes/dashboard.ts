@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and, gte, lt, lte, isNull, inArray, count, sql, desc, asc } from 'drizzle-orm'
+import { eq, and, gte, lt, lte, isNull, inArray, count, sql, desc, asc, type SQL } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import {
   clients,
@@ -11,14 +11,15 @@ import {
   authorizations,
   timeEntries,
   absences,
-  referralSources,
-  performanceRatings,
 } from '../../db/schema.ts'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { occurrencesCte } from '../services/scheduleOccurrences.ts'
+import { agencyTimezone, agencyToday, localDate, localTs, nowUtc } from '../services/agencyTime.ts'
 
 const app = new Hono()
 
-app.use('*', authenticate)
+// The dashboard is the office's: revenue, caregiver hours, every client on today's board.
+app.use('*', authenticate, requireAdmin)
 
 // GET /api/dashboard/stats
 app.get('/stats', async (c) => {
@@ -235,95 +236,227 @@ app.get('/alerts', async (c) => {
   return c.json({ noshowAlerts: noshowAlertsResult, expiringAuths, expiringCerts })
 })
 
-// GET /api/dashboard/referrals
-app.get('/referrals', async (c) => {
-  const sources = await db.select({
-    id: referralSources.id,
-    name: referralSources.name,
-    type: referralSources.type,
-  }).from(referralSources).where(eq(referralSources.isActive, true))
+// ─── Ported from CVHC routes/dashboardRoutes.js (b2456a2) ────────────────────────────────────────
+// Everything below counts the agency's day (services/agencyTime.ts), never the UTC server's: CVHC's
+// dashboard used to roll over to tomorrow at 7pm, and its live board called a 9am visit five hours
+// late. Shift counts come off the shared schedule engine, so a cancelled visit or an ended pattern is
+// never shown as "not clocked in yet".
+const rows = async (q: SQL): Promise<any[]> => ((await db.execute(q)) as any).rows || []
+const one = async (q: SQL): Promise<any> => (await rows(q))[0] || {}
 
-  const result = await Promise.all(sources.map(async (src) => {
-    const [clientCount] = await db.select({ count: count() }).from(clients)
-      .where(eq(clients.referredById, src.id))
-    const revenueRows = await db.select({ total: invoices.total }).from(invoices)
-      .innerJoin(clients, eq(invoices.clientId, clients.id))
-      .where(and(eq(clients.referredById, src.id), eq(invoices.paymentStatus, 'paid')))
-    const totalRevenue = revenueRows.reduce((sum, r) => sum + Number(r.total || 0), 0)
-    return {
-      name: src.name,
-      type: src.type || 'General',
-      referral_count: clientCount.count,
-      total_revenue: totalRevenue,
-    }
-  }))
-
-  return c.json(result)
-})
-
-// GET /api/dashboard/caregiver-hours
-app.get('/caregiver-hours', async (c) => {
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-  const caregivers = await db.select({
-    id: users.id,
-    firstName: users.firstName,
-    lastName: users.lastName,
-  }).from(users).where(and(eq(users.role, 'caregiver'), eq(users.isActive, true)))
-
-  const result = await Promise.all(caregivers.map(async (cg) => {
-    const entries = await db.select({
-      durationMinutes: timeEntries.durationMinutes,
-    }).from(timeEntries).where(and(
-      eq(timeEntries.caregiverId, cg.id),
-      eq(timeEntries.isComplete, true),
-      gte(timeEntries.startTime, thirtyDaysAgo),
-    ))
-
-    const [satResult] = await db.select({
-      avg: sql<string>`avg(${performanceRatings.satisfactionScore})`,
-    }).from(performanceRatings).where(eq(performanceRatings.caregiverId, cg.id))
-
-    const totalMinutes = entries.reduce((sum, e) => sum + (e.durationMinutes || 0), 0)
-
-    return {
-      id: cg.id,
-      first_name: cg.firstName,
-      last_name: cg.lastName,
-      shifts: entries.length,
-      total_hours: Math.round(totalMinutes / 60 * 10) / 10,
-      avg_satisfaction: satResult.avg || null,
-    }
-  }))
-
-  return c.json(result)
-})
-
-// GET /api/dashboard/summary
+// GET /api/dashboard/summary — the admin dashboard's tiles and "Today" panel
 app.get('/summary', async (c) => {
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+  const tz = await agencyTimezone()
+  const today = await agencyToday(tz)
+  const [totalClients, activeCaregivers, pendingInvoices, thisMonthRevenue, clockedInNow, todayShifts, remainingShifts] = await Promise.all([
+    one(sql`SELECT COUNT(*)::int AS count FROM clients WHERE is_active = true`),
+    one(sql`SELECT COUNT(*)::int AS count FROM users WHERE role = 'caregiver' AND is_active = true`),
+    one(sql`SELECT COUNT(*)::int AS count, SUM(total) AS amount FROM invoices WHERE payment_status = 'pending'`),
+    // Cash received this calendar month, by payment_date — not by billing period start (which
+    // missed every prior-month invoice paid this month).
+    one(sql`SELECT COALESCE(SUM(amount_paid), 0) AS amount FROM invoices
+             WHERE payment_date >= date_trunc('month', (${today})::date)
+               AND payment_date <  date_trunc('month', (${today})::date) + INTERVAL '1 month'`),
+    // Caregivers clocked in right now (an open entry started on the agency's today).
+    one(sql`SELECT COUNT(DISTINCT caregiver_id)::int AS count FROM time_entries
+             WHERE end_time IS NULL AND ${localDate(sql`start_time`, tz)} = (${today})::date`),
+    one(sql`WITH ${occurrencesCte(today, today)} SELECT COUNT(*)::int AS count FROM occ`),
+    // Today's shifts with nobody clocked in on them yet.
+    one(sql`WITH ${occurrencesCte(today, today)}
+      SELECT COUNT(*)::int AS count FROM occ
+      WHERE NOT EXISTS (
+        SELECT 1 FROM time_entries te
+        WHERE te.caregiver_id = occ.caregiver_id
+          AND ${localDate(sql`te.start_time`, tz)} = occ.occ_date
+          AND te.end_time IS NULL)`),
+  ])
+  return c.json({
+    totalClients: parseInt(totalClients.count) || 0,
+    activeCaregivers: parseInt(activeCaregivers.count) || 0,
+    pendingInvoices: { count: parseInt(pendingInvoices.count) || 0, amount: parseFloat(pendingInvoices.amount || 0) },
+    thisMonthRevenue: parseFloat(thisMonthRevenue.amount || 0),
+    clockedInNow: parseInt(clockedInNow.count) || 0,
+    todayShifts: parseInt(todayShifts.count) || 0,
+    remainingShifts: parseInt(remainingShifts.count) || 0,
+    coverageGaps: 0,
+  })
+})
 
-  const [
-    activeClientsResult,
-    activeCaregiversResult,
-    monthlyRevenueResult,
-    pendingInvoicesResult,
-  ] = await Promise.all([
-    db.select({ count: count() }).from(clients).where(eq(clients.isActive, true)),
-    db.select({ count: count() }).from(users).where(and(eq(users.role, 'caregiver'), eq(users.isActive, true))),
-    db.select({ sum: sql<string>`coalesce(sum(${invoices.total}), 0)` }).from(invoices)
-      .where(and(eq(invoices.paymentStatus, 'paid'), gte(invoices.createdAt, monthStart))),
-    db.select({ sum: sql<string>`coalesce(sum(${invoices.total}), 0)` }).from(invoices)
-      .where(inArray(invoices.paymentStatus, ['pending', 'sent'])),
+// GET /api/dashboard/action-items — the office's to-do list; each entry has a count and the page
+// that clears it. Only non-zero items are returned.
+app.get('/action-items', async (c) => {
+  const tz = await agencyTimezone()
+  const today = await agencyToday(tz)
+  const n = async (q: SQL) => parseInt((await one(q)).n) || 0
+  const [pendingApprovals, openShiftsCount, lowAuths, expiringAuths, expiringCerts, stuckPunches, pendingPayrollReviews] = await Promise.all([
+    n(sql`SELECT COUNT(*)::int AS n FROM time_entries WHERE needs_approval = true AND is_complete = true`),
+    n(sql`SELECT COUNT(*)::int AS n FROM open_shifts WHERE status = 'open' AND date >= (${today})::date AND date <= (${today})::date + 7`),
+    n(sql`SELECT COUNT(*)::int AS n FROM authorizations WHERE status = 'active' AND (authorized_units - used_units) <= low_units_alert_threshold`),
+    n(sql`SELECT COUNT(*)::int AS n FROM authorizations WHERE status = 'active' AND end_date BETWEEN (${today})::date AND (${today})::date + 14`),
+    n(sql`SELECT COUNT(*)::int AS n FROM certification_records WHERE expiry_date BETWEEN (${today})::date AND (${today})::date + 30`),
+    n(sql`SELECT COUNT(*)::int AS n FROM time_entries WHERE is_complete = false AND start_time < ${nowUtc} - INTERVAL '24 hours'`),
+    n(sql`SELECT COUNT(*)::int AS n FROM payroll_shift_reviews WHERE status IN ('pending', 'flagged', 'missing_punch') AND created_at > ${nowUtc} - INTERVAL '30 days'`),
+  ])
+  const items = [
+    { key: 'shift_approvals', label: 'Time entries awaiting approval', count: pendingApprovals, page: 'shift-approvals', severity: 'high' },
+    { key: 'stuck_punches', label: 'Open clock-ins more than 24h old', count: stuckPunches, page: 'live-board', severity: 'high' },
+    { key: 'open_shifts', label: 'Open shifts in next 7 days', count: openShiftsCount, page: 'scheduling', severity: 'med' },
+    { key: 'low_auths', label: 'Authorizations running low', count: lowAuths, page: 'authorizations', severity: 'high' },
+    { key: 'expiring_auths', label: 'Authorizations expiring within 14 days', count: expiringAuths, page: 'authorizations', severity: 'high' },
+    { key: 'expiring_certs', label: 'Caregiver certifications expiring within 30 days', count: expiringCerts, page: 'compliance', severity: 'med' },
+    { key: 'payroll_reviews', label: 'Payroll shift reviews still pending', count: pendingPayrollReviews, page: 'payroll', severity: 'med' },
+  ].filter((item) => item.count > 0)
+  return c.json({ items, totalCount: items.reduce((s, i) => s + i.count, 0) })
+})
+
+// GET /api/dashboard/referrals — client count and paid revenue per active referral source,
+// aggregated separately (joining both multiplied the client count by each client's invoices).
+app.get('/referrals', async (c) => {
+  const result = await rows(sql`SELECT rs.name, rs.type,
+      (SELECT COUNT(*) FROM clients c WHERE c.referred_by_id = rs.id)::int AS referral_count,
+      COALESCE((SELECT SUM(i.total) FROM invoices i JOIN clients c2 ON c2.id = i.client_id
+                 WHERE c2.referred_by_id = rs.id AND i.payment_status = 'paid'), 0) AS total_revenue
+    FROM referral_sources rs
+    WHERE rs.is_active = true
+    ORDER BY referral_count DESC`)
+  return c.json(result)
+})
+
+// GET /api/dashboard/caregiver-hours — completed shifts, capped hours and average rating per active
+// caregiver, aggregated separately (one join multiplied the hours by the rating count). Capped
+// minutes, not raw duration: a missed clock-out inflates the raw figure.
+app.get('/caregiver-hours', async (c) => {
+  const result = await rows(sql`SELECT u.id, u.first_name, u.last_name,
+      COALESCE(te.shifts, 0)::int AS shifts,
+      COALESCE(te.total_hours, 0) AS total_hours,
+      COALESCE(pr.avg_satisfaction, 0) AS avg_satisfaction
+    FROM users u
+    LEFT JOIN (
+      SELECT caregiver_id, COUNT(*) AS shifts,
+             ROUND(SUM(COALESCE(billable_minutes, duration_minutes)) / 60.0, 1) AS total_hours
+      FROM time_entries WHERE end_time IS NOT NULL GROUP BY caregiver_id
+    ) te ON te.caregiver_id = u.id
+    LEFT JOIN (
+      SELECT caregiver_id, AVG(satisfaction_score) AS avg_satisfaction
+      FROM performance_ratings GROUP BY caregiver_id
+    ) pr ON pr.caregiver_id = u.id
+    WHERE u.role = 'caregiver' AND u.is_active = true
+    ORDER BY total_hours DESC NULLS LAST`)
+  return c.json(result)
+})
+
+// GET /api/dashboard/live-board — every shift happening today with its live clock status.
+app.get('/live-board', async (c) => {
+  const tz = await agencyTimezone()
+  const today = await agencyToday(tz)
+  const nowLocal = sql`(NOW() AT TIME ZONE ${tz})::time`
+  const shifts = await rows(sql`WITH ${occurrencesCte(today, today)}
+    SELECT
+      occ.schedule_id, occ.caregiver_id, occ.client_id,
+      to_char(occ.start_time, 'HH24:MI:SS') AS scheduled_start,
+      to_char(occ.end_time, 'HH24:MI:SS') AS scheduled_end,
+      u.first_name AS caregiver_first, u.last_name AS caregiver_last, u.phone AS caregiver_phone,
+      u.latitude AS caregiver_lat, u.longitude AS caregiver_lng,
+      c.first_name AS client_first, c.last_name AS client_last,
+      c.address AS client_address, c.city AS client_city,
+      c.latitude AS client_lat, c.longitude AS client_lng,
+      te.id AS time_entry_id,
+      to_char(te.start_time, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS clock_in_time,
+      to_char(te.end_time, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS clock_out_time,
+      te.clock_in_location, te.clock_out_location, te.duration_minutes,
+      CASE
+        WHEN te.end_time IS NOT NULL THEN 'completed'
+        WHEN te.start_time IS NOT NULL AND te.end_time IS NULL THEN 'clocked_in'
+        WHEN occ.start_time <= ${nowLocal} AND (${nowLocal} - occ.start_time) > INTERVAL '15 minutes' AND te.id IS NULL THEN 'late'
+        WHEN occ.start_time <= ${nowLocal} AND te.id IS NULL THEN 'starting'
+        ELSE 'upcoming'
+      END AS shift_status,
+      CASE WHEN te.start_time IS NOT NULL AND te.end_time IS NULL
+        THEN ROUND(EXTRACT(EPOCH FROM (${nowUtc} - te.start_time)) / 60) ELSE NULL END AS minutes_elapsed,
+      (
+        -- Last 20 GPS points, newest first. The ORDER BY / LIMIT must sit in an inner subquery:
+        -- at the aggregate's own level it is a GROUP BY error (42803).
+        SELECT json_agg(pt) FROM (
+          SELECT json_build_object('lat', gt.latitude, 'lng', gt.longitude, 'ts', to_char(gt.timestamp, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')) AS pt
+          FROM gps_tracking gt
+          WHERE gt.time_entry_id = te.id
+          ORDER BY gt.timestamp DESC
+          LIMIT 20
+        ) recent
+      ) AS gps_trail
+    FROM occ
+    JOIN users u   ON u.id = occ.caregiver_id
+    JOIN clients c ON c.id = occ.client_id
+    LEFT JOIN time_entries te
+      ON te.caregiver_id = occ.caregiver_id
+      AND te.client_id = occ.client_id
+      AND ${localDate(sql`te.start_time`, tz)} = occ.occ_date
+    WHERE u.is_active = true
+    ORDER BY occ.start_time ASC`)
+
+  const stats = {
+    total: shifts.length,
+    clocked_in: shifts.filter((s) => s.shift_status === 'clocked_in').length,
+    completed: shifts.filter((s) => s.shift_status === 'completed').length,
+    late: shifts.filter((s) => s.shift_status === 'late').length,
+    upcoming: shifts.filter((s) => s.shift_status === 'upcoming').length,
+    starting: shifts.filter((s) => s.shift_status === 'starting').length,
+  }
+  return c.json({ shifts, stats, asOf: new Date().toISOString(), timezone: tz })
+})
+
+// GET /api/dashboard/caregiver-patterns/:caregiverId — reliability by day of week (predictive
+// scheduling): absences, no-shows and late clock-ins (>15 min after the scheduled start).
+app.get('/caregiver-patterns/:caregiverId', async (c) => {
+  const caregiverId = c.req.param('caregiverId')
+  const months = Math.max(1, Math.min(36, parseInt(c.req.query('months') || '6') || 6))
+  const tz = await agencyTimezone()
+  const today = await agencyToday(tz)
+  const since = (() => { const d = new Date(`${today}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() - months); return d.toISOString().slice(0, 10) })()
+  const teDay = localDate(sql`te.start_time`, tz)
+
+  const [absenceRows, noShowRows, lateRows, totalRows] = await Promise.all([
+    rows(sql`SELECT EXTRACT(DOW FROM date)::int AS day_of_week, type, COUNT(*)::int AS count
+      FROM absences WHERE caregiver_id = ${caregiverId} AND date >= (${since})::date
+      GROUP BY 1, 2 ORDER BY 1`),
+    rows(sql`SELECT EXTRACT(DOW FROM shift_date)::int AS day_of_week, COUNT(*)::int AS count
+      FROM noshow_alerts WHERE caregiver_id = ${caregiverId} AND shift_date >= (${since})::date
+      GROUP BY 1 ORDER BY 1`),
+    rows(sql`SELECT dow AS day_of_week, COUNT(*)::int AS count, ROUND(AVG(mins_late))::int AS avg_minutes_late FROM (
+        SELECT EXTRACT(DOW FROM ${teDay})::int AS dow,
+               EXTRACT(EPOCH FROM ((${localTs(sql`te.start_time`, tz)})::time - s.start_time::time)) / 60 AS mins_late
+        FROM time_entries te JOIN schedules s ON te.schedule_id = s.id
+        WHERE te.caregiver_id = ${caregiverId} AND te.is_complete = true AND ${teDay} >= (${since})::date
+      ) t WHERE mins_late > 15
+      GROUP BY 1 ORDER BY 1`),
+    rows(sql`SELECT dow AS day_of_week, COUNT(*)::int AS count FROM (
+        SELECT EXTRACT(DOW FROM ${teDay})::int AS dow
+        FROM time_entries te
+        WHERE te.caregiver_id = ${caregiverId} AND te.is_complete = true AND ${teDay} >= (${since})::date
+      ) t GROUP BY 1 ORDER BY 1`),
   ])
 
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const patterns = dayNames.map((name, dow) => {
+    const total = Number(totalRows.find((r) => Number(r.day_of_week) === dow)?.count || 0)
+    const absent = absenceRows.filter((r) => Number(r.day_of_week) === dow).reduce((s, r) => s + Number(r.count), 0)
+    const noShow = Number(noShowRows.find((r) => Number(r.day_of_week) === dow)?.count || 0)
+    const lateRow = lateRows.find((r) => Number(r.day_of_week) === dow)
+    const late = Number(lateRow?.count || 0)
+    const avgLate = Number(lateRow?.avg_minutes_late || 0)
+    const issues = absent + noShow + late
+    const reliability = total > 0 ? Math.round(((total - issues) / total) * 100) : 100
+    return { day: name, dayOfWeek: dow, totalShifts: total, absences: absent, noShows: noShow, lateArrivals: late, avgMinutesLate: avgLate, reliabilityPct: reliability }
+  })
+  const totalShifts = patterns.reduce((s, p) => s + p.totalShifts, 0)
   return c.json({
-    activeClients: activeClientsResult[0].count,
-    activeCaregivers: activeCaregiversResult[0].count,
-    monthlyRevenue: Number(monthlyRevenueResult[0].sum || 0),
-    pendingInvoices: Number(pendingInvoicesResult[0].sum || 0),
+    caregiverId,
+    periodMonths: months,
+    patterns,
+    riskDays: patterns.filter((p) => p.totalShifts >= 3 && p.reliabilityPct < 80),
+    overallReliability: totalShifts > 0
+      ? Math.round(patterns.reduce((s, p) => s + p.reliabilityPct * p.totalShifts, 0) / Math.max(1, totalShifts))
+      : 100,
   })
 })
 

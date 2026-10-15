@@ -31,7 +31,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 await setupSchema()
 
 // The agency keeps its calendar in UTC here so "today" and "this week" are the runner's.
-const [ag] = await db.insert(agencies).values({ name: 'Care Port Agency', slug: 'careport', state: 'WI', settings: { timezone: 'UTC' } } as any).returning()
+const [ag] = await db.insert(agencies).values({ name: 'Care Port Agency', slug: 'careport', state: 'WI', timezone: 'UTC' } as any).returning()
 const mkUser = async (role: string, tag: string, first = tag, last = 'U') => (await db.insert(users).values({
   email: `${tag}-care@test.local`, passwordHash: 'x', firstName: first, lastName: last, role,
 } as any).returning())[0]

@@ -12,7 +12,8 @@ import { db } from '../../db/index.ts'
 import { agencies, evvVisits, clients } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { encrypt } from '../utils/encryption.ts'
-import { getConfig, isValidTimeZone, postRecords, UAT_BASE, PROD_BASE } from '../services/sandataClient.ts'
+import { getConfig, postRecords, UAT_BASE, PROD_BASE } from '../services/sandataClient.ts'
+import { isValidTimezone } from '../services/agencyTime.ts'
 import * as payloads from '../services/sandataPayload.ts'
 import { evvReasonError, recordVisitTimeChange, localDate } from '../services/evvVisits.ts'
 import { clientInSandata } from '../services/evvWeekly.ts'
@@ -89,7 +90,7 @@ app.get('/settings', requireAdmin, async (c) => {
     providerId: agency?.medicaidId || '',
     apiUrl: agency?.sandataApiUrl || '',
     agencyId: agency?.sandataAgencyId || '',
-    timezone: agency?.evvTimezone || '',
+    timezone: agency?.timezone || '',
     effectiveTimezone: cfg.timezone,
     state: cfg.state,
     isWisconsin: cfg.isWisconsin,
@@ -119,8 +120,9 @@ app.put('/settings', requireAdmin, async (c) => {
   }
   if ('timezone' in body) {
     const tz = str(body.timezone)
-    if (tz && !isValidTimeZone(tz)) return c.json({ error: `"${tz}" is not a time zone (use e.g. America/Chicago).` }, 400)
-    set.evvTimezone = tz
+    // The agency's one time zone (services/agencyTime.ts) — the same setting as Company settings.
+    if (tz && !isValidTimezone(tz)) return c.json({ error: `"${tz}" is not a time zone (use e.g. America/Chicago).` }, 400)
+    set.timezone = tz
   }
   // Password: a non-empty value replaces it; clearPassword removes it; absent/blank keeps it.
   if (body.clearPassword === true) set.sandataPasswordEncrypted = null

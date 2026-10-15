@@ -5,6 +5,7 @@
 // statutory caregiver bar list) keys off agencies.state.
 import { db } from '../../db/index.ts'
 import { agencies } from '../../db/schema.ts'
+import { resolveTimezone } from './agencyTime.ts'
 
 export type AgencyProfile = {
   id: string | null
@@ -18,7 +19,6 @@ export type AgencyProfile = {
 
 export async function getAgencyProfile(): Promise<AgencyProfile> {
   const [a] = await db.select().from(agencies).limit(1)
-  const settings = (a?.settings && typeof a.settings === 'object' ? a.settings : {}) as Record<string, any>
   return {
     id: a?.id ?? null,
     name: a?.name || 'Our agency',
@@ -26,8 +26,8 @@ export async function getAgencyProfile(): Promise<AgencyProfile> {
     state: a?.state ? String(a.state).trim().toUpperCase() : null,
     email: a?.email ?? null,
     phone: a?.phone ?? null,
-    // The day boundaries a pay period is cut on. Settings win; the template's default zone otherwise.
-    timezone: typeof settings.timezone === 'string' && settings.timezone ? settings.timezone : 'America/Chicago',
+    // The day boundaries a pay period is cut on: the agency's one clock (services/agencyTime.ts).
+    timezone: resolveTimezone(a || null),
   }
 }
 

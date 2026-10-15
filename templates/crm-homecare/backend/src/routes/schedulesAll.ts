@@ -8,7 +8,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { SCHED_COLS, attachExceptions, rows, one, scheduleById, userIdOf } from '../helpers/scheduleRows.ts'
 import { schedTs, hms, DATE_RE } from '../services/scheduleOccurrences.ts'
 import { alignBiweeklyAnchor } from '../helpers/biweekly.ts'
-import { agencyNow, addDaysYmd } from '../helpers/agencyTime.ts'
+import { agencyNow, addDays } from '../services/agencyTime.ts'
 import { recordAudit } from '../services/visitNotify.ts'
 
 const app = new Hono()
@@ -148,7 +148,7 @@ app.put('/:id', requireAdmin, async (c) => {
     const newId = createId()
     await db.transaction(async (tx) => {
       // 1) Freeze history: the old pattern stops the day before the change.
-      await tx.execute(sql`UPDATE schedules SET end_date = ${addDaysYmd(fromDate, -1)}::date, updated_at = NOW()
+      await tx.execute(sql`UPDATE schedules SET end_date = ${addDays(fromDate, -1)}::date, updated_at = NOW()
                            WHERE id = ${scheduleId} AND is_active = true`)
       // 2) A new pattern carrying the edits — every other column copied from the old row.
       await tx.execute(sql`

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import EditClientModal from './EditClientModal';
 import CareTasksManager from './CareTasksManager';
+import ClientReportModal from './ClientReportModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/date';
 
@@ -28,7 +29,7 @@ const AddressLink = ({ address, city, state, zip }) => {
 };
 
 // Mobile-friendly client card
-const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit, onTasks }) => (
+const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit, onTasks, onReport }) => (
   <div className="card" style={{ marginBottom: '0.75rem', padding: '1rem' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
       <div>
@@ -41,6 +42,7 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit, on
       </div>
       <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
         <button className="btn btn-sm btn-secondary" onClick={() => onTasks(client)} title="Care tasks checklist">📋 Tasks</button>
+        <button className="btn btn-sm btn-secondary" onClick={() => onReport(client)} title="Generate comprehensive report">📄 Report</button>
         <button
           className="btn btn-sm btn-primary"
           onClick={() => onEdit(client)}
@@ -149,6 +151,7 @@ const SuspendServicePanel = ({ client, token, onClose }) => {
 const ClientsManagement = () => {
   const { token } = useAuth();
   const [clients, setClients] = useState([]);
+  const [reportClient, setReportClient] = useState(null);
   const [referralSources, setReferralSources] = useState([]);
   const [careTypes, setCareTypes] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -503,7 +506,7 @@ const ClientsManagement = () => {
       ) : isMobile ? (
         <div>
           {filteredClients.map(client => (
-            <ClientCard key={client.id} client={client} getReferralSourceName={getReferralSourceName} getCareTypeName={getCareTypeName} onEdit={handleViewClient} onTasks={setCareTasksClient} />
+            <ClientCard key={client.id} client={client} getReferralSourceName={getReferralSourceName} getCareTypeName={getCareTypeName} onEdit={handleViewClient} onTasks={setCareTasksClient} onReport={setReportClient} />
           ))}
         </div>
       ) : (
@@ -541,6 +544,7 @@ const ClientsManagement = () => {
                   <td>
                     <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                       <button className="btn btn-sm btn-secondary" onClick={() => setCareTasksClient(client)} title="Care tasks checklist">📋 Tasks</button>
+                      <button className="btn btn-sm btn-secondary" onClick={() => setReportClient(client)} title="Generate comprehensive report">📄 Report</button>
                       <button className="btn btn-sm btn-primary" onClick={() => handleViewClient(client)}>✏️ Edit</button>
                       <button className="btn btn-sm btn-secondary" onClick={() => setSuspendClient(client)} title="Suspend or resume all of this client's visits">⏸ Service</button>
                     </div>
@@ -559,6 +563,7 @@ const ClientsManagement = () => {
       )}
 
       {suspendClient && <SuspendServicePanel client={suspendClient} token={token} onClose={() => setSuspendClient(null)} />}
+      <ClientReportModal client={reportClient} isOpen={!!reportClient} onClose={() => setReportClient(null)} />
       <EditClientModal client={selectedClient} referralSources={referralSources} careTypes={careTypes} isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedClient(null); }} onSuccess={loadData} />
       {careTasksClient && (
         <CareTasksManager client={careTasksClient} onClose={() => setCareTasksClient(null)} />

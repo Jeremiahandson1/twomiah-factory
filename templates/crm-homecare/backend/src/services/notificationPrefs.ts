@@ -15,7 +15,7 @@
  *   - otherwise                     → allow
  *
  * Quiet hours are a wall-clock window ("21:00" to "07:00") in the agency's time zone
- * (agencies.settings.timezone), falling back to the server clock when none is set.
+ * (services/agencyTime.ts — the one agency clock).
  * A window whose start is after its end wraps midnight.
  *
  *   import { shouldNotify } from '../services/notificationPrefs.ts'
@@ -23,7 +23,8 @@
  */
 import { eq } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { agencies, notificationPreferences, notifications, users } from '../../db/schema.ts'
+import { notificationPreferences, notifications, users } from '../../db/schema.ts'
+import { agencyTimezone } from './agencyTime.ts'
 
 export type Channel = 'email' | 'sms' | 'push'
 
@@ -98,19 +99,6 @@ export function inQuietHours(
     : cur >= start || cur < end // e.g. 21:00 → 07:00
 }
 
-let agencyZone: { zone: string | null; ts: number } | null = null
-async function agencyTimeZone(): Promise<string | null> {
-  if (agencyZone && agencyZone.ts > Date.now() - CACHE_MS) return agencyZone.zone
-  let zone: string | null = null
-  try {
-    const [agency] = await db.select({ settings: agencies.settings }).from(agencies).limit(1)
-    const tz = (agency?.settings as any)?.timezone
-    zone = typeof tz === 'string' && tz ? tz : null
-  } catch { zone = null }
-  agencyZone = { zone, ts: Date.now() }
-  return zone
-}
-
 export async function shouldNotify(
   userId: string,
   channel: Channel,
@@ -134,7 +122,7 @@ export async function shouldNotify(
     if (col && prefs[col] === false) return false
   }
 
-  const zone = opts.timeZone !== undefined ? opts.timeZone : await agencyTimeZone()
+  const zone = opts.timeZone !== undefined ? opts.timeZone : await agencyTimezone()
   if (inQuietHours(prefs, opts.now || new Date(), zone)) {
     const allowUrgent = prefs.quietHoursSkipEmergency !== false
     if (!(opts.urgent && allowUrgent)) return false

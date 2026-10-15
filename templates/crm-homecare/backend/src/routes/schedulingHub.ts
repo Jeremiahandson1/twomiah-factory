@@ -12,16 +12,16 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { rows, one, isOffice, userIdOf } from '../helpers/scheduleRows.ts'
 import { occurrencesCte, hms, schedTs, shiftHours, DATE_RE } from '../services/scheduleOccurrences.ts'
 import { checkAuthorizationBalance } from '../helpers/authorizationCheck.ts'
-import { agencyNow, addDaysYmd } from '../helpers/agencyTime.ts'
+import { agencyNow, addDays } from '../services/agencyTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-const weekStartOf = (ymd: string) => addDaysYmd(ymd, -new Date(`${ymd}T12:00:00Z`).getUTCDay())
+const weekStartOf = (ymd: string) => addDays(ymd, -new Date(`${ymd}T12:00:00Z`).getUTCDay())
 async function weekOfParam(v?: string) {
   const base = v && DATE_RE.test(v) ? v : (await agencyNow()).date
   const ws = weekStartOf(base)
-  return { ws, we: addDaysYmd(ws, 6) }
+  return { ws, we: addDays(ws, 6) }
 }
 
 function distanceMiles(lat1: any, lon1: any, lat2: any, lon2: any): number | null {
@@ -304,7 +304,7 @@ app.post('/bulk-create', requireAdmin, async (c) => {
     for (const slot of template) {
       const s = hms(slot.startTime), e = hms(slot.endTime), dw = Number(slot.dayOfWeek)
       if (!s || !e || !(dw >= 0 && dw <= 6)) continue
-      const d = addDaysYmd(start, w * 7 + dw)
+      const d = addDays(start, w * 7 + dw)
       if (d < today) continue
       const clash = await one(sql`WITH ${occurrencesCte(d, d)} SELECT 1 FROM occ WHERE caregiver_id = ${caregiverId}
         AND (start_time, end_time) OVERLAPS (${s}::time, ${e}::time) LIMIT 1`)
@@ -324,7 +324,7 @@ app.post('/auto-fill', requireAdmin, async (c) => {
   const b = await c.req.json().catch(() => ({})) as any
   const { date: today } = await agencyNow()
   const start = DATE_RE.test(b.startDate || '') ? b.startDate : today
-  const end = DATE_RE.test(b.endDate || '') ? b.endDate : addDaysYmd(today, 7)
+  const end = DATE_RE.test(b.endDate || '') ? b.endDate : addDays(today, 7)
   const dryRun = !!b.dryRun
   const shifts = await rows<any>(sql`SELECT os.id, os.client_id, os.schedule_id, to_char(os.date, 'YYYY-MM-DD') AS shift_date,
       to_char(os.start_time, 'HH24:MI:SS') AS start_time, to_char(os.end_time, 'HH24:MI:SS') AS end_time, os.notes,
@@ -337,7 +337,7 @@ app.post('/auto-fill', requireAdmin, async (c) => {
     FROM users u LEFT JOIN caregiver_availability ca ON u.id = ca.caregiver_id
     WHERE u.role = 'caregiver' AND u.is_active = true AND (ca.status IS NULL OR ca.status <> 'unavailable')`)
   const ws = weekStartOf(start)
-  const weekly = await hoursByCaregiver(ws, addDaysYmd(ws, 6))
+  const weekly = await hoursByCaregiver(ws, addDays(ws, 6))
   const hist: Record<string, Record<string, number>> = {}
   for (const r of await rows<any>(sql`SELECT caregiver_id, client_id, COUNT(*) AS n FROM time_entries WHERE is_complete = true GROUP BY caregiver_id, client_id`)) {
     (hist[r.client_id] ||= {})[r.caregiver_id] = Number(r.n)

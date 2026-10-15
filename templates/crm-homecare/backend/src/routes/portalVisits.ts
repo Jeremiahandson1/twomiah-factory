@@ -9,7 +9,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { portalAuth } from './portal.ts'
 import { rows, one } from '../helpers/scheduleRows.ts'
 import { occurrencesCte, hms, DATE_RE } from '../services/scheduleOccurrences.ts'
-import { agencyNow, addDaysYmd } from '../helpers/agencyTime.ts'
+import { agencyNow, addDays } from '../services/agencyTime.ts'
 import { notifyUser, notifyAdmins } from '../services/visitNotify.ts'
 import {
   VCR_COLS, getRequest, workedVisitBlocker, applyRescheduleToSchedule, materializeVisit, visitIdentity, ownsScheduleVisit, clientName,
@@ -40,7 +40,7 @@ portal.get('/visits', portalAuth, async (c) => {
        AND sv.status <> 'cancelled'`)
 
   const occ = await rows<any>(sql`
-    WITH ${occurrencesCte(addDaysYmd(today, -28), addDaysYmd(today, 28))}
+    WITH ${occurrencesCte(addDays(today, -28), addDays(today, 28))}
     SELECT occ.schedule_id, occ.caregiver_id, to_char(occ.occ_date, 'YYYY-MM-DD') AS scheduled_date,
            to_char(occ.start_time, 'HH24:MI:SS') AS start_time, to_char(occ.end_time, 'HH24:MI:SS') AS end_time,
            s.notes, u.first_name AS caregiver_first_name, u.last_name AS caregiver_last_name, u.phone AS caregiver_phone
@@ -134,8 +134,8 @@ portal.get('/caregivers/:caregiverId/availability', portalAuth, async (c) => {
   const caregiverId = c.req.param('caregiverId')
   const { date: today } = await agencyNow()
   const startDate = DATE_RE.test(c.req.query('startDate') || '') ? c.req.query('startDate')! : today
-  const endDate = DATE_RE.test(c.req.query('endDate') || '') ? c.req.query('endDate')! : addDaysYmd(startDate, 14)
-  if (endDate < startDate || endDate > addDaysYmd(startDate, 62)) return c.json({ error: 'Pick a range of at most two months' }, 400)
+  const endDate = DATE_RE.test(c.req.query('endDate') || '') ? c.req.query('endDate')! : addDays(startDate, 14)
+  if (endDate < startDate || endDate > addDays(startDate, 62)) return c.json({ error: 'Pick a range of at most two months' }, 400)
   // Only a caregiver who works for this client.
   const works = await one(sql`SELECT 1 FROM schedules WHERE client_id = ${clientId} AND caregiver_id = ${caregiverId} AND is_active = true LIMIT 1`)
   if (!works) return c.json([])
@@ -150,7 +150,7 @@ portal.get('/caregivers/:caregiverId/availability', portalAuth, async (c) => {
     WHERE caregiver_id = ${caregiverId} AND status = 'approved' AND end_date >= ${startDate}::date AND start_date <= ${endDate}::date`)
 
   const slots: any[] = []
-  for (let d = startDate; d <= endDate; d = addDaysYmd(d, 1)) {
+  for (let d = startDate; d <= endDate; d = addDays(d, 1)) {
     if (off.some((o) => o.s <= d && o.e >= d)) continue
     const dow = new Date(`${d}T12:00:00Z`).getUTCDay()
     for (const w of avail.filter((a) => (a.day_of_week === dow && !a.date) || a.date === d)) {

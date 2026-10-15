@@ -17,7 +17,7 @@ import { db } from '../../db/index.ts'
 import { clientTaskTemplates, shiftTaskCompletions, clients, timeEntries } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { uploadedForm } from '../utils/upload.ts'
-import { agencyState, agencyTimeZone } from '../utils/agencyTimezone.ts'
+import { agencyState, agencyTimezone } from '../services/agencyTime.ts'
 import { formatsForState } from '../services/assessmentImports.ts'
 import { AssessmentPdfError } from '../services/midasAssessmentPdf.ts'
 import { isOffice, userIdOf, writeCareAudit, rowsOf, wholeNumber } from '../helpers/careAudit.ts'
@@ -213,7 +213,7 @@ app.get('/time-entry/:timeEntryId', async (c) => {
   const entry = await loadEntry(c.req.param('timeEntryId'))
   if (!entry) return c.json({ error: 'Time entry not found' }, 404)
   if (entry.caregiverId !== userIdOf(user) && !isOffice(user)) return c.json({ error: 'Not your shift' }, 403)
-  const tz = await agencyTimeZone()
+  const tz = await agencyTimezone()
   // Monday 00:00 of the agency's current week, as the UTC wall clock time_entries are stored in.
   const weekStart = sql`((date_trunc('week', NOW() AT TIME ZONE ${tz}) AT TIME ZONE ${tz}) AT TIME ZONE 'UTC')`
   const rows = rowsOf(await db.execute(sql`
