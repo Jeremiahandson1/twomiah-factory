@@ -196,5 +196,21 @@ export async function sendPasswordReset(p: { toEmail: string; storeName: string;
     html: wrap(p.storeName, 'Reset your password', inner) })
 }
 
+/**
+ * A team invite: the person chooses their own password from the link (7 days). As Shopify does it — the owner never
+ * knows a teammate's password. Same wording as the CRMs' teamInvite. Returns whether the mail went out. (10/14)
+ */
+export async function sendTeamInvite(p: { toEmail: string; storeName: string; name?: string | null; inviterName: string; role: string; inviteUrl: string }): Promise<boolean> {
+  const inner = `
+    <p style="color:#444;font-size:15px;line-height:1.6;">Hi ${esc(p.name || 'there')},</p>
+    <p style="color:#444;font-size:15px;line-height:1.6;"><strong>${esc(p.inviterName)}</strong> has invited you to help run <strong>${esc(p.storeName)}</strong>. Choose your password to sign in.</p>
+    <p style="color:#444;font-size:15px;line-height:1.6;">Your role: <strong>${esc(p.role === 'manager' ? 'Manager' : 'Staff')}</strong></p>
+    <p style="margin:20px 0;"><a href="${esc(p.inviteUrl)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:14px;font-weight:600;">Accept invitation</a></p>
+    <p style="color:#888;font-size:13px;">This invitation expires in 7 days.</p>`
+  return send({ from: fromFor(p.storeName), to: p.toEmail,
+    subject: `You're invited to join ${p.storeName}`,
+    html: wrap(p.storeName, "You're invited", inner) })
+}
+
 // Exported for the inbound-message reply route (sends AS alias@storedomain).
 export { send }

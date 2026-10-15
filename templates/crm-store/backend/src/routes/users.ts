@@ -11,11 +11,37 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, sql } from 'drizzle-orm'
+import crypto from 'crypto'
 import { db } from '../../db/index.ts'
-import { users } from '../../db/schema.ts'
+import { users, storeSettings } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { sendTeamInvite } from '../services/email.ts'
+
+// An invite is a 7-day set-your-password link on the same reset route (routes/auth.ts /reset-password), as in the CRMs.
+// Its token carries an "invite_" prefix: the users table has no last-sign-in column, and the prefix is what tells a
+// waiting invite from a 1-hour Forgot-password link — so the list can say "invite sent" and Resend can refuse once
+// they have chosen a password. (10/14, matching Shopify: the owner never knows a teammate's password.)
+export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
+export const INVITE_PREFIX = 'invite_'
+const newInviteToken = () => INVITE_PREFIX + crypto.randomUUID()
+const invitePending = (u: { resetToken?: string | null; resetTokenExp?: Date | string | null }) =>
+  !!u.resetToken && u.resetToken.startsWith(INVITE_PREFIX) && !!u.resetTokenExp && new Date(u.resetTokenExp).getTime() > Date.now()
+
+/** Email the invite. False when it did not go out (no mail set up) — the owner is told, and can resend or set a password. */
+async function emailInvite(c: any, target: { email: string; name: string | null; role: string }, token: string): Promise<boolean> {
+  const me = c.get('user')
+  const [inviter] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, me.userId)).limit(1)
+  const [settings] = await db.select({ companyName: storeSettings.companyName }).from(storeSettings).limit(1)
+  const base = (process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '')
+  return sendTeamInvite({
+    toEmail: target.email, name: target.name, role: target.role,
+    storeName: settings?.companyName || 'Your store',
+    inviterName: inviter?.name || inviter?.email || 'The store owner',
+    inviteUrl: `${base}/reset-password?token=${encodeURIComponent(token)}&invite=1`,
+  }).catch(() => false)
+}
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -34,20 +60,23 @@ app.get('/', requirePermission('users:read'), async (c) => {
       role: users.role,
       isActive: users.isActive,
       createdAt: users.createdAt,
+      resetToken: users.resetToken,
+      resetTokenExp: users.resetTokenExp,
     })
     .from(users)
 
-  return c.json({ data: list })
+  // The token itself never leaves the server — only whether an invite is waiting.
+  return c.json({ data: list.map(({ resetToken, resetTokenExp, ...u }) => ({ ...u, invitePending: invitePending({ resetToken, resetTokenExp }) })) })
 })
 
-// POST / — add a team login. The owner sets the first password and passes it
-// on; there is deliberately no invite email, because tenant outbound mail isn't
-// proven on every store and an invite that silently never arrives is
-// indistinguishable from a broken product.
+// POST / — add a team login. With no password, they are EMAILED an invite and choose their own (7 days) — how
+// Shopify does it, and the CRMs since 10/14; the owner never knows it. A password the owner sets is still accepted,
+// for a shop that hands logins over in person. The response says whether the invite email actually went out, so a
+// store with no mail set up is told rather than left waiting for an email that never comes.
 app.post('/', requirePermission('team:create'), async (c) => {
   const schema = z.object({
     email: z.string().email(),
-    password: z.string().min(8),
+    password: z.string().min(8).optional(),
     name: z.string().min(1),
     role: z.enum(ASSIGNABLE_ROLES, { errorMap: () => ({ message: 'Role must be manager or staff' }) }).default('staff'),
   })
@@ -62,8 +91,10 @@ app.post('/', requirePermission('team:create'), async (c) => {
   const data = parsed.data
 
   // Hash before the transaction — bcrypt takes ~100ms and must not be done
-  // while holding a lock.
-  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
+  // while holding a lock. An invite gets a random password nobody knows; the link sets the real one.
+  const invite = !data.password
+  const passwordHash = await Bun.password.hash(data.password || crypto.randomUUID() + crypto.randomUUID(), 'bcrypt')
+  const inviteToken = invite ? newInviteToken() : null
 
   // Seat cap. Env-only here: store_settings has no free-form settings column
   // (only typed shippingZones/taxRates), so unlike the CRM templates there is
@@ -99,7 +130,7 @@ app.post('/', requirePermission('team:create'), async (c) => {
 
     const [created] = await tx
       .insert(users)
-      .values({ email: data.email, name: data.name, role: data.role, passwordHash })
+      .values({ email: data.email, name: data.name, role: data.role, passwordHash, ...(inviteToken ? { resetToken: inviteToken, resetTokenExp: new Date(Date.now() + INVITE_TTL_MS) } : {}) })
       .returning({
         id: users.id,
         email: users.email,
@@ -115,9 +146,32 @@ app.post('/', requirePermission('team:create'), async (c) => {
   // Logged after the transaction has committed — never from inside it, where a second connection would wait on this one.
   if (outcome.status === 201) {
     const u = outcome.body as any
-    await audit.log({ action: 'create', entity: 'user', entityId: u.id, entityName: u.name || u.email, metadata: { description: `Login added — ${u.email}, as ${u.role}` }, req: c })
+    await audit.log({ action: 'create', entity: 'user', entityId: u.id, entityName: u.name || u.email, metadata: { description: `Login added — ${u.email}, as ${u.role}${invite ? ' (invited by email)' : ''}` }, req: c })
+    if (invite && inviteToken) {
+      const inviteSent = await emailInvite(c, { email: u.email, name: u.name, role: u.role }, inviteToken)
+      return c.json({ ...u, invitePending: true, invited: true, inviteSent }, 201)
+    }
   }
   return c.json(outcome.body as any, outcome.status)
+})
+
+// POST /:id/invite — send the invite again: a fresh 7-day link, while they have not yet chosen a password (the first
+// expired, went to spam, or never went out). Once they have, Forgot password on the sign-in page is the way, as for
+// everyone. The owner's (team:update), like every change to who gets in.
+app.post('/:id/invite', requirePermission('team:update'), async (c) => {
+  const [target] = await db.select().from(users).where(eq(users.id, c.req.param('id'))).limit(1)
+  if (!target) return c.json({ error: 'User not found' }, 404)
+  if (target.role === 'owner') return c.json({ error: 'The owner signs in with their own password.' }, 409)
+  if (!target.isActive) return c.json({ error: 'Restore their access first — a revoked login cannot sign in.' }, 409)
+  if (!target.resetToken || !target.resetToken.startsWith(INVITE_PREFIX)) {
+    // No invite waiting: they have chosen a password, or asked Forgot password themselves (that link replaced the invite).
+    return c.json({ error: 'They have no invite waiting. If they cannot sign in, Forgot password on the sign-in page sends them a new link.' }, 409)
+  }
+  const token = newInviteToken()
+  await db.update(users).set({ resetToken: token, resetTokenExp: new Date(Date.now() + INVITE_TTL_MS) }).where(eq(users.id, target.id))
+  const inviteSent = await emailInvite(c, { email: target.email, name: target.name, role: target.role }, token)
+  await audit.log({ action: 'update', entity: 'user', entityId: target.id, entityName: target.name || target.email, metadata: { description: `Invite sent again — ${target.email}` }, req: c })
+  return c.json({ invited: true, inviteSent })
 })
 
 // PUT /:id — rename a team member, change their role, or revoke their access.

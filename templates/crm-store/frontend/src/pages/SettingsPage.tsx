@@ -79,6 +79,9 @@ export default function SettingsPage() {
   const mayManageTeam = useKnownPermission('users:read')
   const [staff, setStaff] = useState<StoreUser[]>([])
   const [newStaff, setNewStaff] = useState<{ name: string; email: string; password: string; role: AssignableRole }>({ name: '', email: '', password: '', role: 'staff' })
+  // Email them an invite (they choose their own password) — the default, as Shopify does it. Unticked, the owner sets a
+  // first password and hands it over in person. (10/14)
+  const [inviteByEmail, setInviteByEmail] = useState(true)
   const [addingStaff, setAddingStaff] = useState(false)
 
   const loadStaff = () => {
@@ -114,13 +117,26 @@ export default function SettingsPage() {
   const addStaff = async () => {
     setAddingStaff(true)
     try {
-      await api.createUser(newStaff)
-      toast(newStaff.role === 'manager' ? 'Manager added' : 'Staff member added')
+      const created = await api.createUser(inviteByEmail ? { name: newStaff.name, email: newStaff.email, role: newStaff.role } : newStaff)
+      if (!inviteByEmail) toast(newStaff.role === 'manager' ? 'Manager added' : 'Staff member added')
+      // Say whether the invite actually went out: a store with no mail set up must not leave the owner waiting.
+      else if (created.inviteSent) toast(`Invite sent to ${newStaff.email}`)
+      else toast(`Added, but the invite email could not be sent — use Resend invite, or untick "Email them an invite" and set a password.`, 'error')
       setNewStaff({ name: '', email: '', password: '', role: 'staff' })
       loadStaff()
     } catch (e: any) {
       toast(e?.message || 'Could not add the team member', 'error')
     } finally { setAddingStaff(false) }
+  }
+
+  const resendInvite = async (u: StoreUser) => {
+    try {
+      const r = await api.resendInvite(u.id)
+      toast(r.inviteSent ? `Invite sent again to ${u.email}` : 'The invite email could not be sent — check the store’s email set-up.', r.inviteSent ? undefined : 'error')
+      loadStaff()
+    } catch (e: any) {
+      toast(e?.message || 'Could not resend the invite', 'error')
+    }
   }
 
   useEffect(() => {
@@ -269,6 +285,12 @@ export default function SettingsPage() {
                 <div>
                   <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-500 line-through dark:text-slate-400' : 'text-gray-900 dark:text-slate-200'} dark:text-slate-100`}>{u.name || u.email}</p>
                   <p className="text-xs text-gray-500 dark:text-slate-400">{u.email}</p>
+                  {u.invitePending && u.isActive !== false && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      Invite sent — not accepted yet ·{' '}
+                      <button onClick={() => resendInvite(u)} className="font-medium underline hover:no-underline">Resend invite</button>
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   {/* The owner's seat, and your own, are not changed here (routes/users.ts refuses both). */}
@@ -301,7 +323,9 @@ export default function SettingsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div><label className="label">Name</label><input className="input" value={newStaff.name} onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })} /></div>
             <div><label className="label">Email</label><input className="input" type="email" value={newStaff.email} onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })} /></div>
-            <div><label className="label">Temporary password</label><input className="input" value={newStaff.password} onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })} placeholder="At least 8 characters" /></div>
+            {!inviteByEmail && (
+              <div><label className="label">Temporary password</label><input className="input" value={newStaff.password} onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })} placeholder="At least 8 characters" /></div>
+            )}
             <div>
               <label className="label" htmlFor="new-member-role">Role</label>
               <select id="new-member-role" className="input" value={newStaff.role} onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value as AssignableRole })}>
@@ -310,9 +334,13 @@ export default function SettingsPage() {
             </div>
           </div>
           <p className="text-xs text-gray-500 dark:text-slate-400">{ROLE_OPTIONS.find((r) => r.value === newStaff.role)?.hint}</p>
-          <p className="text-xs text-gray-500 dark:text-slate-400">Share the password with them — they can change it from this page after signing in.</p>
-          <button onClick={addStaff} className="btn-primary" disabled={addingStaff || !newStaff.name.trim() || !newStaff.email.trim() || newStaff.password.length < 8}>
-            {addingStaff ? 'Adding…' : newStaff.role === 'manager' ? 'Add manager' : 'Add staff member'}
+          <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-300">
+            <input type="checkbox" className="mt-1" checked={inviteByEmail} onChange={(e) => setInviteByEmail(e.target.checked)} />
+            <span>Email them an invite — they choose their own password (the link lasts 7 days)</span>
+          </label>
+          {!inviteByEmail && <p className="text-xs text-gray-500 dark:text-slate-400">Share the password with them — they can change it from this page after signing in.</p>}
+          <button onClick={addStaff} className="btn-primary" disabled={addingStaff || !newStaff.name.trim() || !newStaff.email.trim() || (!inviteByEmail && newStaff.password.length < 8)}>
+            {addingStaff ? 'Adding…' : inviteByEmail ? (newStaff.role === 'manager' ? 'Invite manager' : 'Invite staff member') : newStaff.role === 'manager' ? 'Add manager' : 'Add staff member'}
           </button>
         </div>
       )}

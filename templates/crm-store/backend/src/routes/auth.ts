@@ -200,6 +200,8 @@ auth.post('/reset-password', async (c) => {
   }
   const [u] = await db.select().from(users).where(eq(users.resetToken, token)).limit(1)
   if (!u || !u.resetTokenExp || new Date(u.resetTokenExp) < new Date()) {
+    // An invite link that has run out is the owner's to send again — Forgot password is for someone with an account. (10/14)
+    if (token.startsWith('invite_')) return c.json({ error: 'This invitation has expired or was replaced. Ask the store owner to send it again.' }, 400)
     return c.json({ error: 'This reset link is invalid or has expired. Request a new one.' }, 400)
   }
   const passwordHash = await Bun.password.hash(password, 'bcrypt')

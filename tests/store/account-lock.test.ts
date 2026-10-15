@@ -43,6 +43,12 @@ app.route('/api/auth', (await import('./src/routes/auth.ts')).default)
 app.route('/api/admin/discounts', (await import('./src/routes/discounts.ts')).default)
 app.route('/api/billing', (await import('./src/routes/billing.ts')).billingRoutes)
 app.route('/api/internal/sync-subscription', (await import('./src/routes/subscriptionSync.ts')).subscriptionSyncRoute)
+app.route('/api/public', (await import('./src/routes/public.ts')).default)
+const shopper = async (method: string, path: string, body?: unknown) => {
+  const res = await app.request(path, { method, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
+  const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+  return { status: res.status, json: j }
+}
 
 const call = async (who: any, method: string, path: string, body?: unknown) => {
   const res = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-test-user': who.id }, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -58,6 +64,8 @@ const codes = async () => Number((await db.select({ n: count() }).from(discountC
 {
   check('the Factory\'s push needs its key', (await push(sub({}), 'wrong')) === 401)
   check('open: a paying store reads its discount codes', (await push(sub({}))) === 200 && (await call(owner, 'GET', '/api/admin/discounts')).status === 200)
+  const st = await shopper('GET', '/api/public/status'), cat = await shopper('GET', '/api/public/products')
+  check(`open: shoppers see the catalogue and the status says open (${st.status}, ${cat.status})`, st.json?.open === true && st.json?.storeName === 'Lock Shop' && cat.status === 200, { st: st.json, cat: cat.status })
 }
 {
   check('the Factory says the subscription ended — and the push now lands (it was a 404)', (await push(sub({ status: 'canceled', billingStatus: 'canceled' }))) === 200)
@@ -68,6 +76,17 @@ const codes = async () => Number((await db.select({ n: count() }).from(discountC
   check(`locked: a write is refused too, and nothing is written (${w.status})`, w.status === 402 && (await codes()) === before, w.json)
   const s = await call(staff, 'GET', '/api/admin/discounts')
   check('locked: for every seat — staff refused the same', s.status === 402 && s.json?.code === 'ACCOUNT_LOCKED', s.json)
+}
+{
+  // SHOPPERS, as a frozen Shopify store: "what do the pros do? shopify?" (owner, 10/14)
+  const st = await shopper('GET', '/api/public/status')
+  check('locked: the storefront is told the store is closed — with its name, and nothing about why', st.status === 200 && st.json?.open === false && st.json?.storeName === 'Lock Shop' && Object.keys(st.json || {}).sort().join(',') === 'open,storeName', st.json)
+  const refused = await Promise.all(['/api/public/products', '/api/public/products/anything', '/api/public/settings', '/api/public/loyalty?email=a%40b.c', '/api/public/recover/x', '/api/public/products/anything/reviews'].map((p) => shopper('GET', p)))
+  check('locked: the catalogue, settings, loyalty quote, cart recovery and reviews answer 503 STORE_UNAVAILABLE', refused.every((r) => r.status === 503 && r.json?.code === 'STORE_UNAVAILABLE'), refused.map((r) => r.status))
+  const co = await shopper('POST', '/api/public/checkout', { items: [{ variantId: '00000000-0000-0000-0000-000000000000', quantity: 1 }], email: 'a@b.c' })
+  check(`locked: CHECKOUT is refused — nobody pays a closed store (${co.status})`, co.status === 503 && co.json?.code === 'STORE_UNAVAILABLE', co.json)
+  const wh = await shopper('POST', '/api/public/webhooks/payment', {}), sw = await shopper('POST', '/api/public/webhooks/supplier', {}), os = await shopper('GET', '/api/public/order-summary?session=x')
+  check(`locked: the payment and supplier webhooks and the order summary still answer — money in flight still lands (${wh.status}, ${sw.status}, ${os.status})`, wh.json?.code !== 'STORE_UNAVAILABLE' && sw.json?.code !== 'STORE_UNAVAILABLE' && os.json?.code !== 'STORE_UNAVAILABLE' && ![wh.status, sw.status, os.status].includes(503), { wh, sw, os })
 }
 {
   const o = await call(owner, 'GET', '/api/auth/me'), s = await call(staff, 'GET', '/api/auth/me')
@@ -94,6 +113,8 @@ const codes = async () => Number((await db.select({ n: count() }).from(discountC
   const r = await call(staff, 'GET', '/api/admin/discounts')
   check(`unlocked: on the very next request (${r.status})`, r.status === 200)
   check('unlocked: nobody is told it is locked', (await call(staff, 'GET', '/api/auth/me')).json?.accountLock === null)
+  const st = await shopper('GET', '/api/public/status'), cat = await shopper('GET', '/api/public/products')
+  check('unlocked: shoppers are back — status open, catalogue answers', st.json?.open === true && cat.status === 200, { st: st.json, cat: cat.status })
   await push(sub({ status: 'past_due', billingStatus: 'past_due' }))
   check('past_due is open — Stripe is still retrying the card', (await call(owner, 'GET', '/api/admin/discounts')).status === 200)
 }

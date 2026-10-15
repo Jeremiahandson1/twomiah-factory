@@ -13,8 +13,33 @@ import type { WebhookResult } from '../payments/types.ts'
 import { sendOrderConfirmation, sendMerchantNewOrder } from '../services/email.ts'
 import { applyProviderRefund } from './orders.ts'
 import logger from '../services/logger.ts'
+import { currentAccountLock } from '../shared/index.ts'
 
 const pub = new Hono()
+
+// ── A store whose subscription ended is UNAVAILABLE to shoppers too (10/14) ─────────────────────────────────────
+// Owner: "what do the pros do? shopify?" — a frozen Shopify store shows "This store is unavailable": no browsing, no
+// checkout, admin closed, until the bill is paid. Here the admin was locked (shared auth/accountLock.ts) but the
+// storefront kept selling. Same rule, same summary (store_settings.subscription), on the shopper's side:
+//   - GET /status always answers — the storefront asks it to decide whether to show its "unavailable" page;
+//   - the payment and supplier WEBHOOKS stay open, so money already in flight (paid a moment before the lock) still
+//     lands and its order is finalised; and the order summary stays open, so that shopper still sees their receipt;
+//   - everything else — the catalogue, the cart's loyalty quote, checkout, reviews, cart recovery — answers 503.
+const SHOPPER_DOORS_WHILE_LOCKED = ['/status', '/order-summary']
+pub.use('*', async (c, next) => {
+  const rel = c.req.path.replace(/^\/api\/public/, '') || '/'
+  if (SHOPPER_DOORS_WHILE_LOCKED.includes(rel) || rel.startsWith('/webhooks/')) return next()
+  const lock = await currentAccountLock(db, storeSettings, storeSettings.subscription)
+  if (!lock) return next()
+  return c.json({ error: 'This store is unavailable right now.', code: 'STORE_UNAVAILABLE' }, 503)
+})
+
+pub.get('/status', async (c) => {
+  const [s] = await db.select({ companyName: storeSettings.companyName, subscription: storeSettings.subscription }).from(storeSettings).limit(1)
+  const lock = await currentAccountLock(db, storeSettings, storeSettings.subscription)
+  // Only THAT it is unavailable and the shop's name — never why, and nothing about the bill.
+  return c.json({ open: !lock, storeName: s?.companyName ?? null })
+})
 
 // Flip a pending order to paid, populate customer/shipping from the provider
 // result, and decrement tracked inventory. Idempotent + race-safe: only the

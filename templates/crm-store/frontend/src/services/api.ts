@@ -44,6 +44,8 @@ export type StoreUser = {
   role: string
   isActive: boolean
   createdAt: string
+  /** An emailed invite is waiting for them to choose a password (7 days). */
+  invitePending?: boolean
 }
 
 export type Product = {
@@ -317,11 +319,15 @@ class ApiClient {
   // Team logins. Owner-only on the backend (users:read, team:create, team:update); manager and staff are
   // the roles it hands out.
   async listUsers() { return (await this.request<{ data: StoreUser[] }>('/api/admin/users')).data }
-  async createUser(input: { name: string; email: string; password: string; role: AssignableRole }) {
-    return this.request<StoreUser>('/api/admin/users', { method: 'POST', body: JSON.stringify(input) })
+  /** No password → they are emailed an invite and choose their own; inviteSent says whether the email went out. */
+  async createUser(input: { name: string; email: string; password?: string; role: AssignableRole }) {
+    return this.request<StoreUser & { invited?: boolean; inviteSent?: boolean }>('/api/admin/users', { method: 'POST', body: JSON.stringify(input) })
   }
   // Revoke = deactivate. Orders and fulfilment reference the user, and the seat
   // count is of active users, so isActive=false is what frees a seat.
+  async resendInvite(id: string) {
+    return this.request<{ invited: boolean; inviteSent: boolean }>(`/api/admin/users/${id}/invite`, { method: 'POST' })
+  }
   async updateUser(id: string, input: { name?: string; isActive?: boolean; role?: AssignableRole }) {
     return this.request<StoreUser>(`/api/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(input) })
   }

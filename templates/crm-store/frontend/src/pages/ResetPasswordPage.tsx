@@ -8,6 +8,8 @@ const companyName = import.meta.env.VITE_COMPANY_NAME || 'Store'
 export default function ResetPasswordPage() {
   const [params] = useSearchParams()
   const token = params.get('token') || ''
+  // An invite from the store owner (routes/users.ts) lands here too — it is the same set-your-password link.
+  const invite = params.get('invite') === '1'
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
@@ -39,8 +41,8 @@ export default function ResetPasswordPage() {
         </div>
         {done ? (
           <div className="card p-6 space-y-3">
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Password updated</h1>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Your new password is set. Sign in to continue.</p>
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{invite ? 'You’re all set' : 'Password updated'}</h1>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{invite ? 'Your password is set. Sign in with your email and the password you just chose.' : 'Your new password is set. Sign in to continue.'}</p>
             <Link to="/login" className="btn-primary block text-center">Sign in</Link>
           </div>
         ) : !token ? (
@@ -52,8 +54,8 @@ export default function ResetPasswordPage() {
         ) : (
           <form onSubmit={submit} className="card p-6 space-y-4">
             <div>
-              <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Set a new password</h1>
-              <p className="text-sm text-gray-500 dark:text-slate-400">Minimum 8 characters</p>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{invite ? 'Welcome — choose your password' : 'Set a new password'}</h1>
+              <p className="text-sm text-gray-500 dark:text-slate-400">{invite ? 'You’ve been invited to help run this store. Minimum 8 characters.' : 'Minimum 8 characters'}</p>
             </div>
             {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
             <div>

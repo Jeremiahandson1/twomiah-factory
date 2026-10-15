@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url'
 
 import adminRoutes from './routes/admin.ts'
 import { fetchLoyaltyQuote, forwardCheckout, originFromHeaders } from './routes/storeApi.ts'
+import { createStoreStatus, servesWhileClosed, unavailablePage } from './routes/storeStatus.ts'
 import { startSchedule as startBackups } from './services/autoBackup.ts'
 import { rebuildMiddleware } from './services/rebuild-middleware.ts'
 import appPaths from './config/paths.ts'
@@ -64,6 +65,19 @@ app.use('*', async (c, next) => {
     return c.redirect(p.replace(/\/+$/, '') + url.search, 301)
   }
   return next()
+})
+
+// A store whose subscription has ended is unavailable to shoppers, as a frozen Shopify store is (routes/storeStatus.ts):
+// every shop page shows "This store is unavailable" (503) until the owner restarts it. crm-store refuses the catalogue
+// and checkout anyway; this is so the shopper sees a plain page rather than an empty shop and a failing checkout. Asked
+// at most every 30s; anything but a clear "closed" — including crm-store being unreachable — keeps the shop open. (10/14)
+const storeStatus = createStoreStatus({ crmStoreApiUrl: (process.env.CRM_STORE_API_URL || '').replace(/\/+$/, '') })
+app.use('*', async (c, next) => {
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return next()
+  if (servesWhileClosed(new URL(c.req.url).pathname)) return next()
+  const s = await storeStatus()
+  if (s.open) return next()
+  return c.html(unavailablePage(s.storeName), 503, { 'Cache-Control': 'no-store', 'Retry-After': '3600' })
 })
 
 // Rate limiting
