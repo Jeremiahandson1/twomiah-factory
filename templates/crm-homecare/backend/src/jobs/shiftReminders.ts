@@ -12,7 +12,7 @@ import { sql } from 'drizzle-orm'
 import { rows } from '../helpers/scheduleRows.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { agencyNow } from '../helpers/agencyTime.ts'
-import { sendPush } from '../services/visitNotify.ts'
+import { sendCaregiverAlert } from '../services/visitNotify.ts'
 
 export async function scanShiftReminders(at: Date = new Date()): Promise<number> {
   const { date, time } = await agencyNow(at)
@@ -32,11 +32,11 @@ export async function scanShiftReminders(at: Date = new Date()): Promise<number>
       const claim = await rows(sql`INSERT INTO shift_reminder_log (schedule_id, shift_date, sent_at) VALUES (${s.id}, ${date}::date, NOW())
         ON CONFLICT (schedule_id, shift_date) DO NOTHING RETURNING schedule_id`)
       if (!claim.length) continue
-      await sendPush(s.caregiver_id, {
-        title: 'Shift in 1 hour',
-        body: `${s.client_first} ${s.client_last} · ${s.start_hm}–${s.end_hm}`,
-        tag: `shift-reminder-${s.id}-${date}`,
-        data: { type: 'shift_reminder', eventType: 'shift_reminder', urgent: false, scheduleId: s.id },
+      const body = `${s.client_first} ${s.client_last} · ${s.start_hm}–${s.end_hm}`
+      await sendCaregiverAlert({
+        userId: s.caregiver_id, alertType: 'shift_reminder', channel: 'push', body,
+        payload: { title: 'Shift in 1 hour', body, tag: `shift-reminder-${s.id}-${date}`,
+          data: { type: 'shift_reminder', eventType: 'shift_reminder', urgent: false, scheduleId: s.id } },
       })
       sent++
     } catch (e: any) { console.error('[shift-reminders] one shift:', e?.message) }

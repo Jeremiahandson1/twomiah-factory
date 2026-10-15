@@ -121,3 +121,19 @@ export async function recordAudit(userId: string | null | undefined, action: str
     console.error('[visits] audit:', e?.message)
   }
 }
+
+// ── The one door for background caregiver / office alerts ───────────────────────────────
+// Shift reminders (push) and over-visit-length texts (SMS) both go through here, so a per-person
+// notification preference (shouldNotify) can be applied in exactly one place.
+export async function sendCaregiverAlert(a: {
+  userId: string | null | undefined
+  alertType: 'shift_reminder' | 'overtime_alert'
+  channel: 'push' | 'sms'
+  phone?: unknown
+  body: string
+  payload?: Record<string, unknown>
+  urgent?: boolean
+}): Promise<boolean> {
+  if (a.channel === 'sms') return sendText({ phone: a.phone, body: a.body })
+  return (await sendPush(a.userId, a.payload || { title: a.body })) > 0
+}

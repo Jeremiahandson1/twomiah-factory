@@ -625,5 +625,40 @@ const closeOpen = async (who: any) => q(sql`UPDATE time_entries SET end_time = N
   check('a punch stuck 13 hours past its visit gets no text', (await scanOvertimeAlerts(new Date(T.getTime() + 13 * 3600000))) === 0)
 }
 
+// ══ 11. Schedule Hub support (/api/scheduling) ══════════════════════════════════════════════════════
+{
+  const hub = new Hono()
+  hub.route('/api/scheduling', (await import('./src/routes/schedulingHub.ts')).default)
+  const asH = (who: any) => async (method: string, path: string, body?: unknown) => {
+    const res = await hub.request(path, { method, headers: { 'content-type': 'application/json', 'x-test-user': who.id, 'x-test-role': who.role }, body: body === undefined ? undefined : JSON.stringify(body) })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j }
+  }
+  const lonely = await mkUser('caregiver', 'cgfour')
+  const cl = await mkClient('Hana', { weeklyAuthorizedUnits: '40', doNotUseCaregivers: [cg1.id] })
+  // A bi-weekly 4-hour shift: counted only in its on-weeks.
+  await insSched({ caregiver_id: lonely.id, client_id: cl.id, day_of_week: 2, start: '08:00', end: '12:00', effective_date: '2026-09-01', anchor_date: '2026-09-01', frequency: 'biweekly' })
+  const on = await asH(admin)('GET', '/api/scheduling/coverage-overview?weekOf=2026-09-01')
+  const off = await asH(admin)('GET', '/api/scheduling/coverage-overview?weekOf=2026-09-08')
+  const hOn = on.json?.caregivers?.find((x: any) => x.id === lonely.id)?.scheduledHours
+  const hOff = off.json?.caregivers?.find((x: any) => x.id === lonely.id)?.scheduledHours
+  check('coverage counts a bi-weekly shift only in its on-week (4 h, then 0)', hOn === 4 && hOff === 0, [hOn, hOff])
+  const under = on.json?.underScheduledClients?.find((x: any) => x.id === cl.id)
+  check('…and a client authorized 40 units (10 h) with 16 units scheduled is short 24 units / 6 h', under?.scheduledUnits === 16 && under?.shortfallUnits === 24 && under?.shortfallHours === 6, under)
+  const cgCov = await asH(cg1)('GET', '/api/scheduling/coverage-overview')
+  check('coverage is the office\'s', cgCov.status === 403)
+  const wk = await asH(admin)('GET', '/api/scheduling/week-view?weekOf=2026-09-01')
+  const tue = wk.json?.caregivers?.find((x: any) => x.caregiver.id === lonely.id)?.days?.[2]
+  check('the week view puts the shift on its Tuesday with wall-clock times', tue?.length === 1 && tue[0].start_time === '08:00:00', tue)
+  const ot = await asH(admin)('POST', '/api/scheduling/check-weekly-hours', { caregiverId: lonely.id, date: '2026-09-02', startTime: '08:00', endTime: '20:00' })
+  check('overtime check: 4 h scheduled + 12 h proposed = 16 h projected', ot.json?.currentWeeklyHours === 4 && ot.json?.projectedHours === 16 && ot.json?.overtimeHours === 0, ot.json)
+  const mineH = await asH(cg2)('GET', `/api/scheduling/caregiver-hours/${lonely.id}`)
+  check("a caregiver cannot read another caregiver's hours", mineH.status === 403)
+  const sug = await asH(admin)('GET', `/api/scheduling/suggest-caregivers?clientId=${cl.id}&date=2026-09-01&startTime=09:00&endTime=10:00`)
+  const ids = (sug.json?.suggestions || []).map((x: any) => x.id)
+  check('suggestions leave out the client\'s do-not-use caregiver and rank a busy one below a free one',
+    !ids.includes(cg1.id) && ids.indexOf(lonely.id) > ids.indexOf(cg3.id) && sug.json.suggestions.find((x: any) => x.id === lonely.id)?.hasConflict === true, ids)
+}
+
 console.log(`\nhomecare-visits: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

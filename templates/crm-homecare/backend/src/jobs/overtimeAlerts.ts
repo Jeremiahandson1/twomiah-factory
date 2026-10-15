@@ -15,7 +15,7 @@
 import { sql } from 'drizzle-orm'
 import { rows } from '../helpers/scheduleRows.ts'
 import { agencyNow, fmtClock } from '../helpers/agencyTime.ts'
-import { sendText, notifyAdmins, agencyShortName } from '../services/visitNotify.ts'
+import { sendCaregiverAlert, notifyAdmins, agencyShortName } from '../services/visitNotify.ts'
 
 export const THRESHOLDS = [5, 30, 60]
 export const OFFICE_THRESHOLD = 60
@@ -64,12 +64,12 @@ export async function scanOvertimeAlerts(at: Date = new Date()): Promise<number>
       const client = `${e.cl_first} ${String(e.cl_last || '').charAt(0)}.`.trim()
       const scheduled = fmtDuration(Number(e.allotted_minutes))
       const overTxt = fmtDuration(over)
-      if (await sendText({ phone: e.cg_phone, body: `${prefix ? prefix + ': ' : ''}You're still clocked in with ${client} — ${overTxt} past your ${scheduled} visit (clocked in ${clockIn}). Please clock out if you're done.` })) sent++
+      if (await sendCaregiverAlert({ userId: e.caregiver_id, alertType: 'overtime_alert', channel: 'sms', urgent: true, phone: e.cg_phone, body: `${prefix ? prefix + ': ' : ''}You're still clocked in with ${client} — ${overTxt} past your ${scheduled} visit (clocked in ${clockIn}). Please clock out if you're done.` })) sent++
       if (top === OFFICE_THRESHOLD) {
         const msg = `${e.cg_first} ${e.cg_last} is still clocked in with ${client} — ${overTxt} past a ${scheduled} visit (clocked in ${clockIn}).`
         const admins = await notifyAdmins('overtime_alert', 'Still clocked in past scheduled time', msg)
         for (const a of admins) {
-          if (a.phone && await sendText({ phone: a.phone, body: `${prefix ? prefix + ': ' : ''}${msg}` })) sent++
+          if (a.phone && await sendCaregiverAlert({ userId: a.id, alertType: 'overtime_alert', channel: 'sms', urgent: true, phone: a.phone, body: `${prefix ? prefix + ': ' : ''}${msg}` })) sent++
         }
       }
     } catch (err: any) { console.error('[overtime-alerts] one entry:', err?.message) }

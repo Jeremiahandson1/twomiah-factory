@@ -106,6 +106,7 @@ import schedulesEnhancedRoutes from './routes/schedulesEnhanced.ts'
 import shiftSwapsRoutes from './routes/shiftSwaps.ts'
 import scheduleExceptionsRoutes from './routes/scheduleExceptions.ts'
 import schedulesRoutes from './routes/schedules.ts'
+import schedulingHubRoutes from './routes/schedulingHub.ts'
 import visitDocumentationRoutes from './routes/visitDocumentation.ts'
 import visitChangeRequestsRoutes from './routes/visitChangeRequests.ts'
 import portalVisitRoutes from './routes/portalVisits.ts'
@@ -220,6 +221,9 @@ app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 app.route('/api/clients', clientsRoutes)
 app.route('/api/caregivers', caregiversRoutes)
+// The Schedule Hub's week view, coverage, suggestions and checks — ahead of the scheduling module on
+// the same prefix (time off, absences, no-show).
+app.route('/api/scheduling', schedulingHubRoutes)
 app.route('/api/scheduling', schedulingRoutes)
 app.route('/api/time-tracking', timeTrackingRoutes)
 app.route('/api/billing', billingRoutes)
