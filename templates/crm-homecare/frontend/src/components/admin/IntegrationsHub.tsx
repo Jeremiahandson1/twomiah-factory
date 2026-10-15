@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
 import { useAuth } from '../../contexts/AuthContext';
+import SandataPanel from './SandataPanel';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt$ = (n) => n != null ? `$${parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')}` : '—';
@@ -13,7 +14,7 @@ const fmtNum = (n) => n != null ? parseFloat(n||0).toFixed(2) : '—';
 const STATUS_COLORS = {
   accepted: ['#D1FAE5','#065F46'], submitted: ['#DBEAFE','#1E40AF'],
   ready: ['#D1FAE5','#065F46'], pending: ['#FEF3C7','#92400E'],
-  exception: ['#FEE2E2','#991B1B'], rejected: ['#FEE2E2','#991B1B'],
+  exception: ['#FEE2E2','#991B1B'], rejected: ['#FEE2E2','#991B1B'], needs_manual: ['#FEE2E2','#991B1B'],
   matched: ['#D1FAE5','#065F46'], partial: ['#FEF3C7','#92400E'],
   unmatched: ['#F3F4F6','#374151'], pending_match: ['#DBEAFE','#1E40AF'],
   active: ['#D1FAE5','#065F46'], expired: ['#FEE2E2','#991B1B'],
@@ -144,6 +145,10 @@ const IntegrationsHub = () => {
   }, [tab]);
 
   const setLoad = (key, val) => setLoading(p => ({...p,[key]:val}));
+  const reloadEvv = () => {
+    get('/api/sandata/config').then(d => d && setSandataConfig(d));
+    get('/api/sandata/status').then(d => d && setEvvData(d)).catch(() => {});
+  };
 
   // ── Overview Tab ─────────────────────────────────────────────────────────────
   const renderOverview = () => {
@@ -160,7 +165,7 @@ const IntegrationsHub = () => {
             <div style={{fontWeight:'700',fontSize:'0.85rem',marginBottom:'0.4rem'}}>🏠 Sandata EVV</div>
             {sandataConfig?.isConfigured
               ? <><Badge status="active" label="✓ Connected"/><p style={{fontSize:'0.78rem',color:'#6B7280',margin:'0.4rem 0 0'}}>{evvData?.summary?.accepted||0} accepted · {evvData?.summary?.exceptions||0} exceptions</p></>
-              : <><Badge status="pending" label="⚠ Not Configured"/><p style={{fontSize:'0.75rem',color:'#92400E',margin:'0.4rem 0 0'}}>Call (833) 931-2035 to get credentials</p></>
+              : <><Badge status="pending" label="⚠ Not Configured"/><p style={{fontSize:'0.75rem',color:'#92400E',margin:'0.4rem 0 0'}}>Enter the Sandata account on the EVV tab</p></>
             }
           </Card>
           {/* Gusto */}
@@ -258,15 +263,17 @@ const IntegrationsHub = () => {
     <div style={{display:'grid',gap:'1rem'}}>
       {!sandataConfig?.isConfigured && (
         <Card style={{background:'#FFFBEB',border:'1px solid #FCD34D'}}>
-          <h4 style={{margin:'0 0 0.5rem',color:'#92400E'}}>⚠️ Sandata Credentials Not Configured</h4>
-          <p style={{margin:'0 0 0.5rem',fontSize:'0.875rem',color:'#92400E'}}>EVV records are being created automatically when caregivers clock out, but visits can't be submitted to Sandata yet.</p>
+          <h4 style={{margin:'0 0 0.5rem',color:'#92400E'}}>⚠️ Alternate EVV Certification In Progress</h4>
+          <p style={{margin:'0 0 0.5rem',fontSize:'0.875rem',color:'#92400E'}}>EVV records are created automatically at clock-out. Submission to the Sandata aggregator activates once certification issues the agency's credentials — until then, keep entering visits the way your state requires.</p>
           <div style={{fontSize:'0.82rem',color:'#78350F',display:'grid',gap:'0.2rem'}}>
-            <div><strong>Step 1:</strong> Call Wisconsin EVV Customer Care: <strong>(833) 931-2035</strong></div>
-            <div><strong>Step 2:</strong> Request Alt-EVV API credentials for your agency</div>
-            <div><strong>Step 3:</strong> In Render → Environment → add: SANDATA_USERNAME, SANDATA_PASSWORD, SANDATA_ACCOUNT_ID</div>
+            <div><strong>Step 1:</strong> Start alternate-EVV certification with Sandata for your state</div>
+            <div><strong>Step 2:</strong> Clear the readiness issues below (Medicaid IDs, worker IDs, payer codes, service codes)</div>
+            <div><strong>Step 3:</strong> When credentials arrive, enter them in the Sandata account form below</div>
           </div>
         </Card>
       )}
+
+      <SandataPanel token={token} visits={evvData?.visits || []} onChanged={reloadEvv} />
 
       {/* Summary cards */}
       {evvData && (
@@ -296,7 +303,7 @@ const IntegrationsHub = () => {
                 setLoad('submit',true);
                 const r = await fetch(`${API_BASE_URL}/api/sandata/submit`,{method:'POST',headers,body:JSON.stringify({visitIds:selected})});
                 const d = await r.json();
-                if(r.ok){toast(`Submitted ${d.submitted} visits to Sandata`,'success');setSelected([]);}
+                if(r.ok){toast(`Queued ${d.queued ?? 0} visits for Sandata submission`,'success');setSelected([]);reloadEvv();}
                 else toast(d.error||'Submission failed','error');
                 setLoad('submit',false);
               }}>

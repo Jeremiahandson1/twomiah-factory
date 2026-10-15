@@ -648,6 +648,10 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                 </small>
               </div>
 
+              {client?.id && (
+                <EvvWeeklyUnits clientId={client.id} initialUnits={client.evv_weekly_units !== undefined ? client.evv_weekly_units : client.evvWeeklyUnits} token={token} />
+              )}
+
               <h4 style={{ borderBottom: '2px solid #007bff', paddingBottom: '0.5rem', marginTop: '1rem', marginBottom: '1rem' }}>Billing Notes</h4>
               <div className="form-group">
                 <textarea
@@ -929,6 +933,89 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
         </form>
       </div>
     </div>
+  );
+};
+
+// EVV (Sandata) units per week — the client's EVV-required allowance from the payer (e.g. MIDAS
+// "Attendant care svcs (EVV Required)" in Wisconsin Family Care). Once this Sun–Sat week's Sandata
+// minutes reach it, the caregiver app stops sending caregivers to Sandata for this client until
+// Sunday (the rest is non-EVV time). Saved on its own (PATCH /api/clients/:id/evv-units), not with
+// the main client PUT. Ported from the CVHC CRM.
+const EvvWeeklyUnits = ({ clientId, initialUnits, token }) => {
+  const [units, setUnits] = useState(initialUnits == null ? '' : String(initialUnits));
+  const [week, setWeek] = useState(null);       // this week's usage, or null if not a Sandata client
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState({ text: '', type: '' });
+
+  const loadWeek = async (adoptUnits = false) => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/clients/evv-week?clientId=${encodeURIComponent(clientId)}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) return;
+      const rows = await r.json();
+      const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
+      setWeek(row);
+      if (adoptUnits && row && initialUnits === undefined) setUnits(row.evv_weekly_units == null ? '' : String(row.evv_weekly_units));
+    } catch { /* the usage line is informational */ }
+  };
+  useEffect(() => { setUnits(initialUnits == null ? '' : String(initialUnits)); loadWeek(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [clientId]);
+
+  // The typed string is kept as typed and checked only on save — never clamped while typing.
+  const save = async () => {
+    setMsg({ text: '', type: '' });
+    const typed = units.trim();
+    if (typed !== '' && !/^\d+$/.test(typed)) { setMsg({ text: 'EVV units per week must be a whole number from 0 to 672, or blank.', type: 'error' }); return; }
+    if (typed !== '' && Number(typed) > 672) { setMsg({ text: 'EVV units per week must be a whole number from 0 to 672, or blank.', type: 'error' }); return; }
+    setSaving(true);
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/clients/${clientId}/evv-units`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ units: typed === '' ? null : Number(typed) }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || `Save failed (${r.status})`);
+      setMsg({ text: 'Saved.', type: 'success' });
+      loadWeek();
+    } catch (e) {
+      setMsg({ text: e.message, type: 'error' });
+    } finally { setSaving(false); }
+  };
+
+  const fmtH = (min) => `${(min / 60).toFixed(2).replace(/\.?0+$/, '')}h`;
+  const typedOk = /^\d+$/.test(units.trim()) && Number(units.trim()) <= 672;
+  return (
+    <>
+      <h4 style={{ borderBottom: '2px solid #007bff', paddingBottom: '0.5rem', marginTop: '1rem', marginBottom: '1rem' }}>EVV (Sandata) Units Per Week</h4>
+      <div className="form-group">
+        <label>EVV-required units per week (Sun–Sat)</label>
+        <div className="flex items-center gap-2">
+          <input type="text" inputMode="numeric" value={units}
+            onChange={(e) => setUnits(e.target.value)} placeholder="from the payer's authorization, e.g. 12" style={{ flex: 1 }} />
+          <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save EVV units'}</button>
+        </div>
+        {typedOk && (
+          <div className="mt-2 rounded bg-sky-100 p-2 text-sm text-sky-800 dark:bg-sky-950 dark:text-sky-200">
+            = <strong>{fmtH(Number(units.trim()) * 15)}</strong> of Sandata visits per week
+          </div>
+        )}
+        {week && (
+          <div className={week.next_visit_to_sandata
+            ? 'mt-2 rounded bg-amber-100 p-2 text-sm text-gray-700 dark:bg-amber-950 dark:text-amber-100'
+            : 'mt-2 rounded bg-emerald-50 p-2 text-sm text-gray-700 dark:bg-emerald-950 dark:text-emerald-100'}>
+            This week ({week.week_start} – {week.week_end}): <strong>{fmtH(week.used_minutes)}</strong> sent to Sandata
+            {week.allowance_minutes != null && <> of {fmtH(week.allowance_minutes)}</>} across {week.sandata_visits} visit{week.sandata_visits === 1 ? '' : 's'}.
+            {' '}{week.allowance_minutes == null
+              ? 'No allowance entered — every visit is sent to Sandata.'
+              : week.next_visit_to_sandata ? 'The next visit goes to Sandata.' : 'EVV hours met — no more Sandata until Sunday.'}
+          </div>
+        )}
+        {msg.text && <div className={msg.type === 'error' ? 'mt-1 text-sm text-red-700 dark:text-red-300' : 'mt-1 text-sm text-emerald-700 dark:text-emerald-300'}>{msg.text}</div>}
+        <small style={{ color: '#666', display: 'block', marginTop: '0.25rem' }}>
+          From the payer's EVV-required (attendant care) authorization line. Blank = not entered (caregivers are sent to Sandata every visit). 0 = no EVV hours (never sent).
+          Only clients whose payer is a Sandata payer and who have a Medicaid ID on file are in Sandata.
+        </small>
+      </div>
+    </>
   );
 };
 

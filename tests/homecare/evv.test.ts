@@ -128,6 +128,22 @@ const client = await import('./src/services/sandataClient.ts')
     && !weekly.clientInSandata(null))
 }
 
+// ══ 2b. the caregiver app's rules (frontend/src/utils/sandata.ts — pure, read from the real tree) ═
+{
+  const ui = await import(`${process.env.FACTORY_ROOT}templates/crm-homecare/frontend/src/utils/sandata.ts`)
+  const evvClient = { id: 'c', in_sandata: true, medicaid_id: '1421146410' }
+  check('app: a client the server marks in_sandata needs Sandata; others never', ui.needsSandata(evvClient) && !ui.needsSandata({ id: 'x', in_sandata: false }) && !ui.needsSandata(undefined))
+  check('app: week met → no Sandata, and the "done" notice shows', ui.visitNeedsSandata(evvClient, false) === false && ui.evvWeekMet(evvClient, false) === true)
+  check('app: server says send it → prompt', ui.visitNeedsSandata(evvClient, true) === true && ui.evvWeekMet(evvClient, true) === false)
+  check('app: no answer (offline / timeout) → prompt, the safe side', ui.visitNeedsSandata(evvClient, null) === true && ui.visitNeedsSandata(evvClient, undefined) === true && ui.evvWeekMet(evvClient, undefined) === false)
+  check('app: a non-Sandata client never prompts, whatever the server says', ui.visitNeedsSandata({ id: 'x', in_sandata: false }, true) === false && ui.evvWeekMet({ id: 'x' }, false) === false)
+  const android = ui.smcLink('Mozilla/5.0 (Linux; Android 14; SM-S931U) Chrome/152 Mobile')
+  check('app: Android opens the installed app with a Play Store fallback', android.startsWith('intent://#Intent;package=com.sandata.smc.prod;') && android.includes(encodeURIComponent(ui.SMC_PLAY_URL)))
+  check('app: iPhone gets the App Store page; desktop the Play page', ui.smcLink('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)') === ui.SMC_APP_STORE_URL && ui.smcLink('Mozilla/5.0 (Windows NT 10.0)') === ui.SMC_PLAY_URL)
+  check('app: only a real 10–12 digit Medicaid ID is offered for copying', ui.medicaidIdOf({ id: 'c', medicaid_id: ' 1421146410 ' }) === '1421146410' && ui.medicaidIdOf({ id: 'c', medicaid_id: '1197148' }) === null && ui.medicaidIdOf({ id: 'c', in_sandata: true }) === null)
+  check('app and server agree on the reason codes', JSON.stringify(ui.EVV_REASONS.map((r: any) => r.code)) === JSON.stringify([...payloads.EVV_REASON_CODES]) && JSON.stringify(ui.EVV_REASONS_NEEDING_MEMO) === JSON.stringify(payloads.EVV_REASONS_NEEDING_MEMO))
+}
+
 // ══ fixtures ═════════════════════════════════════════════════════════════════════════════════
 const [ag] = await db.insert(agencies).values({ name: 'EVV Test Agency', slug: 'evvtest', state: 'WI' } as any).returning()
 const mkUser = async (role: string, tag: string, extra: any = {}) => (await db.insert(users).values({

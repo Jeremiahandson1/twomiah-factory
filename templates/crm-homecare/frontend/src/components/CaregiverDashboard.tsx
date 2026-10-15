@@ -11,6 +11,8 @@ import CaregiverMessages from './caregiver/CaregiverMessages';
 import { useGeolocation, useHaptics, useOfflineSync, useBackgroundGeolocation, isNative, platform } from '../hooks/useNative';
 import OfflineBanner from './OfflineBanner';
 import { useAuth } from '../contexts/AuthContext';
+import { SandataPrompt, SandataIdBox, SandataHelp, SandataNotice, useSandataContext } from './caregiver/SandataEvv';
+import { needsSandata, visitNeedsSandata, evvWeekMet, openSandata } from '../utils/sandata';
 
 const subscribeToPush = async (token) => {
   try {
@@ -33,7 +35,7 @@ const subscribeToPush = async (token) => {
 };
 
 const CaregiverDashboard = ({ onLogout }) => {
-  const { user, token } = useAuth();
+  const { user, token, company } = useAuth();
   const [currentPage, setCurrentPage] = useState('home');
   const [schedules, setSchedules] = useState([]);
   const [clients, setClients] = useState([]);
@@ -47,6 +49,34 @@ const CaregiverDashboard = ({ onLogout }) => {
   const [recentVisits, setRecentVisits] = useState([]);
   const [viewingClientId, setViewingClientId] = useState(null);
   const timerRef = useRef(null);
+
+  // Sandata EVV: which of my clients are in Sandata, and the "check in/out on Sandata too" prompt.
+  const { ctx: sandataCtx, reload: reloadSandata } = useSandataContext(token);
+  const sandataCtxRef = useRef(null);
+  sandataCtxRef.current = sandataCtx;
+  const [sandataPrompt, setSandataPrompt] = useState(null); // { kind: 'in' | 'out', clientId, clientName }
+  const [showSandataHelp, setShowSandataHelp] = useState(false);
+  const sandataClient = (id) => (sandataCtx?.clients || []).find(c => c.id === id);
+  const sessionClientId = (s) => (s ? (s.client_id || s.clientId) : null);
+  // The visit's Sandata decision was made at clock-in; after a reload it comes from the context.
+  const sessionSandataRequired = (s) => {
+    if (!s) return undefined;
+    if (s.sandata_required !== undefined) return s.sandata_required;
+    const av = sandataCtx?.activeVisit;
+    return av && av.time_entry_id === s.id ? av.sandata_required : undefined;
+  };
+
+  // Visits for clients in Sandata must also be checked in and out on Sandata Mobile Connect.
+  // `sandataRequired` is the server's per-visit answer (weekly EVV allowance): false = this week's
+  // EVV hours are already met, so this visit does NOT go to Sandata. Unknown (offline) -> prompt.
+  const promptSandata = (kind, clientId, sandataRequired) => {
+    const cl = (sandataCtxRef.current?.clients || []).find(c => c.id === clientId);
+    if (visitNeedsSandata(cl, sandataRequired)) {
+      setSandataPrompt({ kind, clientId, clientName: `${cl.first_name || ''} ${cl.last_name || ''}`.trim() });
+    } else if (kind === 'in' && evvWeekMet(cl, sandataRequired)) {
+      toast(`EVV hours for ${cl.first_name || 'this client'} are already done this week — no Sandata check-in needed for this visit.`, 'success');
+    }
+  };
 
   // Native GPS — works on web AND iOS/Android
   const { position: location, error: locationError, getPosition } = useGeolocation({ watch: true });
@@ -358,6 +388,7 @@ const CaregiverDashboard = ({ onLogout }) => {
             setActiveSession(clockData);
             setSelectedClient(clientId);
             gpsIntervalRef.current = startGPSBreadcrumbs(clockData.id);
+            promptSandata('in', clientId, clockData.sandata_required);
           }
           break; // only clock into one client at a time
         }
@@ -425,7 +456,8 @@ const CaregiverDashboard = ({ onLogout }) => {
         if (data.queued) {
           await hapticNotify('warning');
           toast('Clocked in offline — will sync when reconnected', 'warning');
-          setActiveSession({ id: 'offline-' + Date.now(), offline: true });
+          setActiveSession({ id: 'offline-' + Date.now(), offline: true, client_id: selectedClient });
+          promptSandata('in', selectedClient, undefined);
           return;
         }
         throw new Error(data.error || 'Failed');
@@ -436,6 +468,8 @@ const CaregiverDashboard = ({ onLogout }) => {
       setActiveSession(clockInData);
       gpsIntervalRef.current = startGPSBreadcrumbs(clockInData.id);
       if (!lat) toast('Clocked in (location unavailable)', 'warning');
+      promptSandata('in', selectedClient, clockInData.sandata_required);
+      reloadSandata();
     } catch (error) {
       await hapticNotify('error');
       toast('Failed to clock in: ' + error.message, 'error');
@@ -453,6 +487,8 @@ const CaregiverDashboard = ({ onLogout }) => {
 
       const lat = location?.latitude || null;
       const lng = location?.longitude || null;
+      const outClientId = sessionClientId(activeSession);
+      const outSandataRequired = sessionSandataRequired(activeSession);
 
       const res = await fetch(`${API_BASE_URL}/api/time-entries/${activeSession.id}/clock-out`, {
         method: 'POST',
@@ -469,17 +505,22 @@ const CaregiverDashboard = ({ onLogout }) => {
           setSelectedClient('');
           setVisitNote('');
           setShowNoteModal(false);
+          promptSandata('out', outClientId, outSandataRequired);
           return;
         }
         throw new Error(data.error || 'Failed');
       }
 
+      const outData = await res.json().catch(() => null);
       await hapticNotify('success');
       setActiveSession(null);
       setSelectedClient('');
       setVisitNote('');
       setShowNoteModal(false);
+      // The clock-out prompt follows the clock-in decision.
+      promptSandata('out', outClientId, outData && outData.sandata_required != null ? outData.sandata_required : outSandataRequired);
       loadData();
+      reloadSandata();
     } catch (error) {
       await hapticNotify('error');
       toast('Failed to clock out: ' + error.message, 'error');
@@ -681,6 +722,12 @@ const CaregiverDashboard = ({ onLogout }) => {
         )}
       </div>
 
+      {/* SANDATA EVV — visits for clients in Sandata are also checked in/out on Sandata Mobile Connect */}
+      {sandataPrompt && (
+        <SandataPrompt prompt={sandataPrompt} client={sandataClient(sandataPrompt.clientId)} ctx={sandataCtx}
+          email={user?.email} onClose={() => setSandataPrompt(null)} />
+      )}
+
       {/* MOBILE-FIRST CLOCK-IN — Full prominent card */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {activeSession ? (
@@ -706,6 +753,26 @@ const CaregiverDashboard = ({ onLogout }) => {
             >
               🛑 Clock Out
             </button>
+            {evvWeekMet(sandataClient(sessionClientId(activeSession)), sessionSandataRequired(activeSession)) && (
+              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+                ✅ This week's EVV hours are done — no Sandata for this visit.
+              </div>
+            )}
+            {visitNeedsSandata(sandataClient(sessionClientId(activeSession)), sessionSandataRequired(activeSession)) && (
+              <>
+                <button type="button" onClick={openSandata}
+                  className="mt-3 w-full rounded-xl border-2 border-blue-700 bg-white py-3 font-bold text-blue-700 dark:border-blue-400 dark:bg-slate-900 dark:text-blue-300">
+                  📲 Open the Sandata app (check in / check out)
+                  <div className="mt-0.5 text-xs font-medium text-slate-600 dark:text-slate-400">Not installed yet? This takes you to the store to download it.</div>
+                </button>
+                <SandataIdBox client={sandataClient(sessionClientId(activeSession))} />
+                <button type="button" onClick={() => setShowSandataHelp(v => !v)}
+                  className="mt-1 bg-transparent text-sm text-blue-700 underline dark:text-blue-300">
+                  {showSandataHelp ? 'Hide login help' : 'How do I log in to Sandata?'}
+                </button>
+                {showSandataHelp && <SandataHelp agencyId={sandataCtx?.sandataAgencyId || null} isWisconsin={!!sandataCtx?.isWisconsin} email={user?.email} />}
+              </>
+            )}
           </div>
         ) : (
           // CLOCK IN — prominent select + button
@@ -713,6 +780,15 @@ const CaregiverDashboard = ({ onLogout }) => {
             <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#111827', marginBottom: '1rem', textAlign: 'center' }}>
               ⏰ Ready to Start a Shift?
             </div>
+            {(sandataCtx?.clients || []).some(needsSandata) && (
+              <div className="mb-3 text-center">
+                <button type="button" onClick={() => setShowSandataHelp(v => !v)}
+                  className="bg-transparent text-sm text-blue-700 underline dark:text-blue-300">
+                  📲 {showSandataHelp ? 'Hide Sandata login help' : 'Set up Sandata (needed for your Sandata visits)'}
+                </button>
+                {showSandataHelp && <SandataHelp agencyId={sandataCtx?.sandataAgencyId || null} isWisconsin={!!sandataCtx?.isWisconsin} email={user?.email} />}
+              </div>
+            )}
             <div className="form-group" style={{ marginBottom: '0.875rem' }}>
               <label style={{ fontWeight: '700', fontSize: '0.9rem', color: '#374151' }}>Select Client *</label>
               <select
@@ -723,6 +799,8 @@ const CaregiverDashboard = ({ onLogout }) => {
                 <option value="">Choose client...</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
               </select>
+              {/* Sandata client: the ID to paste into Sandata, ready before they even clock in. */}
+              {selectedClient && <SandataIdBox client={sandataClient(selectedClient)} />}
             </div>
             <div style={{ padding: '0.6rem 0.875rem', background: location ? '#F0FDF4' : '#F9FAFB', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', color: location ? '#166534' : '#6B7280', border: `1px solid ${location ? '#BBF7D0' : '#E5E7EB'}` }}>
               {location ? `✅ GPS Active (±${location.accuracy?.toFixed(0)}m)` : locationError ? '⚠️ Location unavailable — you can still clock in' : '📍 Getting your location...'}
@@ -1068,6 +1146,9 @@ const CaregiverDashboard = ({ onLogout }) => {
           {currentPage === 'settings' && renderSettingsPage()}
         </div>
       </div>
+
+      <SandataNotice userId={user?.id} ctx={sandataCtx} companyPhone={company?.phone}
+        onSetup={() => { setCurrentPage('home'); setShowSandataHelp(true); }} />
 
       {showNoteModal && (
         <div className="modal active">

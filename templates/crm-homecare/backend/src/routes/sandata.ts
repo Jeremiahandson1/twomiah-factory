@@ -307,7 +307,7 @@ app.get('/readiness', requireAdmin, async (c) => {
       LEFT JOIN care_types ct ON ct.id = c.care_type_id
      WHERE c.is_active = true
        AND COALESCE(c.is_private_pay, false) = false
-       AND (rs.id IS NULL OR rs.sandata_evv_required = true OR rs.sandata_payer_id IS NOT NULL)
+       AND (rs.id IS NULL OR rs.sandata_evv_required = true OR NULLIF(TRIM(rs.sandata_payer_id), '') IS NOT NULL)
      ORDER BY c.last_name, c.first_name`))
   const clientsWithIssues = clientRows.map((r: any) => {
     const issues: string[] = []

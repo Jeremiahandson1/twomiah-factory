@@ -19,8 +19,11 @@ const PayersServiceCodes = () => {
 
   const [payerForm, setPayerForm] = useState({
     name: '', type: 'insurance', contactName: '', contactEmail: '', contactPhone: '',
-    address: '', city: '', state: '', zip: '', payerId: '', isActivePayer: true, notes: ''
+    address: '', city: '', state: '', zip: '', payerId: '', isActivePayer: true, notes: '',
+    sandataEvvRequired: false, sandataPayerId: '', sandataPayerProgram: ''
   });
+  // Sandata payer-code presets — offered only to an agency in a state that has them (Wisconsin).
+  const [sandataPresets, setSandataPresets] = useState([]);
 
   const [codeForm, setCodeForm] = useState({
     code: '', description: '', ratePerUnit: '', unitType: 'hour', revenueCode: '',
@@ -30,6 +33,8 @@ const PayersServiceCodes = () => {
   useEffect(() => {
     loadPayers();
     loadServiceCodes();
+    fetch(`${API_BASE_URL}/api/sandata/payer-presets`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => (r.ok ? r.json() : null)).then(d => setSandataPresets(Array.isArray(d?.presets) ? d.presets : [])).catch(() => {});
   }, []);
 
   const loadPayers = async () => {
@@ -112,7 +117,7 @@ const PayersServiceCodes = () => {
   };
 
   const resetPayerForm = () => {
-    setPayerForm({ name: '', type: 'insurance', contactName: '', contactEmail: '', contactPhone: '', address: '', city: '', state: '', zip: '', payerId: '', isActivePayer: true, notes: '' });
+    setPayerForm({ name: '', type: 'insurance', contactName: '', contactEmail: '', contactPhone: '', address: '', city: '', state: '', zip: '', payerId: '', isActivePayer: true, notes: '', sandataEvvRequired: false, sandataPayerId: '', sandataPayerProgram: '' });
   };
 
   const resetCodeForm = () => {
@@ -127,7 +132,9 @@ const PayersServiceCodes = () => {
       contactPhone: payer.contactPhone || '', address: payer.address || '',
       city: payer.city || '', state: payer.state || '', zip: payer.zip || '',
       payerId: payer.payerId || '', isActivePayer: payer.isActivePayer ?? true,
-      notes: payer.notes || ''
+      notes: payer.notes || '',
+      sandataEvvRequired: payer.sandataEvvRequired === true,
+      sandataPayerId: payer.sandataPayerId || '', sandataPayerProgram: payer.sandataPayerProgram || ''
     });
     setShowPayerModal(true);
   };
@@ -333,6 +340,36 @@ const PayersServiceCodes = () => {
                     <input type="checkbox" checked={payerForm.isActivePayer} onChange={(e) => setPayerForm({ ...payerForm, isActivePayer: e.target.checked })} style={{ marginRight: '0.5rem' }} />
                     Active Payer
                   </label>
+                </div>
+                <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-slate-800">
+                  <div className="mb-2 font-bold text-blue-900 dark:text-blue-200">Sandata EVV</div>
+                  <label className="flex items-start gap-2 text-sm text-gray-800 dark:text-slate-200">
+                    <input type="checkbox" checked={!!payerForm.sandataEvvRequired} onChange={(e) => setPayerForm({ ...payerForm, sandataEvvRequired: e.target.checked })} className="mt-1" />
+                    <span>This payer's clients are in Sandata — caregivers are reminded to check in and out on Sandata Mobile Connect for clients with a Medicaid ID on file.</span>
+                  </label>
+                  {sandataPresets.length > 0 && (
+                    <div className="form-group mt-2">
+                      <label>Fill Sandata codes from a known payer</label>
+                      <select value="" onChange={(e) => {
+                        const pr = sandataPresets.find(x => x.sandataPayerId === e.target.value);
+                        if (pr) setPayerForm({ ...payerForm, sandataPayerId: pr.sandataPayerId, sandataPayerProgram: pr.sandataPayerProgram });
+                      }}>
+                        <option value="">Choose…</option>
+                        {sandataPresets.map(pr => <option key={pr.sandataPayerId} value={pr.sandataPayerId}>{pr.label} — {pr.sandataPayerId} / {pr.sandataPayerProgram}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label>Sandata Payer ID</label>
+                      <input type="text" value={payerForm.sandataPayerId} onChange={(e) => setPayerForm({ ...payerForm, sandataPayerId: e.target.value })} placeholder="from your state's EVV addendum" />
+                    </div>
+                    <div className="form-group">
+                      <label>Sandata Payer Program</label>
+                      <input type="text" value={payerForm.sandataPayerProgram} onChange={(e) => setPayerForm({ ...payerForm, sandataPayerProgram: e.target.value })} />
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-600 dark:text-slate-400">Both codes are required before this payer's visits can be submitted to Sandata.</div>
                 </div>
                 <div className="form-group">
                   <label>Notes</label>
