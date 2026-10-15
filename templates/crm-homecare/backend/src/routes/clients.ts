@@ -10,9 +10,12 @@ import {
   geofenceSettings,
   authorizations,
   users,
+  auditLogs,
 } from '../../db/schema.ts'
-import { eq, and, or, ilike, count, desc, asc } from 'drizzle-orm'
+import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { getConfig } from '../services/sandataClient.ts'
+import { UNIT_MINUTES, visitMinutesSql, weekCte } from '../services/evvWeekly.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -126,6 +129,73 @@ app.get('/', async (c) => {
   }))
 
   return c.json({ clients: safeClients, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
+})
+
+// GET /api/clients/evv-week[?clientId=]  (must stay above GET '/:id')
+// This Sun–Sat week's Sandata (EVV) minutes per client in Sandata: the weekly allowance, minutes
+// already sent to Sandata, and what's left. Once remaining_minutes hits 0 the caregiver app stops
+// sending caregivers to Sandata for that client until Sunday. Same counting rule as
+// services/evvWeekly.evvWeekUsage. (Ported from the CVHC CRM.)
+app.get('/evv-week', requireAdmin, async (c) => {
+  const clientId = c.req.query('clientId') || null
+  const cfg = await getConfig()
+  const r: any = await db.execute(sql`
+    WITH ${weekCte(null, cfg.timezone)},
+         used AS (
+           SELECT te.client_id,
+                  SUM(${visitMinutesSql(sql`now()`)}) AS minutes,
+                  COUNT(*) AS visits
+             FROM time_entries te, w
+            WHERE ((te.start_time AT TIME ZONE 'UTC') AT TIME ZONE ${cfg.timezone})::date BETWEEN w.ws AND w.ws + 6
+              AND COALESCE(te.sandata_required, true) = true
+            GROUP BY te.client_id)
+    SELECT c.id AS client_id, c.first_name, c.last_name, c.evv_weekly_units,
+           to_char(w.ws, 'YYYY-MM-DD') AS week_start, to_char(w.ws + 6, 'YYYY-MM-DD') AS week_end,
+           ROUND(COALESCE(used.minutes, 0))::int AS used_minutes,
+           COALESCE(used.visits, 0)::int AS sandata_visits
+      FROM clients c
+      CROSS JOIN w
+      LEFT JOIN referral_sources rs ON rs.id = c.referred_by_id
+      LEFT JOIN used ON used.client_id = c.id
+     WHERE c.is_active = true AND COALESCE(c.is_private_pay, false) = false
+       AND rs.sandata_evv_required = true
+       AND TRIM(COALESCE(c.medicaid_id, '')) ~ '^[0-9]{10,12}$'
+       AND (${clientId}::text IS NULL OR c.id = ${clientId}::text)
+     ORDER BY c.last_name, c.first_name`)
+  const rows: any[] = Array.isArray(r?.rows) ? r.rows : []
+  return c.json(rows.map((row) => {
+    const allowance = row.evv_weekly_units == null ? null : Number(row.evv_weekly_units) * UNIT_MINUTES
+    return {
+      ...row,
+      allowance_minutes: allowance,
+      remaining_minutes: allowance == null ? null : Math.max(0, allowance - row.used_minutes),
+      // What the caregiver app does at the NEXT clock-in for this client.
+      next_visit_to_sandata: allowance == null ? true : row.used_minutes < allowance,
+    }
+  }))
+})
+
+// PATCH /api/clients/:id/evv-units  { units: whole number 0–672 | null }
+// The client's EVV (Sandata) units per Sun–Sat week. null = not entered (the app prompts every
+// visit); 0 = no EVV hours. A scoped single-column update — never the full-row client PUT.
+app.patch('/:id/evv-units', requireAdmin, async (c) => {
+  const user = c.get('user') as any
+  const body = await c.req.json().catch(() => ({})) as any
+  const raw = body?.units
+  const units = raw === null || raw === '' || raw === undefined ? null : Number(raw)
+  if (units !== null && (!Number.isInteger(units) || units < 0 || units > 672)) {
+    return c.json({ error: 'EVV units per week must be a whole number from 0 to 672, or blank.' }, 400)
+  }
+  const id = c.req.param('id')
+  const [before] = await db.select({ evvWeeklyUnits: clients.evvWeeklyUnits }).from(clients).where(eq(clients.id, id)).limit(1)
+  if (!before) return c.json({ error: 'Client not found' }, 404)
+  const [row] = await db.update(clients).set({ evvWeeklyUnits: units, updatedAt: new Date() }).where(eq(clients.id, id))
+    .returning({ id: clients.id, evv_weekly_units: clients.evvWeeklyUnits })
+  await db.insert(auditLogs).values({
+    userId: String(user?.userId || 'unknown'), action: 'UPDATE', tableName: 'clients', recordId: id,
+    oldData: { evv_weekly_units: before.evvWeeklyUnits }, newData: { evv_weekly_units: units },
+  }).catch((e: any) => console.error('[evv-units] audit:', e?.message))
+  return c.json(row)
 })
 
 // GET /api/clients/:id/onboarding (must be before /:id catch-all)

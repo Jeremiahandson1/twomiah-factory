@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, integer, decimal, timestamp, date, time, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, bigint, decimal, timestamp, date, time, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 
 // ==================== AGENCY (TOP-LEVEL TENANT) ====================
@@ -30,6 +30,14 @@ export const agencies = pgTable('agencies', {
   twilioAuthToken: text('twilio_auth_token'),
   // Onboarding (V1 domain + email setup wizard)
   onboardingCompletedAt: timestamp('onboarding_completed_at'),
+  // EVV / Sandata account (0014_evv). Sandata's ProviderID is `medicaidId` above. The password is
+  // stored encrypted (utils/encryption.ts) and never serialized to the client.
+  sandataUsername: text('sandata_username'),
+  sandataPasswordEncrypted: text('sandata_password_encrypted'),
+  sandataAccountId: text('sandata_account_id'),
+  sandataApiUrl: text('sandata_api_url'),
+  sandataAgencyId: text('sandata_agency_id'),
+  evvTimezone: text('evv_timezone'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -230,6 +238,11 @@ export const referralSources = pgTable('referral_sources', {
   billingContactName: text('billing_contact_name'),
   billingContactEmail: text('billing_contact_email'),
   billingContactPhone: text('billing_contact_phone'),
+  // EVV / Sandata (0014_evv): this payer's Sandata codes, and whether its clients are in Sandata
+  // (caregivers are then prompted to check in/out on Sandata Mobile Connect).
+  sandataPayerId: text('sandata_payer_id'),
+  sandataPayerProgram: text('sandata_payer_program'),
+  sandataEvvRequired: boolean('sandata_evv_required').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -291,6 +304,11 @@ export const clients = pgTable('clients', {
   lastPortalVisit: timestamp('last_portal_visit'),
   portalEmail: text('portal_email'),
   portalPasswordHash: text('portal_password_hash'),
+  // EVV / Sandata (0014_evv): client-record sync state, and EVV units per Sun–Sat week
+  // (1 unit = 15 min; null = not entered, 0 = no EVV hours).
+  sandataSequence: bigint('sandata_sequence', { mode: 'number' }).default(0),
+  sandataSyncedAt: timestamp('sandata_synced_at'),
+  evvWeeklyUnits: integer('evv_weekly_units'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -446,6 +464,10 @@ export const timeEntries = pgTable('time_entries', {
   clockOutLocation: json('clock_out_location'),
   isComplete: boolean('is_complete').default(false).notNull(),
   notes: text('notes'),
+  // EVV (0014_evv): IVR caller number (Sandata Telephony calls) and the Sandata decision made
+  // at clock-in (true = sent to Sandata, false = not, null = no decision).
+  originPhone: text('origin_phone'),
+  sandataRequired: boolean('sandata_required'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -455,6 +477,7 @@ export const timeEntries = pgTable('time_entries', {
   index('time_entries_schedule_id_idx').on(t.scheduleId),
   index('time_entries_caregiver_complete_idx').on(t.caregiverId, t.isComplete),
   index('time_entries_period_idx').on(t.startTime, t.endTime),
+  index('time_entries_client_start_idx').on(t.clientId, t.startTime),
 ])
 
 // ==================== GPS TRACKING ====================
@@ -563,12 +586,60 @@ export const evvVisits = pgTable('evv_visits', {
   evvMethod: text('evv_method').default('gps').notNull(),
   isVerified: boolean('is_verified').default(false).notNull(),
   verificationIssues: json('verification_issues').default([]).notNull(),
+  // Sandata submission state (0014_evv)
+  sandataSequence: bigint('sandata_sequence', { mode: 'number' }).default(0),
+  sandataUuid: text('sandata_uuid'),
+  needsResubmit: boolean('needs_resubmit').default(false),
+  autoSubmitEnabled: boolean('auto_submit_enabled').default(true),
+  exceptionAck: boolean('exception_ack').default(false),
+  exceptionAckById: text('exception_ack_by_id').references(() => users.id),
+  exceptionAckAt: timestamp('exception_ack_at'),
+  exceptionAckReason: text('exception_ack_reason'),
+  exceptionAckMemo: text('exception_ack_memo'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('evv_visits_client_date_idx').on(t.clientId, t.serviceDate),
   index('evv_visits_caregiver_id_idx').on(t.caregiverId),
   index('evv_visits_sandata_status_idx').on(t.sandataStatus),
+])
+
+// ==================== EVV: SANDATA ALT-EVV (0014_evv) ====================
+// Structured visit time-change log. A row means an office user set that punch time, so the visit
+// goes to Sandata as Adjusted time + a VisitChanges record. Reason codes 1,2,3,4,5,7,8
+// (5 and 8 require a memo); resolution 1 = written documentation maintained.
+export const visitTimeChanges = pgTable('visit_time_changes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  changedById: text('changed_by_id').references(() => users.id),
+  changedAt: timestamp('changed_at').defaultNow().notNull(),
+  oldStart: timestamp('old_start'),
+  newStart: timestamp('new_start'),
+  oldEnd: timestamp('old_end'),
+  newEnd: timestamp('new_end'),
+  reasonCode: text('reason_code').notNull(),
+  memo: text('memo'),
+  resolutionCode: text('resolution_code').default('1'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_time_changes_entry_idx').on(t.timeEntryId),
+])
+
+// Serialized Sandata submission queue: queued → processing → completed | failed (→ needs_manual).
+export const sandataSubmissionQueue = pgTable('sandata_submission_queue', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  evvVisitId: text('evv_visit_id').notNull().references(() => evvVisits.id, { onDelete: 'cascade' }),
+  submissionPath: text('submission_path').default('api').notNull(),
+  status: text('status').default('queued').notNull(),
+  retryCount: integer('retry_count').default(0),
+  lastError: text('last_error'),
+  nextRetryAt: timestamp('next_retry_at'),
+  startedAt: timestamp('started_at'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('sandata_queue_status_idx').on(t.status, t.createdAt),
+  index('sandata_queue_evv_idx').on(t.evvVisitId),
 ])
 
 // ==================== VALIDATION LOG ====================
@@ -1370,6 +1441,11 @@ export const careTypes = pgTable('care_types', {
   description: text('description'),
   hourlyRate: decimal('hourly_rate', { precision: 8, scale: 2 }),
   isActive: boolean('is_active').default(true).notNull(),
+  // Added by migration 0005 and never declared here, so the boot-time drizzle push could drop them.
+  // EVV reads them: the procedure code a visit is sent to Sandata under.
+  defaultServiceCode: text('default_service_code'),
+  defaultModifier: text('default_modifier'),
+  requiresEvv: boolean('requires_evv').default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

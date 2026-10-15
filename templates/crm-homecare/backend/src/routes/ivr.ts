@@ -4,6 +4,13 @@ import { createHmac } from 'crypto'
 import { db } from '../../db/index.ts'
 import { users, clients, timeEntries, schedules } from '../../db/schema.ts'
 import { eq, and, isNull, sql } from 'drizzle-orm'
+import { createEVVFromTimeEntry } from '../services/evvVisits.ts'
+
+// EVV: Telephony visits must report the originating phone number, which Sandata matches against
+// the client's phone on file. Twilio's caller id, last 10 digits.
+function callerDigits(from: unknown): string {
+  return String(from || '').replace(/\D/g, '').slice(-10)
+}
 
 // XML-escape strings to prevent malformed TwiML
 function xmlEscape(str: string): string {
@@ -229,6 +236,12 @@ app.post('/clock-in', async (c) => {
       notes: 'Clocked in via IVR phone call',
     }).returning()
 
+    // Separate best-effort update so the punch above never depends on it.
+    try {
+      const from = callerDigits(body['From'])
+      if (from) await db.update(timeEntries).set({ originPhone: from }).where(eq(timeEntries.id, entry.id))
+    } catch (opErr: any) { console.error('[IVR clock-in] origin_phone:', opErr?.message) }
+
     c.header('Content-Type', 'text/xml')
     return c.body(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -288,6 +301,15 @@ app.post('/clock-out', async (c) => {
         updatedAt: now,
       })
       .where(eq(timeEntries.id, timeEntryId))
+
+    // EVV Telephony caller id (see clock-in) — fills only if the clock-in didn't capture it.
+    try {
+      const from = callerDigits(body['From'])
+      if (from) await db.update(timeEntries).set({ originPhone: sql`COALESCE(${timeEntries.originPhone}, ${from})` }).where(eq(timeEntries.id, timeEntryId))
+    } catch (opErr: any) { console.error('[IVR clock-out] origin_phone:', opErr?.message) }
+
+    // Phone-closed visits get their EVV record exactly like app clock-outs do.
+    await createEVVFromTimeEntry(timeEntryId)
 
     const hours = (durationMinutes / 60).toFixed(1)
     c.header('Content-Type', 'text/xml')

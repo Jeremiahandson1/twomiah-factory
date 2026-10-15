@@ -1,525 +1,459 @@
+// routes/sandata.ts — Sandata alternate-EVV (ported from the CVHC CRM's routes/sandataRoutes.js).
+//
+// Transport and payloads live in services/sandataClient.ts and services/sandataPayload.ts; the
+// queue in services/sandataAutoSubmit.ts; visit records and the time-change log in
+// services/evvVisits.ts; the weekly EVV allowance in services/evvWeekly.ts.
+//
+// Auth: every office route is `requireAdmin` on the route itself. The one caregiver route,
+// GET /caregiver-context, is scoped to the signed-in user's own clients and open visit.
 import { Hono } from 'hono'
-import { eq, and, inArray, sql } from 'drizzle-orm'
+import { sql, eq } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import {
-  evvVisits, clients, caregiverProfiles,
-  authorizations, referralSources,
-} from '../../db/schema.ts'
+import { agencies, evvVisits, clients } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { encrypt } from '../utils/encryption.ts'
+import { getConfig, isValidTimeZone, postRecords, UAT_BASE, PROD_BASE } from '../services/sandataClient.ts'
+import * as payloads from '../services/sandataPayload.ts'
+import { evvReasonError, recordVisitTimeChange, localDate } from '../services/evvVisits.ts'
+import { clientInSandata } from '../services/evvWeekly.ts'
+import {
+  enqueueVisit, pollPendingStatuses, requeueChangedVisit, getQueueStatus, retrySubmission,
+} from '../services/sandataAutoSubmit.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
-app.use('*', requireAdmin)
 
-// ─── Constants ──────────────────────────────────────────────────────────────
+const rowsOf = (r: any): any[] => (r && Array.isArray(r.rows) ? r.rows : Array.isArray(r) ? r : [])
+const isDate = (s: unknown) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
 
-const SANDATA_UAT_VISITS  = 'https://uat-api.sandata.com/interfaces/intake/visits/rest/api/v1.1'
-const SANDATA_UAT_CLIENTS = 'https://uat-api.sandata.com/interfaces/intake/clients/rest/api/v1.1'
-const SANDATA_PROD_VISITS = 'https://api.sandata.com/interfaces/intake/visits/rest/api/v1.1'
-const SANDATA_PROD_CLIENTS = 'https://api.sandata.com/interfaces/intake/clients/rest/api/v1.1'
-
-const VISIT_TZ = 'US/Central'
-const STATUS_POLL_DELAY_MS = 5000
-const STATUS_POLL_MAX_RETRIES = 3
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function getEndpoints() {
-  const isUat = process.env.SANDATA_ENV !== 'production'
-  return {
-    visits:  isUat ? SANDATA_UAT_VISITS  : SANDATA_PROD_VISITS,
-    clients: isUat ? SANDATA_UAT_CLIENTS : SANDATA_PROD_CLIENTS,
-  }
+async function dateRange(c: any): Promise<{ start: string; end: string }> {
+  const cfg = await getConfig()
+  const today = localDate(new Date(), cfg.timezone)
+  const weekAgo = localDate(new Date(Date.now() - 7 * 86400000), cfg.timezone)
+  const qs = c.req.query('startDate'); const qe = c.req.query('endDate')
+  return { start: isDate(qs) ? qs : weekAgo, end: isDate(qe) ? qe : today }
 }
 
-function getSandataAuth(): { username: string; password: string } | null {
-  const username = process.env.SANDATA_USERNAME
-  const password = process.env.SANDATA_PASSWORD
-  if (!username || !password) return null
-  return { username, password }
-}
+// Wisconsin DMS payer codes (WI Alt-EVV Addendum v2.6 Appendix 1) — offered as presets to a
+// Wisconsin agency only. Any other state enters its own payer's codes.
+const WI_PAYER_PRESETS = [
+  { label: 'My Choice Wisconsin (Family Care MCO)', sandataPayerId: 'MCFC-CW', sandataPayerProgram: 'WIMCO' },
+  { label: 'Inclusa (Family Care MCO)', sandataPayerId: 'INCLUSA', sandataPayerProgram: 'WIMCO' },
+  { label: 'Lakeland Care (Family Care MCO)', sandataPayerId: 'LAKELAND', sandataPayerProgram: 'WIMCO' },
+  { label: 'Molina (HMO)', sandataPayerId: 'WIMOLINA', sandataPayerProgram: 'WIHMO' },
+  { label: 'ForwardHealth fee-for-service', sandataPayerId: 'WIFFS', sandataPayerProgram: 'FFS' },
+]
 
-function getAgencyMedicaidId(): string {
-  return process.env.AGENCY_MEDICAID_ID || ''
-}
-
-function providerBlock() {
-  return {
-    ProviderQualifier: 'MedicaidID',
-    ProviderID: getAgencyMedicaidId(),
-  }
-}
-
-/** YYYYMMDDHHMMSS integer from a Date (UTC) */
-function makeSequenceId(d: Date = new Date()): number {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return parseInt(
-    d.getUTCFullYear().toString() +
-    pad(d.getUTCMonth() + 1) +
-    pad(d.getUTCDate()) +
-    pad(d.getUTCHours()) +
-    pad(d.getUTCMinutes()) +
-    pad(d.getUTCSeconds()),
-    10,
-  )
-}
-
-/** Convert a JS Date to UTC ISO string YYYY-MM-DDTHH:MM:SSZ */
-function toUtcIso(d: Date): string {
-  return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
-}
-
-/** Determine PayerProgram from payer type / name */
-function resolvePayerProgram(payerType?: string | null, payerName?: string | null): string {
-  const pt = (payerType || '').toLowerCase()
-  const pn = (payerName || '').toLowerCase()
-  if (pt.includes('hmo') || pn.includes('hmo')) return 'WIHMO'
-  if (pt.includes('ffs') || pn.includes('fee for service') || pt === 'medicaid') return 'FFS'
-  // Default: MCO (My Choice Wisconsin, iCare, etc.)
-  return 'WIMCO'
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-// ─── Sandata API Request ────────────────────────────────────────────────────
-
-async function sandataRequest(
-  endpoint: string,
-  method: 'POST' | 'GET',
-  payload?: any,
-): Promise<{ ok: boolean; status: number; data: any }> {
-  const auth = getSandataAuth()
-  if (!auth) throw new Error('Sandata credentials not configured')
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Authorization': 'Basic ' + Buffer.from(auth.username + ':' + auth.password).toString('base64'),
-  }
-
-  const res = await fetch(endpoint, {
-    method,
-    headers,
-    body: method === 'POST' ? JSON.stringify(payload) : undefined,
-    signal: AbortSignal.timeout(30_000),
+// ─── CAREGIVER: who of MY clients is in Sandata, and my open visit's decision ─────────────────
+// The caregiver app uses this for the "check in/out on Sandata too" prompts. A client's Medicaid
+// ID is returned only for clients in Sandata (it is pasted into Sandata Mobile Connect), and only
+// for the caregiver's own clients.
+app.get('/caregiver-context', async (c) => {
+  const user = c.get('user') as any
+  const userId = String(user?.userId || user?.id || '')
+  const cfg = await getConfig()
+  const rows = rowsOf(await db.execute(sql`
+    SELECT c.id, c.first_name, c.last_name, c.is_private_pay, c.medicaid_id, rs.sandata_evv_required
+      FROM clients c
+      LEFT JOIN referral_sources rs ON rs.id = c.referred_by_id
+     WHERE c.is_active = true
+       AND (EXISTS (SELECT 1 FROM client_assignments ca
+                     WHERE ca.client_id = c.id AND ca.caregiver_id = ${userId} AND ca.status = 'active')
+            OR EXISTS (SELECT 1 FROM schedules s
+                        WHERE s.client_id = c.id AND s.caregiver_id = ${userId} AND s.is_active = true))
+     ORDER BY c.first_name, c.last_name`))
+  const clientsOut = rows.map((r: any) => {
+    const inSandata = clientInSandata(r)
+    return { id: r.id, first_name: r.first_name, last_name: r.last_name, in_sandata: inSandata, medicaid_id: inSandata ? String(r.medicaid_id).trim() : null }
   })
-
-  const data = await res.json().catch(() => ({}))
-  return { ok: res.ok, status: res.status, data }
-}
-
-/** POST payload, then poll GET /status?uuid={uuid} until accepted or max retries */
-async function submitAndPoll(
-  endpoint: string,
-  payload: any,
-): Promise<{ uuid: string | null; accepted: boolean; response: any }> {
-  const postResult = await sandataRequest(endpoint, 'POST', payload)
-  if (!postResult.ok) {
-    return { uuid: null, accepted: false, response: postResult.data }
-  }
-
-  // Sandata returns a UUID to poll for status
-  const uuid = postResult.data?.uuid || postResult.data?.UUID || postResult.data?.id || null
-  if (!uuid) {
-    return { uuid: null, accepted: false, response: postResult.data }
-  }
-
-  // Poll for acceptance
-  for (let attempt = 0; attempt < STATUS_POLL_MAX_RETRIES; attempt++) {
-    await sleep(STATUS_POLL_DELAY_MS)
-    try {
-      const statusResult = await sandataRequest(endpoint + '/status?uuid=' + uuid, 'GET')
-      const st = statusResult.data?.status || statusResult.data?.Status || ''
-      if (st.toLowerCase() === 'accepted' || st.toLowerCase() === 'completed') {
-        return { uuid, accepted: true, response: statusResult.data }
-      }
-      if (st.toLowerCase() === 'rejected' || st.toLowerCase() === 'error') {
-        return { uuid, accepted: false, response: statusResult.data }
-      }
-    } catch (_e) { /* retry */ }
-  }
-
-  // Exhausted retries — mark as exception
-  return { uuid, accepted: false, response: { status: 'poll_timeout', message: 'Status polling timed out after ' + STATUS_POLL_MAX_RETRIES + ' attempts' } }
-}
-
-// ─── Visit Payload Builder (WI Alt EVV Addendum v2.5) ───────────────────────
-
-interface VisitData {
-  visit: typeof evvVisits.$inferSelect
-  client: { mcoMemberId: string | null }
-  caregiver: { evvWorkerId: string | null }
-  payer: { payerIdNumber: string | null; payerType: string | null; name: string | null } | null
-  authorization: { procedureCode: string | null; modifier: string | null } | null
-}
-
-function buildVisitPayload(d: VisitData): any {
-  const procedureCode = d.visit.serviceCode || d.authorization?.procedureCode || 'T1019'
-  const clientMedicaidId = d.client.mcoMemberId || ''
-  const hasGpsIn = d.visit.gpsInLat != null && d.visit.gpsInLng != null
-  const hasGpsOut = d.visit.gpsOutLat != null && d.visit.gpsOutLng != null
-
-  const calls: any[] = []
-
-  // Time In call
-  if (d.visit.actualStart) {
-    const callIn: any = {
-      CallExternalID: d.visit.id + '-IN',
-      CallDateTime: toUtcIso(d.visit.actualStart),
-      CallAssignment: 'Time In',
-      CallType: hasGpsIn ? 'Mobile' : 'Manual',
-      ProcedureCode: procedureCode,
-    }
-    if (hasGpsIn) {
-      callIn.CallLatitude = parseFloat(String(d.visit.gpsInLat))
-      callIn.CallLongitude = parseFloat(String(d.visit.gpsInLng))
-    }
-    calls.push(callIn)
-  }
-
-  // Time Out call
-  if (d.visit.actualEnd) {
-    const callOut: any = {
-      CallExternalID: d.visit.id + '-OUT',
-      CallDateTime: toUtcIso(d.visit.actualEnd),
-      CallAssignment: 'Time Out',
-      CallType: hasGpsOut ? 'Mobile' : 'Manual',
-      ProcedureCode: procedureCode,
-    }
-    if (hasGpsOut) {
-      callOut.CallLatitude = parseFloat(String(d.visit.gpsOutLat))
-      callOut.CallLongitude = parseFloat(String(d.visit.gpsOutLng))
-    }
-    calls.push(callOut)
-  }
-
-  return {
-    ProviderIdentification: providerBlock(),
-    VisitOtherID: d.visit.id,
-    SequenceID: makeSequenceId(),
-    EmployeeQualifier: 'EmployeeCustomID',
-    EmployeeIdentifier: d.caregiver.evvWorkerId || '',
-    ClientIDQualifier: 'ClientCustomID',
-    ClientID: clientMedicaidId,
-    ClientOtherID: clientMedicaidId,
-    VisitCancelledIndicator: false,
-    PayerID: d.payer?.payerIdNumber || '',
-    PayerProgram: resolvePayerProgram(d.payer?.payerType, d.payer?.name),
-    ProcedureCode: procedureCode,
-    VisitTimeZone: VISIT_TZ,
-    Calls: calls,
-  }
-}
-
-// ─── Visit Changes Segment (manual edits) ───────────────────────────────────
-
-function buildVisitChanges(
-  changedByEmail: string,
-  reasonCode: string = '1',
-  memo: string = 'Caregiver correction',
-): any {
-  const now = new Date()
-  return {
-    SequenceID: makeSequenceId(now),
-    ChangeMadeBy: changedByEmail,
-    ChangeDateTime: toUtcIso(now),
-    ReasonCode: reasonCode,
-    ChangeReasonMemo: memo,
-  }
-}
-
-// ─── Client Payload Builder (WI Alt EVV Addendum v2.5) ──────────────────────
-
-interface ClientData {
-  client: typeof clients.$inferSelect
-}
-
-function buildClientPayload(d: ClientData): any {
-  const medicaidId = d.client.mcoMemberId || d.client.evvClientId || ''
-
-  const clientAddress: any[] = []
-  if (d.client.address || d.client.city) {
-    clientAddress.push({
-      ClientAddressType: 'Other',
-      ClientAddressIsPrimary: false,
-      ClientAddressLine1: d.client.address || '',
-      ClientCity: d.client.city || '',
-      ClientState: d.client.state || 'WI',
-      ClientZip: d.client.zip || '',
-      ClientCounty: '',
-    })
-  }
-
-  const clientPhone: any[] = []
-  if (d.client.phone) {
-    clientPhone.push({
-      ClientPhoneType: 'Home',
-      ClientPhoneNumber: d.client.phone.replace(/\D/g, ''),
-    })
-  }
-
-  return {
-    ProviderIdentification: providerBlock(),
-    ClientFirstName: d.client.firstName,
-    ClientLastName: d.client.lastName,
-    ClientQualifier: 'ClientCustomID',
-    ClientMedicaidID: medicaidId,
-    ClientIdentifier: medicaidId,
-    ClientCustomID: medicaidId,
-    ClientOtherID: medicaidId,
-    SequenceID: makeSequenceId(),
-    ClientTimeZone: VISIT_TZ,
-    ClientAddress: clientAddress,
-    ClientPhone: clientPhone,
-  }
-}
-
-// ─── Routes ─────────────────────────────────────────────────────────────────
-
-// GET /api/sandata/config
-app.get('/config', async (c) => {
-  const auth = getSandataAuth()
-  const agencyMedicaidId = getAgencyMedicaidId()
+  const open = rowsOf(await db.execute(sql`
+    SELECT id, client_id, sandata_required FROM time_entries
+     WHERE caregiver_id = ${userId} AND end_time IS NULL
+     ORDER BY start_time DESC LIMIT 1`))[0]
   return c.json({
-    sandataConfigured: !!auth,
-    agencyMedicaidId: agencyMedicaidId ? '****' + agencyMedicaidId.slice(-4) : null,
-    environment: process.env.SANDATA_ENV || 'uat',
-    visitsEndpoint: getEndpoints().visits,
-    clientsEndpoint: getEndpoints().clients,
+    sandataAgencyId: cfg.agencyId,
+    isWisconsin: cfg.isWisconsin,
+    clients: clientsOut,
+    activeVisit: open ? { time_entry_id: open.id, client_id: open.client_id, sandata_required: open.sandata_required ?? null } : null,
   })
 })
 
-// GET /api/sandata/status
-app.get('/status', async (c) => {
-  const rows = await db
-    .select({
-      status: evvVisits.sandataStatus,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(evvVisits)
-    .groupBy(evvVisits.sandataStatus)
+// ─── AGENCY SANDATA ACCOUNT ───────────────────────────────────────────────────────────────────
+app.get('/settings', requireAdmin, async (c) => {
+  const [agency] = await db.select().from(agencies).limit(1)
+  const cfg = await getConfig()
+  return c.json({
+    username: agency?.sandataUsername || '',
+    hasPassword: !!agency?.sandataPasswordEncrypted,
+    accountId: agency?.sandataAccountId || '',
+    providerId: agency?.medicaidId || '',
+    apiUrl: agency?.sandataApiUrl || '',
+    agencyId: agency?.sandataAgencyId || '',
+    timezone: agency?.evvTimezone || '',
+    effectiveTimezone: cfg.timezone,
+    state: cfg.state,
+    isWisconsin: cfg.isWisconsin,
+    isConfigured: cfg.isConfigured,
+    uatUrl: UAT_BASE,
+    productionUrl: PROD_BASE,
+  })
+})
 
-  const summary: Record<string, number> = {}
-  for (const r of rows) summary[r.status] = r.count
+app.put('/settings', requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, any>
+  const [agency] = await db.select().from(agencies).limit(1)
+  if (!agency) return c.json({ error: 'Agency not found' }, 404)
+  const str = (v: unknown) => (v == null ? null : String(v).trim() || null)
+
+  const set: Record<string, any> = { updatedAt: new Date() }
+  if ('username' in body) set.sandataUsername = str(body.username)
+  if ('accountId' in body) set.sandataAccountId = str(body.accountId)
+  if ('providerId' in body) set.medicaidId = str(body.providerId)
+  if ('agencyId' in body) set.sandataAgencyId = str(body.agencyId)
+  if ('apiUrl' in body) {
+    const url = str(body.apiUrl)
+    if (url && !/^https:\/\/([a-z0-9-]+\.)*sandata\.com(\/|$)/i.test(url)) {
+      return c.json({ error: 'The Sandata API URL must be an https://…sandata.com address.' }, 400)
+    }
+    set.sandataApiUrl = url ? url.replace(/\/+$/, '') : null
+  }
+  if ('timezone' in body) {
+    const tz = str(body.timezone)
+    if (tz && !isValidTimeZone(tz)) return c.json({ error: `"${tz}" is not a time zone (use e.g. America/Chicago).` }, 400)
+    set.evvTimezone = tz
+  }
+  // Password: a non-empty value replaces it; clearPassword removes it; absent/blank keeps it.
+  if (body.clearPassword === true) set.sandataPasswordEncrypted = null
+  else if (typeof body.password === 'string' && body.password.trim()) {
+    try { set.sandataPasswordEncrypted = encrypt(body.password.trim()) }
+    catch { return c.json({ error: 'The server has no ENCRYPTION_KEY, so the password cannot be stored safely.' }, 400) }
+  }
+  await db.update(agencies).set(set).where(eq(agencies.id, agency.id))
+  const cfg = await getConfig()
+  return c.json({ success: true, isConfigured: cfg.isConfigured })
+})
+
+app.get('/payer-presets', requireAdmin, async (c) => {
+  const cfg = await getConfig()
+  return c.json({ state: cfg.state, presets: cfg.isWisconsin ? WI_PAYER_PRESETS : [] })
+})
+
+// ─── EVV STATUS DASHBOARD ─────────────────────────────────────────────────────────────────────
+app.get('/status', requireAdmin, async (c) => {
+  const cfg = await getConfig()
+  // Opportunistic: resolve accept/reject for anything POSTed but not yet confirmed, every time an
+  // admin opens the dashboard. No-op unconfigured.
+  if (cfg.isConfigured) pollPendingStatuses().catch((e) => console.error('[EVV poll]', e?.message))
+  const { start, end } = await dateRange(c)
+  const visits = rowsOf(await db.execute(sql`
+    SELECT ev.*,
+           c.first_name AS client_first, c.last_name AS client_last, c.medicaid_id,
+           u.first_name AS cg_first, u.last_name AS cg_last,
+           cp.evv_worker_id, cp.npi_number
+      FROM evv_visits ev
+      JOIN clients c ON ev.client_id = c.id
+      JOIN users u ON ev.caregiver_id = u.id
+      LEFT JOIN caregiver_profiles cp ON cp.caregiver_id = u.id
+     WHERE ev.service_date BETWEEN ${start}::date AND ${end}::date
+     ORDER BY ev.service_date DESC, ev.actual_start DESC`))
+  const by = (s: string) => visits.filter((v: any) => v.sandata_status === s).length
+  const summary = {
+    total: visits.length,
+    verified: visits.filter((v: any) => v.is_verified).length,
+    pending: by('pending'),
+    ready: by('ready'),
+    submitted: by('submitted'),
+    accepted: by('accepted'),
+    exceptions: by('exception'),
+    needsManual: by('needs_manual'),
+    hasIssues: visits.filter((v: any) => Array.isArray(v.verification_issues) && v.verification_issues.length > 0).length,
+  }
+  return c.json({ sandataConfigured: cfg.isConfigured, startDate: start, endDate: end, summary, visits })
+})
+
+// ─── SUBMIT VISITS (through the queue: one payload builder, one transport, one retry policy) ──
+app.post('/submit', requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as any
+  const cfg = await getConfig()
+  if (!cfg.isConfigured) {
+    return c.json({ error: 'Sandata credentials not configured', setup: 'Enter the Sandata account (username, password, account id and the agency Medicaid provider id) under Integrations → EVV.' }, 400)
+  }
+  const visitIds = body?.visitIds
+  if (!Array.isArray(visitIds) || visitIds.length === 0) return c.json({ error: 'visitIds array required' }, 400)
+  const results: Array<{ visitId: string; queued: boolean; reason: string | null }> = []
+  for (const id of visitIds) {
+    try {
+      const r = await enqueueVisit(String(id))
+      results.push({ visitId: String(id), queued: r.queued, reason: r.reason || null })
+    } catch (e: any) {
+      results.push({ visitId: String(id), queued: false, reason: e?.message || 'enqueue failed' })
+    }
+  }
+  return c.json({ queued: results.filter((r) => r.queued).length, results })
+})
+
+// ─── VISIT DETAIL ─────────────────────────────────────────────────────────────────────────────
+app.get('/visit/:id', requireAdmin, async (c) => {
+  const row = rowsOf(await db.execute(sql`
+    SELECT ev.*,
+           c.first_name AS client_first, c.last_name AS client_last, c.medicaid_id, c.evv_client_id,
+           u.first_name AS cg_first, u.last_name AS cg_last,
+           cp.evv_worker_id, cp.npi_number,
+           a.auth_number, a.authorized_units, a.used_units, a.end_date AS auth_expires
+      FROM evv_visits ev
+      JOIN clients c ON ev.client_id = c.id
+      JOIN users u ON ev.caregiver_id = u.id
+      LEFT JOIN caregiver_profiles cp ON cp.caregiver_id = u.id
+      LEFT JOIN authorizations a ON ev.authorization_id = a.id
+     WHERE ev.id = ${c.req.param('id')}`))[0]
+  if (!row) return c.json({ error: 'EVV visit not found' }, 404)
+  const changes = rowsOf(await db.execute(sql`
+    SELECT vtc.*, u.first_name AS changed_by_first, u.last_name AS changed_by_last
+      FROM visit_time_changes vtc LEFT JOIN users u ON u.id = vtc.changed_by_id
+     WHERE vtc.time_entry_id = ${row.time_entry_id}
+     ORDER BY vtc.changed_at ASC`))
+  return c.json({ ...row, time_changes: changes })
+})
+
+// ─── MANUAL CORRECTION ────────────────────────────────────────────────────────────────────────
+// Setting times by hand is a VisitChanges event: it must carry a reason code and goes out as
+// Adjusted times. A visit already at Sandata is retransmitted with the next sequence.
+app.put('/visit/:id', requireAdmin, async (c) => {
+  const user = c.get('user') as any
+  const body = await c.req.json().catch(() => ({})) as any
+  const { serviceCode, modifier, authorizationId, actualStart, actualEnd, reasonCode, reasonMemo } = body || {}
+  const [prev] = await db.select().from(evvVisits).where(eq(evvVisits.id, c.req.param('id'))).limit(1)
+  if (!prev) return c.json({ error: 'EVV visit not found' }, 404)
+
+  const parse = (v: unknown) => {
+    if (v == null || v === '') return null
+    const d = new Date(v as any)
+    return isNaN(d.getTime()) ? undefined : d
+  }
+  const newStart = parse(actualStart)
+  const newEnd = parse(actualEnd)
+  if (newStart === undefined || newEnd === undefined) return c.json({ error: 'actualStart / actualEnd must be valid date-times' }, 400)
+  const effStart = newStart || prev.actualStart
+  const effEnd = newEnd || prev.actualEnd
+  if (effEnd && effStart && effEnd.getTime() <= effStart.getTime()) return c.json({ error: 'The visit must end after it starts' }, 400)
+
+  const changingTimes = newStart != null || newEnd != null
+  if (changingTimes) {
+    const err = evvReasonError(reasonCode, reasonMemo)
+    if (err) return c.json({ error: err.startsWith('reasonCode') ? 'reasonCode required when changing visit times (EVV codes 1,2,3,4,5,7,8)' : err }, 400)
+    await recordVisitTimeChange({
+      timeEntryId: prev.timeEntryId,
+      changedById: user?.userId || null,
+      oldStart: newStart ? prev.actualStart : null, newStart: newStart || null,
+      oldEnd: newEnd ? prev.actualEnd : null, newEnd: newEnd || null,
+      reasonCode: String(reasonCode), memo: reasonMemo,
+    })
+  }
+
+  const set: Record<string, any> = { updatedAt: new Date() }
+  if (serviceCode) set.serviceCode = String(serviceCode)
+  if (modifier) set.modifier = String(modifier)
+  if (authorizationId) set.authorizationId = String(authorizationId)
+  if (newStart) set.actualStart = newStart
+  if (newEnd) set.actualEnd = newEnd
+  if (prev.sandataStatus === 'exception') set.sandataStatus = 'ready'
+  await db.update(evvVisits).set(set).where(eq(evvVisits.id, prev.id))
+
+  if (['submitted', 'accepted'].includes(prev.sandataStatus)) {
+    requeueChangedVisit(prev.id).catch((e) => console.error('[EVV requeue]', e?.message))
+  }
+  return c.json({ success: true })
+})
+
+// ─── ACKNOWLEDGE A SANDATA EXCEPTION ──────────────────────────────────────────────────────────
+// For exceptions that can't be "fixed" in the data (spec 3.8): the office attests it was
+// reviewed, with a reason code; the visit is resubmitted carrying VisitExceptionAcknowledgement.
+app.post('/visit/:id/acknowledge', requireAdmin, async (c) => {
+  const user = c.get('user') as any
+  const body = await c.req.json().catch(() => ({})) as any
+  const err = evvReasonError(body?.reasonCode, body?.memo)
+  if (err) return c.json({ error: err.startsWith('reasonCode') ? err : `Reason code ${String(body?.reasonCode)} requires a memo` }, 400)
+  const [visit] = await db.select().from(evvVisits).where(eq(evvVisits.id, c.req.param('id'))).limit(1)
+  if (!visit) return c.json({ error: 'EVV visit not found' }, 404)
+
+  await db.update(evvVisits).set({
+    exceptionAck: true,
+    exceptionAckById: user?.userId || null,
+    exceptionAckAt: new Date(),
+    exceptionAckReason: String(body.reasonCode),
+    exceptionAckMemo: String(body?.memo || '').trim().slice(0, 256) || null,
+    sandataStatus: ['exception', 'needs_manual'].includes(visit.sandataStatus) ? 'ready' : visit.sandataStatus,
+    updatedAt: new Date(),
+  }).where(eq(evvVisits.id, visit.id))
+
+  enqueueVisit(visit.id).catch((e) => console.error('[EVV ack enqueue]', e?.message))
+  return c.json({ success: true })
+})
+
+// ─── POLL SUBMITTED VISITS FOR ACCEPT/REJECT ──────────────────────────────────────────────────
+app.post('/poll-status', requireAdmin, async (c) => c.json(await pollPendingStatuses()))
+
+// ─── CERTIFICATION READINESS ──────────────────────────────────────────────────────────────────
+// Everything that would make Sandata reject a visit, queryable before credentials exist.
+// In scope: active, non-private-pay clients whose payer is a Sandata payer (or who have no payer).
+app.get('/readiness', requireAdmin, async (c) => {
+  const cfg = await getConfig()
+  const clientRows = rowsOf(await db.execute(sql`
+    SELECT c.id, c.first_name, c.last_name, c.medicaid_id,
+           rs.name AS payer_name, rs.sandata_payer_id, rs.sandata_payer_program,
+           ct.name AS care_type, ct.default_service_code
+      FROM clients c
+      LEFT JOIN referral_sources rs ON rs.id = c.referred_by_id
+      LEFT JOIN care_types ct ON ct.id = c.care_type_id
+     WHERE c.is_active = true
+       AND COALESCE(c.is_private_pay, false) = false
+       AND (rs.id IS NULL OR rs.sandata_evv_required = true OR rs.sandata_payer_id IS NOT NULL)
+     ORDER BY c.last_name, c.first_name`))
+  const clientsWithIssues = clientRows.map((r: any) => {
+    const issues: string[] = []
+    if (!payloads.MA_ID_RE.test(payloads.digitsOnly(r.medicaid_id))) issues.push('missing/invalid Medicaid ID')
+    if (!r.payer_name) issues.push('no payer assigned')
+    else if (!r.sandata_payer_id || !r.sandata_payer_program) issues.push(`payer "${r.payer_name}" has no Sandata code`)
+    if (!r.default_service_code) issues.push(`care type "${r.care_type || 'none'}" has no service code`)
+    return { ...r, issues }
+  }).filter((r: any) => r.issues.length)
+
+  const caregivers = rowsOf(await db.execute(sql`
+    SELECT u.id, u.first_name, u.last_name, cp.evv_worker_id
+      FROM users u LEFT JOIN caregiver_profiles cp ON cp.caregiver_id = u.id
+     WHERE u.role = 'caregiver' AND u.is_active = true
+     ORDER BY u.last_name, u.first_name`))
+  const caregiversWithIssues = caregivers
+    .filter((u: any) => !payloads.WORKER_ID_RE.test(payloads.digitsOnly(u.evv_worker_id)))
+    .map((u: any) => ({ ...u, issue: 'missing/invalid EVV worker ID' }))
+
+  const careTypes = rowsOf(await db.execute(sql`
+    SELECT ct.name, ct.default_service_code, COUNT(c.id)::int AS active_clients
+      FROM care_types ct
+      LEFT JOIN clients c ON c.care_type_id = ct.id AND c.is_active = true
+     GROUP BY ct.id, ct.name, ct.default_service_code
+     ORDER BY active_clients DESC`))
+
+  const since = localDate(new Date(Date.now() - 30 * 86400000), cfg.timezone)
+  const visitStats = rowsOf(await db.execute(sql`
+    SELECT sandata_status, COUNT(*)::int AS n
+      FROM evv_visits WHERE service_date >= ${since}::date
+     GROUP BY sandata_status`))
 
   return c.json({
-    summary,
-    total: Object.values(summary).reduce((a, b) => a + b, 0),
+    configured: cfg.isConfigured,
+    providerIdSet: !!cfg.providerId,
+    clientsInScope: clientRows.length,
+    clientsWithIssues,
+    activeCaregivers: caregivers.length,
+    caregiversWithIssues,
+    careTypesMissingServiceCode: careTypes.filter((ct: any) => !ct.default_service_code && ct.active_clients > 0),
+    visitStatsLast30Days: visitStats,
   })
 })
 
-// POST /api/sandata/submit — Submit pending EVV visits to Sandata
-app.post('/submit', async (c) => {
-  const auth = getSandataAuth()
-  if (!auth) {
-    return c.json({ success: false, message: 'Sandata credentials not configured. Set SANDATA_USERNAME and SANDATA_PASSWORD env vars.' }, 400)
+// ─── SYNC ONE CLIENT ──────────────────────────────────────────────────────────────────────────
+// Force a fresh client-record send (normally automatic before that client's first visit).
+app.post('/sync-client/:clientId', requireAdmin, async (c) => {
+  const cfg = await getConfig()
+  if (!cfg.isConfigured) return c.json({ error: 'Sandata not configured' }, 400)
+  const row = rowsOf(await db.execute(sql`
+    SELECT c.*, rs.sandata_payer_id, rs.sandata_payer_program, ct.default_service_code
+      FROM clients c
+      LEFT JOIN referral_sources rs ON rs.id = c.referred_by_id
+      LEFT JOIN care_types ct ON ct.id = c.care_type_id
+     WHERE c.id = ${c.req.param('clientId')}`))[0]
+  if (!row) return c.json({ error: 'Client not found' }, 404)
+  if (!payloads.MA_ID_RE.test(payloads.digitsOnly(row.medicaid_id))) {
+    return c.json({ error: 'Client needs a valid 10-12 digit Medicaid ID first' }, 400)
   }
-  if (!getAgencyMedicaidId()) {
-    return c.json({ success: false, message: 'AGENCY_MEDICAID_ID env var is not set.' }, 400)
-  }
-
-  const body = await c.req.json().catch(() => ({}))
-  const visitIds: string[] | undefined = body.visitIds
-
-  // Fetch pending visits (or specific IDs)
-  const conditions = visitIds?.length
-    ? [inArray(evvVisits.id, visitIds)]
-    : [eq(evvVisits.sandataStatus, 'pending')]
-
-  const pendingVisits = await db.select().from(evvVisits).where(and(...conditions))
-  if (pendingVisits.length === 0) {
-    return c.json({ success: true, message: 'No pending visits to submit', submitted: 0 })
-  }
-
-  // Gather all related data in bulk
-  const clientIds = [...new Set(pendingVisits.map(v => v.clientId))]
-  const caregiverIds = [...new Set(pendingVisits.map(v => v.caregiverId))]
-  const authIds = pendingVisits.map(v => v.authorizationId).filter(Boolean) as string[]
-
-  const [clientRows, profileRows, authRows] = await Promise.all([
-    db.select().from(clients).where(inArray(clients.id, clientIds)),
-    db.select().from(caregiverProfiles).where(inArray(caregiverProfiles.caregiverId, caregiverIds)),
-    authIds.length > 0
-      ? db.select().from(authorizations).where(inArray(authorizations.id, authIds))
-      : Promise.resolve([]),
-  ])
-
-  // Fetch payers from authorizations
-  const payerIds = [...new Set(authRows.map(a => a.payerId).filter(Boolean) as string[])]
-  const payerRows = payerIds.length > 0
-    ? await db.select().from(referralSources).where(inArray(referralSources.id, payerIds))
-    : []
-
-  // Build lookup maps
-  const clientMap = new Map(clientRows.map(c => [c.id, c]))
-  const profileMap = new Map(profileRows.map(p => [p.caregiverId, p]))
-  const authMap = new Map(authRows.map(a => [a.id, a]))
-  const payerMap = new Map(payerRows.map(p => [p.id, p]))
-
-  const endpoints = getEndpoints()
-  const results: Array<{ visitId: string; success: boolean; uuid?: string; error?: string }> = []
-
-  for (const visit of pendingVisits) {
-    const client = clientMap.get(visit.clientId)
-    const profile = profileMap.get(visit.caregiverId)
-    const auth = visit.authorizationId ? authMap.get(visit.authorizationId) : null
-    const payer = auth?.payerId ? payerMap.get(auth.payerId) : null
-
-    if (!client) {
-      results.push({ visitId: visit.id, success: false, error: 'Client not found' })
-      continue
-    }
-
-    const payload = buildVisitPayload({
-      visit,
-      client: { mcoMemberId: client.mcoMemberId },
-      caregiver: { evvWorkerId: profile?.evvWorkerId || null },
-      payer: payer ? { payerIdNumber: payer.payerIdNumber, payerType: payer.payerType, name: payer.name } : null,
-      authorization: auth ? { procedureCode: auth.procedureCode, modifier: auth.modifier } : null,
-    })
-
-    try {
-      // Mark as submitted before sending
-      await db.update(evvVisits).set({
-        sandataStatus: 'submitted',
-        sandataSubmittedAt: new Date(),
-        updatedAt: new Date(),
-      }).where(eq(evvVisits.id, visit.id))
-
-      const result = await submitAndPoll(endpoints.visits, payload)
-
-      if (result.accepted) {
-        await db.update(evvVisits).set({
-          sandataStatus: 'accepted',
-          sandataVisitId: result.uuid,
-          sandataResponse: result.response,
-          updatedAt: new Date(),
-        }).where(eq(evvVisits.id, visit.id))
-        results.push({ visitId: visit.id, success: true, uuid: result.uuid || undefined })
-      } else {
-        const exCode = result.response?.errorCode || result.response?.ExceptionCode || ''
-        const exDesc = result.response?.message || result.response?.ExceptionDescription || JSON.stringify(result.response)
-        await db.update(evvVisits).set({
-          sandataStatus: 'exception',
-          sandataVisitId: result.uuid,
-          sandataResponse: result.response,
-          sandataExceptionCode: exCode,
-          sandataExceptionDesc: exDesc,
-          updatedAt: new Date(),
-        }).where(eq(evvVisits.id, visit.id))
-        results.push({ visitId: visit.id, success: false, uuid: result.uuid || undefined, error: exDesc })
-      }
-    } catch (err: any) {
-      await db.update(evvVisits).set({
-        sandataStatus: 'exception',
-        sandataExceptionCode: 'NETWORK_ERROR',
-        sandataExceptionDesc: err.message,
-        updatedAt: new Date(),
-      }).where(eq(evvVisits.id, visit.id))
-      results.push({ visitId: visit.id, success: false, error: err.message })
-    }
-  }
-
-  const accepted = results.filter(r => r.success).length
-  const failed = results.filter(r => !r.success).length
-
-  return c.json({ success: failed === 0, submitted: results.length, accepted, failed, results })
-})
-
-// POST /api/sandata/submit-visit-changes — Submit a VisitChanges segment for an edited visit
-app.post('/submit-visit-changes', async (c) => {
-  const auth = getSandataAuth()
-  if (!auth) return c.json({ success: false, message: 'Sandata credentials not configured.' }, 400)
-
-  const body = await c.req.json()
-  const { visitId, changedByEmail, reasonCode, memo } = body
-  if (!visitId) return c.json({ error: 'visitId is required' }, 400)
-
-  const [visit] = await db.select().from(evvVisits).where(eq(evvVisits.id, visitId)).limit(1)
-  if (!visit) return c.json({ error: 'Visit not found' }, 404)
-  if (!visit.sandataVisitId) return c.json({ error: 'Visit has not been submitted to Sandata yet' }, 400)
-
-  // Re-fetch related data for full payload
-  const [client] = await db.select().from(clients).where(eq(clients.id, visit.clientId)).limit(1)
-  const [profile] = await db.select().from(caregiverProfiles).where(eq(caregiverProfiles.caregiverId, visit.caregiverId)).limit(1)
-  const auth2 = visit.authorizationId
-    ? (await db.select().from(authorizations).where(eq(authorizations.id, visit.authorizationId)).limit(1))[0]
-    : null
-  const payer = auth2?.payerId
-    ? (await db.select().from(referralSources).where(eq(referralSources.id, auth2.payerId)).limit(1))[0]
-    : null
-
-  const visitPayload = buildVisitPayload({
-    visit,
-    client: { mcoMemberId: client?.mcoMemberId || null },
-    caregiver: { evvWorkerId: profile?.evvWorkerId || null },
-    payer: payer ? { payerIdNumber: payer.payerIdNumber, payerType: payer.payerType, name: payer.name } : null,
-    authorization: auth2 ? { procedureCode: auth2.procedureCode, modifier: auth2.modifier } : null,
+  const seq = payloads.nextSequence(row.sandata_sequence)
+  const payload = payloads.buildClientPayload(row, {
+    providerId: cfg.providerId,
+    sequence: seq,
+    includePayerSegment: !!(row.sandata_payer_id && row.address && row.phone),
+    timeZone: cfg.sandataTimeZone,
+    agencyState: cfg.state,
   })
-
-  // Attach VisitChanges segment
-  visitPayload.VisitChanges = [buildVisitChanges(
-    changedByEmail || 'admin@agency.com',
-    reasonCode || '1',
-    memo || 'Caregiver correction',
-  )]
-
-  const endpoints = getEndpoints()
   try {
-    const result = await submitAndPoll(endpoints.visits, visitPayload)
-    return c.json({ success: result.accepted, uuid: result.uuid, response: result.response })
-  } catch (err: any) {
-    return c.json({ success: false, error: err.message }, 500)
+    const post = await postRecords(cfg, 'clients', payload)
+    if (post.ok && post.uuid) {
+      await db.update(clients).set({ sandataSequence: seq, sandataSyncedAt: new Date(), updatedAt: new Date() }).where(eq(clients.id, row.id))
+    }
+    return c.json({ ok: post.ok, uuid: post.uuid, data: post.data })
+  } catch (e: any) {
+    return c.json({ ok: false, error: `Sandata could not be reached: ${e?.message || 'network error'}` }, 502)
   }
 })
 
-// POST /api/sandata/sync-clients — Sync active clients to Sandata
-app.post('/sync-clients', async (c) => {
-  const auth = getSandataAuth()
-  if (!auth) return c.json({ success: false, message: 'Sandata credentials not configured.' }, 400)
-  if (!getAgencyMedicaidId()) return c.json({ success: false, message: 'AGENCY_MEDICAID_ID not set.' }, 400)
+// ─── QUEUE ────────────────────────────────────────────────────────────────────────────────────
+app.get('/queue', requireAdmin, async (c) => {
+  const queueStatus = await getQueueStatus()
+  const recentFailures = rowsOf(await db.execute(sql`
+    SELECT sq.*, ev.service_date,
+           c.first_name AS client_first, c.last_name AS client_last,
+           u.first_name AS cg_first, u.last_name AS cg_last
+      FROM sandata_submission_queue sq
+      JOIN evv_visits ev ON sq.evv_visit_id = ev.id
+      JOIN clients c ON ev.client_id = c.id
+      JOIN users u ON ev.caregiver_id = u.id
+     WHERE sq.status = 'failed'
+       AND sq.completed_at > (now() AT TIME ZONE 'UTC') - INTERVAL '30 days'
+     ORDER BY sq.completed_at DESC
+     LIMIT 50`))
+  return c.json({ queueStatus, recentFailures })
+})
 
-  const body = await c.req.json().catch(() => ({}))
-  const clientIds: string[] | undefined = body.clientIds
+app.post('/queue/retry/:id', requireAdmin, async (c) => {
+  const ok = await retrySubmission(c.req.param('id'))
+  if (!ok) return c.json({ error: 'No failed submission with that id' }, 404)
+  return c.json({ success: true, message: 'Submission re-queued' })
+})
 
-  const conditions = clientIds?.length
-    ? [inArray(clients.id, clientIds)]
-    : [eq(clients.isActive, true)]
+app.get('/submission-status', requireAdmin, async (c) => {
+  const { start, end } = await dateRange(c)
+  const visits = rowsOf(await db.execute(sql`
+    SELECT ev.id, ev.service_date, ev.sandata_status, ev.sandata_visit_id,
+           ev.sandata_submitted_at, ev.auto_submit_enabled,
+           c.first_name AS client_first, c.last_name AS client_last,
+           u.first_name AS cg_first, u.last_name AS cg_last,
+           sq.status AS queue_status, sq.retry_count, sq.last_error, sq.submission_path
+      FROM evv_visits ev
+      JOIN clients c ON ev.client_id = c.id
+      JOIN users u ON ev.caregiver_id = u.id
+      LEFT JOIN sandata_submission_queue sq ON sq.evv_visit_id = ev.id
+     WHERE ev.service_date BETWEEN ${start}::date AND ${end}::date
+     ORDER BY ev.service_date DESC, ev.actual_start DESC`))
+  const by = (s: string) => visits.filter((v: any) => v.sandata_status === s).length
+  return c.json({
+    summary: {
+      total: visits.length,
+      pending: by('pending'), ready: by('ready'), submitted: by('submitted'), accepted: by('accepted'),
+      needsManual: by('needs_manual'), exception: by('exception'),
+      inQueue: visits.filter((v: any) => v.queue_status === 'queued' || v.queue_status === 'processing').length,
+    },
+    visits,
+  })
+})
 
-  const activeClients = await db.select().from(clients).where(and(...conditions))
-  if (activeClients.length === 0) {
-    return c.json({ success: true, message: 'No clients to sync', synced: 0 })
-  }
-
-  const endpoints = getEndpoints()
-  const results: Array<{ clientId: string; name: string; success: boolean; uuid?: string; error?: string }> = []
-
-  for (const client of activeClients) {
-    if (!client.mcoMemberId && !client.evvClientId) {
-      results.push({ clientId: client.id, name: client.firstName + ' ' + client.lastName, success: false, error: 'No Medicaid ID set on client' })
-      continue
-    }
-
-    const payload = buildClientPayload({ client })
-
-    try {
-      const result = await submitAndPoll(endpoints.clients, payload)
-      results.push({
-        clientId: client.id,
-        name: client.firstName + ' ' + client.lastName,
-        success: result.accepted,
-        uuid: result.uuid || undefined,
-        error: result.accepted ? undefined : (result.response?.message || JSON.stringify(result.response)),
-      })
-    } catch (err: any) {
-      results.push({ clientId: client.id, name: client.firstName + ' ' + client.lastName, success: false, error: err.message })
-    }
-  }
-
-  const synced = results.filter(r => r.success).length
-  return c.json({ success: true, synced, total: results.length, results })
+// ─── CONFIG STATUS ────────────────────────────────────────────────────────────────────────────
+app.get('/config', requireAdmin, async (c) => {
+  const cfg = await getConfig()
+  return c.json({
+    isConfigured: cfg.isConfigured,
+    hasUsername: !!cfg.username,
+    hasPassword: !!cfg.password,
+    hasAccountId: !!cfg.accountId,
+    hasProviderId: !!cfg.providerId,
+    baseUrl: cfg.baseUrl,
+    isWisconsin: cfg.isWisconsin,
+    setupInstructions: cfg.isConfigured ? null : {
+      step1: 'Start alternate-EVV certification with Sandata for your state and get the agency\'s API credentials.',
+      step2: 'Clear the readiness issues (Medicaid IDs, EVV worker IDs, payer codes, service codes).',
+      step3: 'Enter the Sandata account under Integrations → EVV: username, password, account id and the agency Medicaid provider id.',
+      step4: 'The UAT endpoint is the default; switch the API URL to production at go-live.',
+    },
+  })
 })
 
 export default app

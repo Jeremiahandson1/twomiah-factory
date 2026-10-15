@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { referralSources } from '../../db/schema.ts'
 import { eq, and, asc } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -22,15 +22,15 @@ app.get('/', async (c) => {
   return c.json(rows)
 })
 
-// POST /api/referral-sources
-app.post('/', async (c) => {
+// POST /api/referral-sources — office only (payers carry billing and Sandata EVV settings)
+app.post('/', requireAdmin, async (c) => {
   const body = await c.req.json()
   const [row] = await db.insert(referralSources).values(body).returning()
   return c.json(row, 201)
 })
 
 // PUT /api/referral-sources/:id
-app.put('/:id', async (c) => {
+app.put('/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
   const [row] = await db
@@ -43,7 +43,7 @@ app.put('/:id', async (c) => {
 })
 
 // Delete was missing entirely — the UI's delete control 404'd. (M-14)
-app.delete('/:id', async (c) => {
+app.delete('/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
   const [row] = await db.delete(referralSources).where(eq(referralSources.id, id)).returning()
   if (!row) return c.json({ error: 'Not found' }, 404)
