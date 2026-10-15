@@ -53,6 +53,27 @@ function fromFor(storeName: string): string {
   return `${name} <${addr}>`
 }
 
+/**
+ * The plain-text part of an email, from its HTML. Every store email went out HTML-only, which spam filters score as a
+ * marketing blast — both E2E Run 2 team invites landed in spam (10/15). Links keep their address, so the text works alone.
+ */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<(style|script|head)[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, rawHref, label) => {
+      // The href was HTML-escaped (esc): "&amp;invite=1" must read "&invite=1", or the copied link breaks.
+      const href = rawHref.replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+      const t = label.replace(/<[^>]+>/g, '').trim()
+      return t && t !== href ? `${t}: ${href}` : href
+    })
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|h[1-6]|li|table)>/gi, '\n')
+    .replace(/<\/t[dh]>/gi, '  ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&minus;/g, '−')
+    .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 async function send(opts: { from: string; to: string; subject: string; html: string; replyTo?: string }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY
   if (!key || !opts.to) return false
@@ -61,7 +82,7 @@ async function send(opts: { from: string; to: string; subject: string; html: str
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: opts.from, to: opts.to, subject: opts.subject, html: opts.html,
+        from: opts.from, to: opts.to, subject: opts.subject, html: opts.html, text: htmlToText(opts.html),
         ...(opts.replyTo ? { reply_to: opts.replyTo } : {}),
       }),
       signal: AbortSignal.timeout(10000),

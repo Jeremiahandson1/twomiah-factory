@@ -52,6 +52,12 @@ const summary = async () => (await (await app.request('/api/public/order-summary
   const both = discountLines({ discountCents: 900, loyaltyDiscountCents: 500, discountCode: 'SAVE4' })
   check('a code and a loyalty reward are two lines, adding to the whole discount', JSON.stringify(both) === JSON.stringify([{ label: 'Discount (SAVE4)', cents: 400 }, { label: 'Loyalty reward', cents: 500 }]), both)
   check('no discount → no lines', discountLines({ discountCents: 0 }).length === 0)
+  // Every store email carries a plain-text part (the E2E Run 2 invites landed in spam; HTML-only scores as a blast).
+  const text = mails.at(-1)?.text || ''
+  check('the receipt goes out with a plain-text part that still has the money lines', /Subtotal/.test(text) && /Discount \(TEST10\)/.test(text) && /\$40\.71/.test(text) && !/<[a-z]/i.test(text), text.slice(0, 300))
+  const { htmlToText } = await import('./src/services/email.ts')
+  const link = htmlToText('<p>Hi</p><p><a href="https://shop.test/reset?token=invite_x&amp;invite=1">Accept invitation</a></p>')
+  check('a link keeps its working address in the text part (& not &amp;)', link.includes('Accept invitation: https://shop.test/reset?token=invite_x&invite=1') && !link.includes('&amp;'), link)
   check('a loyalty share larger than the total cannot make a negative line', discountLines({ discountCents: 300, loyaltyDiscountCents: 999 }).every((l: any) => l.cents > 0))
 }
 {
