@@ -419,6 +419,14 @@ const tylerTok = (await login('tyler@test.local', 'tylerpass1')).json.token
   await asCg('POST', '/api/push/mark-read', { ids: 'all' })
   check('the bell\'s mark-all-read moves everything new to handled', await bell() === 0 && (await asCg('GET', '/api/notifications?status=handled')).json.length === 1)
   check('mark-read with nothing to mark is a 400', (await asCg('POST', '/api/push/mark-read', {})).status === 400)
+  {
+    // The drift the bell fix was about: a writer that sets is_read but not status. The
+    // page lists it under New, so the bell must count it too.
+    const [drift] = await db.insert(notifications).values({ userId: caregiver.id, title: 'drift', isRead: true }).returning()
+    const newTab = (await asCg('GET', '/api/notifications?status=new')).json.length
+    check('the bell counts exactly what the New tab lists, whatever is_read says', await bell() === 1 && newTab === 1, { bell: await bell(), newTab })
+    await db.delete(notifications).where(eq(notifications.id, drift.id))
+  }
   check('another person cannot delete it', (await asAdmin('DELETE', `/api/notifications/${mine[0].id}`)).status === 404)
   check('I can', (await asCg('DELETE', `/api/notifications/${mine[0].id}`)).status === 200)
   const sum = await asAdmin('GET', '/api/notifications/summary')
