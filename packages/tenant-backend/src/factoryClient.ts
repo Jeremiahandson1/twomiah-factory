@@ -20,6 +20,11 @@ interface FullFactoryApiClient extends FactoryApiClient {
   startRestartCheckout(returnPath?: string): Promise<{ url: string }>
   registerAds(): Promise<{ apiKey: string; adsUrl?: string; created: boolean }>
   registerStripeAccount(accountId: string | null): Promise<{ success: boolean }>
+  // The business's own web address — the same Factory routes the premium sites' Domain page uses (10/15).
+  getDomainStatus(): Promise<{ status: 'unconfigured' | 'pending_nameservers' | 'active' | 'partial'; domain: string | null; nameservers: string[]; registrar?: string | null }>
+  checkDomain(domain: string): Promise<any>
+  startDomainCheckout(domain: string, returnPath: string): Promise<{ url: string; priceCents?: number; renewalCents?: number | null }>
+  attachDomain(domain: string): Promise<any>
 }
 
 function env(name: string): string {
@@ -95,6 +100,20 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     // that account's webhooks to this tenant. Null after a disconnect.
     async registerStripeAccount(accountId) {
       return call('POST', tenantBase() + '/stripe-connect', { accountId })
+    },
+    // Domain: status, availability with both prices, the purchase checkout (Stripe returns the customer to returnPath
+    // on this app), and connecting a domain the business already owns. Same Factory routes as the premium sites.
+    async getDomainStatus() {
+      return call('GET', '/api/v1/factory/internal/domain/status/' + env('TENANT_ID'))
+    },
+    async checkDomain(domain) {
+      return call('POST', '/api/v1/factory/public/domain/check', { domain })
+    },
+    async startDomainCheckout(domain, returnPath) {
+      return call('POST', '/api/v1/factory/internal/domain/buy/' + env('TENANT_ID'), { domain, years: 1, returnTo: 'admin', returnPath })
+    },
+    async attachDomain(domain) {
+      return call('POST', '/api/v1/factory/internal/domain/attach/' + env('TENANT_ID'), { domain, mode: 'byod' })
     },
   }
 }

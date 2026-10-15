@@ -18,6 +18,7 @@ import ShippingPage from './pages/ShippingPage'
 import DiscountsPage from './pages/DiscountsPage'
 import LoyaltyPage from './pages/LoyaltyPage'
 import SettingsPage from './pages/SettingsPage'
+import DomainPage from './pages/DomainPage'
 import AuditLog from './pages/AuditLog'
 import OnboardingWizard from './pages/OnboardingWizard'
 import ContactSupportPage from './pages/support/ContactSupportPage'
@@ -118,6 +119,7 @@ export default function App() {
               <Route path="contact-support" element={<ContactSupportPage />} />
               <Route path="settings/email" element={<EmailAliasesPage />} />
               <Route path="settings/email-domain" element={<EmailDomainPage />} />
+              <Route path="domain" element={<DomainPage />} />
               <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
               <Route path="email" element={<InboundMessagesPage />} />
             </Route>

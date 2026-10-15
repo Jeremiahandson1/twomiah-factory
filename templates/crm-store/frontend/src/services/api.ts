@@ -103,6 +103,11 @@ export type OrderRefund = {
   createdByName: string | null; createdAt: string; settledAt: string | null
 }
 export type RefundRequest = { items: { orderItemId: string; quantity: number }[]; shippingCents: number; amountCents?: number; restock: boolean; reason?: string }
+// What a domain costs, charged to the owner: now, and each year after (Factory services/domainQuote.ts).
+export type DomainQuote = { firstYearCents: number; renewalCents: number; renewsHigher: boolean }
+export type DomainCheck = { domain: string; available: boolean; premium?: boolean; quote?: DomainQuote | null; suggestions?: { domain: string; quote?: DomainQuote }[]; errorMessage?: string }
+// registrar 'byod' = the owner's own registrar, where they set the nameservers; otherwise bought through Twomiah.
+export type DomainStatus = { status: 'unconfigured' | 'pending_nameservers' | 'active' | 'partial'; domain?: string | null; nameservers?: string[]; registrar?: string | null }
 export type RefundQuote = { suggestedCents: number; maxCents: number; shippingLeftCents: number }
 export type Address = { line1: string; line2?: string; city: string; state: string; postalCode: string; country: string }
 export type ShippingZone = { name: string; countries: string[]; states: string[]; rateCents: number; freeThresholdCents?: number | null }
@@ -302,6 +307,11 @@ class ApiClient {
   async quoteRefund(id: string, body: Omit<RefundRequest, 'amountCents'>) { return (await this.request<{ quote: RefundQuote }>(`/api/admin/orders/${id}/refunds/quote`, { method: 'POST', body: JSON.stringify(body) })).quote }
   async refundPart(id: string, body: RefundRequest) { return this.request<{ order: Order; refund: MoneyBack; restocked: number }>(`/api/admin/orders/${id}/refunds`, { method: 'POST', body: JSON.stringify(body) }) }
   async retryPartRefund(id: string, refundId: string) { return this.request<{ order: Order; refund: MoneyBack | null }>(`/api/admin/orders/${id}/refunds/${refundId}/retry`, { method: 'POST' }) }
+  // The store's web address (backend routes/domain.ts → the Factory, as the premium sites' Domain page).
+  async domainStatus() { return this.request<DomainStatus>('/api/admin/domain/status') }
+  async checkDomain(domain: string) { return this.request<DomainCheck>('/api/admin/domain/check', { method: 'POST', body: JSON.stringify({ domain }) }) }
+  async domainCheckout(domain: string) { return this.request<{ url: string | null }>('/api/admin/domain/buy-checkout', { method: 'POST', body: JSON.stringify({ domain }) }) }
+  async attachDomain(domain: string) { return this.request<DomainStatus>('/api/admin/domain/attach', { method: 'POST', body: JSON.stringify({ domain }) }) }
   async retryRefund(id: string) { return this.request<{ order: Order; refund?: MoneyBack | null }>(`/api/admin/orders/${id}/refund/retry`, { method: 'POST' }) }
   async setFulfillment(id: string, body: { trackingCarrier?: string; trackingNumber?: string; internalNote?: string; markShipped?: boolean }) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/fulfillment`, { method: 'PATCH', body: JSON.stringify(body) })).order }
 

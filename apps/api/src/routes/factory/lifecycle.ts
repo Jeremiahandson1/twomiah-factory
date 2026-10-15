@@ -394,13 +394,19 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
   try {
     const tenantId = c.req.param('tenantId')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant id' }, 400)
-    const body = await c.req.json().catch(() => ({})) as { domain?: string; years?: number }
+    // returnTo 'admin' + returnPath: the page Stripe sends the customer back to, on the tenant's own admin app
+    // (render_backend_url — a store's admin is its back office, not the storefront's /admin CMS). Absent: the
+    // website's /admin/domain, as the premium sites expect. (10/15)
+    const body = await c.req.json().catch(() => ({})) as { domain?: string; years?: number; returnTo?: string; returnPath?: string }
     const domain = (body.domain || '').trim().toLowerCase()
     const years = Math.max(1, Math.min(10, Math.floor(body.years || 1) || 1))
     if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
+    const askedPath = typeof body.returnPath === 'string' ? body.returnPath : ''
+    const toAdmin = body.returnTo === 'admin'
+    if (toAdmin && !(/^\/[a-z0-9/_-]{0,60}$/i.test(askedPath) && !askedPath.startsWith('//'))) return c.json({ error: 'Invalid return path' }, 400)
 
     const { data: tenant } = await supabase.from('tenants')
-      .select('id, slug, factory_sync_key, stripe_customer_id, domain, website_url, render_frontend_url, phone, address, city, state, zip')
+      .select('id, slug, factory_sync_key, stripe_customer_id, domain, website_url, render_frontend_url, render_backend_url, phone, address, city, state, zip')
       .eq('id', tenantId).single()
     if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
@@ -438,15 +444,16 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
     if (!charge.ok) return c.json({ error: 'We could not get the current price for .' + tld.tld + ' from our registrar. Please try again in a few minutes.' }, 503)
     const price = { amountCents: charge.cents, description: domainChargeDescription(domain, years, renewalChargeCents(renewCost)) }
 
-    const returnBase = (tenant.website_url || tenant.render_frontend_url || '').replace(/\/+$/, '')
-    if (!returnBase) return c.json({ error: 'Tenant has no site URL recorded.' }, 409)
+    const returnBase = ((toAdmin ? tenant.render_backend_url : tenant.website_url || tenant.render_frontend_url) || '').replace(/\/+$/, '')
+    if (!returnBase) return c.json({ error: toAdmin ? 'Tenant has no admin URL recorded.' : 'Tenant has no site URL recorded.' }, 409)
+    const returnPage = returnBase + (toAdmin ? askedPath : '/admin/domain')
     const session = await factoryStripe.createOneTimeCheckoutSession({
       customerId: tenant.stripe_customer_id,
       amountCents: price.amountCents,
       productName: 'Domain registration — ' + domain,
       description: price.description,
-      successUrl: returnBase + '/admin/domain?domain=registered&session={CHECKOUT_SESSION_ID}',
-      cancelUrl: returnBase + '/admin/domain?domain=cancelled',
+      successUrl: returnPage + '?domain=registered&session={CHECKOUT_SESSION_ID}',
+      cancelUrl: returnPage + '?domain=cancelled',
       metadata: {
         purpose: 'domain_registration',
         tenant_id: tenantId,
@@ -454,7 +461,7 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
         years: String(years),
       },
     })
-    return c.json({ url: session.url, sessionId: session.sessionId, priceCents: price.amountCents })
+    return c.json({ url: session.url, sessionId: session.sessionId, priceCents: price.amountCents, renewalCents: renewalChargeCents(renewCost) })
   } catch (e: any) {
     console.error('[Domain] buy failed:', e)
     return c.json({ error: e.message || 'Buy flow failed' }, 500)
@@ -547,7 +554,7 @@ factory.get('/internal/domain/status/:tenantId', async (c) => {
     const tenantId = c.req.param('tenantId')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
     const { data: tenant } = await supabase.from('tenants')
-      .select('id, slug, factory_sync_key, domain, cloudflare_zone_id')
+      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id')
       .eq('id', tenantId).single()
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
     if (!tenant.domain) return c.json({ status: 'unconfigured', domain: null, nameservers: [] })
@@ -558,6 +565,9 @@ factory.get('/internal/domain/status/:tenantId', async (c) => {
       status: zoneStatus?.status === 'active' ? 'active' : 'pending_nameservers',
       domain: tenant.domain,
       nameservers: zoneStatus?.nameServers || [],
+      // 'byod' = the customer's own registrar, where THEY set the nameservers; anything else = bought through us, and
+      // we set them — the page says "we're setting it up" instead of asking for a change they cannot make.
+      registrar: tenant.domain_registrar || null,
     })
   } catch (e: any) {
     return c.json({ error: e.message }, 500)
