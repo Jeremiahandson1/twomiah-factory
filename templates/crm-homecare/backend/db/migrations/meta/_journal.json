@@ -92,6 +92,13 @@
       "when": 1791486400000,
       "tag": "0013_client_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791486900000,
+      "tag": "0018_staff",
+      "breakpoints": true
     }
   ]
 }

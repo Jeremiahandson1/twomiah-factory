@@ -89,6 +89,8 @@ export const users = pgTable('users', {
   emergencyContactName: text('emergency_contact_name'),
   emergencyContactPhone: text('emergency_contact_phone'),
   lastLogin: timestamp('last_login'),
+  // Server-side logout: a staff token issued before this moment is refused (services/tokenRevocation.ts).
+  lastLogoutAt: timestamp('last_logout_at'),
   refreshToken: text('refresh_token'),
   resetToken: text('reset_token'),
   resetTokenExp: timestamp('reset_token_exp'),
@@ -817,6 +819,8 @@ export const gustoEmployeeMap = pgTable('gusto_employee_map', {
   gustoUuid: text('gusto_uuid'),
   isSynced: boolean('is_synced').default(false).notNull(),
   lastSyncedAt: timestamp('last_synced_at'),
+  // Who marked the caregiver as copied into Gusto (onboarding packet → "Mark Synced").
+  syncedById: text('synced_by_id').references(() => users.id),
 })
 
 // ==================== EXPENSES ====================
@@ -873,12 +877,16 @@ export const backgroundChecks = pgTable('background_checks', {
   driversLicenseState: text('drivers_license_state'),
   referenceNumber: text('reference_number'),
   findings: text('findings'),
+  // clear | flagged | disqualifying (entered by the office) · clear | record_found | error (WORCS poll)
+  result: text('result'),
+  completedDate: date('completed_date'),
   notes: text('notes'),
   createdById: text('created_by_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('background_checks_caregiver_id_idx').on(t.caregiverId),
+  index('background_checks_expiration_date_idx').on(t.expirationDate),
 ])
 
 // ==================== NOTIFICATIONS ====================
@@ -1313,11 +1321,33 @@ export const applications = pgTable('applications', {
   notes: text('notes'),
   interviewNotes: text('interview_notes'),
   hiredUserId: text('hired_user_id').references(() => users.id),
+  // ── Application form (public careers form) ──
+  // The start date lives in available_start_date, the applicant's own notes in notes and the
+  // references in `references` ([{ name, relationship, phone, email }]).
+  dateOfBirth: date('date_of_birth'),
+  hasDriversLicense: boolean('has_drivers_license').default(false).notNull(),
+  hasTransportation: boolean('has_transportation').default(false).notNull(),
+  legalToWork: boolean('legal_to_work').default(false).notNull(),
+  willingBackgroundCheck: boolean('willing_background_check').default(false).notNull(),
+  felonyConviction: boolean('felony_conviction').default(false).notNull(),
+  felonyExplanation: text('felony_explanation'),
+  yearsExperience: integer('years_experience').default(0).notNull(),
+  cnaLicense: text('cna_license'),
+  certifications: json('certifications').default([]).notNull(),
+  previousEmployer: text('previous_employer'),
+  reasonForLeaving: text('reason_for_leaving'),
+  availabilityDays: text('availability_days'),
+  availabilityShifts: text('availability_shifts'),
+  hoursDesired: text('hours_desired'),
+  whyInterested: text('why_interested'),
+  postingId: text('posting_id').references(() => jobPostings.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('applications_status_idx').on(t.status),
   index('applications_created_at_idx').on(t.createdAt),
+  index('applications_email_idx').on(t.email),
+  index('applications_posting_id_idx').on(t.postingId),
 ])
 
 // ==================== ALERTS (GENERIC) ====================
@@ -1396,6 +1426,7 @@ export const certificationRecords = pgTable('certification_records', {
   issueDate: date('issue_date'),
   expiryDate: date('expiry_date'),
   documentUrl: text('document_url'),
+  certificationNumber: text('certification_number'),
   status: text('status').default('active').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
@@ -1492,10 +1523,14 @@ export const trainingRecords = pgTable('training_records', {
   expiryDate: date('expiry_date'),
   hoursCompleted: decimal('hours_completed', { precision: 5, scale: 1 }),
   certificateUrl: text('certificate_url'),
+  certificationNumber: text('certification_number'),
   status: text('status').default('completed').notNull(),
+  recordedById: text('recorded_by_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('training_records_caregiver_idx').on(t.caregiverId),
+  index('training_records_expiry_idx').on(t.expiryDate),
 ])
 
 // ==================== MILEAGE ====================
@@ -2107,4 +2142,145 @@ export const clientDocuments = pgTable('client_documents', {
 }, (t) => [
   index('client_documents_client_id_idx').on(t.clientId),
   index('client_documents_status_idx').on(t.status),
+])
+
+// ==================== STAFF: HIRING, ONBOARDING, BACKGROUND CHECKS, PAYDAY ====================
+// Migration 0018_staff. Ported from the CVHC CRM (v30, v31, v32, v33, v67).
+
+// Admin-managed openings for the public careers page. No published, open posting: the careers
+// page shows the general "always building our caregiver pool" copy and still takes applications.
+export const jobPostings = pgTable('job_postings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  employmentType: text('employment_type').default('part_time').notNull(), // full_time | part_time | prn | contract
+  location: text('location'),
+  payRangeMin: decimal('pay_range_min', { precision: 10, scale: 2 }),
+  payRangeMax: decimal('pay_range_max', { precision: 10, scale: 2 }),
+  payRateUnit: text('pay_rate_unit').default('hour').notNull(), // hour | week | year | visit
+  summary: text('summary'),
+  description: text('description').notNull(),
+  responsibilities: text('responsibilities'),
+  qualifications: text('qualifications'),
+  isPublished: boolean('is_published').default(false).notNull(),
+  publishedAt: timestamp('published_at'),
+  closesAt: timestamp('closes_at'), // null = open indefinitely
+  applicationsCount: integer('applications_count').default(0).notNull(),
+  createdById: text('created_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('job_postings_published_idx').on(t.isPublished, t.closesAt),
+])
+
+// Post-hire onboarding packet: a tokenized link emailed to the new hire. Captures the deeper
+// personal details, the background-check consent (FCRA-style standalone disclosure + typed
+// signature + IP + user agent) and, where the agency runs WORCS, the SSN for that one submission.
+export const onboardingPackets = pgTable('onboarding_packets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  applicationId: text('application_id').references(() => applications.id, { onDelete: 'set null' }),
+  token: text('token').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  status: text('status').default('sent').notNull(), // sent | opened | in_progress | submitted | expired | cancelled
+  preferredName: text('preferred_name'),
+  legalFirstName: text('legal_first_name'),
+  legalMiddleName: text('legal_middle_name'),
+  legalLastName: text('legal_last_name'),
+  pronouns: text('pronouns'),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  dateOfBirth: date('date_of_birth'),
+  driversLicenseNumber: text('drivers_license_number'),
+  driversLicenseState: text('drivers_license_state'),
+  emergencyContactName: text('emergency_contact_name'),
+  emergencyContactRelationship: text('emergency_contact_relationship'),
+  emergencyContactPhone: text('emergency_contact_phone'),
+  emergencyContactEmail: text('emergency_contact_email'),
+  bgcConsentSignedAt: timestamp('bgc_consent_signed_at'),
+  bgcConsentSignature: text('bgc_consent_signature'),
+  bgcConsentIp: text('bgc_consent_ip'),
+  bgcConsentUserAgent: text('bgc_consent_user_agent'),
+  bgcConsentVersion: text('bgc_consent_version'),
+  bgcConsentDisclosureText: text('bgc_consent_disclosure_text'),
+  // Encrypted SSN held ONLY until the WORCS submission succeeds, then nulled.
+  ssnTransientEncrypted: text('ssn_transient_encrypted'),
+  openedAt: timestamp('opened_at'),
+  submittedAt: timestamp('submitted_at'),
+  createdById: text('created_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('onboarding_packets_caregiver_idx').on(t.caregiverId),
+  index('onboarding_packets_status_idx').on(t.status),
+  index('onboarding_packets_expires_idx').on(t.expiresAt),
+])
+
+// Append-only audit trail for a packet: every view, save, signature and background-check request.
+export const onboardingPacketEvents = pgTable('onboarding_packet_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  packetId: text('packet_id').notNull().references(() => onboardingPackets.id, { onDelete: 'cascade' }),
+  // created | emailed | opened | saved_draft | consent_signed | submitted | bgc_requested |
+  // bgc_completed | expired | cancelled | resent
+  eventType: text('event_type').notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  metadata: json('metadata'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('onboarding_packet_events_packet_idx').on(t.packetId, t.createdAt),
+])
+
+// Statutory caregiver bar list the eligibility engine matches background-check findings against.
+// Rows carry the state whose law they come from; the engine only uses the agency's own state.
+// Seeded with Wisconsin (Wis. Stat. 50.065 / 48.685, DHS 12) for agencies in WI.
+export const caregiverDisqualifiers = pgTable('caregiver_disqualifiers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  state: text('state'), // two-letter state the statute belongs to
+  category: text('category').notNull(),
+  statute: text('statute').notNull(),
+  shortTitle: text('short_title').notNull(),
+  description: text('description'),
+  severity: text('severity').notNull(), // permanent_bar | rehab_review | advisory
+  matchPatterns: json('match_patterns').default([]).notNull(), // case-insensitive regex fragments
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('caregiver_disqualifiers_active_idx').on(t.isActive, t.severity),
+  index('caregiver_disqualifiers_state_idx').on(t.state),
+])
+
+// Result letters for a background check, stored in the database as data URIs (local disk does not
+// survive a deploy). Admin only.
+export const backgroundCheckDocuments = pgTable('background_check_documents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  backgroundCheckId: text('background_check_id').notNull().references(() => backgroundChecks.id, { onDelete: 'cascade' }),
+  fileName: text('file_name').notNull(),
+  mimeType: text('mime_type').notNull(),
+  fileSize: integer('file_size'),
+  fileData: text('file_data').notNull(),
+  uploadedById: text('uploaded_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('background_check_documents_check_idx').on(t.backgroundCheckId, t.createdAt),
+])
+
+// Caregivers confirm or dispute their pay-period hours before payroll runs. One row per
+// (caregiver, pay period); either verified_at or disputed_at is set.
+export const payrollPeriodVerifications = pgTable('payroll_period_verifications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  payPeriodStart: date('pay_period_start').notNull(),
+  payPeriodEnd: date('pay_period_end').notNull(),
+  verifiedAt: timestamp('verified_at'),
+  disputedAt: timestamp('disputed_at'),
+  disputeReason: text('dispute_reason'),
+  reportedTotalHours: decimal('reported_total_hours', { precision: 10, scale: 2 }),
+  reportedGrossPay: decimal('reported_gross_pay', { precision: 10, scale: 2 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('payroll_period_verifications_caregiver_period_idx').on(t.caregiverId, t.payPeriodStart, t.payPeriodEnd),
 ])

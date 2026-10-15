@@ -83,3 +83,8 @@ export function maskedDecrypt(ciphertext: string | null, visibleChars = 4): stri
   const visible = digits.slice(-visibleChars)
   return `${'*'.repeat(Math.max(0, digits.length - visibleChars))}${visible}`
 }
+
+/** Digits only. */
+export const normalizeSSN = (ssn: unknown): string => (ssn ? String(ssn).replace(/\D/g, '') : '')
+/** A US SSN is exactly nine digits once punctuation is stripped. */
+export const validateSSN = (ssn: unknown): boolean => normalizeSSN(ssn).length === 9

@@ -5,6 +5,7 @@ import { eq, asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { users, caregiverProfiles, agencies } from '../../db/schema.ts'
 import { authenticate, requireAdmin, logAuthEvent } from '../middleware/auth.ts'
+import { markUserLoggedOut } from '../services/tokenRevocation.ts'
 
 const app = new Hono()
 
@@ -83,9 +84,13 @@ app.post('/refresh', async (c) => {
 })
 
 // POST /api/auth/logout
+// Server-side revocation: stamps users.last_logout_at (and drops the refresh token), so every access
+// token issued before now stops working on its next request — on all devices. An impersonation
+// session ends client-side only, so it never kills the impersonated user's real sessions.
 app.post('/logout', authenticate, async (c) => {
   const currentUser = c.get('user') as any
-  await db.update(users).set({ refreshToken: null, updatedAt: new Date() }).where(eq(users.id, currentUser.userId))
+  if (currentUser?.impersonation) return c.json({ message: 'Logged out' })
+  await markUserLoggedOut(currentUser.userId)
   return c.json({ message: 'Logged out' })
 })
 

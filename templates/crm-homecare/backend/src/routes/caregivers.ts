@@ -10,8 +10,10 @@ import {
   clients,
   backgroundChecks,
   notificationPreferences,
+  certificationRecords,
+  trainingRecords,
 } from '../../db/schema.ts'
-import { eq, and, or, ilike, count, desc, asc } from 'drizzle-orm'
+import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -450,6 +452,122 @@ app.post('/:id/background-checks', requireAdmin, async (c) => {
     .returning()
 
   const { ssnEncrypted: _, driversLicenseEncrypted: __, ...safe } = check
+  return c.json(safe, 201)
+})
+
+// ── Certifications, training records and the latest background check, per caregiver ──────────
+// The paths the caregiver profile and Compliance screens call (CVHC caregiverRoutes.js). Stored in
+// the template's certification_records / training_records / background_checks, and answered with
+// the CVHC field names those screens read. Reads: the office, or the caregiver themself. Writes: the
+// office.
+const adminOrSelf = (c: any) => {
+  const u = c.get('user') as any
+  return u && (u.role === 'admin' || u.role === 'owner' || u.userId === c.req.param('id'))
+}
+const certView = (r: typeof certificationRecords.$inferSelect) => ({
+  ...r,
+  certificationName: r.certificationType, issuer: r.issuingBody, issuedDate: r.issueDate, expirationDate: r.expiryDate,
+})
+const trainingView = (r: typeof trainingRecords.$inferSelect) => ({
+  ...r,
+  trainingType: r.trainingName, completionDate: r.completedDate, expirationDate: r.expiryDate,
+})
+const dayOrNull = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)
+
+app.get('/:id/certifications', async (c) => {
+  if (!adminOrSelf(c)) return c.json({ error: 'Admin access required' }, 403)
+  const rows = await db.select().from(certificationRecords)
+    .where(eq(certificationRecords.caregiverId, c.req.param('id')))
+    .orderBy(desc(certificationRecords.expiryDate))
+  return c.json(rows.map(certView))
+})
+
+app.post('/:id/certifications', requireAdmin, async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json().catch(() => ({})) as any
+  const name = typeof body.certificationName === 'string' ? body.certificationName.trim() : ''
+  if (!name) return c.json({ error: 'Certification name is required' }, 400)
+  for (const k of ['issuedDate', 'expirationDate']) {
+    if (body[k] && !dayOrNull(body[k])) return c.json({ error: 'One of the dates is not a valid date.' }, 400)
+  }
+  const [cg] = await db.select({ id: users.id }).from(users).where(eq(users.id, id))
+  if (!cg) return c.json({ error: 'Caregiver not found' }, 404)
+  const [row] = await db.insert(certificationRecords).values({
+    caregiverId: id,
+    certificationType: name,
+    certificationNumber: body.certificationNumber || null,
+    issuingBody: body.issuer || null,
+    issueDate: dayOrNull(body.issuedDate),
+    expiryDate: dayOrNull(body.expirationDate),
+  }).returning()
+  return c.json(certView(row), 201)
+})
+
+app.get('/:id/training-records', async (c) => {
+  if (!adminOrSelf(c)) return c.json({ error: 'Admin access required' }, 403)
+  const rows = await db.select().from(trainingRecords)
+    .where(eq(trainingRecords.caregiverId, c.req.param('id')))
+    .orderBy(desc(trainingRecords.completedDate))
+  return c.json(rows.map(trainingView))
+})
+
+app.post('/:id/training-records', requireAdmin, async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json().catch(() => ({})) as any
+  const type = typeof body.trainingType === 'string' ? body.trainingType.trim() : ''
+  if (!type || !body.completionDate) return c.json({ error: 'Training type and completion date are required' }, 400)
+  if (!dayOrNull(body.completionDate) || (body.expirationDate && !dayOrNull(body.expirationDate))) {
+    return c.json({ error: 'One of the dates is not a valid date.' }, 400)
+  }
+  const [cg] = await db.select({ id: users.id }).from(users).where(eq(users.id, id))
+  if (!cg) return c.json({ error: 'Caregiver not found' }, 404)
+  const user = c.get('user') as any
+  const [row] = await db.insert(trainingRecords).values({
+    caregiverId: id,
+    trainingName: type,
+    completedDate: body.completionDate,
+    expiryDate: dayOrNull(body.expirationDate),
+    certificationNumber: body.certificationNumber || null,
+    provider: body.provider || null,
+    status: body.status || 'completed',
+    recordedById: user?.userId || null,
+  }).returning()
+  return c.json(trainingView(row), 201)
+})
+
+// GET /api/caregivers/:id/background-check — the latest check, or null
+app.get('/:id/background-check', async (c) => {
+  if (!adminOrSelf(c)) return c.json({ error: 'Admin access required' }, 403)
+  const [row] = await db.select().from(backgroundChecks)
+    .where(eq(backgroundChecks.caregiverId, c.req.param('id')))
+    .orderBy(sql`${backgroundChecks.initiatedDate} DESC NULLS LAST`)
+    .limit(1)
+  if (!row) return c.json(null)
+  const { ssnEncrypted: _, driversLicenseEncrypted: __, ...safe } = row
+  return c.json({ ...safe, checkDate: safe.initiatedDate, clearanceNumber: safe.referenceNumber })
+})
+
+// POST /api/caregivers/:id/background-check { checkDate, expirationDate, status, clearanceNumber, notes }
+app.post('/:id/background-check', requireAdmin, async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json().catch(() => ({})) as any
+  if (!body.checkDate || !body.status) return c.json({ error: 'Check date and status are required' }, 400)
+  if (!dayOrNull(body.checkDate) || (body.expirationDate && !dayOrNull(body.expirationDate))) {
+    return c.json({ error: 'One of the dates is not a valid date.' }, 400)
+  }
+  const [cg] = await db.select({ id: users.id }).from(users).where(eq(users.id, id))
+  if (!cg) return c.json({ error: 'Caregiver not found' }, 404)
+  const user = c.get('user') as any
+  const [row] = await db.insert(backgroundChecks).values({
+    caregiverId: id,
+    initiatedDate: body.checkDate,
+    expirationDate: dayOrNull(body.expirationDate),
+    status: String(body.status),
+    referenceNumber: body.clearanceNumber || null,
+    notes: body.notes || null,
+    createdById: user?.userId || null,
+  }).returning()
+  const { ssnEncrypted: _, driversLicenseEncrypted: __, ...safe } = row
   return c.json(safe, 201)
 })
 
