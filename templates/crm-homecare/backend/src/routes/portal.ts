@@ -564,7 +564,8 @@ app.get('/me', portalAuth, async (c) => {
     .where(
       and(
         eq(invoices.clientId, clientId),
-        sql`${invoices.paymentStatus} IN ('pending', 'overdue')`
+        sql`${invoices.paymentStatus} IN ('pending', 'overdue')`,
+        familyCanSeeInvoice(),
       )
     )
 
@@ -660,12 +661,18 @@ app.get('/history', portalAuth, async (c) => {
   return c.json(rows)
 })
 
+// Invoices start as DRAFTS (sent_at NULL) the family cannot see until the office sends, releases or
+// takes a payment on them (billing port, CVHC v55). One rule for every portal read of an invoice.
+function familyCanSeeInvoice() {
+  return sql`(${invoices.sentAt} IS NOT NULL OR ${invoices.paymentStatus} IN ('paid', 'partial'))`
+}
+
 // Invoices
 app.get('/invoices', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const invoiceRows = await db.select()
     .from(invoices)
-    .where(eq(invoices.clientId, clientId))
+    .where(and(eq(invoices.clientId, clientId), familyCanSeeInvoice()))
     .orderBy(desc(invoices.createdAt))
     .limit(20)
 
@@ -711,7 +718,7 @@ app.post('/invoices/:invoiceId/pay', portalAuth, async (c) => {
 
   const [inv] = await db.select()
     .from(invoices)
-    .where(and(eq(invoices.id, invoiceId), eq(invoices.clientId, clientId)))
+    .where(and(eq(invoices.id, invoiceId), eq(invoices.clientId, clientId), familyCanSeeInvoice()))
     .limit(1)
 
   if (!inv) {
@@ -762,7 +769,7 @@ app.get('/invoices/:invoiceId/pdf', portalAuth, async (c) => {
 
   const [inv] = await db.select()
     .from(invoices)
-    .where(and(eq(invoices.id, invoiceId), eq(invoices.clientId, clientId)))
+    .where(and(eq(invoices.id, invoiceId), eq(invoices.clientId, clientId), familyCanSeeInvoice()))
     .limit(1)
 
   if (!inv) {
