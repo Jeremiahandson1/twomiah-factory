@@ -2,13 +2,15 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { absences, users, clients } from '../../db/schema.ts'
 import { eq, desc } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { selfSubject } from '../helpers/selfService.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-// GET / — list all absences, optional ?caregiverId filter, join users+clients for names
-app.get('/', async (c) => {
+// GET / — list all absences, optional ?caregiverId filter, join users+clients for names. The office's
+// list (CVHC: requireAdmin); a caregiver reads their own through GET /my.
+app.get('/', requireAdmin, async (c) => {
   try {
     const caregiverId = c.req.query('caregiverId')
 
@@ -75,14 +77,29 @@ app.get('/my', async (c) => {
   }
 })
 
-// POST / — insert absence, set reportedById from auth user
+// POST / — report an absence. The office records one for any caregiver; a caregiver reports their
+// OWN — a caregiverId naming anyone else is a 403 (CVHC let any signed-in user name any caregiver).
+// Who covers it is the office's to arrange, so only the office sets the coverage fields.
 app.post('/', async (c) => {
   try {
     const user = c.get('user' as any)
-    const body = await c.req.json()
+    const body = await c.req.json().catch(() => ({})) as any
+    const who = selfSubject(c, body.caregiverId)
+    if ('refusal' in who) return who.refusal
+    if (!body.date || !body.type) return c.json({ error: 'caregiverId, date, and type are required' }, 400)
     const [row] = await db
       .insert(absences)
-      .values({ ...body, reportedById: user.userId })
+      .values({
+        caregiverId: who.id,
+        clientId: body.clientId || null,
+        date: body.date,
+        type: body.type,
+        reason: body.reason || null,
+        notes: body.notes || null,
+        reportedById: user.userId,
+        ...(who.office && body.coverageAssignedTo ? { coverageAssignedTo: body.coverageAssignedTo } : {}),
+        ...(who.office && typeof body.coverageNeeded === 'boolean' ? { coverageNeeded: body.coverageNeeded } : {}),
+      })
       .returning()
     return c.json(row, 201)
   } catch (error: any) {
@@ -90,8 +107,8 @@ app.post('/', async (c) => {
   }
 })
 
-// DELETE /:id — delete by id
-app.delete('/:id', async (c) => {
+// DELETE /:id — the office's (CVHC: requireAdmin)
+app.delete('/:id', requireAdmin, async (c) => {
   try {
     const id = c.req.param('id')
     await db.delete(absences).where(eq(absences.id, id))

@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
 import { reportAiUsage } from '../services/aiUsage'
-import { authenticate } from '../middleware/auth.ts';
+import { authenticate, requireAdmin } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
 import { sql } from 'drizzle-orm';
+import { createId } from '@paralleldrive/cuid2';
 
 const app = new Hono();
 app.use('*', authenticate);
@@ -37,14 +38,18 @@ app.get('/kb', async (c) => {
   }
 });
 
+// The same H-05 fault was still in every other KB statement below: `agency_id = ${user.agencyId}`
+// with no agencyId in the token, so reading an article, writing one and the AI chat's context all
+// failed. One agency per database: no agency filter on reads by id; a new article is stamped with the
+// token's companyId (the agency's id — routes/auth.ts signs it), and gets an id (the column has no
+// database default; the old raw INSERT supplied none).
 app.get('/kb/:id', async (c) => {
-  const user = c.get('user') as any;
   const id = c.req.param('id');
 
   try {
     // Increment view count
-    await db.execute(sql`UPDATE help_articles SET view_count = view_count + 1 WHERE id = ${id} AND agency_id = ${user.agencyId}`);
-    const result = await db.execute(sql`SELECT * FROM help_articles WHERE id = ${id} AND agency_id = ${user.agencyId}`);
+    await db.execute(sql`UPDATE help_articles SET view_count = view_count + 1 WHERE id = ${id}`);
+    const result = await db.execute(sql`SELECT * FROM help_articles WHERE id = ${id}`);
     const article = (result.rows || [])[0];
     if (!article) return c.json({ error: 'Article not found' }, 404);
     return c.json(article);
@@ -54,16 +59,19 @@ app.get('/kb/:id', async (c) => {
   }
 });
 
-// Admin: create/update/delete articles
-app.post('/kb', async (c) => {
+// Admin: create/update/delete articles — requireAdmin (admin OR owner). The inline role check this
+// replaced read `role !== 'admin'`, which refused the agency's owner.
+app.post('/kb', requireAdmin, async (c) => {
   const user = c.get('user') as any;
-  if (user.role !== 'admin') return c.json({ error: 'Admin required' }, 403);
-  const body = await c.req.json();
+  const body = await c.req.json().catch(() => ({}));
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const content = typeof body.content === 'string' ? body.content : '';
+  if (!title || !content.trim()) return c.json({ error: 'A title and content are required' }, 400);
 
   try {
     const result = await db.execute(sql`
-      INSERT INTO help_articles (agency_id, title, content, category, tags, sort_order, is_faq)
-      VALUES (${user.agencyId}, ${body.title}, ${body.content}, ${body.category || null}, ${JSON.stringify(body.tags || [])}, ${body.sort_order || 0}, ${body.is_faq || false})
+      INSERT INTO help_articles (id, agency_id, title, content, category, tags, sort_order, is_faq)
+      VALUES (${createId()}, ${user.companyId}, ${title}, ${content}, ${body.category || null}, ${JSON.stringify(body.tags || [])}, ${Number(body.sort_order) || 0}, ${body.is_faq === true})
       RETURNING *
     `);
     return c.json((result.rows || [])[0], 201);
@@ -73,20 +81,21 @@ app.post('/kb', async (c) => {
   }
 });
 
-app.put('/kb/:id', async (c) => {
-  const user = c.get('user') as any;
-  if (user.role !== 'admin') return c.json({ error: 'Admin required' }, 403);
+app.put('/kb/:id', requireAdmin, async (c) => {
   const id = c.req.param('id');
-  const body = await c.req.json();
+  const body = await c.req.json().catch(() => ({}));
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const content = typeof body.content === 'string' ? body.content : '';
+  if (!title || !content.trim()) return c.json({ error: 'A title and content are required' }, 400);
 
   try {
     const result = await db.execute(sql`
       UPDATE help_articles SET
-        title = ${body.title}, content = ${body.content}, category = ${body.category || null},
-        tags = ${JSON.stringify(body.tags || [])}, sort_order = ${body.sort_order || 0},
-        is_faq = ${body.is_faq || false}, published = ${body.published !== false},
+        title = ${title}, content = ${content}, category = ${body.category || null},
+        tags = ${JSON.stringify(body.tags || [])}, sort_order = ${Number(body.sort_order) || 0},
+        is_faq = ${body.is_faq === true}, published = ${body.published !== false},
         updated_at = now()
-      WHERE id = ${id} AND agency_id = ${user.agencyId}
+      WHERE id = ${id}
       RETURNING *
     `);
     const article = (result.rows || [])[0];
@@ -97,13 +106,11 @@ app.put('/kb/:id', async (c) => {
   }
 });
 
-app.delete('/kb/:id', async (c) => {
-  const user = c.get('user') as any;
-  if (user.role !== 'admin') return c.json({ error: 'Admin required' }, 403);
+app.delete('/kb/:id', requireAdmin, async (c) => {
   const id = c.req.param('id');
 
   try {
-    await db.execute(sql`DELETE FROM help_articles WHERE id = ${id} AND agency_id = ${user.agencyId}`);
+    await db.execute(sql`DELETE FROM help_articles WHERE id = ${id}`);
     return c.json({ success: true });
   } catch (e: any) {
     throw e;
@@ -124,7 +131,7 @@ app.post('/ai-chat', async (c) => {
   try {
     const articles = await db.execute(sql`
       SELECT title, content FROM help_articles
-      WHERE agency_id = ${user.agencyId} AND published = true
+      WHERE published = true
       LIMIT 20
     `);
     const rows = articles.rows || [];

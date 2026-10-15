@@ -3,13 +3,16 @@ import { db } from '../../db/index.ts'
 import { certificationRecords } from '../../db/schema.ts'
 import { eq, desc } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { requireAdminOrSelf, selfSubject } from '../helpers/selfService.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-// GET /api/certifications?caregiverId=
+// GET /api/certifications?caregiverId= — the office: anyone's (or all); a caregiver: their own
 app.get('/', async (c) => {
-  const { caregiverId } = c.req.query()
+  const who = selfSubject(c, c.req.query('caregiverId'))
+  if ('refusal' in who) return who.refusal
+  const caregiverId = who.office ? c.req.query('caregiverId') : who.id
 
   const rows = caregiverId
     ? await db.select().from(certificationRecords).where(eq(certificationRecords.caregiverId, caregiverId)).orderBy(desc(certificationRecords.createdAt))
@@ -19,7 +22,7 @@ app.get('/', async (c) => {
 })
 
 // GET /api/certifications/caregiver/:id
-app.get('/caregiver/:id', async (c) => {
+app.get('/caregiver/:id', requireAdminOrSelf('id'), async (c) => {
   const caregiverId = c.req.param('id')
 
   const rows = await db

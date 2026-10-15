@@ -3,10 +3,11 @@ import { db } from '../../db/index.ts'
 import { noshowAlerts, noshowAlertConfig, users, clients } from '../../db/schema.ts'
 import { eq, count, desc, sql } from 'drizzle-orm'
 import { agencyToday } from '../services/agencyTime.ts'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
-app.use('*', authenticate)
+// No-show monitoring and its configuration are the office's. (CVHC noShowRoutes.js left them on verifyToken alone — any caregiver could change the detection config or resolve alerts; office-only here, a deliberate difference.)
+app.use('*', authenticate, requireAdmin)
 
 // GET /api/no-show/alerts — list with ?status filter
 app.get('/alerts', async (c) => {

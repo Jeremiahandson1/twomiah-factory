@@ -2,10 +2,11 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { communicationLog } from '../../db/schema.ts'
 import { eq, and, desc, asc, isNotNull } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
-app.use('*', authenticate)
+// Notes of the office's calls and emails with clients, families and caregivers — the office's record. (CVHC communicationRoutes.js left it on verifyToken alone; office-only here, a deliberate difference.)
+app.use('*', authenticate, requireAdmin)
 
 // GET /api/communication-log/follow-ups/pending
 app.get('/follow-ups/pending', async (c) => {

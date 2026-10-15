@@ -2,10 +2,11 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { prospectAppointments, lead } from '../../db/schema.ts'
 import { eq, and, gte, lte, desc, sql } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
-app.use('*', authenticate)
+// Prospect appointments are the office's intake calendar. (CVHC prospectRoutes.js: verifyToken alone; office-only here, a deliberate difference.)
+app.use('*', authenticate, requireAdmin)
 
 // GET /api/prospect-appointments — list with ?month, ?year filters
 app.get('/', async (c) => {

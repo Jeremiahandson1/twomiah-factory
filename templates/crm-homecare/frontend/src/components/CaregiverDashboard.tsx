@@ -497,10 +497,11 @@ const CaregiverDashboard = ({ onLogout }) => {
 
   const loadTimeOffRequests = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/absences/my`, {
+      // My time-off requests (GET /api/pto lists only the caller's own for a caregiver).
+      const res = await fetch(`${API_BASE_URL}/api/pto`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) setTimeOffRequests(await res.json());
+      if (res.ok) { const d = await res.json(); setTimeOffRequests(Array.isArray(d) ? d : []); }
     } catch (error) {
       console.error('Failed to load time off:', error);
     }
@@ -913,19 +914,19 @@ const CaregiverDashboard = ({ onLogout }) => {
     if (!newTimeOff.startDate || !newTimeOff.endDate) return showMsg('Select dates', 'error');
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/absences`, {
+      // A time-off REQUEST (dates, pending until the office answers it in PTO & Time Off) — not an
+      // absence. It used to post this to /api/absences, which has no start/end dates, and failed.
+      const res = await fetch(`${API_BASE_URL}/api/pto`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
-          caregiverId: user.id,
-          absenceType: 'time_off_request',
+          type: 'pto',
           startDate: newTimeOff.startDate,
           endDate: newTimeOff.endDate,
           reason: newTimeOff.reason,
-          status: 'pending'
         })
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed');
       showMsg('Request submitted!');
       setNewTimeOff({ startDate: '', endDate: '', reason: '' });
       loadTimeOffRequests();
@@ -1504,7 +1505,7 @@ const CaregiverDashboard = ({ onLogout }) => {
             {timeOffRequests.map(r => (
               <div key={r.id} style={{ padding: '0.75rem', borderRadius: '6px', background: r.status === 'approved' ? '#D1FAE5' : r.status === 'denied' ? '#FEE2E2' : '#FEF3C7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontWeight: '500' }}>{formatDate(r.start_date)} - {formatDate(r.end_date)}</div>
+                  <div style={{ fontWeight: '500' }}>{formatDate(r.startDate || r.start_date)} - {formatDate(r.endDate || r.end_date)}</div>
                   {r.reason && <div style={{ fontSize: '0.85rem', color: '#666' }}>{r.reason}</div>}
                 </div>
                 <span style={{ padding: '0.25rem 0.75rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600', background: r.status === 'approved' ? '#059669' : r.status === 'denied' ? '#DC2626' : '#D97706', color: '#fff' }}>

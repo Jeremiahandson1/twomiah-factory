@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { careTypes } from '../../db/schema.ts'
 import { eq, asc, count } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -43,7 +43,8 @@ app.get('/', async (c) => {
 })
 
 // POST / — create a care type
-app.post('/', async (c) => {
+// Writes are the office's (CVHC pricingRoutes.js: requireAdmin); every signed-in user reads the list.
+app.post('/', requireAdmin, async (c) => {
   try {
     const body = await c.req.json()
     if (!body.name || !String(body.name).trim()) {
@@ -61,7 +62,7 @@ app.post('/', async (c) => {
 })
 
 // PUT /:id — update
-app.put('/:id', async (c) => {
+app.put('/:id', requireAdmin, async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
@@ -79,7 +80,7 @@ app.put('/:id', async (c) => {
 })
 
 // DELETE /:id — soft delete (deactivate)
-app.delete('/:id', async (c) => {
+app.delete('/:id', requireAdmin, async (c) => {
   try {
     const id = c.req.param('id')
     await db.update(careTypes).set({ isActive: false }).where(eq(careTypes.id, id))

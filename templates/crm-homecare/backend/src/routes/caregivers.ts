@@ -15,6 +15,8 @@ import {
 } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { requireAdminOrSelf } from '../helpers/selfService.ts'
+import { createId } from '@paralleldrive/cuid2'
 
 const app = new Hono()
 
@@ -592,6 +594,83 @@ app.post('/:id/background-check', requireAdmin, async (c) => {
   }).returning()
   const { ssnEncrypted: _, driversLicenseEncrypted: __, ...safe } = row
   return c.json(safe, 201)
+})
+
+// ── Availability and blackout dates (CVHC caregiverRoutes.js, requireAdminOrSelf) ─────────────────
+// The office's Caregiver Availability screen and Schedule Hub, and the caregiver's own dashboard,
+// call these. The office edits anyone's; a caregiver only their own (403 otherwise). Rows come back
+// snake_case, as those screens read them. Blackout dates live in caregiver_time_off (type 'blackout'),
+// the table /api/blackout-dates already reads and deletes from.
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/
+const rowsOfExec = (r: any): any[] => r?.rows ?? r ?? []
+
+app.get('/:id/availability', requireAdminOrSelf('id'), async (c) => {
+  const id = c.req.param('id')
+  const [cg] = await db.select({ id: users.id }).from(users).where(eq(users.id, id))
+  if (!cg) return c.json({ error: 'Caregiver not found' }, 404)
+  // First read creates the default week (Mon–Fri 08:00–17:00, weekends off), as CVHC does.
+  await db.insert(caregiverAvailability).values({
+    caregiverId: id, status: 'available', maxHoursPerWeek: 40,
+    ...Object.fromEntries(DAYS.slice(0, 5).flatMap((d) => [[`${d}Available`, true], [`${d}StartTime`, '08:00'], [`${d}EndTime`, '17:00']])),
+    saturdayAvailable: false, sundayAvailable: false,
+  } as any).onConflictDoNothing({ target: caregiverAvailability.caregiverId })
+  const [row] = rowsOfExec(await db.execute(sql`SELECT * FROM caregiver_availability WHERE caregiver_id = ${id}`))
+  return c.json(row)
+})
+
+app.put('/:id/availability', requireAdminOrSelf('id'), async (c) => {
+  const id = c.req.param('id')
+  const b = await c.req.json().catch(() => ({})) as any
+  const [cg] = await db.select({ id: users.id }).from(users).where(eq(users.id, id))
+  if (!cg) return c.json({ error: 'Caregiver not found' }, 404)
+  const set: Record<string, unknown> = {}
+  if (b.status !== undefined && b.status !== null && b.status !== '') set.status = String(b.status)
+  if (b.maxHoursPerWeek !== undefined && b.maxHoursPerWeek !== null && String(b.maxHoursPerWeek).trim() !== '') {
+    const h = Number(b.maxHoursPerWeek)
+    if (!Number.isFinite(h) || h < 0 || h > 168) return c.json({ error: 'Max hours per week must be a number from 0 to 168' }, 400)
+    set.maxHoursPerWeek = Math.round(h)
+  }
+  for (const d of DAYS) {
+    if (typeof b[`${d}Available`] === 'boolean') set[`${d}Available`] = b[`${d}Available`]
+    for (const k of ['StartTime', 'EndTime', 'PreferredStart', 'PreferredEnd']) {
+      const key = `${d}${k}`
+      if (!(key in b)) continue
+      const v = b[key] === null || b[key] === undefined ? '' : String(b[key]).trim()
+      if (v === '') { if (k.startsWith('Preferred')) set[key] = null; continue }
+      if (!HHMM_RE.test(v)) return c.json({ error: `${d[0].toUpperCase()}${d.slice(1)} times must look like 08:00` }, 400)
+      set[key] = v
+    }
+  }
+  await db.insert(caregiverAvailability).values({ caregiverId: id } as any).onConflictDoNothing({ target: caregiverAvailability.caregiverId })
+  if (Object.keys(set).length) {
+    await db.update(caregiverAvailability).set({ ...set, updatedAt: new Date() } as any).where(eq(caregiverAvailability.caregiverId, id))
+  }
+  const [row] = rowsOfExec(await db.execute(sql`SELECT * FROM caregiver_availability WHERE caregiver_id = ${id}`))
+  return c.json(row)
+})
+
+app.get('/:id/blackout-dates', requireAdminOrSelf('id'), async (c) => {
+  const rows = rowsOfExec(await db.execute(sql`
+    SELECT id, caregiver_id, to_char(start_date, 'YYYY-MM-DD') AS start_date, to_char(end_date, 'YYYY-MM-DD') AS end_date,
+           reason, status, created_at
+      FROM caregiver_time_off WHERE caregiver_id = ${c.req.param('id')} AND type = 'blackout' ORDER BY start_date DESC`))
+  return c.json(rows)
+})
+
+app.post('/:id/blackout-dates', requireAdminOrSelf('id'), async (c) => {
+  const id = c.req.param('id')
+  const b = await c.req.json().catch(() => ({})) as any
+  if (!b.startDate || !b.endDate) return c.json({ error: 'startDate and endDate are required' }, 400)
+  if (!dayOrNull(b.startDate) || !dayOrNull(b.endDate)) return c.json({ error: 'Dates must be YYYY-MM-DD' }, 400)
+  if (b.endDate < b.startDate) return c.json({ error: 'The end date is before the start date' }, 400)
+  const [cg] = await db.select({ id: users.id }).from(users).where(eq(users.id, id))
+  if (!cg) return c.json({ error: 'Caregiver not found' }, 404)
+  const [row] = rowsOfExec(await db.execute(sql`
+    INSERT INTO caregiver_time_off (id, caregiver_id, start_date, end_date, type, reason)
+    VALUES (${createId()}, ${id}, ${b.startDate}::date, ${b.endDate}::date, 'blackout', ${b.reason || null})
+    RETURNING id, caregiver_id, to_char(start_date, 'YYYY-MM-DD') AS start_date, to_char(end_date, 'YYYY-MM-DD') AS end_date, reason, status, created_at`))
+  return c.json(row, 201)
 })
 
 // /caregivers and /admins routes moved above /:id to prevent wildcard param conflict

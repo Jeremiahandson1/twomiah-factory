@@ -461,7 +461,12 @@ const KNOWN_HOLE = [
     // /api/billing/invoices/generate no longer answers 500 "Invalid Date" on an empty body. 16 is
     // what the contract measures on the merged template (the per-route causes of the third were not
     // itemised).
-    'crm-homecare': 16,
+    // 16 -> 14 (home care write gates, 10/15): POST /api/absences and POST /api/blackout-dates spread
+    // the body into the insert and hit NOT NULL; they now name their fields and answer 400. (The help
+    // KB's POST/PUT were never counted — the owner the contract probes as was refused by an inline
+    // `role !== 'admin'`; behind requireAdmin they now validate and answer 400, not the 500 their
+    // undefined agency id caused.)
+    'crm-homecare': 14,
     'crm-store': 1,
   }
   // Supplied by runSuite: several templates share the same package.json name, so this cannot be

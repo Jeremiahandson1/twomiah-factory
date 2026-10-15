@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import aiReceptionist from '../services/aiReceptionist.ts'
 
 const app = new Hono()
@@ -55,20 +55,24 @@ app.post('/webhook/status/:agencyId', async (c) => {
 })
 
 // --- Authenticated Routes ---
-app.use('*', authenticate)
+// Everything below is the AI receptionist's configuration and call log: the office's. (The Twilio webhooks above stay public.)
+// The agency is the token's companyId (routes/auth.ts signs { userId, email, role, companyId: agency.id }).
+// These handlers read user.agencyId, which no homecare token carries: the id bound as undefined and
+// every statement failed ("syntax error at or near ORDER" on the call log).
+app.use('*', authenticate, requireAdmin)
 
 // --- Rules CRUD ---
 
 app.get('/rules', async (c) => {
   const user = c.get('user') as any
-  const rules = await aiReceptionist.getRules(user.agencyId)
+  const rules = await aiReceptionist.getRules(user.companyId)
   return c.json({ data: rules })
 })
 
 app.post('/rules', async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
-  const rule = await aiReceptionist.createRule(user.agencyId, body)
+  const rule = await aiReceptionist.createRule(user.companyId, body)
   return c.json(rule, 201)
 })
 
@@ -76,7 +80,7 @@ app.put('/rules/:id', async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
-  const rule = await aiReceptionist.updateRule(id, user.agencyId, body)
+  const rule = await aiReceptionist.updateRule(id, user.companyId, body)
   if (!rule) return c.json({ error: 'Rule not found' }, 404)
   return c.json(rule)
 })
@@ -84,7 +88,7 @@ app.put('/rules/:id', async (c) => {
 app.delete('/rules/:id', async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
-  await aiReceptionist.deleteRule(id, user.agencyId)
+  await aiReceptionist.deleteRule(id, user.companyId)
   return c.json({ success: true })
 })
 
@@ -92,14 +96,14 @@ app.delete('/rules/:id', async (c) => {
 
 app.get('/settings', async (c) => {
   const user = c.get('user') as any
-  const settings = await aiReceptionist.getSettings(user.agencyId)
+  const settings = await aiReceptionist.getSettings(user.companyId)
   return c.json(settings)
 })
 
 app.put('/settings', async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
-  const settings = await aiReceptionist.upsertSettings(user.agencyId, body)
+  const settings = await aiReceptionist.upsertSettings(user.companyId, body)
   return c.json(settings)
 })
 

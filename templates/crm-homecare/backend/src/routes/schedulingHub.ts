@@ -134,7 +134,10 @@ app.get('/conflict-heatmap', requireAdmin, async (c) => {
 })
 
 // POST /check-conflicts { caregiverId, date, startTime, endTime }
-app.post('/check-conflicts', async (c) => {
+// The three schedule-time checks below read another caregiver's visits, hours and clients; only the
+// office's Schedule Hub calls them, so they are the office's (CVHC schedulingRoutes.js: verifyToken
+// alone — a deliberate difference).
+app.post('/check-conflicts', requireAdmin, async (c) => {
   const { caregiverId, date, startTime, endTime } = await c.req.json().catch(() => ({})) as any
   if (!caregiverId || !hms(startTime) || !hms(endTime) || !DATE_RE.test(date || '')) return c.json({ error: 'Missing required fields' }, 400)
   const r = await rows<any>(sql`WITH ${occurrencesCte(date, date)}
@@ -146,7 +149,7 @@ app.post('/check-conflicts', async (c) => {
 })
 
 // POST /check-weekly-hours { caregiverId, date, startTime, endTime } — overtime warning at schedule time
-app.post('/check-weekly-hours', async (c) => {
+app.post('/check-weekly-hours', requireAdmin, async (c) => {
   const { caregiverId, date, startTime, endTime } = await c.req.json().catch(() => ({})) as any
   if (!caregiverId || !hms(startTime) || !hms(endTime)) return c.json({ error: 'Missing required fields' }, 400)
   const { ws, we } = await weekOfParam(date)
@@ -166,7 +169,7 @@ app.post('/check-weekly-hours', async (c) => {
 })
 
 // POST /check-travel-time { caregiverId, clientId, date, startTime, endTime } — back-to-back drive time
-app.post('/check-travel-time', async (c) => {
+app.post('/check-travel-time', requireAdmin, async (c) => {
   const { caregiverId, clientId, date, startTime, endTime } = await c.req.json().catch(() => ({})) as any
   if (!caregiverId || !clientId || !DATE_RE.test(date || '') || !hms(startTime) || !hms(endTime)) return c.json({ error: 'Missing required fields' }, 400)
   const p = await one<any>(sql`SELECT latitude, longitude FROM clients WHERE id = ${clientId}`)

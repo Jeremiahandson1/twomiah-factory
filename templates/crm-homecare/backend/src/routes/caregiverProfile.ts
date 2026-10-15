@@ -2,13 +2,15 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { caregiverProfiles } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { requireAdminOrSelf } from '../helpers/selfService.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-// GET /api/caregiver-profile/:id — get by caregiverId
-app.get('/:id', async (c) => {
+// GET /api/caregiver-profile/:id — get by caregiverId. The office's notes, capabilities, limitations
+// and billing ids about a caregiver: the office reads anyone's, a caregiver only their own.
+app.get('/:id', requireAdminOrSelf('id'), async (c) => {
   const caregiverId = c.req.param('id')
 
   const [row] = await db
@@ -22,7 +24,8 @@ app.get('/:id', async (c) => {
 })
 
 // PUT/PATCH /api/caregiver-profile/:id — upsert by caregiverId
-// (the profile editor calls PATCH; keep PUT for existing callers)
+// (the profile editor calls PATCH; keep PUT for existing callers). The office's to write — only the
+// office screens edit it (CVHC's PUT /caregiver-profile/:id had verifyToken only; a deliberate difference).
 const upsertProfile = async (c: any) => {
   const caregiverId = c.req.param('id')
   const body = await c.req.json()
@@ -84,7 +87,7 @@ const upsertProfile = async (c: any) => {
     return c.json(row, 201)
   }
 }
-app.put('/:id', upsertProfile)
-app.patch('/:id', upsertProfile)
+app.put('/:id', requireAdmin, upsertProfile)
+app.patch('/:id', requireAdmin, upsertProfile)
 
 export default app

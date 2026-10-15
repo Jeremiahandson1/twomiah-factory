@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { db } from '../../db/index.ts'
 import { adsExperiment, adsExperimentAssignment, adsExperimentConversion, agencies as company } from '../../db/schema.ts'
 import { eq, desc, sql, and } from 'drizzle-orm'
 
 const app = new Hono()
-app.use('*', authenticate)
+// Ad campaigns, A/B experiments and approvals are the agency's marketing: the office's. (The public assign/convert half is adsPublic.ts.)
+app.use('*', authenticate, requireAdmin)
 
 // ─── A/B experiments ─────────────────────────────────────────────────────────
 async function companyId(): Promise<string | null> {

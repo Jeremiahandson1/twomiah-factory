@@ -3,12 +3,14 @@ import { db } from '../../db/index.ts'
 import { caregiverRates, users } from '../../db/schema.ts'
 import { eq, and, desc, isNull, or, lte } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { requireAdminOrSelf } from '../helpers/selfService.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-// GET /api/caregiver-rates/:caregiverId — get current effective rates
-app.get('/:caregiverId', async (c) => {
+// GET /api/caregiver-rates/:caregiverId — get current effective rates. Pay: the office reads anyone's,
+// a caregiver only their own.
+app.get('/:caregiverId', requireAdminOrSelf('caregiverId'), async (c) => {
   const caregiverId = c.req.param('caregiverId')
 
   const today = new Date().toISOString().split('T')[0]
@@ -39,7 +41,7 @@ app.get('/:caregiverId', async (c) => {
 })
 
 // GET /api/caregiver-rates/:caregiverId/history — full rate history
-app.get('/:caregiverId/history', async (c) => {
+app.get('/:caregiverId/history', requireAdminOrSelf('caregiverId'), async (c) => {
   const caregiverId = c.req.param('caregiverId')
 
   const rows = await db.select()

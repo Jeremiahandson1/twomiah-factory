@@ -14,6 +14,7 @@ import {
   clients,
 } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { selfSubject } from '../helpers/selfService.ts'
 
 const app = new Hono()
 
@@ -105,8 +106,12 @@ app.post('/caregiver-schedules', requireAdmin, async (c) => {
 
 // ── TIME OFF ──────────────────────────────────────────────────────
 
+// The office sees everyone's time off; a caregiver only their own (a ?caregiverId for someone else
+// is a 403 — the reasons on these rows are personal: sick, family, medical).
 app.get('/time-off', async (c) => {
-  const caregiverId = c.req.query('caregiverId')
+  const who = selfSubject(c, c.req.query('caregiverId'))
+  if ('refusal' in who) return who.refusal
+  const caregiverId = who.office ? c.req.query('caregiverId') : who.id
   const status = c.req.query('status')
 
   const conditions = []
@@ -136,11 +141,20 @@ app.get('/time-off', async (c) => {
   return c.json(rows)
 })
 
+// A time-off request. A caregiver files their own, and it is always pending — approving is the
+// office's (PATCH …/approve below); the body never sets status or approver. The office may file one
+// for anyone, already decided.
 app.post('/time-off', async (c) => {
   const user = c.get('user') as any
-  const body = await c.req.json()
-  const caregiverId = user.role === 'caregiver' ? user.userId : body.caregiverId
-  const [timeOff] = await db.insert(caregiverTimeOff).values({ ...body, caregiverId }).returning()
+  const body = await c.req.json().catch(() => ({})) as any
+  const who = selfSubject(c, body.caregiverId)
+  if ('refusal' in who) return who.refusal
+  if (!body.startDate || !body.endDate || !body.type) return c.json({ error: 'startDate, endDate and type are required' }, 400)
+  const status = who.office && typeof body.status === 'string' && body.status ? body.status : 'pending'
+  const [timeOff] = await db.insert(caregiverTimeOff).values({
+    caregiverId: who.id, startDate: body.startDate, endDate: body.endDate, type: String(body.type),
+    reason: body.reason || null, status, approvedById: who.office && status === 'approved' ? user.userId : null,
+  }).returning()
   return c.json(timeOff, 201)
 })
 

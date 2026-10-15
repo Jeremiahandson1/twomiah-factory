@@ -24,6 +24,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { db } from '../../db/index.ts'
 import { clients, clientAssignments, users, timeEntries, auditLogs } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { maySeeClient } from '../helpers/caregiverAccess.ts'
 import { occurrencesCte, shiftHours } from '../services/scheduleOccurrences.ts'
 import { agencyTimezone, agencyToday, addDays, isYmd, dayStartUtc, dayEndUtc } from '../services/agencyTime.ts'
 
@@ -600,6 +601,9 @@ app.post('/geofence/check', async (c) => {
   const b = await body(c)
   const lat = Number(b.latitude), lng = Number(b.longitude)
   if (!b.clientId || !Number.isFinite(lat) || !Number.isFinite(lng)) return c.json({ error: 'clientId, latitude and longitude required' }, 400)
+  // A caregiver asks only about a client they serve (the dashboard asks for today's visits); the
+  // answer names the client and where the fence is.
+  if (!(await maySeeClient(c.get('user' as any), String(b.clientId)))) return c.json({ error: 'You can only see the clients you care for.' }, 403)
   const cl = (await rows(sql`SELECT c.latitude, c.longitude, c.first_name, c.last_name,
       COALESCE(gs.radius_feet, 300) AS radius_feet, COALESCE(gs.auto_clock_in, true) AS auto_clock_in, COALESCE(gs.auto_clock_out, true) AS auto_clock_out
     FROM clients c LEFT JOIN geofence_settings gs ON c.id = gs.client_id WHERE c.id = ${b.clientId}`))[0]

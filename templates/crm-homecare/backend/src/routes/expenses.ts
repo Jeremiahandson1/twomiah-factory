@@ -2,10 +2,11 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { expenses, users } from '../../db/schema.ts'
 import { eq, and, gte, lte, desc } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
-app.use('*', authenticate)
+// The office's books (CVHC expenseRoutes.js: every route requireAdmin). Only Expense Management calls these.
+app.use('*', authenticate, requireAdmin)
 
 // GET /api/expenses?startDate=&endDate=&userId=&status=&page=&limit=
 app.get('/', async (c) => {

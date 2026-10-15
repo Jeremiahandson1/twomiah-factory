@@ -3,12 +3,15 @@ import { db } from '../../db/index.ts'
 import { caregiverAvailability } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requireAdminOrSelf } from '../helpers/selfService.ts'
 
+// A caregiver's availability: the office reads and edits anyone's, a caregiver only their own (CVHC
+// caregiverRoutes.js: requireAdminOrSelf). The caregiver dashboard saves here.
 const app = new Hono()
 app.use('*', authenticate)
 
 // GET /:id — get by caregiverId (not by row id)
-app.get('/:id', async (c) => {
+app.get('/:id', requireAdminOrSelf('id'), async (c) => {
   try {
     const caregiverId = c.req.param('id')
     const [row] = await db
@@ -26,11 +29,12 @@ app.get('/:id', async (c) => {
   }
 })
 
-// PUT /:id — upsert: check if exists by caregiverId, update or insert
-app.put('/:id', async (c) => {
+// PUT /:id — upsert: check if exists by caregiverId, update or insert. The row's owner is the path's
+// caregiver — an id / caregiverId in the body never moves the row to someone else.
+app.put('/:id', requireAdminOrSelf('id'), async (c) => {
   try {
     const caregiverId = c.req.param('id')
-    const body = await c.req.json()
+    const { id: _id, caregiverId: _cg, createdAt: _ca, updatedAt: _ua, ...body } = await c.req.json().catch(() => ({})) as any
 
     const [existing] = await db
       .select()

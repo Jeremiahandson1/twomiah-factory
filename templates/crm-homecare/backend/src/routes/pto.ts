@@ -2,7 +2,8 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { caregiverTimeOff, users } from '../../db/schema.ts'
 import { eq, and, inArray, desc } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { selfSubject } from '../helpers/selfService.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -46,29 +47,45 @@ app.get('/', async (c) => {
   return c.json(entries)
 })
 
-// POST /api/pto — insert PTO request
+// POST /api/pto — insert PTO request. The office records one for any caregiver (Payroll, PTO &
+// Time Off); a caregiver requests their own — a caregiverId naming anyone else is a 403.
 app.post('/', async (c) => {
-  const user = c.get('user')
-  const body = await c.req.json()
+  const body = await c.req.json().catch(() => ({})) as any
+  const who = selfSubject(c, body.caregiverId)
+  if ('refusal' in who) return who.refusal
 
   const type = body.type || 'pto'
   if (!PTO_TYPES.includes(type)) {
     return c.json({ error: 'Invalid type. Must be pto, vacation, or sick' }, 400)
   }
+  if (!body.startDate || !body.endDate) return c.json({ error: 'startDate and endDate are required' }, 400)
 
   const [entry] = await db
     .insert(caregiverTimeOff)
     .values({
-      caregiverId: body.caregiverId || user.userId,
+      caregiverId: who.id,
       startDate: body.startDate,
       endDate: body.endDate,
       type,
-      reason: body.reason,
+      reason: body.reason || body.notes || null,
       status: 'pending',
     })
     .returning()
 
   return c.json(entry, 201)
 })
+
+// POST /api/pto/:id/approve | /:id/deny — the office answers a request (PTO & Time Off's ✓ / ✕).
+const answer = (status: 'approved' | 'denied') => async (c: any) => {
+  const user = c.get('user') as any
+  const [row] = await db.update(caregiverTimeOff)
+    .set({ status, approvedById: status === 'approved' ? user.userId : null })
+    .where(and(eq(caregiverTimeOff.id, c.req.param('id')), inArray(caregiverTimeOff.type, PTO_TYPES)))
+    .returning()
+  if (!row) return c.json({ error: 'Time-off request not found' }, 404)
+  return c.json(row)
+}
+app.post('/:id/approve', requireAdmin, answer('approved'))
+app.post('/:id/deny', requireAdmin, answer('denied'))
 
 export default app

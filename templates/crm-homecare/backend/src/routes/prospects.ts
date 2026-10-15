@@ -2,10 +2,11 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { lead, clients, agencies } from '../../db/schema.ts'
 import { eq, desc } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
-app.use('*', authenticate)
+// Prospective clients are the office's intake pipeline. (CVHC prospectRoutes.js: verifyToken alone except convert = requireAdmin; office-only here, a deliberate difference — caregivers never see prospects.)
+app.use('*', authenticate, requireAdmin)
 
 // GET /api/prospects — list all leads
 app.get('/', async (c) => {

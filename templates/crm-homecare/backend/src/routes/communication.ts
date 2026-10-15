@@ -2,10 +2,11 @@ import { Hono } from 'hono'
 import { eq, and, desc, asc, count, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { communicationLog, users, messageThreads, messageThreadParticipants, messages } from '../../db/schema.ts'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
-app.use('*', authenticate)
+// The office's communication log and internal threads — no caregiver screen calls these. (Office-only: a deliberate gate; caregivers message through /api/messages.)
+app.use('*', authenticate, requireAdmin)
 
 // Communication Log
 app.get('/log', async (c) => {

@@ -90,9 +90,14 @@ await db.execute(sql`INSERT INTO client_assignments (id, client_id, caregiver_id
   const no = await as(caregiver)('POST', '/api/adl/log', { clientId: 'nope000', adlCategory: 'bathing', status: 'completed' })
   check('…not for a client they do not serve', refused(no) && no.json?.error !== 'Admin access required', no.json)
 }
-for (const p of [`/api/adl/client/${mine.id}/requirements`, `/api/adl/client/${mine.id}/logs`, '/api/caregiver-rates/nope000']) {
+// Pay: a caregiver reads their OWN rates; another caregiver's are refused (write-gates.test.ts).
+for (const p of [`/api/adl/client/${mine.id}/requirements`, `/api/adl/client/${mine.id}/logs`, `/api/caregiver-rates/${caregiver.id}`]) {
   const r = await as(caregiver)('GET', p)
-  check(`a caregiver may still read ${p.replace(mine.id, ':served')}`, reached(r), { status: r.status, error: r.json?.error })
+  check(`a caregiver may still read ${p.replace(mine.id, ':served').replace(caregiver.id, ':self')}`, reached(r), { status: r.status, error: r.json?.error })
+}
+{
+  const r = await as(caregiver)('GET', '/api/caregiver-rates/nope000')
+  check('…not /api/caregiver-rates of someone else', refused(r), { status: r.status, error: r.json?.error })
 }
 for (const p of ['/api/adl/client/nope000/requirements', '/api/adl/client/nope000/logs']) {
   const r = await as(caregiver)('GET', p)

@@ -5,7 +5,8 @@ import { eq, and, desc, gte, lte, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
-app.use('*', authenticate)
+// The office's alert queue: only Alerts Management reads or works it. (CVHC alertsRoutes.js left every route on verifyToken alone — any caregiver could resolve or dismiss the office's alerts; office-only here, a deliberate difference.)
+app.use('*', authenticate, requireAdmin)
 
 // GET /api/alerts?type=&priority=&status=
 app.get('/', async (c) => {
