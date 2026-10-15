@@ -535,7 +535,8 @@ check('return summary says exactly what happened', back.json.summary ===
   ]
   for (const f of files) {
     // Comments may say where a rule came from; code and screen text may not name the source agency.
-    const code = readFileSync(root + f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/(^|\s)\/\/.*$/, '')).join('\n')
+    // CRLF first: on a Windows checkout `.*$` stops at the \r and a line comment survives the strip.
+    const code = readFileSync(root + f, 'utf8').replace(/\r\n/g, '\n').replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/(^|\s)\/\/.*$/, '')).join('\n')
     const hit = /Chippewa|CVHC|Eau Claire|715-\d|54701|chippewavalley/i.exec(code)
     check(`${f} names no source agency`, !hit, hit?.[0])
   }
