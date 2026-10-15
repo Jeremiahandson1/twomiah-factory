@@ -3,7 +3,7 @@ import { eq, asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { agencies, users } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
-import { isValidTimezone } from '../services/agencyTime.ts'
+import { isValidTimezone, resolveTimezone } from '../services/agencyTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -22,7 +22,9 @@ function sanitizeCompany<T extends Record<string, any>>(row: T): T {
 // GET /
 app.get('/', async (c) => {
   const [agency] = await db.select().from(agencies).limit(1)
-  return c.json(sanitizeCompany(agency || {}))
+  // effectiveTimezone: the zone reports actually count days on — the agency's own setting, or the
+  // one derived from its state when none is set (services/agencyTime.ts).
+  return c.json({ ...sanitizeCompany(agency || {}), effectiveTimezone: resolveTimezone(agency || null) })
 })
 
 // PUT /

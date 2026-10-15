@@ -3,6 +3,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import EditClientModal from './EditClientModal';
+import ClientReportModal from './ClientReportModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/date';
 
@@ -27,7 +28,7 @@ const AddressLink = ({ address, city, state, zip }) => {
 };
 
 // Mobile-friendly client card
-const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit }) => (
+const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit, onReport }) => (
   <div className="card" style={{ marginBottom: '0.75rem', padding: '1rem' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
       <div>
@@ -38,13 +39,21 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit }) 
           </div>
         )}
       </div>
-      <button 
-        className="btn btn-sm btn-primary"
-        onClick={() => onEdit(client)}
-        style={{ flexShrink: 0 }}
-      >
-        ✏️ Edit
-      </button>
+      <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+        <button
+          className="btn btn-sm btn-secondary"
+          onClick={() => onReport(client)}
+          title="Generate comprehensive report"
+        >
+          📄 Report
+        </button>
+        <button 
+          className="btn btn-sm btn-primary"
+          onClick={() => onEdit(client)}
+        >
+          ✏️ Edit
+        </button>
+      </div>
     </div>
     
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.9rem' }}>
@@ -89,6 +98,7 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit }) 
 const ClientsManagement = () => {
   const { token } = useAuth();
   const [clients, setClients] = useState([]);
+  const [reportClient, setReportClient] = useState(null);
   const [referralSources, setReferralSources] = useState([]);
   const [careTypes, setCareTypes] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -441,7 +451,7 @@ const ClientsManagement = () => {
       ) : isMobile ? (
         <div>
           {filteredClients.map(client => (
-            <ClientCard key={client.id} client={client} getReferralSourceName={getReferralSourceName} getCareTypeName={getCareTypeName} onEdit={handleViewClient} />
+            <ClientCard key={client.id} client={client} getReferralSourceName={getReferralSourceName} getCareTypeName={getCareTypeName} onEdit={handleViewClient} onReport={setReportClient} />
           ))}
         </div>
       ) : (
@@ -476,7 +486,10 @@ const ClientsManagement = () => {
                         ? (<span className="badge badge-info">Private Pay</span>)
                         : (<span className="badge badge-success">Referred</span>)}
                   </td>
-                  <td><button className="btn btn-sm btn-primary" onClick={() => handleViewClient(client)}>✏️ Edit</button></td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="btn btn-sm btn-secondary" onClick={() => setReportClient(client)} title="Generate comprehensive report" style={{ marginRight: '0.35rem' }}>📄 Report</button>
+                    <button className="btn btn-sm btn-primary" onClick={() => handleViewClient(client)}>✏️ Edit</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -490,6 +503,7 @@ const ClientsManagement = () => {
         </div>
       )}
 
+      <ClientReportModal client={reportClient} isOpen={!!reportClient} onClose={() => setReportClient(null)} />
       <EditClientModal client={selectedClient} referralSources={referralSources} careTypes={careTypes} isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedClient(null); }} onSuccess={loadData} />
     </div>
   );
