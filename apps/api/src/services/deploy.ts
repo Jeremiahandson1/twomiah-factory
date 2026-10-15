@@ -49,8 +49,10 @@ function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETC
 // on whatever schema it has rather than bricking the deploy.
 function dbReconcileStep(): string {
   return (
-    // Drop known-removed legacy tables first so push has no rename ambiguity to prompt on.
-    'bun run db/prune-legacy.ts 2>&1 | head -20 || echo "[boot] prune-legacy skipped"; ' +
+    // Drop known-removed legacy tables first so push has no rename ambiguity to prompt on. Only where the template has
+    // one: crm-store has no legacy tables, and running a missing file printed `error: Module not found
+    // "db/prune-legacy.ts"` on every store deploy — a harmless line that reads like the cause of any real failure. (10/15)
+    '{ [ -f db/prune-legacy.ts ] && bun run db/prune-legacy.ts 2>&1 | head -20; } || echo "[boot] prune-legacy skipped"; ' +
     // The guarantee. Older tenant repos (generated before this step existed) have no db/reconcile.ts.
     '{ [ -f db/reconcile.ts ] && timeout -k 10 120 bun db/reconcile.ts 2>&1 | tail -40; } || echo "[boot] reconcile skipped"; ' +
     // Best-effort push: one bounded attempt. -k 10 SIGKILLs a push still alive 10s after SIGTERM so

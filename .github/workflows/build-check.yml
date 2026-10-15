@@ -2330,6 +2330,8 @@ jobs:
         run: bun run tests/shared/storefront-proxy.test.ts
       - name: "A closed store shows shoppers 'unavailable' — and a blip never takes a working shop down"
         run: bun run tests/shared/storefront-status.test.ts
+      - name: "Every CRM waits for a new database; the boot log shows only real problems"
+        run: bun run tests/shared/migrate-wait.test.ts
       - name: "The bill stays with the owner; a paid shop never locks a manager out (T60)"
         run: bun run tests/shared/billing-visibility.test.ts
       # happy-dom, so this needs the root dev dependencies — the two above are dependency-free.

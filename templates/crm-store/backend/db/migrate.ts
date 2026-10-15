@@ -2,8 +2,13 @@ import { spawnSync } from 'child_process'
 
 // Waits for Postgres on cold boot (Render provisions the DB in parallel), then
 // applies the committed drizzle migrations. Idempotent — safe to run every boot.
-const MAX_RETRIES = 10
-const RETRY_DELAY_MS = 5000
+//
+// 20 × 10s, as every other CRM waits. The store kept 10 × 5s (≈70s) and was the one template never signed up for real
+// until E2E Run 2 (10/15): Render's new database took ~3 minutes to accept connections, this gave up first, the start
+// command ran on into the seed, and the first deploy was marked failed. tests/shared/migrate-wait.test.ts holds every
+// template to the same budget.
+const MAX_RETRIES = 20
+const RETRY_DELAY_MS = 10000
 
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   try {
