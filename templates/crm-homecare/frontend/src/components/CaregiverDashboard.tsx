@@ -11,6 +11,8 @@ import CaregiverMessages from './caregiver/CaregiverMessages';
 import { useGeolocation, useHaptics, useOfflineSync, useBackgroundGeolocation, isNative, platform } from '../hooks/useNative';
 import OfflineBanner from './OfflineBanner';
 import { useAuth } from '../contexts/AuthContext';
+import CareTaskChecklist from './CareTaskChecklist';
+import SignaturePad from './SignaturePad';
 
 const subscribeToPush = async (token) => {
   try {
@@ -38,6 +40,9 @@ const CaregiverDashboard = ({ onLogout }) => {
   const [schedules, setSchedules] = useState([]);
   const [clients, setClients] = useState([]);
   const [activeSession, setActiveSession] = useState(null);
+  // Documents waiting for this caregiver's signature (their own, and company policies)
+  const [unsignedDocs, setUnsignedDocs] = useState([]);
+  const [signTarget, setSignTarget] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -593,6 +598,29 @@ const CaregiverDashboard = ({ onLogout }) => {
 
   const getClientById = (id) => clients.find(c => c.id === id);
 
+  const myId = user?.id || user?.userId;
+  const loadUnsignedDocs = async () => {
+    if (!myId) return;
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/documents/unsigned/${myId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setUnsignedDocs(await r.json());
+    } catch { /* not fatal */ }
+  };
+  useEffect(() => { loadUnsignedDocs(); }, [myId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const submitDocSignature = async (dataUri, typedName) => {
+    if (!signTarget) return;
+    const r = await fetch(`${API_BASE_URL}/api/documents/${signTarget.id}/sign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ signatureImageBase64: dataUri, typedName }),
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Sign failed');
+    toast('Signed ✓');
+    setSignTarget(null);
+    loadUnsignedDocs();
+  };
+
   // RENDER PAGES
   const renderHomePage = () => {
     const todaysAppointments = getTodaysAppointments();
@@ -681,6 +709,28 @@ const CaregiverDashboard = ({ onLogout }) => {
         )}
       </div>
 
+      {/* Documents waiting for this caregiver's signature */}
+      {unsignedDocs.length > 0 && (
+        <div className="card mb-4 border-l-4 border-red-600 dark:border-red-500">
+          <div className="card-title text-red-700 dark:text-red-300">
+            ✍️ {unsignedDocs.length} document{unsignedDocs.length === 1 ? '' : 's'} need your signature
+          </div>
+          <div className="flex flex-col gap-2 mt-2">
+            {unsignedDocs.map(d => (
+              <div key={d.id} className="flex items-center justify-between px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-gray-900 dark:border-red-900 dark:bg-red-950 dark:text-slate-100">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold truncate">{d.name || d.file_name || 'Document'}</div>
+                  {d.description && <div className="text-xs text-gray-600 dark:text-slate-300">{d.description}</div>}
+                  {d.expiration_date && <div className="text-xs mt-0.5 text-red-700 dark:text-red-300">Expires {String(d.expiration_date).slice(0, 10)}</div>}
+                </div>
+                <button type="button" onClick={() => setSignTarget(d)}
+                  className="ml-2 px-3 py-2 rounded-md text-sm font-bold bg-teal-600 text-white dark:bg-teal-600 dark:text-white">✍️ Sign</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* MOBILE-FIRST CLOCK-IN — Full prominent card */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {activeSession ? (
@@ -706,6 +756,11 @@ const CaregiverDashboard = ({ onLogout }) => {
             >
               🛑 Clock Out
             </button>
+            {activeSession.id && !String(activeSession.id).startsWith('offline-') && (
+              <div className="mt-5 rounded-xl p-1 text-left bg-white dark:bg-slate-800">
+                <CareTaskChecklist timeEntryId={activeSession.id} />
+              </div>
+            )}
           </div>
         ) : (
           // CLOCK IN — prominent select + button
@@ -1084,6 +1139,13 @@ const CaregiverDashboard = ({ onLogout }) => {
       )}
 
       <CaregiverClientModal clientId={viewingClientId} isOpen={!!viewingClientId} onClose={() => setViewingClientId(null)} />
+
+      <SignaturePad
+        open={!!signTarget}
+        onClose={() => setSignTarget(null)}
+        documentName={signTarget?.name || signTarget?.file_name}
+        onSign={submitDocSignature}
+      />
 
       {/* Messages Modal */}
       {showMessages && <CaregiverMessages onClose={() => { setShowMessages(false); setUnreadMessages(0); }} />}

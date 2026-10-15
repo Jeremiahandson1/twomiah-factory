@@ -24,6 +24,7 @@ import { db } from '../../db/index.ts'
 import { medications, medicationLogs, clientVitals, clients, timeEntries, users } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { isOffice, userIdOf, writeCareAudit, rowsOf } from '../helpers/careAudit.ts'
+import { listClientVitals } from '../services/vitals.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -258,29 +259,16 @@ app.post('/vitals', async (c) => {
   return c.json(row, 201)
 })
 
-const VITALS_SELECT = sql`cv.*, u.first_name AS caregiver_first, u.last_name AS caregiver_last`
-
 app.get('/vitals/client/:clientId', async (c) => {
   const { limit = '50', startDate, endDate } = c.req.query()
-  const lim = Math.min(Math.max(parseInt(limit) || 50, 1), 500)
-  const rows = rowsOf(await db.execute(sql`
-    SELECT ${VITALS_SELECT}
-      FROM client_vitals cv LEFT JOIN users u ON cv.caregiver_id = u.id
-     WHERE cv.client_id = ${c.req.param('clientId')}
-       ${startDate && !isNaN(new Date(startDate).getTime()) ? sql`AND cv.recorded_at >= ${ts(new Date(startDate))}` : sql``}
-       ${endDate && !isNaN(new Date(endDate).getTime()) ? sql`AND cv.recorded_at <= ${ts(new Date(YMD.test(endDate) ? endDate + 'T23:59:59.999Z' : endDate))}` : sql``}
-     ORDER BY cv.recorded_at DESC
-     LIMIT ${lim}`))
-  return c.json(rows)
+  const from = startDate && !isNaN(new Date(startDate).getTime()) ? new Date(startDate) : undefined
+  const to = endDate && !isNaN(new Date(endDate).getTime()) ? new Date(YMD.test(endDate) ? endDate + 'T23:59:59.999Z' : endDate) : undefined
+  return c.json(await listClientVitals(c.req.param('clientId'), parseInt(limit) || 50, { from, to }))
 })
 
 app.get('/vitals/latest/:clientId', async (c) => {
-  const rows = rowsOf(await db.execute(sql`
-    SELECT ${VITALS_SELECT}
-      FROM client_vitals cv LEFT JOIN users u ON cv.caregiver_id = u.id
-     WHERE cv.client_id = ${c.req.param('clientId')}
-     ORDER BY cv.recorded_at DESC LIMIT 1`))
-  return c.json(rows[0] || null)
+  const [latest] = await listClientVitals(c.req.param('clientId'), 1)
+  return c.json(latest || null)
 })
 
 export default app

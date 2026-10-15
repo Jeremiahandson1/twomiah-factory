@@ -5,6 +5,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import SignaturePad from '../SignaturePad';
 
 const DocumentsManagement = () => {
   const { token } = useAuth();
@@ -14,6 +15,7 @@ const DocumentsManagement = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [clients, setClients] = useState([]);
   const [caregivers, setCaregivers] = useState([]);
+  const [signTarget, setSignTarget] = useState(null); // document being signed
 
   useEffect(() => {
     loadDocuments();
@@ -30,7 +32,7 @@ const DocumentsManagement = () => {
       const res = await fetch(`${API_BASE_URL}/api/documents?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await res.json();
+      const data = res.ok ? await res.json() : [];
       setDocuments(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load documents:', error);
@@ -41,7 +43,7 @@ const DocumentsManagement = () => {
 
   const loadClients = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/clients`, {
+      const res = await fetch(`${API_BASE_URL}/api/clients?limit=500`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -53,7 +55,7 @@ const DocumentsManagement = () => {
 
   const loadCaregivers = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/caregivers`, {
+      const res = await fetch(`${API_BASE_URL}/api/caregivers?limit=500`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -95,6 +97,22 @@ const DocumentsManagement = () => {
     } catch (error) {
       toast('Failed: ' + error.message, 'error');
     }
+  };
+
+  const submitSignature = async (dataUri, typedName) => {
+    if (!signTarget) return;
+    const res = await fetch(`${API_BASE_URL}/api/documents/${signTarget.id}/sign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ signatureImageBase64: dataUri, typedName }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Sign failed (${res.status})`);
+    }
+    toast('Signature captured ✓');
+    setSignTarget(null);
+    loadDocuments();
   };
 
   const downloadDocument = async (doc) => {
@@ -167,6 +185,7 @@ const DocumentsManagement = () => {
 
   const clientDocs = documents.filter(d => d.entity_type === 'client');
   const caregiverDocs = documents.filter(d => d.entity_type === 'caregiver');
+  const companyDocs = documents.filter(d => d.entity_type === 'company');
 
   return (
     <div>
@@ -203,6 +222,14 @@ const DocumentsManagement = () => {
           <h4>Caregiver Docs</h4>
           <div className="value" style={{ color: '#4caf50' }}>{caregiverDocs.length}</div>
         </div>
+        <div
+          className="stat-card"
+          onClick={() => setFilter({ ...filter, entityType: 'company' })}
+          style={{ cursor: 'pointer' }}
+        >
+          <h4>Company Docs</h4>
+          <div className="value" style={{ color: '#7c3aed' }}>{companyDocs.length}</div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -214,6 +241,7 @@ const DocumentsManagement = () => {
               <option value="">All Types</option>
               <option value="client">Client</option>
               <option value="caregiver">Caregiver</option>
+              <option value="company">Company</option>
             </select>
           </div>
           <div className="form-group" style={{ margin: 0 }}>
@@ -273,7 +301,7 @@ const DocumentsManagement = () => {
                       {doc.entity_type?.toUpperCase()}
                     </span>
                     <div style={{ fontWeight: 'bold', marginTop: '2px' }}>
-                      {doc.entity_first_name} {doc.entity_last_name}
+                      {doc.entity_name || `${doc.entity_first_name || ""} ${doc.entity_last_name || ""}`}
                     </div>
                   </td>
                   <td>{getCategoryBadge(doc.category)}</td>
@@ -291,7 +319,23 @@ const DocumentsManagement = () => {
                     ) : '-'}
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                      {doc.requires_signature && !doc.signed_at && doc.entity_type !== 'client' && (
+                        <button
+                          className="btn btn-sm"
+                          style={{ background: '#0d9488', color: '#fff', border: 'none' }}
+                          onClick={() => setSignTarget(doc)}
+                          title="Capture electronic signature"
+                        >
+                          ✍️ Sign
+                        </button>
+                      )}
+                      {doc.signed_at && (
+                        <span title={`Signed ${new Date(doc.signed_at).toLocaleString()}`}
+                          className="self-center px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+                          ✓ Signed
+                        </span>
+                      )}
                       <button 
                         className="btn btn-sm btn-secondary"
                         onClick={() => downloadDocument(doc)}
@@ -317,8 +361,8 @@ const DocumentsManagement = () => {
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="modal-overlay" onClick={() => setShowUploadModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowUploadModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Upload Document</h3>
               <button className="modal-close" onClick={() => setShowUploadModal(false)}>×</button>
@@ -332,6 +376,13 @@ const DocumentsManagement = () => {
           </div>
         </div>
       )}
+
+      <SignaturePad
+        open={!!signTarget}
+        onClose={() => setSignTarget(null)}
+        documentName={signTarget?.document_name || signTarget?.file_name}
+        onSign={submitSignature}
+      />
     </div>
   );
 };
@@ -344,7 +395,8 @@ const UploadForm = ({ clients, caregivers, onSubmit, onCancel }) => {
     category: 'other',
     documentName: '',
     expirationDate: '',
-    notes: ''
+    notes: '',
+    requiresSignature: false
   });
   const [file, setFile] = useState(null);
 
@@ -354,7 +406,7 @@ const UploadForm = ({ clients, caregivers, onSubmit, onCancel }) => {
       toast('Please select a file');
       return;
     }
-    if (!formData.entityId) {
+    if (formData.entityType !== 'company' && !formData.entityId) {
       toast('Please select a client or caregiver');
       return;
     }
@@ -367,6 +419,7 @@ const UploadForm = ({ clients, caregivers, onSubmit, onCancel }) => {
     data.append('documentName', formData.documentName || file.name);
     if (formData.expirationDate) data.append('expirationDate', formData.expirationDate);
     if (formData.notes) data.append('notes', formData.notes);
+    if (formData.requiresSignature) data.append('requiresSignature', 'true');
 
     onSubmit(data);
   };
@@ -383,9 +436,11 @@ const UploadForm = ({ clients, caregivers, onSubmit, onCancel }) => {
         >
           <option value="client">Client Document</option>
           <option value="caregiver">Caregiver Document</option>
+          <option value="company">Company Document (policy every caregiver signs)</option>
         </select>
       </div>
 
+      {formData.entityType !== 'company' && (
       <div className="form-group">
         <label>{formData.entityType === 'client' ? 'Client' : 'Caregiver'} *</label>
         <select 
@@ -399,6 +454,17 @@ const UploadForm = ({ clients, caregivers, onSubmit, onCancel }) => {
           ))}
         </select>
       </div>
+      )}
+
+      {formData.entityType !== 'client' && (
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <input type="checkbox" checked={formData.requiresSignature}
+              onChange={(e) => setFormData({ ...formData, requiresSignature: e.target.checked })} />
+            Needs a signature ({formData.entityType === 'company' ? 'every caregiver signs it from their phone' : 'the caregiver signs it from their phone'})
+          </label>
+        </div>
+      )}
 
       <div className="form-group">
         <label>Category</label>

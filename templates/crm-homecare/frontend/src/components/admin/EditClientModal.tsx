@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDateForInput } from '../../utils/date';
+import InsuranceCardUploader from './InsuranceCardUploader';
 
 const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen, onClose, onSuccess }) => {
   const { token } = useAuth();
@@ -618,6 +619,9 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                   />
                 </div>
               </div>
+
+              {/* Insurance card photos — their own endpoint, so a 5 MB image is not resent on every save. */}
+              {client?.id && <InsuranceCardUploader clientId={client.id} />}
 
               <h4 style={{ borderBottom: '2px solid #007bff', paddingBottom: '0.5rem', marginTop: '1rem', marginBottom: '1rem' }}>Weekly Authorized Units</h4>
               <div className="form-group">
