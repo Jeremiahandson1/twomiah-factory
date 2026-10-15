@@ -7,6 +7,7 @@ import {
   clients,
 } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { createEVVFromTimeEntry } from '../services/evvVisits.ts'
 
 const app = new Hono()
 
@@ -115,43 +116,29 @@ app.get('/', async (c) => {
   return c.json({ visits: result, total })
 })
 
+// One builder for EVV records: the same function every clock-out path uses (units, verification
+// issues, authorization, GPS, Sandata auto-submit when ready).
 app.post('/create-from-entry/:timeEntryId', async (c) => {
   const timeEntryId = c.req.param('timeEntryId')
-  const body = await c.req.json()
-
-  const [entry] = await db.select().from(timeEntries)
+  const [entry] = await db.select({ id: timeEntries.id, endTime: timeEntries.endTime }).from(timeEntries)
     .where(eq(timeEntries.id, timeEntryId))
     .limit(1)
   if (!entry) return c.json({ error: 'Time entry not found' }, 404)
-
-  const clockInLocation = entry.clockInLocation as any
-  const clockOutLocation = entry.clockOutLocation as any
-
-  const [visit] = await db.insert(evvVisits)
-    .values({
-      timeEntryId: entry.id,
-      clientId: entry.clientId,
-      caregiverId: entry.caregiverId,
-      serviceDate: entry.startTime.toISOString().split('T')[0],
-      actualStart: entry.startTime,
-      actualEnd: entry.endTime,
-      gpsInLat: clockInLocation?.lat,
-      gpsInLng: clockInLocation?.lng,
-      gpsOutLat: clockOutLocation?.lat,
-      gpsOutLng: clockOutLocation?.lng,
-      ...body,
-    })
-    .returning()
-
+  if (!entry.endTime) return c.json({ error: 'This visit is still clocked in — close it first' }, 400)
+  const visit = await createEVVFromTimeEntry(entry.id)
+  if (!visit) return c.json({ error: 'The EVV record could not be created' }, 400)
   return c.json(visit, 201)
 })
 
+// The office verified the visit. This says nothing about Sandata: it used to also set
+// sandata_status = 'accepted', which marked visits as accepted by Sandata that were never sent.
 app.patch('/:id/verify', async (c) => {
   const id = c.req.param('id')
   const [visit] = await db.update(evvVisits)
-    .set({ isVerified: true, sandataStatus: 'accepted', updatedAt: new Date() })
+    .set({ isVerified: true, updatedAt: new Date() })
     .where(eq(evvVisits.id, id))
     .returning()
+  if (!visit) return c.json({ error: 'EVV visit not found' }, 404)
   return c.json(visit)
 })
 

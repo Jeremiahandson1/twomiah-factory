@@ -10,7 +10,7 @@ app.use('*', authenticate)
 // Never serialize provider secrets to the client (VET-41 / F-26 pattern): GET & PUT
 // /api/company returned the whole agency row — Twilio auth token, account SID, Stripe
 // customer id — to any authenticated user. PHI app, so this matters more here.
-const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword'] as const
+const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword', 'sandataPasswordEncrypted'] as const
 function sanitizeCompany<T extends Record<string, any>>(row: T): T {
   if (!row) return row
   const clone: any = { ...row }
@@ -27,6 +27,8 @@ app.get('/', async (c) => {
 // PUT /
 app.put('/', requireAdmin, async (c) => {
   const body = await c.req.json()
+  // The Sandata password is written only through PUT /api/sandata/settings, which encrypts it.
+  delete body.sandataPasswordEncrypted
   const [existing] = await db.select().from(agencies).limit(1)
 
   let agency

@@ -10,6 +10,18 @@ import {
   evvVisits,
 } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { createEVVFromTimeEntry, recordSandataDecision } from '../services/evvVisits.ts'
+
+// The caregiver app sends its GPS fix as top-level latitude/longitude; older callers send a
+// clockInLocation / clockOutLocation object. Either way the punch keeps the fix — EVV reports it
+// to Sandata as a Mobile call.
+function punchLocation(obj: unknown, body: any): unknown {
+  if (obj) return obj
+  const lat = body?.latitude, lng = body?.longitude
+  if (lat == null || lng == null || lat === '' || lng === '') return null
+  if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return null
+  return { lat: Number(lat), lng: Number(lng), ...(body?.accuracy != null ? { accuracy: Number(body.accuracy) } : {}) }
+}
 
 const app = new Hono()
 
@@ -285,8 +297,12 @@ app.post('/clock-in', async (c) => {
   if (existing) return c.json({ error: 'Already clocked in. Clock out first.' }, 400)
 
   const [entry] = await db.insert(timeEntries)
-    .values({ caregiverId, clientId, scheduleId, startTime: new Date(), clockInLocation, notes })
+    .values({ caregiverId, clientId, scheduleId, startTime: new Date(), clockInLocation: punchLocation(clockInLocation, body), notes })
     .returning()
+
+  // EVV: does this visit go to Sandata (weekly EVV allowance)? Decided after the punch is saved and
+  // capped, so it never blocks the clock-in; null = no answer, and the app prompts as before.
+  const sandataRequired = await recordSandataDecision(entry.id, entry.clientId, entry.startTime.toISOString())
 
   // Fetch caregiver and client names
   const [caregiver] = await db.select({ firstName: users.firstName, lastName: users.lastName })
@@ -294,7 +310,7 @@ app.post('/clock-in', async (c) => {
   const [client] = await db.select({ firstName: clients.firstName, lastName: clients.lastName })
     .from(clients).where(eq(clients.id, clientId)).limit(1)
 
-  return c.json({ ...entry, caregiver: caregiver || null, client: client || null }, 201)
+  return c.json({ ...entry, sandataRequired, sandata_required: sandataRequired, caregiver: caregiver || null, client: client || null }, 201)
 })
 
 // POST /api/time-tracking/clock-out
@@ -317,7 +333,7 @@ app.post('/clock-out', async (c) => {
       endTime,
       durationMinutes,
       billableMinutes: durationMinutes,
-      clockOutLocation,
+      clockOutLocation: punchLocation(clockOutLocation, body),
       notes: notes || entry.notes,
       isComplete: true,
       updatedAt: new Date(),
@@ -325,30 +341,10 @@ app.post('/clock-out', async (c) => {
     .where(eq(timeEntries.id, entry.id))
     .returning()
 
-  // Auto-create EVV visit on clock-out (non-blocking)
-  if (process.env.ENABLE_SANDATA_EVV === 'true') {
-    try {
-      const clockIn = entry.clockInLocation as any
-      const clockOut = clockOutLocation as any
-      await db.insert(evvVisits).values({
-        timeEntryId: entry.id,
-        clientId: entry.clientId,
-        caregiverId: entry.caregiverId,
-        serviceDate: entry.startTime.toISOString().split('T')[0],
-        actualStart: entry.startTime,
-        actualEnd: endTime,
-        gpsInLat: clockIn?.lat ?? null,
-        gpsInLng: clockIn?.lng ?? null,
-        gpsOutLat: clockOut?.lat ?? null,
-        gpsOutLng: clockOut?.lng ?? null,
-        evvMethod: (clockIn?.lat || clockOut?.lat) ? 'gps' : 'manual',
-      }).onConflictDoNothing()
-    } catch (evvErr: any) {
-      console.warn('[EVV] Auto-create failed for time entry', entry.id, ':', evvErr.message)
-    }
-  }
+  // EVV visit record (+ Sandata auto-submit when ready). Never fails the clock-out.
+  await createEVVFromTimeEntry(entry.id)
 
-  return c.json(updated)
+  return c.json({ ...updated, sandata_required: updated?.sandataRequired ?? null })
 })
 
 // POST /api/time-tracking/gps
@@ -390,7 +386,7 @@ app.post('/:id/clock-out', async (c) => {
       endTime,
       durationMinutes,
       billableMinutes: durationMinutes,
-      clockOutLocation,
+      clockOutLocation: punchLocation(clockOutLocation, body),
       notes: notes || entry.notes,
       isComplete: true,
       updatedAt: new Date(),
@@ -398,29 +394,10 @@ app.post('/:id/clock-out', async (c) => {
     .where(eq(timeEntries.id, entry.id))
     .returning()
 
-  if (process.env.ENABLE_SANDATA_EVV === 'true') {
-    try {
-      const clockIn = entry.clockInLocation as any
-      const clockOut = clockOutLocation as any
-      await db.insert(evvVisits).values({
-        timeEntryId: entry.id,
-        clientId: entry.clientId,
-        caregiverId: entry.caregiverId,
-        serviceDate: entry.startTime.toISOString().split('T')[0],
-        actualStart: entry.startTime,
-        actualEnd: endTime,
-        gpsInLat: clockIn?.lat ?? null,
-        gpsInLng: clockIn?.lng ?? null,
-        gpsOutLat: clockOut?.lat ?? null,
-        gpsOutLng: clockOut?.lng ?? null,
-        evvMethod: (clockIn?.lat || clockOut?.lat) ? 'gps' : 'manual',
-      }).onConflictDoNothing()
-    } catch (evvErr: any) {
-      console.warn('[EVV] Auto-create failed for time entry', entry.id, ':', evvErr.message)
-    }
-  }
+  // EVV visit record (+ Sandata auto-submit when ready). Never fails the clock-out.
+  await createEVVFromTimeEntry(entry.id)
 
-  return c.json(updated)
+  return c.json({ ...updated, sandata_required: updated?.sandataRequired ?? null })
 })
 
 // POST /api/time-entries/:id/gps — parameterized GPS log (frontend uses this path)
