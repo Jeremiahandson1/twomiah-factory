@@ -18,6 +18,7 @@ const PERM_FILE = path.join(ROOT, 'packages/tenant-backend/src/auth/permissions.
 // Keep each with a reason so the exception stays a decision, not a silent gap.
 const OWNER_ONLY: Record<string, string> = {
   users: 'per-user grant handed out by the owner in Settings › Users (extraPermissions:[users:read]); never a role default',
+  billing: "what the business pays Twomiah — changing the plan or card, and restarting an ended subscription — is the owner's (owner's decision 10/12; crm-store gates /api/billing on billing:manage, a shop having no admin seat, 10/14)",
 }
 
 // Resources granted to some role in the matrix. Parsed from the BASE_ROLE_PERMISSIONS object literal as
