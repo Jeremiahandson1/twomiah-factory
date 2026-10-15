@@ -25,7 +25,9 @@ const source = { async getCostCents(tld: string, action: 'REGISTER' | 'RENEW') {
 {
   check('close: a .com at $11.28 renewing at $15.98 stays close', renewsClose(withStripeFee(1128), withStripeFee(1598)))
   check('close: a .site at $1.53 renewing at $31.40 does not', !renewsClose(withStripeFee(118), withStripeFee(3018)))
-  check('close: a cheap ending within $5.00 is close even past half again ($1.00 → $5.50)', renewsClose(100, 550))
+  check('close: the live .com — $12.14 now, $19.55 a year after (read 10/15) — is an ordinary renewal, no warning', renewsClose(1214, 1955))
+  check('close: a cheap ending within $10.00 is close even past double ($1.00 → $10.50)', renewsClose(100, 1050))
+  check('close: …but not past both ($1.00 → $11.50)', !renewsClose(100, 1150))
 }
 {
   forgetDomainPrices(); calls = 0

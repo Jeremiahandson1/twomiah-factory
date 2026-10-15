@@ -39,11 +39,11 @@ async function cost(source: PriceSource, tld: string, action: 'REGISTER' | 'RENE
 export function forgetDomainPrices(): void { cache.clear() }
 
 /**
- * Does the renewal stay close to the first year? Within half again, or within $5.00 — a .com at $11.28 renewing at
- * $15.98 is close; a .site at $1.53 renewing at $31.40 is not.
+ * Does the renewal stay close to the first year? Within double, or within $10.00 — a .com charged $12.14 renewing at
+ * $19.55 (live, 10/15) is an ordinary renewal; a .site at $1.53 renewing at $31.40 is not.
  */
 export function renewsClose(firstYearCents: number, renewalCents: number): boolean {
-  return renewalCents <= Math.max(firstYearCents * 1.5, firstYearCents + 500)
+  return renewalCents <= Math.max(firstYearCents * 2, firstYearCents + 1000)
 }
 
 /** The quote for one domain we sell, or null — a TLD we do not sell, or Namecheap could not say. */
