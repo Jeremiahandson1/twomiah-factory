@@ -36,8 +36,12 @@ for (const t of readdirSync(ROOT + 'templates').filter((d) => /^crm(-|$)/.test(d
     // crm-store has no company row: it mirrors the Factory's summary into store_settings.subscription.
     const call = t === 'crm-store' ? 'refuseWhileLocked(c, db, storeSettings, storeSettings.subscription)' : 'refuseWhileLocked(c, db, company)'
     const lock = fn.indexOf(call), next = fn.indexOf('await next()')
+    // Asking is not enough: the answer must stop the request. (A mutation that deleted `if (locked) return locked` in
+    // crm-store survived the call-only check — and the suites cannot see it, since they run the auth fixture.)
+    const acted = fn.indexOf('if (locked) return locked', lock)
     if (lock < 0) fail(`${t}: its own authenticate never calls ${call} — a cancelled company keeps every door`)
     else if (next < 0 || lock > next) fail(`${t}: authenticate calls refuseWhileLocked AFTER next() — the route has already answered`)
+    else if (!fn.includes('const locked = await ' + call) || acted < 0 || acted > next) fail(`${t}: authenticate asks refuseWhileLocked but never RETURNS its refusal before next() — the lock is ignored`)
   } else if (!usesShared) {
     fail(`${t}: createAuthMiddleware is not given the company table — the shared authenticate cannot see the lock`)
   }
@@ -85,7 +89,12 @@ const billing = read('packages/tenant-backend/src/billing.ts')
 const apply = billing.slice(billing.indexOf('export async function applySubscriptionToCompany'))
 if (!/forgetAccountLock\(\)/.test(apply.slice(0, apply.indexOf('\n}\n') + 1 || undefined))) fail('applySubscriptionToCompany does not forgetAccountLock() — a lock or unlock would wait out the cache')
 const shared = read('packages/tenant-backend/src/auth/middleware.ts')
-if (!/refuseWhileLocked\(c, db, company\)/.test(shared)) fail('the shared createAuthMiddleware never calls refuseWhileLocked')
+if (!/const locked = await refuseWhileLocked\(c, db, company\)\s*\n\s*if \(locked\) return locked\s*\n\s*await next\(\)/.test(shared.replace(/\r\n/g, '\n'))) fail('the shared createAuthMiddleware does not ask refuseWhileLocked and RETURN its refusal before next()')
+for (const fx of ['tests/harness/fixtures/middleware-auth.ts', 'tests/harness/fixtures/middleware-auth.crm-store.ts']) {
+  // The suites' auth stand-ins must keep the lock too, or no suite would ever see a locked company.
+  const src = read(fx).replace(/\r\n/g, '\n')
+  if (!/const locked = await refuseWhileLocked\([^)]*\)\s*\n\s*if \(locked\) return locked/.test(src)) fail(`${fx}: the test bridge drops the lock — no suite would see a locked company`)
+}
 
 // ── the way back: pay and restart (owner, 10/14: "why email?")
 const lockRule = read('packages/tenant-backend/src/auth/accountLock.ts')
