@@ -454,7 +454,7 @@ app.post('/generate-link', authenticate, async (c) => {
 // PORTAL MIDDLEWARE: Validate token from header or JWT
 // =============================================
 
-async function portalAuth(c: Context, next: Next) {
+export async function portalAuth(c: Context, next: Next) {
   // Try x-portal-token header first (DB-stored token)
   const headerToken = c.req.header('x-portal-token')
 
@@ -610,26 +610,8 @@ app.get('/me', portalAuth, async (c) => {
   })
 })
 
-// Schedule (upcoming visits)
-app.get('/visits', portalAuth, async (c) => {
-  const clientId = c.get('portalClientId') as string
-  const rows = await db.select({
-    id: schedules.id,
-    scheduled_date: schedules.effectiveDate,
-    start_time: sql<string>`to_char(${schedules.startTime}, 'HH24:MI')`,
-    end_time: sql<string>`to_char(${schedules.endTime}, 'HH24:MI')`,
-    status: sql<string>`'scheduled'`,
-    notes: schedules.notes,
-    caregiver_first_name: users.firstName,
-    caregiver_last_name: users.lastName,
-    caregiver_phone: users.phone,
-  })
-    .from(schedules)
-    .leftJoin(users, eq(schedules.caregiverId, users.id))
-    .where(and(eq(schedules.clientId, clientId), eq(schedules.isActive, true)))
-    .orderBy(schedules.effectiveDate)
-  return c.json(rows)
-})
+// GET /visits (the family's upcoming / past visits) and the visit actions — note, cancel, reschedule,
+// counter-offers — live in routes/visitChangeRequests.ts (`portal`), mounted on this same prefix.
 
 // Visit history (paginated)
 app.get('/history', portalAuth, async (c) => {

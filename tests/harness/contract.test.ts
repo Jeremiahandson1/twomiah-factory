@@ -456,7 +456,7 @@ const KNOWN_HOLE = [
     // than a remainder — nothing has been paid off here yet. crm-homecare is a parked vertical and
     // crm-store's routers are barrelled (the enumerator sees 7 routes of many), so both numbers are
     // honest starting points, not targets that have been worked.
-    'crm-homecare': 19,
+    'crm-homecare': 18,
     'crm-store': 1,
   }
   // Supplied by runSuite: several templates share the same package.json name, so this cannot be
