@@ -48,6 +48,22 @@
         "APP_VARIANT": "roofer"
       },
       "channel": "roofer-production"
+    },
+    "care-preview": {
+      "extends": "preview",
+      "env": {
+        "APP_VARIANT": "care",
+        "TWOMIAH_EAS_BUILD": "care"
+      },
+      "channel": "care-preview"
+    },
+    "care-production": {
+      "extends": "production",
+      "env": {
+        "APP_VARIANT": "care",
+        "TWOMIAH_EAS_BUILD": "care"
+      },
+      "channel": "care-production"
     }
   },
   "submit": {

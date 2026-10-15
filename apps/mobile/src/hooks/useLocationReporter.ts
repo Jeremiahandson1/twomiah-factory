@@ -18,8 +18,9 @@ const REPORT_INTERVAL_MS = 60_000
  * Continuous background tracking (battery drain, background-location consent,
  * app-store review) is a separate, opt-in enterprise capability — not this.
  */
-export function useLocationReporter() {
-  const { isAuthenticated } = useAuth()
+export function useLocationReporter(enabled = true) {
+  const { isAuthenticated: signedIn } = useAuth()
+  const isAuthenticated = signedIn && enabled
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
   const granted = useRef(false)
 

@@ -16,16 +16,19 @@ import { OfflineProvider } from '../src/offline/OfflineContext'
 import { OfflineBanner } from '../src/components/OfflineBanner'
 import { WrongAppGate } from '../src/vertical/WrongAppGate'
 import { useLocationReporter } from '../src/hooks/useLocationReporter'
+import { CareProvider } from '../src/care/CareContext'
 
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth()
-  const { verticalMismatch } = useVertical()
+  const { verticalMismatch, vertical } = useVertical()
   const segments = useSegments()
   const router = useRouter()
   const t = useTheme()
 
-  // While signed in, report this technician's location to the CRM (foreground).
-  useLocationReporter()
+  // While signed in, report this technician's location to the CRM (foreground). Not for home care:
+  // that backend has no /api/geofencing route — a caregiver's location is recorded on the visit
+  // itself (clock-in / clock-out fixes and breadcrumbs, src/care/CareContext.tsx).
+  useLocationReporter(vertical !== 'homecare')
 
   React.useEffect(() => {
     if (isLoading) return
@@ -66,8 +69,10 @@ export default function RootLayout() {
             <ToastProvider>
               <SocketProvider>
                 <OfflineProvider>
-                  <StatusBar style="auto" />
-                  <AuthGate />
+                  <CareProvider>
+                    <StatusBar style="auto" />
+                    <AuthGate />
+                  </CareProvider>
                 </OfflineProvider>
               </SocketProvider>
             </ToastProvider>

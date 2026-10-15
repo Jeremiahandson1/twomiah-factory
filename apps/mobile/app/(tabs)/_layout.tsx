@@ -10,12 +10,13 @@ import { View, StyleSheet } from 'react-native'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useSocket } from '../../src/socket/SocketContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
+import { useCareOptional } from '../../src/care/CareContext'
 
 /** All possible tab screen names (must match filenames in this directory) */
 const ALL_TABS = [
   'dashboard', 'jobs', 'contacts', 'quotes', 'notifications',
   'service-calls', 'schedule',
-  'shifts', 'time-clock', 'messages', 'more-homecare',
+  'shifts', 'care-schedule', 'time-clock', 'messages', 'more-homecare',
   'pipeline', 'canvass',
   'orders', 'products', 'customers', 'loyalty', 'more-dispensary',
   'checkin-queue', 'driver', 'ai-chat', 'pos-mobile',
@@ -25,6 +26,18 @@ const ALL_TABS = [
 export default function TabLayout() {
   const t = useTheme()
   const { tabs } = useVertical()
+  // Twomiah Care: unread messages and a visit in progress show on their tabs.
+  const care = useCareOptional()
+  const careBadge = (name: string): number | string | undefined => {
+    if (!care?.enabled) return undefined
+    if (name === 'messages' && care.unreadMessages > 0) return care.unreadMessages > 99 ? '99+' : care.unreadMessages
+    if (name === 'time-clock' && care.active) return 'On'
+    if (name === 'more-homecare') {
+      const n = care.unsignedDocs.length + care.unreadNotifications
+      return n > 0 ? (n > 99 ? '99+' : n) : undefined
+    }
+    return undefined
+  }
 
   const activeNames = new Set(tabs.map(tab => tab.name))
   const tabMap = new Map(tabs.map(tab => [tab.name, tab]))
@@ -67,6 +80,7 @@ export default function TabLayout() {
             name={name}
             options={{
               title: def!.title,
+              tabBarBadge: careBadge(name),
               tabBarIcon: ({ color, size, focused }) => {
                 const iconName = focused ? def!.activeIcon : def!.icon
                 if (name === 'notifications') {

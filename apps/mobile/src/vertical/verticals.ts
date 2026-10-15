@@ -26,10 +26,13 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
     { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people' },
     { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
   ],
+  // Twomiah Care — the caregiver's day: Today (next visit, alerts), Schedule (two weeks: swap, move,
+  // client not available, miss), Clock (clock in, the open visit, clock out), Messages, More.
+  // Clients, open shifts, documents, incidents, mileage and notifications live under More.
   homecare: [
-    { name: 'shifts', title: 'My Shifts', icon: 'time-outline', activeIcon: 'time' },
-    { name: 'contacts', title: 'Clients', icon: 'heart-outline', activeIcon: 'heart' },
-    { name: 'time-clock', title: 'Clock In', icon: 'finger-print-outline', activeIcon: 'finger-print' },
+    { name: 'shifts', title: 'Today', icon: 'home-outline', activeIcon: 'home' },
+    { name: 'care-schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar' },
+    { name: 'time-clock', title: 'Clock', icon: 'finger-print-outline', activeIcon: 'finger-print' },
     { name: 'messages', title: 'Messages', icon: 'chatbubbles-outline', activeIcon: 'chatbubbles' },
     { name: 'more-homecare', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
   ],

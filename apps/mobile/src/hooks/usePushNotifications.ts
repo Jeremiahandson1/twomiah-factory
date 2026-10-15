@@ -14,14 +14,22 @@ Notifications.setNotificationHandler({
   }),
 })
 
-export function usePushNotifications() {
+/**
+ * registerWithServer: post the Expo push token to POST /api/push/subscribe. Off for home care — that
+ * backend's /api/push/subscribe stores ONE web-push subscription per user and its sender is web-push
+ * only, so an Expo token would overwrite the caregiver's browser subscription and still never be
+ * delivered. Taps on notifications are still routed; registration waits for an Expo-aware endpoint.
+ */
+export function usePushNotifications(opts: { registerWithServer?: boolean; fallbackRoute?: string } = {}) {
+  const registerWithServer = opts.registerWithServer !== false
+  const fallbackRoute = opts.fallbackRoute || '/(tabs)/notifications'
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null)
   const [notification, setNotification] = useState<Notifications.Notification | null>(null)
   const notificationListener = useRef<any>()
   const responseListener = useRef<any>()
 
   useEffect(() => {
-    registerForPush().then(setExpoPushToken)
+    registerForPush(registerWithServer).then(setExpoPushToken).catch(() => {})
 
     notificationListener.current = Notifications.addNotificationReceivedListener(n => {
       setNotification(n)
@@ -32,8 +40,23 @@ export function usePushNotifications() {
       const type = data?.type as string
       const id = data?.id as string
 
+      // Twomiah Care (home care) pushes open a list, not a record, and carry no id.
+      const LIST_ROUTES: Record<string, string> = {
+        open_shift: '/(care)/open-shifts',
+        shift_swap_request: '/(care)/swaps',
+        shift_warning: '/(tabs)/time-clock',
+        message: '/(tabs)/messages',
+        visit_rescheduled: '/(tabs)/care-schedule',
+        reschedule_denied: '/(care)/requests',
+        change_request_counter: '/(care)/requests',
+      }
+      if (type && LIST_ROUTES[type]) {
+        router.push(LIST_ROUTES[type] as any)
+        return
+      }
+
       if (!type || !id) {
-        router.push('/(tabs)/notifications')
+        router.push(fallbackRoute as any)
         return
       }
 
@@ -63,7 +86,7 @@ export function usePushNotifications() {
         const targetId = type === 'payment' ? (data.invoiceId || id) : id
         router.push(`${route}${targetId}` as any)
       } else {
-        router.push('/(tabs)/notifications')
+        router.push(fallbackRoute as any)
       }
     })
 
@@ -76,7 +99,7 @@ export function usePushNotifications() {
   return { expoPushToken, notification }
 }
 
-async function registerForPush(): Promise<string | null> {
+async function registerForPush(registerWithServer: boolean): Promise<string | null> {
   if (!Device.isDevice) {
     console.log('[Push] Must use physical device for push notifications')
     return null
@@ -100,6 +123,8 @@ async function registerForPush(): Promise<string | null> {
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data
+
+  if (!registerWithServer) return token
 
   // Register token with CRM backend
   await post('/api/push/subscribe', {

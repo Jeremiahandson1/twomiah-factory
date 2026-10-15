@@ -3,27 +3,28 @@
  *
  *   APP_VARIANT=build    → Twomiah Build   (contractor vertical, locked)
  *   APP_VARIANT=roofer   → Twomiah Roofer  (roofing vertical, locked)
+ *   APP_VARIANT=care     → Twomiah Care    (home care vertical, locked — the caregiver app)
  *   (unset)              → generic Twomiah dev build, no vertical lock
  *
  * Per-variant artwork lives in ./assets/<variant>/. Until those files exist,
  * each variant falls back to the shared ./assets/*.png. Drop branded
  * icon.png / adaptive-icon.png / splash.png / notification-icon.png into
- * ./assets/build/ and ./assets/roofer/ to override.
+ * ./assets/build/, ./assets/roofer/ and ./assets/care/ to override.
  */
 
-import { ExpoConfig, ConfigContext } from 'expo/config'
+import type { ExpoConfig, ConfigContext } from 'expo/config'
 import * as fs from 'fs'
 import * as path from 'path'
 
-type Variant = 'build' | 'roofer' | 'generic'
+export type Variant = 'build' | 'roofer' | 'care' | 'generic'
 
-interface VariantSpec {
+export interface VariantSpec {
   appName: string
   slug: string
   bundleId: string
   scheme: string
   primaryColor: string
-  lockedVertical: 'contractor' | 'roofing' | null
+  lockedVertical: 'contractor' | 'roofing' | 'homecare' | null
   cameraPermission: string
   locationPermission: string
   /**
@@ -35,7 +36,23 @@ interface VariantSpec {
   easProjectId: string
 }
 
-const VARIANTS: Record<Variant, VariantSpec> = {
+/**
+ * Twomiah Care has no EAS project yet — it must be created by the owner on expo.dev, not invented
+ * here. Until this constant holds the real id, `eas build` for the care profiles stops with
+ * CARE_EAS_PROJECT_MISSING (below) and the config ships no update URL.
+ *
+ * To create it: expo.dev → account "jeremiahandson" → Projects → Create project, slug `twomiah-care`
+ * (it must be exactly that — the slug below), then paste its Project ID here.
+ */
+export const CARE_EAS_PROJECT_ID_PLACEHOLDER = 'CREATE-ON-EXPO-DEV-twomiah-care'
+export const CARE_EAS_PROJECT_ID: string = CARE_EAS_PROJECT_ID_PLACEHOLDER
+
+export const CARE_EAS_PROJECT_MISSING =
+  'Twomiah Care has no EAS project yet. Create it on expo.dev: account "jeremiahandson" → Projects → ' +
+  'Create a project with the slug "twomiah-care" (exactly). Copy its Project ID and set ' +
+  'CARE_EAS_PROJECT_ID in apps/mobile/app.config.ts to it, then run the build again.'
+
+export const VARIANTS: Record<Variant, VariantSpec> = {
   build: {
     appName: 'Twomiah Build',
     slug: 'twomiah-build',
@@ -58,6 +75,18 @@ const VARIANTS: Record<Variant, VariantSpec> = {
     locationPermission: 'Allow Twomiah Roofer to verify canvass routes and on-site check-ins',
     easProjectId: '4c6bd5f4-6680-451c-b3d7-d4c31eae44f4',
   },
+  care: {
+    appName: 'Twomiah Care',
+    slug: 'twomiah-care',
+    bundleId: 'com.twomiah.care',
+    scheme: 'twomiahcare',
+    // Teal: calm and clinical-adjacent, and white text on it passes 4.5:1 (5.5:1).
+    primaryColor: '#0f766e',
+    lockedVertical: 'homecare',
+    cameraPermission: 'Allow Twomiah Care to take visit photos and incident photos for your agency',
+    locationPermission: 'Allow Twomiah Care to record your location when you clock in and out of a visit, so your agency can verify the visit (EVV)',
+    easProjectId: CARE_EAS_PROJECT_ID,
+  },
   generic: {
     appName: 'Twomiah',
     slug: 'twomiah-mobile',
@@ -71,12 +100,22 @@ const VARIANTS: Record<Variant, VariantSpec> = {
   },
 }
 
-function resolveVariant(): Variant {
-  const raw = process.env.APP_VARIANT?.toLowerCase()
-  if (!raw) return 'generic'
-  if (raw === 'build' || raw === 'roofer' || raw === 'generic') return raw
-  throw new Error(`APP_VARIANT must be 'build', 'roofer', or 'generic' (got: ${raw})`)
+export function resolveVariant(raw = process.env.APP_VARIANT): Variant {
+  const v = raw?.toLowerCase()
+  if (!v) return 'generic'
+  if (v === 'build' || v === 'roofer' || v === 'care' || v === 'generic') return v
+  throw new Error(`APP_VARIANT must be 'build', 'roofer', 'care', or 'generic' (got: ${raw})`)
 }
+
+/** A real EAS project id, not the placeholder. */
+export const hasEasProject = (v: VariantSpec) => !!v.easProjectId && v.easProjectId !== CARE_EAS_PROJECT_ID_PLACEHOLDER
+
+/**
+ * Is EAS building (or about to build) this config? The EAS build servers set EAS_BUILD=true; the
+ * care profiles in eas.json set TWOMIAH_EAS_BUILD so `eas build` stops on THIS machine too, before
+ * anything is uploaded. `expo start` / `expo config` set neither, so local work is not blocked.
+ */
+export const isEasBuild = (env: NodeJS.ProcessEnv = process.env) => env.EAS_BUILD === 'true' || env.EAS_BUILD === '1' || !!env.TWOMIAH_EAS_BUILD
 
 /** Use ./assets/<variant>/<file> if it exists, otherwise fall back to shared ./assets/<file>. */
 function asset(variant: Variant, file: string): string {
@@ -87,7 +126,8 @@ function asset(variant: Variant, file: string): string {
 export default ({ config }: ConfigContext): ExpoConfig => {
   const variant = resolveVariant()
   const v = VARIANTS[variant]
-  const projectId = v.easProjectId
+  if (!hasEasProject(v) && isEasBuild()) throw new Error(CARE_EAS_PROJECT_MISSING)
+  const projectId = hasEasProject(v) ? v.easProjectId : undefined
 
   return {
     ...config,
@@ -103,10 +143,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
      * only offered to builds with the same `version`, so bump `version` whenever a native change ships.
      *
      * The update URL is the variant's own EAS project (see easProjectId), so an update published for
-     * Twomiah Roofer can only ever reach Roofer installs.
+     * Twomiah Roofer can only ever reach Roofer installs. A variant with no EAS project yet (Twomiah
+     * Care until the owner creates it) gets no update URL rather than someone else's.
      */
     runtimeVersion: { policy: 'appVersion' },
-    updates: { url: `https://u.expo.dev/${projectId}`, enabled: true, checkAutomatically: 'ON_LOAD', fallbackToCacheTimeout: 0 },
+    updates: projectId
+      ? { url: `https://u.expo.dev/${projectId}`, enabled: true, checkAutomatically: 'ON_LOAD', fallbackToCacheTimeout: 0 }
+      : { enabled: false },
     orientation: 'portrait',
     icon: asset(variant, 'icon.png'),
     scheme: v.scheme,
@@ -159,12 +202,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ],
       [
         'expo-image-picker',
-        { photosPermission: `Allow ${v.appName} to access photos for documentation` },
+        variant === 'care'
+          ? {
+              photosPermission: 'Allow Twomiah Care to attach photos from your library to a visit or an incident report',
+              cameraPermission: v.cameraPermission,
+            }
+          : { photosPermission: `Allow ${v.appName} to access photos for documentation` },
       ],
       '@react-native-community/datetimepicker',
     ],
     extra: {
-      eas: { projectId },
+      ...(projectId ? { eas: { projectId } } : {}),
       apiUrl: '',
       appVariant: variant,
       appName: v.appName,
