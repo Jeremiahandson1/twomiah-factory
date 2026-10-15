@@ -2011,6 +2011,8 @@
   align-items: center;
   color: #222;
   transition: color 0.15s;
+  /* Room for the count badge, which sits 10px past the icon: on a phone it landed on the Shop Now button (E2E Run 2). */
+  margin-right: 14px;
 }
 .header-cart:hover { color: var(--gold, var(--color-accent, #c8963e)); }
 .header-cart__count {
