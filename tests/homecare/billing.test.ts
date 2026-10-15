@@ -151,6 +151,18 @@ const day = (r: any, date: string, cg?: string) => (r.json.reconcile || []).find
   check('the next invoice gets the next number', g2.status === 201 && Number(g2.json.seq_number) === Number(g.json.seq_number) + 1, [g.json.seq_number, g2.json.seq_number])
 }
 
+// ── 1b. the grace is exactly 7 minutes ────────────────────────────────────────────────────────
+{
+  const gr = await mkClient('Grace', { referredById: payer.id })
+  await once(gr.id, cgA.id, '2026-09-22', '09:00', '11:00')
+  await once(gr.id, cgB.id, '2026-09-22', '13:00', '15:00')
+  await punch(gr.id, cgA.id, '2026-09-22', '09:00', '10:53') // 113 min: 7 short → within the grace
+  await punch(gr.id, cgB.id, '2026-09-22', '13:00', '14:52') // 112 min: 8 short → a choice
+  const r = await reconcile(gr.id, '2026-09-22', '2026-09-22')
+  const a = day(r, '2026-09-22', cgA.id), b = day(r, '2026-09-22', cgB.id)
+  check('7 minutes off is a match; 8 minutes off needs a choice', a?.status === 'match' && !a.needs_choice && b?.status === 'short' && b.needs_choice === true, [a, b])
+}
+
 // ── 2. private pay bills the clock ───────────────────────────────────────────────────────────────
 {
   const pp = await mkClient('Private', { isPrivatePay: true, privatePayRate: '30.00', referredById: payer.id }) // lingering payer is ignored
