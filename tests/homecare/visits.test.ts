@@ -660,5 +660,26 @@ const closeOpen = async (who: any) => q(sql`UPDATE time_entries SET end_time = N
     !ids.includes(cg1.id) && ids.indexOf(lonely.id) > ids.indexOf(cg3.id) && sug.json.suggestions.find((x: any) => x.id === lonely.id)?.hasConflict === true, ids)
 }
 
+// ══ 12. a caregiver's client list is the clients they serve, without identifiers ══════════════════
+{
+  const capp = new Hono()
+  capp.route('/api/clients', (await import('./src/routes/clients.ts')).default)
+  const get = async (who: any, path: string) => {
+    const res = await capp.request(path, { headers: { 'x-test-user': who.id, 'x-test-role': who.role } })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j }
+  }
+  await q(sql`UPDATE clients SET medicaid_id = 'MA-TEST-1' WHERE id = ${clA.id}`)
+  const loner = await mkUser('caregiver', 'cgfive')
+  const served = await mkClient('Sol', { medicaidId: 'MA-TEST-2' })
+  await insSched({ caregiver_id: loner.id, client_id: served.id, day_of_week: 1, start: '09:00', end: '10:00', effective_date: today })
+  const mine = await get(loner, '/api/clients')
+  check('a caregiver gets only the clients on their schedule', mine.status === 200 && Array.isArray(mine.json) && mine.json.length === 1 && mine.json[0].id === served.id, mine.json)
+  check('…with no Medicaid id, SSN or insurance number', !('medicaid_id' in mine.json[0]) && !('ssn_encrypted' in mine.json[0]) && !('insurance_id' in mine.json[0]), mine.json[0])
+  check("…and cannot open a client they don't serve", (await get(loner, `/api/clients/${clA.id}`)).status === 404)
+  const office = await get(admin, '/api/clients')
+  check('the office list is unchanged', office.status === 200 && Array.isArray(office.json?.clients) && office.json.clients.length >= 5)
+}
+
 console.log(`\nhomecare-visits: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

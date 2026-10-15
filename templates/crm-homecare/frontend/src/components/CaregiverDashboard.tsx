@@ -11,6 +11,17 @@ import CaregiverMessages from './caregiver/CaregiverMessages';
 import { useGeolocation, useHaptics, useOfflineSync, useBackgroundGeolocation, isNative, platform } from '../hooks/useNative';
 import OfflineBanner from './OfflineBanner';
 import { useAuth } from '../contexts/AuthContext';
+import { savePunch, newLocalId, offlineSession, flushPunches, isUnreachable, pendingPunches } from '../offlinePunches';
+import { isBiweeklyOn, toYMD } from '../utils/biweekly';
+import { CLIENT_UNAVAILABLE_REASONS } from '../utils/cancelReasons';
+
+// A punch must never hang on a dead connection: give up after 20s and treat it as "no signal",
+// so the tap is saved on the phone instead of lost.
+const fetchWithTimeout = async (url, options = {}, ms = 20000) => {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { ...options, signal: ctrl.signal }); } finally { clearTimeout(t); }
+};
 
 const subscribeToPush = async (token) => {
   try {
@@ -80,6 +91,221 @@ const CaregiverDashboard = ({ onLogout }) => {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [showMoreDrawer, setShowMoreDrawer] = useState(false);
 
+  // ── Visits (ported from the CVHC home care CRM) ──────────────────────────
+  // Set when the server refuses a clock-out because a note is required (VA clients): the note
+  // modal stays open with the reason instead of closing on a generic error.
+  const [noteError, setNoteError] = useState('');
+  const [clockingIn, setClockingIn] = useState(false);
+  const [clockingOut, setClockingOut] = useState(false);
+  // Visit photos staged for upload on clock-out
+  const [pendingPhotos, setPendingPhotos] = useState([]); // [{ dataUri, caption, category, sizeBytes }]
+  const [photoUploading, setPhotoUploading] = useState(false);
+  // Shift swap requests (to me and from me)
+  const [swapRequests, setSwapRequests] = useState([]);
+  const [swapModal, setSwapModal] = useState(null);
+  const [swapForm, setSwapForm] = useState({ targetCaregiverId: '', reason: '' });
+  // "Client refused / not available": the visit comes off the books (not billed, not paid);
+  // nobody needs covering, so no open shift.
+  const [unavailModal, setUnavailModal] = useState(null);
+  const [unavailForm, setUnavailForm] = useState({ reason: '', note: '' });
+  const [unavailSubmitting, setUnavailSubmitting] = useState(false);
+  const [moveModal, setMoveModal] = useState(null);
+  const [moveForm, setMoveForm] = useState({ date: '', startTime: '', endTime: '', reason: '' });
+  const [myReschedules, setMyReschedules] = useState([]); // this caregiver's own pending asks
+  const [changeRequests, setChangeRequests] = useState([]); // what CLIENTS asked about my visits
+  const [crResolving, setCrResolving] = useState(null);
+  const [otherCaregivers, setOtherCaregivers] = useState([]);
+
+  const loadSwapRequests = async () => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/shift-swaps`, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setSwapRequests(await r.json());
+    } catch {}
+  };
+
+  const loadOtherCaregivers = async () => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/caregivers`, { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) {
+        const all = await r.json();
+        const list = Array.isArray(all) ? all : (all?.caregivers || []);
+        setOtherCaregivers(list.filter(c => c.id !== user?.id));
+      }
+    } catch {}
+  };
+  useEffect(() => { loadSwapRequests(); loadOtherCaregivers(); }, [user?.id]);
+
+  const submitClientUnavailable = async () => {
+    if (!unavailModal) return;
+    if (!unavailForm.reason) { toast('Pick a reason', 'error'); return; }
+    if (unavailForm.reason === 'other' && !unavailForm.note.trim()) { toast('Add a short note for "Other"', 'error'); return; }
+    const date = unavailModal.resolvedDate || (unavailModal.date && unavailModal.date.split('T')[0]);
+    setUnavailSubmitting(true);
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/emergency/client-unavailable`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ scheduleId: unavailModal.id, date, reason: unavailForm.reason, note: unavailForm.note || null }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error || 'Could not save');
+      toast('Saved — the office has been notified and this visit will not be billed');
+      setUnavailModal(null); setUnavailForm({ reason: '', note: '' });
+      loadData();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setUnavailSubmitting(false); }
+  };
+
+  const submitSwapRequest = async () => {
+    if (!swapModal || !swapForm.targetCaregiverId) { toast('Pick a coworker to swap with', 'error'); return; }
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/shift-swaps`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          scheduleId: swapModal.id,
+          // The day the caregiver tapped — a repeating shift has no date of its own.
+          shiftDate: swapModal.resolvedDate || (swapModal.date && swapModal.date.split('T')[0]) || undefined,
+          targetCaregiverId: swapForm.targetCaregiverId,
+          reason: swapForm.reason || null,
+        }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Failed');
+      toast('Swap request sent');
+      setSwapModal(null); setSwapForm({ targetCaregiverId: '', reason: '' });
+      loadSwapRequests();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  // Ask the office to move a shift to another day/time. Nothing changes until the office approves
+  // it — the visit is billed and EVV'd against the scheduled time.
+  const openMoveModal = (shift) => {
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    const onDate = shift.resolvedDate || (shift.date && shift.date.split('T')[0]) || toYMD(t);
+    setMoveModal({ ...shift, occurrenceDate: onDate });
+    setMoveForm({ date: onDate, startTime: (shift.start_time || '').slice(0, 5), endTime: (shift.end_time || '').slice(0, 5), reason: '' });
+  };
+
+  // One open request per visit — the server enforces it (409); this just hides a button that can only fail.
+  const movePendingFor = (shift) => {
+    const onDate = shift.resolvedDate || (shift.date && shift.date.split('T')[0]);
+    return myReschedules.some(cr => cr.schedule_id === shift.id && String(cr.visit_date).slice(0, 10) === onDate);
+  };
+
+  const submitMoveRequest = async () => {
+    if (!moveModal) return;
+    const { date, startTime, endTime, reason } = moveForm;
+    if (!date || !startTime || !endTime) { toast('Pick the new day and times', 'error'); return; }
+    const origStart = (moveModal.start_time || '').slice(0, 5);
+    const origEnd = (moveModal.end_time || '').slice(0, 5);
+    if (date === moveModal.occurrenceDate && startTime === origStart && endTime === origEnd) {
+      toast('That is the same day and time it already has', 'error'); return;
+    }
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/visit-change-requests/reschedule-request`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          scheduleId: moveModal.id, visitDate: moveModal.occurrenceDate,
+          startTime: moveModal.start_time, endTime: moveModal.end_time,
+          proposedDate: date, proposedStartTime: startTime, proposedEndTime: endTime, reason: reason || null,
+        }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Failed');
+      toast('Sent to the office — the shift moves once they approve it');
+      setMoveModal(null);
+      loadChangeRequests();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const respondToSwap = async (req, accepted) => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/shift-swaps/${req.id}/respond`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ accepted }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Failed');
+      toast(accepted ? 'Swap accepted — admin approval pending' : 'Swap declined');
+      loadSwapRequests();
+    } catch (e) { toast(e.message, 'error'); }
+  };
+
+  // Every open request on this caregiver's visits. What the CLIENT asked is theirs to answer; what
+  // THEY asked is waiting on the office (and must never be shown with Approve/Deny).
+  const loadChangeRequests = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/visit-change-requests`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        const rows = Array.isArray(data) ? data : [];
+        setChangeRequests(rows.filter(cr => cr.requested_by !== 'caregiver'));
+        setMyReschedules(rows.filter(cr => cr.requested_by === 'caregiver'));
+      }
+    } catch { /* keep the dashboard working */ }
+  };
+
+  const resolveChangeRequest = async (crId, action, extra = {}) => {
+    setCrResolving(crId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/visit-change-requests/${crId}/resolve`, {
+        method: 'PUT', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...extra }),
+      });
+      if (res.ok) { toast('Request resolved', 'success'); loadChangeRequests(); loadData(); }
+      else { const err = await res.json().catch(() => ({})); toast(err.error || 'Failed to resolve', 'error'); }
+    } catch { toast('Network error', 'error'); }
+    finally { setCrResolving(null); }
+  };
+
+  // Send punches saved on the phone while there was no signal: now, when the connection comes back,
+  // when the app is reopened, and every 30s while any wait.
+  useEffect(() => {
+    if (!user?.id) return;
+    let stopped = false;
+    const trySend = async () => {
+      if (stopped || !pendingPunches(user.id).length) return;
+      const r = await flushPunches({ apiBase: API_BASE_URL, token, userId: user.id });
+      if (stopped) return;
+      if (r.sent) { toast(`✅ Saved ${r.sent === 1 ? 'punch' : `${r.sent} punches`} sent to the office.`, 'success'); loadData(); }
+      for (const x of r.rejected) {
+        toast(`⚠️ A saved ${x.punch.kind === 'in' ? 'clock-in' : 'clock-out'} could not be recorded: ${x.error}`, 'error');
+      }
+      if (r.rejected.length && !r.sent) loadData();
+    };
+    trySend();
+    const onVisible = () => { if (document.visibilityState === 'visible') trySend(); };
+    window.addEventListener('online', trySend);
+    document.addEventListener('visibilitychange', onVisible);
+    const interval = setInterval(trySend, 30000);
+    return () => {
+      stopped = true;
+      window.removeEventListener('online', trySend);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(interval);
+    };
+  }, [user?.id, token]);
+
+  // A photo is downscaled to a JPEG data URI (max 1600px, ~80%) to keep uploads small.
+  const handlePhotoFile = async (file, category = 'other') => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast('Pick an image file', 'error'); return; }
+    if (file.size > 15_000_000) { toast('Photo too large (15MB max)', 'error'); return; }
+    const img = new Image();
+    const reader = new FileReader();
+    const dataUrl: any = await new Promise((resolve, reject) => {
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = dataUrl; });
+    const MAX = 1600;
+    const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    const compressed = canvas.toDataURL('image/jpeg', 0.82);
+    const sizeBytes = Math.floor(compressed.length * 0.75);
+    if (sizeBytes > 5_000_000) { toast('Photo too large after compression', 'error'); return; }
+    setPendingPhotos(prev => [...prev, { dataUri: compressed, caption: '', category, sizeBytes }]);
+  };
+
   useEffect(() => {
     loadData();
     // GPS tracking handled by useGeolocation hook (watch: true)
@@ -145,7 +371,8 @@ const CaregiverDashboard = ({ onLogout }) => {
   const loadData = async () => {
     try {
       const [schedulesRes, clientsRes, activeRes, visitsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/schedules/${user.id}`, {
+        // includeMovedIn: days moved ONTO this caregiver from someone else's pattern.
+        fetch(`${API_BASE_URL}/api/schedules/${user.id}?includeMovedIn=1`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch(`${API_BASE_URL}/api/clients`, {
@@ -166,10 +393,21 @@ const CaregiverDashboard = ({ onLogout }) => {
         if (data?.id) {
           setActiveSession(data);
           setSelectedClient(data.client_id);
+        } else {
+          // The server has no open visit. A clock-in still saved on this phone is one — keep
+          // showing it; otherwise drop an offline visit that has synced.
+          const saved = offlineSession(user.id);
+          if (saved) { setActiveSession(saved); setSelectedClient(saved.client_id); }
+          else setActiveSession(s => (s && s.offline ? null : s));
         }
+      } else {
+        // Couldn't reach the server — a visit saved on the phone is still in progress.
+        const saved = offlineSession(user.id);
+        if (saved) { setActiveSession(s => s || saved); setSelectedClient(c => c || saved.client_id); }
       }
       if (visitsRes.ok) setRecentVisits(await visitsRes.json());
       loadMyHours();
+      loadChangeRequests();
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -322,12 +560,31 @@ const CaregiverDashboard = ({ onLogout }) => {
     const now = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
 
-    // Find clients scheduled for today (from recurring schedules)
-    const todayClients = (currentSchedules || [])
-      .filter(s => s.day_of_week === todayDay || 
-        (s.date && new Date(s.date).toDateString() === now.toDateString()))
-      .map(s => s.client_id)
+    // Clients with a visit that really happens today — the pattern's dates, bi-weekly parity,
+    // suspension and that day's exception (a cancelled visit never auto-clocks anyone in).
+    const todayDate = new Date(now); todayDate.setHours(0, 0, 0, 0);
+    const todayYmd = toYMD(todayDate);
+    const todaysVisits = (currentSchedules || [])
+      .filter(s => s.date
+        ? (String(s.date).slice(0, 10) === todayYmd && !isSuspendedOn(s, todayYmd))
+        : (s.day_of_week === todayDay && isScheduleActiveForDate(s, todayDate)))
+      .map(s => applyExceptionForDate(s, todayYmd))
       .filter(Boolean);
+    const todayClients = [...new Set(todaysVisits.map(s => s.client_id).filter(Boolean))];
+    // Proximity alone must not clock anyone in: a visit for THIS client has to be live now
+    // (15 minutes before its start through its end).
+    const hasShiftNow = (clientId) => todaysVisits.some(s => {
+      if (s.client_id !== clientId || !s.start_time) return false;
+      const [sh, sm] = s.start_time.split(':').map(Number);
+      const startMin = sh * 60 + sm;
+      let endMin = startMin + 8 * 60;
+      if (s.end_time) {
+        const [eh, em] = s.end_time.split(':').map(Number);
+        endMin = eh * 60 + em;
+        if (endMin <= startMin) endMin += 24 * 60; // overnight
+      }
+      return nowMins >= startMin - 15 && nowMins <= endMin;
+    });
 
     if (!todayClients.length) return;
 
@@ -344,7 +601,7 @@ const CaregiverDashboard = ({ onLogout }) => {
         const data = await res.json();
 
         // AUTO CLOCK-IN: within geofence, not clocked in, not already triggered
-        if (data.withinGeofence && data.autoClockIn && !currentSession && !alreadyTriggered) {
+        if (data.withinGeofence && data.autoClockIn && !currentSession && !alreadyTriggered && hasShiftNow(clientId)) {
           geofenceTriggeredRef.current.add(clientId);
           toast(`📍 You've arrived at ${data.clientName} — clocking you in automatically`, 'success');
           // Auto clock in
@@ -358,6 +615,9 @@ const CaregiverDashboard = ({ onLogout }) => {
             setActiveSession(clockData);
             setSelectedClient(clientId);
             gpsIntervalRef.current = startGPSBreadcrumbs(clockData.id);
+          } else {
+            // Refused (e.g. no live visit on the server's view) — allow a later retry.
+            geofenceTriggeredRef.current.delete(clientId);
           }
           break; // only clock into one client at a time
         }
@@ -400,89 +660,157 @@ const CaregiverDashboard = ({ onLogout }) => {
 
   const handleClockIn = async () => {
     if (!selectedClient) return toast('Please select a client.');
+    if (clockingIn) return;
+    setClockingIn(true);
+    const tapAt = new Date().toISOString(); // the real clock-in time, even if the send fails
 
     try {
-      // Get fresh position if we don't have one
-      let lat = location?.latitude || null;
-      let lng = location?.longitude || null;
-      if (!lat) {
-        await getPosition();
-        lat = location?.latitude || null;
-        lng = location?.longitude || null;
-      }
+      // Never wait on GPS at the tap: use the fix already in hand.
+      const lat = location?.latitude || null;
+      const lng = location?.longitude || null;
+      if (!lat) getPosition?.(); // warm it for the clock-out
 
       await impact('medium'); // native haptic on button press
 
-      const res = await fetch(`${API_BASE_URL}/api/time-entries/clock-in`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ clientId: selectedClient, latitude: lat, longitude: lng })
-      });
-
-      if (!res.ok) {
-        // If offline, service worker queued it — res will have queued:true
-        const data = await res.json();
-        if (data.queued) {
-          await hapticNotify('warning');
-          toast('Clocked in offline — will sync when reconnected', 'warning');
-          setActiveSession({ id: 'offline-' + Date.now(), offline: true });
-          return;
-        }
-        throw new Error(data.error || 'Failed');
+      let res = null;
+      try {
+        res = await fetchWithTimeout(`${API_BASE_URL}/api/time-entries/clock-in`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ clientId: selectedClient, latitude: lat, longitude: lng })
+        });
+      } catch { res = null; } // never reached the server
+      if (isUnreachable(res)) {
+        // No signal: save the tap on the phone with its real time; it sends itself later.
+        const localId = newLocalId();
+        const saved = savePunch({ userId: user.id, localId, kind: 'in', at: tapAt, clientId: selectedClient, latitude: lat, longitude: lng });
+        if (!saved) throw new Error('No signal, and this phone could not save the clock-in. Call the office with your start time.');
+        await hapticNotify('warning');
+        toast(`No signal — clock-in saved on your phone at ${new Date(tapAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}. It will send by itself when you have signal.`, 'warning');
+        setActiveSession({ id: `offline-${localId}`, offline: true, client_id: selectedClient, start_time: tapAt });
+        return;
       }
 
-      const clockInData = await res.json();
+      // The server answered: a refusal (auto transition off, an offline overlap, …) is shown, never queued.
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed');
+
       await hapticNotify('success'); // success haptic
-      setActiveSession(clockInData);
-      gpsIntervalRef.current = startGPSBreadcrumbs(clockInData.id);
+      setActiveSession(data);
+      gpsIntervalRef.current = startGPSBreadcrumbs(data.id);
       if (!lat) toast('Clocked in (location unavailable)', 'warning');
     } catch (error) {
       await hapticNotify('error');
       toast('Failed to clock in: ' + error.message, 'error');
+    } finally {
+      setClockingIn(false);
     }
   };
 
   const handleClockOut = () => {
     if (!activeSession) return toast('No active session.');
+    setNoteError('');
     setShowNoteModal(true);
   };
 
   const completeClockOut = async () => {
+    // Guard: a stale modal (reload, re-login) must close cleanly instead of trapping the caregiver.
+    if (!activeSession?.id) { toast('No active session — reopen and try again.', 'error'); setShowNoteModal(false); return; }
+    if (clockingOut) return; // ignore re-taps while the first one is in flight
+    const isOfflineVisit = String(activeSession.id).startsWith('offline-');
+    // A visit saved offline is only on this phone until it syncs — the note is the only record of
+    // the visit if the office has to fix it, so ask for one.
+    if (isOfflineVisit && !String(visitNote || '').trim()) {
+      setNoteError('No signal — please add a short visit note so this visit can be saved on your phone.');
+      return;
+    }
+    setClockingOut(true);
+    const tapAt = new Date().toISOString(); // the real clock-out time, even if the send fails
+    const finishSavedOffline = async () => {
+      await hapticNotify('warning');
+      toast(`No signal — clock-out saved on your phone at ${new Date(tapAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}. It will send by itself when you have signal.${pendingPhotos.length ? ' Photos could not be saved offline.' : ''}`, 'warning');
+      setActiveSession(null);
+      setSelectedClient('');
+      setVisitNote('');
+      setNoteError('');
+      setPendingPhotos([]);
+      setShowNoteModal(false);
+    };
     try {
       await impact('heavy'); // strong haptic for clock out
 
       const lat = location?.latitude || null;
       const lng = location?.longitude || null;
 
-      const res = await fetch(`${API_BASE_URL}/api/time-entries/${activeSession.id}/clock-out`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ latitude: lat, longitude: lng, notes: visitNote })
-      });
+      if (isOfflineVisit) {
+        // Its clock-in is still on the phone — queue the clock-out behind it.
+        const saved = savePunch({ userId: user.id, localId: newLocalId(), kind: 'out', at: tapAt,
+          inLocalId: String(activeSession.id).slice('offline-'.length), entryId: null,
+          latitude: lat, longitude: lng, notes: visitNote });
+        if (!saved) throw new Error('This phone could not save the clock-out. Call the office with your end time.');
+        await finishSavedOffline();
+        return;
+      }
+
+      let res = null;
+      try {
+        res = await fetchWithTimeout(`${API_BASE_URL}/api/time-entries/${activeSession.id}/clock-out`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ latitude: lat, longitude: lng, notes: visitNote })
+        });
+      } catch { res = null; } // never reached the server
+      if (isUnreachable(res)) {
+        const saved = savePunch({ userId: user.id, localId: newLocalId(), kind: 'out', at: tapAt,
+          inLocalId: null, entryId: activeSession.id, latitude: lat, longitude: lng, notes: visitNote });
+        if (!saved) throw new Error('No signal, and this phone could not save the clock-out. Call the office with your end time.');
+        await finishSavedOffline();
+        return;
+      }
 
       if (!res.ok) {
-        const data = await res.json();
-        if (data.queued) {
+        const data = await res.json().catch(() => ({}));
+        // VA client with no note: keep the modal open so they can add one and retry.
+        if (data.code === 'va_note_required') {
           await hapticNotify('warning');
-          toast('Clocked out offline — will sync when reconnected', 'warning');
-          setActiveSession(null);
-          setSelectedClient('');
-          setVisitNote('');
-          setShowNoteModal(false);
+          setNoteError(data.error || 'A visit note is required for this client.');
           return;
         }
         throw new Error(data.error || 'Failed');
+      }
+
+      // Clock-out succeeded — upload any staged visit photos before resetting.
+      if (pendingPhotos.length > 0) {
+        setPhotoUploading(true);
+        let failed = 0;
+        for (const p of pendingPhotos) {
+          try {
+            const pr = await fetch(`${API_BASE_URL}/api/time-entries/${activeSession.id}/photos`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ imageBase64: p.dataUri, caption: p.caption, category: p.category }),
+            });
+            if (!pr.ok) failed++;
+          } catch { failed++; }
+        }
+        setPhotoUploading(false);
+        if (failed > 0) toast(`${pendingPhotos.length - failed}/${pendingPhotos.length} photos uploaded`, 'warning');
       }
 
       await hapticNotify('success');
       setActiveSession(null);
       setSelectedClient('');
       setVisitNote('');
+      setNoteError('');
+      setPendingPhotos([]);
       setShowNoteModal(false);
       loadData();
     } catch (error) {
       await hapticNotify('error');
       toast('Failed to clock out: ' + error.message, 'error');
+      setShowNoteModal(false); // never trap the caregiver in the notes modal on error
+    } finally {
+      setClockingOut(false);
     }
   };
 
@@ -492,8 +820,10 @@ const CaregiverDashboard = ({ onLogout }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
       });
-      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
-      showMsg('Shift claimed!');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      // "It's yours — …" when the office offered it first-come, otherwise pending approval.
+      showMsg(data.message || 'Shift claimed!');
       loadOpenShifts();
       loadData();
     } catch (error) {
@@ -573,22 +903,57 @@ const CaregiverDashboard = ({ onLogout }) => {
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
   const getDayName = (n) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][n] || '';
 
+  // A suspended schedule (service paused) generates nothing on/after suspended_from.
+  const isSuspendedOn = (schedule, ymd) =>
+    !!(schedule.suspended_from && ymd && ymd >= String(schedule.suspended_from).slice(0, 10));
+
+  // Does a recurring pattern happen on this date? Effective / end dates, bi-weekly parity (the one
+  // shared rule, utils/biweekly) and suspension — the same answer the server's engine gives.
+  const isScheduleActiveForDate = (schedule, targetDate) => {
+    const ymd = toYMD(new Date(targetDate));
+    if (schedule.effective_date && ymd < String(schedule.effective_date).slice(0, 10)) return false;
+    if (schedule.end_date && ymd > String(schedule.end_date).slice(0, 10)) return false;
+    if (schedule.frequency === 'biweekly' && schedule.anchor_date && !isBiweeklyOn(ymd, schedule.anchor_date)) return false;
+    if (isSuspendedOn(schedule, ymd)) return false;
+    return true;
+  };
+
+  // Per-day exceptions ride along on each recurring row: 'cancelled' removes that one date,
+  // 'modified' changes its times or moves it to another client / caregiver. Returns the shift to
+  // show for that date, or null.
+  const applyExceptionForDate = (schedule, dateStr) => {
+    const ex = (schedule.exceptions || []).find(e => String(e.exception_date).slice(0, 10) === dateStr);
+    if (!ex) return schedule;
+    if (ex.exception_type === 'cancelled') return null;
+    if (ex.exception_type === 'modified') {
+      if (ex.override_caregiver_id && schedule.caregiver_id && ex.override_caregiver_id !== schedule.caregiver_id) return null;
+      const out = { ...schedule, start_time: ex.override_start_time || schedule.start_time, end_time: ex.override_end_time || schedule.end_time };
+      if (ex.override_client_id && ex.override_client_id !== schedule.client_id) out.client_id = ex.override_client_id;
+      return out;
+    }
+    return schedule;
+  };
+
   // Get today's appointments from schedules
   const getTodaysAppointments = () => {
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const dayOfWeek = today.getDay();
-    const todayStr = today.toISOString().split('T')[0];
-    
-    // Get recurring schedules for today's day of week
-    const recurring = schedules.filter(s => s.day_of_week === dayOfWeek);
-    // Get one-time schedules for today's date
-    const oneTime = schedules.filter(s => s.date && s.date.split('T')[0] === todayStr);
-    
-    return [...recurring, ...oneTime].sort((a, b) => {
-      const timeA = a.start_time || '00:00';
-      const timeB = b.start_time || '00:00';
-      return timeA.localeCompare(timeB);
-    });
+    const todayStr = toYMD(today); // the local calendar day, not UTC's
+
+    const recurring = schedules
+      .filter(s => s.day_of_week === dayOfWeek && s.day_of_week !== null && !s.date && isScheduleActiveForDate(s, today))
+      .map(s => applyExceptionForDate(s, todayStr))
+      .filter(Boolean);
+    const oneTime = schedules
+      .filter(s => s.date && String(s.date).slice(0, 10) === todayStr && !isSuspendedOn(s, todayStr))
+      .map(s => applyExceptionForDate(s, todayStr))
+      .filter(Boolean);
+    // A moved-in (covering) shift identical to an own shift today is shown once.
+    const ownToday = new Set(recurring.map(s => `${s.client_id}|${s.start_time}|${s.end_time}`));
+    const oneTimeDeduped = oneTime.filter(s => !s.moved_in || !ownToday.has(`${s.client_id}|${s.start_time}|${s.end_time}`));
+
+    return [...recurring, ...oneTimeDeduped].sort((a, b) => (a.start_time || '00:00').localeCompare(b.start_time || '00:00'));
   };
 
   const getClientById = (id) => clients.find(c => c.id === id);
@@ -613,6 +978,114 @@ const CaregiverDashboard = ({ onLogout }) => {
           </div>
         )}
       </div>
+
+      {/* Incoming swap requests — a coworker wants me to take their shift */}
+      {(() => {
+        const incoming = swapRequests.filter(s => s.target_id === user?.id && s.status === 'pending');
+        if (!incoming.length) return null;
+        return (
+          <div className="card" style={{ marginBottom: '1rem', borderLeft: '4px solid #6366F1' }}>
+            <div className="card-title" style={{ color: '#4338CA' }}>
+              🔄 {incoming.length} shift swap request{incoming.length === 1 ? '' : 's'} for you
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+              {incoming.map(req => (
+                <div key={req.id} style={{ padding: '0.6rem 0.75rem', background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 8, color: '#1F2937' }}>
+                  <div style={{ fontWeight: 600 }}>{req.requester_first} {req.requester_last} wants you to take their shift</div>
+                  <div style={{ fontSize: '0.82rem', color: '#4338CA' }}>
+                    {req.shift_date && formatDate(req.shift_date + 'T12:00:00')} {req.start_time ? `· ${formatTime(req.start_time)}–${formatTime(req.end_time)}` : ''} {req.client_first ? `· ${req.client_first} ${req.client_last}` : ''}
+                  </div>
+                  {req.reason && <div style={{ fontSize: '0.82rem', color: '#374151', fontStyle: 'italic', marginTop: 4 }}>"{req.reason}"</div>}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <button onClick={() => respondToSwap(req, true)} style={{ background: '#047857', color: '#fff', border: 'none', padding: '0.4rem 0.8rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700 }}>✓ Take it</button>
+                    <button onClick={() => respondToSwap(req, false)} style={{ background: '#fff', color: '#B91C1C', border: '1px solid #FCA5A5', padding: '0.4rem 0.8rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}>✕ Decline</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Moves this caregiver asked for — so a request doesn't vanish after sending */}
+      {myReschedules.length > 0 && (
+        <div className="card" style={{ marginBottom: '1rem', borderLeft: '4px solid #059669' }}>
+          <div className="card-title" style={{ color: '#047857' }}>Waiting on the Office ({myReschedules.length})</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {myReschedules.map(cr => (
+              <div key={cr.id} style={{ padding: '0.75rem', borderRadius: 8, background: '#F0FDF4', border: '1px solid #BBF7D0', fontSize: '0.88rem', color: '#1F2937' }}>
+                <div style={{ fontWeight: 700, color: '#065F46' }}>{cr.client_first_name} {cr.client_last_name}</div>
+                <div style={{ color: '#374151', marginTop: 2 }}>
+                  {cr.visit_date} {formatTime(cr.original_start_time)} → <strong>{cr.proposed_date} {formatTime(cr.proposed_start_time)}–{formatTime(cr.proposed_end_time)}</strong>
+                </div>
+                <div style={{ color: '#4B5563', marginTop: 4, fontSize: '0.8rem' }}>
+                  {cr.status === 'counter_offered'
+                    ? `Office suggested ${cr.counter_date} at ${formatTime(cr.counter_start_time)} — call the office to confirm.`
+                    : 'Pending — work the original time until it is approved.'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* What clients asked about my visits */}
+      {changeRequests.length > 0 && (
+        <div className="card" style={{ marginBottom: '1rem', borderLeft: '4px solid #e67e22' }}>
+          <div className="card-title" style={{ color: '#B45309' }}>Client Requests ({changeRequests.length})</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {changeRequests.slice(0, 5).map(cr => (
+              <div key={cr.id} style={{ padding: '1rem', borderRadius: '8px', background: '#FFF7ED', border: '1px solid #FED7AA', color: '#1F2937' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#1F2937' }}>{cr.client_first_name} {cr.client_last_name}</div>
+                    <div style={{ fontSize: '0.85rem', color: '#4B5563' }}>
+                      {cr.request_type === 'cancel' ? 'Wants to cancel' : 'Wants to reschedule'} — {cr.visit_date} {formatTime(cr.original_start_time)}
+                    </div>
+                    {cr.cancel_reason && <div style={{ fontSize: '0.82rem', color: '#92400E', marginTop: '4px' }}>Reason: {cr.cancel_reason}</div>}
+                    {cr.request_type === 'reschedule' && cr.proposed_date && (
+                      <div style={{ fontSize: '0.82rem', color: '#1D4ED8', marginTop: '4px' }}>
+                        Proposed: {cr.proposed_date} {cr.proposed_start_time?.slice(0, 5)} - {cr.proposed_end_time?.slice(0, 5)}
+                      </div>
+                    )}
+                    {cr.status === 'counter_offered' && (
+                      <div style={{ fontSize: '0.82rem', color: '#6D28D9', marginTop: '4px' }}>
+                        You suggested {cr.counter_date} {cr.counter_start_time?.slice(0, 5)} — waiting on the client.
+                      </div>
+                    )}
+                  </div>
+                  <span style={{
+                    background: cr.request_type === 'cancel' ? '#FEE2E2' : '#DBEAFE',
+                    color: cr.request_type === 'cancel' ? '#991B1B' : '#1E40AF',
+                    padding: '2px 8px', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap',
+                  }}>{cr.request_type === 'cancel' ? 'Cancel' : 'Reschedule'}</span>
+                </div>
+                {cr.status === 'pending' && (
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                    <button className="btn btn-sm" style={{ background: '#047857', color: '#fff', padding: '0.35rem 0.75rem', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                      disabled={crResolving === cr.id} onClick={() => resolveChangeRequest(cr.id, 'approve')}>Approve</button>
+                    <button className="btn btn-sm" style={{ background: '#B91C1C', color: '#fff', padding: '0.35rem 0.75rem', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                      disabled={crResolving === cr.id} onClick={() => resolveChangeRequest(cr.id, 'deny')}>Deny</button>
+                    {cr.request_type === 'reschedule' && (
+                      <button className="btn btn-sm" style={{ background: '#6D28D9', color: '#fff', padding: '0.35rem 0.75rem', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+                        disabled={crResolving === cr.id}
+                        onClick={() => {
+                          const counterDate = prompt('Suggest a different date (YYYY-MM-DD):');
+                          const counterStart = prompt('Start time (HH:MM):');
+                          const counterEnd = prompt('End time (HH:MM):');
+                          const msg = prompt('Optional message to client:');
+                          if (counterDate && counterStart && counterEnd) {
+                            resolveChangeRequest(cr.id, 'counter', { counterDate, counterStartTime: counterStart, counterEndTime: counterEnd, counterMessage: msg || '' });
+                          }
+                        }}>Counter-Offer</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Today's Appointments Section */}
       <div className="card" style={{ marginBottom: '1rem' }}>
@@ -900,40 +1373,139 @@ const CaregiverDashboard = ({ onLogout }) => {
     </>
   );
 
+  // The three things a caregiver can do about one visit: say the client wasn't available, ask a
+  // coworker to take it, or ask the office to move it.
+  const shiftActions = (s) => (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      <button onClick={() => { setUnavailModal(s); setUnavailForm({ reason: '', note: '' }); }}
+        style={{ background: '#fff', border: '1px solid #FECACA', color: '#B91C1C', padding: '0.3rem 0.6rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}
+        title="Client refused care, wasn't home, or cancelled — the visit won't be billed">🚫 Client N/A</button>
+      <button onClick={() => { setSwapModal(s); setSwapForm({ targetCaregiverId: '', reason: '' }); }}
+        style={{ background: '#fff', border: '1px solid #C7D2FE', color: '#4338CA', padding: '0.3rem 0.6rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}
+        title="Ask a coworker to take this shift">🔄 Swap</button>
+      {movePendingFor(s) ? (
+        <span style={{ border: '1px solid #FCD34D', background: '#FFFBEB', color: '#92400E', padding: '0.3rem 0.6rem', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600 }}
+          title="Waiting on the office">⏳ Move sent</span>
+      ) : (
+        <button onClick={() => openMoveModal(s)}
+          style={{ background: '#fff', border: '1px solid #A7F3D0', color: '#047857', padding: '0.3rem 0.6rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}
+          title="Ask the office to move this shift to another day or time">🕐 Move</button>
+      )}
+    </div>
+  );
+
   const renderSchedulePage = () => {
-    const recurring = schedules.filter(s => s.day_of_week != null);
-    const oneTime = schedules.filter(s => s.date);
-    const grouped = {};
-    recurring.forEach(s => { if (!grouped[s.day_of_week]) grouped[s.day_of_week] = []; grouped[s.day_of_week].push(s); });
+    // Every schedule (recurring + one-time + moved-in) resolved into concrete dated visits for the
+    // next 14 days, each with that day's exception applied — cancelled gone, modified at its new time.
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const todayStr = toYMD(today);
+    const concreteShifts = [];
+
+    schedules.forEach(s => {
+      if (s.date) {
+        const dateStr = String(s.date).slice(0, 10);
+        if (dateStr >= todayStr && !isSuspendedOn(s, dateStr)) {
+          const resolved = applyExceptionForDate(s, dateStr);
+          if (resolved) concreteShifts.push({ ...resolved, resolvedDate: dateStr });
+        }
+      } else if (s.day_of_week != null) {
+        for (let d = 0; d < 14; d++) {
+          const target = new Date(today);
+          target.setDate(target.getDate() + d);
+          if (target.getDay() !== s.day_of_week) continue;
+          if (!isScheduleActiveForDate(s, target)) continue;
+          const dateStr = toYMD(target);
+          const resolved = applyExceptionForDate(s, dateStr);
+          if (resolved) concreteShifts.push({ ...resolved, resolvedDate: dateStr });
+        }
+      }
+    });
+
+    // A moved-in copy identical to an own shift is shown once.
+    const ownKeys = new Set(concreteShifts.filter(s => !s.moved_in).map(s => `${s.client_id}|${s.resolvedDate}|${s.start_time}|${s.end_time}`));
+    const shifts = concreteShifts.filter(s => !s.moved_in || !ownKeys.has(`${s.client_id}|${s.resolvedDate}|${s.start_time}|${s.end_time}`));
+    shifts.sort((a, b) => a.resolvedDate.localeCompare(b.resolvedDate) || (a.start_time || '').localeCompare(b.start_time || ''));
+
+    const byDate = {};
+    shifts.forEach(s => { (byDate[s.resolvedDate] ||= []).push(s); });
+    const todayShifts = byDate[todayStr] || [];
+    const upcomingKeys = Object.keys(byDate).sort().filter(d => d > todayStr);
+    const formatDateLabel = (dateStr) => new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+    // Week at a glance: 7 days from today with the hours each day.
+    const hoursOf = (s) => {
+      const [sh, sm] = (s.start_time || '00:00').split(':').map(Number);
+      const [eh, em] = (s.end_time || '00:00').split(':').map(Number);
+      let mins = (eh * 60 + em) - (sh * 60 + sm);
+      if (mins < 0) mins += 24 * 60;
+      return mins / 60;
+    };
+    const weekDays = [];
+    for (let d = 0; d < 7; d++) {
+      const dt = new Date(today); dt.setDate(today.getDate() + d);
+      const key = toYMD(dt);
+      const dayShifts = byDate[key] || [];
+      weekDays.push({ key, dt, shifts: dayShifts, totalHrs: dayShifts.reduce((sum, s) => sum + hoursOf(s), 0), isToday: d === 0 });
+    }
+    const weekTotalHrs = weekDays.reduce((s, d) => s + d.totalHrs, 0);
+
+    const row = (s, i) => (
+      <div key={s.id + '-' + i} style={{ padding: '0.5rem 0', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 140 }}>
+          <div style={{ fontWeight: '500' }}>{getClientName(s.client_id)}{s.moved_in ? ' (covering)' : ''}</div>
+          <div style={{ fontSize: '0.9rem', color: '#4B5563' }}>{formatTime(s.start_time)} - {formatTime(s.end_time)}</div>
+        </div>
+        {shiftActions(s)}
+      </div>
+    );
 
     return (
       <>
         <div className="schedule-header"><h3>📅 My Schedule</h3></div>
-        {schedules.length === 0 ? <div className="card text-center"><p className="text-muted">No schedules</p></div> : (
-          <div>
-            {Object.keys(grouped).sort().map(day => (
-              <div key={day} className="card" style={{ marginBottom: '0.75rem' }}>
-                <div style={{ fontWeight: '600', color: '#2563eb' }}>{getDayName(parseInt(day))}s</div>
-                {grouped[day].map(s => (
-                  <div key={s.id} style={{ padding: '0.5rem 0', borderTop: '1px solid #eee' }}>
-                    <div style={{ fontWeight: '500' }}>{getClientName(s.client_id)}</div>
-                    <div style={{ fontSize: '0.9rem', color: '#666' }}>{formatTime(s.start_time)} - {formatTime(s.end_time)}</div>
-                  </div>
-                ))}
+
+        <div style={{ marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', fontSize: '0.85rem', color: '#374151' }}>
+            <strong>This Week</strong>
+            <span>{weekTotalHrs.toFixed(1)}h total</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+            {weekDays.map(d => (
+              <div key={d.key} style={{
+                padding: '6px 4px', textAlign: 'center', borderRadius: 6,
+                background: d.isToday ? '#DBEAFE' : (d.shifts.length > 0 ? '#F0FDF4' : '#F3F4F6'),
+                border: d.isToday ? '1px solid #93C5FD' : '1px solid transparent', fontSize: '0.7rem',
+              }}>
+                <div style={{ fontWeight: 700, color: d.isToday ? '#1E40AF' : '#374151' }}>{d.dt.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#111827', marginTop: 2 }}>{d.dt.getDate()}</div>
+                {d.shifts.length > 0 ? (
+                  <>
+                    <div style={{ fontWeight: 700, color: '#047857', marginTop: 4 }}>{d.totalHrs.toFixed(1)}h</div>
+                    <div style={{ color: '#4B5563' }}>{d.shifts.length} shift{d.shifts.length !== 1 ? 's' : ''}</div>
+                  </>
+                ) : (
+                  <div style={{ color: '#4B5563', marginTop: 4 }}>off</div>
+                )}
               </div>
             ))}
-            {oneTime.length > 0 && (
-              <div className="card">
-                <div style={{ fontWeight: '600', color: '#059669' }}>Upcoming</div>
-                {oneTime.sort((a,b) => new Date(a.date) - new Date(b.date)).map(s => (
-                  <div key={s.id} style={{ padding: '0.5rem 0', borderTop: '1px solid #eee' }}>
-                    <div style={{ fontWeight: '500' }}>{formatDate(s.date)}</div>
-                    <div>{getClientName(s.client_id)}</div>
-                    <div style={{ fontSize: '0.9rem', color: '#666' }}>{formatTime(s.start_time)} - {formatTime(s.end_time)}</div>
-                  </div>
-                ))}
+          </div>
+        </div>
+
+        {shifts.length === 0 ? (
+          <div className="card text-center"><p className="text-muted">No upcoming shifts</p></div>
+        ) : (
+          <div>
+            {todayShifts.length > 0 && (
+              <div className="card" style={{ marginBottom: '0.75rem', borderLeft: '4px solid #2563eb' }}>
+                <div style={{ fontWeight: '600', color: '#1D4ED8', marginBottom: '0.5rem' }}>Today — {formatDateLabel(todayStr)}</div>
+                {todayShifts.map(row)}
               </div>
             )}
+            {upcomingKeys.map(dateStr => (
+              <div key={dateStr} className="card" style={{ marginBottom: '0.75rem' }}>
+                <div style={{ fontWeight: '600', color: '#047857' }}>{formatDateLabel(dateStr)}</div>
+                {byDate[dateStr].map(row)}
+              </div>
+            ))}
           </div>
         )}
       </>
@@ -1072,18 +1644,155 @@ const CaregiverDashboard = ({ onLogout }) => {
       {showNoteModal && (
         <div className="modal active">
           <div className="modal-content">
-            <div className="modal-header"><h2>Visit Notes</h2><button className="close-btn" onClick={() => setShowNoteModal(false)}>×</button></div>
-            <p className="text-muted">Add notes (optional)</p>
-            <div className="form-group"><textarea value={visitNote} onChange={(e) => setVisitNote(e.target.value)} placeholder="How did the visit go?" rows={4} /></div>
+            <div className="modal-header"><h2>Visit Notes</h2><button className="close-btn" onClick={() => { setShowNoteModal(false); setNoteError(''); }}>×</button></div>
+            <p className={noteError ? 'text-danger' : 'text-muted'} style={noteError ? { color: '#B91C1C', fontWeight: 600 } : undefined}>
+              {noteError || 'Add notes (optional)'}
+            </p>
+            <div className="form-group">
+              <textarea
+                value={visitNote}
+                onChange={(e) => { setVisitNote(e.target.value); if (noteError) setNoteError(''); }}
+                placeholder="How did the visit go?"
+                rows={4}
+                style={noteError ? { borderColor: '#B91C1C' } : undefined}
+              />
+            </div>
+
+            {/* Visit photos — proof of care; uploaded once the clock-out goes through */}
+            <div className="form-group">
+              <label style={{ display: 'block', fontWeight: 700, marginBottom: 6 }}>
+                📷 Photos ({pendingPhotos.length}) <span style={{ fontWeight: 400, fontSize: '0.8rem', color: '#4B5563' }}>optional</span>
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                onChange={(e) => { Array.from(e.target.files || []).forEach(f => handlePhotoFile(f, 'task')); e.target.value = ''; }}
+                style={{ display: 'block', marginBottom: 8 }}
+              />
+              {pendingPhotos.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 6, marginBottom: 6 }}>
+                  {pendingPhotos.map((p, i) => (
+                    <div key={i} style={{ position: 'relative', border: '1px solid #E5E7EB', borderRadius: 6, overflow: 'hidden', background: '#000' }}>
+                      <img src={p.dataUri} alt={p.caption || `Photo ${i + 1}`} style={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }} />
+                      <button type="button" onClick={() => setPendingPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                        style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(185,28,28,0.95)', color: '#fff', border: 'none', borderRadius: 4, width: 22, height: 22, cursor: 'pointer', fontSize: 14, lineHeight: '20px' }}
+                        title="Remove">×</button>
+                      <input type="text" value={p.caption} onChange={(e) => setPendingPhotos(prev => prev.map((x, idx) => idx === i ? { ...x, caption: e.target.value } : x))}
+                        placeholder="Caption…"
+                        style={{ width: '100%', border: 'none', borderTop: '1px solid #E5E7EB', padding: '3px 5px', fontSize: '0.7rem', background: '#fff', color: '#111827' }} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {photoUploading && <div style={{ fontSize: '0.8rem', color: '#0E7490' }}>Uploading photos…</div>}
+            </div>
+
             <div className="form-actions">
-              <button className="btn btn-secondary" onClick={() => setShowNoteModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={completeClockOut}>Clock Out</button>
+              <button className="btn btn-secondary" disabled={clockingOut} onClick={() => { setShowNoteModal(false); setNoteError(''); }}>Cancel</button>
+              <button className="btn btn-primary" disabled={clockingOut} onClick={completeClockOut}
+                style={clockingOut ? { opacity: 0.7, cursor: 'wait' } : undefined}>
+                {clockingOut ? '⏳ Clocking out…' : 'Clock Out'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
       <CaregiverClientModal clientId={viewingClientId} isOpen={!!viewingClientId} onClose={() => setViewingClientId(null)} />
+
+      {swapModal && (
+        <div className="modal active" onClick={() => setSwapModal(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header"><h2>🔄 Request Shift Swap</h2><button className="close-btn" onClick={() => setSwapModal(null)}>×</button></div>
+            <p className="text-muted">
+              {getClientName(swapModal.client_id)} on {swapModal.resolvedDate || (swapModal.date && swapModal.date.split('T')[0])} ({formatTime(swapModal.start_time)}–{formatTime(swapModal.end_time)})
+            </p>
+            <div className="form-group">
+              <label>Ask coworker</label>
+              <select value={swapForm.targetCaregiverId} onChange={(e) => setSwapForm({ ...swapForm, targetCaregiverId: e.target.value })}>
+                <option value="">Pick a coworker…</option>
+                {otherCaregivers.map(cg => <option key={cg.id} value={cg.id}>{cg.first_name} {cg.last_name}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Reason (optional, but helps)</label>
+              <textarea value={swapForm.reason} onChange={(e) => setSwapForm({ ...swapForm, reason: e.target.value })} placeholder="Doctor appointment, family emergency, etc." rows={3} />
+            </div>
+            <div className="form-actions">
+              <button className="btn btn-secondary" onClick={() => setSwapModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={submitSwapRequest}>Send Request</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {unavailModal && (
+        <div className="modal active" onClick={() => !unavailSubmitting && setUnavailModal(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header"><h2>🚫 Client Not Available</h2><button className="close-btn" onClick={() => setUnavailModal(null)}>×</button></div>
+            <p className="text-muted">
+              {getClientName(unavailModal.client_id)} on {unavailModal.resolvedDate || (unavailModal.date && unavailModal.date.split('T')[0])} ({formatTime(unavailModal.start_time)}–{formatTime(unavailModal.end_time)})
+            </p>
+            <p style={{ fontSize: '0.85rem', color: '#374151', margin: '0 0 0.75rem' }}>
+              Use this when the <strong>client</strong> is the reason the visit didn't happen. The office is notified and the visit is not billed or paid.
+              If <strong>you</strong> can't make a shift, use <em>Report Miss</em> instead so it can be covered.
+            </p>
+            <div className="form-group">
+              <label>What happened? *</label>
+              <select value={unavailForm.reason} onChange={(e) => setUnavailForm({ ...unavailForm, reason: e.target.value })}>
+                <option value="">Pick a reason…</option>
+                {CLIENT_UNAVAILABLE_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Note {unavailForm.reason === 'other' ? '*' : '(optional)'}</label>
+              <textarea value={unavailForm.note} onChange={(e) => setUnavailForm({ ...unavailForm, note: e.target.value })} placeholder="Who you spoke to, what they said, anything the office should know" rows={3} maxLength={500} />
+            </div>
+            <div className="form-actions">
+              <button className="btn btn-secondary" onClick={() => setUnavailModal(null)} disabled={unavailSubmitting}>Cancel</button>
+              <button className="btn btn-primary" onClick={submitClientUnavailable} disabled={unavailSubmitting || !unavailForm.reason}>{unavailSubmitting ? 'Saving…' : 'Save'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {moveModal && (
+        <div className="modal active" onClick={() => setMoveModal(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header"><h2>🕐 Ask to Move This Shift</h2><button className="close-btn" onClick={() => setMoveModal(null)}>×</button></div>
+            <p className="text-muted">
+              {getClientName(moveModal.client_id)} — currently {moveModal.occurrenceDate} ({formatTime(moveModal.start_time)}–{formatTime(moveModal.end_time)})
+            </p>
+            <div className="form-group">
+              <label>New day</label>
+              <input type="date" value={moveForm.date} onChange={(e) => setMoveForm({ ...moveForm, date: e.target.value })} />
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>Start</label>
+                <input type="time" value={moveForm.startTime} onChange={(e) => setMoveForm({ ...moveForm, startTime: e.target.value })} />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label>End</label>
+                <input type="time" value={moveForm.endTime} onChange={(e) => setMoveForm({ ...moveForm, endTime: e.target.value })} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Reason (helps the office decide)</label>
+              <textarea value={moveForm.reason} onChange={(e) => setMoveForm({ ...moveForm, reason: e.target.value })} placeholder="Client asked for a later start, appointment conflict, etc." rows={3} />
+            </div>
+            <div style={{ fontSize: '0.82rem', color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '0.6rem 0.75rem' }}>
+              Work the shift at its current time until the office approves the move. Your pay and the client's billing follow the schedule, not the request.
+            </div>
+            <div className="form-actions">
+              <button className="btn btn-secondary" onClick={() => setMoveModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={submitMoveRequest}>Send Request</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Messages Modal */}
       {showMessages && <CaregiverMessages onClose={() => { setShowMessages(false); setUnreadMessages(0); }} />}

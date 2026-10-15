@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { getTodayCT } from '../../utils/timezone';
+import { isBiweeklyOn } from '../../utils/biweekly';
 
 const ScheduleCalendar = () => {
   const { token } = useAuth();
@@ -44,11 +46,11 @@ const ScheduleCalendar = () => {
       }
       if (clientsRes.ok) {
         const clientsData = await clientsRes.json();
-        setClients(Array.isArray(clientsData) ? clientsData : (clientsData.clients || []));
+        setClients(Array.isArray(clientsData) ? clientsData : (clientsData?.clients || []));
       }
       if (caregiversRes.ok) {
         const caregiversData = await caregiversRes.json();
-        setCaregivers(Array.isArray(caregiversData) ? caregiversData : (caregiversData.caregivers || []));
+        setCaregivers(Array.isArray(caregiversData) ? caregiversData : (caregiversData?.caregivers || []));
       }
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -99,36 +101,57 @@ const ScheduleCalendar = () => {
     return colors[index % colors.length];
   };
 
-  // Get schedules for a specific day - FIXED logic
+  // Get schedules for a specific day — exception-aware
   const getSchedulesForDay = (day) => {
     const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
     const targetDayOfWeek = targetDate.getDay();
-    
-    // Format date for comparison (YYYY-MM-DD)
+
     const year = targetDate.getFullYear();
     const month = String(targetDate.getMonth() + 1).padStart(2, '0');
     const dayStr = String(day).padStart(2, '0');
     const dateStr = `${year}-${month}-${dayStr}`;
 
-    let filtered = schedules.filter(schedule => {
-      // Check one-time schedules (specific date)
+    const results = [];
+    schedules.forEach(schedule => {
+      // One-time schedules
       if (schedule.date) {
-        const scheduleDate = schedule.date.split('T')[0]; // Handle ISO format
-        return scheduleDate === dateStr;
+        if (schedule.date.split('T')[0] === dateStr) results.push(schedule);
+        return;
       }
-      // Check recurring schedules (day of week)
+      // Recurring schedules
       if (schedule.day_of_week !== null && schedule.day_of_week !== undefined) {
-        return schedule.day_of_week === targetDayOfWeek;
+        if (schedule.day_of_week !== targetDayOfWeek) return;
+        // Do NOT gate on effective_date: recurring patterns must stay visible in
+        // PAST weeks so prior schedules can be reviewed and past shifts added.
+        // Only end_date matters — hide a deleted (ended) pattern from its end date
+        // forward. end_date is a full ISO timestamp, so compare by date string.
+        if (schedule.end_date && dateStr > schedule.end_date.slice(0, 10)) return;
+        // Biweekly: shared whole-day parity rule (utils/biweekly.js)
+        if (schedule.frequency === 'biweekly' && schedule.anchor_date && !isBiweeklyOn(dateStr, schedule.anchor_date)) return;
+        // Check exceptions
+        const exceptions = schedule.exceptions || [];
+        const exc = exceptions.find(e => (e.exception_date || '').slice(0,10) === dateStr);
+        if (exc && exc.exception_type === 'cancelled') return;
+        if (exc && exc.exception_type === 'modified') {
+          results.push({
+            ...schedule,
+            caregiver_id: exc.override_caregiver_id || schedule.caregiver_id,
+            start_time: exc.override_start_time || schedule.start_time,
+            end_time: exc.override_end_time || schedule.end_time,
+            client_id: exc.override_client_id || schedule.client_id,
+            notes: exc.override_notes != null ? exc.override_notes : schedule.notes,
+          });
+          return;
+        }
+        results.push(schedule);
       }
-      return false;
     });
 
-    // Apply caregiver filter if set
+    let filtered = results;
     if (filterCaregiver) {
       filtered = filtered.filter(s => s.caregiver_id === filterCaregiver);
     }
 
-    // Sort by start time
     return filtered.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
   };
 
@@ -170,11 +193,12 @@ const ScheduleCalendar = () => {
   for (let i = 0; i < firstDay; i++) days.push(null);
   for (let day = 1; day <= daysInMonth; day++) days.push(day);
 
-  const today = new Date();
-  const isToday = (day) => 
-    day === today.getDate() && 
-    currentDate.getMonth() === today.getMonth() && 
-    currentDate.getFullYear() === today.getFullYear();
+  const todayStr = getTodayCT();
+  const [todayY, todayM, todayD] = todayStr.split('-').map(Number);
+  const isToday = (day) =>
+    day === todayD &&
+    currentDate.getMonth() === todayM - 1 &&
+    currentDate.getFullYear() === todayY;
 
   if (loading) {
     return (

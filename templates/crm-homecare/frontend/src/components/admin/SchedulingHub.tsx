@@ -1,13 +1,17 @@
 // src/components/admin/SchedulingHub.jsx
 // Unified scheduling hub — 3 main tabs, slide-in create panel, fluid workflows
 import React, { useState, useEffect } from 'react';
-import { formatDate } from '../../utils/date';
+import { toast } from '../Toast';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { getTodayCT } from '../../utils/timezone';
+import { formatDate } from '../../utils/datetime';
+import { isBiweeklyOn } from '../../utils/biweekly';
 import AutoFillButton from './AutoFillButton';
 import DragDropScheduler from './DragDropScheduler';
 import ScheduleOptimizer from './ScheduleOptimizer';
 import RosterOptimizer from './RosterOptimizer';
+import MakeShiftAvailableModal from './MakeShiftAvailableModal';
 import { confirm } from '../ConfirmModal';
 
 function getWeekStart(date) {
@@ -50,22 +54,31 @@ const SchedulingHub = () => {
   const [formData, setFormData] = useState({
     caregiverId: '', clientId: '', scheduleType: 'one-time',
     dayOfWeek: '', date: new Date().toISOString().split('T')[0],
-    startTime: '09:00', endTime: '13:00', notes: ''
+    startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false
   });
   const [selectedDays, setSelectedDays]             = useState([]);
   const [conflicts, setConflicts]                   = useState([]);
-  const [biWeeklyAnchorDate, setBiWeeklyAnchorDate] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().split('T')[0];
-  });
+  const [authBalance, setAuthBalance]               = useState(null);
+  const [otWarning, setOtWarning]                   = useState(null);
+  const [travelWarning, setTravelWarning]           = useState(null);
+  const [cgPatterns, setCgPatterns]                  = useState(null);
+  // Bi-weekly "first on date". '' = same as the Start Date. The server aligns whatever is
+  // sent to each selected weekday (utils/biweekly.js), so this no longer needs to be a
+  // Sunday — the old this-week's-Sunday default is what put a Sat+Sun pair on two
+  // different fortnights.
+  const [biWeeklyAnchorDate, setBiWeeklyAnchorDate] = useState('');
 
   // ── Edit Schedule Modal ──
   const [editModal, setEditModal]   = useState(null);
+  const [makeAvailableModal, setMakeAvailableModal] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [suspendBusy, setSuspendBusy] = useState(false);
 
   // ── Week View state ──
   const [weekOf, setWeekOf]               = useState(getWeekStart(new Date()).toISOString().split('T')[0]);
   const [weekData, setWeekData]           = useState(null);
   const [reassignModal, setReassignModal] = useState(null);
+  const [reassignReason, setReassignReason] = useState('admin_decision');
 
   // ── Calendar state ──
   const [calCurrentDate, setCalCurrentDate]         = useState(new Date());
@@ -88,19 +101,42 @@ const SchedulingHub = () => {
   const [coverageLoading, setCoverageLoading] = useState(false);
   const [coverageWeekOf, setCoverageWeekOf]   = useState(getWeekStart(new Date()).toISOString().split('T')[0]);
 
+  // ── Caregiver suggestion state (for the create-shift form) ──
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+
+  // ── Conflict heatmap state ──
+  const [heatmap, setHeatmap] = useState(null);
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [heatmapWeekOf, setHeatmapWeekOf] = useState(getWeekStart(new Date()).toISOString().split('T')[0]);
+  const loadHeatmap = async () => {
+    setHeatmapLoading(true);
+    try { setHeatmap(await api(`/api/scheduling/conflict-heatmap?weekOf=${heatmapWeekOf}`)); }
+    catch (e) { console.error(e); }
+    finally { setHeatmapLoading(false); }
+  };
+  useEffect(() => {
+    if (mainTab === 'tools' && toolsTab === 'heatmap') loadHeatmap();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainTab, toolsTab, heatmapWeekOf]);
+
   // ── Open Shifts state ──
   const [openShifts, setOpenShifts]                 = useState([]);
   const [openShiftsLoading, setOpenShiftsLoading]   = useState(false);
-  const [openShiftFilter, setOpenShiftFilter]       = useState('open');
+  const [openShiftFilter, setOpenShiftFilter]       = useState('active'); // open + accepted-awaiting-approval
   const [showCreateShift, setShowCreateShift]       = useState(false);
   const [createShiftPreFill, setCreateShiftPreFill] = useState({});
-  const [shiftClaims, setShiftClaims]               = useState([]);
-  const [currentShift, setCurrentShift]             = useState(null);
 
   // ── Shift Swaps state ──
   const [swaps, setSwaps]             = useState([]);
   const [swapsLoading, setSwapsLoading] = useState(false);
   const [swapFilter, setSwapFilter]   = useState('');
+
+  // ── Reschedule requests state (caregiver- and client-originated) ──
+  const [reschedReqs, setReschedReqs]         = useState([]);
+  const [reschedLoading, setReschedLoading]   = useState(false);
+  const [reschedBusy, setReschedBusy]         = useState(null);
 
   // ── Absences state ──
   const [absences, setAbsences]               = useState([]);
@@ -108,13 +144,6 @@ const SchedulingHub = () => {
   const [showAbsenceForm, setShowAbsenceForm] = useState(false);
   const [absenceForm, setAbsenceForm]         = useState({ caregiverId: '', date: '', type: 'call_out', reason: '' });
   const [pendingAbsenceShift, setPendingAbsenceShift] = useState(null);
-
-  // ── Schedule Exceptions state ──
-  const [exceptions, setExceptions]                       = useState<any[]>([]);
-  const [exceptionModal, setExceptionModal]               = useState<any>(null);
-  const [exceptionSaving, setExceptionSaving]             = useState(false);
-  const [exceptionForm, setExceptionForm]                 = useState({ startTime: '', endTime: '', caregiverId: '', notes: '' });
-  const [occurrenceActionMenu, setOccurrenceActionMenu]   = useState<any>(null);
 
   // ── Availability state ──
   const [availCaregiver, setAvailCaregiver]     = useState('');
@@ -155,13 +184,61 @@ const SchedulingHub = () => {
   useEffect(() => { if (mainTab === 'tools' && toolsTab === 'coverage') loadCoverage(); }, [mainTab, toolsTab, coverageWeekOf]);
   useEffect(() => { if (mainTab === 'staffing' && staffingTab === 'open-shifts') loadOpenShifts(); }, [mainTab, staffingTab, openShiftFilter]);
   useEffect(() => { if (mainTab === 'staffing' && staffingTab === 'swaps') { loadSwaps(); loadAbsences(); } }, [mainTab, staffingTab, swapFilter]);
+  // Pending reschedules also load with the Staffing tab itself, so the badge is
+  // right before anyone opens the sub-tab — a request nobody sees is a caregiver
+  // assuming silence meant yes.
+  useEffect(() => { if (mainTab === 'staffing') loadReschedules(); }, [mainTab, staffingTab]);
 
+  // Scheduling warnings: auth balance, OT, travel time
+  useEffect(() => {
+    if (!formData.clientId || !showForm) { setAuthBalance(null); return; }
+    const rawHours = (new Date(`2000-01-01T${formData.endTime}`) - new Date(`2000-01-01T${formData.startTime}`)) / (1000*60*60);
+    const hours = rawHours <= 0 ? rawHours + 24 : rawHours;
+    if (hours <= 0) return;
+    fetch(`${API_BASE_URL}/api/authorizations/check/${formData.clientId}?hours=${hours}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(r => r.ok ? r.json() : null).then(d => setAuthBalance(d)).catch(() => setAuthBalance(null));
+  }, [formData.clientId, formData.startTime, formData.endTime, showForm]);
+
+  useEffect(() => {
+    if (!formData.caregiverId || !formData.date || !formData.startTime || !formData.endTime || !showForm) { setOtWarning(null); setTravelWarning(null); return; }
+    // OT check
+    fetch(`${API_BASE_URL}/api/scheduling/check-weekly-hours`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ caregiverId: formData.caregiverId, date: formData.date, startTime: formData.startTime, endTime: formData.endTime })
+    }).then(r => r.ok ? r.json() : null).then(d => setOtWarning(d)).catch(() => setOtWarning(null));
+    // Travel time check
+    if (formData.clientId) {
+      fetch(`${API_BASE_URL}/api/scheduling/check-travel-time`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ caregiverId: formData.caregiverId, clientId: formData.clientId, date: formData.date, startTime: formData.startTime, endTime: formData.endTime })
+      }).then(r => r.ok ? r.json() : null).then(d => setTravelWarning(d)).catch(() => setTravelWarning(null));
+    }
+  }, [formData.caregiverId, formData.clientId, formData.date, formData.startTime, formData.endTime, showForm]);
+
+  // Surface the server's own explanation. This used to throw a bare
+  // "Request failed (400)" and drop the response body, so a rejected schedule
+  // looked to the user like nothing had happened at all — the authorization gate
+  // blocked scheduling for 8 clients for months behind this one line.
   const api = async (url, opts = {}) => {
     const res = await fetch(`${API_BASE_URL}${url}`, {
       ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...opts.headers }
     });
-    if (!res.ok) throw new Error(`Request failed (${res.status})`);
-    return res.json();
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const err = new Error(body.error || body.message || `Request failed (${res.status})`);
+      err.status = res.status;
+      err.body = body;
+      throw err;
+    }
+    return res.json().catch(() => ({}));
+  };
+
+  // Schedule endpoints return authWarnings (authorization balance, etc). They are
+  // advisory — the shift IS created — but they must not be swallowed.
+  const showAuthWarnings = (body) => {
+    const w = body?.authWarnings;
+    if (Array.isArray(w) && w.length) showMsg(`⚠️ ${w[0]}`, 'error');
   };
 
   const loadCoreData = async () => {
@@ -170,8 +247,8 @@ const SchedulingHub = () => {
         api('/api/caregivers'), api('/api/clients'),
         api('/api/care-types').catch(() => []), api('/api/prospects').catch(() => [])
       ]);
-      setCaregivers(Array.isArray(cg) ? cg : (cg.caregivers || []));
-      setClients(Array.isArray(cl) ? cl : (cl.clients || []));
+      setCaregivers(Array.isArray(cg) ? cg : (cg?.caregivers || []));
+      setClients(Array.isArray(cl) ? cl : (cl?.clients || []));
       setCareTypes(Array.isArray(ct) ? ct : []);
       setProspects(Array.isArray(pr) ? pr : []);
     } catch (e) { console.error('Failed to load data:', e); }
@@ -179,20 +256,7 @@ const SchedulingHub = () => {
   };
 
   const loadWeekView = async () => {
-    try {
-      const data = await api(`/api/scheduling/week-view?weekOf=${weekOf}`);
-      setWeekData(data);
-      // Collect all schedule IDs from week data and fetch exceptions
-      const ids: string[] = [];
-      if (data?.caregivers) {
-        data.caregivers.forEach((cg: any) => {
-          Object.values(cg.days || {}).forEach((dayArr: any) => {
-            if (Array.isArray(dayArr)) dayArr.forEach((s: any) => { if (s.id && !ids.includes(s.id)) ids.push(s.id); });
-          });
-        });
-      }
-      if (ids.length > 0) loadExceptionsForSchedules(ids);
-    }
+    try { const data = await api(`/api/scheduling/week-view?weekOf=${weekOf}`); setWeekData(data); }
     catch (e) { console.error(e); }
   };
 
@@ -203,6 +267,33 @@ const SchedulingHub = () => {
     finally { setCoverageLoading(false); }
   };
 
+  const loadSuggestions = async () => {
+    if (!formData.clientId) { showMsg('Pick a client first', 'error'); return; }
+    setSuggestLoading(true);
+    try {
+      const qs = new URLSearchParams({
+        clientId: formData.clientId,
+        ...(formData.date ? { date: formData.date } : {}),
+        ...(formData.startTime ? { startTime: formData.startTime } : {}),
+        ...(formData.endTime ? { endTime: formData.endTime } : {}),
+      });
+      const data = await api(`/api/scheduling/suggest-caregivers?${qs}`);
+      setSuggestions(data?.suggestions || []);
+      setShowSuggestions(true);
+    } catch (e) { showMsg('Suggest failed: ' + e.message, 'error'); }
+    finally { setSuggestLoading(false); }
+  };
+
+  const tierStyle = (tier) => {
+    const colors = {
+      excellent: { bg: '#D1FAE5', fg: '#065F46', label: '★ Excellent' },
+      good:      { bg: '#DBEAFE', fg: '#1E40AF', label: '✓ Good' },
+      maybe:     { bg: '#FEF3C7', fg: '#92400E', label: '? Maybe' },
+      avoid:     { bg: '#FEE2E2', fg: '#991B1B', label: '⚠ Avoid' },
+    };
+    return colors[tier] || colors.maybe;
+  };
+
   const loadCalendarData = async () => {
     try {
       const [schedData, prospData, apptData] = await Promise.all([
@@ -210,13 +301,9 @@ const SchedulingHub = () => {
         api('/api/prospects').catch(() => []),
         api(`/api/prospect-appointments?month=${calCurrentDate.getMonth() + 1}&year=${calCurrentDate.getFullYear()}`).catch(() => [])
       ]);
-      const schedArr = Array.isArray(schedData) ? schedData : [];
-      setCalSchedules(schedArr);
+      setCalSchedules(Array.isArray(schedData) ? schedData : []);
       setProspects(Array.isArray(prospData) ? prospData : []);
       setProspectAppts(Array.isArray(apptData) ? apptData : []);
-      // Fetch exceptions for all loaded schedules
-      const ids = schedArr.map((s: any) => s.id).filter(Boolean);
-      if (ids.length > 0) loadExceptionsForSchedules(ids);
     } catch (e) { console.error(e); }
   };
 
@@ -237,97 +324,36 @@ const SchedulingHub = () => {
     finally { setSwapsLoading(false); }
   };
 
+  // Reschedule requests — a caregiver asking to move one of their shifts, or a
+  // client asking through the portal. Approving here is what actually moves the
+  // shift on the schedule (see applyRescheduleToSchedule in clientPortalRoutes).
+  const loadReschedules = async () => {
+    setReschedLoading(true);
+    try { const data = await api('/api/visit-change-requests?status=pending'); setReschedReqs(Array.isArray(data) ? data : []); }
+    catch (e) { console.error(e); }
+    finally { setReschedLoading(false); }
+  };
+
+  const resolveReschedule = async (id, action, adminNotes) => {
+    setReschedBusy(id);
+    try {
+      await api(`/api/visit-change-requests/${id}/resolve`, {
+        method: 'PUT', body: JSON.stringify({ action, adminNotes: adminNotes || null }),
+      });
+      showMsg(action === 'approve' ? 'Shift moved' : 'Request denied');
+      loadReschedules();
+      // The grid/week view is now stale — an approved move rewrote the schedule.
+      if (scheduleView === 'week') loadWeekView();
+      if (scheduleView === 'month') loadCalendarData();
+    } catch (e) { showMsg(e.message, 'error'); }
+    finally { setReschedBusy(null); }
+  };
+
   const loadAbsences = async () => {
     setAbsencesLoading(true);
     try { const data = await api('/api/absences'); setAbsences(Array.isArray(data) ? data : []); }
     catch (e) { console.error(e); }
     finally { setAbsencesLoading(false); }
-  };
-
-  // ═══════════════════════════════════════════════
-  // SCHEDULE EXCEPTIONS
-  // ═══════════════════════════════════════════════
-
-  const loadExceptionsForSchedules = async (scheduleIds: string[]) => {
-    if (!scheduleIds.length) return;
-    try {
-      const data = await api('/api/schedule-exceptions/by-schedules', {
-        method: 'POST', body: JSON.stringify({ scheduleIds })
-      });
-      setExceptions(Array.isArray(data) ? data : []);
-    } catch (e) { console.error('Failed to load exceptions:', e); }
-  };
-
-  const getExceptionForOccurrence = (scheduleId: string, dateStr: string) => {
-    return exceptions.find(exc =>
-      exc.schedule_id === scheduleId &&
-      (exc.exception_date || '').slice(0, 10) === dateStr
-    ) || null;
-  };
-
-  const handleCancelOccurrence = async (scheduleId: string, exceptionDate: string) => {
-    const _cok = await confirm('Cancel this single occurrence? The recurring pattern will continue.', { danger: true });
-    if (!_cok) return;
-    try {
-      await api('/api/schedule-exceptions', {
-        method: 'POST',
-        body: JSON.stringify({ scheduleId, exceptionDate, exceptionType: 'cancelled' })
-      });
-      showMsg('Occurrence cancelled');
-      setOccurrenceActionMenu(null);
-      // Refresh
-      if (scheduleView === 'week') loadWeekView();
-      if (scheduleView === 'month') loadCalendarData();
-    } catch (e) { showMsg('Error: ' + (e as any).message, 'error'); }
-  };
-
-  const openModifyOccurrenceModal = (schedule: any, dateStr: string) => {
-    const exc = getExceptionForOccurrence(schedule.id, dateStr);
-    setExceptionForm({
-      startTime: exc?.override_start_time || schedule.start_time || '09:00',
-      endTime: exc?.override_end_time || schedule.end_time || '13:00',
-      caregiverId: exc?.override_caregiver_id || schedule.caregiver_id || '',
-      notes: exc?.override_notes ?? schedule.notes ?? ''
-    });
-    setExceptionModal({ schedule, exceptionDate: dateStr, existingException: exc });
-    setOccurrenceActionMenu(null);
-  };
-
-  const handleSaveModifyException = async () => {
-    if (!exceptionModal) return;
-    if (exceptionForm.startTime >= exceptionForm.endTime) { showMsg('End time must be after start time', 'error'); return; }
-    setExceptionSaving(true);
-    try {
-      await api('/api/schedule-exceptions', {
-        method: 'POST',
-        body: JSON.stringify({
-          scheduleId: exceptionModal.schedule.id,
-          exceptionDate: exceptionModal.exceptionDate,
-          exceptionType: 'modified',
-          overrideStartTime: exceptionForm.startTime,
-          overrideEndTime: exceptionForm.endTime,
-          overrideCaregiverId: exceptionForm.caregiverId || null,
-          overrideNotes: exceptionForm.notes
-        })
-      });
-      showMsg('Occurrence modified');
-      setExceptionModal(null);
-      if (scheduleView === 'week') loadWeekView();
-      if (scheduleView === 'month') loadCalendarData();
-    } catch (e) { showMsg('Error: ' + (e as any).message, 'error'); }
-    finally { setExceptionSaving(false); }
-  };
-
-  const handleRestoreException = async (exceptionId: string) => {
-    const _cok = await confirm('Restore this occurrence to its original schedule?', { danger: false });
-    if (!_cok) return;
-    try {
-      await api(`/api/schedule-exceptions/${exceptionId}`, { method: 'DELETE' });
-      showMsg('Occurrence restored');
-      setOccurrenceActionMenu(null);
-      if (scheduleView === 'week') loadWeekView();
-      if (scheduleView === 'month') loadCalendarData();
-    } catch (e) { showMsg('Error: ' + (e as any).message, 'error'); }
   };
 
   // ═══════════════════════════════════════════════
@@ -361,13 +387,16 @@ const SchedulingHub = () => {
   ];
   const calculateHours = (start, end) => {
     if (!start || !end) return 0;
-    return ((new Date(`2000-01-01T${end}`) - new Date(`2000-01-01T${start}`)) / 3600000).toFixed(2);
+    return Number(parseFloat((new Date(`2000-01-01T${end}`) - new Date(`2000-01-01T${start}`)) / 3600000 || 0)).toFixed(2);
   };
   const getDayName = (dow) => ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow] || 'Unknown';
-  const calculateTotalHours = (list) => list.reduce((t, s) => {
-    const hrs = parseFloat(calculateHours(s.start_time, s.end_time));
-    return t + (s.frequency === 'biweekly' ? hrs / 2 : hrs);
-  }, 0).toFixed(2);
+  const calculateTotalHours = (list) => {
+    const total = list.reduce((t, s) => {
+      const hrs = parseFloat(calculateHours(s.start_time, s.end_time));
+      return t + (s.frequency === 'biweekly' ? hrs / 2 : hrs);
+    }, 0);
+    return Number(parseFloat(total || 0)).toFixed(2);
+  };
   const groupSchedules = () => {
     const recurringByDay = {}, oneTimeByDate = {};
     caregiverSchedules.forEach(s => {
@@ -390,10 +419,8 @@ const SchedulingHub = () => {
     recurring.forEach((a, i) => {
       recurring.slice(i + 1).forEach(b => {
         if (a.day_of_week !== b.day_of_week) return;
-        if (a.frequency === 'biweekly' && b.frequency === 'biweekly' && a.anchor_date && b.anchor_date) {
-          const diffWeeks = Math.floor(Math.abs(new Date(a.anchor_date) - new Date(b.anchor_date)) / (7*24*60*60*1000));
-          if (diffWeeks % 2 !== 0) return;
-        }
+        // Two bi-weekly rows on the same weekday only collide when they share a fortnight.
+        if (a.frequency === 'biweekly' && b.frequency === 'biweekly' && a.anchor_date && b.anchor_date && !isBiweeklyOn(a.anchor_date, b.anchor_date)) return;
         if (a.start_time < b.end_time && a.end_time > b.start_time) found.push({ a, b, day: a.day_of_week });
       });
     });
@@ -413,7 +440,13 @@ const SchedulingHub = () => {
       clientId: clientId || '',
       date: date || new Date().toISOString().split('T')[0],
       dayOfWeek: dayOfWeek !== '' ? dayOfWeek.toString() : '',
-      scheduleType: dayOfWeek !== '' ? 'recurring' : 'one-time',
+      // Clicking a specific date cell means "add a shift on THAT date" — a
+      // one-time shift. Only default to recurring when a weekday was chosen
+      // without a concrete date. (Previously any cell click created a recurring
+      // shift, whose effective_date got clamped forward to today — so a past
+      // date silently jumped to the next upcoming weekday.) The weekday stays
+      // prefilled so switching to Recurring in the form still works.
+      scheduleType: (dayOfWeek !== '' && !date) ? 'recurring' : 'one-time',
       startTime: '09:00', endTime: '13:00', notes: ''
     }));
     setSelectedDays([]);
@@ -448,6 +481,12 @@ const SchedulingHub = () => {
     setSelectedCaregiverId(cgId);
     setFormData(prev => ({ ...prev, caregiverId: cgId }));
     loadCaregiverSchedules(cgId);
+    // Load reliability patterns
+    if (cgId) {
+      fetch(`${API_BASE_URL}/api/dashboard/caregiver-patterns/${cgId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).then(r => r.ok ? r.json() : null).then(d => setCgPatterns(d)).catch(() => setCgPatterns(null));
+    } else { setCgPatterns(null); }
   };
 
   const toggleDaySelection = (idx) => setSelectedDays(prev => prev.includes(idx) ? prev.filter(d => d !== idx) : [...prev, idx].sort((a, b) => a - b));
@@ -461,88 +500,184 @@ const SchedulingHub = () => {
     if (formData.scheduleType === 'recurring' && formData.dayOfWeek === '') { showMsg('Select a day of week', 'error'); return; }
     if (formData.scheduleType === 'one-time' && !formData.date) { showMsg('Select a date', 'error'); return; }
     if ((formData.scheduleType === 'multi-day' || formData.scheduleType === 'bi-weekly') && selectedDays.length === 0) { showMsg('Select at least one day', 'error'); return; }
-    if (formData.startTime >= formData.endTime) { showMsg('End time must be after start time', 'error'); return; }
+    if (formData.startTime === formData.endTime) { showMsg('Start and end time cannot be the same', 'error'); return; }
     const today = new Date().toISOString().split('T')[0];
-    const anchorBase = new Date(biWeeklyAnchorDate + 'T12:00:00');
-    anchorBase.setDate(anchorBase.getDate() - anchorBase.getDay());
-    const anchorStr = anchorBase.toISOString().split('T')[0];
+    // Sent as typed; the server aligns it per weekday so Sat+Sun starting 9/12 anchor to
+    // 9/12 and 9/13 — the same weekend. (Normalizing to Sunday here used to split them.)
+    const anchorStr = biWeeklyAnchorDate || formData.date || today;
     setSaving(true);
     try {
       if (formData.scheduleType === 'multi-day' || formData.scheduleType === 'bi-weekly') {
         const freq = formData.scheduleType === 'bi-weekly' ? 'biweekly' : 'weekly';
-        let created = 0, failed = 0;
+        let created = 0, dup = 0, failed = 0;
+        let firstFailure = null, lastWarnings = null;
         for (const dayOfWeek of selectedDays) {
           try {
-            await api('/api/schedules-enhanced', { method: 'POST', body: JSON.stringify({
+            const body = await api('/api/schedules-enhanced', { method: 'POST', body: JSON.stringify({
               caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'recurring',
               dayOfWeek, date: null, startTime: formData.startTime, endTime: formData.endTime, notes: formData.notes,
-              frequency: freq, effectiveDate: today, anchorDate: anchorStr
+              frequency: freq, effectiveDate: formData.date || today, anchorDate: anchorStr,
+              isTraining: formData.isTraining
             })});
+            if (body?.authWarnings?.length) lastWarnings = body.authWarnings;
             created++;
-          } catch { failed++; }
+          } catch (err) {
+            if (err.status === 409 || String(err.message).includes('(409)')) dup++;
+            else { failed++; if (!firstFailure) firstFailure = err.message; }
+          }
         }
-        showMsg(`Created ${created} ${freq === 'biweekly' ? 'bi-weekly' : 'recurring'} schedule${created !== 1 ? 's' : ''}${failed > 0 ? ` (${failed} failed)` : ''}!`);
+        // 409 = the DB duplicate guard rejected an identical active shift.
+        const label = freq === 'biweekly' ? 'bi-weekly' : 'recurring';
+        let m = `Created ${created} ${label} schedule${created !== 1 ? 's' : ''}`;
+        if (dup > 0) m += ` — ${dup} already scheduled`;
+        // Say WHY, not just how many. "(2 failed)" with no reason is why a
+        // server-side block went undiagnosed for months.
+        if (failed > 0) m += ` — ${failed} failed: ${firstFailure}`;
+        if (failed > 0) showMsg(m, 'error'); else showMsg(m);
+        if (lastWarnings) showAuthWarnings({ authWarnings: lastWarnings });
       } else if (formData.scheduleType === 'recurring') {
-        await api('/api/schedules-enhanced', { method: 'POST', body: JSON.stringify({
+        const body = await api('/api/schedules-enhanced', { method: 'POST', body: JSON.stringify({
           caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'recurring',
           dayOfWeek: parseInt(formData.dayOfWeek), date: null, startTime: formData.startTime, endTime: formData.endTime,
-          notes: formData.notes, frequency: 'weekly', effectiveDate: today, anchorDate: null
+          notes: formData.notes, frequency: 'weekly', effectiveDate: formData.date || today, anchorDate: null,
+          isTraining: formData.isTraining
         })});
         showMsg('Schedule created!');
+        showAuthWarnings(body);
       } else {
-        await api('/api/schedules', { method: 'POST', body: JSON.stringify({
+        const body = await api('/api/schedules', { method: 'POST', body: JSON.stringify({
           caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'one-time',
-          dayOfWeek: null, date: formData.date, startTime: formData.startTime, endTime: formData.endTime, notes: formData.notes
+          dayOfWeek: null, date: formData.date, startTime: formData.startTime, endTime: formData.endTime, notes: formData.notes,
+          isTraining: formData.isTraining
         })});
         showMsg('Schedule created!');
+        showAuthWarnings(body);
       }
-      setFormData(prev => ({ ...prev, clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '13:00', notes: '' }));
+      setFormData(prev => ({ ...prev, clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false }));
       setSelectedDays([]);
       loadCaregiverSchedules(selectedCaregiverId);
       if (scheduleView === 'week') loadWeekView();
       if (scheduleView === 'month') loadCalendarData();
-    } catch (e) { showMsg('Error: ' + e.message, 'error'); }
+    } catch (e) {
+      if (e.status === 409 || String(e.message).includes('(409)')) showMsg('That shift is already scheduled for this caregiver.', 'error');
+      else showMsg('Could not create schedule: ' + e.message, 'error');
+    }
     finally { setSaving(false); }
   };
 
-  const handleDeleteSchedule = async (scheduleId) => {
-    const _cok = await confirm('Delete this schedule?', {danger: true}); if (!_cok) return;
-    try { await api(`/api/schedules/${scheduleId}`, { method: 'DELETE' }); showMsg('Schedule deleted'); loadCaregiverSchedules(selectedCaregiverId); }
+  const handleDeleteSchedule = async (scheduleId, schedule) => {
+    const isRecurring = schedule && schedule.day_of_week !== null && schedule.day_of_week !== undefined;
+    if (isRecurring) {
+      // scope=all on a recurring pattern now ENDS it as of today and keeps every
+      // past (already-worked) occurrence. Full history erase lives in the
+      // DragDropScheduler's scope UI (scope=purge), behind its own confirm.
+      const _cok = await confirm('Stop this recurring schedule going forward? Past (already-worked) occurrences are kept.', {danger: true}); if (!_cok) return;
+    } else {
+      const _cok = await confirm('Delete this schedule?', {danger: true}); if (!_cok) return;
+    }
+    try { await api(`/api/schedules/${scheduleId}?scope=all`, { method: 'DELETE' }); showMsg('Schedule deleted'); loadCaregiverSchedules(selectedCaregiverId); }
     catch (e) { showMsg('Error: ' + e.message, 'error'); }
+  };
+
+  // The most recent date this weekday came round, today included. When the back office
+  // opens a repeating shift to fix it at payday, the day they mean is almost always the
+  // last time it actually ran — so that is what the date field starts on.
+  const lastOccurrenceOnOrBefore = (dow) => {
+    const t = new Date();
+    t.setHours(12, 0, 0, 0);
+    t.setDate(t.getDate() - ((t.getDay() - Number(dow) + 7) % 7));
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
   };
 
   const openEditModal = (schedule) => {
     const isRecurring = schedule.day_of_week !== null && schedule.day_of_week !== undefined;
     setEditModal({
       id: schedule.id, clientId: schedule.client_id,
+      caregiverId: schedule.caregiver_id || null,
       dayOfWeek: isRecurring ? schedule.day_of_week.toString() : '',
       date: schedule.date ? schedule.date.split('T')[0] : '',
       startTime: schedule.start_time || '09:00', endTime: schedule.end_time || '13:00',
       notes: schedule.notes || '', scheduleType: isRecurring ? 'recurring' : 'one-time',
       frequency: schedule.frequency || 'weekly',
-      anchorDate: schedule.anchor_date ? schedule.anchor_date.split('T')[0] : ''
+      anchorDate: schedule.anchor_date ? schedule.anchor_date.split('T')[0] : '',
+      // A repeating shift is ONE row that every week is re-derived from, so an edit has to
+      // say which weeks it means. This screen used to send nothing at all, which meant
+      // every edit silently rewrote every week already worked.
+      scope: isRecurring ? 'this' : undefined,
+      editDate: isRecurring ? lastOccurrenceOnOrBefore(schedule.day_of_week) : '',
+      suspendedFrom: schedule.suspended_from ? schedule.suspended_from.split('T')[0] : null,
     });
+  };
+
+  // Suspend / resume a client's service. `scope` = 'this' (just this weekday) or 'client'
+  // (all of the client's scheduled days). Nothing is deleted — the schedule is paused from
+  // a date and resumes exactly as it was.
+  const handleSuspend = async (scope) => {
+    if (!editModal) return;
+    const today = new Date(); today.setHours(12, 0, 0, 0);
+    const fromDate = editModal.suspendFromDate
+      || `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    setSuspendBusy(true);
+    try {
+      const r = await api(`/api/schedules/${editModal.id}/suspend`, { method: 'POST', body: JSON.stringify({ scope, fromDate }) });
+      const who = scope === 'client' ? `all of ${getClientName(editModal.clientId)}'s days` : `${getDayName(parseInt(editModal.dayOfWeek))}s`;
+      showMsg(`Service suspended for ${who} starting ${new Date(fromDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (${r.suspended} shift${r.suspended !== 1 ? 's' : ''})`);
+      setEditModal(null);
+      loadCaregiverSchedules(selectedCaregiverId); loadCalendarData(); loadWeekView();
+    } catch (e) { showMsg('Error: ' + e.message, 'error'); }
+    finally { setSuspendBusy(false); }
+  };
+
+  const handleResume = async (scope) => {
+    if (!editModal) return;
+    setSuspendBusy(true);
+    try {
+      const r = await api(`/api/schedules/${editModal.id}/resume`, { method: 'POST', body: JSON.stringify({ scope }) });
+      showMsg(`Service resumed (${r.resumed} shift${r.resumed !== 1 ? 's' : ''})`);
+      setEditModal(null);
+      loadCaregiverSchedules(selectedCaregiverId); loadCalendarData(); loadWeekView();
+    } catch (e) { showMsg('Error: ' + e.message, 'error'); }
+    finally { setSuspendBusy(false); }
   };
 
   const handleSaveEdit = async () => {
     if (!editModal) return;
-    if (editModal.startTime >= editModal.endTime) { showMsg('End time must be after start time', 'error'); return; }
+    if (editModal.startTime === editModal.endTime) { showMsg('Start and end time cannot be the same', 'error'); return; }
+    const isRecurring = editModal.scheduleType === 'recurring';
+    if (isRecurring && editModal.scope !== 'all' && !editModal.editDate) {
+      showMsg('Pick which date this change applies to', 'error'); return;
+    }
     setEditSaving(true);
     try {
       await api(`/api/schedules-all/${editModal.id}`, { method: 'PUT', body: JSON.stringify({
+        scope: isRecurring ? editModal.scope : undefined,
+        editDate: isRecurring && editModal.scope !== 'all' ? editModal.editDate : undefined,
         clientId: editModal.clientId,
-        dayOfWeek: editModal.scheduleType === 'recurring' ? parseInt(editModal.dayOfWeek) : null,
-        date: editModal.scheduleType === 'one-time' ? editModal.date : null,
+        dayOfWeek: isRecurring ? parseInt(editModal.dayOfWeek) : null,
+        date: !isRecurring ? editModal.date : null,
         startTime: editModal.startTime, endTime: editModal.endTime, notes: editModal.notes,
         frequency: editModal.frequency || 'weekly', anchorDate: editModal.anchorDate || null
       })});
-      showMsg('Schedule updated!'); setEditModal(null); loadCaregiverSchedules(selectedCaregiverId);
+      const pretty = editModal.editDate
+        ? new Date(editModal.editDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        : '';
+      if (!isRecurring) showMsg('Schedule updated');
+      else if (editModal.scope === 'this') showMsg(`Changed ${pretty} only`);
+      else if (editModal.scope === 'following') showMsg(`Changed from ${pretty} onward`);
+      else showMsg('Changed every occurrence, past weeks included');
+      setEditModal(null);
+      // Refresh EVERY view. This used to reload only the caregiver's list, so the Month and
+      // Week tabs kept showing the pre-edit time until you switched tabs — which looked
+      // exactly like the edit hadn't saved.
+      loadCaregiverSchedules(selectedCaregiverId);
+      loadCalendarData();
+      loadWeekView();
     } catch (e) { showMsg('Error: ' + e.message, 'error'); }
     finally { setEditSaving(false); }
   };
 
-  const handleReassign = async (scheduleId, newCaregiverId) => {
-    try { await api(`/api/schedules/${scheduleId}/reassign`, { method: 'PUT', body: JSON.stringify({ newCaregiverId }) }); showMsg('Reassigned!'); loadWeekView(); }
+  const handleReassign = async (scheduleId, newCaregiverId, reason) => {
+    try { await api(`/api/schedules/${scheduleId}/reassign`, { method: 'PUT', body: JSON.stringify({ newCaregiverId, reason: reason || reassignReason }) }); showMsg('Reassigned!'); loadWeekView(); setReassignReason('admin_decision'); }
     catch (e) { showMsg('Failed to reassign', 'error'); }
   };
 
@@ -557,39 +692,55 @@ const SchedulingHub = () => {
     const target  = new Date(calCurrentDate.getFullYear(), calCurrentDate.getMonth(), day);
     const dow     = target.getDay();
     const dateStr = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const results: any[] = [];
+    const results = [];
     calSchedules.forEach(s => {
       if (s.date) {
-        if (s.date.split('T')[0] === dateStr) results.push({ ...s, _occurrenceDate: dateStr });
+        if (s.date.split('T')[0] === dateStr) {
+          // Suspended (service paused / caregiver removed pending investigation): the server
+          // engine drops one-time rows on/after suspended_from too — match it.
+          if (s.suspended_from && dateStr >= s.suspended_from.slice(0, 10)) return;
+          // One-time rows can be cancelled via exception (client unavailable) — match the server engine.
+          const exc = (s.exceptions || []).find(e => (e.exception_date || '').slice(0, 10) === dateStr);
+          if (!(exc && exc.exception_type === 'cancelled')) results.push(s);
+        }
         return;
       }
       if (s.day_of_week !== null && s.day_of_week !== undefined) {
         if (s.day_of_week !== dow) return;
-        if (s.effective_date && target < new Date(s.effective_date + 'T00:00:00')) return;
-        if (s.frequency === 'biweekly' && s.anchor_date) {
-          const diffWeeks = Math.floor((target - new Date(s.anchor_date + 'T00:00:00')) / (7*24*60*60*1000));
-          if (diffWeeks % 2 !== 0) return;
-        }
+        // A pattern only exists from its effective_date onward. This month view used to
+        // skip that check deliberately, which meant a shift created today was painted onto
+        // every matching weekday going back through every past month — and it disagreed
+        // with the week grid, which does check. Worse, once an edit splits a pattern in two
+        // (old row ends, new row begins), an ungated view draws BOTH on every past date, so
+        // the same shift appears twice: once at the old time, once at the new one.
+        // Dates arrive as full ISO timestamps, so compare by date string.
+        const startsOn = (s.effective_date || s.anchor_date || s.created_at || '').slice(0, 10);
+        if (startsOn && dateStr < startsOn) return;
+        if (s.end_date && dateStr > s.end_date.slice(0, 10)) return;
+        // Suspended service: hide occurrences on/after the suspend date, matching the
+        // server engine (so the calendar agrees with payroll/billing). The pattern still
+        // shows in the schedule list with a Suspended badge so it can be resumed.
+        if (s.suspended_from && dateStr >= s.suspended_from.slice(0, 10)) return;
+        if (s.frequency === 'biweekly' && s.anchor_date && !isBiweeklyOn(dateStr, s.anchor_date)) return;
         // Check exceptions
-        const exc = getExceptionForOccurrence(s.id, dateStr);
-        if (exc && exc.exception_type === 'cancelled') {
-          results.push({ ...s, _occurrenceDate: dateStr, _exception: exc, _cancelled: true });
-          return;
-        }
+        const exceptions = s.exceptions || [];
+        const exc = exceptions.find(e => (e.exception_date || '').slice(0,10) === dateStr);
+        if (exc && exc.exception_type === 'cancelled') return;
         if (exc && exc.exception_type === 'modified') {
           results.push({
             ...s,
             start_time: exc.override_start_time || s.start_time,
             end_time: exc.override_end_time || s.end_time,
+            client_id: exc.override_client_id || s.client_id,
+            // A visit covered by someone else for one day must show THAT caregiver. Without
+            // this the month view kept the original name and colour, and filtering by the
+            // covering caregiver made the shift disappear entirely.
             caregiver_id: exc.override_caregiver_id || s.caregiver_id,
             notes: exc.override_notes != null ? exc.override_notes : s.notes,
-            _occurrenceDate: dateStr,
-            _exception: exc,
-            _modified: true
           });
           return;
         }
-        results.push({ ...s, _occurrenceDate: dateStr });
+        results.push(s);
       }
     });
     let filtered = results;
@@ -655,16 +806,30 @@ const SchedulingHub = () => {
     } catch (e) { showMsg('Failed: ' + e.message, 'error'); }
   };
 
-  const approveShiftClaim = async (shiftId, claimId) => {
+  // Open-shift actions. Approval used to call PUT /claims/:id/approve, a route that
+  // doesn't exist, behind a "claims" button that never showed — so an accepted shift
+  // could not be approved from here at all.
+  const approveOpenShift = async (shift) => {
     try {
-      await api(`/api/open-shifts/${shiftId}/claims/${claimId}/approve`, { method: 'PUT' });
-      showMsg('Claim approved!'); setCurrentShift(null); loadOpenShifts();
+      await api(`/api/open-shifts/${shift.id}/approve`, { method: 'POST' });
+      showMsg(`Approved — the shift is on ${shift.claimed_by_first || 'their'}'s schedule`); loadOpenShifts();
     } catch (e) { showMsg('Failed: ' + e.message, 'error'); }
   };
-
-  const loadShiftClaims = async (shift) => {
-    try { const data = await api(`/api/open-shifts/${shift.id}/claims`); setShiftClaims(Array.isArray(data) ? data : []); setCurrentShift(shift); }
-    catch (e) { console.error(e); }
+  const turnDownOpenShift = async (shift) => {
+    const ok = await confirm(`Turn down ${shift.claimed_by_first || 'this caregiver'}? The shift goes back to available for the others.`);
+    if (!ok) return;
+    try {
+      await api(`/api/open-shifts/${shift.id}/reject`, { method: 'POST', body: JSON.stringify({ reason: 'Turned down by office' }) });
+      showMsg('Turned down — the shift is available again'); loadOpenShifts();
+    } catch (e) { showMsg('Failed: ' + e.message, 'error'); }
+  };
+  const removeOpenShift = async (shift) => {
+    const ok = await confirm('Remove this from Available Shifts? Caregivers will no longer see it. The visit stays with the caregiver it was scheduled for.', { danger: true });
+    if (!ok) return;
+    try {
+      await api(`/api/open-shifts/${shift.id}/cancel`, { method: 'POST' });
+      showMsg('Removed from Available Shifts'); loadOpenShifts();
+    } catch (e) { showMsg('Failed: ' + e.message, 'error'); }
   };
 
   // ═══════════════════════════════════════════════
@@ -746,7 +911,10 @@ const SchedulingHub = () => {
   };
 
   const saveAvailability = async () => {
-    try { await api(`/api/caregivers/${availCaregiver}/availability`, { method: 'PUT', body: JSON.stringify(availForm) }); showMsg('Availability saved!'); }
+    // The field holds what was typed; it is checked here, not clamped as the user types.
+    const maxH = Number(availForm.maxHoursPerWeek);
+    if (String(availForm.maxHoursPerWeek).trim() === '' || !Number.isFinite(maxH) || maxH < 0 || maxH > 168) { showMsg('Max hours per week must be a number from 0 to 168', 'error'); return; }
+    try { await api(`/api/caregivers/${availCaregiver}/availability`, { method: 'PUT', body: JSON.stringify({ ...availForm, maxHoursPerWeek: maxH }) }); showMsg('Availability saved!'); }
     catch (e) { showMsg('Error: ' + e.message, 'error'); }
   };
 
@@ -810,18 +978,8 @@ const SchedulingHub = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: '0.35rem' }}>
           <button style={viewBtn(scheduleView === 'grid')}  onClick={() => setScheduleView('grid')}>📋 Grid</button>
-          <button style={viewBtn(scheduleView === 'week')}  onClick={() => setScheduleView('week')}>📅 Week</button>
           <button style={viewBtn(scheduleView === 'month')} onClick={() => setScheduleView('month')}>📆 Month</button>
         </div>
-        {scheduleView === 'week' && (
-          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginLeft: 'auto' }}>
-            <button className='btn btn-secondary btn-sm' onClick={() => navigateWeek(-1)}>◀</button>
-            <strong style={{ fontSize: '0.88rem' }}>Week of {new Date(weekOf + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>
-            <button className='btn btn-secondary btn-sm' onClick={() => navigateWeek(1)}>▶</button>
-            <button className='btn btn-sm btn-primary' onClick={() => setWeekOf(getWeekStart(new Date()).toISOString().split('T')[0])}>Today</button>
-            <AutoFillButton weekOf={weekOf} onComplete={loadWeekView} />
-          </div>
-        )}
         {scheduleView === 'month' && (
           <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginLeft: 'auto' }}>
             <button className='btn btn-secondary btn-sm' onClick={() => setCalCurrentDate(new Date(calCurrentDate.getFullYear(), calCurrentDate.getMonth() - 1))}>‹</button>
@@ -849,14 +1007,17 @@ const SchedulingHub = () => {
                   <tr>
                     <th style={{ width: '140px' }}>Caregiver</th>
                     {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day, idx) => {
-                      const date = new Date(weekData.weekStart); date.setDate(date.getDate() + idx);
-                      const isToday = new Date().toDateString() === date.toDateString();
+                      // Parse the week-start as LOCAL midnight (append T00:00:00) — a bare
+                      // 'YYYY-MM-DD' parses as UTC, so getDate() below read one day behind in
+                      // US timezones, making the header numbers off by one vs the cell data.
+                      const date = new Date(weekData.weekStart + 'T00:00:00'); date.setDate(date.getDate() + idx);
+                      const isToday = date.toISOString().split('T')[0] === getTodayCT();
                       return (<th key={day} style={{ textAlign: 'center', minWidth: '95px', background: isToday ? '#EFF6FF' : undefined }}><div>{day}</div><div style={{ fontSize: '0.72rem', color: isToday ? '#2563EB' : '#6B7280', fontWeight: isToday ? '700' : '400' }}>{date.getDate()}</div></th>);
                     })}
                   </tr>
                 </thead>
                 <tbody>
-                  {weekData.caregivers.map(({ caregiver, days: dayData }) => (
+                  {(weekData.caregivers || []).map(({ caregiver, days: dayData }) => (
                     <tr key={caregiver.id}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -865,8 +1026,8 @@ const SchedulingHub = () => {
                         </div>
                       </td>
                       {[0,1,2,3,4,5,6].map(di => {
-                        const date = new Date(weekData.weekStart); date.setDate(date.getDate() + di);
-                        const isToday = new Date().toDateString() === date.toDateString();
+                        const date = new Date(weekData.weekStart + 'T00:00:00'); date.setDate(date.getDate() + di);
+                        const isToday = date.toISOString().split('T')[0] === getTodayCT();
                         const dateStr = date.toISOString().split('T')[0];
                         const hasShifts = dayData[di] && dayData[di].length > 0;
                         return (
@@ -875,23 +1036,14 @@ const SchedulingHub = () => {
                             style={{ padding: '0.25rem', verticalAlign: 'top', background: isToday ? '#F0F9FF' : undefined, cursor: hasShifts ? 'default' : 'pointer' }}
                             onMouseEnter={e => { if (!hasShifts) e.currentTarget.style.background = '#F0FDF4'; }}
                             onMouseLeave={e => { e.currentTarget.style.background = isToday ? '#F0F9FF' : ''; }}>
-                            {hasShifts ? dayData[di].map(sched => {
-                              const weekExc = sched.isRecurring ? getExceptionForOccurrence(sched.id, dateStr) : null;
-                              const isCancelled = weekExc?.exception_type === 'cancelled';
-                              const isModified = weekExc?.exception_type === 'modified';
-                              return (
-                              <div key={sched.id}
-                                onClick={(e) => { e.stopPropagation(); if (!isCancelled) setReassignModal({ schedule: sched, currentCaregiver: caregiver }); }}
-                                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (sched.isRecurring) setOccurrenceActionMenu({ schedule: sched, dateStr, caregiverId: caregiver.id, x: e.clientX, y: e.clientY, exception: weekExc }); }}
-                                style={{ fontSize: '0.7rem', padding: '0.25rem 0.4rem', marginBottom: '0.2rem', borderRadius: '4px', background: isCancelled ? '#FEE2E2' : isModified ? '#FEF3C7' : sched.isRecurring ? '#DBEAFE' : '#D1FAE5', borderLeft: `3px solid ${isCancelled ? '#DC2626' : isModified ? '#D97706' : cgColor(caregiver.id)}`, cursor: 'pointer', opacity: isCancelled ? 0.6 : 1, position: 'relative' }}
-                                title={`${getClientName(sched.client_id)} · ${formatTime(isModified ? (weekExc.override_start_time || sched.start_time) : sched.start_time)}–${formatTime(isModified ? (weekExc.override_end_time || sched.end_time) : sched.end_time)}${isCancelled ? ' (CANCELLED)' : isModified ? ' (MODIFIED)' : ''}`}>
-                                <div style={{ fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: isCancelled ? 'line-through' : 'none' }}>{getClientName(sched.client_id).split(' ')[0]}</div>
-                                <div style={{ color: isCancelled ? '#DC2626' : '#6B7280' }}>{formatTime(isModified ? (weekExc.override_start_time || sched.start_time) : sched.start_time)}</div>
-                                {isCancelled && <div style={{ ...bge('#FEE2E2', '#DC2626'), fontSize: '0.58rem', marginTop: '0.1rem' }}>Cancelled</div>}
-                                {isModified && <div style={{ ...bge('#FEF3C7', '#D97706'), fontSize: '0.58rem', marginTop: '0.1rem' }}>Modified</div>}
+                            {hasShifts ? dayData[di].map(sched => (
+                              <div key={sched.id} onClick={(e) => { e.stopPropagation(); setReassignModal({ schedule: sched, currentCaregiver: caregiver }); }}
+                                style={{ fontSize: '0.7rem', padding: '0.25rem 0.4rem', marginBottom: '0.2rem', borderRadius: '4px', background: sched.isRecurring ? '#DBEAFE' : '#D1FAE5', borderLeft: `3px solid ${cgColor(caregiver.id)}`, cursor: 'pointer' }}
+                                title={`${getClientName(sched.client_id)} · ${formatTime(sched.start_time)}–${formatTime(sched.end_time)}`}>
+                                <div style={{ fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getClientName(sched.client_id).split(' ')[0]}</div>
+                                <div style={{ color: '#6B7280' }}>{formatTime(sched.start_time)}</div>
                               </div>
-                              );
-                            }) : (
+                            )) : (
                               <div style={{ height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D1D5DB', fontSize: '0.7rem' }}>+ add</div>
                             )}
                           </td>
@@ -965,22 +1117,19 @@ const SchedulingHub = () => {
               {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} style={{ padding: '0.5rem', textAlign: 'center', fontWeight: '600', fontSize: '0.8rem', background: '#F9FAFB', color: '#374151' }}>{d}</div>)}
               {Array.from({ length: calFirstDay }, (_, i) => <div key={`e${i}`} style={{ background: '#FAFAFA', minHeight: isMobile ? '50px' : '80px' }} />)}
               {Array.from({ length: calDaysInMonth }, (_, i) => {
-                const day = i + 1, today = new Date();
-                const isToday = day === today.getDate() && calCurrentDate.getMonth() === today.getMonth() && calCurrentDate.getFullYear() === today.getFullYear();
+                const day = i + 1, todayParts = getTodayCT().split('-').map(Number);
+                const isToday = day === todayParts[2] && calCurrentDate.getMonth() === todayParts[1] - 1 && calCurrentDate.getFullYear() === todayParts[0];
                 const dayScheds = getCalSchedulesForDay(day);
                 const dayProspectAppts = getProspectApptsForDay(day);
                 return (
                   <div key={day} onClick={() => { setCalDaySchedules(dayScheds); setCalSelectedDay(day); }}
                     style={{ background: isToday ? '#EFF6FF' : '#fff', minHeight: isMobile ? '50px' : '80px', padding: '0.25rem', cursor: 'pointer' }}>
                     <div style={{ fontSize: '0.78rem', fontWeight: isToday ? '700' : '400', color: isToday ? '#2563EB' : '#374151', marginBottom: '0.2rem' }}>{day}</div>
-                    {dayScheds.filter(sc => !sc._cancelled).slice(0, isMobile ? 1 : 2).map((sc, idx) => (
-                      <div key={idx} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: sc._modified ? '#FEF3C7' : cgColor(sc.caregiver_id) + '20', borderLeft: `2px solid ${sc._modified ? '#D97706' : cgColor(sc.caregiver_id)}`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {isMobile ? formatTime(sc.start_time) : `${getCaregiverName(sc.caregiver_id).split(' ')[0]} ${formatTime(sc.start_time)}`}{sc._modified ? ' *' : ''}
+                    {dayScheds.slice(0, isMobile ? 1 : 2).map((sc, idx) => (
+                      <div key={idx} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: cgColor(sc.caregiver_id) + '20', borderLeft: `2px solid ${cgColor(sc.caregiver_id)}`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {isMobile ? formatTime(sc.start_time) : `${getCaregiverName(sc.caregiver_id).split(' ')[0]} ${formatTime(sc.start_time)}`}
                       </div>
                     ))}
-                    {dayScheds.filter(sc => sc._cancelled).length > 0 && !isMobile && (
-                      <div style={{ fontSize: '0.58rem', color: '#DC2626', textAlign: 'center' }}>{dayScheds.filter(sc => sc._cancelled).length} cancelled</div>
-                    )}
                     {dayProspectAppts.map((pa, idx) => <div key={`pa${idx}`} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: '#FFF7ED', borderLeft: '2px solid #F97316', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#9A3412' }}>{isMobile ? '🟠' : `🟠 ${pa.prospect_first_name}`}</div>)}
                     {(dayScheds.length + dayProspectAppts.length) > (isMobile ? 1 : 3) && <div style={{ fontSize: '0.6rem', color: '#6B7280', textAlign: 'center' }}>+{(dayScheds.length + dayProspectAppts.length) - (isMobile ? 1 : 3)} more</div>}
                   </div>
@@ -1011,8 +1160,9 @@ const SchedulingHub = () => {
 
   const renderToolsTab = () => (
     <div>
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <button style={subTabStyle(toolsTab === 'coverage')}  onClick={() => setToolsTab('coverage')}>📈 Coverage</button>
+        <button style={subTabStyle(toolsTab === 'heatmap')}   onClick={() => setToolsTab('heatmap')}>🔥 Conflict Heatmap</button>
         <button style={subTabStyle(toolsTab === 'optimizer')} onClick={() => setToolsTab('optimizer')}>🧠 Optimizer</button>
         <button style={subTabStyle(toolsTab === 'roster')}    onClick={() => setToolsTab('roster')}>📊 Roster Optimizer</button>
       </div>
@@ -1025,24 +1175,27 @@ const SchedulingHub = () => {
               <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(coverageWeekOf + 'T12:00:00'); d.setDate(d.getDate() - 7); setCoverageWeekOf(getWeekStart(d).toISOString().split('T')[0]); }}>◀ Prev</button>
               <input type='date' value={coverageWeekOf} onChange={(e) => setCoverageWeekOf(getWeekStart(new Date(e.target.value + 'T12:00:00')).toISOString().split('T')[0])} style={{ padding: '0.3rem 0.5rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '0.85rem' }} />
               <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(coverageWeekOf + 'T12:00:00'); d.setDate(d.getDate() + 7); setCoverageWeekOf(getWeekStart(d).toISOString().split('T')[0]); }}>Next ▶</button>
+              <button className='btn btn-sm btn-primary'
+                disabled={coverageWeekOf === getWeekStart(new Date()).toISOString().split('T')[0]}
+                onClick={() => setCoverageWeekOf(getWeekStart(new Date()).toISOString().split('T')[0])}>📍 Today</button>
               <button className='btn btn-sm btn-primary' onClick={() => setCoverageWeekOf(getWeekStart(new Date()).toISOString().split('T')[0])}>Today</button>
             </div>
           </div>
           {coverageLoading ? <div className='card' style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div> : coverageData ? (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
-                <div className='card' style={statCard}><div style={statVal('#2563EB')}>{coverageData.summary.totalCaregivers}</div><div style={statLabel}>Active Caregivers</div></div>
-                <div className='card' style={statCard}><div style={statVal('#059669')}>{coverageData.summary.totalScheduledHours}h</div><div style={statLabel}>Scheduled</div></div>
-                <div className='card' style={statCard}><div style={statVal(coverageData.summary.underScheduledClientCount > 0 ? '#DC2626' : '#059669')}>{coverageData.summary.underScheduledClientCount}</div><div style={statLabel}>Under-Scheduled</div></div>
-                <div className='card' style={statCard}><div style={statVal(coverageData.summary.totalShortfallUnits > 0 ? '#DC2626' : '#059669')}>{coverageData.summary.totalShortfallUnits}u</div><div style={statLabel}>Shortfall ({coverageData.summary.totalShortfallHours}h)</div></div>
+                <div className='card' style={statCard}><div style={statVal('#2563EB')}>{coverageData.summary?.totalCaregivers ?? 0}</div><div style={statLabel}>Active Caregivers</div></div>
+                <div className='card' style={statCard}><div style={statVal('#059669')}>{coverageData.summary?.totalScheduledHours ?? 0}h</div><div style={statLabel}>Scheduled</div></div>
+                <div className='card' style={statCard}><div style={statVal((coverageData.summary?.underScheduledClientCount ?? 0) > 0 ? '#DC2626' : '#059669')}>{coverageData.summary?.underScheduledClientCount ?? 0}</div><div style={statLabel}>Under-Scheduled</div></div>
+                <div className='card' style={statCard}><div style={statVal((coverageData.summary?.totalShortfallUnits ?? 0) > 0 ? '#DC2626' : '#059669')}>{coverageData.summary?.totalShortfallUnits ?? 0}u</div><div style={statLabel}>Shortfall ({coverageData.summary?.totalShortfallHours ?? 0}h)</div></div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
                 <div className='card'>
                   <h3 style={{ margin: '0 0 0.75rem' }}>👥 Caregiver Hours</h3>
                   <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                    {(coverageData.caregivers || []).map(cg => (
+                    {coverageData.caregivers.map(cg => (
                       <div key={cg.id} style={{ padding: '0.6rem', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <div style={{ flex: 1 }}><div style={{ fontWeight: '600', fontSize: '0.88rem' }}>{cg.name}</div><div style={{ fontSize: '0.78rem', color: '#666' }}>{parseFloat(cg.scheduledHours || 0).toFixed(2)}h / {cg.maxHours}h</div></div>
+                        <div style={{ flex: 1 }}><div style={{ fontWeight: '600', fontSize: '0.88rem' }}>{cg.name}</div><div style={{ fontSize: '0.78rem', color: '#666' }}>{Number(parseFloat(cg.scheduledHours || 0)).toFixed(2)}h / {cg.maxHours}h</div></div>
                         <div style={{ width: '90px' }}><div style={{ height: '7px', background: '#E5E7EB', borderRadius: '4px', overflow: 'hidden' }}><div style={{ width: `${Math.min(cg.utilizationPercent, 100)}%`, height: '100%', background: cg.utilizationPercent > 100 ? '#DC2626' : cg.utilizationPercent > 80 ? '#F59E0B' : '#10B981' }} /></div></div>
                         <div style={{ minWidth: '40px', textAlign: 'right', fontWeight: '600', fontSize: '0.82rem', color: cg.utilizationPercent > 100 ? '#DC2626' : cg.utilizationPercent > 80 ? '#F59E0B' : '#10B981' }}>{cg.utilizationPercent}%</div>
                       </div>
@@ -1051,13 +1204,13 @@ const SchedulingHub = () => {
                 </div>
                 <div className='card'>
                   <h3 style={{ margin: '0 0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    ⚠️ Under-Scheduled {(coverageData.underScheduledClients || []).length > 0 && <span style={bge('#FEE2E2', '#DC2626')}>{(coverageData.underScheduledClients || []).length}</span>}
+                    ⚠️ Under-Scheduled {coverageData.underScheduledClients.length > 0 && <span style={bge('#FEE2E2', '#DC2626')}>{coverageData.underScheduledClients.length}</span>}
                   </h3>
-                  {(coverageData.underScheduledClients || []).length === 0 ? (
+                  {coverageData.underScheduledClients.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '2rem', color: '#059669' }}>✅ All clients fully scheduled!</div>
                   ) : (
                     <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                      {(coverageData.underScheduledClients || []).map(cl => (
+                      {coverageData.underScheduledClients.map(cl => (
                         <div key={cl.id} style={{ padding: '0.6rem', borderBottom: '1px solid #eee', background: '#FEF2F2' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div><div style={{ fontWeight: '600', fontSize: '0.88rem' }}>{cl.name}</div><div style={{ fontSize: '0.78rem', color: '#666' }}>{cl.scheduledUnits}/{cl.authorizedUnits} units</div></div>
@@ -1083,6 +1236,79 @@ const SchedulingHub = () => {
         </div>
       )}
 
+      {toolsTab === 'heatmap' && (
+        <div>
+          <div className='card' style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem', padding: '1rem' }}>
+            <h3 style={{ margin: 0 }}>🔥 Conflict Heatmap</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
+              <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(heatmapWeekOf + 'T12:00:00'); d.setDate(d.getDate() - 7); setHeatmapWeekOf(getWeekStart(d).toISOString().split('T')[0]); }}>◀ Prev</button>
+              <input type='date' value={heatmapWeekOf} onChange={(e) => setHeatmapWeekOf(getWeekStart(new Date(e.target.value + 'T12:00:00')).toISOString().split('T')[0])} style={{ padding: '0.3rem 0.5rem', border: '1px solid #ddd', borderRadius: 6, fontSize: '0.85rem' }} />
+              <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(heatmapWeekOf + 'T12:00:00'); d.setDate(d.getDate() + 7); setHeatmapWeekOf(getWeekStart(d).toISOString().split('T')[0]); }}>Next ▶</button>
+              <button className='btn btn-sm btn-primary' disabled={heatmapWeekOf === getWeekStart(new Date()).toISOString().split('T')[0]} onClick={() => setHeatmapWeekOf(getWeekStart(new Date()).toISOString().split('T')[0])}>📍 Today</button>
+            </div>
+          </div>
+
+          {heatmapLoading ? <p style={{ padding: '1rem' }}>Loading…</p> : !heatmap ? null : (
+            <div className='card' style={{ padding: '1rem', overflowX: 'auto' }}>
+              <div style={{ fontSize: '0.85rem', color: '#374151', marginBottom: '0.5rem' }}>
+                Week of <strong>{heatmap.weekStart}</strong>. Cell color = scheduled hours that day. Right column = week total vs cap.
+                <span style={{ marginLeft: 10, display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: '0.75rem' }}>
+                  <span style={{ width: 14, height: 14, background: '#F3F4F6', display: 'inline-block', borderRadius: 2 }}></span> 0
+                  <span style={{ width: 14, height: 14, background: '#D1FAE5', display: 'inline-block', borderRadius: 2 }}></span> 1-4
+                  <span style={{ width: 14, height: 14, background: '#A7F3D0', display: 'inline-block', borderRadius: 2 }}></span> 4-8
+                  <span style={{ width: 14, height: 14, background: '#FCD34D', display: 'inline-block', borderRadius: 2 }}></span> 8-12
+                  <span style={{ width: 14, height: 14, background: '#F87171', display: 'inline-block', borderRadius: 2 }}></span> 12+
+                </span>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                <thead>
+                  <tr style={{ background: '#F9FAFB' }}>
+                    <th style={{ padding: '6px 8px', textAlign: 'left' }}>Caregiver</th>
+                    {(heatmap.caregivers[0]?.days || []).map(d => (
+                      <th key={d.date} style={{ padding: '6px 8px', textAlign: 'center' }}>
+                        {new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })}
+                        <div style={{ fontSize: '0.7rem', color: '#6B7280', fontWeight: 400 }}>{d.date.slice(5)}</div>
+                      </th>
+                    ))}
+                    <th style={{ padding: '6px 8px', textAlign: 'right' }}>Week / Cap</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {heatmap.caregivers.map(cg => {
+                    const pct = cg.max_hours_per_week > 0 ? (cg.total / cg.max_hours_per_week) : 0;
+                    const overCap = cg.total > cg.max_hours_per_week;
+                    return (
+                      <tr key={cg.id} style={{ borderTop: '1px solid #F3F4F6' }}>
+                        <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>{cg.first_name} {cg.last_name}</td>
+                        {cg.days.map(d => {
+                          let bg = '#F3F4F6';
+                          if (d.hours > 12) bg = '#F87171';
+                          else if (d.hours > 8) bg = '#FCD34D';
+                          else if (d.hours > 4) bg = '#A7F3D0';
+                          else if (d.hours > 0) bg = '#D1FAE5';
+                          return (
+                            <td key={d.date} style={{ padding: 2, textAlign: 'center' }}>
+                              <div title={`${d.shifts} shift(s) · ${d.hours}h`}
+                                style={{ background: bg, padding: '6px 2px', borderRadius: 4, fontWeight: d.hours > 8 ? 700 : 500, fontSize: '0.82rem' }}>
+                                {d.hours > 0 ? `${d.hours}h` : ''}
+                              </div>
+                            </td>
+                          );
+                        })}
+                        <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 700, color: overCap ? '#DC2626' : pct >= 0.9 ? '#D97706' : '#374151' }}>
+                          {cg.total.toFixed(1)}h / {cg.max_hours_per_week}h
+                          {overCap && <div style={{ fontSize: '0.7rem' }}>⚠ over cap</div>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {toolsTab === 'optimizer' && <ScheduleOptimizer caregivers={caregivers} clients={clients} />}
       {toolsTab === 'roster'    && <RosterOptimizer />}
     </div>
@@ -1099,14 +1325,66 @@ const SchedulingHub = () => {
         <button style={subTabStyle(staffingTab === 'swaps')} onClick={() => setStaffingTab('swaps')}>
           🔄 Swaps & Absences {pendingSwaps > 0 && <span style={{ ...bge('#DC2626', '#fff'), marginLeft: '0.4rem' }}>{pendingSwaps}</span>}
         </button>
+        <button style={subTabStyle(staffingTab === 'reschedules')} onClick={() => setStaffingTab('reschedules')}>
+          🕐 Reschedules {reschedReqs.length > 0 && <span style={{ ...bge('#DC2626', '#fff'), marginLeft: '0.4rem' }}>{reschedReqs.length}</span>}
+        </button>
         <button style={subTabStyle(staffingTab === 'availability')} onClick={() => setStaffingTab('availability')}>⏰ Availability</button>
       </div>
+
+      {staffingTab === 'reschedules' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <h3 style={{ margin: 0 }}>🕐 Reschedule Requests</h3>
+            <button className='btn btn-sm btn-secondary' onClick={loadReschedules}>↻ Refresh</button>
+          </div>
+          <div style={{ fontSize: '0.85rem', color: '#6B7280', marginBottom: '0.75rem' }}>
+            Approving moves the shift on the schedule — the caregiver's phone, the grid, payroll and billing all follow. Denying leaves it exactly as it is.
+          </div>
+          {reschedLoading ? <div className='card' style={{ textAlign: 'center', padding: '1.5rem' }}>Loading...</div> :
+            reschedReqs.length === 0 ? <div className='card' style={{ textAlign: 'center', padding: '1.5rem', color: '#6B7280' }}>Nothing waiting</div> : (
+            <div className='card' style={{ overflowX: 'auto' }}>
+              <table className='table' style={{ fontSize: '0.88rem' }}>
+                <thead><tr><th>Asked by</th><th>Client</th><th>Caregiver</th><th>Now</th><th>→</th><th>Requested</th><th>Reason</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {reschedReqs.map(cr => (
+                    <tr key={cr.id}>
+                      <td><span style={bge(cr.requested_by === 'caregiver' ? '#DBEAFE' : '#FEF3C7', cr.requested_by === 'caregiver' ? '#2563EB' : '#D97706')}>{(cr.requested_by || 'client').toUpperCase()}</span></td>
+                      <td><strong>{cr.client_first_name} {cr.client_last_name}</strong></td>
+                      <td>{cr.caregiver_first_name} {cr.caregiver_last_name}</td>
+                      <td>{formatDate(cr.visit_date, { month: 'short', day: 'numeric' })} {cr.original_start_time?.slice(0,5)}–{cr.original_end_time?.slice(0,5)}</td>
+                      <td>→</td>
+                      <td>
+                        {cr.request_type === 'cancel'
+                          ? <em style={{ color: '#DC2626' }}>Cancel</em>
+                          : <strong>{formatDate(cr.proposed_date, { month: 'short', day: 'numeric' })} {cr.proposed_start_time?.slice(0,5)}–{cr.proposed_end_time?.slice(0,5)}</strong>}
+                      </td>
+                      <td style={{ maxWidth: 220 }}>{cr.request_reason || cr.cancel_reason || '—'}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+                          <button className='btn btn-sm btn-success' disabled={reschedBusy === cr.id}
+                            onClick={() => resolveReschedule(cr.id, 'approve')}>✓</button>
+                          <button className='btn btn-sm btn-danger' disabled={reschedBusy === cr.id}
+                            onClick={async () => {
+                              const note = window.prompt('Reason for denying (the caregiver sees this):', '');
+                              if (note === null) return;
+                              resolveReschedule(cr.id, 'deny', note);
+                            }}>✗</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {staffingTab === 'open-shifts' && (
         <div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
             <select value={openShiftFilter} onChange={(e) => setOpenShiftFilter(e.target.value)} style={{ padding: '0.4rem 0.75rem', borderRadius: '6px', border: '1px solid #ddd' }}>
-              <option value='open'>Open</option><option value='claimed'>Claimed</option><option value='filled'>Filled</option><option value=''>All</option>
+              <option value='active'>Open &amp; waiting for approval</option><option value='open'>Open</option><option value='claimed'>Waiting for approval</option><option value='filled'>Filled</option><option value='cancelled'>Removed</option><option value='all'>All</option>
             </select>
             <button className='btn btn-primary btn-sm' onClick={() => { setCreateShiftPreFill({}); setShowCreateShift(true); }}>+ Post Open Shift</button>
           </div>
@@ -1117,14 +1395,30 @@ const SchedulingHub = () => {
                 <div key={shift.id} className='card' style={{ padding: '1rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <div>
-                      <strong>{shift.client_first || ''} {shift.client_last || ''}</strong>
-                      <div style={{ fontSize: '0.85rem', color: '#666' }}>{shift.shift_date ? new Date(shift.shift_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''} · {formatTime(shift.start_time)} – {formatTime(shift.end_time)}</div>
+                      <strong>{shift.client_first_name || ''} {shift.client_last_name || ''}</strong>
+                      <div style={{ fontSize: '0.85rem', color: '#666' }}>{shift.shift_date ? formatDate(shift.shift_date, { weekday: 'short', month: 'short', day: 'numeric' }) : ''} · {formatTime(shift.start_time)} – {formatTime(shift.end_time)}</div>
+                      <div style={{ fontSize: '0.82rem', color: '#555', marginTop: '0.3rem' }}>
+                        Offered to: {shift.offered_to || 'all caregivers'}
+                      </div>
+                      {shift.claimed_by_first && (
+                        <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                          {shift.status === 'filled' ? 'Taken by' : 'Accepted by'} <strong>{shift.claimed_by_first} {shift.claimed_by_last}</strong>
+                        </div>
+                      )}
                       {shift.notes && <div style={{ fontSize: '0.82rem', color: '#888', marginTop: '0.3rem' }}>{shift.notes}</div>}
                     </div>
-                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                      <span style={bge(shift.status === 'open' ? '#FEF3C7' : shift.status === 'claimed' ? '#DBEAFE' : '#D1FAE5', shift.status === 'open' ? '#D97706' : shift.status === 'claimed' ? '#2563EB' : '#059669')}>{shift.status?.toUpperCase()}</span>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={bge(shift.status === 'open' ? '#FEF3C7' : shift.status === 'claimed' ? '#DBEAFE' : shift.status === 'cancelled' ? '#F3F4F6' : '#D1FAE5', shift.status === 'open' ? '#D97706' : shift.status === 'claimed' ? '#2563EB' : shift.status === 'cancelled' ? '#6B7280' : '#059669')}>
+                        {shift.status === 'claimed' ? 'WAITING FOR APPROVAL' : shift.status === 'cancelled' ? 'REMOVED' : shift.status?.toUpperCase()}
+                      </span>
                       {shift.urgency === 'urgent' && <span style={bge('#FEE2E2', '#DC2626')}>URGENT</span>}
-                      {(shift.claim_count > 0 || shift.claims_count > 0) && <button className='btn btn-sm btn-secondary' onClick={() => loadShiftClaims(shift)}>{shift.claim_count || shift.claims_count} claim(s)</button>}
+                      {shift.status === 'claimed' && <>
+                        <button className='btn btn-sm btn-success' onClick={() => approveOpenShift(shift)}>✓ Approve</button>
+                        <button className='btn btn-sm btn-secondary' onClick={() => turnDownOpenShift(shift)}>✗ Turn down</button>
+                      </>}
+                      {(shift.status === 'open' || shift.status === 'claimed') && (
+                        <button className='btn btn-sm btn-danger' onClick={() => removeOpenShift(shift)}>🗑 Remove</button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1152,7 +1446,7 @@ const SchedulingHub = () => {
                 <tbody>
                   {swaps.map(sw => (
                     <tr key={sw.id}>
-                      <td><strong>{sw.shift_date ? new Date(sw.shift_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''}</strong></td>
+                      <td><strong>{sw.shift_date ? formatDate(sw.shift_date, { weekday: 'short', month: 'short', day: 'numeric' }) : ''}</strong></td>
                       <td>{sw.start_time?.slice(0,5)}–{sw.end_time?.slice(0,5)}</td>
                       <td>{sw.client_first} {sw.client_last}</td>
                       <td><strong>{sw.requester_first} {sw.requester_last}</strong></td>
@@ -1244,7 +1538,7 @@ const SchedulingHub = () => {
                 <h3 style={{ margin: '0 0 0.75rem' }}>Status & Capacity</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div className='form-group'><label>Status</label><select value={availForm.status} onChange={(e) => setAvailForm({ ...availForm, status: e.target.value })}><option value='available'>Available</option><option value='on_call'>On-Call</option><option value='medical_leave'>Medical Leave</option><option value='vacation'>Vacation</option><option value='unavailable'>Unavailable</option></select></div>
-                  <div className='form-group'><label>Max Hours/Week</label><input type='number' value={availForm.maxHoursPerWeek} onChange={(e) => setAvailForm({ ...availForm, maxHoursPerWeek: parseInt(e.target.value) })} min='0' step='5' /></div>
+                  <div className='form-group'><label>Max Hours/Week</label><input type='number' value={availForm.maxHoursPerWeek} onChange={(e) => setAvailForm({ ...availForm, maxHoursPerWeek: e.target.value })} min='0' step='5' /></div>
                 </div>
               </div>
               <div className='card' style={{ marginBottom: '1rem' }}>
@@ -1333,13 +1627,71 @@ const SchedulingHub = () => {
           <div style={{ flex: '0 0 480px', minWidth: 0 }}>
 
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Caregiver *</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <label style={{ fontWeight: '600', fontSize: '0.9rem', margin: 0 }}>Caregiver *</label>
+                <button type='button' onClick={loadSuggestions} disabled={suggestLoading || !formData.clientId}
+                  title={formData.clientId ? 'Rank caregivers by fit (preferences, availability, distance, certs, OT)' : 'Pick a client first'}
+                  style={{ background: 'none', border: '1px solid {{PRIMARY_COLOR}}', color: '#0F766E', borderRadius: 6,
+                           padding: '0.2rem 0.55rem', fontSize: '0.78rem', fontWeight: 700,
+                           cursor: formData.clientId ? 'pointer' : 'not-allowed', opacity: formData.clientId ? 1 : 0.5 }}>
+                  {suggestLoading ? '…' : '✨ Suggest'}
+                </button>
+              </div>
               <select value={selectedCaregiverId} onChange={(e) => handleCaregiverSelectCreate(e.target.value)}
                 style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }}>
                 <option value=''>Choose a caregiver...</option>
                 {caregivers.map(cg => <option key={cg.id} value={cg.id}>{cg.first_name} {cg.last_name}</option>)}
               </select>
+
+              {showSuggestions && (
+                <div style={{ marginTop: '0.5rem', border: '1px solid #E5E7EB', borderRadius: 8, padding: '0.5rem', background: '#FAFAFA', maxHeight: 320, overflow: 'auto' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <strong style={{ fontSize: '0.82rem', color: '#374151' }}>Ranked suggestions ({suggestions.length})</strong>
+                    <button type='button' onClick={() => setShowSuggestions(false)}
+                      style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: '0.85rem' }}>✕</button>
+                  </div>
+                  {suggestions.length === 0 && (
+                    <div style={{ padding: '0.5rem', fontSize: '0.82rem', color: '#9CA3AF' }}>No matches found. Try a different time or date.</div>
+                  )}
+                  {suggestions.slice(0, 12).map((sg, idx) => {
+                    const t = tierStyle(sg.tier);
+                    return (
+                      <button key={sg.id} type='button'
+                        onClick={() => { handleCaregiverSelectCreate(sg.id); setShowSuggestions(false); }}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left', padding: '0.55rem 0.6rem',
+                          marginBottom: 4, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 6,
+                          cursor: 'pointer', fontSize: '0.85rem',
+                        }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700 }}>{idx + 1}. {sg.first_name} {sg.last_name}</span>
+                          <span style={{ background: t.bg, color: t.fg, fontSize: '0.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>
+                            {t.label} · {sg.score}
+                          </span>
+                        </div>
+                        {sg.reasons && sg.reasons.length > 0 && (
+                          <div style={{ marginTop: 3, fontSize: '0.72rem', color: '#6B7280' }}>
+                            {sg.reasons.slice(0, 4).join(' · ')}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
+
+            {cgPatterns && cgPatterns.riskDays?.length > 0 && (
+              <div style={{ marginBottom: '0.75rem', padding: '0.6rem 0.8rem', borderRadius: 8, fontSize: '0.82rem',
+                background: '#FFF7ED', border: '1px solid #FDBA74', color: '#9A3412' }}>
+                <div style={{ fontWeight: 700, marginBottom: 2 }}>Reliability alert ({cgPatterns.overallReliability}% overall)</div>
+                {cgPatterns.riskDays.map((d, i) => (
+                  <div key={i} style={{ fontSize: '0.78rem' }}>
+                    {d.day}: {d.reliabilityPct}% reliable ({d.absences} absences, {d.noShows} no-shows, {d.lateArrivals} late in {cgPatterns.periodMonths}mo)
+                  </div>
+                ))}
+              </div>
+            )}
 
             {conflicts.length > 0 && (
               <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: '8px' }}>
@@ -1367,7 +1719,7 @@ const SchedulingHub = () => {
                 {formData.scheduleType === 'one-time' && (
                   <div style={{ marginBottom: '1rem' }}>
                     <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Date *</label>
-                    <input type='date' value={formData.date} onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))} min={new Date().toISOString().split('T')[0]} required style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }} />
+                    <input type='date' value={formData.date} onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))} required style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }} />
                   </div>
                 )}
 
@@ -1390,25 +1742,46 @@ const SchedulingHub = () => {
                       ))}
                     </div>
                     {formData.scheduleType === 'bi-weekly' && (
-                      <div style={{ padding: '0.6rem', background: '#fff', borderRadius: '6px', border: '1px solid #FED7AA' }}>
-                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#9A3412', marginBottom: '0.3rem' }}>📅 "ON" Week Start *</label>
-                        <input type='date' value={biWeeklyAnchorDate} onChange={e => setBiWeeklyAnchorDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '0.88rem' }} />
+                      <div style={{ padding: '0.6rem', background: '#fff', borderRadius: '6px', border: '1px solid #FED7AA', marginBottom: '0.75rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#9A3412', marginBottom: '0.3rem' }}>📅 First "on" date</label>
+                        <input type='date' value={biWeeklyAnchorDate || formData.date} onChange={e => setBiWeeklyAnchorDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '0.88rem' }} />
+                        <div style={{ fontSize: '0.72rem', color: '#9A3412', marginTop: '0.3rem' }}>Defaults to the Start Date. Each selected day begins on or after this date, then repeats every 2 weeks — Sat + Sun starting on a Saturday stay on the same weekend.</div>
                       </div>
                     )}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: '600', fontSize: '0.82rem' }}>Start Date *</label>
+                        <input type='date' value={formData.date} onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.88rem' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: '600', fontSize: '0.82rem' }}>End Date <span style={{ color: '#9CA3AF', fontWeight: '400' }}>(optional)</span></label>
+                        <input type='date' value={formData.endDate || ''} onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))} min={formData.date || undefined} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.88rem' }} />
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {formData.scheduleType === 'recurring' && (
-                  <div style={{ marginBottom: '1rem' }}>
+                  <div style={{ marginBottom: '1rem', background: '#EFF6FF', padding: '0.85rem', borderRadius: '8px', border: '1px solid #BFDBFE' }}>
                     <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Day of Week *</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.35rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.35rem', marginBottom: '0.75rem' }}>
                       {['Su','Mo','Tu','We','Th','Fr','Sa'].map((day, idx) => (
                         <button key={day} type='button' onClick={() => setFormData(prev => ({ ...prev, dayOfWeek: idx.toString() }))}
                           style={{ padding: '0.5rem 0.1rem', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem',
                             border: formData.dayOfWeek === idx.toString() ? '2px solid #3B82F6' : '2px solid #E5E7EB',
-                            background: formData.dayOfWeek === idx.toString() ? '#EFF6FF' : '#fff',
-                            color: formData.dayOfWeek === idx.toString() ? '#1D4ED8' : '#374151' }}>{day}</button>
+                            background: formData.dayOfWeek === idx.toString() ? '#3B82F6' : '#fff',
+                            color: formData.dayOfWeek === idx.toString() ? '#fff' : '#374151' }}>{day}</button>
                       ))}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: '600', fontSize: '0.82rem' }}>Start Date *</label>
+                        <input type='date' value={formData.date} onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.88rem' }} />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: '600', fontSize: '0.82rem' }}>End Date <span style={{ color: '#9CA3AF', fontWeight: '400' }}>(optional)</span></label>
+                        <input type='date' value={formData.endDate || ''} onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))} min={formData.date || undefined} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.88rem' }} />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1421,6 +1794,40 @@ const SchedulingHub = () => {
                     {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}{c.service_type ? ` (${c.service_type.replace(/_/g, ' ')})` : ''}</option>)}
                   </select>
                 </div>
+
+                {/* ── Scheduling Warnings ── */}
+                {authBalance && (
+                  <div style={{ marginBottom: '0.75rem', padding: '0.6rem 0.8rem', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600,
+                    background: !authBalance.hasActiveAuth ? '#F3F4F6' : !authBalance.allowed ? '#FEE2E2' : authBalance.health_status === 'low' ? '#FEF3C7' : authBalance.health_status === 'expiring_soon' ? '#FEF3C7' : '#D1FAE5',
+                    color: !authBalance.hasActiveAuth ? '#6B7280' : !authBalance.allowed ? '#991B1B' : authBalance.health_status === 'low' || authBalance.health_status === 'expiring_soon' ? '#92400E' : '#065F46',
+                    border: `1px solid ${!authBalance.hasActiveAuth ? '#D1D5DB' : !authBalance.allowed ? '#FECACA' : authBalance.health_status === 'low' || authBalance.health_status === 'expiring_soon' ? '#FCD34D' : '#A7F3D0'}`
+                  }}>
+                    {!authBalance.hasActiveAuth ? 'No active authorization on file'
+                      : !authBalance.allowed ? `Authorization: ${authBalance.error}`
+                      : `Auth: ${authBalance.remaining_hours}h remaining (${authBalance.pct_used}% used)${authBalance.end_date ? ` — expires ${authBalance.end_date}` : ''}`}
+                    {authBalance.warnings?.map((w, i) => <div key={i} style={{ fontWeight: 400, marginTop: 2, fontSize: '0.78rem' }}>{w}</div>)}
+                  </div>
+                )}
+                {otWarning && otWarning.warnings?.length > 0 && (
+                  <div style={{ marginBottom: '0.75rem', padding: '0.6rem 0.8rem', borderRadius: 8, fontSize: '0.82rem',
+                    background: otWarning.overtimeHours > 0 ? '#FEF3C7' : '#FFFBEB',
+                    border: `1px solid ${otWarning.overtimeHours > 0 ? '#FCD34D' : '#FDE68A'}`,
+                    color: otWarning.overtimeHours > 0 ? '#92400E' : '#78350F' }}>
+                    {otWarning.warnings.map((w, i) => <div key={i} style={{ fontWeight: 600 }}>{w}</div>)}
+                    <div style={{ fontSize: '0.75rem', marginTop: 2, fontWeight: 400 }}>Current: {otWarning.currentWeeklyHours}h + This shift: {otWarning.proposedHours}h = {otWarning.projectedHours}h</div>
+                  </div>
+                )}
+                {travelWarning && travelWarning.hasTravelConflict && (
+                  <div style={{ marginBottom: '0.75rem', padding: '0.6rem 0.8rem', borderRadius: 8, fontSize: '0.82rem',
+                    background: '#FFF7ED', border: '1px solid #FDBA74', color: '#9A3412' }}>
+                    <div style={{ fontWeight: 600 }}>Travel time warning</div>
+                    {travelWarning.adjacentShifts.filter(s => s.isInsufficient).map((s, i) => (
+                      <div key={i} style={{ fontSize: '0.78rem', marginTop: 2 }}>
+                        {s.gapMinutes} min gap to {s.clientName} but ~{s.estimatedDriveMinutes} min drive ({s.distanceMiles} mi)
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div style={{ marginBottom: '1rem' }}>
                   <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Quick Presets</label>
@@ -1446,6 +1853,13 @@ const SchedulingHub = () => {
                   <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Notes</label>
                   <textarea value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} placeholder='Special instructions...' rows={2} style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem', resize: 'vertical' }} />
                 </div>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '1.25rem', padding: '0.75rem', borderRadius: '8px', background: formData.isTraining ? '#FEF3C7' : '#F9FAFB', border: '1px solid', borderColor: formData.isTraining ? '#F59E0B' : '#E5E7EB', cursor: 'pointer' }}>
+                  <input type='checkbox' checked={!!formData.isTraining} onChange={(e) => setFormData(prev => ({ ...prev, isTraining: e.target.checked }))} style={{ marginTop: 3 }} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#92400E' }}>Training shift (don't bill client)</div>
+                    <div style={{ fontSize: '0.78rem', color: '#6B7280', marginTop: 2 }}>Use this for a trainee shadowing another caregiver. The caregiver still gets paid; the client is not double-billed.</div>
+                  </div>
+                </label>
                 <button type='submit' className='btn btn-primary' disabled={saving || ((formData.scheduleType === 'multi-day' || formData.scheduleType === 'bi-weekly') && selectedDays.length === 0)} style={{ width: '100%', padding: '0.85rem', fontSize: '1rem' }}>
                   {saving ? 'Saving...' : formData.scheduleType === 'multi-day' ? `✓ Create ${selectedDays.length} Weekly Schedule${selectedDays.length !== 1 ? 's' : ''}` : formData.scheduleType === 'bi-weekly' ? `✓ Create ${selectedDays.length} Bi-Weekly Schedule${selectedDays.length !== 1 ? 's' : ''}` : '✓ Create Schedule'}
                 </button>
@@ -1470,6 +1884,7 @@ const SchedulingHub = () => {
                           <span style={{ fontWeight: '600' }}>{getClientName(s.client_id)}</span>
                           <span style={{ color: '#6B7280', marginLeft: '0.75rem' }}>{formatTime(s.start_time)} – {formatTime(s.end_time)}</span>
                           {s.frequency === 'biweekly' && <span style={{ marginLeft: '0.5rem', padding: '0.15rem 0.4rem', background: '#FFEDD5', color: '#C2410C', borderRadius: '4px', fontSize: '0.72rem' }}>Bi-Wk</span>}
+                          {s.suspended_from && <span title={`Suspended from ${s.suspended_from.slice(0,10)}`} style={{ marginLeft: '0.5rem', padding: '0.15rem 0.4rem', background: '#FEF3C7', color: '#92400E', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700 }}>⏸ Suspended</span>}
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(s.id); }} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '1rem' }}>🗑</button>
                       </div>
@@ -1515,7 +1930,7 @@ const SchedulingHub = () => {
         <button style={mainTabStyle(mainTab === 'bookings')} onClick={() => setMainTab('bookings')}>🗓️ Bookings</button>
         <button style={mainTabStyle(mainTab === 'tools')}    onClick={() => setMainTab('tools')}>🔧 Tools</button>
         <button style={mainTabStyle(mainTab === 'staffing')} onClick={() => setMainTab('staffing')}>
-          👥 Staffing {pendingSwaps > 0 && <span style={{ ...bge('#DC2626', '#fff'), marginLeft: '0.4rem' }}>{pendingSwaps}</span>}
+          👥 Staffing {(pendingSwaps + reschedReqs.length) > 0 && <span style={{ ...bge('#DC2626', '#fff'), marginLeft: '0.4rem' }}>{pendingSwaps + reschedReqs.length}</span>}
         </button>
       </div>
 
@@ -1535,92 +1950,25 @@ const SchedulingHub = () => {
               <div style={{ fontSize: '0.82rem', color: '#6B7280', marginTop: '0.4rem' }}>Currently: <strong>{reassignModal.currentCaregiver.first_name} {reassignModal.currentCaregiver.last_name}</strong></div>
             </div>
             <div className='form-group'>
+              <label>Reason *</label>
+              <select value={reassignReason} onChange={(e) => setReassignReason(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: 8, border: '1px solid #D1D5DB', marginBottom: '0.75rem' }}>
+                <option value='admin_decision'>Admin Decision</option>
+                <option value='caregiver_request'>Caregiver Request</option>
+                <option value='client_request'>Client Request</option>
+                <option value='call_out'>Call Out / Absence</option>
+                <option value='schedule_optimization'>Schedule Optimization</option>
+                <option value='other'>Other</option>
+              </select>
+            </div>
+            <div className='form-group'>
               <label>Reassign to:</label>
-              <select onChange={(e) => { if (e.target.value) { handleReassign(reassignModal.schedule.id, e.target.value); setReassignModal(null); } }} defaultValue=''>
+              <select onChange={(e) => { if (e.target.value) { handleReassign(reassignModal.schedule.id, e.target.value, reassignReason); setReassignModal(null); } }} defaultValue=''>
                 <option value=''>Select caregiver...</option>
                 {caregivers.filter(cg => cg.id !== reassignModal.currentCaregiver.id).map(cg => <option key={cg.id} value={cg.id}>{cg.first_name} {cg.last_name}</option>)}
               </select>
             </div>
             <div className='modal-actions'><button className='btn btn-secondary' onClick={() => setReassignModal(null)}>Cancel</button></div>
-          </div>
-        </div>
-      )}
-
-      {/* OCCURRENCE ACTION CONTEXT MENU (week view right-click) */}
-      {occurrenceActionMenu && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setOccurrenceActionMenu(null)} />
-          <div style={{ position: 'fixed', left: occurrenceActionMenu.x, top: occurrenceActionMenu.y, zIndex: 2000, background: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: '0.35rem 0', minWidth: '180px' }}>
-            <div style={{ padding: '0.4rem 0.75rem', fontSize: '0.72rem', color: '#6B7280', fontWeight: '600', borderBottom: '1px solid #E5E7EB' }}>
-              {getClientName(occurrenceActionMenu.schedule.client_id)} — {occurrenceActionMenu.dateStr}
-            </div>
-            {occurrenceActionMenu.exception ? (
-              <button onClick={() => handleRestoreException(occurrenceActionMenu.exception.id)}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.82rem', color: '#059669' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#F0FDF4'}
-                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                ↩ Restore original
-              </button>
-            ) : (
-              <>
-                <button onClick={() => handleCancelOccurrence(occurrenceActionMenu.schedule.id, occurrenceActionMenu.dateStr)}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.82rem', color: '#DC2626' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#FEF2F2'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                  ✕ Cancel this occurrence
-                </button>
-                <button onClick={() => openModifyOccurrenceModal(occurrenceActionMenu.schedule, occurrenceActionMenu.dateStr)}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.82rem', color: '#D97706' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#FFFBEB'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                  ✎ Modify this occurrence
-                </button>
-              </>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* MODIFY EXCEPTION MODAL */}
-      {exceptionModal && (
-        <div className='modal active' onClick={() => setExceptionModal(null)}>
-          <div className='modal-content' onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
-            <div className='modal-header'>
-              <h2>Modify Occurrence</h2>
-              <button className='close-btn' onClick={() => setExceptionModal(null)}>×</button>
-            </div>
-            <div style={{ margin: '1rem 0', padding: '0.75rem', background: '#F3F4F6', borderRadius: '8px' }}>
-              <div style={{ fontWeight: '600' }}>{getClientName(exceptionModal.schedule.client_id)}</div>
-              <div style={{ fontSize: '0.85rem', color: '#6B7280' }}>
-                {new Date(exceptionModal.exceptionDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-              </div>
-              <div style={{ fontSize: '0.82rem', color: '#6B7280', marginTop: '0.2rem' }}>
-                Original: {formatTime(exceptionModal.schedule.start_time)} – {formatTime(exceptionModal.schedule.end_time)}
-              </div>
-            </div>
-            <div className='form-group'>
-              <label>Start Time</label>
-              <input type='time' value={exceptionForm.startTime} onChange={(e) => setExceptionForm(p => ({ ...p, startTime: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ddd' }} />
-            </div>
-            <div className='form-group'>
-              <label>End Time</label>
-              <input type='time' value={exceptionForm.endTime} onChange={(e) => setExceptionForm(p => ({ ...p, endTime: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ddd' }} />
-            </div>
-            <div className='form-group'>
-              <label>Override Caregiver (optional)</label>
-              <select value={exceptionForm.caregiverId} onChange={(e) => setExceptionForm(p => ({ ...p, caregiverId: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ddd' }}>
-                <option value=''>Keep original caregiver</option>
-                {caregivers.map(cg => <option key={cg.id} value={cg.id}>{cg.first_name} {cg.last_name}</option>)}
-              </select>
-            </div>
-            <div className='form-group'>
-              <label>Notes</label>
-              <textarea value={exceptionForm.notes} onChange={(e) => setExceptionForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ddd', resize: 'vertical' }} />
-            </div>
-            <div className='modal-actions'>
-              <button className='btn btn-primary' onClick={handleSaveModifyException} disabled={exceptionSaving}>{exceptionSaving ? 'Saving...' : 'Save Exception'}</button>
-              <button className='btn btn-secondary' onClick={() => setExceptionModal(null)}>Cancel</button>
-            </div>
           </div>
         </div>
       )}
@@ -1645,27 +1993,6 @@ const SchedulingHub = () => {
         </div>
       )}
 
-      {/* SHIFT CLAIMS MODAL */}
-      {currentShift && (
-        <div className='modal active' onClick={() => setCurrentShift(null)}>
-          <div className='modal-content' onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-            <div className='modal-header'><h2>Claims for Shift</h2><button className='close-btn' onClick={() => setCurrentShift(null)}>×</button></div>
-            {shiftClaims.length === 0 ? <p style={{ padding: '1rem', color: '#666' }}>No claims yet.</p> : (
-              <div style={{ padding: '1rem' }}>
-                {shiftClaims.map(cl => (
-                  <div key={cl.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', borderBottom: '1px solid #eee' }}>
-                    <div><strong>{cl.caregiver_first} {cl.caregiver_last}</strong>{cl.notes && <div style={{ fontSize: '0.82rem', color: '#666' }}>{cl.notes}</div>}</div>
-                    {cl.status === 'pending' && <button className='btn btn-sm btn-success' onClick={() => approveShiftClaim(currentShift.id, cl.id)}>✓ Approve</button>}
-                    {cl.status === 'approved' && <span style={bge('#D1FAE5', '#059669')}>APPROVED</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className='modal-actions' style={{ padding: '1rem' }}><button className='btn btn-secondary' onClick={() => setCurrentShift(null)}>Close</button></div>
-          </div>
-        </div>
-      )}
-
       {/* EDIT SCHEDULE MODAL */}
       {editModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setEditModal(null)}>
@@ -1680,17 +2007,66 @@ const SchedulingHub = () => {
                 <div>
                   <div style={{ display: 'flex', gap: '0.3rem', marginBottom: editModal.frequency === 'biweekly' ? '0.4rem' : 0 }}>
                     <button type='button' onClick={() => setEditModal(prev => ({ ...prev, frequency: 'weekly', anchorDate: null }))} style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', border: 'none', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', background: editModal.frequency === 'weekly' ? '#3B82F6' : '#E5E7EB', color: editModal.frequency === 'weekly' ? '#fff' : '#374151' }}>Weekly</button>
-                    <button type='button' onClick={() => { const now = new Date(); const s = new Date(now); s.setDate(now.getDate() - now.getDay()); setEditModal(prev => ({ ...prev, frequency: 'biweekly', anchorDate: prev.anchorDate || s.toISOString().split('T')[0] })); }} style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', border: 'none', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', background: editModal.frequency === 'biweekly' ? '#F97316' : '#E5E7EB', color: editModal.frequency === 'biweekly' ? '#fff' : '#374151' }}>Bi-Weekly</button>
+                    <button type='button' onClick={() => setEditModal(prev => ({ ...prev, frequency: 'biweekly', anchorDate: prev.anchorDate || prev.editDate || getTodayCT() }))} style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', border: 'none', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', background: editModal.frequency === 'biweekly' ? '#F97316' : '#E5E7EB', color: editModal.frequency === 'biweekly' ? '#fff' : '#374151' }}>Bi-Weekly</button>
                   </div>
                   {editModal.frequency === 'biweekly' && (
                     <div style={{ padding: '0.5rem', background: '#FFF7ED', borderRadius: '6px', border: '1px solid #FED7AA' }}>
-                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#9A3412', marginBottom: '0.25rem' }}>📅 "ON" Week Anchor</label>
+                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#9A3412', marginBottom: '0.25rem' }}>📅 First "on" date (this weekday, then every 2 weeks)</label>
                       <input type='date' value={editModal.anchorDate || ''} onChange={e => setEditModal(prev => ({ ...prev, anchorDate: e.target.value }))} style={{ width: '100%', padding: '0.3rem', border: '1px solid #D1D5DB', borderRadius: '4px', fontSize: '0.82rem' }} />
                     </div>
                   )}
                 </div>
               )}
             </div>
+            {/* A repeating shift is ONE row that every week is re-derived from, so an edit
+                has to say which weeks it means. Without this picker every edit here was
+                silently an "every occurrence" edit — the reason changing one shift changed
+                weeks that had already been worked. */}
+            {editModal.scheduleType === 'recurring' && (() => {
+              const dayName = getDayName(parseInt(editModal.dayOfWeek));
+              const opts = [
+                { key: 'this',      label: 'Just this day',                       hint: 'Only the date below changes. Every other week stays as it is.' },
+                { key: 'following', label: `This day and all future ${dayName}s`, hint: 'Use when the shift changed for good. Weeks before the date below are left alone.' },
+                { key: 'all',       label: `Every ${dayName} — past and future`,  hint: 'Also changes weeks already worked, including ones payroll has been run on.', warn: true },
+              ];
+              return (
+                <div style={{ marginBottom: '1.25rem', padding: '0.85rem', background: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+                  <label style={{ display: 'block', marginBottom: '0.6rem', fontWeight: '700', fontSize: '0.9rem', color: '#111827' }}>Apply this change to</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {opts.map(o => {
+                      const on = editModal.scope === o.key;
+                      return (
+                        <button key={o.key} type='button'
+                          onClick={() => setEditModal(prev => ({ ...prev, scope: o.key }))}
+                          style={{
+                            textAlign: 'left', padding: '0.6rem 0.7rem', borderRadius: '6px', cursor: 'pointer',
+                            border: on ? `2px solid ${o.warn ? '#DC2626' : '#3B82F6'}` : '2px solid #E5E7EB',
+                            background: on ? (o.warn ? '#FEF2F2' : '#EFF6FF') : '#fff',
+                          }}>
+                          <div style={{ fontWeight: '600', fontSize: '0.88rem', color: on && o.warn ? '#991B1B' : '#111827' }}>
+                            {on ? '● ' : '○ '}{o.label}{o.warn ? '  ⚠️' : ''}
+                          </div>
+                          <div style={{ fontSize: '0.76rem', color: on && o.warn ? '#B91C1C' : '#6B7280', marginTop: '0.15rem', paddingLeft: '1rem' }}>{o.hint}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {editModal.scope !== 'all' && (
+                    <div style={{ marginTop: '0.7rem' }}>
+                      <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: '600', fontSize: '0.8rem', color: '#374151' }}>
+                        {editModal.scope === 'this' ? 'Which day?' : 'Changed as of'}
+                      </label>
+                      <input type='date' value={editModal.editDate || ''}
+                        onChange={e => setEditModal(prev => ({ ...prev, editDate: e.target.value }))}
+                        style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.88rem' }} />
+                      <div style={{ fontSize: '0.74rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                        A past date is fine — that is how you correct a week before running payroll.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Client</label>
               <select value={editModal.clientId} onChange={(e) => setEditModal(prev => ({ ...prev, clientId: e.target.value }))} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }}>
@@ -1731,12 +2107,90 @@ const SchedulingHub = () => {
               <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Notes</label>
               <textarea value={editModal.notes} onChange={(e) => setEditModal(prev => ({ ...prev, notes: e.target.value }))} placeholder='Optional notes...' rows={2} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem', resize: 'vertical' }} />
             </div>
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button onClick={handleSaveEdit} disabled={editSaving} className='btn btn-primary' style={{ flex: 1 }}>{editSaving ? 'Saving...' : '✓ Save Changes'}</button>
+            {/* Suspend / resume service — pause visits without deleting the schedule */}
+            {editModal.scheduleType === 'recurring' && (
+              <div style={{ marginBottom: '1.25rem', padding: '0.85rem', borderRadius: '8px',
+                background: editModal.suspendedFrom ? '#FEF3C7' : '#F9FAFB',
+                border: `1px solid ${editModal.suspendedFrom ? '#FCD34D' : '#E5E7EB'}` }}>
+                {editModal.suspendedFrom ? (
+                  <>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#92400E', marginBottom: '0.5rem' }}>
+                      ⏸ Service suspended from {new Date(editModal.suspendedFrom + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button type='button' disabled={suspendBusy} onClick={() => handleResume('this')}
+                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px' }}>
+                        ▶ Resume {getDayName(parseInt(editModal.dayOfWeek))}s
+                      </button>
+                      <button type='button' disabled={suspendBusy} onClick={() => handleResume('client')}
+                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px' }}>
+                        ▶ Resume all {getClientName(editModal.clientId)}’s days
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', color: '#111827', marginBottom: '0.5rem' }}>Suspend service</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#374151' }}>Starting</span>
+                      <input type='date'
+                        value={editModal.suspendFromDate || new Date().toISOString().split('T')[0]}
+                        onChange={(e) => setEditModal(prev => ({ ...prev, suspendFromDate: e.target.value }))}
+                        style={{ padding: '0.4rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.85rem' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button type='button' disabled={suspendBusy} onClick={() => handleSuspend('this')}
+                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px' }}>
+                        ⏸ Just {getDayName(parseInt(editModal.dayOfWeek))}s
+                      </button>
+                      <button type='button' disabled={suspendBusy} onClick={() => handleSuspend('client')}
+                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px', borderColor: '#F59E0B', color: '#92400E' }}>
+                        ⏸ All {getClientName(editModal.clientId)}’s days
+                      </button>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#6B7280', marginTop: '0.4rem' }}>
+                      Pauses visits from that date on. Nothing is deleted — past visits stay, and you can resume anytime.
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button onClick={handleSaveEdit} disabled={editSaving} className='btn btn-primary' style={{ flex: 1, minWidth: '160px' }}>{editSaving ? 'Saving...' : '✓ Save Changes'}</button>
+              <button
+                type='button'
+                onClick={() => {
+                  setMakeAvailableModal({
+                    schedule: editModal,
+                    clientName: getClientName(editModal.clientId),
+                    caregiverName: getCaregiverName(editModal.caregiverId || selectedCaregiverId)
+                  });
+                  setEditModal(null);
+                }}
+                className='btn'
+                style={{ background: '#F59E0B', color: '#fff', border: 'none' }}
+                title='Mark this shift as available for another caregiver to pick up'
+              >📋 Move to Available Shifts</button>
               <button onClick={() => setEditModal(null)} className='btn btn-secondary'>Cancel</button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* MAKE SHIFT AVAILABLE MODAL */}
+      {makeAvailableModal && (
+        <MakeShiftAvailableModal
+          schedule={makeAvailableModal.schedule}
+          date={makeAvailableModal.schedule.date || makeAvailableModal.schedule.editDate}
+          clientName={makeAvailableModal.clientName}
+          caregiverName={makeAvailableModal.caregiverName}
+          onClose={() => setMakeAvailableModal(null)}
+          onDone={({ notified, texted, warning }) => {
+            showMsg(warning || `Posted to Available Shifts — ${notified} caregiver${notified === 1 ? '' : 's'} can accept it${texted ? `, ${texted} texted` : ''}`, warning ? 'error' : undefined);
+            loadCaregiverSchedules(selectedCaregiverId);
+            if (mainTab === 'staffing' && staffingTab === 'open-shifts') loadOpenShifts();
+          }}
+        />
       )}
 
       {/* CALENDAR DAY DETAIL MODAL */}
@@ -1757,33 +2211,13 @@ const SchedulingHub = () => {
               ) : (
                 <>
                   {calDaySchedules.map((sc, idx) => (
-                    <div key={idx} style={{ display: 'flex', gap: '0.75rem', padding: '0.75rem', background: sc._cancelled ? '#FEF2F2' : sc._modified ? '#FFFBEB' : '#F9FAFB', borderRadius: '8px', borderLeft: `4px solid ${sc._cancelled ? '#DC2626' : sc._modified ? '#D97706' : cgColor(sc.caregiver_id)}`, marginBottom: '0.5rem', opacity: sc._cancelled ? 0.7 : 1 }}>
-                      <div style={{ minWidth: '70px', textAlign: 'center' }}>
-                        <div style={{ fontWeight: '600', fontSize: '0.9rem', textDecoration: sc._cancelled ? 'line-through' : 'none' }}>{formatTime(sc.start_time)}</div>
-                        <div style={{ fontSize: '0.78rem', color: '#6B7280', textDecoration: sc._cancelled ? 'line-through' : 'none' }}>{formatTime(sc.end_time)}</div>
-                      </div>
+                    <div key={idx} style={{ display: 'flex', gap: '0.75rem', padding: '0.75rem', background: '#F9FAFB', borderRadius: '8px', borderLeft: `4px solid ${cgColor(sc.caregiver_id)}`, marginBottom: '0.5rem' }}>
+                      <div style={{ minWidth: '70px', textAlign: 'center' }}><div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{formatTime(sc.start_time)}</div><div style={{ fontSize: '0.78rem', color: '#6B7280' }}>{formatTime(sc.end_time)}</div></div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '600', textDecoration: sc._cancelled ? 'line-through' : 'none' }}>{getClientName(sc.client_id)}</div>
+                        <div style={{ fontWeight: '600' }}>{getClientName(sc.client_id)}</div>
                         <div style={{ fontSize: '0.82rem', color: '#6B7280' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: cgColor(sc.caregiver_id), marginRight: '0.4rem' }} />{getCaregiverName(sc.caregiver_id)}</div>
-                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
-                          {sc.day_of_week !== null && <span style={bge(sc.frequency === 'biweekly' ? '#FFEDD5' : '#DBEAFE', sc.frequency === 'biweekly' ? '#C2410C' : '#1D4ED8')}>{sc.frequency === 'biweekly' ? 'Bi-Weekly' : 'Recurring'}</span>}
-                          {sc._cancelled && <span style={bge('#FEE2E2', '#DC2626')}>Cancelled</span>}
-                          {sc._modified && <span style={bge('#FEF3C7', '#D97706')}>Modified</span>}
-                        </div>
+                        {sc.day_of_week !== null && <span style={bge(sc.frequency === 'biweekly' ? '#FFEDD5' : '#DBEAFE', sc.frequency === 'biweekly' ? '#C2410C' : '#1D4ED8')}>{sc.frequency === 'biweekly' ? 'Bi-Weekly' : 'Recurring'}</span>}
                       </div>
-                      {/* Exception action buttons for recurring schedules */}
-                      {sc.day_of_week !== null && sc._occurrenceDate && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignSelf: 'center' }}>
-                          {sc._cancelled || sc._modified ? (
-                            <button onClick={() => handleRestoreException(sc._exception?.id)} style={{ background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600', whiteSpace: 'nowrap' }}>Restore</button>
-                          ) : (
-                            <>
-                              <button onClick={() => handleCancelOccurrence(sc.id, sc._occurrenceDate)} style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600', whiteSpace: 'nowrap' }}>Cancel</button>
-                              <button onClick={() => openModifyOccurrenceModal(sc, sc._occurrenceDate)} style={{ background: '#D97706', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600', whiteSpace: 'nowrap' }}>Modify</button>
-                            </>
-                          )}
-                        </div>
-                      )}
                     </div>
                   ))}
                   {getProspectApptsForDay(calSelectedDay).map((pa, idx) => (

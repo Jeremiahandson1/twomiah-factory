@@ -1,8 +1,11 @@
-// src/components/admin/ShiftSwaps.jsx
+// src/components/admin/ShiftSwaps.tsx — shift swap requests (ported from the CVHC home care CRM).
+// A swap is one day; the coworker accepts first, then the office approves.
 import React, { useState, useEffect } from 'react';
-import { formatDate } from '../../utils/date';
+import { toast } from '../Toast';
 import { API_BASE_URL } from '../../config';
+import { formatDate, formatDateTZ } from '../../utils/datetime';
 import { useAuth } from '../../contexts/AuthContext';
+import { confirm } from '../ConfirmModal';
 
 const ShiftSwaps = () => {
   const { token } = useAuth();
@@ -22,7 +25,7 @@ const ShiftSwaps = () => {
       const res = await fetch(`${API_BASE_URL}/api/shift-swaps?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await res.json();
+      const data = res.ok ? await res.json() : [];
       setSwaps(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load swaps:', error);
@@ -32,7 +35,7 @@ const ShiftSwaps = () => {
   };
 
   const approveSwap = async (swapId) => {
-    if (!confirm('Approve this shift swap? The schedule will be updated.')) return;
+    if (!(await confirm('Approve this shift swap? That one day moves to the other caregiver.'))) return;
     try {
       const res = await fetch(`${API_BASE_URL}/api/shift-swaps/${swapId}/approve`, {
         method: 'PUT',
@@ -42,15 +45,16 @@ const ShiftSwaps = () => {
         loadSwaps();
       } else {
         const err = await res.json();
-        alert('Failed: ' + err.error);
+        toast('Failed: ' + err.error, 'error');
       }
     } catch (error) {
-      alert('Failed: ' + error.message);
+      toast('Failed: ' + error.message, 'error');
     }
   };
 
   const rejectSwap = async (swapId) => {
     const reason = prompt('Rejection reason (optional):');
+    if (reason === null) return;
     try {
       const res = await fetch(`${API_BASE_URL}/api/shift-swaps/${swapId}/reject`, {
         method: 'PUT',
@@ -62,19 +66,22 @@ const ShiftSwaps = () => {
       });
       if (res.ok) {
         loadSwaps();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast('Failed: ' + (err.error || res.status), 'error');
       }
     } catch (error) {
-      alert('Failed: ' + error.message);
+      toast('Failed: ' + error.message, 'error');
     }
   };
 
   const getStatusBadge = (status) => {
     const colors = {
-      pending: '#ff9800',
-      accepted: '#2196f3',
-      approved: '#4caf50',
-      rejected: '#f44336',
-      cancelled: '#9e9e9e'
+      pending: '#B45309',
+      accepted: '#1565C0',
+      approved: '#2E7D32',
+      rejected: '#C62828',
+      cancelled: '#616161'
     };
     return (
       <span style={{
@@ -83,7 +90,7 @@ const ShiftSwaps = () => {
         fontSize: '0.75rem',
         fontWeight: 'bold',
         color: 'white',
-        backgroundColor: colors[status] || '#9e9e9e'
+        backgroundColor: colors[status] || '#616161'
       }}>
         {status?.toUpperCase()}
       </span>
@@ -171,11 +178,7 @@ const ShiftSwaps = () => {
                 <tr key={swap.id}>
                   <td>
                     <strong>
-                      {new Date(swap.shift_date).toLocaleDateString('en-US', { 
-                        weekday: 'short', 
-                        month: 'short', 
-                        day: 'numeric' 
-                      })}
+                      {formatDate(swap.shift_date, { weekday: 'short', month: 'short', day: 'numeric' })}
                     </strong>
                   </td>
                   <td>{swap.start_time?.slice(0,5)} - {swap.end_time?.slice(0,5)}</td>
@@ -196,7 +199,7 @@ const ShiftSwaps = () => {
                   </td>
                   <td>{getStatusBadge(swap.status)}</td>
                   <td style={{ fontSize: '0.85rem' }}>
-                    {formatDate(swap.requested_at)}
+                    {formatDateTZ(swap.requested_at)}
                   </td>
                   <td>
                     {swap.status === 'accepted' && (
@@ -241,7 +244,7 @@ const ShiftSwaps = () => {
       </div>
 
       {/* Info Card */}
-      <div className="card" style={{ marginTop: '1rem', backgroundColor: '#f5f5f5' }}>
+      <div className="card" style={{ marginTop: '1rem', backgroundColor: '#f5f5f5', color: '#111827' }}>
         <h4>How Shift Swaps Work</h4>
         <ol style={{ margin: '0.5rem 0', paddingLeft: '1.5rem' }}>
           <li><strong>Request:</strong> Caregiver A requests to swap their shift with Caregiver B</li>

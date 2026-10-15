@@ -64,6 +64,8 @@ import LeadInboxPage from '../pages/leads/LeadInboxPage';
 import ContactSupportPage from '../pages/support/ContactSupportPage';
 import ClientDocuments from './admin/ClientDocuments';
 import UserManagement from './admin/UserManagement';
+import VisitDocumentation from './admin/VisitDocumentation';
+import ShiftApprovals from './admin/ShiftApprovals';
 import LeadSourcesPage from '../pages/leads/LeadSourcesPage';
 import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from '../shared';
 
@@ -89,6 +91,7 @@ const NAV_SECTIONS = [
       { id: 'scheduling', label: 'Schedule Hub', icon: '📅' },
       { id: 'emergency-coverage', label: 'Emergency Coverage', icon: '🚨' },
       { id: 'no-show-alerts', label: 'No-Show Alerts', icon: '⏰' },
+      { id: 'shift-approvals', label: 'Shift Approvals', icon: '⚠️' },
       { id: 'route-optimizer', label: 'Route Optimizer', icon: '🗺️' },
       { id: 'company-optimizer', label: 'Company Optimizer', icon: '⚙️' },
     ]
@@ -98,6 +101,7 @@ const NAV_SECTIONS = [
     items: [
       { id: 'adl', label: 'ADL Tracking', icon: '🩺' },
       { id: 'medications', label: 'Medications', icon: '💊' },
+      { id: 'visit-docs', label: 'Visit Documentation', icon: '📝' },
       { id: 'incidents', label: 'Incidents', icon: '⚠️' },
       { id: 'form-builder', label: 'Form Builder', icon: '📝' },
     ]
@@ -354,6 +358,8 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'alerts': return <AlertsManagement />;
       case 'communication-log': return <CommunicationLog entityType='client' entityId={null} entityName='All Entries' />;
       case 'no-show-alerts': return <NoShowAlerts />;
+      case 'shift-approvals': return <ShiftApprovals />;
+      case 'visit-docs': return <VisitDocumentation />;
       case 'form-builder': return <FormBuilder />;
       case 'revenue-forecast': return <RevenueForecast />;
       // ai-receptionist handled above (line 275)

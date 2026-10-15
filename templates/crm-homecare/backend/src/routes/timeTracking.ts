@@ -33,19 +33,23 @@ async function payerOf(clientId: string) {
 }
 const isPrivate = (p: any) => p?.is_private_pay === true || p?.payer_type === 'private_pay'
 
-// Write the EVV visit for a closed entry (unchanged template behaviour, behind ENABLE_SANDATA_EVV).
-async function createEvvVisit(entry: any, endTime: Date, clockOutLocation: any) {
+// EVERY path that closes a visit calls this — clock-out, the auto-close when a caregiver clocks into
+// the next client, and the office's force clock-out — so the EVV record is made in one place.
+// (Today: the template's own evv_visits row behind ENABLE_SANDATA_EVV.)
+export async function onVisitClosed(timeEntryId: string) {
   if (process.env.ENABLE_SANDATA_EVV !== 'true') return
   try {
+    const [entry] = await db.select().from(timeEntries).where(eq(timeEntries.id, timeEntryId)).limit(1)
+    if (!entry || !entry.endTime) return
     const clockIn = entry.clockInLocation as any
-    const clockOut = clockOutLocation as any
+    const clockOut = entry.clockOutLocation as any
     await db.insert(evvVisits).values({
       timeEntryId: entry.id,
       clientId: entry.clientId,
       caregiverId: entry.caregiverId,
       serviceDate: entry.startTime.toISOString().split('T')[0],
       actualStart: entry.startTime,
-      actualEnd: endTime,
+      actualEnd: entry.endTime,
       gpsInLat: clockIn?.lat ?? null,
       gpsInLng: clockIn?.lng ?? null,
       gpsOutLat: clockOut?.lat ?? null,
@@ -53,7 +57,7 @@ async function createEvvVisit(entry: any, endTime: Date, clockOutLocation: any) 
       evvMethod: (clockIn?.lat || clockOut?.lat) ? 'gps' : 'manual',
     }).onConflictDoNothing()
   } catch (evvErr: any) {
-    console.warn('[EVV] Auto-create failed for time entry', entry.id, ':', evvErr.message)
+    console.warn('[EVV] Auto-create failed for time entry', timeEntryId, ':', evvErr.message)
   }
 }
 
@@ -475,6 +479,7 @@ app.post('/clock-in', async (c) => {
         updated_at = NOW()
       WHERE id = ${oe.id}`)
     await recordAudit(caregiverId, 'UPDATE', 'time_entries', oe.id, null, { auto_closed: true, duration_minutes: d.durationMinutes })
+    await onVisitClosed(oe.id)
   }
 
   let entry: any
@@ -554,7 +559,7 @@ async function clockOut(c: any, timeEntryId: string) {
     }
   } catch (e: any) { console.error('[clock-out] breadcrumb backfill:', e?.message) }
 
-  await createEvvVisit(entry, end, outLoc)
+  await onVisitClosed(entry.id)
   return c.json(updated)
 }
 
@@ -614,7 +619,7 @@ app.post('/:id/admin-force-clockout', requireAdmin, async (c) => {
   }).where(and(eq(timeEntries.id, id), isNull(timeEntries.endTime))).returning()
   if (!updated) return c.json({ error: 'This shift is already clocked out.' }, 409)
   await recordAudit(userIdOf(user), 'UPDATE', 'time_entries', id, null, { action: 'admin_force_clockout', reason: reason || null, caregiver_id: e.caregiverId, duration_minutes: durationMinutes })
-  await createEvvVisit(e, end, null)
+  await onVisitClosed(id)
   return c.json({ success: true, entry: updated })
 })
 

@@ -11,11 +11,45 @@ import {
   authorizations,
   users,
 } from '../../db/schema.ts'
-import { eq, and, or, ilike, count, desc, asc } from 'drizzle-orm'
+import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// A CAREGIVER sees only the clients they serve, and never their identifiers. This list fed the
+// caregiver app with every client of the agency — Medicaid ids, insurance numbers and all — when the
+// phone only needs the people on that caregiver's schedule (to clock in and find the house). The
+// office reads below, unchanged. A caregiver's GET / is an array in the snake_case the app reads.
+const CAREGIVER_CLIENT_COLS = sql.raw(`c.id, c.first_name, c.last_name, c.address, c.city, c.state, c.zip, c.phone,
+  c.latitude, c.longitude, c.is_active, c.care_type_id, c.assistance_needs, c.allergies, c.service_type`)
+const servedBy = (caregiverId: string) => sql`(
+  EXISTS (SELECT 1 FROM schedules s WHERE s.client_id = c.id AND s.caregiver_id = ${caregiverId} AND s.is_active = true
+          AND (s.day_of_week IS NULL OR s.end_date IS NULL OR s.end_date >= CURRENT_DATE - 14))
+  OR EXISTS (SELECT 1 FROM schedule_exceptions se JOIN schedules s2 ON s2.id = se.schedule_id
+          WHERE COALESCE(se.override_client_id, s2.client_id) = c.id AND se.override_caregiver_id = ${caregiverId}
+            AND se.exception_type = 'modified' AND se.exception_date >= CURRENT_DATE - 14)
+  OR EXISTS (SELECT 1 FROM client_assignments a WHERE a.client_id = c.id AND a.caregiver_id = ${caregiverId} AND a.status = 'active'))`
+app.use('*', async (c, next) => {
+  const user = c.get('user') as any
+  if (!user || user.role === 'admin' || user.role === 'owner' || c.req.method !== 'GET') return next()
+  const me = user.userId || user.id
+  const path = c.req.path.replace(/\/+$/, '')
+  const parts = path.split('/').filter(Boolean) // ['api','clients', ...]
+  const rest = parts.slice(parts.indexOf('clients') + 1)
+  if (rest.length === 0) {
+    const r: any = await db.execute(sql`SELECT ${CAREGIVER_CLIENT_COLS} FROM clients c WHERE c.is_active = true AND ${servedBy(me)}
+      ORDER BY c.last_name, c.first_name`)
+    return c.json(r?.rows ?? r)
+  }
+  if (rest.length === 1) {
+    const r: any = await db.execute(sql`SELECT ${CAREGIVER_CLIENT_COLS} FROM clients c WHERE c.id = ${rest[0]} AND ${servedBy(me)}`)
+    const row = (r?.rows ?? r)[0]
+    if (!row) return c.json({ error: 'Client not found' }, 404)
+    return c.json(row)
+  }
+  return c.json({ error: 'Admin access required' }, 403)
+})
 
 // Convert camelCase keys to snake_case for frontend compatibility
 function toSnake(obj: any): any {
