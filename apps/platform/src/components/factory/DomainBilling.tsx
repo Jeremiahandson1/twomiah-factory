@@ -15,7 +15,10 @@ type State = {
   /** Namecheap's own auto-renew, read live (null = unreadable), and which way it should be: ON only for a domain we cover. */
   namecheapAutoRenew?: boolean | null; namecheapAutoRenewWanted?: boolean | null
   privacy?: { state: 'on' | 'off' | 'none'; expiresAt: string | null } | null
+  /** Who a new domain is registered to — the registrar refuses without all of it (E2E Run 2). */
+  registrant?: Registrant; registrantMissing?: string[]
 }
+type Registrant = { address: string; city: string; state: string; zip: string; phone: string }
 type Props = { tenantId: string; showToast: (msg: string, type?: 'success' | 'error') => void; onChanged: () => void }
 
 const INPUT = 'px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500'
@@ -41,10 +44,12 @@ export default function DomainBilling({ tenantId, showToast, onChanged }: Props)
   const [who, setWho] = useState<'customer' | 'ours'>('customer')
   const [link, setLink] = useState<{ url: string; amountCents: number } | null>(null)
   const [price, setPrice] = useState('')
+  // Pre-filled from the company once, then the staff member's edits stand (they are saved with the registration).
+  const [reg, setReg] = useState<Registrant | null>(null)
 
   const load = async () => {
     const r = await call('GET', tenantId + '/domain/billing')
-    if (r.ok) { setS(r.data); setLoadError('') } else setLoadError(r.data?.error || 'Could not load the domain')
+    if (r.ok) { setS(r.data); setLoadError(''); setReg((prev) => prev ?? r.data.registrant ?? { address: '', city: '', state: '', zip: '', phone: '' }) } else setLoadError(r.data?.error || 'Could not load the domain')
   }
   useEffect(() => { load() }, [tenantId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -58,7 +63,7 @@ export default function DomainBilling({ tenantId, showToast, onChanged }: Props)
 
   const register = async () => {
     setLink(null)
-    const r = await act(() => call('POST', tenantId + '/domain/register', { domain: newDomain.trim().toLowerCase(), years, billing: who }),
+    const r = await act(() => call('POST', tenantId + '/domain/register', { domain: newDomain.trim().toLowerCase(), years, billing: who, registrant: reg }),
       who === 'customer' ? 'Checkout link created — send it to the customer' : 'Domain registered on our account')
     if (r.ok && r.data?.url) setLink({ url: r.data.url, amountCents: r.data.amountCents })
   }
@@ -79,11 +84,24 @@ export default function DomainBilling({ tenantId, showToast, onChanged }: Props)
               {[1, 2, 3, 5, 10].map((y) => <option key={y} value={y}>{y} year{y > 1 ? 's' : ''}</option>)}
             </select>
           </div>
+          {reg && (
+            <fieldset className="space-y-2">
+              <legend className="text-xs text-gray-400 mb-1">Registered to (the registrar needs all of it — saved on the company)</legend>
+              <input value={reg.address} onChange={(e) => setReg((p) => p && ({ ...p, address: e.target.value }))} placeholder="Street address" aria-label="Street address" className={INPUT + ' w-full'} />
+              <div className="flex flex-wrap gap-2">
+                <input value={reg.city} onChange={(e) => setReg((p) => p && ({ ...p, city: e.target.value }))} placeholder="City" aria-label="City" className={INPUT + ' flex-1 min-w-[8rem]'} />
+                <input value={reg.state} onChange={(e) => setReg((p) => p && ({ ...p, state: e.target.value.toUpperCase().slice(0, 2) }))} placeholder="State" aria-label="State" className={INPUT + ' w-20'} />
+                <input value={reg.zip} onChange={(e) => setReg((p) => p && ({ ...p, zip: e.target.value }))} placeholder="ZIP" aria-label="ZIP" className={INPUT + ' w-28'} />
+              </div>
+              <input value={reg.phone} onChange={(e) => setReg((p) => p && ({ ...p, phone: e.target.value }))} placeholder="Phone" aria-label="Phone" className={INPUT + ' w-full'} />
+              {!!s.registrantMissing?.length && <p className="text-xs text-amber-300">On file it is missing: {s.registrantMissing.join(', ')}.</p>}
+            </fieldset>
+          )}
           <fieldset className="text-sm text-gray-300 space-y-1">
             <label className="flex items-start gap-2"><input type="radio" name="who" className="mt-1" checked={who === 'customer'} onChange={() => setWho('customer')} /><span>The customer pays — make a checkout link to send them. It is registered the moment they pay.</span></label>
             <label className="flex items-start gap-2"><input type="radio" name="who" className="mt-1" checked={who === 'ours'} onChange={() => setWho('ours')} /><span>Register it now on our account — for a company we bill ourselves. Nothing is charged to them here.</span></label>
           </fieldset>
-          <button onClick={register} disabled={busy || !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(newDomain.trim())} className="px-3 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50">
+          <button onClick={register} disabled={busy || !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(newDomain.trim()) || !reg || !reg.address.trim() || !reg.city.trim() || !reg.state.trim() || !reg.zip.trim() || !reg.phone.trim()} className="px-3 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50">
             {busy ? 'Working…' : who === 'customer' ? 'Create checkout link' : 'Register now'}
           </button>
           {link && (

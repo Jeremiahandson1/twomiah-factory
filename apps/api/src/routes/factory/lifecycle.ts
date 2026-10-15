@@ -8,6 +8,7 @@ import fs from 'fs'
 import path from 'path'
 import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
 import { restartRefusal } from '../../services/subscriptionRestart'
+import { registrantGaps } from '../../services/domainRegistrant'
 import { ourPremiumSiteOrigin } from '../../services/premiumSiteUrl'
 import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
 
@@ -398,12 +399,16 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
     if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
 
     const { data: tenant } = await supabase.from('tenants')
-      .select('id, slug, factory_sync_key, stripe_customer_id, domain, website_url, render_frontend_url')
+      .select('id, slug, factory_sync_key, stripe_customer_id, domain, website_url, render_frontend_url, phone, address, city, state, zip')
       .eq('id', tenantId).single()
     if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
     if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant — finish initial billing first.' }, 409)
     if (tenant.domain) return c.json({ error: 'This tenant already has a domain attached.' }, 409)
+    // The registrar needs the full business address and a phone — refuse BEFORE the checkout, never charge and refund.
+    // A customer cannot edit what the Factory holds, so they are sent to a person. (E2E Run 2, 10/15)
+    const gaps = registrantGaps(tenant)
+    if (gaps.length) return c.json({ error: 'To register a domain we need your business ' + gaps.join(', ') + '. Email support@twomiah.com and we will add them and register it for you — nothing has been charged.', code: 'registrant_incomplete', missing: gaps }, 422)
 
     if (!isRegistrarConfigured()) return c.json({ error: 'Domain purchase is not configured on this environment' }, 503)
 

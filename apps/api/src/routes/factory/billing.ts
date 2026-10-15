@@ -10,6 +10,7 @@ import { getRegistrar } from '../../services/registrar'
 import { type FactoryApp, UUID_RE, DOMAIN_RE, parseJsonBody, logTenantAudit, diffTenantChanges, FRONTEND_URL, checkCronSecret } from './shared'
 import { triggerAutoDeploy } from './deploy'
 import { finishRestart } from '../../services/subscriptionRestart'
+import { registrantGaps, registrantMessage, cleanRegistrant } from '../../services/domainRegistrant'
 
 // Apply a webhook's tenant updates so that activation NEVER depends on an optional attribute.
 // PostgREST rejects the whole update when it names a column the table lacks (PGRST204) — that is how
@@ -407,12 +408,14 @@ async function handleDomainRegistration(opts: {
   const ownerName = (tenant.name || 'Admin User').split(/\s+/)
   const firstName = ownerName[0] || 'Admin'
   const lastName = ownerName.slice(1).join(' ') || 'User'
-  // Namecheap requires phone for registration — if the tenant didn't
-  // provide one we can't proceed. Refund + email.
-  if (!tenant.phone) {
-    console.warn('[Domain] Tenant has no phone' + (paymentIntent ? ' — refunding' : ''))
-    if (paymentIntent) await refundAndEmail({ tenant, paymentIntent, domain, reason: 'no_phone' })
-    return { ok: false, error: 'Tenant has no phone on file — the registrar requires one' }
+  // The registrar requires the registrant's full address AND a phone. This checked the phone only, so a store with no
+  // address was charged, then refused ("Parameter RegistrantAddress1 is Missing") and refunded. The checkout routes now
+  // refuse before charging (services/domainRegistrant.ts); this is the backstop for anything already paid. (E2E Run 2)
+  const gaps = registrantGaps(tenant)
+  if (gaps.length) {
+    console.warn('[Domain] Registrant incomplete (' + gaps.join(', ') + ')' + (paymentIntent ? ' — refunding' : ''))
+    if (paymentIntent) await refundAndEmail({ tenant, paymentIntent, domain, reason: 'no_registrant' })
+    return { ok: false, error: registrantMessage(gaps) }
   }
   const reg = await registrar.register(domain, {
     years,
@@ -509,7 +512,7 @@ async function refundAndEmail(opts: {
   tenant: { id: string; admin_email: string | null; email: string | null; name: string | null }
   paymentIntent: string
   domain: string
-  reason: 'no_phone' | 'registrar_failed' | string
+  reason: 'no_registrant' | 'registrar_failed' | string
   detail?: string
 }): Promise<void> {
   // Logged here rather than left to the caller: this is the one place every
@@ -529,8 +532,8 @@ async function refundAndEmail(opts: {
   // an outbound IP missing from an allowlist, an expired key — which means
   // nothing to the customer and reads as though they were at fault. The detail
   // is in the log above; the reference below is what connects them.
-  const reasonText = opts.reason === 'no_phone'
-    ? 'we did not have a phone number on file for your account, and the domain registrar requires one'
+  const reasonText = opts.reason === 'no_registrant'
+    ? 'we did not have your full business address and phone number on file, and the domain registrar requires them'
     : 'something went wrong on the registrar\'s end. It was not your card, and nothing is wrong with your account'
   // Last segment of the payment intent — enough for us to find the charge, the
   // refund and the log line, without printing the whole id.
@@ -540,10 +543,10 @@ async function refundAndEmail(opts: {
     '<p>Hi ' + (opts.tenant.name || 'there') + ',</p>' +
     '<p>We tried to register <strong>' + opts.domain + '</strong> for you and it didn\'t go through — ' + reasonText + '.</p>' +
     '<p>We\'ve fully refunded the charge to your card. It should appear back in your account in 5-10 business days.</p>' +
-    '<p>If you want to try again, you can either:</p>' +
-    '<ul><li>Go back to your admin → Domain → Buy a new one and try a different name</li>' +
-    '<li>Or if you already own a domain elsewhere, use the "I already own a domain" tab instead</li></ul>' +
-    '<p>Reply to this email if you want help — a real person reads it.</p>' +
+    // The retry steps used to name an admin "Domain" page and an "I already own a domain" tab — screens only the
+    // premium website has. A store or CRM owner had nowhere to go. Every customer can reply. (E2E Run 2, 10/15)
+    '<p>To try again, just reply to this email' + (opts.reason === 'no_registrant' ? ' with your business street address, city, state, ZIP and phone number' : '') + ' and we will register it for you. If you already own a domain somewhere else, tell us that instead and we will connect it.</p>' +
+    '<p>A real person reads every reply.</p>' +
     '<p style="color:#888;font-size:12px">Reference: ' + reference + '</p>'
   ).catch(e => console.warn('[Domain] Email send failed:', e?.message))
 }
@@ -596,7 +599,7 @@ factory.post('/internal/domain/register-at-cost/:tenantId', async (c) => {
 //   POST …/domain/register         buy one: { billing: 'customer' } → a Stripe checkout link for the customer (the paid
 //                                   webhook registers it); { billing: 'ours' } → registered now on our account (the
 //                                   at-cost path, for accounts we bill ourselves)
-const DOMAIN_BILLING_COLUMNS = 'id, name, slug, domain, domain_registrar, domain_expires_at, stripe_customer_id, domain_renewal_price_cents, domain_renewal_invoice_id, domain_renewal_paid_invoice_id, domain_renewal_error'
+const DOMAIN_BILLING_COLUMNS = 'id, name, slug, domain, domain_registrar, domain_expires_at, stripe_customer_id, domain_renewal_price_cents, domain_renewal_invoice_id, domain_renewal_paid_invoice_id, domain_renewal_error, phone, address, city, state, zip'
 
 factory.get('/customers/:id/domain/billing', requireRole('owner', 'admin'), async (c) => {
   const id = c.req.param('id') || ''
@@ -621,6 +624,9 @@ factory.get('/customers/:id/domain/billing', requireRole('owner', 'admin'), asyn
     namecheapAutoRenew,
     namecheapAutoRenewWanted: ours ? coveredByUs : null,
     privacy: info?.privacy ? { state: info.privacy.state, expiresAt: info.privacy.expiresAt ? info.privacy.expiresAt.toISOString() : null } : null,
+    // Who a new domain would be registered to — the panel pre-fills it and asks for what is missing. (E2E Run 2)
+    registrant: { phone: t.phone || '', address: t.address || '', city: t.city || '', state: t.state || '', zip: t.zip || '' },
+    registrantMissing: registrantGaps(t),
   })
 })
 
@@ -675,10 +681,24 @@ factory.post('/customers/:id/domain/register', requireRole('owner', 'admin'), as
     if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
     if (body.billing !== 'customer' && body.billing !== 'ours') return c.json({ error: 'billing must be "customer" or "ours"' }, 400)
 
-    const { data: tenant } = await supabase.from('tenants').select('id, domain, stripe_customer_id, phone').eq('id', id).single()
+    const { data: tenant } = await supabase.from('tenants').select('id, domain, stripe_customer_id, phone, address, city, state, zip').eq('id', id).single()
     if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (tenant.domain) return c.json({ error: 'This company already has a domain attached.' }, 409)
-    if (!tenant.phone) return c.json({ error: 'Add a phone number to the company first — the registrar requires one.' }, 409)
+    // Who it is registered TO, before anyone is charged (services/domainRegistrant.ts). The panel sends what it
+    // collected; it is saved on the company, then the whole contact is checked. (E2E Run 2: charged, then refused.)
+    const cleaned = cleanRegistrant(body.registrant)
+    if (!cleaned.ok) return c.json({ error: cleaned.error, code: 'registrant_invalid' }, 400)
+    if (Object.keys(cleaned.patch).length) {
+      const changes = Object.fromEntries(Object.entries(cleaned.patch).filter(([k, v]) => (tenant as any)[k] !== v).map(([k, v]) => [k, { old: (tenant as any)[k] ?? null, new: v }]))
+      if (Object.keys(changes).length) {
+        const { error: upErr } = await supabase.from('tenants').update(cleaned.patch).eq('id', id)
+        if (upErr) return c.json({ error: 'Could not save the address: ' + upErr.message }, 500)
+        Object.assign(tenant, cleaned.patch)
+        await logTenantAudit(id, 'registrant_updated', changes, c.get('user')?.email || 'staff', 'Domain registrant contact, from Domain billing')
+      }
+    }
+    const gaps = registrantGaps(tenant)
+    if (gaps.length) return c.json({ error: registrantMessage(gaps), code: 'registrant_incomplete', missing: gaps }, 422)
 
     const { isRegistrarConfigured } = await import('../../services/registrar')
     if (!isRegistrarConfigured()) return c.json({ error: 'Registrar is not configured on this environment' }, 503)

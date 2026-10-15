@@ -291,7 +291,10 @@ export default function CustomerDetailPage() {
 
   async function load() {
     if (!id) return
-    setLoading(true)
+    // "Loading…" only when there is nothing of THIS company on screen yet. A panel's onChanged refresh used to swap the
+    // whole page for it — unmounting the panel, so Domain billing's fresh checkout link vanished a moment after it was
+    // created, before staff could copy it. (E2E Run 2, 10/15)
+    if (!tenant || tenant.id !== id) setLoading(true)
     const [{ data: t }, { data: j }] = await Promise.all([
       supabase.from('tenants').select('*').eq('id', id).single(),
       supabase.from('factory_jobs').select('*').eq('tenant_id', id).order('created_at', { ascending: false }),
