@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Lock, CheckCircle, XCircle } from 'lucide-react';
 import api from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get('token');
+  const { isAuthenticated, logout } = useAuth();
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -38,6 +40,10 @@ export default function ResetPasswordPage() {
 
     try {
       await api.resetPassword(token, password);
+      // Signed in here as someone else (a shared computer, an owner or manager opening a teammate's invite)? End THAT session —
+      // through the auth context, not the api alone: clearing only the tokens left the old person in memory, so Sign in
+      // bounced straight to their dashboard and Sign out failed on its refused server call. (E2E Run 2, 10/15)
+      if (isAuthenticated) await logout();
       setSuccess(true);
       setTimeout(() => navigate('/login'), 3000);
     } catch (err) {

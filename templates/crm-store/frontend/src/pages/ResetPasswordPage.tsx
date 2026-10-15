@@ -2,12 +2,14 @@ import { useState, FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Store } from 'lucide-react'
 import api from '../services/api'
+import { useAuth } from '../contexts/AuthContext'
 
 const companyName = import.meta.env.VITE_COMPANY_NAME || 'Store'
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams()
   const token = params.get('token') || ''
+  const { isAuthenticated, logout } = useAuth()
   // An invite from the store owner (routes/users.ts) lands here too — it is the same set-your-password link.
   const invite = params.get('invite') === '1'
   const [password, setPassword] = useState('')
@@ -24,9 +26,10 @@ export default function ResetPasswordPage() {
     setBusy(true)
     try {
       await api.resetPassword(token, password)
-      // Signed in here as someone else (a shared computer, an owner opening a link)? Sign-in is PublicOnly, so the old
-      // session would carry straight past it. End it first. (10/14)
-      if (api.hasToken) await api.logout().catch(() => { /* tokens are cleared either way */ })
+      // Signed in here as someone else (a shared computer, an owner or manager opening a teammate's invite)? End THAT session —
+      // through the auth context, not the api alone: clearing only the tokens left the old person in memory, so Sign in
+      // bounced straight to their dashboard and Sign out failed on its refused server call. (E2E Run 2, 10/15)
+      if (isAuthenticated || api.hasToken) await logout()
       setDone(true)
     } catch (err: any) {
       setError(err?.message || 'Reset failed')

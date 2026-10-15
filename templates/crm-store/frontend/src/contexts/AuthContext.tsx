@@ -49,10 +49,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(s.user)
     setPermissions(s.permissions)
   }
+  // Signing out always signs out here, even when the server call fails (a session already ended elsewhere): a refused
+  // logout used to throw before the state was cleared, and the Sign out button did nothing. (E2E Run 2, 10/15)
   const logout = async () => {
-    await api.logout()
-    setUser(null)
-    setPermissions(null)
+    try { await api.logout() } catch { /* the tokens are cleared either way */ } finally {
+      setUser(null)
+      setPermissions(null)
+      setAccountLock(null)
+      setStoreName(null)
+    }
   }
 
   return (

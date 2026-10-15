@@ -31,8 +31,30 @@ for (const t of readdirSync(ROOT + 'templates').filter((d) => /^crm(-|$)/.test(d
 const shared = readFileSync(ROOT + 'packages/tenant-ui/src/auth/ResetPasswordPage.tsx', 'utf8')
 if (!/if \(isAuthenticated\) await logout\(\)/.test(shared)) fail('the shared ResetPasswordPage must sign the current session out after saving, or sign-in carries the old account straight through')
 if (!/This browser is signed in as/.test(shared)) fail('the shared ResetPasswordPage must say who is signed in before the password is saved')
-const store = readFileSync(ROOT + 'templates/crm-store/frontend/src/pages/ResetPasswordPage.tsx', 'utf8')
-if (!/if \(api\.hasToken\) await api\.logout\(\)/.test(store)) fail('crm-store ResetPasswordPage must end the current session after saving — its sign-in is PublicOnly')
+// The templates that keep their OWN reset page must end the old session too — through the AUTH CONTEXT. (E2E Run 2,
+// 10/15) The store's cleared only the api tokens: the old person stayed in memory, Sign in bounced to their dashboard,
+// and Sign out failed on its refused server call. Dispensary and roof never signed out at all.
+const OWN_RESET: Record<string, RegExp> = {
+  'crm-store': /if \(isAuthenticated \|\| api\.hasToken\) await logout\(\)/,
+  'crm-dispensary': /if \(isAuthenticated\) await logout\(\);/,
+  'crm-roof': /if \(signedIn\) logout\(\);/,
+}
+for (const [t, rule] of Object.entries(OWN_RESET)) {
+  const page = readFileSync(ROOT + `templates/${t}/frontend/src/pages/ResetPasswordPage.tsx`, 'utf8')
+  if (!/useAuth\(\)/.test(page) || !rule.test(page)) fail(`${t} ResetPasswordPage must end the signed-in session through the auth context (useAuth().logout) after saving`)
+  if (/api\.logout\(\)/.test(page)) fail(`${t} ResetPasswordPage calls api.logout() directly — that clears the tokens and leaves the old person signed in in memory`)
+}
+// Every template's reset page is either the shared one (re-exported — the check above covers it) or listed here.
+let wrappers = 0
+for (const t of readdirSync(ROOT + 'templates').filter((d) => /^crm(-|$)/.test(d) && !PARKED.has(d))) {
+  const f = ROOT + `templates/${t}/frontend/src/pages/ResetPasswordPage.tsx`
+  if (!existsSync(f) || t in OWN_RESET) continue
+  if (/ResetPasswordPage as \w+ \} from '\.\.\/shared'/.test(readFileSync(f, 'utf8'))) { wrappers++; continue }
+  fail(`${t} has its own ResetPasswordPage (not the shared one) that this guard does not check — add it to OWN_RESET`)
+}
+// And signing out must always sign out: state cleared even when the server call is refused.
+const storeAuth = readFileSync(ROOT + 'templates/crm-store/frontend/src/contexts/AuthContext.tsx', 'utf8')
+if (!/try \{ await api\.logout\(\) \} catch[^]*?finally \{[^}]*setUser\(null\)/.test(storeAuth)) fail('crm-store AuthContext.logout must clear the signed-in person in a finally — a refused server call must not stop Sign out')
 
 if (failed) { console.error(`\nreset link while signed in: ${failed} check(s) FAILED`); process.exit(1) }
 console.log(`reset link while signed in: ${routes} /reset-password route(s), none wrapped; the shared and store pages end the old session`)
