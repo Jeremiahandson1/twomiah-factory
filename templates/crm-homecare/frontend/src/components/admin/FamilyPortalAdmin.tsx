@@ -15,6 +15,10 @@ const FamilyPortalAdmin = () => {
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [clients, setClients] = useState([]);
+  // The client portal's message threads (client → office) are answered here too.
+  const [threads, setThreads] = useState([]);
+  const [openThread, setOpenThread] = useState(null); // { thread, messages }
+  const [threadReply, setThreadReply] = useState('');
 
   useEffect(() => {
     loadFamilyMembers();
@@ -24,6 +28,9 @@ const FamilyPortalAdmin = () => {
   useEffect(() => {
     if (activeTab === 'messages') {
       loadMessages();
+    }
+    if (activeTab === 'threads') {
+      loadThreads();
     }
   }, [activeTab]);
 
@@ -66,6 +73,65 @@ const FamilyPortalAdmin = () => {
       setMessages(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load messages:', error);
+    }
+  };
+
+  const loadThreads = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/family-portal/admin/portal-threads`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = res.ok ? await res.json() : [];
+      setThreads(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to load portal messages:', error);
+    }
+  };
+
+  const viewThread = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/family-portal/admin/portal-threads/${id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Could not open that conversation');
+      setOpenThread(await res.json());
+      setThreadReply('');
+      loadThreads();
+    } catch (error) {
+      toast('Failed: ' + error.message, 'error');
+    }
+  };
+
+  const replyToThread = async (e) => {
+    e.preventDefault();
+    if (!openThread || !threadReply.trim()) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/family-portal/admin/portal-threads/${openThread.thread.id}/reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ body: threadReply.trim() })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Reply failed');
+      viewThread(openThread.thread.id);
+    } catch (error) {
+      toast('Failed: ' + error.message, 'error');
+    }
+  };
+
+  // Change one of a relative's details or permission switches.
+  const updateMember = async (memberId, patch) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/family-portal/admin/members/${memberId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(patch)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      loadFamilyMembers();
+    } catch (error) {
+      toast('Failed: ' + error.message, 'error');
     }
   };
 
@@ -194,7 +260,8 @@ const FamilyPortalAdmin = () => {
   };
 
   const activeCount = familyMembers.filter(m => m.is_active).length;
-  const unreadMessages = messages.filter(m => !m.is_read).length;
+  const unreadMessages = messages.filter(m => !(m.is_read ?? m.isRead)).length;
+  const unreadThreads = threads.filter(t => t.has_unread ?? t.hasUnread).length;
 
   return (
     <div>
@@ -224,7 +291,7 @@ const FamilyPortalAdmin = () => {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <button 
           className={`btn ${activeTab === 'members' ? 'btn-primary' : 'btn-secondary'}`}
           onClick={() => setActiveTab('members')}
@@ -236,6 +303,12 @@ const FamilyPortalAdmin = () => {
           onClick={() => setActiveTab('messages')}
         >
           Messages {unreadMessages > 0 && `(${unreadMessages} new)`}
+        </button>
+        <button
+          className={`btn ${activeTab === 'threads' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('threads')}
+        >
+          Client Portal Messages {unreadThreads > 0 && `(${unreadThreads} new)`}
         </button>
       </div>
 
@@ -280,6 +353,7 @@ const FamilyPortalAdmin = () => {
                     <th>Phone</th>
                     <th>Client</th>
                     <th>Relationship</th>
+                    <th>Can see</th>
                     <th>Status</th>
                     <th>Last Login</th>
                     <th>Actions</th>
@@ -288,11 +362,30 @@ const FamilyPortalAdmin = () => {
                 <tbody>
                   {familyMembers.map(member => (
                     <tr key={member.id}>
-                      <td><strong>{member.first_name} {member.last_name}</strong></td>
+                      <td><strong>{member.name}</strong>{(member.is_primary_contact ?? member.isPrimaryContact) && <span style={{ marginLeft: '0.35rem', fontSize: '0.72rem', color: '#555' }}>(primary)</span>}</td>
                       <td>{member.email}</td>
                       <td>{member.phone || '-'}</td>
                       <td>{member.client_first_name} {member.client_last_name}</td>
                       <td>{getRelationshipBadge(member.relationship)}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem' }}>
+                          {[
+                            ['canViewSchedule', 'can_view_schedule', 'Schedule'],
+                            ['canViewCarePlan', 'can_view_care_plan', 'Care plan'],
+                            ['canViewMedications', 'can_view_medications', 'Medications'],
+                            ['canMessage', 'can_message', 'Messages'],
+                          ].map(([camel, snake, label]) => (
+                            <label key={camel} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                              <input
+                                type="checkbox"
+                                checked={!!(member[snake] ?? member[camel])}
+                                onChange={(e) => updateMember(member.id, { [camel]: e.target.checked })}
+                              />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                      </td>
                       <td>{getStatusBadge(member.is_active)}</td>
                       <td style={{ fontSize: '0.85rem' }}>
                         {member.last_login ? new Date(member.last_login).toLocaleString() : 'Never'}
@@ -348,12 +441,12 @@ const FamilyPortalAdmin = () => {
                     border: '1px solid #ddd', 
                     borderRadius: '8px', 
                     padding: '1rem',
-                    backgroundColor: msg.is_read ? '#fff' : '#fff3e0'
+                    backgroundColor: (msg.is_read ?? msg.isRead) ? '#fff' : '#fff3e0'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <strong>{msg.sender_first_name} {msg.sender_last_name}</strong>
+                      <strong>{msg.sender_name || msg.senderName}</strong>
                       <span style={{ marginLeft: '0.5rem', color: '#666', fontSize: '0.85rem' }}>
                         (Family of {msg.client_first_name} {msg.client_last_name})
                       </span>
@@ -404,6 +497,74 @@ const FamilyPortalAdmin = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Client Portal Messages Tab */}
+      {activeTab === 'threads' && (
+        <div className="card">
+          {threads.length === 0 ? (
+            <p>No messages from the client portal.</p>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Subject</th>
+                  <th>Last message</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {threads.map(t => (
+                  <tr key={t.id} style={{ fontWeight: (t.has_unread ?? t.hasUnread) ? 700 : 400 }}>
+                    <td>{t.client_first_name || t.clientFirstName} {t.client_last_name || t.clientLastName}</td>
+                    <td>{t.subject}{(t.has_unread ?? t.hasUnread) && <span style={{ marginLeft: '0.4rem', color: '#B91C1C', fontSize: '0.75rem' }}>● new</span>}</td>
+                    <td style={{ fontSize: '0.85rem' }}>{new Date(t.last_message_at || t.lastMessageAt).toLocaleString()}</td>
+                    <td><button className="btn btn-sm btn-primary" onClick={() => viewThread(t.id)}>Open</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {openThread && (
+        <div className="modal-overlay" onClick={() => setOpenThread(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{openThread.thread?.subject}</h3>
+              <button className="modal-close" onClick={() => setOpenThread(null)}>×</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '50vh', overflowY: 'auto', marginBottom: '1rem' }}>
+              {(openThread.messages || []).map(m => {
+                const staff = (m.sender_type || m.senderType) === 'staff';
+                return (
+                  <div key={m.id} style={{
+                    padding: '0.6rem 0.75rem', borderRadius: '6px',
+                    background: staff ? '#e3f2fd' : '#f5f5f5',
+                    borderLeft: staff ? '3px solid #1976d2' : '3px solid #9e9e9e',
+                  }}>
+                    <div style={{ fontSize: '0.78rem', color: '#555', marginBottom: '0.25rem' }}>
+                      <strong>{m.sender_name || m.senderName || (staff ? 'Staff' : 'Client')}</strong> · {new Date(m.created_at || m.createdAt).toLocaleString()}
+                    </div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{m.body}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <form onSubmit={replyToThread}>
+              <div className="form-group">
+                <label>Reply</label>
+                <textarea value={threadReply} onChange={(e) => setThreadReply(e.target.value)} rows={3} placeholder="Type your reply..." required />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setOpenThread(null)}>Close</button>
+                <button type="submit" className="btn btn-primary">Send Reply</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -623,7 +784,7 @@ const ReplyForm = ({ message, onSubmit, onCancel }) => {
   return (
     <form onSubmit={handleSubmit}>
       <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
-        <strong>Original Message from {message.sender_first_name}:</strong>
+        <strong>Original Message from {message.sender_name || message.senderName}:</strong>
         <p style={{ margin: '0.5rem 0 0 0' }}>{message.message}</p>
       </div>
 

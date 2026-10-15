@@ -219,6 +219,10 @@ app.use('/api/public/careers/*', createRateLimiter(60 * 60 * 1000, 10, isWrite))
 app.use('/api/public/careers/*', createRateLimiter(60 * 1000, 60, (m) => !isWrite(m)))
 // The tokenized onboarding packet: 60 requests per 15 minutes per address.
 app.use('/api/public/onboarding-packets/*', createRateLimiter(15 * 60 * 1000, 60))
+// Portal doors anyone can knock on. The client portal login has its own per-account
+// lockout; the family login and the reset-link request do not, so they are limited here.
+app.use('/api/family-portal/login', createRateLimiter(15 * 60 * 1000, 20))
+app.use('/api/portal/forgot-password', createRateLimiter(15 * 60 * 1000, 10))
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))

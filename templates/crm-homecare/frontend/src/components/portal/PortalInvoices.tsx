@@ -38,8 +38,8 @@ const PortalInvoices = ({ token }) => {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
-  const [payingId, setPayingId] = useState(null);
-  const [payError, setPayError] = useState('');
+  const [expanded, setExpanded] = useState({}); // invoiceId -> show the per-day breakdown
+  const toggleExpanded = (id) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
 
   useEffect(() => {
     apiCall('/api/portal/invoices', { method: 'GET' }, token)
@@ -52,27 +52,6 @@ const PortalInvoices = ({ token }) => {
     .filter(i => i.payment_status === 'pending' || i.payment_status === 'overdue'
               || i.paymentStatus === 'pending' || i.paymentStatus === 'overdue')
     .reduce((sum, i) => sum + parseFloat(i.total || 0), 0);
-
-  const handlePayNow = async (invoiceId) => {
-    setPayingId(invoiceId);
-    setPayError('');
-    try {
-      const data = await apiCall(`/api/portal/invoices/${invoiceId}/pay`, {
-        method: 'POST',
-      }, token);
-
-      if (data?.clientSecret) {
-        // Redirect to Stripe-hosted payment or show inline
-        // For simplicity, open a payment window with the client secret
-        // The app already has a PaymentPage component at /pay/:invoiceId
-        window.open(`/pay/${invoiceId}?client_secret=${data.clientSecret}`, '_blank');
-      }
-    } catch (err) {
-      setPayError(err.message);
-    } finally {
-      setPayingId(null);
-    }
-  };
 
   const handleDownloadPDF = async (invoiceId, invoiceNumber) => {
     try {
@@ -125,15 +104,6 @@ const PortalInvoices = ({ token }) => {
         </div>
       )}
 
-      {payError && (
-        <div style={{
-          background: '#fdf2f2', color: '#c0392b', borderRadius: '8px',
-          padding: '12px 16px', marginBottom: '16px', fontSize: '0.88rem',
-        }}>
-          {payError}
-        </div>
-      )}
-
       {invoices.length === 0 ? (
         <div style={{
           background: '#fff', borderRadius: '12px', padding: '48px',
@@ -148,6 +118,8 @@ const PortalInvoices = ({ token }) => {
             const status = getPaymentStatus(inv);
             const isPending = status === 'pending' || status === 'overdue' || status === 'partial';
             const invNumber = inv.invoice_number || inv.invoiceNumber;
+            const lines = Array.isArray(inv.line_items) ? inv.line_items : (Array.isArray(inv.lineItems) ? inv.lineItems : []);
+            const hoursTotal = lines.reduce((s, li) => s + (parseFloat(li.hours || 0) || 0), 0);
 
             return (
               <div
@@ -174,6 +146,49 @@ const PortalInvoices = ({ token }) => {
                   </div>
                 </div>
 
+                {lines.length > 0 && (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f0f0f0' }}>
+                    <button
+                      onClick={() => toggleExpanded(inv.id)}
+                      style={{ background: 'none', border: 'none', color: '#1a5276', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', padding: 0 }}
+                    >
+                      {expanded[inv.id] ? '▾ Hide hours & days' : '▸ Show hours & days'}
+                    </button>
+                    {expanded[inv.id] && (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+                          <thead>
+                            <tr style={{ textAlign: 'left', color: '#666', fontSize: '0.72rem' }}>
+                              <th style={{ padding: '4px 6px', borderBottom: '1px solid #eee' }}>Date</th>
+                              <th style={{ padding: '4px 6px', borderBottom: '1px solid #eee' }}>Service</th>
+                              <th style={{ padding: '4px 6px', borderBottom: '1px solid #eee', textAlign: 'right' }}>Hours</th>
+                              <th style={{ padding: '4px 6px', borderBottom: '1px solid #eee', textAlign: 'right' }}>Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {lines.map((li, i) => {
+                              const day = li.service_date || li.serviceDate;
+                              return (
+                                <tr key={li.id || i} style={{ fontSize: '0.8rem', color: '#555' }}>
+                                  <td style={{ padding: '4px 6px', borderBottom: '1px solid #f5f5f5' }}>{day ? formatDate(String(day).slice(0, 10)) : '\u2014'}</td>
+                                  <td style={{ padding: '4px 6px', borderBottom: '1px solid #f5f5f5' }}>{li.description || 'Home Care Services'}</td>
+                                  <td style={{ padding: '4px 6px', borderBottom: '1px solid #f5f5f5', textAlign: 'right' }}>{(parseFloat(li.hours || 0) || 0).toFixed(2)}</td>
+                                  <td style={{ padding: '4px 6px', borderBottom: '1px solid #f5f5f5', textAlign: 'right' }}>{formatMoney(li.amount)}</td>
+                                </tr>
+                              );
+                            })}
+                            <tr style={{ fontSize: '0.8rem', fontWeight: 700, color: '#333' }}>
+                              <td style={{ padding: '6px 6px' }} colSpan={2}>Total</td>
+                              <td style={{ padding: '6px 6px', textAlign: 'right' }}>{hoursTotal.toFixed(2)}</td>
+                              <td style={{ padding: '6px 6px', textAlign: 'right' }}>{formatMoney(inv.total)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {((inv.payment_due_date || inv.paymentDueDate) || (inv.payment_date || inv.paymentDate)) && (
                   <div style={{
                     marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f0f0f0',
@@ -194,19 +209,21 @@ const PortalInvoices = ({ token }) => {
                   display: 'flex', gap: '10px', flexWrap: 'wrap',
                 }}>
                   {isPending && (
-                    <button
-                      onClick={() => handlePayNow(inv.id)}
-                      disabled={payingId === inv.id}
+                    // The same pay page the invoice email links to.
+                    <a
+                      href={`/pay/${inv.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       style={{
+                        display: 'inline-block',
                         background: '#1a5276', color: '#fff',
-                        border: 'none', padding: '8px 18px', borderRadius: '8px',
-                        cursor: payingId === inv.id ? 'not-allowed' : 'pointer',
-                        fontSize: '0.85rem', fontWeight: 600,
-                        opacity: payingId === inv.id ? 0.6 : 1,
+                        padding: '8px 18px', borderRadius: '8px',
+                        fontWeight: 600, fontSize: '0.85rem',
+                        textDecoration: 'none',
                       }}
                     >
-                      {payingId === inv.id ? 'Processing...' : '💳 Pay Now'}
-                    </button>
+                      💳 Pay {formatMoney(inv.total)}
+                    </a>
                   )}
                   <button
                     onClick={() => handleDownloadPDF(inv.id, invNumber)}

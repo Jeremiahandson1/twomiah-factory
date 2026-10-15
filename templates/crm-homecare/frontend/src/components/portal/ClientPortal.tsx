@@ -27,6 +27,17 @@ const ClientPortal = ({ user, token, onLogout }) => {
   const [profile, setProfile]               = useState(null);
   const [unreadCount, setUnreadCount]       = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [isMobile, setIsMobile]             = useState(typeof window !== 'undefined' && window.innerWidth <= 768);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
 
   useEffect(() => {
     // Load profile + summary
@@ -66,7 +77,7 @@ const ClientPortal = ({ user, token, onLogout }) => {
     switch (activeTab) {
       case 'visits':        return <PortalVisits token={token} />;
       case 'history':       return <PortalHistory token={token} />;
-      case 'caregivers':    return <PortalCaregivers token={token} />;
+      case 'caregivers':    return <PortalCaregivers token={token} agencyState={profile?.agency_state} />;
       case 'care-plan':     return <PortalCarePlan token={token} />;
       case 'invoices':      return <PortalInvoices token={token} />;
       case 'documents':     return <PortalDocuments token={token} />;
@@ -126,14 +137,16 @@ const ClientPortal = ({ user, token, onLogout }) => {
         </div>
       </div>
 
-      {/* ── Desktop Nav ── */}
+      {/* ── Nav. On a phone each tab stacks its icon over its label and the row scrolls
+           sideways, so every tab is reachable in portrait without shrinking to nothing. ── */}
       <div style={{
         background: '#fff',
         borderBottom: '1px solid #e8ecf0',
         display: 'flex',
-        padding: '0 20px',
-        gap: '4px',
+        padding: isMobile ? '0' : '0 20px',
+        gap: isMobile ? 0 : '4px',
         overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
       }}>
         {NAV.map(tab => (
           <button
@@ -142,21 +155,25 @@ const ClientPortal = ({ user, token, onLogout }) => {
             style={{
               background: 'none',
               border: 'none',
-              padding: '14px 18px',
+              padding: isMobile ? '10px 4px' : '14px 18px',
               cursor: 'pointer',
-              fontSize: '0.88rem',
+              fontSize: isMobile ? '0.7rem' : '0.88rem',
               fontWeight: activeTab === tab.key ? 600 : 400,
               color: activeTab === tab.key ? '#1a5276' : '#555',
               borderBottom: activeTab === tab.key ? '3px solid #1a5276' : '3px solid transparent',
               whiteSpace: 'nowrap',
               display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
               alignItems: 'center',
-              gap: '6px',
+              justifyContent: 'center',
+              gap: isMobile ? '2px' : '6px',
               position: 'relative',
+              flex: isMobile ? '1 0 72px' : '0 0 auto',
+              minWidth: isMobile ? '72px' : 0,
             }}
           >
-            <span>{tab.icon}</span>
-            {tab.label}
+            <span style={{ fontSize: isMobile ? '1.15rem' : 'inherit' }}>{tab.icon}</span>
+            <span>{tab.label}</span>
             {tab.key === 'notifications' && unreadCount > 0 && (
               <span style={{
                 background: '#e74c3c',
@@ -165,6 +182,9 @@ const ClientPortal = ({ user, token, onLogout }) => {
                 padding: '1px 6px',
                 fontSize: '0.7rem',
                 fontWeight: 700,
+                position: isMobile ? 'absolute' : 'static',
+                top: isMobile ? 4 : 'auto',
+                right: isMobile ? 6 : 'auto',
               }}>
                 {unreadCount}
               </span>
@@ -177,6 +197,9 @@ const ClientPortal = ({ user, token, onLogout }) => {
                 padding: '1px 6px',
                 fontSize: '0.7rem',
                 fontWeight: 700,
+                position: isMobile ? 'absolute' : 'static',
+                top: isMobile ? 4 : 'auto',
+                right: isMobile ? 6 : 'auto',
               }}>
                 {unreadMessages}
               </span>
