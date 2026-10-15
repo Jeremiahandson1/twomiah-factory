@@ -647,6 +647,8 @@ pub.get('/order-summary', async (c) => {
       shippingCents: order.shippingCents,
       taxCents: order.taxCents,
       totalCents: order.totalCents,
+      // Sent back so far — a part refund shows as its own line under the total.
+      refundedCents: order.refundedCents,
       currency: order.currency,
       items,
     },

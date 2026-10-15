@@ -9,7 +9,7 @@ import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { setupSchema } from './setup.ts'
 import { db } from './db/index.ts'
-import { storeSettings, users, orders, orderItems, products, productVariants, paymentConfig } from './db/schema.ts'
+import { storeSettings, users, orders, orderItems, orderRefunds, products, productVariants, paymentConfig } from './db/schema.ts'
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -41,7 +41,7 @@ const mkOrder = async (status: string, extra: Record<string, unknown> = {}) => {
 const orderNow = async (id: string) => (await db.select().from(orders).where(eq(orders.id, id)))[0]
 
 // ── Stripe, answered here ───────────────────────────────────────────────────────────────────────────
-type Call = { paymentIntent: string | null; key: string | null; auth: string | null }
+type Call = { paymentIntent: string | null; key: string | null; auth: string | null; amount: string | null }
 const calls: Call[] = []
 const refundsByKey = new Map<string, string>()
 let mode: 'ok' | 'card_declined' | 'already' | 'pending' = 'ok'
@@ -57,14 +57,14 @@ globalThis.fetch = (async (input: any, init?: any) => {
   const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json', 'request-id': 'req_test' } })
   if (url.endsWith('/v1/refunds') && (init?.method || 'GET').toUpperCase() === 'POST') {
     const key = headers.get('idempotency-key')
-    calls.push({ paymentIntent: body.get('payment_intent'), key, auth: headers.get('authorization') })
+    calls.push({ paymentIntent: body.get('payment_intent'), key, auth: headers.get('authorization'), amount: body.get('amount') })
     await new Promise((r) => setTimeout(r, 30))   // Stripe takes a moment — long enough for a second press to overlap
     if (mode === 'card_declined') return json({ error: { type: 'invalid_request_error', code: 'charge_disputed', message: 'This charge has been disputed and cannot be refunded.' } }, 400)
     if (mode === 'already') return json({ error: { type: 'invalid_request_error', code: 'charge_already_refunded', message: 'Charge ch_x has already been refunded.' } }, 400)
     // Idempotency, as Stripe keeps it: the same key returns the same refund.
     const id = (key && refundsByKey.get(key)) || `re_test_${refundsByKey.size + 1}`
     if (key) refundsByKey.set(key, id)
-    return json({ id, object: 'refund', amount: 5000, currency: 'usd', status: mode === 'pending' ? 'pending' : 'succeeded', payment_intent: body.get('payment_intent') })
+    return json({ id, object: 'refund', amount: Number(body.get('amount')) || 5000, currency: 'usd', status: mode === 'pending' ? 'pending' : 'succeeded', payment_intent: body.get('payment_intent') })
   }
   const method = (init?.method || 'GET').toUpperCase()
   if (/\/v1\/webhook_endpoints(\?|$)/.test(url) && method === 'GET') return json({ object: 'list', data: [{ id: 'we_1', object: 'webhook_endpoint', url: 'https://shop-api.test/api/public/webhooks/payment', enabled_events: endpointEvents }], has_more: false })
@@ -243,7 +243,12 @@ const { auditLog } = await import('./db/schema.ts')
   const part = await mkOrder('paid'); await setStock(10)
   await post(event(part.providerPaymentId!, 1500))
   const prow = (await db.select().from(auditLog)).find((x: any) => x.entityId === part.id)
-  check(`dashboard refund: a partial refund is logged and changes nothing else ("${(prow?.metadata as any)?.description}")`, (await orderNow(part.id)).status === 'paid' && (await stock()) === 10 && (prow?.metadata as any)?.description === "Partly refunded in Stripe's dashboard: $15.00 of $50.00 — the order is unchanged here")
+  // A part refund made in Stripe's dashboard is the order's money going back too: it is on the order's refund history and
+  // in refundedCents (so the dashboard counts it), with no units restocked — Stripe cannot say which ones it was for.
+  const prefunds = await db.select().from(orderRefunds).where(eq(orderRefunds.orderId, part.id))
+  check(`dashboard refund: a part refund is recorded — the order still paid, nothing restocked ("${(prow?.metadata as any)?.description}")`, (await orderNow(part.id)).status === 'paid' && (await orderNow(part.id)).refundedCents === 1500 && (await stock()) === 10 && prefunds.length === 1 && prefunds[0].amountCents === 1500 && prefunds[0].moneyBack === 'provider_dashboard' && prefunds[0].items.length === 0 && (prow?.metadata as any)?.description === "Partly refunded in Stripe's dashboard: $15.00 ($15.00 of $50.00 back so far) — no units restocked", prefunds)
+  await post(event(part.providerPaymentId!, 1500))
+  check('dashboard refund: the same part-refund notice again records nothing more', (await db.select().from(orderRefunds).where(eq(orderRefunds.orderId, part.id))).length === 1 && (await orderNow(part.id)).refundedCents === 1500)
   const forged = await post(event(part.providerPaymentId!, 5000), 'whsec_wrong')
   check("dashboard refund: a notice not signed with the store's secret is refused", forged.status === 400 && (await orderNow(part.id)).status === 'paid')
 }
@@ -262,9 +267,21 @@ const { auditLog } = await import('./db/schema.ts')
 // 11. The screen asks, with the amount, and names the buttons for what they do.
 {
   const src = (require('node:fs') as typeof import('node:fs')).readFileSync((process.env.FACTORY_ROOT || '').replace(/\/?$/, '/') + 'templates/crm-store/frontend/src/pages/OrderDetailPage.tsx', 'utf8').replace(/\r\n/g, '\n')
-  check('screen: Refund and "Cancel and refund" are named for what they do on a paid order', /COUNTED\.includes\(from\) && to === 'refunded' \? 'Refund' : COUNTED\.includes\(from\) && to === 'cancelled' \? 'Cancel and refund'/.test(src))
+  check('screen: Refund and "Cancel and refund" are named for what they do on a paid order', /COUNTED\.includes\(from\) && to === 'refunded' \? \(partlyRefunded \? 'Refund the rest' : 'Refund everything'\) : COUNTED\.includes\(from\) && to === 'cancelled' \? 'Cancel and refund'/.test(src))
   check('screen: it asks first, with the amount, before money moves', /if \(!confirm\(ask\)\) return/.test(src) && /to the customer's card\? The stock goes back on the shelf\./.test(src))
   check('screen: it says what happened to the money, and reloads after a refused refund', /Cancelled and refunded/.test(src) && /refund\.note/.test(src) && /e\?\.code === 'refund_failed'\) load\(\)/.test(src))
+}
+// 12. A part refund through Stripe sends that amount — not the whole charge — under its own key; the rest sends the rest.
+{
+  await setStock(10); const o = await mkOrder('paid'); const c0 = calls.length
+  const [line] = await db.select().from(orderItems).where(eq(orderItems.orderId, o.id))
+  const res = await app.request(`/api/admin/orders/${o.id}/refunds`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-test-user': managerA.id }, body: JSON.stringify({ items: [{ orderItemId: line.id, quantity: 1 }], restock: true }) })
+  const j: any = await res.json()
+  const [row] = await db.select().from(orderRefunds).where(eq(orderRefunds.orderId, o.id))
+  check(`part (Stripe): one Mug of two is $25.00 back, sent as amount=2500 under refund-<id> (${res.status})`, res.status === 200 && calls.length === c0 + 1 && calls[c0].amount === '2500' && calls[c0].key === `refund-${row?.id}` && row?.status === 'refunded' && row?.providerRefundId === j.refund?.refundId, { status: res.status, call: calls[c0], row })
+  check('part (Stripe): …the order is still paid, with $25.00 back and one unit restocked', j.order?.status === 'paid' && j.order?.refundedCents === 2500 && (await stock()) === 11)
+  const rest = await MA('refunded', o.id)
+  check('part (Stripe): Refund the rest sends the other $25.00 and restocks only the other unit', rest.status === 200 && calls.length === c0 + 2 && calls[c0 + 1].amount === '2500' && calls[c0 + 1].key === `order-refund-${o.id}-2500` && (await stock()) === 12 && (await orderNow(o.id)).refundedCents === 5000, { call: calls[c0 + 1], stock: await stock() })
 }
 
 globalThis.fetch = realFetch

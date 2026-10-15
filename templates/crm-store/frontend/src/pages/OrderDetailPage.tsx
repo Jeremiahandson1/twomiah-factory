@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
-import api, { Order, type RateQuote } from '../services/api'
+import { ArrowLeft, X } from 'lucide-react'
+import api, { Order, type RateQuote, type RefundQuote } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { money, formatDate, statusColor } from '../lib/format'
 import { usePermissions } from '../shared'
@@ -27,8 +27,8 @@ const canShip = (from: string) => from === 'shipped' || (NEXT_STATUS[from] || []
 // pending, cancelled, or refunded before it left.
 const hasParcel = (o: Order) => COUNTED.includes(o.status) || (o.status === 'refunded' && !!o.fulfilledAt)
 // What the button does, in its own words: from a paid order, refunding and cancelling send money back.
-const statusAction = (from: string, to: string) =>
-  COUNTED.includes(from) && to === 'refunded' ? 'Refund' : COUNTED.includes(from) && to === 'cancelled' ? 'Cancel and refund' : `Mark ${to}`
+const statusAction = (from: string, to: string, partlyRefunded = false) =>
+  COUNTED.includes(from) && to === 'refunded' ? (partlyRefunded ? 'Refund the rest' : 'Refund everything') : COUNTED.includes(from) && to === 'cancelled' ? 'Cancel and refund' : `Mark ${to}`
 const moveNeeds = (from: string, to: string) => (COUNTED.includes(from) && FULFILMENT.includes(to)) ? 'orders:update' : 'orders:refund'
 /** Offer the control unless the permission list has arrived and says no. */
 function useMay() {
@@ -45,6 +45,7 @@ export default function OrderDetailPage() {
   const [tracking, setTracking] = useState('')
   const [note, setNote] = useState('')
   const may = useMay()
+  const [refunding, setRefunding] = useState(false)
 
   const load = () => api.getOrder(id!).then((o) => {
     setOrder(o); setCarrier(o.trackingCarrier || ''); setTracking(o.trackingNumber || ''); setNote(o.internalNote || '')
@@ -60,7 +61,8 @@ export default function OrderDetailPage() {
     // asked once, with the amount, the way any refund screen asks. (Owner's decision, 10/12)
     const paid = !!order && COUNTED.includes(order.status) && (status === 'refunded' || status === 'cancelled')
     if (paid && order) {
-      const amount = money(order.totalCents, order.currency)
+      // After part refunds, only what is left goes back (and only the units not refunded yet go back on the shelf).
+      const amount = money(order.totalCents - (order.refundedCents || 0), order.currency)
       const ask = order.providerPaymentId
         ? `${status === 'refunded' ? 'Refund' : 'Cancel this order and refund'} ${amount} to the customer's card? The stock goes back on the shelf.`
         : `${status === 'refunded' ? 'Mark this order refunded' : 'Cancel this order'}? There is no card payment on record, so no money is sent back from here. The stock goes back on the shelf.`
@@ -69,9 +71,11 @@ export default function OrderDetailPage() {
     try {
       const { order: o, refund } = await api.setOrderStatus(id!, status)
       setOrder((prev) => prev ? { ...prev, ...o } : prev)
-      if (refund?.kind === 'refunded') toast(refund.alreadyRefunded ? `Marked ${status} — the payment had already been refunded` : `${status === 'refunded' ? 'Refunded' : 'Cancelled and refunded'} ${money(refund.amountCents ?? o.totalCents, o.currency)} to the customer's card`)
+      if (refund?.kind === 'refunded') toast(refund.alreadyRefunded ? `Marked ${status} — the payment had already been refunded` : `${status === 'refunded' ? 'Refunded' : 'Cancelled and refunded'} ${money(refund.amountCents ?? (order ? order.totalCents - (order.refundedCents || 0) : o.totalCents), o.currency)} to the customer's card`)
       else if (refund) toast(`Marked ${status}. ${refund.note}`, 'error')
       else toast(`Marked ${status}`)
+      // The refund history gained a row: read the order whole.
+      if (refund) load()
     } catch (e: any) { failed(e) }
   }
   const retryRefund = async () => {
@@ -131,8 +135,12 @@ export default function OrderDetailPage() {
       {(NEXT_STATUS[order.status] || []).some((s) => may(moveNeeds(order.status, s))) && (
         <div className="card p-4 flex flex-wrap gap-2">
           {NEXT_STATUS[order.status].filter((s) => may(moveNeeds(order.status, s))).map((s) => (
-            <button key={s} onClick={() => setStatus(s)} className="btn-secondary text-xs capitalize">{statusAction(order.status, s)}</button>
+            <button key={s} onClick={() => setStatus(s)} className="btn-secondary text-xs">{statusAction(order.status, s, (order.refundedCents || 0) > 0)}</button>
           ))}
+          {/* Part of it: chosen units, the shipping, or an amount (RefundDialog). */}
+          {COUNTED.includes(order.status) && !order.refundPendingAt && (order.refundedCents || 0) < order.totalCents && may('orders:refund') && (
+            <button onClick={() => setRefunding(true)} className="btn-secondary text-xs">Refund items…</button>
+          )}
         </div>
       )}
 
@@ -147,7 +155,7 @@ export default function OrderDetailPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-gray-900 truncate dark:text-slate-100">{it.productName}</div>
-                <div className="text-xs text-gray-500 dark:text-slate-400">{it.variantName} · {it.sku} · × {it.quantity}</div>
+                <div className="text-xs text-gray-500 dark:text-slate-400">{it.variantName} · {it.sku} · × {it.quantity}{(it.refundedQuantity || 0) > 0 ? ` · ${it.refundedQuantity === it.quantity ? 'refunded' : `${it.refundedQuantity} refunded`}` : ''}</div>
               </div>
               <div className="text-sm font-medium">{money(it.lineTotalCents, order.currency)}</div>
             </div>
@@ -159,8 +167,13 @@ export default function OrderDetailPage() {
           <Row label="Tax" value={money(order.taxCents, order.currency)} />
           {order.discountCents > 0 && <Row label="Discount" value={`−${money(order.discountCents, order.currency)}`} />}
           <Row label="Total" value={money(order.totalCents, order.currency)} bold />
+          {(order.refundedCents || 0) > 0 && <Row label="Refunded" value={`−${money(order.refundedCents || 0, order.currency)}`} />}
+          {(order.refundedCents || 0) > 0 && <Row label="Net" value={money(order.totalCents - (order.refundedCents || 0), order.currency)} bold />}
         </div>
       </div>
+
+      <RefundHistory order={order} onChanged={(o) => setOrder(o)} />
+      {refunding && <RefundDialog order={order} onClose={() => setRefunding(false)} onDone={(o) => { setRefunding(false); setOrder(o) }} />}
 
       {/* Customer */}
       <div className="grid sm:grid-cols-2 gap-4">
@@ -325,6 +338,185 @@ function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Orde
           )}
         </>
       )}
+    </div>
+  )
+}
+
+const toCents = (s: string) => { const n = Number(String(s).replace(/[^0-9.]/g, '')); return Number.isFinite(n) ? Math.round(n * 100) : NaN }
+const dollars = (cents: number) => (cents / 100).toFixed(2)
+
+/**
+ * REFUND PART OF AN ORDER. (E2E Run 2: Refund could only send back the whole order.) Pick how many of each item — and
+ * the shipping, if that goes back too — and the server (POST /refunds/quote) says what they are worth: each unit's share
+ * of what was paid, discount and tax included. The amount can be changed; the button says exactly what will be sent.
+ */
+function RefundDialog({ order, onClose, onDone }: { order: Order; onClose: () => void; onDone: (o: Order) => void }) {
+  const { toast } = useToast()
+  const lines = (order.items || []).map((it) => ({ it, left: it.quantity - (it.refundedQuantity || 0) })).filter((l) => l.left > 0)
+  // What was typed, as typed: a figure out of range is pointed out, never quietly replaced by another one.
+  const [qty, setQty] = useState<Record<string, string>>({})
+  const [shipping, setShipping] = useState(false)
+  const [restock, setRestock] = useState(true)
+  const [reason, setReason] = useState('')
+  const [quote, setQuote] = useState<RefundQuote | null>(null)
+  const [amount, setAmount] = useState('')
+  const [edited, setEdited] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [problem, setProblem] = useState('')
+
+  const typed = lines.map(({ it, left }) => {
+    const raw = (qty[it.id] ?? '').trim()
+    const n = raw === '' ? 0 : Number(raw)
+    return { it, n, bad: !Number.isInteger(n) || n < 0 || n > left ? `Enter a whole number from 0 to ${left} for ${it.productName}.` : '' }
+  })
+  const badQty = typed.find((t) => t.bad)?.bad || ''
+  const items = typed.filter((t) => !t.bad && t.n > 0).map((t) => ({ orderItemId: t.it.id, quantity: t.n }))
+  const ask = { items, shippingCents: shipping ? (quote?.shippingLeftCents ?? 0) : 0, restock }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [busy, onClose])
+
+  // Ask the server what the chosen units are worth, every time the choice changes.
+  useEffect(() => {
+    let live = true
+    if (badQty) return
+    api.quoteRefund(order.id, ask).then((q) => {
+      if (!live) return
+      setQuote(q); setProblem('')
+      if (!edited) setAmount(q.suggestedCents > 0 ? dollars(q.suggestedCents) : '')
+    }).catch((e: any) => { if (live) setProblem(e?.message || 'Could not work out the refund') })
+    return () => { live = false }
+  }, [JSON.stringify(qty), shipping]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const cents = toCents(amount)
+  const valid = !problem && !badQty && Number.isFinite(cents) && cents > 0 && (!quote || cents <= quote.maxCents)
+  const submit = async () => {
+    if (!valid) return
+    const what = order.providerPaymentId ? `Send ${money(cents, order.currency)} back to the customer's card?` : `Record a refund of ${money(cents, order.currency)}? There is no card payment on record, so no money is sent back from here.`
+    if (!confirm(`${what}${items.length && restock ? ' The refunded units go back on the shelf.' : ''}`)) return
+    setBusy(true)
+    try {
+      const r = await api.refundPart(order.id, { ...ask, amountCents: cents, ...(reason.trim() ? { reason: reason.trim() } : {}) })
+      if (r.refund?.kind === 'refunded') toast(`Refunded ${money(cents, order.currency)} to the customer's card${r.restocked ? ` — ${r.restocked} unit${r.restocked === 1 ? '' : 's'} back in stock` : ''}`)
+      else if (r.refund && 'note' in r.refund) toast(`Refund recorded. ${r.refund.note}`, 'error')
+      onDone(r.order)
+    } catch (e: any) {
+      toast(e?.message || 'The refund did not go through', 'error')
+      setBusy(false)
+      // Refused or still waiting, the order changed either way: show it as it stands.
+      if (e?.status === 502 || e?.code === 'order_changed' || e?.code === 'refund_in_progress') { onClose(); onDone(await api.getOrder(order.id)) }
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-label="Refund">
+      <div className="fixed inset-0 bg-black/60" onClick={() => { if (!busy) onClose() }} />
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="relative w-full max-w-lg rounded-xl border border-gray-200 bg-white text-gray-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-slate-700">
+            <h3 className="text-lg font-semibold">Refund</h3>
+            <button onClick={onClose} disabled={busy} className="rounded p-1 text-gray-500 hover:text-gray-700 dark:text-slate-300 dark:hover:text-slate-100" aria-label="Close"><X className="h-5 w-5" /></button>
+          </div>
+          <div className="space-y-4 px-6 py-5">
+            {lines.length > 0 ? (
+              <div className="space-y-2">
+                {lines.map(({ it, left }) => (
+                  <div key={it.id} className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{it.productName}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">{it.variantName} · {money(it.unitPriceCents, order.currency)} each · {left} of {it.quantity} can be refunded</div>
+                    </div>
+                    <label className="sr-only" htmlFor={`rq-${it.id}`}>How many of {it.productName}</label>
+                    <input id={`rq-${it.id}`} type="number" min={0} max={left} inputMode="numeric" className="input w-20 text-right"
+                      value={qty[it.id] ?? ''} placeholder="0"
+                      onChange={(e) => { const v = e.target.value; setEdited(false); setQty((prev) => ({ ...prev, [it.id]: v })) }} />
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-sm text-gray-600 dark:text-slate-300">Every item has been refunded. What is left is shipping or an amount of your choosing.</p>}
+
+            {quote && quote.shippingLeftCents > 0 && (
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
+                <input type="checkbox" checked={shipping} onChange={(e) => { setEdited(false); setShipping(e.target.checked) }} />
+                Refund the shipping ({money(quote.shippingLeftCents, order.currency)})
+              </label>
+            )}
+            {items.length > 0 && (
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
+                <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} />
+                Put the refunded units back in stock
+              </label>
+            )}
+
+            <div>
+              <label className="label" htmlFor="refund-amount">Amount to refund</label>
+              <input id="refund-amount" className="input" inputMode="decimal" value={amount} onChange={(e) => { setEdited(true); setAmount(e.target.value) }} placeholder="0.00" />
+              <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+                {quote ? <>Suggested {money(quote.suggestedCents, order.currency)} for what is chosen · at most {money(quote.maxCents, order.currency)} can still be refunded.</> : 'Working it out…'}
+              </p>
+              {quote && Number.isFinite(cents) && cents > quote.maxCents && <p role="alert" className="mt-1 text-xs text-red-700 dark:text-red-300">That is more than is left to refund.</p>}
+            </div>
+            <div>
+              <label className="label" htmlFor="refund-reason">Reason (optional, for your records)</label>
+              <input id="refund-reason" className="input" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} placeholder="Damaged in transit, wrong size…" />
+            </div>
+            {(badQty || problem) && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{badQty || problem}</p>}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-gray-200 px-6 py-4 dark:border-slate-700">
+            <button onClick={onClose} disabled={busy} className="btn-secondary">Cancel</button>
+            <button onClick={submit} disabled={busy || !valid} className="btn-primary">{busy ? 'Refunding…' : valid ? `Refund ${money(cents, order.currency)}` : 'Refund'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const REFUND_STATE: Record<string, { label: string; cls: string }> = {
+  refunded: { label: 'Sent back', cls: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
+  recorded: { label: 'Recorded only', cls: 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200' },
+  pending: { label: 'Waiting on the provider', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' },
+  failed: { label: 'Refused — nothing sent', cls: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' },
+}
+
+function RefundHistory({ order, onChanged }: { order: Order; onChanged: (o: Order) => void }) {
+  const { toast } = useToast()
+  const may = useMay()
+  const refunds = order.refunds || []
+  if (!refunds.length) return null
+  const names = new Map((order.items || []).map((i) => [i.id, i.productName]))
+  const retry = async (refundId: string) => {
+    try { const r = await api.retryPartRefund(order.id, refundId); onChanged(r.order); toast(r.refund?.kind === 'refunded' ? 'Refund sent' : 'Refund recorded') }
+    catch (e: any) { toast(e?.message || 'The refund still has not gone through', 'error'); onChanged(await api.getOrder(order.id)) }
+  }
+  return (
+    <div className="card">
+      <h2 className="border-b px-5 py-3 font-semibold text-gray-900 dark:text-slate-100">Refunds</h2>
+      <div className="divide-y">
+        {refunds.map((r) => {
+          const st = REFUND_STATE[r.status] || REFUND_STATE.recorded
+          const what = [...r.items.map((l) => `${l.quantity} × ${names.get(l.orderItemId) || 'item'}`), ...(r.shippingCents > 0 ? [`shipping ${money(r.shippingCents, order.currency)}`] : [])]
+          return (
+            <div key={r.id} className="space-y-1 px-5 py-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium text-gray-900 dark:text-slate-100">{money(r.amountCents, order.currency)}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.cls}`}>{st.label}</span>
+              </div>
+              <div className="text-xs text-gray-600 dark:text-slate-300">
+                {formatDate(r.createdAt)}{r.createdByName ? ` · ${r.createdByName}` : ''}{what.length ? ` · ${what.join(', ')}` : ''}{r.items.length ? (r.restock ? ' · restocked' : ' · not restocked') : ''}
+              </div>
+              {r.reason && <div className="text-xs text-gray-600 dark:text-slate-300">{r.reason}</div>}
+              {r.error && <div className="text-xs text-red-700 dark:text-red-300">{r.error}</div>}
+              {r.status === 'pending' && may('orders:refund') && (
+                <button onClick={() => retry(r.id)} className="btn-secondary text-xs">Try again</button>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

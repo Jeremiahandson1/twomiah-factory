@@ -74,14 +74,20 @@ export type ProviderCredentials = {
 }
 
 /**
- * Money sent back to the shopper for a whole order. (Owner's decision, 10/12: 'Mark refunded' only changed the order's
+ * Money sent back to the shopper — part of an order, or all of what is left. (Owner's decision, 10/12: 'Mark refunded' only changed the order's
  * status — the shopper's money stayed taken. As Shopify does it, Refund now returns it through the provider.)
  */
 export type RefundInput = {
   // The provider's id for the captured payment — Stripe's payment_intent — as finalizeOrder recorded it.
   providerPaymentId: string
-  // One key per order: a second press, a retry after a timeout, or two people at once all get the SAME refund back.
+  // One key per refund: a second press, a retry after a timeout, or two people at once all get the SAME refund back.
   idempotencyKey: string
+  // How much, in the smallest unit. Absent = whatever of the payment has not been refunded yet (a whole order's refund,
+  // after any part refunds — and after any made in the provider's own dashboard).
+  amountCents?: number
+  currency?: string
+  // Shown to the shopper by some providers; kept short.
+  reason?: string
 }
 export type RefundResult = {
   refundId: string | null
@@ -92,6 +98,13 @@ export type RefundResult = {
   alreadyRefunded?: boolean
 }
 
+/**
+ * The provider ANSWERED and said no (a 4xx, or a refund it reports failed/rejected): nothing was sent, so the store may
+ * give the reservation back. Anything else thrown — a timeout, a dropped connection, a 5xx — is "we do not know": the
+ * refund may have gone through, so it stays pending and is asked again with the same idempotency key.
+ */
+export class RefundRefused extends Error {}
+
 export interface PaymentProvider {
   readonly name: 'stripe' | 'square' | 'paypal'
   createCheckout(input: CreateCheckoutInput): Promise<CreateCheckoutResult>
@@ -99,7 +112,7 @@ export interface PaymentProvider {
   // Fetch a session's final state directly from the provider — used by the
   // success page to finalize an order even if the webhook never arrived.
   retrieveSession(sessionId: string): Promise<WebhookResult>
-  // Return a whole order's payment. Absent on a provider whose refunds have not been built and tested yet (Square,
-  // PayPal): the order is then only RECORDED as refunded, and the owner is told to refund in that dashboard.
+  // Return part or all of an order's payment. Absent on a provider whose refunds have not been built and tested yet
+  // (PayPal): the refund is then only RECORDED, and the owner is told to refund in that dashboard.
   refund?(input: RefundInput): Promise<RefundResult>
 }

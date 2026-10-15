@@ -2,7 +2,7 @@
 // checkout-success.ejs — locals: { order: {...}|null }
 // order = { orderNumber, status, email, subtotalCents, shippingCents, taxCents,
 //           discountCents, loyaltyDiscountCents, discountCode,
-//           totalCents, currency, items: [{ productName, variantName, quantity,
+//           totalCents, refundedCents, currency, items: [{ productName, variantName, quantity,
 //           lineTotalCents, imageUrl }] }
 const o = (typeof order !== 'undefined' && order) ? order : null;
 const cur = (o && o.currency) ? o.currency : 'usd';
@@ -88,6 +88,12 @@ const closed = o && (o.status === 'refunded' || o.status === 'cancelled');
                 <span>Total</span>
                 <span><%= money(o.totalCents, cur) %></span>
               </div>
+              <% if (o.refundedCents > 0 && o.refundedCents < o.totalCents) { %>
+              <div class="order-summary__row">
+                <span>Refunded</span>
+                <span>&minus;<%= money(o.refundedCents, cur) %></span>
+              </div>
+              <% } %>
             </div>
           </div>
         <% } %>

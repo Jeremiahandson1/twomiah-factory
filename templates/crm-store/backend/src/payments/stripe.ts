@@ -3,6 +3,7 @@ import type {
   PaymentProvider, ProviderCredentials, CreateCheckoutInput,
   CreateCheckoutResult, WebhookVerifyInput, WebhookResult, RefundInput, RefundResult,
 } from './types.ts'
+import { RefundRefused } from './types.ts'
 import type { Address } from '../../db/schema.ts'
 
 // Stripe adapter — hosted Checkout Sessions. We build line items with
@@ -117,19 +118,22 @@ export class StripeProvider implements PaymentProvider {
     return parseSession(session)
   }
 
-  // The whole payment back to the card it came from. The idempotency key makes a repeat — a second press, a retry after
-  // a timeout — return the SAME refund rather than a second one. A payment refunded already (from Stripe's own
-  // dashboard) is reported as such, not as a failure: the money is back either way.
-  async refund({ providerPaymentId, idempotencyKey }: RefundInput): Promise<RefundResult> {
+  // Part of the payment (amountCents), or with no amount whatever of it has not gone back yet, to the card it came
+  // from. The idempotency key makes a repeat — a second press, a retry after a timeout — return the SAME refund rather
+  // than a second one. A payment refunded already (from Stripe's own dashboard) is reported as such, not as a
+  // failure: the money is back either way.
+  async refund({ providerPaymentId, idempotencyKey, amountCents }: RefundInput): Promise<RefundResult> {
     try {
       const r = await this.stripe.refunds.create(
-        { payment_intent: providerPaymentId, reason: 'requested_by_customer' },
+        { payment_intent: providerPaymentId, reason: 'requested_by_customer', ...(amountCents != null ? { amount: amountCents } : {}) },
         { idempotencyKey },
       )
-      if (r.status === 'failed' || r.status === 'canceled') throw new Error(`Stripe did not complete the refund (${r.status}${r.failure_reason ? ': ' + r.failure_reason : ''})`)
+      if (r.status === 'failed' || r.status === 'canceled') throw new RefundRefused(`Stripe did not complete the refund (${r.status}${r.failure_reason ? ': ' + r.failure_reason : ''})`)
       return { refundId: r.id, status: r.status ?? 'pending', amountCents: r.amount ?? null }
     } catch (e: any) {
       if (e?.code === 'charge_already_refunded') return { refundId: null, status: 'succeeded', amountCents: null, alreadyRefunded: true }
+      // Stripe answered with a refusal (a 4xx): nothing was sent. A connection error or a 5xx is not an answer.
+      if (!(e instanceof RefundRefused) && typeof e?.statusCode === 'number' && e.statusCode >= 400 && e.statusCode < 500) throw new RefundRefused(e.message || 'Stripe refused the refund')
       throw e
     }
   }

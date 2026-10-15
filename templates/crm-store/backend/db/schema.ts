@@ -85,6 +85,9 @@ export const orders = pgTable('orders', {
   refundId: text('refund_id'),
   refundedAt: timestamp('refunded_at', { withTimezone: true }),
   refundError: text('refund_error'),
+  // Everything sent back so far, in cents — part refunds (order_refunds) and a whole refund alike. The order moves to
+  // 'refunded' when it reaches totalCents.
+  refundedCents: integer('refunded_cents').notNull().default(0),
 
   customerEmail: text('customer_email').notNull(),
   customerName: text('customer_name'),
@@ -151,7 +154,36 @@ export const orderItems = pgTable('order_items', {
   unitPriceCents: integer('unit_price_cents').notNull(),
   quantity: integer('quantity').notNull(),
   lineTotalCents: integer('line_total_cents').notNull(),
+  // How many of these units have been refunded (a part refund, or the whole order's).
+  refundedQuantity: integer('refunded_quantity').notNull().default(0),
 }, (t) => [index('order_items_order_idx').on(t.orderId)])
+
+/**
+ * ONE REFUND, of part of an order or the rest of it. (E2E Run 2: the store could only refund a whole order.) Written as
+ * 'pending' — with the order's refundedCents and the lines' refundedQuantity already reserved — BEFORE the provider is
+ * asked, so an interrupted refund is finished by resumePendingRefunds with the same idempotency key, never sent twice.
+ *   status      pending → refunded (the provider sent it) | recorded (no refund sent here: manual / none on file)
+ *               | failed (the provider refused; the reservation was given back)
+ *   items       [{ orderItemId, quantity }]: the units this refund covers
+ */
+export type RefundLine = { orderItemId: string; quantity: number }
+export const orderRefunds = pgTable('order_refunds', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orderId: uuid('order_id').notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  amountCents: integer('amount_cents').notNull(),
+  shippingCents: integer('shipping_cents').notNull().default(0),
+  items: jsonb('items').$type<RefundLine[]>().notNull().default([]),
+  restock: boolean('restock').notNull().default(false),
+  reason: text('reason'),
+  status: text('status').notNull().default('pending'),
+  moneyBack: text('money_back'),
+  providerRefundId: text('provider_refund_id'),
+  error: text('error'),
+  createdBy: uuid('created_by'),
+  createdByName: text('created_by_name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  settledAt: timestamp('settled_at', { withTimezone: true }),
+}, (t) => [index('order_refunds_order_idx').on(t.orderId)])
 
 // ── Payment config (the merchant's OWN provider account) ─────────────────────
 // Exactly one active row. `credentials` is encrypted at rest (AES-GCM, key from

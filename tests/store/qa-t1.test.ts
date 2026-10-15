@@ -162,9 +162,11 @@ for (const [from, to] of [['cancelled', 'paid'], ['cancelled', 'shipped'], ['ref
 {
   const st = (await O('GET', '/api/admin/orders/stats')).json?.stats
   const all = await db.select().from(orders)
-  const refunded = all.filter((o) => o.status === 'refunded')
-  check('L3: the dashboard reports how many orders were refunded', st?.refundedCount === refunded.length && refunded.length > 0, { st, n: refunded.length })
-  check('L3: …and how much', st?.refundedCents === refunded.reduce((a, o) => a + o.totalCents, 0), st)
+  // Every order with money sent back, whole or in part (E2E Run 2), counted from what went back — refundedCents.
+  const refunded = all.filter((o) => !['pending', 'cancelled'].includes(o.status) && o.refundedCents > 0)
+  check('L3: the dashboard reports how many orders had money sent back', st?.refundedCount === refunded.length && refunded.length > 0, { st, n: refunded.length })
+  check('L3: …and how much', st?.refundedCents === refunded.reduce((a, o) => a + o.refundedCents, 0), st)
+  check('L3: …and what the shop kept (revenue less refunds)', st?.netCents === st?.revenueCents - st?.refundedCents, st)
   const ss = (await S('GET', '/api/admin/orders/stats')).json?.stats
   check('L3: staff (no revenue:read) get the count but not the money — null, like revenue', ss?.refundedCents === null && ss?.revenueCents === null && typeof ss?.refundedCount === 'number', ss)
 }
@@ -182,20 +184,20 @@ for (const [from, to] of [['cancelled', 'paid'], ['cancelled', 'shipped'], ['ref
 }
 
 // ── T2 N1: the dashboard tiles never leave one on its own row ──────────────────────────────────────
-// Two to five tiles show (revenue:read, a refund, an order at the supplier). For every count, at every breakpoint the
+// Two to six tiles show (revenue:read, a refund and the net beside it, an order at the supplier). For every count, at every breakpoint the
 // grid names, the last row holds more than one tile — or the grid is one column wide. Read from the page's own table.
 {
   const page = (await import('node:fs')).readFileSync(ROOT + 'templates/crm-store/frontend/src/pages/DashboardPage.tsx', 'utf8').replace(/\r\n/g, '\n')
   const table = page.match(/const TILE_COLUMNS: Record<number, string> = \{([\s\S]*?)\n\}/)?.[1] || ''
   const cols = new Map([...table.matchAll(/(\d): '([^']*)'/g)].map((m) => [Number(m[1]), m[2]]))
-  check('N1: the grid takes its columns from the tile table', /className=\{`grid grid-cols-1 \$\{TILE_COLUMNS\[tiles\.length\] \|\| TILE_COLUMNS\[5\]\} gap-4`\}/.test(page) && cols.size === 5, [...cols])
-  for (const n of [2, 3, 4, 5]) {
+  check('N1: the grid takes its columns from the tile table', /className=\{`grid grid-cols-1 \$\{TILE_COLUMNS\[tiles\.length\] \|\| TILE_COLUMNS\[5\]\} gap-4`\}/.test(page) && cols.size === 6, [...cols])
+  for (const n of [2, 3, 4, 5, 6]) {
     const perBreakpoint = [...(cols.get(n) || '').matchAll(/(?:^|\s)(\w+):grid-cols-(\d)/g)].map((m) => [m[1], Number(m[2])] as const)
     const lone = perBreakpoint.filter(([, c]) => c > 1 && n % c === 1)
     check(`N1: ${n} tiles — no breakpoint leaves one tile alone on the last row (${cols.get(n)})`, perBreakpoint.length > 0 && lone.length === 0, lone)
   }
   const tiles = page.match(/const tiles = \[([\s\S]*?)\]\.filter\(Boolean\)/)?.[1] || ''
-  check('N1: the five tiles are the table\'s five — every one in the list the grid counts', (tiles.match(/<StatCard key="/g) || []).length === 5 && !/<StatCard/.test(page.slice(page.indexOf('{tiles}'), page.indexOf('function StatCard('))), tiles.slice(0, 200))
+  check('N1: the six tiles are the table\'s six — every one in the list the grid counts', (tiles.match(/<StatCard key="/g) || []).length === 6 && !/<StatCard/.test(page.slice(page.indexOf('{tiles}'), page.indexOf('function StatCard('))), tiles.slice(0, 200))
 }
 
 console.log(`\nstore QA T1: ${passed} passed, ${failed} failed`)

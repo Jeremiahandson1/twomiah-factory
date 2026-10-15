@@ -51,7 +51,13 @@ export default function OrdersPage() {
                   </td>
                   <td className="px-3 sm:px-4 py-3 text-gray-600 dark:text-slate-300 max-w-[8rem] sm:max-w-none truncate">{o.customerName || o.customerEmail}</td>
                   <td className="hidden sm:table-cell px-4 py-3 text-gray-500 dark:text-slate-400">{formatDate(o.createdAt)}</td>
-                  <td className="px-3 sm:px-4 py-3"><span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(o.status)}`}>{o.status}</span></td>
+                  <td className="px-3 sm:px-4 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(o.status)}`}>{o.status}</span>
+                    {/* Money has gone back on an order still open: a part refund. */}
+                    {(o.refundedCents || 0) > 0 && o.status !== 'refunded' && o.status !== 'cancelled' && (
+                      <span className="block text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">part refunded</span>
+                    )}
+                  </td>
                   <td className="px-3 sm:px-4 py-3 text-right font-medium whitespace-nowrap">{money(o.totalCents, o.currency)}</td>
                 </tr>
               ))}

@@ -1,8 +1,9 @@
 import crypto from 'crypto'
 import type {
   PaymentProvider, ProviderCredentials, CreateCheckoutInput,
-  CreateCheckoutResult, WebhookVerifyInput, WebhookResult,
+  CreateCheckoutResult, WebhookVerifyInput, WebhookResult, RefundInput, RefundResult,
 } from './types.ts'
+import { RefundRefused } from './types.ts'
 import type { Address } from '../../db/schema.ts'
 
 // Square adapter — hosted checkout via Payment Links. The merchant connects their
@@ -56,7 +57,7 @@ export class SquareProvider implements PaymentProvider {
     const json = await res.json().catch(() => ({}))
     if (!res.ok) {
       const err = json?.errors?.[0]
-      throw new Error(`Square ${method} ${path} failed: ${err?.detail || err?.code || res.status}`)
+      throw Object.assign(new Error(`Square ${method} ${path} failed: ${err?.detail || err?.code || res.status}`), { status: res.status })
     }
     return json
   }
@@ -116,6 +117,12 @@ export class SquareProvider implements PaymentProvider {
     const event = JSON.parse(input.rawBody)
     const payment = event?.data?.object?.payment
     if (!payment || payment.status !== 'COMPLETED') return { type: 'ignored' }
+    // A payment with money refunded off it: a refund — made here, or in Square's own dashboard. routes/orders.ts
+    // applyProviderRefund tells the two apart by what the order has already sent back.
+    const refunded = payment.refunded_money?.amount ?? 0
+    if (refunded > 0) {
+      return { type: 'refunded', providerPaymentId: payment.id, amountRefundedCents: refunded, amountTotalCents: payment.amount_money?.amount ?? 0, currency: payment.amount_money?.currency }
+    }
     // The webhook carries the payment only; who it is for lives on the order (below).
     const order = payment.order_id ? (await this.api('/v2/orders/' + encodeURIComponent(payment.order_id), 'GET').catch(() => null))?.order : null
     return parsePayment(payment, order)
@@ -130,6 +137,39 @@ export class SquareProvider implements PaymentProvider {
     const { payment } = await this.api('/v2/payments/' + encodeURIComponent(tenderPaymentId), 'GET')
     if (!payment || payment.status !== 'COMPLETED') return { type: 'ignored' }
     return parsePayment(payment, order)
+  }
+
+  /**
+   * Money back to the card, through Square's Refunds API — POST /v2/refunds { idempotency_key, payment_id,
+   * amount_money, reason }. Read against the sandbox (10/15): a part refund answers PENDING; the same key again answers
+   * the SAME refund; asking for more than is left is a 400 REFUND_AMOUNT_INVALID; the payment's refunded_money adds up.
+   * Square always needs the amount, so "whatever is left" is read off the payment first.
+   */
+  async refund({ providerPaymentId, idempotencyKey, amountCents, currency, reason }: RefundInput): Promise<RefundResult> {
+    let amount = amountCents
+    let cur = currency?.toUpperCase()
+    if (amount == null || !cur) {
+      const { payment } = await this.api('/v2/payments/' + encodeURIComponent(providerPaymentId), 'GET')
+      cur ||= payment?.amount_money?.currency
+      if (amount == null) amount = (payment?.amount_money?.amount ?? 0) - (payment?.refunded_money?.amount ?? 0)
+    }
+    if (!amount || amount <= 0) return { refundId: null, status: 'succeeded', amountCents: null, alreadyRefunded: true }
+    // Square's key limit is 45 characters; a longer key (order-refund-<uuid> is 49) becomes a hash of itself — the same
+    // key in, the same key out, so a repeat still finds the same refund.
+    const key = idempotencyKey.length <= 45 ? idempotencyKey : crypto.createHash('sha256').update(idempotencyKey).digest('base64url').slice(0, 43)
+    const { refund } = await this.api('/v2/refunds', 'POST', {
+      idempotency_key: key,
+      payment_id: providerPaymentId,
+      amount_money: { amount, currency: cur },
+      ...(reason ? { reason: reason.slice(0, 192) } : {}),
+    }).catch((e: any) => {
+      // Square answered no (REFUND_AMOUNT_INVALID and the like): nothing was sent. A timeout or a 5xx is not an answer.
+      if (typeof e?.status === 'number' && e.status >= 400 && e.status < 500) throw new RefundRefused(e.message)
+      throw e
+    })
+    const status = String(refund?.status || '').toUpperCase()
+    if (status === 'REJECTED' || status === 'FAILED') throw new RefundRefused(`Square did not complete the refund (${status.toLowerCase()})`)
+    return { refundId: refund?.id ?? null, status: status === 'COMPLETED' ? 'succeeded' : 'pending', amountCents: refund?.amount_money?.amount ?? amount }
   }
 }
 

@@ -11,7 +11,7 @@ export default function DashboardPage() {
   const mayConnectPayments = useMayWrite('payments:update')
   const mayAddProducts = useMayWrite('products:create')
   // revenueCents is null for a seat that may not see the shop's takings (revenue:read) — the card goes, rather than reading $0.00.
-  const [stats, setStats] = useState<{ paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number; refundedCount: number; refundedCents: number | null }>({ paidCount: 0, pendingFulfillment: 0, revenueCents: null, atSupplier: 0, refundedCount: 0, refundedCents: null })
+  const [stats, setStats] = useState<{ paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number; refundedCount: number; refundedCents: number | null; netCents: number | null }>({ paidCount: 0, pendingFulfillment: 0, revenueCents: null, atSupplier: 0, refundedCount: 0, refundedCents: null, netCents: null })
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [payment, setPayment] = useState<PaymentStatus | null>(null)
@@ -36,6 +36,8 @@ export default function DashboardPage() {
     stats.revenueCents !== null && <StatCard key="revenue" icon={DollarSign} label="Revenue" value={money(stats.revenueCents)} />,
     // Revenue counts a refunded sale (the sale happened); what went back is shown beside it. (Store QA T1, L3)
     stats.refundedCents !== null && stats.refundedCount > 0 && <StatCard key="refunded" icon={RotateCcw} label={`Refunded (${stats.refundedCount} order${stats.refundedCount === 1 ? '' : 's'})`} value={money(stats.refundedCents)} />,
+    // …and what the shop kept, once anything has gone back — part refunds included. (E2E Run 2)
+    stats.netCents !== null && stats.refundedCount > 0 && <StatCard key="net" icon={DollarSign} label="Net sales" value={money(stats.netCents)} />,
     <StatCard key="orders" icon={ShoppingBag} label="Orders" value={String(stats.paidCount)} />,
     <StatCard key="fulfill" icon={Package} label="To fulfill" value={String(stats.pendingFulfillment)} highlight={stats.pendingFulfillment > 0} />,
     stats.atSupplier > 0 && <StatCard key="supplier" icon={Truck} label="At supplier" value={String(stats.atSupplier)} />,
@@ -100,6 +102,7 @@ const TILE_COLUMNS: Record<number, string> = {
   3: 'sm:grid-cols-3',
   4: 'sm:grid-cols-2 xl:grid-cols-4',
   5: 'sm:grid-cols-3 2xl:grid-cols-5',
+  6: 'sm:grid-cols-2 lg:grid-cols-3',
 }
 
 function StatCard({ icon: Icon, label, value, highlight }: { icon: any; label: string; value: string; highlight?: boolean }) {

@@ -176,6 +176,41 @@ export async function sendOrderShipped(p: { order: EmailOrder; items: EmailItem[
     html: wrap(storeName, 'Your order shipped', inner) })
 }
 
+/**
+ * Money sent back to the shopper — part of an order, the rest of it, or a cancelled order's payment. Shopify tells the
+ * shopper; the store did not (E2E Run 2). Sent only when the provider actually returned the money from here.
+ */
+export async function sendRefundIssued(p: {
+  order: Pick<EmailOrder, 'orderNumber' | 'customerEmail' | 'customerName' | 'currency'>
+  lines: { productName: string; variantName: string; quantity: number }[]
+  shippingCents: number
+  amountCents: number
+  cancelled?: boolean
+  storeName: string
+  supportEmail?: string | null
+}): Promise<void> {
+  const { order, storeName } = p
+  const money = formatCents(p.amountCents, order.currency)
+  const what = [
+    ...p.lines.map((l) => `<li>${esc(l.productName)}${l.variantName && l.variantName !== 'Default' ? ` — ${esc(l.variantName)}` : ''} &times; ${l.quantity}</li>`),
+    ...(p.shippingCents > 0 ? [`<li>Shipping (${formatCents(p.shippingCents, order.currency)})</li>`] : []),
+  ]
+  const num = order.orderNumber ? ` <strong>${esc(order.orderNumber)}</strong>` : ''
+  const lead = p.cancelled
+    ? `your order${num} was cancelled, and <strong>${money}</strong> has been refunded to the card you paid with.`
+    : `we have refunded <strong>${money}</strong> on your order${num} to the card you paid with.`
+  const inner = `
+    <p style="color:#444;font-size:15px;line-height:1.6;">Hi${firstName(order.customerName)} — ${lead}</p>
+    ${what.length ? `<h3 style="font-size:14px;color:#111;margin:20px 0 8px;">Refunded</h3><ul style="color:#444;font-size:14px;line-height:1.6;margin:0;padding-left:18px;">${what.join('')}</ul>` : ''}
+    <p style="color:#444;font-size:14px;line-height:1.6;margin-top:18px;">It can take 5–10 business days to appear on your statement, depending on your bank.</p>
+    <p style="color:#888;font-size:13px;margin-top:24px;">${p.supportEmail ? 'Questions? Reply to this email.' : 'Thanks for shopping with us.'}</p>`
+  await send({ from: fromFor(storeName), to: order.customerEmail, replyTo: p.supportEmail || undefined,
+    subject: p.cancelled
+      ? `Your ${storeName} order${order.orderNumber ? ' ' + order.orderNumber : ''} was cancelled and refunded`
+      : `${money} refunded on your ${storeName} order${order.orderNumber ? ' ' + order.orderNumber : ''}`,
+    html: wrap(storeName, p.cancelled ? 'Order cancelled' : 'Refund issued', inner) })
+}
+
 export async function sendAbandonedCart(p: {
   order: EmailOrder
   items: EmailItem[]

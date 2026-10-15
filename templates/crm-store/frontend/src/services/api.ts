@@ -83,6 +83,8 @@ export type Order = {
   providerPaymentId?: string | null
   // Money back (routes/orders.ts): a refund under way, the provider's refund id, when it went back, a refusal.
   refundPendingAt?: string | null; refundId?: string | null; refundedAt?: string | null; refundError?: string | null
+  // Everything sent back so far (part refunds and a whole refund), and each refund, oldest first.
+  refundedCents?: number; refunds?: OrderRefund[]
   labelUrl?: string | null; labelCostCents?: number | null; labelPurchasedAt?: string | null
 }
 export type MoneyBack =
@@ -92,7 +94,16 @@ export type MoneyBack =
 export type OrderItem = {
   id: string; productName: string; variantName: string; sku: string; imageUrl: string | null
   unitPriceCents: number; quantity: number; lineTotalCents: number
+  refundedQuantity?: number
 }
+// One refund of part (or the rest) of an order — backend db/schema.ts orderRefunds.
+export type OrderRefund = {
+  id: string; amountCents: number; shippingCents: number; items: { orderItemId: string; quantity: number }[]; restock: boolean
+  reason: string | null; status: 'pending' | 'refunded' | 'recorded' | 'failed'; moneyBack: string | null; error: string | null
+  createdByName: string | null; createdAt: string; settledAt: string | null
+}
+export type RefundRequest = { items: { orderItemId: string; quantity: number }[]; shippingCents: number; amountCents?: number; restock: boolean; reason?: string }
+export type RefundQuote = { suggestedCents: number; maxCents: number; shippingLeftCents: number }
 export type Address = { line1: string; line2?: string; city: string; state: string; postalCode: string; country: string }
 export type ShippingZone = { name: string; countries: string[]; states: string[]; rateCents: number; freeThresholdCents?: number | null }
 export type TaxRate = { country: string; state: string; rateBps: number }
@@ -284,10 +295,13 @@ class ApiClient {
   // ── Orders ──
   async listOrders(status?: string) { return (await this.request<{ orders: Order[] }>(`/api/admin/orders${status ? `?status=${status}` : ''}`)).orders }
   async getOrder(id: string) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}`)).order }
-  async orderStats() { return (await this.request<{ stats: { paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number; refundedCount: number; refundedCents: number | null } }>('/api/admin/orders/stats')).stats }
+  async orderStats() { return (await this.request<{ stats: { paidCount: number; pendingFulfillment: number; revenueCents: number | null; atSupplier: number; refundedCount: number; refundedCents: number | null; netCents: number | null } }>('/api/admin/orders/stats')).stats }
   async listCustomers() { return (await this.request<{ customers: any[] }>('/api/admin/orders/customers')).customers }
   // A refund or a cancel of a paid order also says what happened to the shopper's money (routes/orders.ts MoneyBack).
   async setOrderStatus(id: string, status: string) { return this.request<{ order: Order; refund?: MoneyBack }>(`/api/admin/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }) }
+  async quoteRefund(id: string, body: Omit<RefundRequest, 'amountCents'>) { return (await this.request<{ quote: RefundQuote }>(`/api/admin/orders/${id}/refunds/quote`, { method: 'POST', body: JSON.stringify(body) })).quote }
+  async refundPart(id: string, body: RefundRequest) { return this.request<{ order: Order; refund: MoneyBack; restocked: number }>(`/api/admin/orders/${id}/refunds`, { method: 'POST', body: JSON.stringify(body) }) }
+  async retryPartRefund(id: string, refundId: string) { return this.request<{ order: Order; refund: MoneyBack | null }>(`/api/admin/orders/${id}/refunds/${refundId}/retry`, { method: 'POST' }) }
   async retryRefund(id: string) { return this.request<{ order: Order; refund?: MoneyBack | null }>(`/api/admin/orders/${id}/refund/retry`, { method: 'POST' }) }
   async setFulfillment(id: string, body: { trackingCarrier?: string; trackingNumber?: string; internalNote?: string; markShipped?: boolean }) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/fulfillment`, { method: 'PATCH', body: JSON.stringify(body) })).order }
 
