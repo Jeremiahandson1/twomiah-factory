@@ -103,7 +103,7 @@ const app = new Hono()
 for (const [mount, file] of [
   ['/api/reports', 'reports'], ['/api/dashboard', 'dashboard'], ['/api/forecast', 'forecast'],
   ['/api/route-optimizer', 'optimizer'], ['/api/optimizer', 'scheduleOptimizer'],
-  ['/api/roster-optimizer', 'rosterOptimizer'], ['/api/company', 'company'],
+  ['/api/roster-optimizer', 'rosterOptimizer'], ['/api/company', 'company'], ['/api/no-show', 'noShow'],
 ] as const) app.route(mount, (await import(`./src/routes/${file}.ts`)).default)
 
 const as = (who: any) => async (method: string, path: string, body?: unknown) => {
@@ -398,6 +398,31 @@ const plusDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T12:00:
   const roster = await office('GET', '/api/roster-optimizer/roster')
   const r2 = (roster.json?.caregivers || []).find((x: any) => x.id === cg2.id)
   check('roster counts the overnight pattern as 8 hours in the caregiver\'s week', r2 && Number(r2.current_weekly_hours) >= 8, r2)
+}
+
+// ── the agency's zone is the office's to set, and the reports follow it ────────────────────────────
+{
+  const before = await office('GET', '/api/company')
+  check('the company record names the zone reports count on (derived from WI)', before.json?.effectiveTimezone === 'America/Chicago' && !before.json?.timezone, before.json?.effectiveTimezone)
+  const set = await office('PUT', '/api/company', { timezone: 'America/Los_Angeles' })
+  const after = await office('GET', '/api/company')
+  check('the office sets its own zone', set.status === 200 && after.json?.effectiveTimezone === 'America/Los_Angeles', after.json?.effectiveTimezone)
+  // 06:30Z Oct 1 is 01:30 Oct 1 in Chicago but 23:30 Sept 30 in Los Angeles.
+  await mkTe({ caregiverId: cg2.id, clientId: B.id, startTime: new Date('2026-10-01T06:30:00Z'), endTime: new Date('2026-10-01T07:00:00Z'), durationMinutes: 30, billableMinutes: 30 })
+  const la = await office('GET', '/api/reports/client-visits-summary?startDate=2026-09-30&endDate=2026-09-30')
+  check('a late-night punch now lands on the Los Angeles day', (la.json?.rows || []).some((r: any) => r.client_id === B.id && r.last_visit === '2026-09-30'), la.json?.rows)
+  await office('PUT', '/api/company', { timezone: '' })
+  const back = await office('GET', '/api/company')
+  check('clearing it falls back to the state zone', back.json?.effectiveTimezone === 'America/Chicago' && !back.json?.timezone, back.json)
+}
+
+// ── the no-show banner reads the shape the endpoint now sends ─────────────────────────────────────
+{
+  await db.execute(sql`INSERT INTO noshow_alerts (id, caregiver_id, client_id, shift_date, expected_start, status)
+    VALUES ('ns1', ${cg1.id}, ${A.id}, (NOW() AT TIME ZONE 'America/Chicago')::date, '09:00', 'open'),
+           ('ns2', ${cg1.id}, ${A.id}, '2026-09-07', '09:00', 'resolved')`)
+  const ns = await office('GET', '/api/no-show/stats')
+  check('no-show stats: 1 open (today), 1 resolved', ns.json?.open_count === 1 && ns.json?.today_count === 1 && ns.json?.resolved_count === 1, ns.json)
 }
 
 // ── who may ───────────────────────────────────────────────────────────────────────────────────────
