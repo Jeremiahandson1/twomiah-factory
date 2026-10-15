@@ -38,7 +38,7 @@
 import { sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { db } from '../../db/index.ts'
-import { agencies } from '../../db/schema.ts'
+import { agencies, invoices } from '../../db/schema.ts'
 import { companyRowTimeZone } from '../shared/index.ts'
 import { scheduleOccurrencesCte } from './scheduleOccurrences.ts'
 
@@ -689,4 +689,18 @@ export async function createInvoiceWithLines(opts: {
     }
     return inv
   })
+}
+
+// ── Who outside the office may see an invoice ────────────────────────────────────────────────
+// Invoices start as DRAFTS (sent_at NULL). The client/family portal, its PDF and the public pay page
+// show one only once the office sends, releases or takes a payment on it (CVHC v55). One rule for
+// every outside read: use isClientVisibleInvoice on a row, clientVisibleInvoiceSql() in a WHERE.
+export function isClientVisibleInvoice(inv: { sent_at?: unknown; sentAt?: unknown; payment_status?: string | null; paymentStatus?: string | null } | null | undefined): boolean {
+  if (!inv) return false
+  const sent = inv.sent_at ?? inv.sentAt
+  const status = inv.payment_status ?? inv.paymentStatus
+  return sent != null || status === 'paid' || status === 'partial'
+}
+export function clientVisibleInvoiceSql() {
+  return sql`(${invoices.sentAt} IS NOT NULL OR ${invoices.paymentStatus} IN ('paid', 'partial'))`
 }

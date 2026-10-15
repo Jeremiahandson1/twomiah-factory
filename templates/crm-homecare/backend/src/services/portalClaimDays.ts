@@ -67,8 +67,10 @@ export function clientInEvv(c: { is_private_pay?: boolean | null; medicaid_id?: 
 }
 
 /**
- * One client's Sun–Sat week. Pure, so it can be tested on its own.
- * visits: that week's finished visits in any order: { date, start, minutes, sentToEvv, … }.
+ * One client's Sun–Sat week. Pure, so it can be tested on its own. CVHC helpers/evvWeekly.js
+ * allocateEvvWeek, signature and field names unchanged (sentToSandata in; evvUnits / homemakerUnits
+ * out) so the EVV port's copy in services/evvWeekly.ts can replace this one at merge — one copy only.
+ * visits: that week's finished visits in any order: { date, start, minutes, sentToSandata, … }.
  */
 export function allocateEvvWeek(evvWeeklyUnits: number | null | undefined, visits: any[]) {
   const allowanceMin = evvWeeklyUnits == null ? Infinity : Number(evvWeeklyUnits) * UNIT_MINUTES
@@ -77,24 +79,24 @@ export function allocateEvvWeek(evvWeeklyUnits: number | null | undefined, visit
   const byDay = new Map<string, any>()
   const out = sorted.map((v) => {
     const minutes = Math.max(0, Math.round(Number(v.minutes) || 0))
-    const evvMin = v.sentToEvv ? Math.min(minutes, Math.max(0, evvLeft)) : 0
-    if (v.sentToEvv) evvLeft -= evvMin
-    const row = { ...v, minutes, evvMinutes: evvMin, otherMinutes: minutes - evvMin }
-    const d = byDay.get(v.date) || { date: v.date, evvMinutes: 0, otherMinutes: 0, visits: [] as any[] }
-    d.evvMinutes += row.evvMinutes; d.otherMinutes += row.otherMinutes; d.visits.push(row)
+    const evvMin = v.sentToSandata ? Math.min(minutes, Math.max(0, evvLeft)) : 0
+    if (v.sentToSandata) evvLeft -= evvMin
+    const row = { ...v, minutes, evvMinutes: evvMin, homemakerMinutes: minutes - evvMin }
+    const d = byDay.get(v.date) || { date: v.date, evvMinutes: 0, homemakerMinutes: 0, visits: [] as any[] }
+    d.evvMinutes += row.evvMinutes; d.homemakerMinutes += row.homemakerMinutes; d.visits.push(row)
     byDay.set(v.date, d)
     return row
   })
   const days = [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date)).map((d) => ({
     ...d,
     evvUnits: Math.round(d.evvMinutes / UNIT_MINUTES),
-    otherUnits: Math.round(d.otherMinutes / UNIT_MINUTES),
+    homemakerUnits: Math.round(d.homemakerMinutes / UNIT_MINUTES),
   }))
   if (Number.isFinite(allowanceMin)) {
     let over = days.reduce((s, d) => s + d.evvUnits, 0) - Number(evvWeeklyUnits)
     for (let i = days.length - 1; i >= 0 && over > 0; i--) {
       const cut = Math.min(over, days[i].evvUnits)
-      days[i].evvUnits -= cut; days[i].otherUnits += cut; over -= cut
+      days[i].evvUnits -= cut; days[i].homemakerUnits += cut; over -= cut
     }
   }
   return {
@@ -102,7 +104,7 @@ export function allocateEvvWeek(evvWeeklyUnits: number | null | undefined, visit
     visits: out,
     totals: {
       evvUnits: days.reduce((s, d) => s + d.evvUnits, 0),
-      otherUnits: days.reduce((s, d) => s + d.otherUnits, 0),
+      homemakerUnits: days.reduce((s, d) => s + d.homemakerUnits, 0),
       evvAuthorizedUnits: evvWeeklyUnits == null ? null : Number(evvWeeklyUnits),
     },
   }
@@ -176,7 +178,7 @@ export async function portalClaimWeek(dbc: Dbc, payerId: string, weekStart: stri
       caregiver: v.caregiver, minutes: Number(v.minutes) || 0,
       // No stored decision (visits from before the EVV port, or before it is merged): an EVV
       // client's visits all went through EVV.
-      sentToEvv: v.sent_flag == null ? cl.in_evv : v.sent_flag === true,
+      sentToSandata: v.sent_flag == null ? cl.in_evv : v.sent_flag === true,
       needs_approval: v.needs_approval === true, approval_reason: v.approval_reason || null,
     })
   }

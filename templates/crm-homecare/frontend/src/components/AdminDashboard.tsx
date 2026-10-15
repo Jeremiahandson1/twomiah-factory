@@ -25,6 +25,9 @@ import ReferralSources from './admin/ReferralSources';
 import ClientsManagement from './admin/ClientsManagement';
 import CaregiverManagement from './admin/CaregiverManagement';
 import BillingDashboard from './admin/BillingDashboard';
+import BillingImport from './admin/BillingImport';
+import BillingEngine from './admin/BillingEngine';
+import PortalClaimDays from './admin/PortalClaimDays';
 import ClientOnboarding from './admin/ClientOnboarding';
 import PerformanceRatings from './admin/PerformanceRatings';
 import ExpenseManagement from './admin/ExpenseManagement';
@@ -114,7 +117,10 @@ const NAV_SECTIONS = [
     id: 'financial', label: 'Financial', icon: '💰',
     items: [
       { id: 'billing', label: 'Billing', icon: '🧾' },
+      { id: 'billing-import', label: 'Invoice Import', icon: '📥' },
+      { id: 'portal-claim-days', label: 'Portal Claim Days', icon: '📆' },
       { id: 'claims', label: 'Claims', icon: '📑' },
+      { id: 'billing-engine', label: 'Claims & EVV Engine', icon: '⚡' },
       { id: 'payers-service-codes', label: 'Payers & Codes', icon: '🏦' },
       { id: 'authorizations', label: 'Authorizations', icon: '📋' },
       { id: 'payroll', label: 'Payroll', icon: '💵' },
@@ -307,6 +313,9 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'clients': return <ClientsManagement />;
       case 'caregivers': return <CaregiverManagement onViewProfile={handleViewCaregiverProfile} onViewHistory={handleViewCaregiverHistory} />;
       case 'billing': return <BillingDashboard />;
+      case 'billing-import': return <BillingImport />;
+      case 'portal-claim-days': return <PortalClaimDays />;
+      case 'billing-engine': return <BillingEngine />;
       case 'subscription-pricing': return <SubscriptionPricingPage />;
       case 'forecast': return <ForecastPage />;
       case 'ai-receptionist': return <AiReceptionistPage />;

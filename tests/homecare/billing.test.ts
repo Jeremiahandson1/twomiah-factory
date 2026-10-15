@@ -311,6 +311,10 @@ const day = (r: any, date: string, cg?: string) => (r.json.reconcile || []).find
   check('release stamps sent_at', rel.status === 200 && !!rel.json.sent_at, rel.json)
   p = await portalInv()
   check('once released, the portal shows it', p.json.some((i: any) => i.id === g.json.id), p.json?.map?.((i: any) => i.id))
+  const { isClientVisibleInvoice } = await import('./src/services/invoiceEngine.ts')
+  check('isClientVisibleInvoice: a draft no, sent yes, a paid or partial draft yes',
+    !isClientVisibleInvoice({ sent_at: null, payment_status: 'pending' }) && isClientVisibleInvoice({ sent_at: new Date(), payment_status: 'pending' })
+    && isClientVisibleInvoice({ sentAt: null, paymentStatus: 'partial' }) && isClientVisibleInvoice({ sent_at: null, payment_status: 'paid' }))
   const resc = await A('POST', `/api/billing/invoices/${g.json.id}/rescind`)
   check('rescind returns it to draft', resc.status === 200, resc.json)
   p = await portalInv()
@@ -507,9 +511,9 @@ const day = (r: any, date: string, cg?: string) => (r.json.reconcile || []).find
   check('weekStart snaps back to its Sunday', w.status === 200 && w.json.week_start === '2026-09-06' && w.json.week_end === '2026-09-12', w.json)
   let evc = w.json.clients?.find((x: any) => x.client_id === ev.id)
   // No allowance entered (evv_weekly_units not there yet) → every EVV minute is EVV: round(68/15) = 5 a day.
-  check('no allowance: three days of 5 EVV units (68 min → 4.53 → 5)', evc?.days?.map((d: any) => d.evvUnits).join(',') === '5,5,5' && evc.totals.evvUnits === 15 && evc.totals.otherUnits === 0, evc)
+  check('no allowance: three days of 5 EVV units (68 min → 4.53 → 5)', evc?.days?.map((d: any) => d.evvUnits).join(',') === '5,5,5' && evc.totals.evvUnits === 15 && evc.totals.homemakerUnits === 0, evc)
   const hmc = w.json.clients?.find((x: any) => x.client_id === hm.id)
-  check('a member with no Medicaid ID is all homemaker time: 120 min = 8 units', hmc?.in_evv === false && hmc.totals.evvUnits === 0 && hmc.totals.otherUnits === 8, hmc)
+  check('a member with no Medicaid ID is all homemaker time: 120 min = 8 units', hmc?.in_evv === false && hmc.totals.evvUnits === 0 && hmc.totals.homemakerUnits === 8, hmc)
 
   // The EVV port adds clients.evv_weekly_units and time_entries.sandata_required — simulate both.
   await db.execute(sql`ALTER TABLE clients ADD COLUMN IF NOT EXISTS evv_weekly_units integer`)
@@ -518,13 +522,13 @@ const day = (r: any, date: string, cg?: string) => (r.json.reconcile || []).find
   evc = w.json.clients?.find((x: any) => x.client_id === ev.id)
   // 14 units = 210 min: Mon 68, Tue 68, Wed 68 of the remaining 74 → 5, 5, 5 = 15 > 14 → trim the
   // latest day: Wed 4 EVV + 1 homemaker.
-  check('allowance 14: rounding never claims more — Wed trimmed to 4 EVV + 1 homemaker', evc?.days?.map((d: any) => `${d.evvUnits}/${d.otherUnits}`).join(',') === '5/0,5/0,4/1' && evc.totals.evvUnits === 14 && evc.totals.evvAuthorizedUnits === 14, evc?.days)
+  check('allowance 14: rounding never claims more — Wed trimmed to 4 EVV + 1 homemaker', evc?.days?.map((d: any) => `${d.evvUnits}/${d.homemakerUnits}`).join(',') === '5/0,5/0,4/1' && evc.totals.evvUnits === 14 && evc.totals.evvAuthorizedUnits === 14, evc?.days)
   await db.execute(sql`ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS sandata_required boolean`)
   await db.execute(sql`UPDATE time_entries SET sandata_required = false WHERE id = ${e3.id}`)
   await db.execute(sql`UPDATE time_entries SET sandata_required = true WHERE id = ${e1.id}`)
   w = await week()
   evc = w.json.clients?.find((x: any) => x.client_id === ev.id)
-  check('a visit not sent to EVV bills homemaker: Wed 0 EVV + 5 homemaker', evc?.days?.map((d: any) => `${d.evvUnits}/${d.otherUnits}`).join(',') === '5/0,5/0,0/5', evc?.days)
+  check('a visit not sent to EVV bills homemaker: Wed 0 EVV + 5 homemaker', evc?.days?.map((d: any) => `${d.evvUnits}/${d.homemakerUnits}`).join(',') === '5/0,5/0,0/5', evc?.days)
   check('each day lists its visits on the agency clock', evc?.days?.[0]?.visits?.[0]?.clock_in === '9:00 AM' && evc.days[0].visits[0].clock_out === '10:08 AM', evc?.days?.[0]?.visits)
 }
 
@@ -570,6 +574,50 @@ const day = (r: any, date: string, cg?: string) => (r.json.reconcile || []).find
   check('the portal export is a CSV titled with the payer\'s portal (no portal set: "Insurer Portal")', ex.status === 200 && /Insurer Portal Upload Packet/.test(ex.text) && !/Generated:/.test(ex.text), ex.text.slice(0, 200))
   const sum = await A('GET', '/api/claims/reports/summary')
   check('the claims summary answers with aging buckets', sum.status === 200 && sum.json.aging && 'under_30' in sum.json.aging, sum.json)
+}
+
+// ── 16. email, import, exports, summary ───────────────────────────────────────────────────────
+{
+  const ec = await mkClient('Emailed', { referredById: payer.id, email: 'family@test.local' })
+  await once(ec.id, cgA.id, '2026-08-10', '09:00', '11:00')
+  const g = await A('POST', '/api/billing/invoices/generate-with-rates', { clientId: ec.id, billingPeriodStart: '2026-08-10', billingPeriodEnd: '2026-08-10' })
+  const se = await A('POST', `/api/billing/invoices/${g.json.id}/send-email`, {})
+  const [still] = rows(await db.execute(sql`SELECT sent_at FROM invoices WHERE id = ${g.json.id}`))
+  check('with no email provider, "send" says so (503) and the invoice stays a draft — nothing claims it was sent', se.status === 503 && still.sent_at == null, [se.status, se.json, still])
+  const rem = await A('POST', `/api/billing/invoices/${g.json.id}/send-reminder`, {})
+  check('…the reminder too (503)', rem.status === 503, rem.json)
+  const noMail = await mkClient('NoMail', { referredById: payer.id })
+  await once(noMail.id, cgA.id, '2026-08-11', '09:00', '10:00')
+  const g2 = await A('POST', '/api/billing/invoices/generate-with-rates', { clientId: noMail.id, billingPeriodStart: '2026-08-11', billingPeriodEnd: '2026-08-11' })
+  const se2 = await A('POST', `/api/billing/invoices/${g2.json.id}/send-email`, {})
+  check('a client with no email on file is told so (400)', se2.status === 400 && /No email/.test(se2.json.error), se2.json)
+
+  const imc = await mkClient('Imported', { referredById: payer.id, medicaidId: '9998887776' })
+  const imp = await A('POST', '/api/billing/import-csv', { source: 'Portal export', rows: [
+    { clientId: imc.id, caregiverId: cgA.id, serviceDate: '2026-07-02', hours: '2', rate: '33' },
+    { clientId: imc.id, caregiverId: cgA.id, serviceDate: '2026-07-09', hours: '1', amount: '40.50' },
+    { clientId: imc.id, caregiverId: cgA.id, serviceDate: '2026-08-01', hours: '1', rate: '33' },
+    { clientId: imc.id, serviceDate: '2026-07-10', hours: '1', rate: '33' },
+    { caregiverId: cgA.id, serviceDate: '2026-07-10', hours: '1' },
+  ] })
+  const imInv = rows(await db.execute(sql`SELECT to_char(billing_period_start,'YYYY-MM-DD') AS s, to_char(billing_period_end,'YYYY-MM-DD') AS e, total, sent_at FROM invoices WHERE client_id = ${imc.id} ORDER BY billing_period_start`))
+  check('import: one draft invoice per client per month — July $66 + $40.50 = $106.50, August $33',
+    imp.status === 200 && imp.json.imported === 3 && imp.json.invoicesCreated === 2 && imInv.length === 2
+    && imInv[0].s === '2026-07-01' && imInv[0].e === '2026-07-31' && near(imInv[0].total, 106.5) && near(imInv[1].total, 33) && imInv.every((i) => i.sent_at == null), [imp.json, imInv])
+  check('import: rows with no client or no caregiver are skipped with the reason', imp.json.skipped === 2 && imp.json.errors.some((e: any) => /No caregiver/.test(e.error)) && imp.json.errors.some((e: any) => /No client/.test(e.error)), imp.json)
+  const again = await A('POST', '/api/billing/import-csv', { rows: [{ clientId: imc.id, caregiverId: cgA.id, serviceDate: '2026-07-20', hours: '1', rate: '33' }] })
+  check('importing into a month already invoiced is refused for that group, not duplicated', again.json.invoicesCreated === 0 && /already exists/.test(again.json.errors?.[0]?.error || ''), again.json)
+
+  const csv = await A('GET', '/api/billing/export/invoices-csv')
+  check('the invoices CSV carries the friendly number and the draft/sent state', csv.status === 200 && /^"Invoice #","Invoice Number"/.test(csv.text) && /"draft"/.test(csv.text), csv.text.slice(0, 160))
+  const evv = await A('GET', '/api/billing/export/evv')
+  check('the EVV export answers a CSV', evv.status === 200 && /^"ServiceDate","ClientFirstName"/.test(evv.text), evv.text.slice(0, 120))
+  const sum = await A('GET', '/api/billing/billing-summary')
+  check('the billing summary answers billed / collected / outstanding with by-payer and by-caregiver', sum.status === 200 && Number(sum.json.summary?.invoice_count) > 0 && Array.isArray(sum.json.byPayer) && Array.isArray(sum.json.byCaregiver), sum.json.summary)
+  const one = await A('GET', `/api/billing/invoices/${g.json.id}`)
+  check('an invoice reads with its client, lines and total hours (2.00)', one.status === 200 && one.json.first_name === 'Emailed' && one.json.line_items?.length === 1 && one.json.total_hours === 2, one.json)
+  const missing = await A('GET', '/api/billing/invoices/nope-not-an-id')
+  check('a missing invoice is a 404', missing.status === 404, missing.status)
 }
 
 // ── 15. who may: billing and claims are the office's ──────────────────────────────────────────

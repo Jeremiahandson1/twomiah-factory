@@ -4,6 +4,7 @@ import { invoices, clients } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import logger from '../services/logger.ts'
+import { isClientVisibleInvoice } from '../services/invoiceEngine.ts'
 
 let stripe: any = null
 if (process.env.STRIPE_SECRET_KEY) {
@@ -146,7 +147,7 @@ app.get('/invoice/:invoiceId/pay', requireStripe, async (c) => {
 
   const inv = rows[0]
   // A draft — never sent, or rescinded — is not payable: an old emailed link must stop working.
-  if (!inv.sentAt && !['paid', 'partial'].includes(inv.paymentStatus)) {
+  if (!isClientVisibleInvoice(inv)) {
     return c.json({ error: 'This invoice is no longer available. Please contact the office.' }, 404)
   }
   return c.json({
@@ -178,7 +179,7 @@ app.post('/invoice/:invoiceId/pay', requireStripe, async (c) => {
 
   const { invoice, firstName, lastName, clientEmail } = rows[0]
   // Same draft gate as the GET above — no checkout for an invoice that was never sent or was pulled back.
-  if (!invoice.sentAt && !['paid', 'partial'].includes(invoice.paymentStatus)) {
+  if (!isClientVisibleInvoice(invoice)) {
     return c.json({ error: 'This invoice is no longer available. Please contact the office.' }, 404)
   }
   if (invoice.paymentStatus === 'paid') return c.json({ error: 'Invoice already paid' }, 400)

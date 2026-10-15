@@ -4,6 +4,17 @@ import { toast } from '../Toast';
 // Complete billing system: Invoicing, A/R Aging, Authorizations, Claims, Payments
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+// Why a cancelled visit was not billed (schedule_exceptions.cancel_reason, CVHC v63).
+const CANCEL_REASON_LABELS = {
+  client_refused: 'Client refused care',
+  client_not_home: 'Client not home',
+  client_hospital: 'Client in hospital',
+  client_cancelled: 'Client cancelled ahead',
+  caregiver_callout: 'Caregiver called out',
+  admin_cancelled: 'Cancelled by the office',
+  other: 'Other',
+};
+const cancelReasonLabel = (r) => CANCEL_REASON_LABELS[r] || r || '—';
 import { useAuth } from '../../contexts/AuthContext';
 
 // Helper to parse date without timezone shift
@@ -48,6 +59,22 @@ const generateTimeOptions = () => {
 };
 
 const TIME_OPTIONS = generateTimeOptions();
+// A visit bills two lines (aide + homemaking); its care note prints once, on the
+// first of them. Returns null for a missing/blank line so it never matches.
+const visitNoteKey = (item) =>
+  item && item.service_date && item.start_time
+    ? `${String(item.service_date).slice(0, 10)}|${item.start_time}|${item.caregiver_id}`
+    : null;
+
+// "10:30:00" → "10:30 AM" (schedule times are plain clock times, not instants)
+const hhmm12 = (t) => {
+  if (!t) return '';
+  const [h, m] = String(t).split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m || 0).padStart(2, '0')} ${ampm}`;
+};
+
 
 const BillingDashboard = () => {
   const { token } = useAuth();
@@ -58,12 +85,39 @@ const BillingDashboard = () => {
   const [referralSources, setReferralSources] = useState([]);
   const [careTypes, setCareTypes] = useState([]);
   const [rates, setRates] = useState([]);
+  const [missingRates, setMissingRates] = useState([]);
+
+  // Detect payer × care-type combos with active clients but no rate.
+  // Banner appears in the Rates tab so admins can see which combos will
+  // silently bill $0 if not configured.
+  useEffect(() => {
+    if (activeTab !== 'rates') return;
+    fetch(`${API_BASE_URL}/api/billing/missing-rates`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(setMissingRates)
+      .catch(() => setMissingRates([]));
+  }, [activeTab, token]);
   const [authorizations, setAuthorizations] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showGenerateForm, setShowGenerateForm] = useState(false);
+  const [dueRunning, setDueRunning] = useState(false);
+  const [dueResult, setDueResult] = useState(null);
+  const [showSchedulePanel, setShowSchedulePanel] = useState(false);
+  const [billingSchedule, setBillingSchedule] = useState([]);
+  const [showReconcile, setShowReconcile]       = useState(false);
+  const [reconcileData, setReconcileData]       = useState(null);
+  const [reconcileChoices, setReconcileChoices] = useState({});
+  const [reconcileLoading, setReconcileLoading] = useState(false);
+  const [showSettledDays, setShowSettledDays]   = useState(false);
+  const [showPickPanel, setShowPickPanel] = useState(false);
+  const [pickForm, setPickForm] = useState({ clientId: '', from: '', to: '' });
+  const [pickVisits, setPickVisits] = useState([]);
+  const [pickChosen, setPickChosen] = useState({});
+  const [pickLoading, setPickLoading] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
   const [showBatchForm, setShowBatchForm] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -131,7 +185,7 @@ const BillingDashboard = () => {
 
   const [detailedMode, setDetailedMode] = useState(true); // Default to detailed (best practice)
   
-  const [manualLineItems, setManualLineItems] = useState([
+  const [manualLineItems, setManualLineItems] = useState<any[]>([
     { caregiverId: '', caregiverName: '', description: 'Home Care Services', hours: '', rate: '', serviceDate: '', startTime: '', endTime: '' }
   ]);
 
@@ -184,21 +238,76 @@ const BillingDashboard = () => {
     }
   };
 
-  const handleGenerateInvoice = async (e) => {
+  // Step 1 of generating: show the producer every day that will be billed and
+  // let them settle the ones where the clock-in and the schedule disagree.
+  // Billing bills the SHIFT; a short punch used to silently become the price
+  // (a 13-minute mis-punch billed $7.15 of a $66 visit) with nobody asked.
+  const handleReviewInvoice = async (e) => {
     e.preventDefault();
+    if (!formData.clientId || !formData.billingPeriodStart || !formData.billingPeriodEnd) return;
+    setReconcileLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/billing/invoices/reconcile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          clientId: formData.clientId,
+          billingPeriodStart: formData.billingPeriodStart,
+          billingPeriodEnd: formData.billingPeriodEnd,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || 'Could not read this period');
+      if ((!data.reconcile || data.reconcile.length === 0) && (!data.skipped || data.skipped.length === 0)) {
+        toast('No scheduled visits or clock-ins found for this client in that period', 'error');
+        return;
+      }
+      if (!data.reconcile || data.reconcile.length === 0) {
+        // Every visit in the period was cancelled as client-unavailable. Nothing to
+        // invoice — say why instead of the generic "nothing found".
+        toast(`Nothing to bill: all ${data.skipped.length} visit${data.skipped.length === 1 ? '' : 's'} in this period were cancelled (client unavailable / refused)`, 'error');
+        return;
+      }
+      // Everything starts on its default (scheduled, except unscheduled punches).
+      const initial = {};
+      data.reconcile.forEach(r => { initial[r.key] = r.default_basis; });
+      setReconcileData(data);
+      setReconcileChoices(initial);
+      setShowReconcile(true);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setReconcileLoading(false);
+    }
+  };
+
+  const reconcileTotal = () => {
+    if (!reconcileData) return 0;
+    return reconcileData.reconcile.reduce((sum, r) => {
+      const basis = reconcileChoices[r.key] || r.default_basis;
+      const amt = basis === 'clocked' ? r.clocked_amount : r.scheduled_amount;
+      return sum + (Number(amt) || 0);
+    }, 0);
+  };
+
+  const handleGenerateInvoice = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
     try {
       const response = await fetch(`${API_BASE_URL}/api/billing/invoices/generate-with-rates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ ...formData, choices: reconcileChoices })
       });
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error || 'Failed to generate invoice');
+        throw new Error(err.message || err.error || 'Failed to generate invoice');
       }
       const invoice = await response.json();
       setFormData({ clientId: '', billingPeriodStart: '', billingPeriodEnd: '', notes: '' });
       setShowGenerateForm(false);
+      setShowReconcile(false);
+      setReconcileData(null);
+      setReconcileChoices({});
       loadData();
       setSelectedInvoice(invoice);
       setShowInvoiceModal(true);
@@ -207,16 +316,103 @@ const BillingDashboard = () => {
     }
   };
 
+  // Round an ISO timestamp or "HH:MM[:SS]" string to the nearest 15-min slot
+  // and return "HH:MM" so it matches the TIME_OPTIONS dropdown values.
+  const toQuarterHourHHMM = (input) => {
+    if (!input) return '';
+    let h, m;
+    if (typeof input === 'string' && /^\d{1,2}:\d{2}/.test(input)) {
+      const parts = input.split(':');
+      h = parseInt(parts[0], 10);
+      m = parseInt(parts[1], 10);
+    } else {
+      const d = new Date(input);
+      if (isNaN(d.getTime())) return '';
+      h = d.getHours();
+      m = d.getMinutes();
+    }
+    const rounded = Math.round(m / 15) * 15;
+    let hh = h + Math.floor(rounded / 60);
+    const mm = rounded % 60;
+    if (hh >= 24) hh -= 24;
+    return `${hh.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;
+  };
+
+  // "📥 Import from Schedule + EVV" → pulls scheduled visits + completed EVV
+  // entries for the selected client + date range and populates the manual line
+  // items. Saves having to type each shift one by one.
+  const handleImportFromSchedule = async () => {
+    if (!manualFormData.clientId || !manualFormData.billingPeriodStart || !manualFormData.billingPeriodEnd) {
+      toast('Select client and billing period dates first', 'error');
+      return;
+    }
+    setPreviewLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/billing/invoices/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          clientId: manualFormData.clientId,
+          billingPeriodStart: manualFormData.billingPeriodStart,
+          billingPeriodEnd: manualFormData.billingPeriodEnd,
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || 'Preview failed');
+
+      if (!data.lineItems || data.lineItems.length === 0) {
+        toast('No scheduled visits or EVV entries found for this client in this period.', 'error');
+        return;
+      }
+
+      // Map server line items → form line item shape
+      const mapped = data.lineItems.map(li => {
+        const baseDesc = (li.description || 'Home Care Services').replace(/\s*\([^)]*\)\s*$/, '').trim();
+        return {
+          caregiverId: li.caregiver_id || '',
+          caregiverName: `${li.caregiver_first_name || ''} ${li.caregiver_last_name || ''}`.trim(),
+          description: baseDesc || 'Home Care Services',
+          hours: parseFloat(li.hours || 0).toFixed(2),
+          rate: parseFloat(li.rate || 0).toFixed(2),
+          serviceDate: li.service_date || '',
+          startTime: toQuarterHourHHMM(li.start_time),
+          endTime: toQuarterHourHHMM(li.end_time),
+          _source: li.source, // for UI badge
+        };
+      });
+
+      setManualLineItems(mapped);
+      setDetailedMode(true); // detailed mode needed for dates
+
+      const { counts } = data;
+      const parts = [];
+      if (counts.evvConfirmed) parts.push(`${counts.evvConfirmed} EVV-confirmed`);
+      if (counts.scheduled)    parts.push(`${counts.scheduled} scheduled-only`);
+      if (counts.unscheduled)  parts.push(`${counts.unscheduled} unscheduled EVV`);
+      setMessage(`✓ Imported ${counts.total} line items (${parts.join(', ')}). Total: ${formatCurrency(data.total)}`);
+      setTimeout(() => setMessage(''), 6000);
+    } catch (err) {
+      toast('Import failed: ' + err.message, 'error');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const handleManualInvoice = async (e) => {
     e.preventDefault();
     
-    // Validate line items
-    const validLineItems = manualLineItems.filter(item => 
-      parseFloat(item.hours) > 0 && parseFloat(item.rate) > 0
-    );
-    
+    if (!manualRate) {
+      toast('This client has no billing rate configured. Set it on the client (Clients → Edit) first.', 'error');
+      return;
+    }
+
+    // Rate is stamped from the client record server-side; only hours are entered here.
+    const validLineItems = manualLineItems
+      .filter(item => parseFloat(item.hours) > 0)
+      .map(item => ({ ...item, rate: manualRate.rate }));
+
     if (validLineItems.length === 0) {
-      toast('Please add at least one line item with hours and rate');
+      toast('Please add at least one line item with hours');
       return;
     }
 
@@ -241,7 +437,7 @@ const BillingDashboard = () => {
       });
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error || 'Failed to create invoice');
+        throw new Error(err.message || err.error || 'Failed to create invoice');
       }
       const invoice = await response.json();
       setManualFormData({ clientId: '', billingPeriodStart: '', billingPeriodEnd: '', notes: '' });
@@ -305,10 +501,123 @@ const BillingDashboard = () => {
     setManualLineItems(updated);
   };
 
-  const calculateManualTotal = () => {
-    return manualLineItems.reduce((sum, item) => {
-      return sum + (parseFloat(item.hours || 0) * parseFloat(item.rate || 0));
-    }, 0);
+  // The rate belongs to the client, not to the invoice form. It used to be a
+  // per-line number input, and its spinner quietly moved rates a cent at a time
+  // (invoice #67 billed $33.02/$33.03 against a $33.00 client). The server now
+  // stamps this same value regardless of what we send; we resolve it here only
+  // so the operator can see what they're billing before they save.
+  const effectiveRateFor = (clientId) => {
+    const c = clients.find(x => x.id === clientId);
+    if (!c) return null;
+    const payerId = c.referred_by_id || c.referral_source_id;
+    if (!c.is_private_pay && payerId) {
+      // Same choice the server makes: the client's care type first, then the payer's default.
+      const live = rates.filter(x => x.referral_source_id === payerId && (x.is_active === true || x.is_active == null));
+      const r = live.find(x => c.care_type_id && x.care_type_id === c.care_type_id) || live.find(x => !x.care_type_id);
+      if (r) return { rate: parseFloat(r.rate_amount), rateType: r.rate_type || 'hourly', source: 'payer contract rate' };
+    }
+    if (c.private_pay_rate && parseFloat(c.private_pay_rate) > 0) {
+      return { rate: parseFloat(c.private_pay_rate), rateType: c.private_pay_rate_type || 'hourly', source: 'client private-pay rate' };
+    }
+    return null;
+  };
+  // An hourly rate bills hours; a per-15-minute rate bills units (hours × 4) — the server's rule.
+  const amountAt = (hours, r) => {
+    if (!r) return 0;
+    const h = parseFloat(hours || 0) || 0;
+    return r.rateType === 'hourly' ? h * r.rate : (Math.round(h * 4 * 100) / 100) * r.rate;
+  };
+  const rateLabel = (r) => (r ? `$${r.rate.toFixed(2)}${r.rateType === 'hourly' ? '/h' : '/15 min'}` : 'No rate set');
+  const manualRate = effectiveRateFor(manualFormData.clientId);
+
+  const calculateManualTotal = () => manualLineItems.reduce((sum, item) => sum + amountAt(item.hours, manualRate), 0);
+
+  const handleGenerateDue = async () => {
+    if (!(await confirm('Create draft invoices for every client with a billing schedule, covering all complete periods since their last invoice?'))) return;
+    setDueRunning(true);
+    setDueResult(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/billing/invoices/generate-due`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed');
+      setDueResult(result);
+      setMessage(`✓ ${result.summary}`);
+      loadData();
+    } catch (err) {
+      setMessage(`✗ ${err.message}`);
+    } finally {
+      setDueRunning(false);
+    }
+  };
+
+  const loadBillingSchedule = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/billing/invoices/billing-schedule`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) setBillingSchedule(await response.json());
+    } catch (err) { console.error('billing schedule load:', err); }
+  };
+
+  const setClientFrequency = async (clientId, weeks) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/billing/invoices/billing-schedule/${clientId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ weeks: weeks || null }),
+      });
+      if (!response.ok) throw new Error((await response.json()).error || 'Failed');
+      loadBillingSchedule();
+    } catch (err) { setMessage(`✗ ${err.message}`); }
+  };
+
+  const loadPickVisits = async () => {
+    if (!pickForm.clientId || !pickForm.from || !pickForm.to) { toast('Choose a client and both dates', 'error'); return; }
+    setPickLoading(true);
+    try {
+      const q = new URLSearchParams({ clientId: pickForm.clientId, from: pickForm.from, to: pickForm.to });
+      const res = await fetch(`${API_BASE_URL}/api/billing/scheduled-visits?${q}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not load the visits');
+      setPickVisits(Array.isArray(data) ? data : []);
+      setPickChosen({});
+      if (!data.length) toast('No scheduled visits for this client in those dates', 'error');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setPickLoading(false);
+    }
+  };
+
+  const createFromPicked = async () => {
+    const visits = pickVisits
+      .filter(v => pickChosen[`${v.visit_date}|${v.start_time}|${v.caregiver_id}`])
+      .map(v => ({ visitDate: v.visit_date, startTime: String(v.start_time).slice(0, 5), caregiverId: v.caregiver_id }));
+    if (!visits.length) return;
+    setPickLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/billing/invoices/from-visits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ clientId: pickForm.clientId, visits }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not create the invoice');
+      toast(`Draft invoice #${data.seq_number ?? data.invoice_number} created for ${data.visits} visit${data.visits === 1 ? '' : 's'}`, 'success');
+      setPickVisits([]);
+      setPickChosen({});
+      setShowPickPanel(false);
+      loadData();
+      handleViewInvoice(data.id);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setPickLoading(false);
+    }
   };
 
   const handleBatchGenerate = async (e) => {
@@ -325,8 +634,13 @@ const BillingDashboard = () => {
       setBatchFormData({ billingPeriodStart: '', billingPeriodEnd: '', clientFilter: 'all', referralSourceId: '' });
       setShowBatchForm(false);
       loadData();
-      setMessage(`✓ Generated ${result.count} invoices totaling ${formatCurrency(result.total)}`);
-      setTimeout(() => setMessage(''), 5000);
+      // A batch cannot ask "scheduled or clocked?", so clients with an unresolved day are skipped —
+      // name them, or they read as billed.
+      const review = (result.skippedClients || []).filter(s => s.needsReview).map(s => s.name);
+      setMessage(`✓ Generated ${result.count} invoices totaling ${formatCurrency(result.total)}`
+        + (result.skipped ? ` · ${result.skipped} skipped` : '')
+        + (review.length ? ` — generate these on their own to review their days: ${review.join(', ')}` : ''));
+      setTimeout(() => setMessage(''), review.length ? 15000 : 5000);
     } catch (error) {
       toast('Failed: ' + error.message, 'error');
     } finally {
@@ -347,7 +661,7 @@ const BillingDashboard = () => {
     }
   };
 const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
-  if (!confirm(`Are you sure you want to delete invoice ${invoiceNumber}? This cannot be undone.`)) {
+  if (!(await confirm(`Are you sure you want to delete invoice ${invoiceNumber}? This cannot be undone.`, { danger: true }))) {
     return;
   }
   
@@ -387,6 +701,220 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
       toast('Invoice marked paid');
     } catch (error) {
       toast('Failed: ' + error.message, 'error');
+    }
+  };
+
+  // ── Edit invoice line items (any unpaid invoice) ──────────────────────────
+  const [editingInvoice, setEditingInvoice] = useState(null); // invoice being edited
+  const [editLines, setEditLines] = useState([]);             // working copy of rows
+  const [savingLineItems, setSavingLineItems] = useState(false);
+
+  const openLineItemEditor = (invoice) => {
+    const src = (invoice.line_items && invoice.line_items.length)
+      ? invoice.line_items
+      : [{ description: 'Home Care Services', hours: invoice.total_hours || '', rate: '' }];
+    setEditLines(src.map(li => ({
+      description: li.description || 'Home Care Services',
+      hours: li.hours != null ? String(li.hours) : '',
+      rate: li.rate != null ? String(li.rate) : '',
+      service_date: li.service_date ? String(li.service_date).slice(0, 10) : '',
+      caregiver_id: li.caregiver_id || null,
+      time_entry_id: li.time_entry_id || null,
+      // kept so an edited line still identifies its visit (care note) and why it bills what it does
+      start_time: li.start_time || null,
+      end_time: li.end_time || null,
+      billed_basis: li.billed_basis || null,
+      scheduled_minutes: li.scheduled_minutes ?? null,
+      clocked_minutes: li.clocked_minutes ?? null,
+      // a $0 line stays a deliberate write-off
+      write_off: li.rate != null && parseFloat(li.rate) === 0,
+    })));
+    setEditingInvoice(invoice);
+  };
+
+  // Rate follows the invoice's client, same as creation — the server stamps it
+  // either way, so showing anything else here would just lie about the total.
+  const editRateInfo = editingInvoice ? effectiveRateFor(editingInvoice.client_id) : null;
+  const editRate = editRateInfo?.rate ?? null;
+  const editLineAmount = (l) => (l.write_off ? 0 : amountAt(l.hours, editRateInfo));
+  const editGrandTotal = () => editLines.reduce((s, l) => s + editLineAmount(l), 0);
+  const updateEditLine = (idx, field, value) => setEditLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l));
+  const addEditLine = () => setEditLines(prev => [...prev, { description: 'Home Care Services', hours: '', rate: '', service_date: '', caregiver_id: null, time_entry_id: null, write_off: false }]);
+  const removeEditLine = (idx) => setEditLines(prev => prev.filter((_, i) => i !== idx));
+
+  const saveLineItems = async () => {
+    if (!editingInvoice?.id) return;
+    const kept = editLines.filter(l => (l.description || '').trim() || String(l.hours || '').trim());
+    // Hours are typed as text and checked here, on save — never clamped while typing.
+    const bad = kept.find(l => !/^\d+(\.\d+)?$/.test(String(l.hours || '').trim()));
+    if (bad) { toast(`Hours must be a number (line "${bad.description || 'Home Care Services'}")`, 'error'); return; }
+    const cleaned = kept
+      // No rate is sent for a normal line: the server stamps the client's configured rate. Only a
+      // deliberate write-off sends 0.
+      .map(l => ({
+        description: (l.description || '').trim() || 'Home Care Services',
+        hours: parseFloat(l.hours),
+        ...(l.write_off ? { rate: 0 } : {}),
+        serviceDate: l.service_date || null,
+        caregiver_id: l.caregiver_id || null,
+        time_entry_id: l.time_entry_id || null,
+        start_time: l.start_time || null,
+        end_time: l.end_time || null,
+        billed_basis: l.billed_basis || null,
+        scheduled_minutes: l.scheduled_minutes ?? null,
+        clocked_minutes: l.clocked_minutes ?? null,
+      }));
+    if (cleaned.length === 0) { toast('Add at least one line item', 'error'); return; }
+    setSavingLineItems(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/billing/invoices/${editingInvoice.id}/line-items`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ lineItems: cleaned }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || data.error || 'Failed to save changes');
+      toast('Invoice updated', 'success');
+      setSelectedInvoice(prev => (prev && prev.id === data.id) ? { ...prev, ...data } : prev);
+      setEditingInvoice(null);
+      loadData();
+    } catch (error) {
+      toast('Failed to save: ' + error.message, 'error');
+    } finally {
+      setSavingLineItems(false);
+    }
+  };
+
+  const [sendingInvoiceEmail, setSendingInvoiceEmail] = useState(false);
+  const [creatingPaymentLink, setCreatingPaymentLink] = useState(false);
+
+  // Create (or surface) a Stripe payment link for this invoice and copy it
+  // to the clipboard so admin can paste into an email / text. Backend stores
+  // the URL on invoices.stripe_payment_link the first time it's generated.
+  const handleCreatePaymentLink = async (invoice) => {
+    if (!invoice?.id) return;
+    setCreatingPaymentLink(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/stripe/create-payment-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ invoiceId: invoice.id })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to create payment link');
+      try { await navigator.clipboard.writeText(data.paymentLink); } catch {}
+      toast(`Payment link copied to clipboard: ${data.paymentLink}`, 'success');
+    } catch (error) {
+      toast('Payment link failed: ' + error.message, 'error');
+    } finally {
+      setCreatingPaymentLink(false);
+    }
+  };
+
+  const handleSendInvoiceEmail = async (invoice) => {
+    if (!invoice?.id) return;
+    const clientEmail = invoice.email || invoice.client_email;
+    const emailTo = clientEmail;
+    if (!emailTo) { toast('No email on file for this client — add one on the client first.', 'error'); return; }
+    if (!emailTo) return;
+
+    const ok = await confirm(`Send invoice #${invoice.invoice_number} to ${emailTo}?`);
+    if (!ok) return;
+
+    setSendingInvoiceEmail(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/billing/invoices/${invoice.id}/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ email: emailTo })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to send');
+      toast(`Invoice emailed to ${data.sentTo}`, 'success');
+      // Emailing releases the draft to the family portal — reflect it immediately
+      setSelectedInvoice(prev => prev && prev.id === invoice.id ? { ...prev, sent_at: prev.sent_at || new Date().toISOString() } : prev);
+      loadData();
+    } catch (error) {
+      toast('Failed to send: ' + error.message, 'error');
+    } finally {
+      setSendingInvoiceEmail(false);
+    }
+  };
+
+  // Invoices start as drafts the family portal cannot see. Emailing or creating
+  // a pay link releases them automatically; this button covers portal-only
+  // clients where nothing is emailed.
+  const handleReleaseToPortal = async (invoice) => {
+    if (!invoice?.id) return;
+    const ok = await confirm(`Make invoice #${invoice.invoice_number} visible in the family portal?`);
+    if (!ok) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/billing/invoices/${invoice.id}/release`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to release');
+      toast('Invoice released to family portal', 'success');
+      setSelectedInvoice(prev => prev && prev.id === invoice.id ? { ...prev, sent_at: data.sent_at } : prev);
+      loadData();
+    } catch (error) {
+      toast('Failed to release: ' + error.message, 'error');
+    }
+  };
+
+  // Pulls a sent invoice back to draft: it disappears from the family portal
+  // and its public pay link stops working. The server refuses once a payment
+  // is recorded (the portal shows paid/partial invoices regardless).
+  const handleRescindInvoice = async (invoice) => {
+    if (!invoice?.id) return;
+    const ok = await confirm(`Rescind invoice #${invoice.invoice_number}? It will disappear from the family portal and its pay link will stop working. If it was already emailed, the family still has that copy.`);
+    if (!ok) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/billing/invoices/${invoice.id}/rescind`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to rescind');
+      toast('Invoice rescinded — back to draft, hidden from the family portal', 'success');
+      setSelectedInvoice(prev => prev && prev.id === invoice.id ? { ...prev, sent_at: null } : prev);
+      loadData();
+    } catch (error) {
+      toast('Failed to rescind: ' + error.message, 'error');
+    }
+  };
+
+  const handleSendInvoiceReminder = async (invoice) => {
+    if (!invoice?.id) return;
+    if (invoice.payment_status === 'paid') {
+      toast('Invoice is already paid — no reminder needed.', 'info');
+      return;
+    }
+    const clientEmail = invoice.email || invoice.client_email;
+    const emailTo = clientEmail;
+    if (!emailTo) { toast('No email on file for this client — add one on the client first.', 'error'); return; }
+    if (!emailTo) return;
+
+    const ok = await confirm(`Send a payment reminder for invoice #${invoice.invoice_number} to ${emailTo}?`);
+    if (!ok) return;
+
+    setSendingInvoiceEmail(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/billing/invoices/${invoice.id}/send-reminder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ email: emailTo })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to send reminder');
+      const overdueLabel = data.daysOverdue > 0 ? ` (${data.daysOverdue}d overdue)` : '';
+      toast(`Reminder sent to ${data.sentTo}${overdueLabel}`, 'success');
+      loadData();
+    } catch (error) {
+      toast('Failed to send reminder: ' + error.message, 'error');
+    } finally {
+      setSendingInvoiceEmail(false);
     }
   };
 
@@ -556,6 +1084,12 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-primary" onClick={() => { setShowGenerateForm(v => !v); setShowManualForm(false); }}>📄 New Invoice</button>
           <button className="btn btn-primary" onClick={() => { setShowManualForm(v => !v); setShowGenerateForm(false); }}>✏️ Manual Invoice</button>
+          <button className="btn btn-primary" onClick={handleGenerateDue} disabled={dueRunning}
+            title="Creates draft invoices for every client with a billing schedule, from their last invoice through the most recent complete period">
+            {dueRunning ? '⏳ Creating…' : '⚡ Create Due Invoices'}
+          </button>
+          <button className="btn btn-secondary" onClick={() => { setShowSchedulePanel(!showSchedulePanel); if (!showSchedulePanel) loadBillingSchedule(); }}>🗓️ Billing Schedule</button>
+          <button className="btn btn-secondary" onClick={() => setShowPickPanel(!showPickPanel)}>☑️ Invoice Picked Visits</button>
           <button className="btn btn-secondary" onClick={() => setShowBatchForm(!showBatchForm)}>📋 Batch Generate</button>
           <button className="btn btn-secondary" onClick={handleExportCSV}>📥 Export CSV</button>
           <button className="btn btn-secondary" onClick={handleExportEVV}>📤 EVV Export</button>
@@ -563,6 +1097,141 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
       </div>
 
       {message && <div className="alert alert-success">{message}</div>}
+
+      {/* Create Due Invoices results */}
+      {dueResult && (
+        <div className="card border-l-4 border-indigo-500 dark:border-indigo-400">
+          <div className="flex items-center justify-between">
+            <h3 className="m-0">⚡ Due Invoices — {dueResult.summary}</h3>
+            <button className="btn btn-sm btn-secondary" onClick={() => setDueResult(null)} aria-label="Close the due-invoices summary">×</button>
+          </div>
+          {dueResult.created.length > 0 && (
+            <div className="mt-3">
+              <strong className="text-emerald-800 dark:text-emerald-300">Created (drafts — review below, then send):</strong>
+              {dueResult.created.map((c, i) => (
+                <div key={i} className="py-0.5 text-sm text-gray-800 dark:text-slate-200">
+                  {c.seqNumber != null ? `#${c.seqNumber}` : c.invoiceNumber} · {c.name} · {c.period} · {Number(c.hours).toFixed(1)}h · {formatCurrency(c.total)}
+                </div>
+              ))}
+            </div>
+          )}
+          {dueResult.skipped.length > 0 && (
+            <div className="mt-3">
+              <strong className="text-amber-800 dark:text-amber-300">Skipped — needs your attention:</strong>
+              {dueResult.skipped.map((s, i) => (
+                <div key={i} className={`py-0.5 text-sm ${s.needsReview ? 'text-red-700 dark:text-red-300' : 'text-gray-600 dark:text-slate-400'}`}>
+                  {s.name}{s.period ? ` · ${s.period}` : ''} — {s.reason}
+                </div>
+              ))}
+            </div>
+          )}
+          {dueResult.emptyPeriods.length > 0 && (
+            <div className="mt-3 text-xs text-gray-600 dark:text-slate-400">
+              Nothing billable (skipped forward): {dueResult.emptyPeriods.map(e => `${e.name} ${e.period}`).join(' · ')}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Billing Schedule panel */}
+      {showSchedulePanel && (
+        <div className="card">
+          <h3>🗓️ Billing Schedule</h3>
+          <p className="mt-0 text-sm text-gray-600 dark:text-slate-400">
+            How often each client gets invoiced. "Create Due Invoices" resumes each client from their
+            last invoice and creates one draft per complete period. Blank = manual invoicing only.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="table text-sm">
+              <thead><tr><th>Client</th><th>Payer</th><th>Frequency</th><th>Billed Through</th><th>Due Now</th></tr></thead>
+              <tbody>
+                {billingSchedule.map(c => (
+                  <tr key={c.id}>
+                    <td><strong>{c.first_name} {c.last_name}</strong></td>
+                    <td>{c.is_private_pay ? 'Private Pay' : (c.payer_name || '—')}</td>
+                    <td>
+                      <select aria-label={`Billing frequency for ${c.first_name} ${c.last_name}`} value={c.billing_frequency_weeks || ''} onChange={(e) => setClientFrequency(c.id, e.target.value)}>
+                        <option value="">Manual only</option>
+                        <option value="1">Every week</option>
+                        <option value="2">Every 2 weeks</option>
+                        <option value="4">Every 4 weeks</option>
+                      </select>
+                    </td>
+                    <td>{c.billed_through ? formatDate(c.billed_through) : <span className="text-amber-800 dark:text-amber-300">no invoice yet — generate the first manually</span>}</td>
+                    <td>{c.periods_due > 0
+                      ? <span className="font-bold text-red-700 dark:text-red-300">{c.periods_due} period{c.periods_due > 1 ? 's' : ''}</span>
+                      : (c.billing_frequency_weeks ? '✓ current' : '—')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice picked visits — for clients whose caregiver doesn't clock in: pick the scheduled
+          visits one by one; anything already on an invoice is marked and cannot be picked. */}
+      {showPickPanel && (
+        <div className="card">
+          <h3>☑️ Invoice Picked Visits</h3>
+          <p className="mt-0 text-sm text-gray-600 dark:text-slate-400">
+            Choose a client and dates, tick the scheduled visits to bill, and a draft invoice is created for exactly those
+            visits. Cancelled visits never appear; visits already billed are marked.
+          </p>
+          <div className="form-grid">
+            <div className="form-group">
+              <label htmlFor="pick-client">Client *</label>
+              <select id="pick-client" value={pickForm.clientId} onChange={(e) => setPickForm({ ...pickForm, clientId: e.target.value })}>
+                <option value="">Select client...</option>
+                {clients.map(client => <option key={client.id} value={client.id}>{client.first_name} {client.last_name}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="pick-from">From *</label>
+              <input id="pick-from" type="date" value={pickForm.from} onChange={(e) => setPickForm({ ...pickForm, from: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label htmlFor="pick-to">To *</label>
+              <input id="pick-to" type="date" value={pickForm.to} onChange={(e) => setPickForm({ ...pickForm, to: e.target.value })} />
+            </div>
+          </div>
+          <div className="form-actions">
+            <button type="button" className="btn btn-secondary" onClick={loadPickVisits} disabled={pickLoading}>{pickLoading ? 'Loading…' : 'Show Visits'}</button>
+          </div>
+          {pickVisits.length > 0 && (
+            <div className="mt-3 overflow-x-auto">
+              <table className="table text-sm">
+                <thead><tr><th scope="col"><span className="sr-only">Pick</span></th><th>Date</th><th>Time</th><th>Caregiver</th><th>Hours</th><th>Billed</th></tr></thead>
+                <tbody>
+                  {pickVisits.map(v => {
+                    const key = `${v.visit_date}|${v.start_time}|${v.caregiver_id}`;
+                    return (
+                      <tr key={key}>
+                        <td>
+                          <input type="checkbox" aria-label={`Bill the ${formatDate(v.visit_date)} ${hhmm12(v.start_time)} visit`}
+                            disabled={!!v.billed_on} checked={!!pickChosen[key]}
+                            onChange={(e) => setPickChosen(prev => ({ ...prev, [key]: e.target.checked }))} />
+                        </td>
+                        <td>{formatDate(v.visit_date, { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+                        <td>{hhmm12(v.start_time)}–{hhmm12(v.end_time)}</td>
+                        <td>{v.caregiver_name || '—'}</td>
+                        <td>{(Number(v.minutes) / 60).toFixed(2)}</td>
+                        <td>{v.billed_on ? <span className="text-gray-600 dark:text-slate-400">on {v.billed_on}</span> : '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="form-actions">
+                <button type="button" className="btn btn-primary" onClick={createFromPicked} disabled={pickLoading || !Object.values(pickChosen).some(Boolean)}>
+                  Create Draft Invoice ({Object.values(pickChosen).filter(Boolean).length} visit{Object.values(pickChosen).filter(Boolean).length === 1 ? '' : 's'})
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowPickPanel(false); setPickVisits([]); setPickChosen({}); }}>Close</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid">
@@ -593,11 +1262,192 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
         </div>
       </div>
 
-      {/* Generate Invoice Form */}
-      {showGenerateForm && (
+      {/* Generate Invoice — step 2: review the days before the invoice exists */}
+      {showReconcile && reconcileData && (() => {
+        const rows = reconcileData.reconcile;
+        // Any day whose clock-in differs from its schedule gets the Scheduled / Clocked
+        // buttons — not just the ones over the 7-minute grace. A private-pay visit
+        // punched 1:58–4:04 for a 2:00–4:00 shift billed $69.30 instead of $66 with no
+        // way to choose. The server already bills whichever basis is picked per day.
+        const differs = (r) => r.status !== 'no_punch' && r.status !== 'unscheduled'
+          && r.clocked_minutes != null && r.scheduled_minutes != null
+          && r.clocked_minutes !== r.scheduled_minutes;
+        const needs = rows.filter(r => r.needs_choice || differs(r));
+        const settled = rows.filter(r => !(r.needs_choice || differs(r)));
+        const choosable = needs.filter(r => r.status !== 'unscheduled');
+        const pickAll = (basis) => setReconcileChoices(prev => {
+          const next = { ...prev };
+          choosable.forEach(r => { next[r.key] = basis; });
+          return next;
+        });
+        const money = (n) => `$${(Number(n) || 0).toFixed(2)}`;
+        const mins = (m) => m == null ? '—' : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+        // Punch times come back already on the agency's clock (clocked_start_label).
+        const clockRange = (r) => r.clocked_start_label ? `${r.clocked_start_label}–${r.clocked_end_label || '…'}` : '';
+        const pick = (key, basis) => setReconcileChoices(prev => ({ ...prev, [key]: basis }));
+        // A self-contained pill: its ground and its ink are set together, in both themes.
+        const pill = (active, danger) => `rounded-md border px-3 py-1 text-xs font-bold ${active
+          ? (danger
+            ? 'border-red-600 bg-red-100 text-red-800 dark:border-red-400 dark:bg-red-900/40 dark:text-red-200'
+            : 'border-emerald-600 bg-emerald-100 text-emerald-800 dark:border-emerald-400 dark:bg-emerald-900/40 dark:text-emerald-200')
+          : 'border-gray-300 bg-white text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'}`;
+
+        const overlaps = rows.filter(r => r.overlap_minutes > 0);
+
+        return (
+          <div className="card" style={{ maxWidth: 'none' }}>
+            <h3>🧾 Review Before Invoicing</h3>
+            <p className="mt-0 text-sm text-gray-600 dark:text-slate-400">
+              Days with no clock-in bill their <strong>scheduled</strong> hours. These {needs.length} day
+              {needs.length === 1 ? '' : 's'} clocked in differently from the schedule — pick which to bill for each.
+              {reconcileData.rate && <> Billing at {rateLabel({ rate: Number(reconcileData.rate.rate), rateType: reconcileData.rate.rateType })} ({reconcileData.rate.source === 'client_private_pay_rate' ? 'client private-pay rate' : 'payer contract rate'}).</>}
+            </p>
+            {choosable.length > 1 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">Set all {choosable.length} days to:</span>
+                <button type="button" className="btn btn-sm btn-secondary" onClick={() => pickAll('scheduled')}>Scheduled</button>
+                <button type="button" className="btn btn-sm btn-secondary" onClick={() => pickAll('clocked')}>Clocked</button>
+              </div>
+            )}
+
+            {overlaps.length > 0 && (
+              <div className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3 text-red-900 dark:border-red-700 dark:bg-red-950/40 dark:text-red-200">
+                <div className="mb-1 font-extrabold">⚠️ Possible double-billed handoff — two schedules overlap on the same day</div>
+                <div className="text-sm">
+                  {overlaps.map(r => (
+                    <div key={'ov-' + r.key}>
+                      {formatDate(r.service_date, { month: 'short', day: 'numeric' })}: {r.caregiver_name} {hhmm12(r.scheduled_start)}–{hhmm12(r.scheduled_end)} overlaps {r.overlap_with} by {mins(r.overlap_minutes)} — both bill in full
+                    </div>
+                  ))}
+                  <div className="mt-1 font-semibold">Fix the schedule for those days (trim the handed-off hours), then re-open this review.</div>
+                </div>
+              </div>
+            )}
+
+            {needs.length === 0 ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                ✅ Nothing to resolve — every clock-in matches its schedule.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table text-sm">
+                  <thead><tr><th>Date</th><th>Caregiver</th><th>Scheduled</th><th>Clocked</th><th>Bill</th></tr></thead>
+                  <tbody>
+                    {needs.map(r => {
+                      const chosen = reconcileChoices[r.key] || r.default_basis;
+                      const wild = r.clocked_minutes != null && r.scheduled_minutes && r.clocked_minutes > r.scheduled_minutes * 2;
+                      // A punch with no schedule behind it: the schedule is the invoice, so the default is
+                      // DON'T BILL — fix the schedule and re-open, or explicitly bill a genuine extra visit.
+                      const noSched = r.status === 'unscheduled';
+                      return (
+                        <tr key={r.key}>
+                          <td><strong>{formatDate(r.service_date, { month: 'short', day: 'numeric' })}</strong></td>
+                          <td>{r.caregiver_name}</td>
+                          <td>{noSched
+                            ? <span className="font-bold text-red-700 dark:text-red-300">not on schedule</span>
+                            : <>{hhmm12(r.scheduled_start)}–{hhmm12(r.scheduled_end)}<br />
+                                <span className="text-gray-600 dark:text-slate-400">{mins(r.scheduled_minutes)} · {money(r.scheduled_amount)}</span></>}</td>
+                          <td>
+                            {clockRange(r)}<br />
+                            <span className={r.clocked_minutes < r.scheduled_minutes ? 'text-red-700 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'}>
+                              {mins(r.clocked_minutes)} · {money(r.clocked_amount)}
+                              {noSched ? '' : r.clocked_minutes < r.scheduled_minutes ? ' (short)' : ' (over)'}
+                            </span>
+                            {wild && <div className="text-xs text-red-700 dark:text-red-300">likely a missed clock-out</div>}
+                            {noSched && <div className="text-xs text-gray-600 dark:text-slate-400">add it to the schedule if this visit should bill normally</div>}
+                          </td>
+                          <td>
+                            <div className="flex gap-1.5">
+                              {noSched ? (
+                                <>
+                                  <button type="button" className={pill(chosen !== 'clocked', false)} onClick={() => pick(r.key, 'skip')}>Don't bill $0.00</button>
+                                  <button type="button" className={pill(chosen === 'clocked', true)} onClick={() => pick(r.key, 'clocked')}>Bill clocked {money(r.clocked_amount)}</button>
+                                </>
+                              ) : (
+                                <>
+                                  <button type="button" className={pill(chosen === 'scheduled', false)} onClick={() => pick(r.key, 'scheduled')}>Scheduled {money(r.scheduled_amount)}</button>
+                                  <button type="button" className={pill(chosen === 'clocked', wild)} onClick={() => pick(r.key, 'clocked')}>Clocked {money(r.clocked_amount)}</button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-3">
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => setShowSettledDays(!showSettledDays)}>
+                {showSettledDays ? 'Hide' : 'Show'} the other {settled.length} day{settled.length === 1 ? '' : 's'}
+              </button>
+              <span className="ml-3 text-sm text-gray-600 dark:text-slate-400">
+                {reconcileData.counts.noPunch} with no clock-in · {reconcileData.counts.match} matching · {reconcileData.counts.unscheduled} unscheduled
+              </span>
+            </div>
+
+            {showSettledDays && (
+              <div className="mt-2 overflow-x-auto">
+                <table className="table text-sm">
+                  <thead><tr><th>Date</th><th>Caregiver</th><th>Billing</th><th>Basis</th><th>Amount</th></tr></thead>
+                  <tbody>
+                    {settled.map(r => (
+                      <tr key={r.key}>
+                        <td>{formatDate(r.service_date, { month: 'short', day: 'numeric' })}</td>
+                        <td>{r.caregiver_name}</td>
+                        <td>{r.chosen_basis === 'scheduled' ? `${hhmm12(r.scheduled_start)}–${hhmm12(r.scheduled_end)}` : clockRange(r)}</td>
+                        <td>{r.status === 'no_punch' ? 'no clock-in' : r.status === 'unscheduled' ? 'unscheduled visit' : 'matches'}</td>
+                        <td>{money(r.chosen_basis === 'clocked' ? r.clocked_amount : r.scheduled_amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {(reconcileData.skipped || []).length > 0 && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <div className="mb-1 font-extrabold">
+                  🚫 Not billed — {reconcileData.skipped.length} visit{reconcileData.skipped.length === 1 ? '' : 's'} cancelled in this period
+                </div>
+                <div className="mb-2 text-sm">These days are excluded from the invoice on purpose. They are listed so you can see why they are missing.</div>
+                <div className="overflow-x-auto">
+                  <table className="table mb-0 text-sm">
+                    <thead><tr><th>Date</th><th>Scheduled</th><th>Caregiver</th><th>Reason</th><th>Reported by</th><th>Note</th></tr></thead>
+                    <tbody>
+                      {reconcileData.skipped.map((s, i) => (
+                        <tr key={`${s.service_date}-${i}`}>
+                          <td>{formatDate(s.service_date, { month: 'short', day: 'numeric' })}</td>
+                          <td>{hhmm12(s.scheduled_start)}–{hhmm12(s.scheduled_end)}</td>
+                          <td>{s.caregiver_name || '—'}</td>
+                          <td className="font-bold">{cancelReasonLabel(s.reason)}</td>
+                          <td>{s.reported_by || '—'}{s.reported_by_role === 'caregiver' ? ' (caregiver)' : ''}</td>
+                          <td>{(s.notes || '').replace(/^Client unavailable — [^:]+:?\s*/, '') || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-lg font-extrabold text-gray-900 dark:text-slate-100">Invoice total: {money(reconcileTotal())}</div>
+              <div className="flex gap-2">
+                <button type="button" className="btn btn-secondary" onClick={() => { setShowReconcile(false); setReconcileData(null); }}>Back</button>
+                <button type="button" className="btn btn-primary" onClick={handleGenerateInvoice}>Create Invoice</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {showGenerateForm && !showReconcile && (
         <div className="card card-form">
           <h3>Generate Invoice</h3>
-          <form onSubmit={handleGenerateInvoice}>
+          <form onSubmit={handleReviewInvoice}>
             <div className="form-grid">
               <div className="form-group">
                 <label>Client *</label>
@@ -616,7 +1466,9 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary">Generate</button>
+              <button type="submit" className="btn btn-primary" disabled={reconcileLoading}>
+                {reconcileLoading ? 'Reading the period…' : 'Review Days →'}
+              </button>
               <button type="button" className="btn btn-secondary" onClick={() => setShowGenerateForm(false)}>Cancel</button>
             </div>
           </form>
@@ -646,7 +1498,23 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                 <input type="date" value={manualFormData.billingPeriodEnd} onChange={(e) => setManualFormData({ ...manualFormData, billingPeriodEnd: e.target.value })} required />
               </div>
             </div>
-            
+
+            {/* Import from Schedule + EVV — pulls all shifts for the selected client + dates so you don't have to type each one */}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950/40">
+              <div className="text-sm text-blue-900 dark:text-blue-200">
+                <strong>📥 Auto-fill line items</strong> from this client's schedule and any
+                completed EVV visits in the period. You can edit before saving.
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleImportFromSchedule}
+                disabled={previewLoading}
+              >
+                {previewLoading ? 'Loading…' : '📥 Import from Schedule + EVV'}
+              </button>
+            </div>
+
             {/* Mode Toggle */}
             <div style={{ 
               display: 'flex', 
@@ -687,8 +1555,25 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                 marginBottom: '0.75rem',
                 background: '#fafafa'
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <strong style={{ color: '#666' }}>Line Item {index + 1}</strong>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <strong style={{ color: '#666' }}>Line Item {index + 1}</strong>
+                    {item._source === 'evv_confirmed' && (
+                      <span className="rounded-full bg-green-100 px-2 py-0.5 text-[0.7rem] font-bold text-green-800 dark:bg-green-900/40 dark:text-green-200">
+                        ✓ EVV CONFIRMED
+                      </span>
+                    )}
+                    {item._source === 'scheduled' && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[0.7rem] font-bold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                        📅 SCHEDULED (no EVV)
+                      </span>
+                    )}
+                    {item._source === 'unscheduled_evv' && (
+                      <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[0.7rem] font-bold text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200">
+                        ⚠ UNSCHEDULED EVV
+                      </span>
+                    )}
+                  </div>
                   {manualLineItems.length > 1 && (
                     <button type="button" className="btn btn-sm btn-danger" onClick={() => removeManualLineItem(index)}>✕ Remove</button>
                   )}
@@ -773,22 +1658,19 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                   </div>
                   
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label style={{ fontSize: '0.8rem' }}>Rate *</label>
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      min="0" 
-                      value={item.rate} 
-                      onChange={(e) => updateManualLineItem(index, 'rate', e.target.value)}
-                      placeholder="0.00"
-                      required
-                    />
+                    <label style={{ fontSize: '0.8rem' }}>Rate</label>
+                    <div
+                      title={manualRate ? `From the ${manualRate.source} — change it on the client, not here` : 'Select a client with a configured rate'}
+                      className={`whitespace-nowrap rounded-md border border-gray-200 bg-gray-100 px-2.5 py-2 font-bold dark:border-slate-600 dark:bg-slate-700 ${manualRate ? 'text-gray-900 dark:text-slate-100' : 'text-red-700 dark:text-red-300'}`}
+                    >
+                      {rateLabel(manualRate)}
+                    </div>
                   </div>
-                  
+
                   <div className="form-group" style={{ margin: 0 }}>
                     <label style={{ fontSize: '0.8rem' }}>Amount</label>
-                    <div style={{ padding: '0.6rem', background: '#e8f5e9', borderRadius: '6px', fontWeight: '600', color: '#2e7d32' }}>
-                      {formatCurrency((parseFloat(item.hours) || 0) * (parseFloat(item.rate) || 0))}
+                    <div className="rounded-md bg-green-50 p-2.5 font-semibold text-green-800 dark:bg-green-950/40 dark:text-green-200">
+                      {formatCurrency(amountAt(item.hours, manualRate))}
                     </div>
                   </div>
                 </div>
@@ -894,10 +1776,18 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
               {invoices.map(invoice => {
                 const paid = parseFloat(invoice.amount_paid || 0);
                 const total = parseFloat(invoice.total || 0);
-                const balance = total - paid;
+                const balance = total - paid - parseFloat(invoice.amount_adjusted || 0);
                 return (
                   <tr key={invoice.id}>
-                    <td><strong>{invoice.invoice_number}</strong></td>
+                    <td>
+                      {invoice.seq_number != null && (
+                        <div className="text-[0.95rem] font-extrabold">#{invoice.seq_number}</div>
+                      )}
+                      <div className="font-mono text-[0.7rem] text-gray-600 dark:text-slate-400"
+                           title="Internal unique code (use this for system lookups)">
+                        {invoice.invoice_number}
+                      </div>
+                    </td>
                     <td>{invoice.first_name} {invoice.last_name}</td>
                     <td>{invoice.referral_source_name || <span className="badge badge-info">Private</span>}</td>
                     <td>{formatDate(invoice.billing_period_start)} - {formatDate(invoice.billing_period_end)}</td>
@@ -908,6 +1798,12 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                       <span className={`badge ${invoice.payment_status === 'paid' ? 'badge-success' : invoice.payment_status === 'partial' ? 'badge-warning' : 'badge-danger'}`}>
                         {invoice.payment_status?.toUpperCase()}
                       </span>
+                      {!invoice.sent_at && (
+                        <span className="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-[0.7rem] font-bold text-gray-800 dark:bg-slate-700 dark:text-slate-200"
+                              title="Not visible in the family portal until you send or release it">
+                          🔒 DRAFT
+                        </span>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.25rem' }}>
@@ -915,7 +1811,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
   {invoice.payment_status !== 'paid' && (
     <button className="btn btn-sm btn-success" onClick={() => { setPaymentFormData({ ...paymentFormData, invoiceId: invoice.id }); setShowPaymentModal(true); }}>Pay</button>
   )}
-  <button className="btn btn-sm btn-danger" onClick={() => handleDeleteInvoice(invoice.id, invoice.invoice_number)}>🗑️</button>
+  <button className="btn btn-sm btn-danger" aria-label={`Delete invoice ${invoice.seq_number != null ? '#' + invoice.seq_number : invoice.invoice_number}`} onClick={() => handleDeleteInvoice(invoice.id, invoice.seq_number != null ? `#${invoice.seq_number}` : invoice.invoice_number)}>🗑️</button>
 </div>
                     </td>
                   </tr>
@@ -948,7 +1844,10 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                   const balance = parseFloat(invoice.total || 0) - parseFloat(invoice.amount_paid || 0);
                   return (
                     <tr key={invoice.id}>
-                      <td><strong>{invoice.invoice_number}</strong></td>
+                      <td>
+                        {invoice.seq_number != null && <div className="font-extrabold">#{invoice.seq_number}</div>}
+                        <div className="font-mono text-[0.7rem] text-gray-600 dark:text-slate-400">{invoice.invoice_number}</div>
+                      </td>
                       <td>{invoice.first_name} {invoice.last_name}</td>
                       <td>{invoice.referral_source_name || 'Private Pay'}</td>
                       <td>{formatDate(invoice.payment_due_date)}</td>
@@ -1045,6 +1944,25 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
             <h3 style={{ margin: 0 }}>Payer Contract Rates</h3>
             <button className="btn btn-primary" onClick={() => setShowRateForm(!showRateForm)}>{showRateForm ? 'Cancel' : '+ Add Rate'}</button>
           </div>
+
+          {missingRates.length > 0 && (
+            <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/40">
+              <div className="mb-1.5 font-bold text-amber-900 dark:text-amber-200">
+                ⚠️ {missingRates.length} payer × care-type combo{missingRates.length === 1 ? '' : 's'} have active clients but no configured rate
+              </div>
+              <div className="text-sm text-amber-900 dark:text-amber-200">
+                Invoices for these clients will be refused until a rate exists. Click "Add Rate" above and configure each:
+              </div>
+              <div className="mt-2 grid gap-1">
+                {missingRates.map((m, i) => (
+                  <div key={i} className="flex justify-between rounded bg-white px-2 py-1 text-sm text-gray-900 dark:bg-slate-800 dark:text-slate-100">
+                    <span><strong>{m.payer_name}</strong> + <strong>{m.care_type_name}</strong></span>
+                    <span className="text-gray-600 dark:text-slate-400">{m.affected_clients} client{Number(m.affected_clients) === 1 ? '' : 's'} affected</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {showRateForm && (
             <form onSubmit={handleAddRate} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f9f9f9', borderRadius: '8px' }}>
               <div className="form-grid">
@@ -1081,18 +1999,30 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
             <p className="text-muted text-center">No rates configured.</p>
           ) : (
             <table className="table">
-              <thead><tr><th>Payer</th><th>Care Type</th><th>Rate</th><th>Type</th><th>Effective</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Payer</th><th>Care Type</th><th>Rate</th><th>Type</th><th>Effective</th><th title="Active clients with this payer + care type combo">Clients</th><th>Actions</th></tr></thead>
               <tbody>
-                {rates.map(rate => (
-                  <tr key={rate.id}>
-                    <td><strong>{rate.referral_source_name}</strong></td>
-                    <td>{rate.care_type_name}</td>
-                    <td><strong>{formatCurrency(rate.rate_amount)}</strong></td>
-                    <td><span className="badge badge-info">{rate.rate_type === 'hourly' ? 'Per Hour' : 'Per 15 Min'}</span></td>
-                    <td>{formatDate(rate.effective_date)}</td>
-                    <td><button className="btn btn-sm btn-danger" onClick={() => handleDeleteRate(rate.id)}>Delete</button></td>
-                  </tr>
-                ))}
+                {rates.map(rate => {
+                  const count = parseInt(rate.client_count || 0);
+                  const retired = rate.is_active === false;
+                  return (
+                    <tr key={rate.id} className={retired ? 'opacity-60' : ''}>
+                      <td><strong>{rate.referral_source_name}</strong></td>
+                      <td>{rate.care_type_name || <em className="text-gray-500 dark:text-slate-400">any</em>}</td>
+                      <td><strong>{formatCurrency(rate.rate_amount)}</strong></td>
+                      <td><span className="badge badge-info">{rate.rate_type === 'hourly' ? 'Per Hour' : 'Per 15 Min'}</span></td>
+                      <td>
+                        {formatDate(rate.effective_date)}
+                        {retired && <div className="text-xs text-gray-600 dark:text-slate-400">retired {rate.end_date ? formatDate(rate.end_date) : ''} — still prices the days before</div>}
+                      </td>
+                      <td>
+                        {retired ? '—' : count > 0
+                          ? <span className="font-semibold text-emerald-700 dark:text-emerald-300">{count} {count === 1 ? 'client' : 'clients'}</span>
+                          : <span className="text-amber-700 dark:text-amber-300" title="No active clients use this rate — orphaned config?">⚠️ none</span>}
+                      </td>
+                      <td><button className="btn btn-sm btn-danger" onClick={() => handleDeleteRate(rate.id)}>Delete</button></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -1113,7 +2043,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                 <select value={paymentFormData.invoiceId} onChange={(e) => setPaymentFormData({ ...paymentFormData, invoiceId: e.target.value })} required>
                   <option value="">Select invoice...</option>
                   {invoices.filter(i => i.payment_status !== 'paid').map(inv => (
-                    <option key={inv.id} value={inv.id}>{inv.invoice_number} - {inv.first_name} {inv.last_name} - {formatCurrency(inv.total)}</option>
+                    <option key={inv.id} value={inv.id}>{inv.seq_number != null ? `#${inv.seq_number} (${inv.invoice_number})` : inv.invoice_number} - {inv.first_name} {inv.last_name} - {formatCurrency(inv.total)}</option>
                   ))}
                 </select>
               </div>
@@ -1134,6 +2064,55 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowPaymentModal(false)}>Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT LINE ITEMS MODAL */}
+      {editingInvoice && (
+        <div className="modal active">
+          <div className="modal-content modal-large">
+            <div className="modal-header">
+              <h2>Edit Invoice {editingInvoice.seq_number != null ? `#${editingInvoice.seq_number}` : editingInvoice.invoice_number}</h2>
+              <button className="close-btn" aria-label="Close the line-item editor" onClick={() => setEditingInvoice(null)}>×</button>
+            </div>
+            <p className="text-muted" style={{ marginTop: 0 }}>
+              Edit, add, or remove line items, then save — totals recalculate automatically. A paid invoice can't be edited.
+            </p>
+            <table className="invoice-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '38%' }}>Description</th>
+                  <th>Date</th>
+                  <th>Hours</th>
+                  <th>Rate</th>
+                  <th>Amount</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {editLines.map((l, idx) => (
+                  <tr key={idx}>
+                    <td><input type="text" value={l.description} onChange={(e) => updateEditLine(idx, 'description', e.target.value)} placeholder="Home Care Services" style={{ width: '100%' }} /></td>
+                    <td><input type="date" value={l.service_date} onChange={(e) => updateEditLine(idx, 'service_date', e.target.value)} /></td>
+                    <td><input type="text" inputMode="decimal" aria-label={`Hours, line ${idx + 1}`} value={l.hours} onChange={(e) => updateEditLine(idx, 'hours', e.target.value)} style={{ width: 80 }} /></td>
+                    <td title="Set on the client (Clients → Edit), not per line">
+                      {l.write_off ? <span className="text-gray-600 dark:text-slate-400">$0 (write-off)</span> : editRate != null ? rateLabel(editRateInfo) : <span className="text-red-700 dark:text-red-300">No rate set</span>}
+                    </td>
+                    <td>{formatCurrency(editLineAmount(l))}</td>
+                    <td><button type="button" className="btn btn-secondary" onClick={() => removeEditLine(idx)} title="Remove line" aria-label={`Remove line ${idx + 1}`}>🗑️</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+              <button type="button" className="btn btn-secondary" onClick={addEditLine}>+ Add Line</button>
+              <div style={{ fontWeight: 700 }}>Total: {formatCurrency(editGrandTotal())}</div>
+            </div>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button type="button" className="btn btn-primary" onClick={saveLineItems} disabled={savingLineItems}>{savingLineItems ? 'Saving…' : 'Save Changes'}</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setEditingInvoice(null)} disabled={savingLineItems}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
@@ -1197,7 +2176,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                 <label>Invoice *</label>
                 <select value={adjustmentFormData.invoiceId} onChange={(e) => setAdjustmentFormData({ ...adjustmentFormData, invoiceId: e.target.value })} required>
                   <option value="">Select invoice...</option>
-                  {invoices.filter(i => i.payment_status !== 'paid').map(inv => <option key={inv.id} value={inv.id}>{inv.invoice_number} - {formatCurrency(inv.total)}</option>)}
+                  {invoices.filter(i => i.payment_status !== 'paid').map(inv => <option key={inv.id} value={inv.id}>{inv.seq_number != null ? `#${inv.seq_number} (${inv.invoice_number})` : inv.invoice_number} - {formatCurrency(inv.total)}</option>)}
                 </select>
               </div>
               <div className="form-grid-2">
@@ -1226,7 +2205,13 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
           <div className="modal-content modal-large" style={{ maxWidth: '900px' }}>
             {/* Screen-only header */}
             <div className="modal-header no-print">
-              <h2>Invoice {selectedInvoice.invoice_number}</h2>
+              <h2>Invoice {selectedInvoice.seq_number != null ? `#${selectedInvoice.seq_number}` : selectedInvoice.invoice_number}
+                {selectedInvoice.seq_number != null && (
+                  <span className="ml-2 font-mono text-[0.7rem] font-normal text-gray-500 dark:text-slate-400">
+                    {selectedInvoice.invoice_number}
+                  </span>
+                )}
+              </h2>
               <button className="close-btn" onClick={() => setShowInvoiceModal(false)}>×</button>
             </div>
             
@@ -1504,7 +2489,14 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                 </div>
                 <div className="invoice-header-right">
                   <h1 className="invoice-title-large">INVOICE</h1>
-                  <div className="invoice-number-display"># {selectedInvoice.invoice_number}</div>
+                  <div className="invoice-number-display">
+                    {selectedInvoice.seq_number != null ? `Invoice #${selectedInvoice.seq_number}` : `# ${selectedInvoice.invoice_number}`}
+                    {selectedInvoice.seq_number != null && (
+                      <div style={{ fontSize: '0.7rem', color: '#9CA3AF', fontFamily: 'monospace', fontWeight: 400 }}>
+                        Ref: {selectedInvoice.invoice_number}
+                      </div>
+                    )}
+                  </div>
                   <div className="invoice-balance-box">
                     <div className="invoice-balance-label">Balance Due</div>
                     <div className="invoice-balance-amount">{formatCurrency(parseFloat(selectedInvoice.total || 0) - parseFloat(selectedInvoice.amount_paid || 0))}</div>
@@ -1563,6 +2555,16 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                             {item.caregiver_first_name && ` - ${item.caregiver_first_name} ${item.caregiver_last_name}`}
                             {item.time_range && ` ${item.time_range}`}
                           </div>
+                          {/* The visit's care note, printed once per visit (a visit bills
+                              two lines — aide + homemaking — and the payer wants the
+                              documentation for the care, not for each split line). */}
+                          {item.visit_note && visitNoteKey(item) !== visitNoteKey(selectedInvoice.line_items[idx - 1]) && (
+                            <div className="invoice-item-note" style={{ fontSize: '0.78em', color: '#555', fontStyle: 'italic', marginTop: '2px' }}>
+                              {(Array.isArray(item.visit_tasks) ? item.visit_tasks.filter(t => t.done).map(t => t.taskName) : []).join('; ')}
+                              {Array.isArray(item.visit_tasks) && item.visit_tasks.some(t => t.done) ? ' — ' : ''}
+                              {item.visit_note}
+                            </div>
+                          )}
                         </td>
                         <td>{parseFloat(item.hours).toFixed(2)}</td>
                         <td>{parseFloat(item.rate).toFixed(2)}</td>
@@ -1630,13 +2632,40 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
               </div>
             </div>
 
+            {/* Draft / released state (screen only) */}
+            <div className={`no-print mt-4 rounded-lg border px-3.5 py-2.5 text-sm ${selectedInvoice.sent_at
+              ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200'
+              : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200'}`}>
+              {selectedInvoice.sent_at
+                ? `✓ Sent — visible in the family portal since ${formatDate(selectedInvoice.sent_at)}`
+                : '🔒 DRAFT — the family cannot see this invoice until you send it, create a pay link, or release it to the portal.'}
+            </div>
+
             {/* Action Buttons (screen only) */}
             <div className="modal-actions no-print" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #eee' }}>
+              {!selectedInvoice.sent_at && (
+                <button className="btn btn-success" onClick={() => handleReleaseToPortal(selectedInvoice)}>👁️ Release to Portal</button>
+              )}
+              {selectedInvoice.sent_at && !['paid', 'partial'].includes(selectedInvoice.payment_status) && (
+                <button className="btn btn-warning" onClick={() => handleRescindInvoice(selectedInvoice)}>↩️ Rescind (hide from portal)</button>
+              )}
               {selectedInvoice.payment_status !== 'paid' && (
                 <>
+                  <button className="btn btn-secondary" onClick={() => openLineItemEditor(selectedInvoice)}>✏️ Edit Line Items</button>
                   <button className="btn btn-success" onClick={() => { setPaymentFormData({ ...paymentFormData, invoiceId: selectedInvoice.id }); setShowInvoiceModal(false); setShowPaymentModal(true); }}>💳 Record Payment</button>
                   <button className="btn btn-warning" onClick={() => handleMarkPaid(selectedInvoice.id)}>✓ Mark Paid</button>
+                  <button className="btn btn-primary" onClick={() => handleCreatePaymentLink(selectedInvoice)} disabled={creatingPaymentLink}>
+                    {creatingPaymentLink ? '🔗 Generating...' : '🔗 Get Stripe Pay Link'}
+                  </button>
                 </>
+              )}
+              <button className="btn btn-info" onClick={() => handleSendInvoiceEmail(selectedInvoice)} disabled={sendingInvoiceEmail}>
+                {sendingInvoiceEmail ? '📧 Sending...' : '📧 Send Invoice'}
+              </button>
+              {selectedInvoice.payment_status !== 'paid' && (
+                <button className="btn btn-warning" onClick={() => handleSendInvoiceReminder(selectedInvoice)} disabled={sendingInvoiceEmail}>
+                  {sendingInvoiceEmail ? '⏰ Sending...' : '⏰ Send Reminder'}
+                </button>
               )}
               <button className="btn btn-primary" onClick={() => window.print()}>🖨️ Print Invoice</button>
               <button className="btn btn-secondary" onClick={() => setShowInvoiceModal(false)}>Close</button>

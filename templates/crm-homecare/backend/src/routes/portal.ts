@@ -31,6 +31,7 @@ import {
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
+import { clientVisibleInvoiceSql } from '../services/invoiceEngine.ts'
 import type { Context, Next } from 'hono'
 
 const app = new Hono()
@@ -663,9 +664,7 @@ app.get('/history', portalAuth, async (c) => {
 
 // Invoices start as DRAFTS (sent_at NULL) the family cannot see until the office sends, releases or
 // takes a payment on them (billing port, CVHC v55). One rule for every portal read of an invoice.
-function familyCanSeeInvoice() {
-  return sql`(${invoices.sentAt} IS NOT NULL OR ${invoices.paymentStatus} IN ('paid', 'partial'))`
-}
+const familyCanSeeInvoice = clientVisibleInvoiceSql
 
 // Invoices
 app.get('/invoices', portalAuth, async (c) => {
