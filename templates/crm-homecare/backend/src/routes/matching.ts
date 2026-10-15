@@ -2,10 +2,12 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { caregiverProfiles, clients, clientAssignments, caregiverAvailability, users } from '../../db/schema.ts'
 import { eq, and, desc, sql } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+// Smart Matching is the office's tool: it writes clients' needs, preferences and caregiver restrictions
+// and creates schedules (apply-schedule) — every write is the office's. Reads stay open to staff.
 
 // GET /api/matching/capabilities — list distinct capabilities from caregiverProfiles
 app.get('/capabilities', async (c) => {
@@ -28,7 +30,7 @@ app.get('/capabilities', async (c) => {
 })
 
 // POST /api/matching/capabilities — no-op since capabilities are freetext
-app.post('/capabilities', async (c) => {
+app.post('/capabilities', requireAdmin, async (c) => {
   return c.json({ success: true })
 })
 
@@ -50,7 +52,7 @@ app.get('/caregiver/:id/capabilities', async (c) => {
 })
 
 // PUT /api/matching/caregiver/:id/capabilities
-app.put('/caregiver/:id/capabilities', async (c) => {
+app.put('/caregiver/:id/capabilities', requireAdmin, async (c) => {
   const caregiverId = c.req.param('id')
   const body = await c.req.json()
 
@@ -99,7 +101,7 @@ app.get('/client/:id/needs', async (c) => {
 })
 
 // PUT /api/matching/client/:id/needs
-app.put('/client/:id/needs', async (c) => {
+app.put('/client/:id/needs', requireAdmin, async (c) => {
   const clientId = c.req.param('id')
   const body = await c.req.json()
 
@@ -137,7 +139,7 @@ app.get('/client/:id/schedule-prefs', async (c) => {
 })
 
 // PUT /api/matching/client/:id/schedule-prefs
-app.put('/client/:id/schedule-prefs', async (c) => {
+app.put('/client/:id/schedule-prefs', requireAdmin, async (c) => {
   const clientId = c.req.param('id')
   const body = await c.req.json()
 
@@ -173,7 +175,7 @@ app.get('/client/:id/restrictions', async (c) => {
 })
 
 // POST /api/matching/client/:id/restrictions
-app.post('/client/:id/restrictions', async (c) => {
+app.post('/client/:id/restrictions', requireAdmin, async (c) => {
   const clientId = c.req.param('id')
   const body = await c.req.json()
 
@@ -196,7 +198,7 @@ app.post('/client/:id/restrictions', async (c) => {
 })
 
 // DELETE /api/matching/restrictions/:id
-app.delete('/restrictions/:id', async (c) => {
+app.delete('/restrictions/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
 
   const [row] = await db
@@ -209,7 +211,7 @@ app.delete('/restrictions/:id', async (c) => {
 })
 
 // POST /api/matching/optimize — compute matches based on availability + capabilities
-app.post('/optimize', async (c) => {
+app.post('/optimize', requireAdmin, async (c) => {
   // Get all active caregivers with profiles and availability
   const caregivers = await db
     .select({
@@ -279,7 +281,7 @@ app.post('/optimize', async (c) => {
 })
 
 // POST /api/matching/apply-schedule — no-op stub
-app.post('/apply-schedule', async (c) => {
+app.post('/apply-schedule', requireAdmin, async (c) => {
   return c.json({ success: true, applied: 0 })
 })
 

@@ -41,6 +41,8 @@ export const agencies = pgTable('agencies', {
   // The agency's own clock (IANA zone, e.g. America/Chicago). Reports count calendar days and
   // "today" on this clock. NULL = not set; services/agencyTime.ts derives one from `state`.
   timezone: text('timezone'),
+  // Mileage reimbursement per mile (0023_fixes). A caregiver's trip is always paid at this rate.
+  mileageRate: decimal('mileage_rate', { precision: 6, scale: 3 }).default('0.67').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -301,6 +303,9 @@ export const clients = pgTable('clients', {
   serviceAllowedDays: json('service_allowed_days'),
   assistanceNeeds: text('assistance_needs'),
   billingNotes: text('billing_notes'),
+  // Edit Client's "Medical notes" / "Care preferences", shown on the caregiver's client card (0023_fixes).
+  medicalNotes: text('medical_notes'),
+  carePreferences: text('care_preferences'),
   // Billing port (0015, CVHC v62): invoice cadence in weeks (1-8; NULL = manual only) and the last
   // day already covered by an invoice — "Create Due Invoices" resumes the day after.
   billingFrequencyWeeks: integer('billing_frequency_weeks'),

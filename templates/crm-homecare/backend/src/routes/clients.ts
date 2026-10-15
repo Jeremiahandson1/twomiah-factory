@@ -14,7 +14,8 @@ import {
 } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
-import { servedBy } from '../helpers/caregiverAccess.ts'
+import { createId } from '@paralleldrive/cuid2'
+import { servedBy, maySeeClient, careWriteRefusal, userIdOf } from '../helpers/caregiverAccess.ts'
 import { getConfig } from '../services/sandataClient.ts'
 import { UNIT_MINUTES, visitMinutesSql, weekCte } from '../services/evvWeekly.ts'
 
@@ -30,6 +31,9 @@ const CAREGIVER_CLIENT_COLS = sql.raw(`c.id, c.first_name, c.last_name, c.addres
 // The caregiver-scope rule lives in helpers/caregiverAccess.ts (servedBy) — one rule for every caregiver read.
 // One-segment GET paths below that are office reports, not a client id (GET /evv-week).
 const OFFICE_ONLY_GETS = new Set(['evv-week'])
+// Two-segment GETs a caregiver may make (/:id/<this>): the caregiver's client card. Each route scopes
+// itself to the clients the caregiver serves.
+const CAREGIVER_CLIENT_GETS = new Set(['caregiver-view', 'visit-notes'])
 app.use('*', async (c, next) => {
   const user = c.get('user') as any
   if (!user || user.role === 'admin' || user.role === 'owner' || c.req.method !== 'GET') return next()
@@ -50,6 +54,7 @@ app.use('*', async (c, next) => {
     if (!row) return c.json({ error: 'Client not found' }, 404)
     return c.json(row)
   }
+  if (rest.length === 2 && CAREGIVER_CLIENT_GETS.has(rest[1])) return next()
   return c.json({ error: 'Admin access required' }, 403)
 })
 
@@ -234,6 +239,88 @@ app.patch('/:id/evv-units', requireAdmin, async (c) => {
   return c.json(row)
 })
 
+// ── The caregiver's client card (CaregiverClientModal) ─────────────────────────────────────────
+// Ported from the source CRM's clientsRoutes (caregiver-view, visit-notes). The office, or a caregiver
+// who serves the client (helpers/caregiverAccess.ts) — and the card carries care information only:
+// never the SSN, the Medicaid id, insurance numbers, pay/billing fields or portal credentials.
+// The client's lists (conditions, medications, allergies) are JSON arrays here; the card prints text,
+// so they go out one per line (null when empty).
+const listLines = (v: unknown): string | null => {
+  const arr = Array.isArray(v) ? v : typeof v === 'string' ? (() => { try { const p = JSON.parse(v); return Array.isArray(p) ? p : [v] } catch { return [v] } })() : []
+  const lines = arr.map((x: any) => (x && typeof x === 'object' ? x.name || x.label || '' : String(x ?? ''))).map((s: string) => s.trim()).filter(Boolean)
+  return lines.length ? lines.join('\n') : null
+}
+
+// GET /api/clients/:id/caregiver-view
+app.get('/:id/caregiver-view', async (c) => {
+  const id = c.req.param('id')
+  if (!(await maySeeClient(c.get('user'), id))) return c.json({ error: 'You can only see the clients you care for.' }, 403)
+  const r: any = await db.execute(sql`
+    SELECT c.id, c.first_name, c.last_name, to_char(c.date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
+           c.phone, c.email, c.address, c.city, c.state, c.zip,
+           COALESCE(ec.name, c.emergency_contact_name) AS emergency_contact_name,
+           COALESCE(NULLIF(ec.phone, ''), c.emergency_contact_phone) AS emergency_contact_phone,
+           COALESCE(NULLIF(ec.relationship, ''), c.emergency_contact_relationship) AS emergency_contact_relationship,
+           c.medical_conditions, c.medications, c.allergies, c.medical_notes, c.care_preferences,
+           c.assistance_needs AS mobility_assistance_needs, c.preferred_caregivers, c.notes
+      FROM clients c
+      LEFT JOIN LATERAL (SELECT e.name, e.phone, e.relationship FROM client_emergency_contacts e
+                          WHERE e.client_id = c.id ORDER BY e.is_primary DESC, e.created_at LIMIT 1) ec ON true
+     WHERE c.id = ${id}`)
+  const row = (r?.rows ?? r)[0]
+  if (!row) return c.json({ error: 'Client not found' }, 404)
+  return c.json({ ...row, medical_conditions: listLines(row.medical_conditions), medications: listLines(row.medications), allergies: listLines(row.allergies) })
+})
+
+// GET /api/clients/:id/visit-notes — notes added on the card AND the notes caregivers write at
+// clock-out (time_entries.notes), newest first, 100 at most; the system's auto-close markers are not notes.
+app.get('/:id/visit-notes', async (c) => {
+  const id = c.req.param('id')
+  if (!(await maySeeClient(c.get('user'), id))) return c.json({ error: 'You can only see the clients you care for.' }, 403)
+  const r: any = await db.execute(sql`
+    SELECT n.id, n.note, n.created_at, n.source,
+           u.first_name || ' ' || u.last_name AS caregiver_name
+      FROM (
+        SELECT vn.id, vn.note, vn.created_at, vn.caregiver_id, 'manual' AS source
+          FROM client_visit_notes vn WHERE vn.client_id = ${id}
+        UNION ALL
+        SELECT te.id, te.notes AS note, te.start_time AS created_at, te.caregiver_id, 'clock_out' AS source
+          FROM time_entries te
+         WHERE te.client_id = ${id} AND te.is_complete = true
+           AND te.notes IS NOT NULL AND TRIM(te.notes) <> ''
+           AND te.notes NOT IN ('(Auto-transition: schedule shift change)', '(Auto-closed: caregiver clocked into new client)')
+      ) n
+      LEFT JOIN users u ON n.caregiver_id = u.id
+     ORDER BY n.created_at DESC
+     LIMIT 100`)
+  return c.json(r?.rows ?? r)
+})
+
+// POST /api/clients/:id/visit-notes { note } — a caregiver who serves the client, or the office.
+export const VISIT_NOTE_MAX = 5000
+app.post('/:id/visit-notes', async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+  const refused = await careWriteRefusal(c, id)
+  if (refused) return refused
+  const body = await c.req.json().catch(() => ({})) as any
+  const note = typeof body?.note === 'string' ? body.note.trim() : ''
+  if (!note) return c.json({ error: 'Please write the note' }, 400)
+  if (note.length > VISIT_NOTE_MAX) return c.json({ error: `A visit note can be at most ${VISIT_NOTE_MAX} characters` }, 400)
+  const [exists] = await db.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).limit(1)
+  if (!exists) return c.json({ error: 'Client not found' }, 404)
+  const noteId = createId()
+  const r: any = await db.execute(sql`
+    INSERT INTO client_visit_notes (id, client_id, caregiver_id, note, created_at, updated_at)
+    VALUES (${noteId}, ${id}, ${userIdOf(user)}, ${note}, NOW(), NOW())
+    RETURNING id, client_id, caregiver_id, note, created_at`)
+  const row = (r?.rows ?? r)[0]
+  await db.insert(auditLogs).values({
+    userId: String(userIdOf(user) || 'unknown'), action: 'CREATE', tableName: 'client_visit_notes', recordId: noteId, newData: row,
+  } as any).catch((e: any) => console.error('[visit-notes] audit:', e?.message))
+  return c.json(row, 201)
+})
+
 // GET /api/clients/:id/onboarding (must be before /:id catch-all)
 app.get('/:id/onboarding', async (c) => {
   const id = c.req.param('id')
@@ -331,6 +418,7 @@ app.post('/', requireAdmin, async (c) => {
     'careTypeId', 'isPrivatePay', 'privatePayRate', 'privatePayRateType',
     'weeklyAuthorizedUnits', 'serviceDaysPerWeek', 'serviceAllowedDays',
     'assistanceNeeds', 'billingNotes', 'latitude', 'longitude', 'medicaidId', 'ivrCode',
+    'medicalNotes', 'carePreferences',
   ]
   for (const key of allowedClientFields) {
     if (body[key] !== undefined) {
@@ -390,6 +478,7 @@ app.put('/:id', requireAdmin, async (c) => {
     'careTypeId', 'isPrivatePay', 'privatePayRate', 'privatePayRateType',
     'weeklyAuthorizedUnits', 'serviceDaysPerWeek', 'serviceAllowedDays',
     'assistanceNeeds', 'billingNotes', 'latitude', 'longitude', 'medicaidId', 'ivrCode',
+    'medicalNotes', 'carePreferences',
     'portalEnabled', 'portalEmail',
   ]
   for (const key of allowedClientUpdateFields) {

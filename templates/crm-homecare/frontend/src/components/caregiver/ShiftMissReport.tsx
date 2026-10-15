@@ -99,9 +99,10 @@ const ShiftMissReport = ({ userId, onClose }) => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {upcomingShifts.slice(0, 5).map(shift => {
               const shiftDate = shift.date ? new Date(shift.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Recurring';
-              const isSelected = form.scheduleId === shift.id;
+              // One row per dated visit (a weekly pattern appears once per week): the pattern id AND the date pick it.
+              const isSelected = form.scheduleId === shift.id && form.date === (shift.date || '').split('T')[0];
               return (
-                <button key={shift.id} onClick={() => handleShiftSelect(shift)}
+                <button key={`${shift.id}:${shift.date}`} onClick={() => handleShiftSelect(shift)}
                   style={{
                     padding: '0.75rem', textAlign: 'left', borderRadius: '8px', cursor: 'pointer',
                     border: `2px solid ${isSelected ? '{{PRIMARY_COLOR}}' : '#E5E7EB'}`,

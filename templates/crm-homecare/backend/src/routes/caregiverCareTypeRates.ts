@@ -2,10 +2,11 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { caregiverCareTypeRates, careTypes } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+// A caregiver's pay per care type is the office's to set — never the caregiver's own (writes: office).
 
 // GET / — list with ?caregiverId filter, join careTypes for name
 app.get('/', async (c) => {
@@ -39,7 +40,7 @@ app.get('/', async (c) => {
 })
 
 // POST / — insert
-app.post('/', async (c) => {
+app.post('/', requireAdmin, async (c) => {
   try {
     const body = await c.req.json()
     const [row] = await db
@@ -53,7 +54,7 @@ app.post('/', async (c) => {
 })
 
 // PUT /:id — update by id
-app.put('/:id', async (c) => {
+app.put('/:id', requireAdmin, async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()

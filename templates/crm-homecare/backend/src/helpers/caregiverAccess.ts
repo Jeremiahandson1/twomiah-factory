@@ -1,5 +1,6 @@
 // Which clients a caregiver may see — ONE rule for every caregiver read of client records (the
-// client list, medications / MAR / vitals, care plans, geofences, …).
+// client list, medications / MAR / vitals, care plans, geofences, …) and every caregiver write to a
+// client's care record (careWriteRefusal, below).
 //
 // A caregiver serves a client when they have an active pattern for them (recurring, or a one-time
 // visit — a pattern that ended more than 14 days ago no longer counts), cover one of the client's
@@ -34,4 +35,15 @@ export async function maySeeClient(user: any, clientId: string | null | undefine
 export const requireClientAccess = (param = 'clientId') => async (c: Context, next: Next) => {
   if (!(await maySeeClient(c.get('user' as any), c.req.param(param)))) return c.json({ error: 'You can only see the clients you care for.' }, 403)
   await next()
+}
+
+// WRITES use the same rule. A caregiver records care — a dose on the MAR, vitals, an ADL, a checklist
+// task, a visit note or photo, a form — only for a client they serve; naming their own visit is not
+// enough (a clock-in is never refused, so an unscheduled punch must not open someone's chart).
+export const CARE_WRITE_REFUSAL = 'You can only record care for the clients you care for.'
+
+/** null when this user may write to this client's care record; otherwise the 403 to return. */
+export async function careWriteRefusal(c: Context, clientId: string | null | undefined): Promise<Response | null> {
+  if (await maySeeClient(c.get('user' as any), clientId)) return null
+  return c.json({ error: CARE_WRITE_REFUSAL }, 403)
 }

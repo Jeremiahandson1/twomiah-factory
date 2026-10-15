@@ -14,6 +14,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { agencyState, agencyTimezone, formatInZone } from '../services/agencyTime.ts'
 import { formSubmissionPdf, pdfFileName, ymdToUs } from '../services/carePdf.ts'
 import { isOffice, userIdOf, rowsOf } from '../helpers/careAudit.ts'
+import { careWriteRefusal } from '../helpers/caregiverAccess.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -126,7 +127,10 @@ const SUBMISSION_SELECT = sql`fs.*, COALESCE(fs.template_name, ft.name) AS templ
     WHEN 'caregiver' THEN (SELECT e.first_name || ' ' || e.last_name FROM users e WHERE e.id = fs.entity_id)
   END AS entity_name`
 
+// The office lists every submission; anyone else only the ones they filled in (the same rule as
+// opening one — maySee, below).
 app.get('/submissions', async (c) => {
+  const user = c.get('user') as any
   const { entityType, entityId, templateId, status, limit = '50' } = c.req.query()
   const lim = Math.min(Math.max(parseInt(limit) || 50, 1), 500)
   const rows = rowsOf(await db.execute(sql`
@@ -135,6 +139,7 @@ app.get('/submissions', async (c) => {
       LEFT JOIN form_templates ft ON fs.template_id = ft.id
       LEFT JOIN users u ON fs.submitted_by_id = u.id
      WHERE true
+       ${isOffice(user) ? sql`` : sql`AND fs.submitted_by_id = ${userIdOf(user)}`}
        ${entityType ? sql`AND fs.entity_type = ${entityType}` : sql``}
        ${entityId ? sql`AND fs.entity_id = ${entityId}` : sql``}
        ${templateId ? sql`AND fs.template_id = ${templateId}` : sql``}
@@ -215,6 +220,13 @@ app.post('/submissions', async (c) => {
   const entityType = body.entityType === 'caregiver' ? 'caregiver' : 'client'
   const entityId = body.entityId || (entityType === 'client' ? body.clientId : null)
   if (!entityId) return c.json({ error: `Please select a ${entityType} for this form` }, 400)
+  // A caregiver files a client's form only for a client they serve, and an HR form only about themselves.
+  if (entityType === 'client') {
+    const refused = await careWriteRefusal(c, entityId)
+    if (refused) return refused
+  } else if (!isOffice(user) && entityId !== userIdOf(user)) {
+    return c.json({ error: 'You can only file an HR form about yourself.' }, 403)
+  }
   if (entityType === 'client') {
     const [cl] = await db.select({ id: clients.id }).from(clients).where(eq(clients.id, entityId)).limit(1)
     if (!cl) return c.json({ error: 'Client not found' }, 404)

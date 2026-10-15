@@ -3,6 +3,7 @@ import { db } from '../../db/index.ts'
 import { mileageEntries, users, clients } from '../../db/schema.ts'
 import { eq, and, gte, lte, desc, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { agencyMileageRate, parseMileageRate, MILEAGE_RATE_REFUSAL } from '../services/mileageRate.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -71,7 +72,16 @@ app.post('/', async (c) => {
   const office = user?.role === 'admin' || user?.role === 'owner'
   const caregiverId = office && body.caregiverId ? body.caregiverId : user.userId
   const miles = parseFloat(body.miles) || 0
-  const ratePerMile = parseFloat(body.ratePerMile) || 0.67
+  // The rate is the agency's (agencies.mileage_rate, set in Payroll → Settings). A caregiver never
+  // sets their own: a ratePerMile / rate they send is ignored. The office may record a trip at
+  // another rate.
+  let ratePerMile = await agencyMileageRate()
+  const asked = body.ratePerMile ?? body.rate
+  if (office && asked !== undefined && asked !== null && String(asked).trim() !== '') {
+    const r = parseMileageRate(asked)
+    if (r === null) return c.json({ error: MILEAGE_RATE_REFUSAL }, 400)
+    ratePerMile = r
+  }
   const amount = (miles * ratePerMile).toFixed(2)
 
   const [entry] = await db

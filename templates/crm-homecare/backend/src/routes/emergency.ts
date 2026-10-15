@@ -186,19 +186,24 @@ app.post('/assign-coverage', requireAdmin, async (c) => {
   return c.json({ success: true, ok: true, message: `Coverage assigned to ${cg?.first_name || ''} ${cg?.last_name || ''}`.trim() })
 })
 
-// GET /api/emergency/my-shifts — the caregiver's upcoming shifts, for the miss-report form
+// GET /api/emergency/my-shifts — the caregiver's next visits, for the miss-report form: DATED
+// occurrences from the one schedule engine over the next two weeks (agency days), so a recurring
+// pattern is offered as its real dates, a cancelled day or a suspended pattern is not offered, a day
+// covered by someone else is theirs, and a day this caregiver covers for someone is this caregiver's.
+// `id` is the schedule (pattern) id and `date` the visit's date — the pair the miss report takes.
+export const MY_SHIFTS_DAYS = 14
 app.get('/my-shifts', async (c) => {
   const user = c.get('user') as any
   const { date: today } = await agencyNow()
   return c.json(await rows(sql`
-    SELECT s.id, to_char(s.date, 'YYYY-MM-DD') AS date, s.day_of_week,
-           to_char(s.start_time, 'HH24:MI:SS') AS start_time, to_char(s.end_time, 'HH24:MI:SS') AS end_time,
-           c.first_name AS client_first_name, c.last_name AS client_last_name, c.address AS client_address
-      FROM schedules s JOIN clients c ON s.client_id = c.id
-     WHERE s.caregiver_id = ${userIdOf(user)} AND s.is_active = true
-       AND (s.date >= ${today}::date OR (s.date IS NULL AND s.day_of_week IS NOT NULL AND (s.end_date IS NULL OR s.end_date >= ${today}::date)))
-       AND (s.suspended_from IS NULL OR s.suspended_from > ${today}::date)
-     ORDER BY s.date ASC NULLS LAST, s.start_time ASC
+    WITH ${occurrencesCte(today, addDays(today, MY_SHIFTS_DAYS - 1))}
+    SELECT occ.schedule_id AS id, occ.schedule_id, to_char(occ.occ_date, 'YYYY-MM-DD') AS date,
+           EXTRACT(DOW FROM occ.occ_date)::int AS day_of_week,
+           to_char(occ.start_time, 'HH24:MI:SS') AS start_time, to_char(occ.end_time, 'HH24:MI:SS') AS end_time,
+           occ.client_id, c.first_name AS client_first_name, c.last_name AS client_last_name, c.address AS client_address
+      FROM occ JOIN clients c ON occ.client_id = c.id
+     WHERE occ.caregiver_id = ${userIdOf(user)}
+     ORDER BY occ.occ_date ASC, occ.start_time ASC
      LIMIT 14`))
 })
 

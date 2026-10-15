@@ -1,6 +1,6 @@
 // Per-client care task checklists and the per-shift completion log.
 //
-//   /api/care-tasks/client/:clientId                 the client's active checklist (anyone signed in)
+//   /api/care-tasks/client/:clientId                 the client's active checklist (the office, or a caregiver who serves them)
 //   /api/care-tasks/client/:clientId          POST   add a task (office)
 //   /api/care-tasks/:id                       PUT    edit / DELETE soft-remove (office)
 //   /api/care-tasks/client/:clientId/import          bulk-create from an insurer assessment (office)
@@ -21,6 +21,7 @@ import { agencyState, agencyTimezone } from '../services/agencyTime.ts'
 import { formatsForState } from '../services/assessmentImports.ts'
 import { AssessmentPdfError } from '../services/midasAssessmentPdf.ts'
 import { isOffice, userIdOf, writeCareAudit, rowsOf, wholeNumber } from '../helpers/careAudit.ts'
+import { requireClientAccess, careWriteRefusal } from '../helpers/caregiverAccess.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -54,7 +55,7 @@ app.get('/assessment-formats', requireAdmin, async (c) => {
 })
 
 // ── the client's checklist ──────────────────────────────────────────────────
-app.get('/client/:clientId', async (c) => {
+app.get('/client/:clientId', requireClientAccess(), async (c) => {
   const rows = rowsOf(await db.execute(sql`
     SELECT ${TASK_COLUMNS} FROM client_task_templates
      WHERE client_id = ${c.req.param('clientId')} AND is_active = true
@@ -242,6 +243,8 @@ app.put('/time-entry/:timeEntryId/:taskId', async (c) => {
   const entry = await loadEntry(c.req.param('timeEntryId'))
   if (!entry) return c.json({ error: 'Time entry not found' }, 404)
   if (entry.caregiverId !== userIdOf(user) && !isOffice(user)) return c.json({ error: 'Not your shift' }, 403)
+  const refused = await careWriteRefusal(c, entry.clientId)
+  if (refused) return refused
   const [task] = await db.select({ id: clientTaskTemplates.id, clientId: clientTaskTemplates.clientId })
     .from(clientTaskTemplates).where(eq(clientTaskTemplates.id, c.req.param('taskId'))).limit(1)
   if (!task || task.clientId !== entry.clientId) return c.json({ error: 'Task not found for this client' }, 404)

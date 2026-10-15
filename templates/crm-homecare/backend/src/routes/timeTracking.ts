@@ -19,7 +19,7 @@ import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { agencyNow, fmtClock } from '../services/agencyTime.ts'
 import { decideBilling, parseOfflineAt, withOfflineFlag, hasOfflineFlag } from '../helpers/punchRules.ts'
 import { notifyAdmins, sendPush, recordAudit } from '../services/visitNotify.ts'
-import { requireClientAccess, maySeeClient } from '../helpers/caregiverAccess.ts'
+import { requireClientAccess, maySeeClient, careWriteRefusal } from '../helpers/caregiverAccess.ts'
 import { createEVVFromTimeEntry, recordSandataDecision, recordVisitTimeChange } from '../services/evvVisits.ts'
 import { EVV_REASON_CODES } from '../services/sandataPayload.ts'
 
@@ -695,6 +695,10 @@ app.post('/:id/photos', async (c) => {
   const te = await entryOwner(c.req.param('id'))
   if (!te) return c.json({ error: 'Time entry not found' }, 404)
   if (!isOffice(user) && userIdOf(user) !== te.caregiver_id) return c.json({ error: 'Only the assigned caregiver or an admin can upload visit photos' }, 403)
+  // ...and only to the record of a client they serve (an unscheduled punch is never refused, so a
+  // visit of their own is not enough).
+  const refused = await careWriteRefusal(c, te.client_id)
+  if (refused) return refused
   const id = createId()
   const size = Math.floor(String(imageBase64).length * 0.75)
   await rows(sql`INSERT INTO visit_photos (id, time_entry_id, caregiver_id, client_id, caption, category, image_base64, image_size, taken_at, uploaded_at)

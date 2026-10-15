@@ -155,6 +155,13 @@
       "when": 1791487300000,
       "tag": "0022_integration",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791487400000,
+      "tag": "0023_fixes",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,9 @@ import { adlRequirements, adlLogs, users, clients, timeEntries } from '../../db/
 import { eq, and, desc, gte, lte, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { isOffice, userIdOf, rowsOf } from '../helpers/careAudit.ts'
+import { requireClientAccess, maySeeClient, careWriteRefusal } from '../helpers/caregiverAccess.ts'
 
+// A caregiver reads and logs ADLs only for the clients they serve (helpers/caregiverAccess.ts).
 const app = new Hono()
 app.use('*', authenticate)
 
@@ -31,7 +33,7 @@ export const ADL_CATEGORIES = [
 app.get('/categories', (c) => c.json(ADL_CATEGORIES))
 
 // GET /api/adl/client/:clientId/requirements
-app.get('/client/:clientId/requirements', async (c) => {
+app.get('/client/:clientId/requirements', requireClientAccess(), async (c) => {
   const { clientId } = c.req.param()
 
   const rows = await db
@@ -60,7 +62,7 @@ const LOG_FIELDS = {
 }
 
 // GET /api/adl/client/:clientId/logs?startDate=&endDate=
-app.get('/client/:clientId/logs', async (c) => {
+app.get('/client/:clientId/logs', requireClientAccess(), async (c) => {
   const { clientId } = c.req.param()
   const { startDate, endDate } = c.req.query()
 
@@ -80,6 +82,13 @@ app.get('/client/:clientId/logs', async (c) => {
 
 // GET /api/adl/logs/time-entry/:timeEntryId — what was logged on one visit
 app.get('/logs/time-entry/:timeEntryId', async (c) => {
+  // A caregiver reads their own visit's log, or one for a client they care for (as the MAR's).
+  const user = c.get('user') as any
+  if (!isOffice(user)) {
+    const [te] = await db.select({ clientId: timeEntries.clientId, caregiverId: timeEntries.caregiverId }).from(timeEntries).where(eq(timeEntries.id, c.req.param('timeEntryId'))).limit(1)
+    if (!te) return c.json({ error: 'Visit not found' }, 404)
+    if (te.caregiverId !== userIdOf(user) && !(await maySeeClient(user, te.clientId))) return c.json({ error: 'You can only see the clients you care for.' }, 403)
+  }
   const rows = await db
     .select(LOG_FIELDS)
     .from(adlLogs)
@@ -90,7 +99,7 @@ app.get('/logs/time-entry/:timeEntryId', async (c) => {
 })
 
 // GET /api/adl/reports/completion/:clientId?startDate&endDate — per category, default last 30 days
-app.get('/reports/completion/:clientId', async (c) => {
+app.get('/reports/completion/:clientId', requireClientAccess(), async (c) => {
   const { startDate, endDate } = c.req.query()
   const from = startDate && YMD.test(startDate) ? startDate : null
   const to = endDate && YMD.test(endDate) ? endDate : null
@@ -165,6 +174,8 @@ app.post('/log', async (c) => {
   if (!clientId || !adlCategory || !status) {
     return c.json({ error: 'clientId, adlCategory, and status are required' }, 400)
   }
+  const refused = await careWriteRefusal(c, clientId)
+  if (refused) return refused
   let when = new Date()
   if (performedAt) {
     when = new Date(performedAt)

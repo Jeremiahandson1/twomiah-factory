@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { agencies, users } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { isValidTimezone, resolveTimezone } from '../services/agencyTime.ts'
+import { parseMileageRate, MILEAGE_RATE_REFUSAL } from '../services/mileageRate.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -38,6 +39,12 @@ app.put('/', requireAdmin, async (c) => {
     return c.json({ error: `"${String(body.timezone).slice(0, 64)}" is not a time zone — use an IANA name such as America/Chicago` }, 400)
   }
   if (body.timezone === '') body.timezone = null
+  // The agency's mileage rate (what every caregiver trip is paid at — routes/mileage.ts).
+  if (body.mileageRate !== undefined) {
+    const n = parseMileageRate(body.mileageRate)
+    if (n === null) return c.json({ error: MILEAGE_RATE_REFUSAL }, 400)
+    body.mileageRate = String(n)
+  }
   const [existing] = await db.select().from(agencies).limit(1)
 
   let agency

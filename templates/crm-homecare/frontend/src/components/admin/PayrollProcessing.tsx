@@ -78,10 +78,55 @@ const PayrollProcessing = () => {
     notes: ''
   });
 
+  // The mileage rate is the agency's (PUT /api/company { mileageRate }) — every caregiver trip is
+  // paid at it. The box holds what is typed; it is checked when Settings is saved.
+  const [mileageRateText, setMileageRateText] = useState('0.67');
+  const [recalcTick, setRecalcTick] = useState(0);
+
   useEffect(() => {
     loadCaregivers();
     calculatePayroll();
+    fetch(`${API_BASE_URL}/api/company`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(a => {
+        const n = Number(a?.mileageRate ?? a?.mileage_rate);
+        if (a && Number.isFinite(n)) {
+          setSettings(prev => ({ ...prev, mileageRate: n }));
+          setMileageRateText(String(n));
+          setRecalcTick(t => t + 1);
+        }
+      })
+      .catch(() => { /* the server still pays trips at the agency rate */ });
   }, []);
+
+  // Recalculate after the settings state has the new values (a click handler would read the old ones).
+  useEffect(() => { if (recalcTick > 0) calculatePayroll(); }, [recalcTick]);
+
+  const saveSettings = async () => {
+    const s = mileageRateText.trim();
+    const rate = Number(s);
+    if (s === '' || !Number.isFinite(rate) || rate < 0 || rate > 5) {
+      toast('The mileage rate must be a number from 0 to 5 dollars a mile', 'error');
+      return;
+    }
+    if (rate !== settings.mileageRate) {
+      try {
+        const r = await fetch(`${API_BASE_URL}/api/company`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ mileageRate: s }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'Could not save the mileage rate');
+      } catch (e: any) {
+        toast(e.message, 'error');
+        return;
+      }
+    }
+    setSettings(prev => ({ ...prev, mileageRate: rate }));
+    setShowSettingsModal(false);
+    setRecalcTick(t => t + 1);
+  };
 
   const loadCaregivers = async () => {
     try {
@@ -1018,7 +1063,7 @@ const PayrollProcessing = () => {
                 <div className="form-group"><label>To</label><input type="text" value={mileageForm.toLocation} onChange={(e) => setMileageForm({ ...mileageForm, toLocation: e.target.value })} placeholder="Destination" /></div>
               </div>
               <div className="form-group"><label>Notes</label><textarea value={mileageForm.notes} onChange={(e) => setMileageForm({ ...mileageForm, notes: e.target.value })} rows="2" /></div>
-              <p className="text-muted">Current IRS rate: ${settings.mileageRate}/mile</p>
+              <p className="text-muted">Paid at the agency rate: ${settings.mileageRate}/mile</p>
               <div className="modal-actions">
                 <button type="submit" className="btn btn-primary">Add Mileage</button>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowMileageModal(false)}>Cancel</button>
@@ -1111,8 +1156,8 @@ const PayrollProcessing = () => {
               <h3>Mileage</h3>
               <div className="form-group">
                 <label>Mileage Rate ($/mile)</label>
-                <input type="number" step="0.01" value={settings.mileageRate} onChange={(e) => setSettings({ ...settings, mileageRate: parseFloat(e.target.value) })} />
-                <small className="text-muted">2024 IRS standard rate is $0.67/mile</small>
+                <input type="number" step="0.01" value={mileageRateText} onChange={(e) => setMileageRateText(e.target.value)} />
+                <small className="text-muted">The agency's rate: every caregiver's mileage is paid at it. (2024 IRS standard rate is $0.67/mile.)</small>
               </div>
             </div>
 
@@ -1139,8 +1184,8 @@ const PayrollProcessing = () => {
             </div>
 
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={() => { setShowSettingsModal(false); calculatePayroll(); }}>Save & Recalculate</button>
-              <button className="btn btn-secondary" onClick={() => setShowSettingsModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveSettings}>Save & Recalculate</button>
+              <button className="btn btn-secondary" onClick={() => { setMileageRateText(String(settings.mileageRate)); setShowSettingsModal(false); }}>Cancel</button>
             </div>
           </div>
         </div>

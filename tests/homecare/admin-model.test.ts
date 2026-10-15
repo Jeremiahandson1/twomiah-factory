@@ -78,13 +78,25 @@ for (const [m, p, body] of ADMIN_ONLY) {
 // ── the care itself is NOT an admin privilege ───────────────────────────────────
 // This is the half a careless fix breaks. requireAdmin on /log would stop every caregiver
 // recording the work they were employed to do.
+// The care is the caregiver's for the clients they SERVE (helpers/caregiverAccess.ts — the same rule
+// for reading and recording); another client's ADLs are refused with that rule's message, never
+// "Admin access required".
+const [mine] = await db.insert(clients).values({ firstName: 'Served', lastName: 'Client' } as any).returning()
+const { sql } = await import('drizzle-orm')
+await db.execute(sql`INSERT INTO client_assignments (id, client_id, caregiver_id, assignment_date, status) VALUES ('ca_am', ${mine.id}, ${caregiver.id}, '2026-01-01', 'active')`)
 {
-  const r = await as(caregiver)('POST', '/api/adl/log', { clientId: 'nope000', activity: 'bathing', completed: true })
-  check('a caregiver may still POST /api/adl/log', reached(r), { status: r.status, error: r.json?.error })
+  const r = await as(caregiver)('POST', '/api/adl/log', { clientId: mine.id, adlCategory: 'bathing', status: 'completed' })
+  check('a caregiver may still POST /api/adl/log (for a client they serve)', reached(r) && r.status === 201, { status: r.status, error: r.json?.error })
+  const no = await as(caregiver)('POST', '/api/adl/log', { clientId: 'nope000', adlCategory: 'bathing', status: 'completed' })
+  check('…not for a client they do not serve', refused(no) && no.json?.error !== 'Admin access required', no.json)
 }
-for (const p of ['/api/adl/client/nope000/requirements', '/api/adl/client/nope000/logs', '/api/caregiver-rates/nope000']) {
+for (const p of [`/api/adl/client/${mine.id}/requirements`, `/api/adl/client/${mine.id}/logs`, '/api/caregiver-rates/nope000']) {
   const r = await as(caregiver)('GET', p)
-  check(`a caregiver may still read ${p}`, reached(r), { status: r.status, error: r.json?.error })
+  check(`a caregiver may still read ${p.replace(mine.id, ':served')}`, reached(r), { status: r.status, error: r.json?.error })
+}
+for (const p of ['/api/adl/client/nope000/requirements', '/api/adl/client/nope000/logs']) {
+  const r = await as(caregiver)('GET', p)
+  check(`…not ${p} (a client they do not serve)`, refused(r) && r.json?.error === 'You can only see the clients you care for.', r.json)
 }
 
 // ── an unknown role is not quietly promoted ─────────────────────────────────────

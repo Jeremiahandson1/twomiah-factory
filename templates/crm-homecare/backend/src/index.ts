@@ -14,6 +14,7 @@ import { agencies, users } from '../db/schema.ts'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
+import { refuseViewAsWrites } from './middleware/viewAsReadOnly.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -157,6 +158,9 @@ app.use('*', cors({
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'x-portal-token'],
 }))
+
+// "View As" (and the portal preview) can read, never write — above every route (middleware/viewAsReadOnly.ts).
+app.use('/api/*', refuseViewAsWrites)
 
 // ── camelCase → snake_case response bridge ──────────────────────────────────
 // This frontend was ported from the CVHC home-care app, which speaks snake_case

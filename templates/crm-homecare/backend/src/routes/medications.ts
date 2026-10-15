@@ -16,7 +16,8 @@
 // A medication's list row carries the names the screens read (medication_name, prescriber,
 // is_active) beside the table's own (name, prescribed_by, status).
 //
-// Who records: a caregiver records as themselves. The office may attribute a dose or a vitals
+// Who records: a caregiver records as themselves, and only for a client they serve (the same rule
+// as reading — helpers/caregiverAccess.ts). The office may attribute a dose or a vitals
 // reading to the caregiver who gave/took it (back-entering a paper record).
 import { Hono } from 'hono'
 import { sql, eq } from 'drizzle-orm'
@@ -25,7 +26,7 @@ import { medications, medicationLogs, clientVitals, clients, timeEntries, users 
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { isOffice, userIdOf, writeCareAudit, rowsOf } from '../helpers/careAudit.ts'
 import { listClientVitals } from '../services/vitals.ts'
-import { requireClientAccess, maySeeClient } from '../helpers/caregiverAccess.ts'
+import { requireClientAccess, maySeeClient, careWriteRefusal } from '../helpers/caregiverAccess.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -116,6 +117,8 @@ app.post('/log', async (c) => {
   const user = c.get('user' as any)
   const b = await c.req.json().catch(() => ({}))
   if (!b.medicationId || !b.clientId) return c.json({ error: 'medicationId and clientId are required' }, 400)
+  const refused = await careWriteRefusal(c, b.clientId)
+  if (refused) return refused
   // 'given' is the default; anything else outside the MAR list is 'given' too (the source CRM's rule).
   const status = MAR_STATUSES.includes(b.status) ? b.status : 'given'
   const when = b.administeredTime ?? b.administeredAt
@@ -225,6 +228,8 @@ app.post('/vitals', async (c) => {
   const user = c.get('user' as any)
   const b = await c.req.json().catch(() => ({}))
   if (!b.clientId) return c.json({ error: 'clientId is required' }, 400)
+  const refused = await careWriteRefusal(c, b.clientId)
+  if (refused) return refused
   const values: Record<string, unknown> = {}
   const bad: string[] = []
   for (const f of VITALS) {

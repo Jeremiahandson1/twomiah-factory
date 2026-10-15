@@ -3,6 +3,7 @@ import { db } from '../../db/index.ts'
 import { timeEntries, users, gustoSyncLog, expenses, mileageEntries, clients, payrollShiftReviews, payrollRecords, payrollLineItems, caregiverRates } from '../../db/schema.ts'
 import { eq, and, gte, lte, desc, sql, inArray, isNull, or, max } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { agencyMileageRate, parseMileageRate } from '../services/mileageRate.ts'
 
 // Escape a string for safe CSV output (prevent formula injection + handle quotes)
 function csvEscape(val: string | null | undefined): string {
@@ -143,7 +144,9 @@ app.patch('/expenses/:id/status', async (c) => {
 
 // POST /payroll/calculate — calculate payroll from approved shift reviews with OT
 app.post('/calculate', async (c) => {
-  const { startDate, endDate, otThreshold = 40, otMultiplier = 1.5, mileageRate = 0.67 } = await c.req.json()
+  const { startDate, endDate, otThreshold = 40, otMultiplier = 1.5, mileageRate: askedRate } = await c.req.json()
+  // Mileage at the rate asked for, else the agency's own (services/mileageRate.ts) — not a fixed $0.67.
+  const mileageRate = parseMileageRate(askedRate) ?? await agencyMileageRate()
   if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
 
   // Get approved/verified shift reviews for the period
