@@ -72,6 +72,14 @@ for (const [mount, file] of [
   ['/api/clients', 'clients'],
   ['/api/payroll-shift-reviews', 'payrollShiftReviews'],
   ['/api/auth', 'auth'],
+  ['/api/medications', 'medications'],
+  ['/api/care-plans', 'carePlans'],
+  ['/api/messages', 'messages'],
+  ['/api/caregivers', 'caregivers'],
+  ['/api/scheduling', 'schedulingHub'],
+  ['/api/mileage', 'mileage'],
+  ['/api/schedules', 'schedules'],
+  ['/api/push', 'push'],
 ] as const) {
   app.route(mount, (await import(`./src/routes/${file}.ts`)).default)
 }
@@ -463,6 +471,120 @@ for (const f of ['backend/src/services/invoiceEngine.ts', 'backend/src/routes/bi
   const plan = await getClientVisitSchedule(cp.id)
   check("the care-plan schedule says the pattern is paused, as the source CRM's does", plan.lines.length === 1 && / · paused from /.test(plan.lines[0]), plan)
   check('…and counts only the visits before the pause', plan.upcomingVisits === (await occOf(TODAY, addDays(TODAY, 27), sql`client_id = ${cp.id}`)).length, plan)
+}
+
+// ══ caregiver scope, the app's routes (coordinator's list a–i) ═══════════════════════════════════
+{
+  const served = await mkClient('Served'), other = await mkClient('Other')
+  await q(sql`INSERT INTO client_assignments (id, client_id, caregiver_id, assignment_date, status) VALUES ('ca_srv', ${served.id}, ${cg1.id}, '2026-01-01', 'active')`)
+  await q(sql`INSERT INTO medications (id, client_id, name, status) VALUES ('med_srv', ${served.id}, 'Lisinopril', 'active'), ('med_oth', ${other.id}, 'Metformin', 'active')`)
+  await q(sql`INSERT INTO client_vitals (id, client_id, caregiver_id, recorded_at, pulse) VALUES ('cv_oth', ${other.id}, ${cg2.id}, NOW(), 80)`)
+  await q(sql`INSERT INTO care_plans (id, client_id, service_type, status) VALUES ('cp_srv', ${served.id}, 'personal_care', 'active'), ('cp_oth', ${other.id}, 'companionship', 'active')`)
+
+  // (a) medications / MAR / vitals and care plans: a caregiver reads only clients they serve
+  for (const p of ['/api/medications/client/', '/api/medications/due/', '/api/medications/logs/client/', '/api/medications/vitals/client/', '/api/medications/vitals/latest/', '/api/medications/reports/adherence/']) {
+    const mine = await CG1('GET', p + served.id)
+    const not = await CG1('GET', p + other.id)
+    check(`(a) GET ${p}:clientId — a caregiver reads a client they serve (200), not another (403)`, mine.status === 200 && not.status === 403, { mine: mine.status, not: not.status })
+  }
+  check('(a) …the office reads any client', (await A('GET', `/api/medications/client/${other.id}`)).json?.[0]?.name === 'Metformin')
+  await q(sql`INSERT INTO time_entries (id, caregiver_id, client_id, start_time, end_time, is_complete) VALUES ('te_oth', ${cg2.id}, ${other.id}, NOW() - INTERVAL '2 hours', NOW() - INTERVAL '1 hour', true)`)
+  check("(a) the MAR of someone else's visit for a client the caregiver does not serve is refused", (await CG1('GET', '/api/medications/logs/time-entry/te_oth')).status === 403)
+  check('(a) …the visit\'s own caregiver reads it', (await CG2('GET', '/api/medications/logs/time-entry/te_oth')).status === 200)
+  const plans = await CG1('GET', '/api/care-plans')
+  check("(a) GET /api/care-plans with no clientId lists only the caregiver's clients' plans", plans.status === 200 && plans.json.some((p: any) => p.id === 'cp_srv') && !plans.json.some((p: any) => p.id === 'cp_oth'), plans.json?.map?.((p: any) => p.id))
+  check('(a) …?clientId of a client they do not serve is refused', (await CG1('GET', `/api/care-plans?clientId=${other.id}`)).status === 403)
+  check('(a) …the office lists every plan', (await A('GET', '/api/care-plans')).json.some((p: any) => p.id === 'cp_oth'))
+
+  // (b) message threads: participants (or the office) only
+  await q(sql`INSERT INTO message_threads (id, subject, created_by_id) VALUES ('th1', 'Shift question', ${cg1.id})`)
+  await q(sql`INSERT INTO message_thread_participants (id, thread_id, user_id) VALUES ('tp1', 'th1', ${cg1.id}), ('tp2', 'th1', ${admin.id})`)
+  await q(sql`INSERT INTO messages (id, thread_id, sender_id, body) VALUES ('m1', 'th1', ${cg1.id}, 'Can I swap Tuesday?')`)
+  check('(b) a participant reads the thread', (await CG1('GET', '/api/messages/thread/th1')).json?.messages?.length === 1)
+  check('(b) a caregiver who is not in it gets a 404', (await CG2('GET', '/api/messages/thread/th1')).status === 404)
+  check('(b) …and cannot reply into it', (await CG2('POST', '/api/messages/thread/th1/reply', { body: 'hi' })).status === 404
+    && Number((await q1(sql`SELECT COUNT(*)::int AS n FROM messages WHERE thread_id = 'th1'`)).n) === 1)
+  check('(b) the office (an owner not in the thread) may read and answer', (await O('GET', '/api/messages/thread/th1')).status === 200 && (await O('POST', '/api/messages/thread/th1/reply', { body: 'Yes' })).status === 201)
+  check('(b) replying to a thread that does not exist is a 404, not a stray message', (await CG1('POST', '/api/messages/thread/nope/reply', { body: 'x' })).status === 404)
+
+  // (c) caregiver list: pay rates are the office's
+  await q(sql`UPDATE users SET default_pay_rate = 18.50 WHERE id IN (${cg1.id}, ${cg2.id})`)
+  const asCg = await CG1('GET', '/api/caregivers')
+  const asAd = await A('GET', '/api/caregivers')
+  check('(c) GET /api/caregivers to a caregiver carries no pay rate', asCg.status === 200 && asCg.json.caregivers.length > 0 && asCg.json.caregivers.every((r: any) => !('default_pay_rate' in r)), asCg.json.caregivers?.[0])
+  check('(c) …to the office it does', asAd.json.caregivers.some((r: any) => Number(r.default_pay_rate) === 18.5))
+  check("(c) a caregiver cannot open a colleague's full record (assignments, background checks, pay)", (await CG1('GET', `/api/caregivers/${cg2.id}`)).status === 403)
+  const own = await CG1('GET', `/api/caregivers/${cg1.id}`)
+  check('(c) …but sees their own, pay included', own.status === 200 && Number(own.json.default_pay_rate) === 18.5, own.json)
+
+  // (d) week view
+  const wvC = await CG1('GET', `/api/scheduling/week-view?weekOf=${TODAY}`)
+  const wvA = await A('GET', `/api/scheduling/week-view?weekOf=${TODAY}`)
+  check("(d) a caregiver's week view holds only their own row", wvC.status === 200 && wvC.json.caregivers.length === 1 && wvC.json.caregivers[0].caregiver.id === cg1.id, wvC.json?.caregivers?.map?.((x: any) => x.caregiver.id))
+  check('(d) …the office sees everyone', wvA.json.caregivers.length > 1)
+
+  // (e) mileage
+  await A('POST', '/api/mileage', { caregiverId: cg2.id, date: TODAY, miles: '10', ratePerMile: '0.67' })
+  const mine = await CG1('POST', '/api/mileage', { caregiverId: cg2.id, date: TODAY, miles: '4', ratePerMile: '0.67' })
+  check('(e) a caregiver who names another caregiver still records their own trip', mine.status === 201 && mine.json.caregiverId === cg1.id, mine.json)
+  const listC = await CG1('GET', `/api/mileage?caregiverId=${cg2.id}`)
+  check("(e) a caregiver's mileage list is their own, whatever caregiverId says", listC.json.entries.length === 1 && listC.json.entries.every((e: any) => e.caregiverId === cg1.id), listC.json.entries)
+  check('(e) …the office sees anyone\'s', (await A('GET', `/api/mileage?caregiverId=${cg2.id}`)).json.entries.length === 1)
+
+  // (f) geofence
+  check("(f) a caregiver reads the geofence of a client they serve, not another's",
+    (await CG1('GET', `/api/time-entries/geofence/${served.id}`)).status === 200 && (await CG1('GET', `/api/time-entries/geofence/${other.id}`)).status === 403)
+
+  // (g) dated occurrences through the one engine; one-time visits carry their exceptions
+  const from = TODAY, to = addDays(TODAY, 13)
+  const wk = await insSched({ caregiver_id: cg1.id, client_id: served.id, day_of_week: dow(TODAY), start: '07:00', end: '08:00', effective_date: addDays(TODAY, -7) })
+  await q(sql`INSERT INTO schedule_exceptions (id, schedule_id, exception_date, exception_type) VALUES ('ex_g1', ${wk}, ${addDays(TODAY, 7)}::date, 'cancelled')`)
+  const oneOff = await insSched({ caregiver_id: cg1.id, client_id: served.id, date: addDays(TODAY, 2), start: '18:00', end: '19:00' })
+  await q(sql`INSERT INTO schedule_exceptions (id, schedule_id, exception_date, exception_type, cancel_reason) VALUES ('ex_g2', ${oneOff}, ${addDays(TODAY, 2)}::date, 'cancelled', 'client_hospital')`)
+  const oc = await CG1('GET', `/api/schedules/${cg1.id}/occurrences?from=${from}&to=${to}`)
+  const mineOcc = (oc.json.occurrences || []).filter((o: any) => o.client_id === served.id)
+  check('(g) GET /api/schedules/:caregiverId/occurrences: today, not the cancelled week, not the cancelled one-time visit',
+    oc.status === 200 && JSON.stringify(mineOcc.map((o: any) => o.date)) === JSON.stringify([TODAY]), mineOcc)
+  const engine = await occOf(from, to, sql`caregiver_id = ${cg1.id}`)
+  check('(g) …the same visits as the engine', (oc.json.occurrences || []).length === engine.length, { route: oc.json.occurrences?.length, engine: engine.length })
+  check("(g) a caregiver cannot read a colleague's occurrences; the office can", (await CG1('GET', `/api/schedules/${cg2.id}/occurrences?from=${from}&to=${to}`)).status === 403
+    && (await A('GET', `/api/schedules/${cg2.id}/occurrences?from=${from}&to=${to}`)).status === 200)
+  check('(g) …bad or too-wide ranges are refused', (await CG1('GET', `/api/schedules/${cg1.id}/occurrences?from=x&to=${to}`)).status === 400
+    && (await CG1('GET', `/api/schedules/${cg1.id}/occurrences?from=${from}&to=${addDays(from, 120)}`)).status === 400)
+  const phone = await CG1('GET', `/api/schedules/${cg1.id}`)
+  const oneRow = (phone.json || []).find((s: any) => s.id === oneOff)
+  check('(g) the phone list gives a one-time visit its cancel exception too (it used to show)', oneRow?.exceptions?.some((e: any) => e.exception_type === 'cancelled'), oneRow)
+
+  // (h) Expo push
+  const sentExpo: any[] = []
+  notify._setExpoTransport(async (msgs: any[]) => { sentExpo.push(...msgs); return msgs.map((m: any) => m.to.includes('gone') ? { status: 'error', details: { error: 'DeviceNotRegistered' } } : { status: 'ok', id: 'tkt' }) })
+  check('(h) POST /api/push/expo-token refuses something that is not an Expo token', (await CG1('POST', '/api/push/expo-token', { token: 'abc' })).status === 400)
+  check('(h) …stores the caller\'s token', (await CG1('POST', '/api/push/expo-token', { token: 'ExponentPushToken[live-1]', platform: 'ios' })).status === 201
+    && (await CG1('POST', '/api/push/expo-token', { token: 'ExponentPushToken[gone-2]' })).status === 201)
+  check('(h) …one row per device token, the caller\'s', Number((await q1(sql`SELECT COUNT(*)::int AS n FROM expo_push_tokens WHERE user_id = ${cg1.id}`)).n) === 2)
+  const webBefore = pushes.length
+  const n = await notify.sendPush(cg1.id, { title: 'New shift', body: 'Tuesday 9am', data: { type: 'shift_assigned' } })
+  check('(h) sendPush reaches web push AND both Expo tokens in one batch', pushes.length === webBefore + 1 && sentExpo.length === 2 && sentExpo[0].title === 'New shift' && sentExpo[0].body === 'Tuesday 9am' && sentExpo[0].data?.type === 'shift_assigned', sentExpo)
+  check('(h) …counting the devices reached (web 1 + Expo 1)', n === 2, n)
+  check('(h) …and a DeviceNotRegistered token is deleted', (await q(sql`SELECT token FROM expo_push_tokens WHERE user_id = ${cg1.id}`)).map((r) => r.token).join() === 'ExponentPushToken[live-1]')
+  const del = await CG2('DELETE', '/api/push/expo-token', { token: 'ExponentPushToken[live-1]' })
+  check("(h) another person cannot remove someone's token", del.json.removed === 0)
+  notify._setExpoTransport(async () => { throw new Error('expo down') })
+  check('(h) Expo being down never breaks a send (web push still counts)', (await notify.sendPush(cg1.id, { title: 'x' })) === 1)
+
+  // (i) GPS failure
+  const inG = await CG1('POST', '/api/time-entries/clock-in', { clientId: served.id })
+  const gf = await CG1('POST', '/api/time-entries/gps-failure', { action: 'clock-out', errorCode: 1, clientId: served.id })
+  check('(i) POST /api/time-entries/gps-failure alerts the office (owner and admin)', gf.status === 200 && gf.json.alerted === 2 && gf.json.timeEntryId === inG.json.id, gf.json)
+  const au = await q1(sql`SELECT new_data FROM audit_logs WHERE action = 'GPS_FAILURE' AND record_id = ${inG.json.id}`)
+  check("(i) …recorded on the caller's own open visit", !!au && (au.new_data?.reason || JSON.parse(au.new_data || '{}').reason) === 'location permission denied', au)
+  check('(i) …naming a client the caregiver does not serve is refused', (await CG1('POST', '/api/time-entries/gps-failure', { action: 'clock-in', clientId: other.id })).status === 403)
+  const recent = await A('GET', '/api/time-entries/gps-failures-recent')
+  check('(i) the office sees the open GPS alert', recent.json.count === 1 && /permission is off/.test(recent.json.failures[0].message), recent.json)
+  check('(i) …which a caregiver cannot list', (await CG1('GET', '/api/time-entries/gps-failures-recent')).status === 403)
+  await backdate(inG.json.id, 30)
+  await A('POST', `/api/time-entries/${inG.json.id}/admin-force-clockout`, { reason: 'GPS off' })
+  check("(i) the office's force clock-out marks that caregiver's GPS alerts handled", (await A('GET', '/api/time-entries/gps-failures-recent')).json.count === 0)
 }
 
 // ══ one agency clock (run last: it changes the agency's zone) ═══════════════════════════════════

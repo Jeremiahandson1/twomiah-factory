@@ -19,6 +19,7 @@ import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { agencyNow, fmtClock } from '../services/agencyTime.ts'
 import { decideBilling, parseOfflineAt, withOfflineFlag, hasOfflineFlag } from '../helpers/punchRules.ts'
 import { notifyAdmins, sendPush, recordAudit } from '../services/visitNotify.ts'
+import { requireClientAccess, maySeeClient } from '../helpers/caregiverAccess.ts'
 import { createEVVFromTimeEntry, recordSandataDecision, recordVisitTimeChange } from '../services/evvVisits.ts'
 import { EVV_REASON_CODES } from '../services/sandataPayload.ts'
 
@@ -572,6 +573,43 @@ app.post('/:id/late-location', async (c) => {
   return c.json({ updated: r.length })
 })
 
+// POST /gps-failure { action: 'clock-in'|'clock-out', errorCode?: 1|2|3, clientId? } — the phone could
+// not get a fix at a punch (ported from CVHC). Every active office user is told (in-app + push), so
+// someone can help; the caller's own OPEN visit, if any, gets an audit row. A caregiver may name only
+// a client they care for. GET /gps-failures-recent lists the office user's open GPS alerts.
+const GPS_ERROR = { 1: 'location permission denied', 2: 'no GPS signal', 3: 'GPS timeout' } as Record<number, string>
+app.post('/gps-failure', async (c) => {
+  const user = c.get('user') as any
+  const me = userIdOf(user)
+  const { action, errorCode, clientId } = await c.req.json().catch(() => ({})) as any
+  if (clientId && !(await maySeeClient(user, String(clientId)))) return c.json({ error: 'You can only see the clients you care for.' }, 403)
+  const cg = await one<any>(sql`SELECT first_name, last_name FROM users WHERE id = ${me}`)
+  const name = `${cg?.first_name || ''} ${cg?.last_name || ''}`.trim() || 'A caregiver'
+  const cl = clientId ? await one<any>(sql`SELECT first_name, last_name FROM clients WHERE id = ${String(clientId)}`) : null
+  const code = Number(errorCode)
+  const reason = GPS_ERROR[code] || 'unknown GPS error'
+  const advice = code === 1 ? "Check their phone's Location settings — permission is off."
+    : code === 2 ? 'Their phone reported no location available (airplane mode / location off?).'
+    : 'The fix was slow, not blocked — the punch went through and a late fix or breadcrumbs may still fill it in.'
+  const title = `📍 GPS blocked: ${name}`
+  const message = `${name} tried to ${action === 'clock-out' ? 'clock out' : 'clock in'}${cl ? ` (client: ${cl.first_name} ${cl.last_name})` : ''} but GPS failed (${reason}). ${advice}`
+  const open = await one<any>(sql`SELECT id FROM time_entries WHERE caregiver_id = ${me} AND end_time IS NULL ORDER BY start_time DESC LIMIT 1`)
+  if (open) await recordAudit(me, 'GPS_FAILURE', 'time_entries', open.id, null, { action: action || null, error_code: Number.isFinite(code) ? code : null, reason })
+  const admins = await notifyAdmins('gps_failure', title, message)
+  for (const a of admins) await sendPush(a.id, { title, body: message, tag: `gps-failure-${me}`, data: { type: 'gps_failure', caregiverId: me } })
+  return c.json({ success: true, alerted: admins.length, timeEntryId: open?.id || null })
+})
+
+app.get('/gps-failures-recent', requireAdmin, async (c) => {
+  const user = c.get('user') as any
+  const minutes = Math.max(1, Math.min(parseInt(c.req.query('minutes') || '') || 60, 240))
+  const failures = await rows<any>(sql`SELECT id, title, message, created_at FROM notifications
+    WHERE user_id = ${userIdOf(user)} AND type = 'gps_failure' AND status = 'new'
+      AND created_at > NOW() - (${minutes} * INTERVAL '1 minute')
+    ORDER BY created_at DESC LIMIT 50`)
+  return c.json({ count: failures.length, failures, windowMinutes: minutes })
+})
+
 // POST /:id/admin-force-clockout { reason?, endTime?, scheduled? } — close an entry the caregiver
 // can't (dead phone, GPS failure). Always flagged for approval.
 app.post('/:id/admin-force-clockout', requireAdmin, async (c) => {
@@ -613,6 +651,15 @@ app.post('/:id/admin-force-clockout', requireAdmin, async (c) => {
     await recordVisitTimeChange({ timeEntryId: id, changedById: userIdOf(user), oldEnd: null, newEnd: end, reasonCode: code, memo: evvReasonMemo || reason || null })
   } catch (vtcErr: any) { console.error('[force-clockout] visit_time_changes:', vtcErr?.message) }
   await onVisitClosed(id)
+  // The office has dealt with it: that caregiver's open GPS-failure alerts are handled.
+  try {
+    const cgRow = await one<any>(sql`SELECT first_name, last_name FROM users WHERE id = ${e.caregiverId}`)
+    const cgName = `${cgRow?.first_name || ''} ${cgRow?.last_name || ''}`.trim()
+    if (cgName) {
+      await rows(sql`UPDATE notifications SET is_read = true, status = 'handled', handled_at = NOW(), handled_by_id = ${userIdOf(user)}
+        WHERE type = 'gps_failure' AND status = 'new' AND created_at > NOW() - INTERVAL '6 hours' AND title LIKE ${`%${cgName}%`}`)
+    }
+  } catch (rErr: any) { console.error('[force-clockout] gps alert resolve:', rErr?.message) }
   return c.json({ success: true, entry: updated })
 })
 
@@ -723,7 +770,7 @@ app.get('/:id/gps', async (c) => {
 })
 
 // GET /geofence/:clientId
-app.get('/geofence/:clientId', async (c) => {
+app.get('/geofence/:clientId', requireClientAccess(), async (c) => {
   const clientId = c.req.param('clientId')
   const [settings] = await db.select().from(geofenceSettings).where(eq(geofenceSettings.clientId, clientId)).limit(1)
   const [client] = await db.select({

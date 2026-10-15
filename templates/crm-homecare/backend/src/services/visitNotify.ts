@@ -5,7 +5,7 @@
 // SMS and push are swappable so tests never reach Twilio or a push service.
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { notifications, clientNotifications, users, auditLogs, pushSubscriptions, agencies } from '../../db/schema.ts'
+import { notifications, clientNotifications, users, auditLogs, pushSubscriptions, agencies, expoPushTokens } from '../../db/schema.ts'
 import { reportSmsUsage } from './messagingUsage.ts'
 import { shouldNotify } from './notificationPrefs.ts'
 
@@ -102,12 +102,52 @@ let sendPushImpl = async (userId: string, payload: Record<string, unknown>): Pro
 /** Test hook. */
 export function _setPushSender(fn: typeof sendPushImpl) { sendPushImpl = fn }
 
+// ── Expo push (the caregiver app) ────────────────────────────────────────────────────────
+// Expo's public push service needs no key. Messages go in batches of 100; the reply carries one
+// ticket per message, in order — a DeviceNotRegistered ticket means the app was removed, so that
+// token is deleted. Swappable so tests never reach Expo.
+export const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
+export const isExpoToken = (t: unknown) => typeof t === 'string' && /^(ExponentPushToken|ExpoPushToken)\[[^\]]+\]$/.test(t)
+type ExpoTicket = { status: 'ok' | 'error'; id?: string; message?: string; details?: { error?: string } }
+let expoTransport = async (messages: any[]): Promise<ExpoTicket[]> => {
+  const res = await fetch(EXPO_PUSH_URL, {
+    method: 'POST', headers: { accept: 'application/json', 'accept-encoding': 'gzip, deflate', 'content-type': 'application/json' },
+    body: JSON.stringify(messages),
+  })
+  const body: any = await res.json().catch(() => ({}))
+  return Array.isArray(body?.data) ? body.data : []
+}
+/** Test hook. */
+export function _setExpoTransport(fn: typeof expoTransport) { expoTransport = fn }
+
+export async function sendExpoPush(userId: string, payload: Record<string, unknown>): Promise<number> {
+  const tokens = await db.select({ id: expoPushTokens.id, token: expoPushTokens.token }).from(expoPushTokens).where(eq(expoPushTokens.userId, userId))
+  if (!tokens.length) return 0
+  const title = String(payload.title ?? '')
+  const body = String(payload.body ?? payload.message ?? '')
+  const data = (payload.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>
+  let sent = 0
+  for (let i = 0; i < tokens.length; i += 100) {
+    const batch = tokens.slice(i, i + 100)
+    const tickets = await expoTransport(batch.map((t) => ({ to: t.token, title, body, data, sound: 'default' })))
+    for (let k = 0; k < batch.length; k++) {
+      const tk = tickets[k]
+      if (tk?.status === 'ok') sent++
+      else if (tk?.details?.error === 'DeviceNotRegistered') {
+        await db.delete(expoPushTokens).where(eq(expoPushTokens.id, batch[k].id)).catch(() => {})
+      }
+    }
+  }
+  return sent
+}
+
+/** Web push and Expo push to one person. Returns how many devices it reached; never throws. */
 export async function sendPush(userId: string | null | undefined, payload: Record<string, unknown>): Promise<number> {
   if (!userId) return 0
-  try { return await sendPushImpl(userId, payload) } catch (e: any) {
-    console.error('[visits] push failed:', e?.message)
-    return 0
-  }
+  let n = 0
+  try { n += await sendPushImpl(userId, payload) } catch (e: any) { console.error('[visits] push failed:', e?.message) }
+  try { n += await sendExpoPush(userId, payload) } catch (e: any) { console.error('[visits] expo push failed:', e?.message) }
+  return n
 }
 
 // ── Clinical audit trail (audit_logs) ────────────────────────────────────────────────────

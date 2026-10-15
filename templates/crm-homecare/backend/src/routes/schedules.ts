@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { SCHED_COLS, attachExceptions, rows, one, scheduleById, inList, isOffice, userIdOf } from '../helpers/scheduleRows.ts'
-import { schedTs, hms, shiftHours, DATE_RE } from '../services/scheduleOccurrences.ts'
+import { schedTs, hms, shiftHours, DATE_RE, occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { CANCEL_REASONS } from '../helpers/cancelReasons.ts'
 import { checkAuthorizationBalance } from '../helpers/authorizationCheck.ts'
 
@@ -32,6 +32,34 @@ app.get('/caregiver/:caregiverId', async (c) => {
      WHERE s.caregiver_id = ${caregiverId} AND s.is_active = true AND ${notEnded(today)}
      ORDER BY s.day_of_week, s.date, s.start_time`)
   return c.json(await attachExceptions(list))
+})
+
+// GET /api/schedules/:caregiverId/occurrences?from&to — the caregiver's DATED visits between two days
+// (inclusive, at most 92), through the one schedule engine: recurring and one-time patterns, the
+// exceptions applied (cancelled days gone, modified times/clients, days covered for someone else
+// included), nothing after a suspension. A caregiver may read only their own; the office anyone's.
+app.get('/:caregiverId/occurrences', async (c) => {
+  const user = c.get('user') as any
+  const caregiverId = c.req.param('caregiverId')
+  if (!isOffice(user) && userIdOf(user) !== caregiverId) return c.json({ error: 'You can only view your own schedules' }, 403)
+  const { date: today } = await agencyNow()
+  const from = c.req.query('from') || today
+  const to = c.req.query('to') || addDays(from, 13)
+  if (!DATE_RE.test(from) || !DATE_RE.test(to)) return c.json({ error: 'from and to must be YYYY-MM-DD' }, 400)
+  if (to < from) return c.json({ error: 'to must be on or after from' }, 400)
+  if (addDays(from, 91) < to) return c.json({ error: 'At most 92 days at a time' }, 400)
+  const list = await rows(sql`WITH ${occurrencesCte(from, to)}
+    SELECT occ.schedule_id, to_char(occ.occ_date, 'YYYY-MM-DD') AS date,
+           to_char(occ.start_time, 'HH24:MI:SS') AS start_time, to_char(occ.end_time, 'HH24:MI:SS') AS end_time,
+           occ.minutes, occ.is_modified, occ.is_training, occ.client_id,
+           (occ.pattern_caregiver_id IS DISTINCT FROM occ.caregiver_id) AS moved_in,
+           s.day_of_week IS NOT NULL AS is_recurring, s.notes,
+           c.first_name AS client_first_name, c.last_name AS client_last_name,
+           c.address AS client_address, c.city AS client_city, c.latitude AS client_latitude, c.longitude AS client_longitude
+      FROM occ JOIN schedules s ON s.id = occ.schedule_id JOIN clients c ON c.id = occ.client_id
+     WHERE occ.caregiver_id = ${caregiverId}
+     ORDER BY occ.occ_date, occ.start_time`)
+  return c.json({ caregiverId, from, to, occurrences: list })
 })
 
 // GET /api/schedules/:caregiverId — the caregiver's own phone. Exceptions are attached so a

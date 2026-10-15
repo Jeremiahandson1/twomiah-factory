@@ -25,6 +25,7 @@ import { medications, medicationLogs, clientVitals, clients, timeEntries, users 
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { isOffice, userIdOf, writeCareAudit, rowsOf } from '../helpers/careAudit.ts'
 import { listClientVitals } from '../services/vitals.ts'
+import { requireClientAccess, maySeeClient } from '../helpers/caregiverAccess.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -67,7 +68,7 @@ function medicationValues(b: any): { values: Record<string, unknown>; error?: st
   return { values }
 }
 
-app.get('/client/:clientId', async (c) => {
+app.get('/client/:clientId', requireClientAccess(), async (c) => {
   const activeOnly = c.req.query('activeOnly') === 'true'
   const rows = rowsOf(await db.execute(sql`
     SELECT ${MED_COLUMNS} FROM medications m
@@ -145,7 +146,7 @@ const LOG_SELECT = sql`ml.*, ml.administered_at AS administered_time,
   m.name AS medication_name, m.dosage, m.frequency,
   u.first_name AS caregiver_first, u.last_name AS caregiver_last`
 
-app.get('/logs/client/:clientId', async (c) => {
+app.get('/logs/client/:clientId', requireClientAccess(), async (c) => {
   const { startDate, endDate } = c.req.query()
   const rows = rowsOf(await db.execute(sql`
     SELECT ${LOG_SELECT}
@@ -160,6 +161,13 @@ app.get('/logs/client/:clientId', async (c) => {
 })
 
 app.get('/logs/time-entry/:timeEntryId', async (c) => {
+  // A caregiver reads the MAR of their own visit, or of a visit for a client they care for.
+  const user = c.get('user' as any)
+  if (!isOffice(user)) {
+    const [te] = await db.select({ clientId: timeEntries.clientId, caregiverId: timeEntries.caregiverId }).from(timeEntries).where(eq(timeEntries.id, c.req.param('timeEntryId'))).limit(1)
+    if (!te) return c.json({ error: 'Visit not found' }, 404)
+    if (te.caregiverId !== userIdOf(user) && !(await maySeeClient(user, te.clientId))) return c.json({ error: 'You can only see the clients you care for.' }, 403)
+  }
   const rows = rowsOf(await db.execute(sql`
     SELECT ${LOG_SELECT}
       FROM medication_logs ml
@@ -170,7 +178,7 @@ app.get('/logs/time-entry/:timeEntryId', async (c) => {
   return c.json(rows)
 })
 
-app.get('/due/:clientId', async (c) => {
+app.get('/due/:clientId', requireClientAccess(), async (c) => {
   const rows = rowsOf(await db.execute(sql`
     SELECT ${MED_COLUMNS} FROM medications m
      WHERE m.client_id = ${c.req.param('clientId')} AND m.status = 'active'
@@ -179,7 +187,7 @@ app.get('/due/:clientId', async (c) => {
 })
 
 // Per active medication over the window: doses given, refused, missed, held, and every entry.
-app.get('/reports/adherence/:clientId', async (c) => {
+app.get('/reports/adherence/:clientId', requireClientAccess(), async (c) => {
   const { startDate, endDate } = c.req.query()
   const from = startDate && YMD.test(startDate) ? startDate : '1970-01-01'
   const to = endDate && YMD.test(endDate) ? endDate : '2099-12-31'
@@ -259,14 +267,14 @@ app.post('/vitals', async (c) => {
   return c.json(row, 201)
 })
 
-app.get('/vitals/client/:clientId', async (c) => {
+app.get('/vitals/client/:clientId', requireClientAccess(), async (c) => {
   const { limit = '50', startDate, endDate } = c.req.query()
   const from = startDate && !isNaN(new Date(startDate).getTime()) ? new Date(startDate) : undefined
   const to = endDate && !isNaN(new Date(endDate).getTime()) ? new Date(YMD.test(endDate) ? endDate + 'T23:59:59.999Z' : endDate) : undefined
   return c.json(await listClientVitals(c.req.param('clientId'), parseInt(limit) || 50, { from, to }))
 })
 
-app.get('/vitals/latest/:clientId', async (c) => {
+app.get('/vitals/latest/:clientId', requireClientAccess(), async (c) => {
   const [latest] = await listClientVitals(c.req.param('clientId'), 1)
   return c.json(latest || null)
 })

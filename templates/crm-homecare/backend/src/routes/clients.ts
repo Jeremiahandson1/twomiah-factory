@@ -14,6 +14,7 @@ import {
 } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { servedBy } from '../helpers/caregiverAccess.ts'
 import { getConfig } from '../services/sandataClient.ts'
 import { UNIT_MINUTES, visitMinutesSql, weekCte } from '../services/evvWeekly.ts'
 
@@ -26,13 +27,7 @@ app.use('*', authenticate)
 // office reads below, unchanged. A caregiver's GET / is an array in the snake_case the app reads.
 const CAREGIVER_CLIENT_COLS = sql.raw(`c.id, c.first_name, c.last_name, c.address, c.city, c.state, c.zip, c.phone,
   c.latitude, c.longitude, c.is_active, c.care_type_id, c.assistance_needs, c.allergies, c.service_type`)
-const servedBy = (caregiverId: string) => sql`(
-  EXISTS (SELECT 1 FROM schedules s WHERE s.client_id = c.id AND s.caregiver_id = ${caregiverId} AND s.is_active = true
-          AND (s.day_of_week IS NULL OR s.end_date IS NULL OR s.end_date >= CURRENT_DATE - 14))
-  OR EXISTS (SELECT 1 FROM schedule_exceptions se JOIN schedules s2 ON s2.id = se.schedule_id
-          WHERE COALESCE(se.override_client_id, s2.client_id) = c.id AND se.override_caregiver_id = ${caregiverId}
-            AND se.exception_type = 'modified' AND se.exception_date >= CURRENT_DATE - 14)
-  OR EXISTS (SELECT 1 FROM client_assignments a WHERE a.client_id = c.id AND a.caregiver_id = ${caregiverId} AND a.status = 'active'))`
+// The caregiver-scope rule lives in helpers/caregiverAccess.ts (servedBy) — one rule for every caregiver read.
 // One-segment GET paths below that are office reports, not a client id (GET /evv-week).
 const OFFICE_ONLY_GETS = new Set(['evv-week'])
 app.use('*', async (c, next) => {

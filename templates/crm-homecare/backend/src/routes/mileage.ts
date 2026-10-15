@@ -12,8 +12,12 @@ app.get('/', async (c) => {
   const { caregiverId, startDate, endDate, page = '1', limit = '50' } = c.req.query()
   const skip = (parseInt(page) - 1) * parseInt(limit)
 
+  // The office sees everyone's mileage; a caregiver only their own (whatever caregiverId says).
+  const user = c.get('user') as any
+  const office = user?.role === 'admin' || user?.role === 'owner'
   const conditions: any[] = []
-  if (caregiverId) conditions.push(eq(mileageEntries.caregiverId, caregiverId))
+  if (!office) conditions.push(eq(mileageEntries.caregiverId, user.userId))
+  else if (caregiverId) conditions.push(eq(mileageEntries.caregiverId, caregiverId))
   if (startDate) conditions.push(gte(mileageEntries.date, startDate))
   if (endDate) conditions.push(lte(mileageEntries.date, endDate))
 
@@ -62,7 +66,10 @@ app.post('/', async (c) => {
   const user = c.get('user')
   const body = await c.req.json()
 
-  const caregiverId = body.caregiverId || user.userId
+  // The office may record a trip for a caregiver; a caregiver records their own — a caregiverId they
+  // send is ignored.
+  const office = user?.role === 'admin' || user?.role === 'owner'
+  const caregiverId = office && body.caregiverId ? body.caregiverId : user.userId
   const miles = parseFloat(body.miles) || 0
   const ratePerMile = parseFloat(body.ratePerMile) || 0.67
   const amount = (miles * ratePerMile).toFixed(2)

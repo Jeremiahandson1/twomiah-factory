@@ -49,8 +49,10 @@ export async function scheduleById(id: string, activeOnly = false): Promise<any 
  * occurrence was cancelled or rescheduled. Without this a cancelled visit still shows — and the
  * phone's auto-clock-in would clock somebody in to it.
  */
+// Every row gets its exceptions — a one-time visit can be cancelled (call-out, client unavailable)
+// as well as a recurring day, and a cancelled one-time visit must not show on the phone.
 export async function attachExceptions(list: any[]): Promise<any[]> {
-  const ids = list.filter((s) => s.day_of_week !== null && s.day_of_week !== undefined).map((s) => s.id)
+  const ids = list.map((s) => s.id).filter(Boolean)
   if (!ids.length) return list.map((s) => ({ ...s, exceptions: [] }))
   const exc = await rows(sql`SELECT ${EXC_COLS} FROM schedule_exceptions se
     WHERE se.schedule_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)}) ORDER BY se.exception_date`)

@@ -7,6 +7,15 @@ import { authenticate } from '../middleware/auth.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// A thread is read and answered by its participants; the office (admin/owner) may read and answer
+// any. Everyone else gets the same 404 as a thread that does not exist.
+async function mayUseThread(user: any, threadId: string): Promise<boolean> {
+  if (user?.role === 'admin' || user?.role === 'owner') return true
+  const [p] = await db.select({ id: messageThreadParticipants.id }).from(messageThreadParticipants)
+    .where(and(eq(messageThreadParticipants.threadId, threadId), eq(messageThreadParticipants.userId, user?.userId))).limit(1)
+  return !!p
+}
+
 // GET /api/messages/inbox — threads where current user is participant
 app.get('/inbox', async (c) => {
   const user = c.get('user')
@@ -122,7 +131,7 @@ app.get('/thread/:id', async (c) => {
     .where(eq(messageThreads.id, threadId))
     .limit(1)
 
-  if (!thread) return c.json({ error: 'Thread not found' }, 404)
+  if (!thread || !(await mayUseThread(user, threadId))) return c.json({ error: 'Thread not found' }, 404)
 
   const threadMessages = await db
     .select({
@@ -177,6 +186,8 @@ app.post('/thread/:id/reply', async (c) => {
   const { body } = await c.req.json()
 
   if (!body?.trim()) return c.json({ error: 'Message body is required' }, 400)
+  const [thread] = await db.select({ id: messageThreads.id }).from(messageThreads).where(eq(messageThreads.id, threadId)).limit(1)
+  if (!thread || !(await mayUseThread(user, threadId))) return c.json({ error: 'Thread not found' }, 404)
 
   const [msg] = await db
     .insert(messages)

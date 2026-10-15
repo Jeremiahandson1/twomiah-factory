@@ -17,6 +17,18 @@ import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
+
+// Pay is the office's: default_pay_rate (and an assignment's pay_rate) go to admin/owner only — a
+// caregiver sees their own record's pay, never a colleague's.
+const PAY_KEY = /(^|_)pay_?rate$|^payRate$|^defaultPayRate$/i
+function hidePay(user: any, data: any, ownId?: string): any {
+  if (user?.role === 'admin' || user?.role === 'owner') return data
+  if (ownId && (user?.userId || user?.id) === ownId) return data
+  const strip = (v: any): any => Array.isArray(v) ? v.map(strip)
+    : v && typeof v === 'object' && !(v instanceof Date) ? Object.fromEntries(Object.entries(v).filter(([k]) => !PAY_KEY.test(k)).map(([k, x]) => [k, strip(x)]))
+    : v
+  return strip(data)
+}
 app.use('*', authenticate)
 
 function toSnake(obj: any): any {
@@ -127,7 +139,7 @@ app.get('/', async (c) => {
     availability: availabilityMap[u.id] || null,
   }))
 
-  return c.json({ caregivers: toSnake(caregivers), total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
+  return c.json({ caregivers: hidePay(c.get('user'), toSnake(caregivers)), total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
 })
 
 // GET /api/users/caregivers — list users with role=caregiver
@@ -216,6 +228,9 @@ app.post('/admins', requireAdmin, async (c) => {
 // GET /api/caregivers/:id
 app.get('/:id', async (c) => {
   const id = c.req.param('id')
+  // The full record (assignments, background checks, pay) is the office's and the person's own.
+  const viewer = c.get('user') as any
+  if (viewer?.role !== 'admin' && viewer?.role !== 'owner' && (viewer?.userId || viewer?.id) !== id) return c.json({ error: 'Admin access required' }, 403)
 
   const [user] = await db
     .select({
@@ -281,13 +296,13 @@ app.get('/:id', async (c) => {
     client: { firstName: clientFirstName, lastName: clientLastName, address: clientAddress, city: clientCity },
   }))
 
-  return c.json(toSnake({
+  return c.json(hidePay(c.get('user'), toSnake({
     ...user,
     profile: profileRows[0] || null,
     availability: availabilityRows[0] || null,
     assignments,
     backgroundChecks: bgRows,
-  }))
+  }), id))
 })
 
 // POST /api/caregivers

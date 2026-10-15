@@ -20,7 +20,7 @@ import {
   agencies, users, clients, timeEntries, schedules, scheduleExceptions, authorizations,
   clientTaskTemplates, carePlans, medications, clientVitals, formTemplates, documents,
 } from './db/schema.ts'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 
 let failed = 0, passed = 0
 const check = (name: string, ok: boolean, detail?: unknown) => {
@@ -42,6 +42,9 @@ const cg2 = await mkUser('caregiver', 'cg2', 'Other', 'Carer')
 const mkClient = async (first: string, last: string) => (await db.insert(clients).values({ firstName: first, lastName: last } as any).returning())[0]
 const jane = await mkClient('Jane', 'Doe')
 const bob = await mkClient('Bob', 'Roe')
+// cg cares for both clients (an active assignment): a caregiver reads only the clients they serve.
+await db.execute(sql`INSERT INTO client_assignments (id, client_id, caregiver_id, assignment_date, status)
+  VALUES ('ca_jane', ${jane.id}, ${cg.id}, '2026-01-01', 'active'), ('ca_bob', ${bob.id}, ${cg.id}, '2026-01-01', 'active')`)
 
 const app = new Hono()
 for (const [mount, file] of [

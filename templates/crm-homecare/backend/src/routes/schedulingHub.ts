@@ -42,9 +42,13 @@ const maxHoursOf = async (caregiverId: string) =>
   Number((await one<any>(sql`SELECT max_hours_per_week FROM caregiver_availability WHERE caregiver_id = ${caregiverId}`))?.max_hours_per_week) || 40
 
 // GET /week-view?weekOf — each active caregiver × the 7 days, occurrences resolved.
+// The office sees every caregiver's week; a caregiver sees only their own.
 app.get('/week-view', async (c) => {
+  const viewer = c.get('user') as any
+  const only = isOffice(viewer) ? null : userIdOf(viewer)
   const { ws, we } = await weekOfParam(c.req.query('weekOf'))
-  const cgs = await rows<any>(sql`SELECT id, first_name, last_name FROM users WHERE role = 'caregiver' AND is_active = true ORDER BY first_name`)
+  const cgs = await rows<any>(sql`SELECT id, first_name, last_name FROM users WHERE role = 'caregiver' AND is_active = true
+    ${only ? sql`AND id = ${only}` : sql``} ORDER BY first_name`)
   const occ = await rows<any>(sql`WITH ${occurrencesCte(ws, we)}
     SELECT occ.schedule_id AS id, occ.caregiver_id, occ.client_id, to_char(occ.occ_date, 'YYYY-MM-DD') AS occ_date,
            EXTRACT(DOW FROM occ.occ_date)::int AS dow,
@@ -52,6 +56,7 @@ app.get('/week-view', async (c) => {
            occ.minutes, occ.is_modified, occ.is_training, s.day_of_week, to_char(s.date, 'YYYY-MM-DD') AS date, s.notes, s.frequency,
            cl.first_name AS client_first_name, cl.last_name AS client_last_name
       FROM occ JOIN schedules s ON s.id = occ.schedule_id LEFT JOIN clients cl ON cl.id = occ.client_id
+     ${only ? sql`WHERE occ.caregiver_id = ${only}` : sql``}
      ORDER BY occ.start_time`)
   const data: Record<string, any> = {}
   for (const cg of cgs) data[cg.id] = { caregiver: cg, days: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] } }

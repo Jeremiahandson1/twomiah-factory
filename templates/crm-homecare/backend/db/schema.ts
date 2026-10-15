@@ -2910,3 +2910,18 @@ export const overtimeAlertLog = pgTable('overtime_alert_log', {
 }, (t) => [
   primaryKey({ columns: [t.timeEntryId, t.thresholdMin] }),
 ])
+
+// ==================== INTEGRATION (0022_integration) ====================
+// The caregiver app's Expo push tokens — one row per device; services/visitNotify.sendPush sends
+// to them through Expo's push service beside web push.
+export const expoPushTokens = pgTable('expo_push_tokens', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull(),
+  platform: text('platform'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  lastSeenAt: timestamp('last_seen_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('expo_push_tokens_token_idx').on(t.token),
+  index('expo_push_tokens_user_id_idx').on(t.userId),
+])

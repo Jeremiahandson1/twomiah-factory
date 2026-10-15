@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { eq, and, or, inArray, count } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { pushSubscriptions, notifications } from '../../db/schema.ts'
+import { pushSubscriptions, notifications, expoPushTokens } from '../../db/schema.ts'
+import { isExpoToken } from '../services/visitNotify.ts'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -68,6 +69,27 @@ app.post('/subscribe', async (c) => {
   }
 
   return c.json(sub)
+})
+
+// POST /expo-token { token, platform? } — the caregiver app's Expo push token for this device. A
+// token belongs to one person: signing in on a phone someone else used moves it to the caller.
+// DELETE /expo-token { token } — signed out on this device.
+app.post('/expo-token', async (c) => {
+  const user = c.get('user') as any
+  const { token, platform } = await c.req.json().catch(() => ({} as any))
+  if (!isExpoToken(token)) return c.json({ error: 'token must be an Expo push token (ExponentPushToken[…])' }, 400)
+  const plat = typeof platform === 'string' && ['ios', 'android', 'web'].includes(platform) ? platform : null
+  const [row] = await db.insert(expoPushTokens).values({ userId: user.userId, token, platform: plat })
+    .onConflictDoUpdate({ target: expoPushTokens.token, set: { userId: user.userId, platform: plat, lastSeenAt: new Date() } })
+    .returning()
+  return c.json({ success: true, id: row.id }, 201)
+})
+app.delete('/expo-token', async (c) => {
+  const user = c.get('user') as any
+  const { token } = await c.req.json().catch(() => ({} as any))
+  if (!token) return c.json({ error: 'token is required' }, 400)
+  const r = await db.delete(expoPushTokens).where(and(eq(expoPushTokens.token, String(token)), eq(expoPushTokens.userId, user.userId))).returning({ id: expoPushTokens.id })
+  return c.json({ success: true, removed: r.length })
 })
 
 // POST /unsubscribe

@@ -28,6 +28,7 @@ import { checkAuthorizationBalance } from '../helpers/authorizationCheck.ts'
 import { shiftHours } from '../services/scheduleOccurrences.ts'
 import { agencyTimezone } from '../services/agencyTime.ts'
 import { userIdOf, writeCareAudit, rowsOf } from '../helpers/careAudit.ts'
+import { maySeeClient, servedBy, isOfficeUser, userIdOf as caregiverIdOf } from '../helpers/caregiverAccess.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -66,12 +67,16 @@ const flatten = (r: any) => ({
   clientName: `${r.clientFirstName || ''} ${r.clientLastName || ''}`.trim(),
 })
 
-// GET / — list all, ?clientId filter, newest first
+// GET / — list all, ?clientId filter, newest first. A caregiver sees the plans of the clients they
+// care for only (helpers/caregiverAccess.ts) — never the whole agency's.
 app.get('/', async (c) => {
+  const user = c.get('user' as any)
   const clientId = c.req.query('clientId')
+  if (clientId && !(await maySeeClient(user, clientId))) return c.json({ error: 'You can only see the clients you care for.' }, 403)
+  const scope = isOfficeUser(user) ? undefined : servedBy(caregiverIdOf(user), sql`${carePlans.clientId}`)
   const rows = await db.select(planSelect).from(carePlans)
     .leftJoin(clients, eq(carePlans.clientId, clients.id))
-    .where(clientId ? eq(carePlans.clientId, clientId) : undefined)
+    .where(and(clientId ? eq(carePlans.clientId, clientId) : undefined, scope))
     .orderBy(desc(carePlans.createdAt))
   return c.json(rows.map(flatten))
 })
