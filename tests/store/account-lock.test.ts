@@ -38,12 +38,11 @@ await db.insert(storeSettings).values({ companyName: 'Lock Shop', currency: 'usd
 const mk = async (role: string, name: string) => (await db.insert(users).values({ email: `${name}@lockshop.test`, passwordHash: 'x', name, role } as any).returning())[0]
 const owner = await mk('owner', 'owner'), manager = await mk('manager', 'manager'), staff = await mk('staff', 'staff')
 
-const billing = await import('./src/routes/billing.ts')
 const app = new Hono()
 app.route('/api/auth', (await import('./src/routes/auth.ts')).default)
 app.route('/api/admin/discounts', (await import('./src/routes/discounts.ts')).default)
-app.route('/api/billing', billing.billingRoutes)
-app.route('/api/internal/sync-subscription', billing.subscriptionSyncRoute)
+app.route('/api/billing', (await import('./src/routes/billing.ts')).billingRoutes)
+app.route('/api/internal/sync-subscription', (await import('./src/routes/subscriptionSync.ts')).subscriptionSyncRoute)
 
 const call = async (who: any, method: string, path: string, body?: unknown) => {
   const res = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-test-user': who.id }, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -77,8 +76,8 @@ const codes = async () => Number((await db.select({ n: count() }).from(discountC
   check('locked: …and staff are told only THAT, not the bill', s.json?.subscription === undefined && s.json?.billingStatus === undefined)
   const b = await call(owner, 'GET', '/api/billing/subscription')
   check(`locked: billing stays open — the way back (${b.status})`, b.status === 200 && b.json?.subscription?.status === 'canceled' && b.json?.mayManage === true, b.json)
-  const bm = await call(manager, 'GET', '/api/billing/subscription')
-  check('locked: the lock page is told a manager may NOT restart it', bm.status === 200 && bm.json?.mayManage === false, bm.json)
+  const bm = await call(manager, 'GET', '/api/billing/subscription'), bs = await call(staff, 'GET', '/api/billing/subscription')
+  check(`locked: a manager and staff are refused the bill itself — the lock page reads that as "ask the owner" (${bm.status}, ${bs.status})`, bm.status === 403 && bs.status === 403 && bm.json?.subscription === undefined, bm.json)
 }
 {
   const o = await call(owner, 'POST', '/api/billing/restart-checkout')

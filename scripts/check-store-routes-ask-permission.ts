@@ -17,6 +17,7 @@ const EXEMPT: Record<string, string> = {
   'routes/auth.ts': 'sign-in, refresh, password reset and changing your OWN password — the caller is proving who they are',
   'routes/public.ts': 'the storefront: guest checkout, payment and supplier webhooks, shopper reviews — no seat at all',
   'routes/inboundParse.ts': 'the inbound-email hook, authenticated by its own key, not a session',
+  'routes/subscriptionSync.ts': "the Factory's subscription push, authenticated by FACTORY_SYNC_KEY, not a session — no seat sends it",
   'routes/onboarding.ts': 'POST /complete clears the first-run flag; gating it makes a non-owner loop on the wizard for ever (check-write-routes-authorise.ts)',
   'routes/inboundMessages.ts': 'the shared inbox, open to every seat on purpose — answering a customer is the work (check-write-routes-authorise.ts)',
   'routes/platformSupport.ts': 'raising a ticket with Twomiah — how anyone in the shop gets help',

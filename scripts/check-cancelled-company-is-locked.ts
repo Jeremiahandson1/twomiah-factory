@@ -60,7 +60,7 @@ for (const t of readdirSync(ROOT + 'templates').filter((d) => /^crm(-|$)/.test(d
   else if (!/<PaywallScreen\b[^>]*\brequest=\{/.test(page)) fail(`${t}: the lock page is not given the API client (request=) — the owner could not restart by paying`)
   const billing = read(T + 'backend/src/routes/billing.ts')
   if (t === 'crm-store') {
-    if (!/billingRoutes\.post\('\/restart-checkout'[\s\S]{0,200}mayManage\(c\)/.test(billing)) fail(`${t}: routes/billing.ts has no owner-only POST /restart-checkout`)
+    if (!/billingRoutes\.use\('\*', authenticate, requirePermission\('billing:manage'\)\)/.test(billing) || !/billingRoutes\.post\('\/restart-checkout'/.test(billing)) fail(`${t}: routes/billing.ts has no POST /restart-checkout behind billing:manage (the owner's)`)
     if (!/app\.route\('\/api\/internal\/sync-subscription', subscriptionSyncRoute\)/.test(read(T + 'backend/src/index.ts'))) fail(`${t}: the Factory's subscription push has nowhere to land`)
   } else if (!/createBillingRoutes\(/.test(billing) || !/canManage:/.test(billing)) fail(`${t}: routes/billing.ts does not mount the shared billing routes with canManage — POST /api/billing/restart-checkout would refuse everyone`)
 
