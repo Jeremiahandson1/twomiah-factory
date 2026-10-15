@@ -276,6 +276,25 @@ const settle = () => new Promise((r) => setTimeout(r, 50))   // the shopper emai
   check(`webhook: Square's payment.updated with money refunded reads as a refund of $14.48 (${res.type})`, res.type === 'refunded' && res.amountRefundedCents === 1448 && res.amountTotalCents === 5519 && res.providerPaymentId === 'sq_pay_x', res)
 }
 
+// 12b. Two presses of Try again at once on a waiting refund: settled once, restocked once.
+{
+  await setStock(); const { o, mug } = await mkOrder()
+  mode = 'drop'; await part(MA, o.id, { items: [{ orderItemId: mug.id, quantity: 2 }], restock: true }); mode = 'ok'
+  const [row] = await rowsOf(o.id)
+  const rs = await Promise.all([MA('POST', `/${o.id}/refunds/${row.id}/retry`), MB('POST', `/${o.id}/refunds/${row.id}/retry`)])
+  check(`retry twice at once: both answer, the Mugs go back once (10 → ${await stock()})`, rs.every((r) => r.status === 200) && (await stock()) === 12 && (await rowsOf(o.id))[0].status === 'refunded', rs.map((r) => r.status))
+  const audits = (await db.select().from(auditLog)).filter((a: any) => a.entityId === o.id && /tried again/.test((a.metadata as any)?.description || ''))
+  check('retry twice at once: one audit row for the one refund', audits.length === 1, audits.length)
+}
+
+// 12c. Goodwill refunds racing past the total: $30 + $30 on a $55.19 order — one goes through, never both.
+{
+  const { o } = await mkOrder()
+  const rs = await Promise.all([part(MA, o.id, { items: [], amountCents: 3000 }), part(MB, o.id, { items: [], amountCents: 3000 })])
+  const now = await orderNow(o.id)
+  check(`racing past the total: one $30.00 refund, the other refused (${rs.map((r) => r.status).sort().join(',')}, ${now.refundedCents} back)`, rs.map((r) => r.status).sort().join(',') === '200,409' && now.refundedCents === 3000 && now.refundedCents <= now.totalCents)
+}
+
 // 13. A provider whose refund is not built here (PayPal): recorded only, nobody asked, nobody emailed.
 {
   const { o, mug } = await mkOrder({ provider: 'paypal', providerSessionId: 'pp_1', providerPaymentId: 'pp_cap_1' }); const c0 = sq.length, m0 = mails.length
