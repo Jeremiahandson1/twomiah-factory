@@ -89,6 +89,63 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit, on
   </div>
 );
 
+// Suspend / resume service for one client — pauses (or brings back) EVERY active schedule the client
+// has from a date on. Nothing is deleted: past visits stay and resume restores the schedule exactly.
+// (POST /api/schedules/client/:clientId/suspend { fromDate } and /resume, office only.)
+const SuspendServicePanel = ({ client, token, onClose }) => {
+  const [fromDate, setFromDate] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const run = async (action) => {
+    setBusy(true); setMessage('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/schedules/client/${client.id}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(action === 'suspend' && fromDate ? { fromDate } : {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `${action} failed`);
+      if (action === 'suspend') {
+        setMessage(data.suspended === 0 ? 'This client has no active schedules to suspend.'
+          : `Service suspended from ${data.fromDate} (${data.suspended} schedule${data.suspended !== 1 ? 's' : ''}).`);
+      } else {
+        setMessage(data.resumed === 0 ? 'Nothing was suspended for this client.'
+          : `Service resumed (${data.resumed} schedule${data.resumed !== 1 ? 's' : ''}).`);
+      }
+    } catch (err) {
+      setMessage('Error: ' + err.message);
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+        <div className="modal-header">
+          <h3>⏸ Suspend / resume service — {client.firstName} {client.lastName}</h3>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <p style={{ fontSize: '0.85rem', color: '#374151' }}>
+          Pauses every scheduled visit from that date on. Nothing is deleted — past visits stay, and you can resume anytime.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+          <label style={{ fontSize: '0.85rem', color: '#374151' }}>Starting</label>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>{fromDate ? '' : '(today)'}</span>
+        </div>
+        {message && (
+          <div style={{ padding: '0.5rem 0.75rem', borderRadius: 6, marginBottom: '0.75rem', fontSize: '0.85rem',
+            background: message.startsWith('Error') ? '#FEF2F2' : '#ECFDF5', color: message.startsWith('Error') ? '#991B1B' : '#065F46' }}>{message}</div>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
+          <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => run('resume')}>▶ Resume service</button>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => run('suspend')}>⏸ Suspend all visits</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ClientsManagement = () => {
   const { token } = useAuth();
   const [clients, setClients] = useState([]);
@@ -104,6 +161,7 @@ const ClientsManagement = () => {
   const [filterCareType, setFilterCareType] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [suspendClient, setSuspendClient] = useState(null);
   
   // Listen for window resize
   useEffect(() => {
@@ -480,9 +538,12 @@ const ClientsManagement = () => {
                         ? (<span className="badge badge-info">Private Pay</span>)
                         : (<span className="badge badge-success">Referred</span>)}
                   </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <button className="btn btn-sm btn-secondary" onClick={() => setCareTasksClient(client)} title="Care tasks checklist" style={{ marginRight: '0.35rem' }}>📋 Tasks</button>
-                    <button className="btn btn-sm btn-primary" onClick={() => handleViewClient(client)}>✏️ Edit</button>
+                  <td>
+                    <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                      <button className="btn btn-sm btn-secondary" onClick={() => setCareTasksClient(client)} title="Care tasks checklist">📋 Tasks</button>
+                      <button className="btn btn-sm btn-primary" onClick={() => handleViewClient(client)}>✏️ Edit</button>
+                      <button className="btn btn-sm btn-secondary" onClick={() => setSuspendClient(client)} title="Suspend or resume all of this client's visits">⏸ Service</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -497,6 +558,7 @@ const ClientsManagement = () => {
         </div>
       )}
 
+      {suspendClient && <SuspendServicePanel client={suspendClient} token={token} onClose={() => setSuspendClient(null)} />}
       <EditClientModal client={selectedClient} referralSources={referralSources} careTypes={careTypes} isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedClient(null); }} onSuccess={loadData} />
       {careTasksClient && (
         <CareTasksManager client={careTasksClient} onClose={() => setCareTasksClient(null)} />

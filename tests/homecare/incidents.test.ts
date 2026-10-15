@@ -316,8 +316,8 @@ const [exCovered] = await db.insert(scheduleExceptions).values({ scheduleId: S1.
 const [exCovering] = await db.insert(scheduleExceptions).values({ scheduleId: S4.id, exceptionDate: addDays(FROM, 1), exceptionType: 'modified', overrideCaregiverId: cg1.id } as any).returning()
 // cg1 also served clientB (same payer) and clientC (other payer) recently; clientD carries the payer only on an authorization.
 await db.insert(schedules).values({ clientId: clientB.id, caregiverId: cg1.id, dayOfWeek: dow(addDays(TODAY, -14)), scheduleType: 'recurring', startTime: new Date('2026-01-01T12:00:00Z'), endTime: new Date('2026-01-01T13:00:00Z'), effectiveDate: addDays(TODAY, -20), endDate: addDays(TODAY, -1) } as any)
-await db.insert(timeEntries).values({ caregiverId: cg1.id, clientId: clientC.id, startTime: new Date(`${addDays(TODAY, -5)}T15:00:00Z`), isComplete: true } as any)
-await db.insert(timeEntries).values({ caregiverId: cg1.id, clientId: clientD.id, startTime: new Date(`${addDays(TODAY, -9)}T15:00:00Z`), isComplete: true } as any)
+await db.insert(timeEntries).values({ caregiverId: cg1.id, clientId: clientC.id, startTime: new Date(`${addDays(TODAY, -5)}T15:00:00Z`), endTime: new Date(`${addDays(TODAY, -5)}T16:00:00Z`), isComplete: true } as any)
+await db.insert(timeEntries).values({ caregiverId: cg1.id, clientId: clientD.id, startTime: new Date(`${addDays(TODAY, -9)}T15:00:00Z`), endTime: new Date(`${addDays(TODAY, -9)}T16:00:00Z`), isComplete: true } as any)
 await db.insert(authorizations).values({ clientId: clientD.id, payerId: payer.id, authorizedUnits: '100', startDate: addDays(TODAY, -60), endDate: addDays(TODAY, 60) } as any)
 
 // Visits of cg1 at clientA in [TODAY, TODAY+27], by the same rule the server uses.

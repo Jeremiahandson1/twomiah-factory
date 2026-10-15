@@ -143,7 +143,7 @@ const addDays = (s: string, n: number) => { const d = new Date(`${s}T12:00:00Z`)
   check('the default source is midas_import', (await A('GET', `/api/care-tasks/client/${bob.id}`)).json.some((t: any) => t.task_name === 'B' && t.assessment_source === 'midas_import'))
 
   // ── the shift checklist ──
-  const [entry] = await db.insert(timeEntries).values({ caregiverId: cg.id, clientId: jane.id, startTime: new Date() }).returning()
+  const [entry] = await db.insert(timeEntries).values({ caregiverId: cg.id, clientId: jane.id, startTime: new Date(), endTime: new Date(Date.now() + 3600000) }).returning() // closed: one open entry per caregiver (0016)
   const own = await C('GET', `/api/care-tasks/time-entry/${entry.id}`)
   check('the shift\'s caregiver sees the checklist, all pending', own.status === 200 && own.json.length === 3 && own.json.every((t: any) => t.status === 'pending'), own)
   check('another caregiver may not read someone else\'s shift', (await C2('GET', `/api/care-tasks/time-entry/${entry.id}`)).status === 403)
@@ -163,14 +163,14 @@ const addDays = (s: string, n: number) => { const d = new Date(`${s}T12:00:00Z`)
   check('a task from another client cannot be ticked on this shift',
     (await C('PUT', `/api/care-tasks/time-entry/${entry.id}/${bobTask.id}`, { status: 'completed' })).status === 404)
 
-  const [entry2] = await db.insert(timeEntries).values({ caregiverId: cg.id, clientId: jane.id, startTime: new Date() }).returning()
+  const [entry2] = await db.insert(timeEntries).values({ caregiverId: cg.id, clientId: jane.id, startTime: new Date(), endTime: new Date(Date.now() + 3600000) }).returning() // closed: one open entry per caregiver (0016)
   const next = (await C('GET', `/api/care-tasks/time-entry/${entry2.id}`)).json
   check('a task completed earlier this week shows as done this week on the next shift',
     next.find((t: any) => t.task_name === 'Wash Dishes')?.done_this_week === true
     && next.find((t: any) => t.task_name === 'Wash Dishes')?.status === 'pending', next)
   check('…and a skipped one does not', next.find((t: any) => t.task_name === 'Laundry')?.done_this_week === false)
 
-  const [old] = await db.insert(timeEntries).values({ caregiverId: cg.id, clientId: jane.id, startTime: new Date(Date.now() - 60 * 86400000) }).returning()
+  const [old] = await db.insert(timeEntries).values({ caregiverId: cg.id, clientId: jane.id, startTime: new Date(Date.now() - 60 * 86400000), endTime: new Date(Date.now() - 60 * 86400000 + 3600000) }).returning()
   await C('PUT', `/api/care-tasks/time-entry/${old.id}/${laundry.task_id}`, { status: 'completed' })
   const adh = await A('GET', `/api/care-tasks/client/${jane.id}/adherence?days=30`)
   const wa = adh.json.tasks.find((t: any) => t.task_name === 'Wash Dishes')
@@ -443,7 +443,7 @@ let planId = ''
   const backEntered = await A('POST', '/api/medications/log', { medicationId: med.json.id, clientId: jane.id, status: 'held', caregiverId: cg2.id, administeredTime: '2026-10-01T14:00:00Z' })
   check('the office may attribute a back-entered dose to the caregiver', backEntered.json.caregiverId === cg2.id && new Date(backEntered.json.administeredAt).toISOString() === '2026-10-01T14:00:00.000Z', backEntered.json)
   check('a medication of another client cannot be logged here', (await C('POST', '/api/medications/log', { medicationId: other.id, clientId: jane.id })).status === 404)
-  const [entry] = await db.insert(timeEntries).values({ caregiverId: cg.id, clientId: jane.id, startTime: new Date() }).returning()
+  const [entry] = await db.insert(timeEntries).values({ caregiverId: cg.id, clientId: jane.id, startTime: new Date(), endTime: new Date(Date.now() + 3600000) }).returning() // closed: one open entry per caregiver (0016)
   const onVisit = await C('POST', '/api/medications/log', { medicationId: med.json.id, clientId: jane.id, status: 'self_administered', timeEntryId: entry.id })
   check('a dose can belong to the visit', onVisit.json.timeEntryId === entry.id)
   check('…but not to someone else\'s visit', (await C2('POST', '/api/medications/log', { medicationId: med.json.id, clientId: jane.id, timeEntryId: entry.id })).status === 403)
@@ -609,7 +609,7 @@ const SIG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
 // ADL
 // ════════════════════════════════════════════════════════════════════════════
 {
-  const [entry] = await db.insert(timeEntries).values({ caregiverId: cg.id, clientId: bob.id, startTime: new Date() }).returning()
+  const [entry] = await db.insert(timeEntries).values({ caregiverId: cg.id, clientId: bob.id, startTime: new Date(), endTime: new Date(Date.now() + 3600000) }).returning() // closed: one open entry per caregiver (0016)
   const mine = await C('POST', '/api/adl/log', { clientId: bob.id, adlCategory: 'bathing', status: 'completed', caregiverId: cg2.id, timeEntryId: entry.id })
   check('a caregiver logs an ADL as themselves, on their visit', mine.status === 201 && mine.json.caregiverId === cg.id && mine.json.timeEntryId === entry.id, mine.json)
   check('…not on someone else\'s visit', (await C2('POST', '/api/adl/log', { clientId: bob.id, adlCategory: 'bathing', status: 'completed', timeEntryId: entry.id })).status === 403)

@@ -109,6 +109,12 @@ import schedulesAllRoutes from './routes/schedulesAll.ts'
 import schedulesEnhancedRoutes from './routes/schedulesEnhanced.ts'
 import shiftSwapsRoutes from './routes/shiftSwaps.ts'
 import scheduleExceptionsRoutes from './routes/scheduleExceptions.ts'
+import schedulesRoutes from './routes/schedules.ts'
+import schedulingHubRoutes from './routes/schedulingHub.ts'
+import visitDocumentationRoutes from './routes/visitDocumentation.ts'
+import visitChangeRequestsRoutes from './routes/visitChangeRequests.ts'
+import portalVisitRoutes from './routes/portalVisits.ts'
+import { startVisitJobs } from './jobs/visitJobs.ts'
 import payrollShiftReviewsRoutes from './routes/payrollShiftReviews.ts'
 import ivrRoutes from './routes/ivr.ts'
 import trainingRecordsRoutes from './routes/trainingRecords.ts'
@@ -235,6 +241,9 @@ app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 app.route('/api/clients', clientsRoutes)
 app.route('/api/caregivers', caregiversRoutes)
+// The Schedule Hub's week view, coverage, suggestions and checks — ahead of the scheduling module on
+// the same prefix (time off, absences, no-show).
+app.route('/api/scheduling', schedulingHubRoutes)
 app.route('/api/scheduling', schedulingRoutes)
 app.route('/api/time-tracking', timeTrackingRoutes)
 app.route('/api/billing', billingRoutes)
@@ -248,6 +257,8 @@ app.route('/api/notifications', notificationsRoutes)
 app.route('/api/push', pushRoutes)
 app.route('/api/sms', smsRoutes)
 app.route('/api/portal', portalRoutes)
+// The family's visits + visit actions (note, cancel, reschedule, counter-offers) on the same prefix.
+app.route('/api/portal', portalVisitRoutes)
 app.route('/api/reports', reportsRoutes)
 app.route('/api/forms', formsRoutes)
 if (evvRoutes) app.route('/api/evv', evvRoutes)
@@ -320,6 +331,8 @@ app.route('/api/schedules-all', schedulesAllRoutes)
 app.route('/api/schedules-enhanced', schedulesEnhancedRoutes)
 app.route('/api/shift-swaps', shiftSwapsRoutes)
 app.route('/api/schedule-exceptions', scheduleExceptionsRoutes)
+app.route('/api/visit-change-requests', visitChangeRequestsRoutes)
+app.route('/api/visit-docs', visitDocumentationRoutes)
 app.route('/api/payroll-shift-reviews', payrollShiftReviewsRoutes)
 app.route('/api/ivr', ivrRoutes)
 app.route('/api/training-records', trainingRecordsRoutes)
@@ -332,7 +345,10 @@ app.route('/api/public/ads-experiments', adsPublicRoutes)
 app.route('/api/pricing', pricingRoutes)
 
 // ── Alias mounts: frontend uses shorthand paths for some routes ──
-app.route('/api/schedules', schedulingRoutes)
+// /api/schedules is the schedule itself (one caregiver's shifts, create, reassign, scoped delete,
+// suspend / resume). It used to alias the scheduling module, whose paths (/schedules/schedules …)
+// matched nothing the screens call.
+app.route('/api/schedules', schedulesRoutes)
 app.route('/api/time-entries', timeTrackingRoutes)
 app.route('/api/users', caregiversRoutes)
 app.route('/api/route-optimizer', optimizerRoutes)
@@ -506,6 +522,8 @@ initializeSocket(server as any)
 // Background schedules. WORCS polling runs for a Wisconsin agency only, every 30 minutes; it is
 // off under NODE_ENV=test and when WORCS_POLL_DISABLED=true, and never overlaps itself.
 startWorcsPoll().catch((err) => logger.error('[worcsPoll] failed to start', { error: err?.message }))
+// Shift reminders + over-visit-length texts (guarded: never double-run).
+startVisitJobs()
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, integer, bigint, decimal, timestamp, date, time, json, uniqueIndex, index, check } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, bigint, decimal, timestamp, date, time, json, uniqueIndex, index, check, primaryKey } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 
@@ -397,6 +397,10 @@ export const schedules = pgTable('schedules', {
   isSplitShift: boolean('is_split_shift').default(false),
   splitShiftGroupId: text('split_shift_group_id'),
   splitSegment: integer('split_segment'),
+  // Training shift (0016_visits): the trainee is paid through payroll, the client is never billed for it.
+  isTraining: boolean('is_training').default(false).notNull(),
+  // Suspended service (0016_visits): no occurrence on/after this date is generated. NULL = active.
+  suspendedFrom: date('suspended_from'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -418,11 +422,26 @@ export const openShifts = pgTable('open_shifts', {
   notifiedCaregiverCount: integer('notified_caregiver_count').default(0).notNull(),
   autoCreated: boolean('auto_created').default(false).notNull(),
   createdById: text('created_by_id').references(() => users.id),
+  // 0016_visits — the visit behind the posting, the pay offer, and who took it.
+  scheduleId: text('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
+  careTypeId: text('care_type_id'),
+  hourlyRate: decimal('hourly_rate', { precision: 10, scale: 2 }),
+  bonusAmount: decimal('bonus_amount', { precision: 10, scale: 2 }).default('0'),
+  urgency: text('urgency').default('normal'),
+  claimedById: text('claimed_by_id').references(() => users.id, { onDelete: 'set null' }),
+  claimedAt: timestamp('claimed_at'),
+  approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
+  approvedAt: timestamp('approved_at'),
+  broadcastSent: boolean('broadcast_sent').default(false).notNull(),
+  // The caregivers the office offered it to (NULL = everyone); the first of them to accept gets it.
+  visibleTo: text('visible_to').array(),
+  autoAssign: boolean('auto_assign').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('open_shifts_date_idx').on(t.date),
   index('open_shifts_status_idx').on(t.status),
+  index('open_shifts_schedule_id_idx').on(t.scheduleId),
 ])
 
 // ==================== OPEN SHIFT NOTIFICATIONS ====================
@@ -477,6 +496,14 @@ export const timeEntries = pgTable('time_entries', {
   // at clock-in (true = sent to Sandata, false = not, null = no decision).
   originPhone: text('origin_phone'),
   sandataRequired: boolean('sandata_required'),
+  // Approval queue (0016_visits): unscheduled visits, clock variance over the 7-minute grace,
+  // zero-duration taps, implausibly long shifts, offline punches and forced clock-outs.
+  needsApproval: boolean('needs_approval').default(false).notNull(),
+  approvalReason: text('approval_reason'),
+  approvedById: text('approved_by_id').references(() => users.id),
+  approvedAt: timestamp('approved_at'),
+  approvedBillableMinutes: integer('approved_billable_minutes'),
+  approvalNotes: text('approval_notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -1715,6 +1742,9 @@ export const shiftSwaps = pgTable('shift_swaps', {
   status: text('status').default('pending').notNull(),
   reviewedById: text('reviewed_by_id').references(() => users.id),
   reviewedAt: timestamp('reviewed_at'),
+  // 0016_visits — the target caregiver's answer (accepted / rejected) and any note with it.
+  respondedAt: timestamp('responded_at'),
+  notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('shift_swaps_status_idx').on(t.status),
@@ -2136,6 +2166,8 @@ export const scheduleExceptions = pgTable('schedule_exceptions', {
   overrideClientId: text('override_client_id').references(() => clients.id),
   overrideNotes: text('override_notes'),
   createdBy: text('created_by').references(() => users.id),
+  // Why a cancelled occurrence was cancelled (0016_visits) — see src/helpers/cancelReasons.ts.
+  cancelReason: text('cancel_reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('schedule_exceptions_schedule_date_idx').on(t.scheduleId, t.exceptionDate),
@@ -2724,3 +2756,111 @@ export const clientNotificationPreferences = pgTable('client_notification_prefer
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })
+// ==================== VISITS (0016_visits) ====================
+// Ported from the CVHC home care CRM. The partial UNIQUE indexes on schedules (one active recurring
+// pattern per caregiver/client/day/times) and time_entries (one open entry per caregiver) live in
+// the migration only — they carry WHERE clauses the boot reconcile cannot express.
+
+// A cancel or reschedule asked for by the client (portal), the caregiver or the office.
+// status: pending | approved | denied | counter_offered | counter_accepted | counter_declined
+export const visitChangeRequests = pgTable('visit_change_requests', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id),
+  requestType: text('request_type').notNull(), // cancel | reschedule
+  visitId: text('visit_id'),
+  scheduleId: text('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
+  visitDate: date('visit_date').notNull(),
+  originalStartTime: time('original_start_time').notNull(),
+  originalEndTime: time('original_end_time').notNull(),
+  cancelReason: text('cancel_reason'),
+  proposedDate: date('proposed_date'),
+  proposedStartTime: time('proposed_start_time'),
+  proposedEndTime: time('proposed_end_time'),
+  counterDate: date('counter_date'),
+  counterStartTime: time('counter_start_time'),
+  counterEndTime: time('counter_end_time'),
+  counterMessage: text('counter_message'),
+  status: text('status').default('pending').notNull(),
+  requestedBy: text('requested_by').default('client').notNull(), // client | caregiver | admin
+  requestReason: text('request_reason'),
+  appliedScheduleId: text('applied_schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
+  resolvedAt: timestamp('resolved_at'),
+  resolvedById: text('resolved_by_id').references(() => users.id),
+  adminNotes: text('admin_notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_change_requests_client_id_idx').on(t.clientId),
+  index('visit_change_requests_caregiver_id_idx').on(t.caregiverId),
+  index('visit_change_requests_status_created_idx').on(t.status, t.createdAt),
+  index('visit_change_requests_visit_date_idx').on(t.visitDate),
+])
+
+// Who accepted an open shift.
+export const openShiftClaims = pgTable('open_shift_claims', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  openShiftId: text('open_shift_id').notNull().references(() => openShifts.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  notes: text('notes'),
+  status: text('status').default('pending').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('open_shift_claims_open_shift_id_idx').on(t.openShiftId),
+])
+
+// Proof-of-care photos attached to a time entry. Stored as a data URI.
+export const visitPhotos = pgTable('visit_photos', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').references(() => users.id, { onDelete: 'set null' }),
+  clientId: text('client_id').references(() => clients.id, { onDelete: 'set null' }),
+  caption: text('caption'),
+  category: text('category'), // meal | task | vitals | environment | other
+  imageBase64: text('image_base64').notNull(),
+  imageSize: integer('image_size'),
+  takenAt: timestamp('taken_at').defaultNow().notNull(),
+  uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
+}, (t) => [
+  index('visit_photos_time_entry_id_idx').on(t.timeEntryId),
+  index('visit_photos_client_id_idx').on(t.clientId),
+  index('visit_photos_taken_at_idx').on(t.takenAt),
+])
+
+// One office-entered care note per visit (client + date + scheduled start + caregiver).
+export const visitDocumentation = pgTable('visit_documentation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id),
+  visitDate: date('visit_date').notNull(),
+  startTime: time('start_time').notNull(),
+  endTime: time('end_time').notNull(),
+  scheduleId: text('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
+  tasks: json('tasks').default([]).notNull(), // [{ taskId, taskName, done }] — a snapshot
+  note: text('note'),
+  enteredById: text('entered_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('visit_documentation_visit_idx').on(t.clientId, t.visitDate, t.startTime, t.caregiverId),
+  index('visit_documentation_client_date_idx').on(t.clientId, t.visitDate),
+])
+
+// "Shift in 1 hour" sent at most once per schedule per day.
+export const shiftReminderLog = pgTable('shift_reminder_log', {
+  scheduleId: text('schedule_id').notNull(),
+  shiftDate: date('shift_date').notNull(),
+  sentAt: timestamp('sent_at').defaultNow().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.scheduleId, t.shiftDate] }),
+])
+
+// Each over-visit-length threshold fires at most once per time entry.
+export const overtimeAlertLog = pgTable('overtime_alert_log', {
+  timeEntryId: text('time_entry_id').notNull(),
+  thresholdMin: integer('threshold_min').notNull(),
+  sent: boolean('sent').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.timeEntryId, t.thresholdMin] }),
+])

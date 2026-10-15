@@ -57,7 +57,7 @@ const CEILING: Record<string, number> = {
   // inside crm-rv would have found nothing and I would have reported it as not reproducing.
   'packages/tenant-ui/src': 21, // ships into EVERY vertical — the most valuable to remove next
   'templates/crm-vet': 27,
-  'templates/crm-homecare': 21, // parked
+  'templates/crm-homecare': 11, // parked — 21 → 11: the visits screens (open shifts, swaps, approvals, portal visits) say it on the page
   'templates/crm-automotive': 16, // parked
   // crm-rv: 16 → 0 (T58d). The owner's "RV still has 24 alert() calls" — 16 of its own, plus the
   // ones tenant-ui contributes to its bundle, which is the door below.
