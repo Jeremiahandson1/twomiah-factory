@@ -3,6 +3,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import EditClientModal from './EditClientModal';
+import CareTasksManager from './CareTasksManager';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/date';
 
@@ -27,7 +28,7 @@ const AddressLink = ({ address, city, state, zip }) => {
 };
 
 // Mobile-friendly client card
-const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit }) => (
+const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit, onTasks }) => (
   <div className="card" style={{ marginBottom: '0.75rem', padding: '1rem' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
       <div>
@@ -38,13 +39,15 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit }) 
           </div>
         )}
       </div>
-      <button 
-        className="btn btn-sm btn-primary"
-        onClick={() => onEdit(client)}
-        style={{ flexShrink: 0 }}
-      >
-        ✏️ Edit
-      </button>
+      <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
+        <button className="btn btn-sm btn-secondary" onClick={() => onTasks(client)} title="Care tasks checklist">📋 Tasks</button>
+        <button
+          className="btn btn-sm btn-primary"
+          onClick={() => onEdit(client)}
+        >
+          ✏️ Edit
+        </button>
+      </div>
     </div>
     
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.9rem' }}>
@@ -95,6 +98,7 @@ const ClientsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [careTasksClient, setCareTasksClient] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterReferral, setFilterReferral] = useState('');
   const [filterCareType, setFilterCareType] = useState('');
@@ -441,7 +445,7 @@ const ClientsManagement = () => {
       ) : isMobile ? (
         <div>
           {filteredClients.map(client => (
-            <ClientCard key={client.id} client={client} getReferralSourceName={getReferralSourceName} getCareTypeName={getCareTypeName} onEdit={handleViewClient} />
+            <ClientCard key={client.id} client={client} getReferralSourceName={getReferralSourceName} getCareTypeName={getCareTypeName} onEdit={handleViewClient} onTasks={setCareTasksClient} />
           ))}
         </div>
       ) : (
@@ -476,7 +480,10 @@ const ClientsManagement = () => {
                         ? (<span className="badge badge-info">Private Pay</span>)
                         : (<span className="badge badge-success">Referred</span>)}
                   </td>
-                  <td><button className="btn btn-sm btn-primary" onClick={() => handleViewClient(client)}>✏️ Edit</button></td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="btn btn-sm btn-secondary" onClick={() => setCareTasksClient(client)} title="Care tasks checklist" style={{ marginRight: '0.35rem' }}>📋 Tasks</button>
+                    <button className="btn btn-sm btn-primary" onClick={() => handleViewClient(client)}>✏️ Edit</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -491,6 +498,9 @@ const ClientsManagement = () => {
       )}
 
       <EditClientModal client={selectedClient} referralSources={referralSources} careTypes={careTypes} isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedClient(null); }} onSuccess={loadData} />
+      {careTasksClient && (
+        <CareTasksManager client={careTasksClient} onClose={() => setCareTasksClient(null)} />
+      )}
     </div>
   );
 };

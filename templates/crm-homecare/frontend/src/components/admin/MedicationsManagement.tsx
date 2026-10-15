@@ -5,6 +5,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import VitalsTracker from './VitalsTracker';
 
 const MedicationsManagement = () => {
   const { token } = useAuth();
@@ -38,11 +39,11 @@ const MedicationsManagement = () => {
 
   const loadClients = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/clients`, {
+      const res = await fetch(`${API_BASE_URL}/api/clients?isActive=true&limit=500`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await res.json();
-      setClients(Array.isArray(data) ? data.filter(c => c.status === 'active') : (data.clients || []).filter(c => c.status === 'active'));
+      const data = res.ok ? await res.json() : [];
+      setClients((Array.isArray(data) ? data : (data.clients || [])).filter(c => c.is_active !== false));
     } catch (error) {
       console.error('Failed to load clients:', error);
     }
@@ -141,6 +142,9 @@ const MedicationsManagement = () => {
       if (res.ok) {
         setShowLogModal(false);
         loadLogs();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast('Not saved: ' + (err.error || `HTTP ${res.status}`), 'error');
       }
     } catch (error) {
       toast('Failed: ' + error.message, 'error');
@@ -163,6 +167,8 @@ const MedicationsManagement = () => {
   const getLogStatusBadge = (status) => {
     const colors = {
       administered: '#4caf50',
+      given: '#4caf50',
+      self_administered: '#0891B2',
       refused: '#ff9800',
       missed: '#f44336',
       held: '#9e9e9e'
@@ -226,6 +232,12 @@ const MedicationsManagement = () => {
             >
               Administration Log ({logs.length})
             </button>
+            <button
+              className={`btn ${activeTab === 'vitals' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setActiveTab('vitals')}
+            >
+              📋 Vitals
+            </button>
             <div style={{ marginLeft: 'auto' }}>
               {activeTab === 'medications' && (
                 <button className="btn btn-primary" onClick={() => { setEditingMed(null); setShowAddModal(true); }}>
@@ -239,6 +251,11 @@ const MedicationsManagement = () => {
               )}
             </div>
           </div>
+
+          {/* Vitals Tab */}
+          {activeTab === 'vitals' && (
+            <VitalsTracker clientId={selectedClient} />
+          )}
 
           {/* Medications Tab */}
           {activeTab === 'medications' && (
@@ -345,6 +362,7 @@ const MedicationsManagement = () => {
                       <th>Dosage</th>
                       <th>Status</th>
                       <th>Caregiver</th>
+                      <th>Witnessed</th>
                       <th>Notes</th>
                     </tr>
                   </thead>
@@ -354,8 +372,9 @@ const MedicationsManagement = () => {
                         <td>{new Date(log.administered_time).toLocaleString()}</td>
                         <td><strong>{log.medication_name}</strong></td>
                         <td>{log.dosage_given || log.dosage || '-'}</td>
-                        <td>{getLogStatusBadge(log.status)}</td>
-                        <td>{log.caregiver_first} {log.caregiver_last}</td>
+                        <td>{getLogStatusBadge(log.effective_status || log.status)}</td>
+                        <td>{log.caregiver_first || ''} {log.caregiver_last || ''}</td>
+                        <td>{log.witnessed_by || <span className="text-gray-400 dark:text-slate-500">—</span>}</td>
                         <td>{log.notes || '-'}</td>
                       </tr>
                     ))}
@@ -369,8 +388,8 @@ const MedicationsManagement = () => {
 
       {/* Add/Edit Medication Modal */}
       {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+        <div className="modal active" onClick={() => setShowAddModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="modal-header">
               <h3>{editingMed ? 'Edit Medication' : 'Add Medication'}</h3>
               <button className="modal-close" onClick={() => setShowAddModal(false)}>×</button>
@@ -386,8 +405,8 @@ const MedicationsManagement = () => {
 
       {/* Log Administration Modal */}
       {showLogModal && (
-        <div className="modal-overlay" onClick={() => setShowLogModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowLogModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Log Medication Administration</h3>
               <button className="modal-close" onClick={() => setShowLogModal(false)}>×</button>
@@ -568,12 +587,18 @@ const MedicationForm = ({ medication, onSubmit, onCancel }) => {
 
 // Log Administration Form
 const LogForm = ({ medications, onSubmit, onCancel }) => {
+  // Status uses the MAR list exactly, so the server records it as given and as effective status.
   const [formData, setFormData] = useState({
     medicationId: '',
-    status: 'administered',
+    status: 'given',
     dosageGiven: '',
-    notes: ''
+    notes: '',
+    witnessedBy: ''
   });
+
+  const selectedMed = medications.find(m => m.id === formData.medicationId);
+  // No controlled-substance flag on a medication, so suggest a witness on the common names.
+  const looksControlled = selectedMed && /(oxy|hydroco|fentanyl|morphine|methadone|adderall|ritalin|xanax|valium|ativan|klonopin|tramadol|codeine|lorazepam|alprazolam|clonazepam)/i.test(selectedMed.medication_name || '');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -612,10 +637,11 @@ const LogForm = ({ medications, onSubmit, onCancel }) => {
             value={formData.status}
             onChange={(e) => setFormData({ ...formData, status: e.target.value })}
           >
-            <option value="administered">Administered</option>
-            <option value="refused">Refused</option>
-            <option value="missed">Missed</option>
-            <option value="held">Held</option>
+            <option value="given">Given</option>
+            <option value="refused">Refused by client</option>
+            <option value="missed">Missed dose</option>
+            <option value="held">Held (per RN / parameters)</option>
+            <option value="self_administered">Self-administered (witnessed)</option>
           </select>
         </div>
         <div className="form-group">
@@ -624,9 +650,23 @@ const LogForm = ({ medications, onSubmit, onCancel }) => {
             type="text"
             value={formData.dosageGiven}
             onChange={(e) => setFormData({ ...formData, dosageGiven: e.target.value })}
-            placeholder="e.g., 500mg"
+            placeholder={selectedMed?.dosage || 'e.g., 500mg'}
           />
         </div>
+      </div>
+
+      {/* Witness: suggested for likely-controlled substances, always available for agencies that
+          require it for everything. */}
+      <div className="form-group">
+        <label>
+          Witnessed by {looksControlled && <span className="font-bold text-red-600 dark:text-red-400">★ controlled — recommended</span>}
+        </label>
+        <input
+          type="text"
+          value={formData.witnessedBy}
+          onChange={(e) => setFormData({ ...formData, witnessedBy: e.target.value })}
+          placeholder="Name of person who witnessed administration"
+        />
       </div>
 
       <div className="form-group">
@@ -634,7 +674,12 @@ const LogForm = ({ medications, onSubmit, onCancel }) => {
         <textarea 
           value={formData.notes}
           onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          placeholder="Any observations..."
+          placeholder={
+            formData.status === 'refused'   ? 'Why did client refuse?'
+            : formData.status === 'held'    ? 'Reason for holding (e.g., BP < 110/70 per parameters)'
+            : formData.status === 'missed'  ? 'Why was dose missed?'
+            : 'Any observations…'
+          }
         />
       </div>
 

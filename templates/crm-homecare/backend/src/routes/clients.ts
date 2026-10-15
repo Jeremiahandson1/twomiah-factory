@@ -121,8 +121,11 @@ app.get('/', async (c) => {
   }
 
   // Strip SSN and attach relations
-  const safeClients = clientRows.map(({ ssnEncrypted: _, portalPasswordHash: _ph, portalToken: _pt, ...cl }) => ({
+  // The insurance card photos are megabytes each: the list says whether they exist, /api/insurance-cards serves them.
+  const safeClients = clientRows.map(({ ssnEncrypted: _, portalPasswordHash: _ph, portalToken: _pt, insuranceCardFront: _icf, insuranceCardBack: _icb, ...cl }) => ({
     ...cl,
+    hasInsuranceCardFront: !!_icf,
+    hasInsuranceCardBack: !!_icb,
     emergencyContacts: emergencyContactsMap[cl.id] || [],
     onboarding: onboardingMap[cl.id] || null,
     assignments: assignmentsMap[cl.id] || [],
@@ -256,9 +259,11 @@ app.get('/:id', async (c) => {
     caregiver: { id: caregiverIdField, firstName: caregiverFirstName, lastName: caregiverLastName, phone: caregiverPhone },
   }))
 
-  const { ssnEncrypted: _, portalPasswordHash: _ph, portalToken: _pt, ...safeClient } = client
+  const { ssnEncrypted: _, portalPasswordHash: _ph, portalToken: _pt, insuranceCardFront: _icf, insuranceCardBack: _icb, ...safeClient } = client
   return c.json({
     ...safeClient,
+    hasInsuranceCardFront: !!_icf,
+    hasInsuranceCardBack: !!_icb,
     emergencyContacts: ecRows,
     onboarding: obRows[0] || null,
     assignments: assignmentsWithCaregiver,
@@ -333,7 +338,7 @@ app.post('/', requireAdmin, async (c) => {
       .returning()
   }
 
-  const { ssnEncrypted: _, portalPasswordHash: _ph, portalToken: _pt, ...safeClient } = client
+  const { ssnEncrypted: _, portalPasswordHash: _ph, portalToken: _pt, insuranceCardFront: _icf, insuranceCardBack: _icb, ...safeClient } = client
   return c.json({ ...safeClient, emergencyContacts: ecRows, onboarding: onboardingRecord }, 201)
 })
 
@@ -381,7 +386,7 @@ app.put('/:id', requireAdmin, async (c) => {
     db.select().from(clientOnboarding).where(eq(clientOnboarding.clientId, id)).limit(1),
   ])
 
-  const { ssnEncrypted: _s, portalPasswordHash: _ph2, portalToken: _pt2, ...safeUpdatedClient } = client
+  const { ssnEncrypted: _s, portalPasswordHash: _ph2, portalToken: _pt2, insuranceCardFront: _icf, insuranceCardBack: _icb, ...safeUpdatedClient } = client
   return c.json({ ...safeUpdatedClient, emergencyContacts: ecRows, onboarding: obRows[0] || null })
 })
 

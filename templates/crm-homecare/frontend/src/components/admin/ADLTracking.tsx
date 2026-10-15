@@ -10,6 +10,7 @@ const ADLTracking = () => {
   const { token } = useAuth();
   const [isDirty, setIsDirty] = useState(false);
   const [clients, setClients] = useState([]);
+  const [caregivers, setCaregivers] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
   const [requirements, setRequirements] = useState([]);
   const [logs, setLogs] = useState([]);
@@ -47,6 +48,7 @@ const ADLTracking = () => {
 
   useEffect(() => {
     loadClients();
+    loadCaregivers();
   }, []);
 
   useEffect(() => {
@@ -58,13 +60,28 @@ const ADLTracking = () => {
 
   const loadClients = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/clients`, {
+      const res = await fetch(`${API_BASE_URL}/api/clients?isActive=true&limit=500`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error('Failed to load clients');
       const data = await res.json();
-      setClients(Array.isArray(data) ? data.filter(c => c.status === 'active') : (data.clients || []).filter(c => c.status === 'active'));
+      setClients((Array.isArray(data) ? data : (data.clients || [])).filter(c => c.is_active !== false));
     } catch (error) {
       console.error('Failed to load clients:', error);
+    }
+  };
+
+  // The office may record an ADL on behalf of the caregiver who performed it.
+  const loadCaregivers = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/caregivers?limit=500`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to load caregivers');
+      const data = await res.json();
+      setCaregivers(Array.isArray(data) ? data : (data.caregivers || []));
+    } catch (error) {
+      console.error('Failed to load caregivers:', error);
     }
   };
 
@@ -391,8 +408,8 @@ const ADLTracking = () => {
 
       {/* Add Requirement Modal */}
       {showAddReqModal && (
-        <div className="modal-overlay" onClick={() => setShowAddReqModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowAddReqModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Add ADL Requirement</h3>
               <button className="modal-close" onClick={() => setShowAddReqModal(false)}>×</button>
@@ -409,8 +426,8 @@ const ADLTracking = () => {
 
       {/* Log ADL Modal */}
       {showLogModal && (
-        <div className="modal-overlay" onClick={() => setShowLogModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowLogModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Log ADL Activity</h3>
               <button className="modal-close" onClick={() => setShowLogModal(false)}>×</button>
@@ -418,6 +435,7 @@ const ADLTracking = () => {
             <LogADLForm 
               categories={adlCategories}
               requirements={requirements}
+              caregivers={caregivers}
               onSubmit={logADL}
               onCancel={() => setShowLogModal(false)}
             />
@@ -506,12 +524,20 @@ const RequirementForm = ({ categories, existingCategories, onSubmit, onCancel })
 };
 
 // Log ADL Form Component
-const LogADLForm = ({ categories, requirements, onSubmit, onCancel }) => {
+const LogADLForm = ({ categories, requirements, caregivers, onSubmit, onCancel }) => {
+  // Local "YYYY-MM-DDTHH:MM" for the datetime-local input, defaulting to now.
+  const nowLocal = () => {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
   const [formData, setFormData] = useState({
     adlCategory: '',
     status: 'completed',
     assistanceLevel: 'limited_assistance',
-    notes: ''
+    notes: '',
+    performedAt: nowLocal(),
+    caregiverId: ''
   });
 
   // Use requirements to pre-fill assistance level when category is selected
@@ -530,14 +556,42 @@ const LogADLForm = ({ categories, requirements, onSubmit, onCancel }) => {
       toast('Please select an ADL category');
       return;
     }
+    const when = new Date(formData.performedAt);
+    if (!formData.performedAt || isNaN(when.getTime())) {
+      toast('Please enter the date and time this activity was performed');
+      return;
+    }
     onSubmit({
       ...formData,
-      performedAt: new Date().toISOString()
+      performedAt: when.toISOString()
     });
   };
 
   return (
     <form onSubmit={handleSubmit}>
+      <div className="form-group">
+        <label>Date & Time Performed *</label>
+        <input
+          type="datetime-local"
+          value={formData.performedAt}
+          onChange={(e) => setFormData({ ...formData, performedAt: e.target.value })}
+          required
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Performed By</label>
+        <select
+          value={formData.caregiverId}
+          onChange={(e) => setFormData({ ...formData, caregiverId: e.target.value })}
+        >
+          <option value="">Me (log as myself)</option>
+          {(caregivers || []).map(cg => (
+            <option key={cg.id} value={cg.id}>{cg.first_name} {cg.last_name}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="form-group">
         <label>ADL Activity *</label>
         <select 

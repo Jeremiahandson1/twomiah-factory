@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { confirm } from '../ConfirmModal';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -12,7 +13,13 @@ const FIELD_TYPES = [
   { value: 'checkbox', label: 'Checkbox',        icon: '☑️' },
   { value: 'radio',    label: 'Multiple Choice', icon: '🔘' },
   { value: 'number',   label: 'Number',          icon: '🔢' },
+  { value: 'date',     label: 'Date',            icon: '📅' },
+  { value: 'section',  label: 'Section Heading', icon: '🔖' },
 ];
+
+// A checkbox field with options is multi-select (value = array); without options it's a single Yes box.
+const isMultiCheck = (f) => f.type === 'checkbox' && Array.isArray(f.options) && f.options.length > 0;
+const isEmptyAnswer = (f, v) => isMultiCheck(f) ? !(Array.isArray(v) && v.length) : (f.type === 'checkbox' ? !v : (v == null || String(v).trim() === ''));
 
 const CATEGORIES = ['assessment','incident','physician_order','consent','intake','hr','general'];
 
@@ -82,7 +89,7 @@ export default function FormBuilder() {
   };
 
   const deleteSubmission = async (id) => {
-    if (!confirm('Delete this submission?')) return;
+    if (!(await confirm('Delete this submission?', { danger: true }))) return;
     try {
       const r = await fetch(`${API}/api/forms/submissions/${id}`, { method: 'DELETE', headers: h });
       if (!r.ok) throw new Error('Failed to delete');
@@ -121,13 +128,21 @@ export default function FormBuilder() {
     const [entityId, setEntityId] = useState('');
     const [signature, setSignature] = useState('');
     const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const fields = typeof template.fields === 'string' ? JSON.parse(template.fields) : (template.fields || []);
+
+    // Long forms (the in-home assessment) are filled out over 20+ minutes — never
+    // throw the answers away on a stray tap outside the box.
+    const requestClose = async () => {
+      if (Object.keys(formData).length && !(await confirm('Close this form? Your answers will be lost.', { danger: true }))) return;
+      onClose();
+    };
 
     const submit = async () => {
-      // H-09: enforce a subject and the template's required fields client-side
-      // (the backend also rejects these now, but don't claim success on a 400).
-      if (!entityId) { flash(`Select a ${entityType} for this form`, false); return; }
-      const missing = (template.fields || []).filter(f => f.required && !String(formData[f.id] ?? '').trim());
-      if (missing.length > 0) { flash(`Please complete: ${missing.map(f => f.label).join(', ')}`, false); return; }
+      setError('');
+      if (!entityId) return setError(`Pick the ${entityType} this form is for.`);
+      const missing = fields.filter(f => f.required && f.type !== 'section' && isEmptyAnswer(f, formData[f.id])).map(f => f.label);
+      if (missing.length) return setError(`Please answer: ${missing.join(' · ')}`);
 
       setSaving(true);
       try {
@@ -137,23 +152,28 @@ export default function FormBuilder() {
         });
         if (!r.ok) {
           const err = await r.json().catch(() => ({}));
-          throw new Error(err.error || 'Failed to submit form');
+          throw new Error(err.error || `Save failed (HTTP ${r.status})`);
         }
         flash('Form submitted');
         onClose(); load();
-      } catch (e) { flash(e.message || 'Error submitting', false); }
+      } catch (e) { setError(`Not saved — ${e.message}. Your answers are still here; try again.`); }
       setSaving(false);
     };
 
+    const toggleOption = (fid, o) => setFormData(d => {
+      const cur = Array.isArray(d[fid]) ? d[fid] : [];
+      return { ...d, [fid]: cur.includes(o) ? cur.filter(x => x !== o) : [...cur, o] };
+    });
+
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={onClose}>
-        <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', maxWidth: '560px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+        <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', maxWidth: '760px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
             <div>
               <h3 style={{ margin: 0 }}>{template.name}</h3>
               {template.description && <p style={{ margin: '0.25rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>{template.description}</p>}
             </div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#9CA3AF' }}>✕</button>
+            <button onClick={requestClose} aria-label="Close form" style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#9CA3AF' }}>✕</button>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem', paddingBottom: '1.25rem', borderBottom: '1px solid #E5E7EB' }}>
@@ -180,11 +200,18 @@ export default function FormBuilder() {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.25rem' }}>
-            {template.fields.map((field) => (
+            {fields.map((field) => field.type === 'section' ? (
+              <h4 key={field.id} className="mt-3 mb-0 pb-1 border-b-2 border-blue-100 text-blue-700 text-base font-bold dark:border-blue-900 dark:text-blue-300">{field.label}</h4>
+            ) : (
               <div key={field.id}>
                 <label style={{ display: 'block', fontWeight: 600, fontSize: '0.88rem', marginBottom: '0.3rem', color: '#374151' }}>
                   {field.label} {field.required && <span style={{ color: '#EF4444' }}>*</span>}
                 </label>
+                {field.type === 'date' && (
+                  <input type='date' value={formData[field.id] || ''}
+                    onChange={e => setFormData(d => ({ ...d, [field.id]: e.target.value }))}
+                    style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.88rem' }} />
+                )}
                 {field.type === 'textarea' && (
                   <textarea value={formData[field.id] || ''} onChange={e => setFormData(d => ({ ...d, [field.id]: e.target.value }))}
                     rows={3} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.88rem', resize: 'vertical', boxSizing: 'border-box' }} />
@@ -201,7 +228,20 @@ export default function FormBuilder() {
                     {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
                 )}
-                {field.type === 'checkbox' && (
+                {isMultiCheck(field) && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {field.options.map(o => {
+                      const on = Array.isArray(formData[field.id]) && formData[field.id].includes(o);
+                      return (
+                        <label key={o} className={`flex items-center gap-1.5 cursor-pointer px-3 py-1 rounded-md border text-sm ${on ? 'border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-950 dark:text-blue-100' : 'border-gray-300 bg-white text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'}`}>
+                          <input type='checkbox' checked={on} onChange={() => toggleOption(field.id, o)} />
+                          {o}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {field.type === 'checkbox' && !isMultiCheck(field) && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
                     <input type='checkbox' checked={!!formData[field.id]} onChange={e => setFormData(d => ({ ...d, [field.id]: e.target.checked }))} />
                     <span style={{ fontSize: '0.88rem' }}>Yes</span>
@@ -229,6 +269,9 @@ export default function FormBuilder() {
             </div>
           )}
 
+          {error && (
+            <div className="mb-3 px-3 py-2 rounded-lg text-sm font-semibold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200">{error}</div>
+          )}
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button onClick={submit} disabled={saving || (template.requires_signature && !signature)}
               style={{ flex: 1, padding: '0.7rem', borderRadius: '8px', border: 'none', background: '#3B82F6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.92rem', opacity: saving ? 0.7 : 1 }}>
@@ -316,10 +359,10 @@ export default function FormBuilder() {
                 <input type='checkbox' checked={field.required} onChange={e => updateField(idx, { required: e.target.checked })} />
                 Required
               </label>
-              {(field.type === 'select' || field.type === 'radio') && (
+              {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') && (
                 <div style={{ flex: 1 }}>
                   <input value={(field.options || []).join(', ')} onChange={e => updateField(idx, { options: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-                    placeholder='Options: Option 1, Option 2, Option 3'
+                    placeholder={field.type === 'checkbox' ? 'Options (pick any): Option 1, Option 2 — leave blank for a single Yes box' : 'Options: Option 1, Option 2, Option 3'}
                     style={{ width: '100%', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.82rem', boxSizing: 'border-box' }} />
                 </div>
               )}
@@ -370,8 +413,11 @@ export default function FormBuilder() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
               {filteredTemplates.map(t => (
                 <div key={t.id} style={{ background: '#fff', border: `1px solid ${t.is_active ? '#E5E7EB' : '#F3F4F6'}`, borderTop: `3px solid ${catColor(t.category)}`, borderRadius: '10px', padding: '1rem', opacity: t.is_active ? 1 : 0.6 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#111827' }}>{t.name}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem', gap: '0.4rem' }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#111827' }}>
+                      {t.is_built_in && <span title="Built-in template" style={{ marginRight: 4, color: '#D97706' }}>★</span>}
+                      {t.name}
+                    </span>
                     <span style={{ background: catColor(t.category) + '18', color: catColor(t.category), padding: '0.1rem 0.45rem', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>{t.category.replace(/_/g,' ')}</span>
                   </div>
                   {t.description && <p style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', color: '#6B7280', lineHeight: 1.4 }}>{t.description}</p>}
@@ -382,7 +428,7 @@ export default function FormBuilder() {
                   </div>
                   <div style={{ display: 'flex', gap: '0.4rem' }}>
                     <button onClick={() => setFillModal(t)} style={{ flex: 1, padding: '0.4rem', borderRadius: '6px', border: 'none', background: '#3B82F6', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem' }}>Fill Out</button>
-                    <button onClick={() => setEditTemplate({ ...t, fields: typeof t.fields === 'string' ? JSON.parse(t.fields) : t.fields })} style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', border: '1px solid #E5E7EB', background: '#fff', color: '#374151', cursor: 'pointer', fontSize: '0.8rem' }}>Edit</button>
+                    <button onClick={() => { let fields; try { fields = typeof t.fields === 'string' ? JSON.parse(t.fields) : t.fields; } catch { fields = []; } setEditTemplate({ ...t, fields }); }} style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', border: '1px solid #E5E7EB', background: '#fff', color: '#374151', cursor: 'pointer', fontSize: '0.8rem' }}>Edit</button>
                     <button onClick={() => deleteTemplate(t.id)} style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', border: '1px solid #FCA5A5', background: '#fff', color: '#EF4444', cursor: 'pointer', fontSize: '0.8rem' }}>✕</button>
                   </div>
                 </div>
@@ -403,7 +449,7 @@ export default function FormBuilder() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '2px solid #E5E7EB' }}>
-                {['Form','Category','Attached To','Submitted By','Date','Status',''].map(h => (
+                {['Form','Category','Attached To','Submitted By','Date','Status','PDF',''].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '0.65rem 0.85rem', fontWeight: 700, color: '#374151', fontSize: '0.82rem' }}>{h}</th>
                 ))}
               </tr>
@@ -413,14 +459,30 @@ export default function FormBuilder() {
                 <tr key={s.id} style={{ borderBottom: '1px solid #F3F4F6', background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
                   <td style={{ padding: '0.65rem 0.85rem', fontWeight: 600 }}>{s.template_name || s.form_name}</td>
                   <td style={{ padding: '0.65rem 0.85rem' }}><span style={{ background: catColor(s.category) + '18', color: catColor(s.category), padding: '0.1rem 0.45rem', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700 }}>{(s.category || 'general').replace(/_/g,' ')}</span></td>
-                  <td style={{ padding: '0.65rem 0.85rem', color: '#6B7280' }}>{s.entity_type || '—'}</td>
+                  <td style={{ padding: '0.65rem 0.85rem', color: '#6B7280' }}>{s.entity_name || s.entity_type || '—'}</td>
                   <td style={{ padding: '0.65rem 0.85rem', color: '#6B7280' }}>{s.submitted_by_name}</td>
                   <td style={{ padding: '0.65rem 0.85rem', color: '#6B7280' }}>{new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                   <td style={{ padding: '0.65rem 0.85rem' }}>
                     <span style={{ background: s.status === 'signed' ? '#D1FAE5' : '#EFF6FF', color: s.status === 'signed' ? '#065F46' : '#1D4ED8', padding: '0.15rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700 }}>{s.status}</span>
                   </td>
                   <td style={{ padding: '0.65rem 0.85rem' }}>
-                    <button onClick={() => deleteSubmission(s.id)} title='Delete submission'
+                    <button title="Download printable PDF"
+                      onClick={async () => {
+                        try {
+                          const r = await fetch(`${API}/api/forms/submissions/${s.id}/pdf`, { headers: { Authorization: `Bearer ${token}` } });
+                          if (!r.ok) throw new Error('PDF failed');
+                          const blob = await r.blob();
+                          const u = window.URL.createObjectURL(blob);
+                          const a = document.createElement('a'); a.href = u; a.download = `${(s.template_name || 'form').replace(/[^a-zA-Z0-9_-]/g,'_')}-${String(s.id).slice(0,8)}.pdf`; a.click();
+                          window.URL.revokeObjectURL(u);
+                        } catch (e) { flash('PDF download failed: ' + e.message, false); }
+                      }}
+                      style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: 6, padding: '0.3rem 0.55rem', fontSize: '0.78rem', cursor: 'pointer', color: '#374151' }}>
+                      📄 PDF
+                    </button>
+                  </td>
+                  <td style={{ padding: '0.65rem 0.85rem' }}>
+                    <button onClick={() => deleteSubmission(s.id)} title='Delete submission' aria-label='Delete submission'
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', fontSize: '0.9rem' }}>🗑</button>
                   </td>
                 </tr>

@@ -73,6 +73,10 @@ import auditLogsRoutes from './routes/auditLogs.ts'
 import backgroundChecksRoutes from './routes/backgroundChecks.ts'
 import blackoutDatesRoutes from './routes/blackoutDates.ts'
 import carePlansRoutes from './routes/carePlans.ts'
+// care: checklists, care plan templates, insurance card photos (0017_care)
+import careTasksRoutes from './routes/careTasks.ts'
+import carePlanTemplatesRoutes from './routes/carePlanTemplates.ts'
+import insuranceCardsRoutes from './routes/insuranceCards.ts'
 import careTypesRoutes from './routes/careTypes.ts'
 import caregiverAvailabilityRoutes from './routes/caregiverAvailability.ts'
 import caregiverCareTypeRatesRoutes from './routes/caregiverCareTypeRates.ts'
@@ -262,6 +266,9 @@ app.route('/api/audit-logs', auditLogsRoutes)
 app.route('/api/background-checks', backgroundChecksRoutes)
 app.route('/api/blackout-dates', blackoutDatesRoutes)
 app.route('/api/care-plans', carePlansRoutes)
+app.route('/api/care-plan-templates', carePlanTemplatesRoutes)
+app.route('/api/care-tasks', careTasksRoutes)
+app.route('/api/insurance-cards', insuranceCardsRoutes)
 app.route('/api/care-types', careTypesRoutes)
 app.route('/api/caregiver-availability', caregiverAvailabilityRoutes)
 app.route('/api/caregiver-care-type-rates', caregiverCareTypeRatesRoutes)

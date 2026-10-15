@@ -1,4 +1,5 @@
-import { pgTable, text, boolean, integer, bigint, decimal, timestamp, date, time, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, bigint, decimal, timestamp, date, time, json, uniqueIndex, index, check } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 
 // ==================== AGENCY (TOP-LEVEL TENANT) ====================
@@ -309,12 +310,18 @@ export const clients = pgTable('clients', {
   sandataSequence: bigint('sandata_sequence', { mode: 'number' }).default(0),
   sandataSyncedAt: timestamp('sandata_synced_at'),
   evvWeeklyUnits: integer('evv_weekly_units'),
+  // Insurance card photos (front/back), base64 data URIs, ~5 MB raw each. (care, 0017)
+  insuranceCardFront: text('insurance_card_front'),
+  insuranceCardBack: text('insurance_card_back'),
+  insuranceCardUploadedAt: timestamp('insurance_card_uploaded_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('clients_is_active_idx').on(t.isActive),
   index('clients_referred_by_id_idx').on(t.referredById),
   index('clients_active_service_idx').on(t.isActive, t.serviceType),
+  check('clients_insurance_front_size_cap', sql`${t.insuranceCardFront} IS NULL OR LENGTH(${t.insuranceCardFront}) <= 7000000`),
+  check('clients_insurance_back_size_cap', sql`${t.insuranceCardBack} IS NULL OR LENGTH(${t.insuranceCardBack}) <= 7000000`),
 ])
 
 // ==================== CLIENT EMERGENCY CONTACTS ====================
@@ -1097,6 +1104,10 @@ export const formTemplates = pgTable('form_templates', {
   isActive: boolean('is_active').default(true).notNull(),
   requiresSignature: boolean('requires_signature').default(false).notNull(),
   autoAttachTo: text('auto_attach_to'),
+  // Seeded library template (care, 0017). A built-in can be switched off, not deleted.
+  isBuiltIn: boolean('is_built_in').default(false).notNull(),
+  // A template that only applies in one state (a state Medicaid form). NULL = every agency.
+  state: text('state'),
   createdById: text('created_by_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -1353,10 +1364,13 @@ export const adlLogs = pgTable('adl_logs', {
   assistanceLevel: text('assistance_level'),
   performedAt: timestamp('performed_at').defaultNow().notNull(),
   notes: text('notes'),
+  // The visit it was recorded on (care, 0017).
+  timeEntryId: text('time_entry_id').references(() => timeEntries.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('adl_logs_client_id_idx').on(t.clientId),
   index('adl_logs_performed_at_idx').on(t.performedAt),
+  index('adl_logs_time_entry_idx').on(t.timeEntryId),
 ])
 
 // ==================== JOB APPLICATIONS ====================
@@ -1424,6 +1438,15 @@ export const carePlans = pgTable('care_plans', {
   careGoals: text('care_goals'),
   specialInstructions: text('special_instructions'),
   precautions: text('precautions'),
+  // care, 0017: the note sections the screen always asked for, and the client's recurring
+  // visit schedule as it stood when the plan was saved ("Fill from current schedule").
+  serviceDescription: text('service_description'),
+  medicationNotes: text('medication_notes'),
+  mobilityNotes: text('mobility_notes'),
+  dietaryNotes: text('dietary_notes'),
+  communicationNotes: text('communication_notes'),
+  visitSchedule: text('visit_schedule'),
+  visitScheduleAsOf: date('visit_schedule_as_of'),
   startDate: date('start_date'),
   endDate: date('end_date'),
   status: text('status').default('active').notNull(),
@@ -1536,8 +1559,17 @@ export const medicationLogs = pgTable('medication_logs', {
   administeredAt: timestamp('administered_at').notNull(),
   status: text('status').default('given').notNull(),
   notes: text('notes'),
+  // MAR (care, 0017): the visit, when the dose was due, what was given, who witnessed it
+  // (controlled substances), and the strict status given|refused|held|self_administered|missed.
+  timeEntryId: text('time_entry_id').references(() => timeEntries.id, { onDelete: 'set null' }),
+  scheduledTime: timestamp('scheduled_time'),
+  dosageGiven: text('dosage_given'),
+  witnessedBy: text('witnessed_by'),
+  effectiveStatus: text('effective_status'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (t) => [
+  index('medication_logs_time_entry_idx').on(t.timeEntryId),
+])
 
 // ==================== SHIFT SWAPS ====================
 export const shiftSwaps = pgTable('shift_swaps', {
@@ -2183,4 +2215,184 @@ export const clientDocuments = pgTable('client_documents', {
 }, (t) => [
   index('client_documents_client_id_idx').on(t.clientId),
   index('client_documents_status_idx').on(t.status),
+])
+// ==================== CARE (migration 0017_care) ====================
+// Care task checklists, care plan templates + revisions, vitals, and the document store with
+// e-signature. Ported from the source home care CRM (its v34/v35, v38, v39, v40, v45/v66).
+
+// A client's recurring checklist: what the caregiver does on a shift. weekly_frequency x
+// allotted_minutes is the assessed minutes per week; it is derived on read, never stored.
+export const clientTaskTemplates = pgTable('client_task_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  taskName: text('task_name').notNull(),
+  description: text('description'),
+  category: text('category').default('other').notNull(),
+  allottedMinutes: integer('allotted_minutes').default(0).notNull(),
+  weeklyFrequency: integer('weekly_frequency').default(1).notNull(),
+  daysOfWeek: text('days_of_week'),
+  timeOfDay: text('time_of_day').default('any').notNull(),
+  // where the row came from, e.g. an insurer assessment import ('midas_shc_pc_summary')
+  assessmentSource: text('assessment_source'),
+  // 'daily' = every shift; 'weekly' = once a week
+  cadence: text('cadence').default('daily').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdById: text('created_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_task_templates_client_active_idx').on(t.clientId, t.isActive),
+  check('client_task_templates_category_check', sql`${t.category} IN ('adl','iadl','medication','companion','safety','other')`),
+  check('client_task_templates_time_of_day_check', sql`${t.timeOfDay} IN ('AM','PM','any')`),
+  check('client_task_templates_cadence_check', sql`${t.cadence} IN ('daily','weekly')`),
+])
+
+export const shiftTaskCompletions = pgTable('shift_task_completions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  timeEntryId: text('time_entry_id').notNull().references(() => timeEntries.id, { onDelete: 'cascade' }),
+  taskTemplateId: text('task_template_id').notNull().references(() => clientTaskTemplates.id, { onDelete: 'cascade' }),
+  status: text('status').default('pending').notNull(),
+  notes: text('notes'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('shift_task_completions_entry_task_idx').on(t.timeEntryId, t.taskTemplateId),
+  index('shift_task_completions_time_entry_idx').on(t.timeEntryId),
+  check('shift_task_completions_status_check', sql`${t.status} IN ('pending','completed','skipped','refused')`),
+])
+
+export const carePlanTemplates = pgTable('care_plan_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  templateName: text('template_name').notNull(),
+  templateDescription: text('template_description'),
+  category: text('category'),
+  serviceType: text('service_type'),
+  serviceDescription: text('service_description'),
+  frequency: text('frequency'),
+  careGoals: text('care_goals'),
+  specialInstructions: text('special_instructions'),
+  precautions: text('precautions'),
+  medicationNotes: text('medication_notes'),
+  mobilityNotes: text('mobility_notes'),
+  dietaryNotes: text('dietary_notes'),
+  communicationNotes: text('communication_notes'),
+  isBuiltIn: boolean('is_built_in').default(false).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdById: text('created_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('care_plan_templates_active_idx').on(t.isActive),
+  index('care_plan_templates_category_idx').on(t.category),
+])
+
+// The OLD row of a care plan, written by the trg_snapshot_care_plan trigger on every update
+// that changes its content (see 0017_care.sql). Never written by application code.
+export const carePlanRevisions = pgTable('care_plan_revisions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  carePlanId: text('care_plan_id').notNull().references(() => carePlans.id, { onDelete: 'cascade' }),
+  revisionNumber: integer('revision_number').notNull(),
+  changedAt: timestamp('changed_at').defaultNow().notNull(),
+  changedById: text('changed_by_id'),
+  serviceType: text('service_type'),
+  serviceDescription: text('service_description'),
+  frequency: text('frequency'),
+  careGoals: text('care_goals'),
+  specialInstructions: text('special_instructions'),
+  precautions: text('precautions'),
+  medicationNotes: text('medication_notes'),
+  mobilityNotes: text('mobility_notes'),
+  dietaryNotes: text('dietary_notes'),
+  communicationNotes: text('communication_notes'),
+  startDate: date('start_date'),
+  endDate: date('end_date'),
+  status: text('status'),
+  visitSchedule: text('visit_schedule'),
+  visitScheduleAsOf: date('visit_schedule_as_of'),
+}, (t) => [
+  uniqueIndex('care_plan_revisions_plan_rev_idx').on(t.carePlanId, t.revisionNumber),
+])
+
+export const clientVitals = pgTable('client_vitals', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').references(() => users.id),
+  timeEntryId: text('time_entry_id').references(() => timeEntries.id, { onDelete: 'set null' }),
+  recordedAt: timestamp('recorded_at').defaultNow().notNull(),
+  systolicBp: integer('systolic_bp'),
+  diastolicBp: integer('diastolic_bp'),
+  pulse: integer('pulse'),
+  respirations: integer('respirations'),
+  oxygenSaturation: integer('oxygen_saturation'),
+  temperatureF: decimal('temperature_f', { precision: 4, scale: 1 }),
+  bloodGlucose: integer('blood_glucose'),
+  weightLbs: decimal('weight_lbs', { precision: 5, scale: 1 }),
+  painScale: integer('pain_scale'),
+  painLocation: text('pain_location'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_vitals_client_idx').on(t.clientId),
+  index('client_vitals_recorded_idx').on(t.recordedAt),
+  index('client_vitals_caregiver_idx').on(t.caregiverId),
+  check('vitals_systolic_range', sql`${t.systolicBp} IS NULL OR ${t.systolicBp} BETWEEN 50 AND 260`),
+  check('vitals_diastolic_range', sql`${t.diastolicBp} IS NULL OR ${t.diastolicBp} BETWEEN 25 AND 160`),
+  check('vitals_pulse_range', sql`${t.pulse} IS NULL OR ${t.pulse} BETWEEN 25 AND 220`),
+  check('vitals_resp_range', sql`${t.respirations} IS NULL OR ${t.respirations} BETWEEN 4 AND 70`),
+  check('vitals_o2_range', sql`${t.oxygenSaturation} IS NULL OR ${t.oxygenSaturation} BETWEEN 50 AND 100`),
+  check('vitals_temp_range', sql`${t.temperatureF} IS NULL OR ${t.temperatureF} BETWEEN 85.0 AND 112.0`),
+  check('vitals_glucose_range', sql`${t.bloodGlucose} IS NULL OR ${t.bloodGlucose} BETWEEN 20 AND 800`),
+  check('vitals_weight_range', sql`${t.weightLbs} IS NULL OR ${t.weightLbs} BETWEEN 30 AND 800`),
+  check('vitals_pain_range', sql`${t.painScale} IS NULL OR ${t.painScale} BETWEEN 0 AND 10`),
+])
+
+// The agency's document store: files kept against a client, a caregiver, or the company
+// (policies everyone signs). A document can require a signature; the latest one is kept on the
+// row for a quick read and every signature is kept in document_signatures.
+export const documents = pgTable('documents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  entityType: text('entity_type').notNull(), // client | caregiver | company
+  entityId: text('entity_id'),
+  documentType: text('document_type').default('other').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  fileUrl: text('file_url'),
+  fileName: text('file_name'),
+  fileType: text('file_type'),
+  fileSize: integer('file_size'),
+  // the file itself, base64 — a Render disk is wiped on every deploy
+  fileData: text('file_data'),
+  requiresSignature: boolean('requires_signature').default(false).notNull(),
+  expirationDate: date('expiration_date'),
+  isConfidential: boolean('is_confidential').default(false).notNull(),
+  uploadedById: text('uploaded_by_id').references(() => users.id),
+  signedAt: timestamp('signed_at'),
+  signedById: text('signed_by_id').references(() => users.id),
+  signatureImage: text('signature_image'),
+  signatureIp: text('signature_ip'),
+  signatureUserAgent: text('signature_user_agent'),
+  signatureTypedName: text('signature_typed_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('documents_entity_idx').on(t.entityType, t.entityId),
+  index('documents_expiration_idx').on(t.expirationDate),
+  check('documents_entity_type_check', sql`${t.entityType} IN ('client','caregiver','company')`),
+])
+
+export const documentSignatures = pgTable('document_signatures', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  documentId: text('document_id').notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  signedById: text('signed_by_id').notNull().references(() => users.id),
+  signerRole: text('signer_role'),
+  signerTypedName: text('signer_typed_name'),
+  signatureImage: text('signature_image').notNull(),
+  signedAt: timestamp('signed_at').defaultNow().notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+}, (t) => [
+  index('document_signatures_document_idx').on(t.documentId),
+  index('document_signatures_signer_idx').on(t.signedById),
 ])
