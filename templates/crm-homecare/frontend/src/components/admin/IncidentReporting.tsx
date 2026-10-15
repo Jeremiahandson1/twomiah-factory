@@ -1,424 +1,276 @@
+// src/components/admin/IncidentReporting.tsx — Clinical → Incidents: the list, the new-incident form,
+// and the way into each incident's case file (IncidentDetail).
+import React, { useState, useEffect, useCallback } from 'react';
 import { confirm } from '../ConfirmModal';
 import { formatDate } from '../../utils/date';
-// src/components/admin/IncidentReporting.jsx
-import React, { useState, useEffect } from 'react';
-import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { apiCall } from '../../config';
+import IncidentDetail from './IncidentDetail';
+import {
+  INCIDENT_TYPES, SEVERITIES, INCIDENT_STATUSES, incidentLabel, incidentsApi, localToday, localTimeHHMM,
+  STATUS_CHIP, SEVERITY_CHIP, SEVERITY_BORDER, FIELD, LABEL, CARD, H3, MUTED, BTN_PRIMARY, BTN_SECONDARY, BTN_DANGER,
+} from '../../utils/incidentOptions';
+
+// Form defaults: the date is the browser's calendar day and the time its local clock (a UTC
+// default gave evening reports tomorrow's date and a time hours ahead).
+const blankIncidentForm = () => ({
+  clientId: '',
+  caregiverId: '',
+  incidentType: 'accident',
+  severity: 'moderate',
+  incidentDate: localToday(),
+  incidentTime: localTimeHHMM(),
+  description: '',
+  witnesses: '',
+  injuriesOrDamage: '',
+  actionsTaken: '',
+  followUpRequired: false,
+  followUpNotes: '',
+  reportedBy: '',
+  reportedDate: localToday(),
+  reporterContactName: '',
+  reporterPhone: '',
+  reporterEmail: '',
+  responseDueDate: '',
+});
+
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div>
+    <label className={LABEL}>{label}</label>
+    {children}
+  </div>
+);
 
 const IncidentReporting = () => {
   const { token } = useAuth();
-  const [clients, setClients] = useState([]);
-  const [caregivers, setCaregivers] = useState([]);
-  const [incidents, setIncidents] = useState([]);
+  const api = useCallback((path: string, options: RequestInit = {}) => incidentsApi(token)(path, options), [token]);
+  const [clients, setClients] = useState<any[]>([]);
+  const [caregivers, setCaregivers] = useState<any[]>([]);
+  const [incidents, setIncidents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [filter, setFilter] = useState('all'); // all, critical, severe, moderate, minor
+  const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [message, setMessage] = useState('');
-  const [formData, setFormData] = useState({
-    clientId: '',
-    caregiverId: '',
-    incidentType: 'accident',
-    severity: 'moderate',
-    incidentDate: new Date().toISOString().split('T')[0],
-    incidentTime: new Date().toISOString().split('T')[1].slice(0, 5),
-    description: '',
-    witnesses: '',
-    injuriesOrDamage: '',
-    actionsTaken: '',
-    followUpRequired: false,
-    followUpNotes: '',
-    reportedBy: '',
-    reportedDate: new Date().toISOString().split('T')[0]
-  });
+  const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [formData, setFormData] = useState(blankIncidentForm);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    setLoadError('');
     try {
-      const [clientsRes, caregiversRes, incidentsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/clients`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${API_BASE_URL}/api/users/caregivers`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${API_BASE_URL}/api/incidents`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+      const [clientList, caregiverList, incidentList] = await Promise.all([
+        api('/my-clients'),
+        apiCall('/api/users/caregivers', { method: 'GET' }, token).catch(() => []),
+        api(''),
       ]);
-
-      const clientsData = await clientsRes.json();
-      const caregiversData = await caregiversRes.json();
-      const incidentsData = await incidentsRes.json();
-
-      setClients(Array.isArray(clientsData) ? clientsData : (clientsData.clients || []));
-      setCaregivers(Array.isArray(caregiversData) ? caregiversData : (caregiversData.caregivers || []));
-      setIncidents(Array.isArray(incidentsData) ? incidentsData : []);
-    } catch (error) {
-      console.error('Failed to load data:', error);
+      setClients(Array.isArray(clientList) ? clientList : []);
+      setCaregivers(Array.isArray(caregiverList) ? caregiverList : []);
+      setIncidents(Array.isArray(incidentList) ? incidentList : []);
+    } catch (error: any) {
+      setLoadError(error.message || 'Could not load incidents');
     } finally {
       setLoading(false);
     }
-  };
+  }, [api, token]);
 
-  const handleSubmitIncident = async (e) => {
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const set = (k: string, v: any) => setFormData((f) => ({ ...f, [k]: v }));
+
+  const handleSubmitIncident = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage('');
-
-    if (!formData.clientId || !formData.incidentType) {
-      setMessage('Client and incident type are required');
-      return;
-    }
-
-    if (!formData.description.trim()) {
-      setMessage('Description is required');
-      return;
-    }
-
+    setMessage(null);
+    if (!formData.clientId || !formData.incidentType) { setMessage({ text: 'Client and incident type are required', error: true }); return; }
+    if (!formData.description.trim()) { setMessage({ text: 'Description is required', error: true }); return; }
+    setSaving(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/incidents`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to report incident');
-      }
-
-      setMessage('Incident reported successfully!');
-      setFormData({
-        clientId: '',
-        caregiverId: '',
-        incidentType: 'accident',
-        severity: 'moderate',
-        incidentDate: new Date().toISOString().split('T')[0],
-        incidentTime: new Date().toISOString().split('T')[1].slice(0, 5),
-        description: '',
-        witnesses: '',
-        injuriesOrDamage: '',
-        actionsTaken: '',
-        followUpRequired: false,
-        followUpNotes: '',
-        reportedBy: '',
-        reportedDate: new Date().toISOString().split('T')[0]
-      });
+      const created = await api('', { method: 'POST', body: JSON.stringify(formData) });
+      setMessage({ text: 'Incident reported successfully!' });
+      setFormData(blankIncidentForm());
       setShowForm(false);
-      loadData();
-    } catch (error) {
-      setMessage('Error: ' + error.message);
+      // Straight into the case file so the investigation can start.
+      if (created?.id) setDetailId(created.id);
+      else loadData();
+    } catch (error: any) {
+      setMessage({ text: 'Error: ' + error.message, error: true });
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDeleteIncident = async (incidentId) => {
-    const _cok = await confirm('Delete this incident report? This cannot be undone.', {danger: true}); if (!_cok) return;
-
+  const handleDeleteIncident = async (incidentId: string) => {
+    if (!(await confirm('Delete this incident report? This cannot be undone.', { danger: true }))) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/incidents/${incidentId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (!response.ok) throw new Error('Failed to delete');
-
-      setMessage('Incident deleted');
-      setTimeout(() => setMessage(''), 2000);
+      await api(`/${incidentId}`, { method: 'DELETE' });
+      setMessage({ text: 'Incident deleted' });
+      setTimeout(() => setMessage(null), 2000);
       loadData();
-    } catch (error) {
-      setMessage('Error: ' + error.message);
+    } catch (error: any) {
+      setMessage({ text: 'Error: ' + error.message, error: true });
     }
   };
 
-  const getClientName = (clientId) => {
-    const client = clients.find(c => c.id === clientId);
-    return client ? `${client.first_name} ${client.last_name}` : 'Unknown Client';
-  };
-
-  const getCaregiverName = (caregiverId) => {
-    const caregiver = caregivers.find(c => c.id === caregiverId);
-    return caregiver ? `${caregiver.first_name} ${caregiver.last_name}` : 'Unknown Caregiver';
-  };
-
-  const getSeverityColor = (severity) => {
-    switch (severity) {
-      case 'critical':
-        return '#d32f2f';
-      case 'severe':
-        return '#f57c00';
-      case 'moderate':
-        return '#fbc02d';
-      case 'minor':
-        return '#388e3c';
-      default:
-        return '#999';
-    }
-  };
-
-  const getSeverityLabel = (severity) => {
-    return severity.charAt(0).toUpperCase() + severity.slice(1);
-  };
-
-  const getIncidentTypeLabel = (type) => {
-    const labels = {
-      'accident': 'Accident',
-      'fall': 'Fall',
-      'medication_error': 'Medication Error',
-      'behavioral': 'Behavioral Issue',
-      'injury': 'Injury',
-      'property_damage': 'Property Damage',
-      'health_emergency': 'Health Emergency',
-      'other': 'Other'
-    };
-    return labels[type] || type;
-  };
-
+  const today = localToday();
   const filteredIncidents = incidents
-    .filter(incident => {
+    .filter((incident) => {
       if (filter !== 'all' && incident.severity !== filter) return false;
+      if (statusFilter !== 'all' && (incident.status || 'open') !== statusFilter) return false;
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         return (
-          getClientName(incident.client_id).toLowerCase().includes(term) ||
-          incident.description.toLowerCase().includes(term) ||
-          incident.incident_type.toLowerCase().includes(term)
+          (incident.client_name || '').toLowerCase().includes(term) ||
+          (incident.description || '').toLowerCase().includes(term) ||
+          (incident.incident_type || '').toLowerCase().includes(term) ||
+          (incident.incident_number || '').toLowerCase().includes(term)
         );
       }
       return true;
     })
-    .sort((a, b) => new Date(b.incident_date) - new Date(a.incident_date));
+    .sort((a, b) => String(b.incident_date_ymd || '').localeCompare(String(a.incident_date_ymd || '')));
+
+  if (detailId) {
+    return <IncidentDetail incidentId={detailId} onBack={() => { setDetailId(null); loadData(); }} />;
+  }
 
   if (loading) {
-    return (
-      <div className="loading">
-        <div className="spinner"></div>
-      </div>
-    );
+    return <div className="p-8 text-center text-sm text-gray-600 dark:text-slate-400">Loading incidents…</div>;
   }
 
   return (
     <div>
-      <div className="page-header">
-        <h2>Incident & Accident Reporting</h2>
-        <button
-          className="btn btn-primary"
-          onClick={() => setShowForm(!showForm)}
-        >
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Incident &amp; Accident Reporting</h2>
+        <button className={BTN_PRIMARY} onClick={() => setShowForm(!showForm)}>
           {showForm ? 'Cancel' : 'Report Incident'}
         </button>
       </div>
 
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">{loadError}</div>
+      )}
       {message && (
-        <div className={`alert ${message.includes('Error') ? 'alert-error' : 'alert-success'}`}>
-          {message}
+        <div className={`mb-4 rounded-lg border p-3 text-sm ${message.error
+          ? 'border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200'
+          : 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200'}`}>
+          {message.text}
         </div>
       )}
 
-      {/* Report Form */}
       {showForm && (
-        <div className="card card-form">
-          <h3>Report New Incident</h3>
-          <form onSubmit={handleSubmitIncident}>
-            <div className="form-grid-2">
-              <div className="form-group">
-                <label>Client *</label>
-                <select
-                  value={formData.clientId}
-                  onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
-                  required
-                >
+        <div className={CARD}>
+          <h3 className={H3}>Report New Incident</h3>
+          <form onSubmit={handleSubmitIncident} className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Field label="Client *">
+                <select className={FIELD} value={formData.clientId} onChange={(e) => set('clientId', e.target.value)} required>
                   <option value="">Select client...</option>
-                  {clients.map(client => (
-                    <option key={client.id} value={client.id}>
-                      {client.first_name} {client.last_name}
-                    </option>
-                  ))}
+                  {clients.map((c) => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
                 </select>
-              </div>
-
-              <div className="form-group">
-                <label>Caregiver Involved</label>
-                <select
-                  value={formData.caregiverId}
-                  onChange={(e) => setFormData({ ...formData, caregiverId: e.target.value })}
-                >
+              </Field>
+              <Field label="Caregiver Involved">
+                <select className={FIELD} value={formData.caregiverId} onChange={(e) => set('caregiverId', e.target.value)}>
                   <option value="">Select caregiver (if applicable)...</option>
-                  {caregivers.map(cg => (
-                    <option key={cg.id} value={cg.id}>
-                      {cg.first_name} {cg.last_name}
-                    </option>
-                  ))}
+                  {caregivers.map((cg) => <option key={cg.id} value={cg.id}>{cg.first_name} {cg.last_name}</option>)}
                 </select>
-              </div>
-
-              <div className="form-group">
-                <label>Incident Type *</label>
-                <select
-                  value={formData.incidentType}
-                  onChange={(e) => setFormData({ ...formData, incidentType: e.target.value })}
-                >
-                  <option value="accident">Accident</option>
-                  <option value="fall">Fall</option>
-                  <option value="medication_error">Medication Error</option>
-                  <option value="behavioral">Behavioral Issue</option>
-                  <option value="injury">Injury</option>
-                  <option value="property_damage">Property Damage</option>
-                  <option value="health_emergency">Health Emergency</option>
-                  <option value="other">Other</option>
+              </Field>
+              <Field label="Incident Type *">
+                <select className={FIELD} value={formData.incidentType} onChange={(e) => set('incidentType', e.target.value)}>
+                  {INCIDENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
-              </div>
-
-              <div className="form-group">
-                <label>Severity *</label>
-                <select
-                  value={formData.severity}
-                  onChange={(e) => setFormData({ ...formData, severity: e.target.value })}
-                >
-                  <option value="minor">Minor</option>
-                  <option value="moderate">Moderate</option>
-                  <option value="severe">Severe</option>
-                  <option value="critical">Critical</option>
+              </Field>
+              <Field label="Severity *">
+                <select className={FIELD} value={formData.severity} onChange={(e) => set('severity', e.target.value)}>
+                  {SEVERITIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
-              </div>
-
-              <div className="form-group">
-                <label>Incident Date *</label>
-                <input
-                  type="date"
-                  value={formData.incidentDate}
-                  onChange={(e) => setFormData({ ...formData, incidentDate: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Incident Time</label>
-                <input
-                  type="time"
-                  value={formData.incidentTime}
-                  onChange={(e) => setFormData({ ...formData, incidentTime: e.target.value })}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Reported By</label>
-                <input
-                  type="text"
-                  value={formData.reportedBy}
-                  onChange={(e) => setFormData({ ...formData, reportedBy: e.target.value })}
-                  placeholder="Name of person reporting"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Report Date</label>
-                <input
-                  type="date"
-                  value={formData.reportedDate}
-                  onChange={(e) => setFormData({ ...formData, reportedDate: e.target.value })}
-                />
-              </div>
+              </Field>
+              <Field label="Incident Date *">
+                <input className={FIELD} type="date" value={formData.incidentDate} onChange={(e) => set('incidentDate', e.target.value)} required />
+              </Field>
+              <Field label="Incident Time">
+                <input className={FIELD} type="time" value={formData.incidentTime} onChange={(e) => set('incidentTime', e.target.value)} />
+              </Field>
+              <Field label="Reported By">
+                <input className={FIELD} type="text" value={formData.reportedBy} onChange={(e) => set('reportedBy', e.target.value)} placeholder="Name of person reporting" />
+              </Field>
+              <Field label="Report Date">
+                <input className={FIELD} type="date" value={formData.reportedDate} onChange={(e) => set('reportedDate', e.target.value)} />
+              </Field>
+              <Field label="Reporter Contact Name">
+                <input className={FIELD} type="text" value={formData.reporterContactName} onChange={(e) => set('reporterContactName', e.target.value)} placeholder="e.g. the care manager's name" />
+              </Field>
+              <Field label="Response Due Date">
+                <input className={FIELD} type="date" value={formData.responseDueDate} onChange={(e) => set('responseDueDate', e.target.value)} />
+              </Field>
+              <Field label="Reporter Phone">
+                <input className={FIELD} type="tel" value={formData.reporterPhone} onChange={(e) => set('reporterPhone', e.target.value)} />
+              </Field>
+              <Field label="Reporter Email">
+                <input className={FIELD} type="email" value={formData.reporterEmail} onChange={(e) => set('reporterEmail', e.target.value)} />
+              </Field>
             </div>
-
-            <div className="form-group">
-              <label>Incident Description *</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Detailed description of what happened..."
-                rows="4"
-                required
-              ></textarea>
-            </div>
-
-            <div className="form-group">
-              <label>Witnesses</label>
-              <textarea
-                value={formData.witnesses}
-                onChange={(e) => setFormData({ ...formData, witnesses: e.target.value })}
-                placeholder="Names and contact info of witnesses..."
-                rows="2"
-              ></textarea>
-            </div>
-
-            <div className="form-group">
-              <label>Injuries or Damage</label>
-              <textarea
-                value={formData.injuriesOrDamage}
-                onChange={(e) => setFormData({ ...formData, injuriesOrDamage: e.target.value })}
-                placeholder="Description of any injuries or property damage..."
-                rows="2"
-              ></textarea>
-            </div>
-
-            <div className="form-group">
-              <label>Actions Taken</label>
-              <textarea
-                value={formData.actionsTaken}
-                onChange={(e) => setFormData({ ...formData, actionsTaken: e.target.value })}
-                placeholder="What actions were taken in response to the incident..."
-                rows="2"
-              ></textarea>
-            </div>
-
-            <div className="form-group">
-              <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <input
-                  type="checkbox"
-                  checked={formData.followUpRequired}
-                  onChange={(e) => setFormData({ ...formData, followUpRequired: e.target.checked })}
-                />
-                <span>Follow-up Required</span>
-              </label>
-            </div>
-
+            <Field label="Incident Description *">
+              <textarea className={FIELD} value={formData.description} onChange={(e) => set('description', e.target.value)} placeholder="Detailed description of what happened..." rows={4} required />
+            </Field>
+            <Field label="Witnesses">
+              <textarea className={FIELD} value={formData.witnesses} onChange={(e) => set('witnesses', e.target.value)} placeholder="Names and contact info of witnesses..." rows={2} />
+            </Field>
+            <Field label="Injuries or Damage">
+              <textarea className={FIELD} value={formData.injuriesOrDamage} onChange={(e) => set('injuriesOrDamage', e.target.value)} placeholder="Description of any injuries or property damage..." rows={2} />
+            </Field>
+            <Field label="Actions Taken">
+              <textarea className={FIELD} value={formData.actionsTaken} onChange={(e) => set('actionsTaken', e.target.value)} placeholder="What actions were taken in response to the incident..." rows={2} />
+            </Field>
+            <label className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200">
+              <input type="checkbox" checked={formData.followUpRequired} onChange={(e) => set('followUpRequired', e.target.checked)} />
+              <span>Follow-up Required</span>
+            </label>
             {formData.followUpRequired && (
-              <div className="form-group">
-                <label>Follow-up Notes</label>
-                <textarea
-                  value={formData.followUpNotes}
-                  onChange={(e) => setFormData({ ...formData, followUpNotes: e.target.value })}
-                  placeholder="What follow-up actions are needed..."
-                  rows="2"
-                ></textarea>
-              </div>
+              <Field label="Follow-up Notes">
+                <textarea className={FIELD} value={formData.followUpNotes} onChange={(e) => set('followUpNotes', e.target.value)} placeholder="What follow-up actions are needed..." rows={2} />
+              </Field>
             )}
-
-            <div className="form-actions">
-              <button type="submit" className="btn btn-primary">Report Incident</button>
-              <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+            <div className="flex gap-2">
+              <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? 'Saving…' : 'Report Incident'}</button>
+              <button type="button" className={BTN_SECONDARY} onClick={() => setShowForm(false)}>Cancel</button>
             </div>
           </form>
         </div>
       )}
 
       {/* Filters */}
-      <div className="card">
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className={CARD}>
+        <div className="flex flex-wrap items-center gap-3">
           <input
             type="text"
+            aria-label="Search incidents"
             placeholder="Search incidents..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ flex: 1, minWidth: '200px', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '4px' }}
+            className={`${FIELD} min-w-[200px] flex-1`}
           />
+          <select aria-label="Filter by status" className={`${FIELD} w-auto`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="all">All statuses</option>
+            {INCIDENT_STATUSES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label} ({incidents.filter((i) => (i.status || 'open') === s.value).length})
+              </option>
+            ))}
+          </select>
         </div>
-
-        <div className="filter-tabs" style={{ marginTop: '1rem' }}>
-          {['all', 'critical', 'severe', 'moderate', 'minor'].map(f => (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {['all', 'critical', 'severe', 'moderate', 'minor'].map((f) => (
             <button
               key={f}
-              className={`filter-tab ${filter === f ? 'active' : ''}`}
               onClick={() => setFilter(f)}
+              className={`rounded-full px-3 py-1 text-sm font-semibold ${filter === f
+                ? 'bg-teal-700 text-white dark:bg-teal-600 dark:text-white'
+                : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600'}`}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}
-              {f !== 'all' && ` (${incidents.filter(i => i.severity === f).length})`}
+              {f !== 'all' && ` (${incidents.filter((i) => i.severity === f).length})`}
             </button>
           ))}
         </div>
@@ -426,105 +278,76 @@ const IncidentReporting = () => {
 
       {/* Incidents List */}
       {filteredIncidents.length === 0 ? (
-        <div className="card card-centered">
-          <p>No incidents reported.</p>
-        </div>
+        <div className={`${CARD} text-center`}><p className={MUTED}>No incidents reported.</p></div>
       ) : (
-        <div style={{ display: 'grid', gap: '1rem' }}>
-          {filteredIncidents.map(incident => (
-            <div
-              key={incident.id}
-              style={{
-                padding: '1rem',
-                border: `2px solid ${getSeverityColor(incident.severity)}`,
-                borderRadius: '6px',
-                background: '#f9f9f9'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                <div>
-                  <h4 style={{ margin: '0 0 0.25rem 0' }}>
-                    {getClientName(incident.client_id)} - {getIncidentTypeLabel(incident.incident_type)}
-                  </h4>
-                  <small style={{ color: '#666' }}>
-                    {formatDate(incident.incident_date)} at {incident.incident_time || 'Unknown time'}
-                  </small>
+        <div className="grid gap-4">
+          {filteredIncidents.map((incident) => {
+            const status = incident.status || 'open';
+            const dueOpen = incident.response_due_date_ymd && !incident.response_sent_date_ymd && status !== 'closed';
+            return (
+              <div key={incident.id} className={`rounded-xl border-2 bg-white p-4 dark:bg-slate-800 ${SEVERITY_BORDER[incident.severity] || 'border-gray-300 dark:border-slate-600'}`}>
+                <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-base font-bold text-gray-900 dark:text-slate-100">
+                      {incident.incident_number && <span className="font-semibold text-gray-600 dark:text-slate-400">{incident.incident_number} · </span>}
+                      {incident.client_name || 'Unknown Client'} - {incidentLabel('type', incident.incident_type)}
+                    </h4>
+                    <div className="text-xs text-gray-600 dark:text-slate-400">
+                      {formatDate(incident.incident_date_ymd)} at {incident.incident_time_hhmm || 'Unknown time'}
+                      {incident.reported_by_role === 'caregiver' && ' · Reported from the caregiver app'}
+                    </div>
+                    {dueOpen && (
+                      <div className={`mt-1 text-sm font-bold ${incident.response_due_date_ymd <= today ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                        Response due {formatDate(incident.response_due_date_ymd)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold uppercase ${STATUS_CHIP[status] || STATUS_CHIP.open}`}>{incidentLabel('status', status)}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold uppercase ${SEVERITY_CHIP[incident.severity] || 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-slate-100'}`}>{incidentLabel('severity', incident.severity) || 'Unknown'}</span>
+                    <button className={BTN_PRIMARY} onClick={() => setDetailId(incident.id)}>Open</button>
+                    <button className={BTN_DANGER} onClick={() => handleDeleteIncident(incident.id)}>Delete</button>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <span
-                    className="badge"
-                    style={{
-                      background: getSeverityColor(incident.severity),
-                      color: 'white'
-                    }}
-                  >
-                    {getSeverityLabel(incident.severity).toUpperCase()}
-                  </span>
-                  <button
-                    className="btn btn-sm btn-danger"
-                    onClick={() => handleDeleteIncident(incident.id)}
-                  >
-                    Delete
-                  </button>
+
+                <div className="mb-2 text-sm text-gray-800 dark:text-slate-200">
+                  <strong>Description:</strong>
+                  <p className="mt-1 whitespace-pre-wrap">{incident.description}</p>
+                </div>
+                {incident.caregiver_name && (
+                  <div className="mb-2 text-sm text-gray-800 dark:text-slate-200"><strong>Caregiver:</strong> {incident.caregiver_name}</div>
+                )}
+                {incident.witnesses && (
+                  <div className="mb-2 text-sm text-gray-800 dark:text-slate-200">
+                    <strong>Witnesses:</strong>
+                    <p className="mt-1 whitespace-pre-wrap">{incident.witnesses}</p>
+                  </div>
+                )}
+                {incident.injuries_or_damage && (
+                  <div className="mb-2 rounded-lg bg-red-50 p-3 text-sm text-red-900 dark:bg-red-900/30 dark:text-red-100">
+                    <strong>Injuries/Damage:</strong>
+                    <p className="mt-1 whitespace-pre-wrap">{incident.injuries_or_damage}</p>
+                  </div>
+                )}
+                {incident.action_taken && (
+                  <div className="mb-2 text-sm text-gray-800 dark:text-slate-200">
+                    <strong>Actions Taken:</strong>
+                    <p className="mt-1 whitespace-pre-wrap">{incident.action_taken}</p>
+                  </div>
+                )}
+                {incident.follow_up_required && (
+                  <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
+                    <strong>Follow-up Required</strong>
+                    {incident.follow_up_notes && <p className="mt-1 whitespace-pre-wrap">{incident.follow_up_notes}</p>}
+                  </div>
+                )}
+                <div className="mt-3 border-t border-gray-200 pt-3 text-xs text-gray-600 dark:border-slate-700 dark:text-slate-400">
+                  Reported by {incident.reported_by || incident.entered_by_name || 'Unknown'}{incident.reported_date_ymd ? ` on ${formatDate(incident.reported_date_ymd)}` : ''}
+                  {(incident.note_count > 0 || incident.attachment_count > 0) && ` · ${incident.note_count} timeline entr${incident.note_count === 1 ? 'y' : 'ies'} · ${incident.attachment_count} attachment${incident.attachment_count === 1 ? '' : 's'}`}
                 </div>
               </div>
-
-              <div style={{ marginBottom: '0.75rem' }}>
-                <strong>Description:</strong>
-                <p style={{ margin: '0.25rem 0', whiteSpace: 'pre-wrap' }}>
-                  {incident.description}
-                </p>
-              </div>
-
-              {incident.caregiver_id && (
-                <div style={{ marginBottom: '0.75rem', fontSize: '0.9rem' }}>
-                  <strong>Caregiver:</strong> {getCaregiverName(incident.caregiver_id)}
-                </div>
-              )}
-
-              {incident.witnesses && (
-                <div style={{ marginBottom: '0.75rem', fontSize: '0.9rem' }}>
-                  <strong>Witnesses:</strong>
-                  <p style={{ margin: '0.25rem 0', whiteSpace: 'pre-wrap' }}>
-                    {incident.witnesses}
-                  </p>
-                </div>
-              )}
-
-              {incident.injuries_or_damage && (
-                <div style={{ marginBottom: '0.75rem', fontSize: '0.9rem', padding: '0.75rem', background: '#ffe6e6', borderRadius: '4px' }}>
-                  <strong style={{ color: '#d32f2f' }}>Injuries/Damage:</strong>
-                  <p style={{ margin: '0.25rem 0', whiteSpace: 'pre-wrap' }}>
-                    {incident.injuries_or_damage}
-                  </p>
-                </div>
-              )}
-
-              {incident.actions_taken && (
-                <div style={{ marginBottom: '0.75rem', fontSize: '0.9rem' }}>
-                  <strong>Actions Taken:</strong>
-                  <p style={{ margin: '0.25rem 0', whiteSpace: 'pre-wrap' }}>
-                    {incident.actions_taken}
-                  </p>
-                </div>
-              )}
-
-              {incident.follow_up_required && (
-                <div style={{ padding: '0.75rem', background: '#fff3cd', borderRadius: '4px', fontSize: '0.9rem' }}>
-                  <strong>Follow-up Required:</strong>
-                  {incident.follow_up_notes && (
-                    <p style={{ margin: '0.25rem 0', whiteSpace: 'pre-wrap' }}>
-                      {incident.follow_up_notes}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #ddd', fontSize: '0.85rem', color: '#999' }}>
-                Reported by {incident.reported_by || 'Unknown'} on {formatDate(incident.reported_date)}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
