@@ -90,7 +90,9 @@ export function PaywallScreen({ company, onSignOut, request, homePath = '/crm' }
             <div>
               <p className="font-semibold text-green-900 dark:text-green-300">Your data is safe</p>
               <p className="text-sm text-green-800 mt-1 dark:text-green-300">
-                Every contact, job, quote, invoice, document and file is still here.
+                {/* True of every CRM — "every contact, job, quote, invoice…" read as a contractor's list on a store, a vet and
+                    a salon (E2E Run 2). */}
+                Everything you have added is still here — nothing has been deleted.
                 {ended ? ' Restart the subscription and everything unlocks exactly as you left it.' : ' Choose a plan and everything unlocks exactly as you left it.'}
               </p>
             </div>

@@ -8,6 +8,7 @@ import fs from 'fs'
 import path from 'path'
 import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
 import { restartRefusal } from '../../services/subscriptionRestart'
+import { ownerFirstName } from '../../services/tenantOwner'
 import { registrantGaps } from '../../services/domainRegistrant'
 import { ourPremiumSiteOrigin } from '../../services/premiumSiteUrl'
 import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
@@ -1364,7 +1365,7 @@ factory.post('/customers/:id/reactivate', factoryKeyOrRole('owner', 'admin'), as
       offboard_started_at: { old: tenant.offboard_started_at, new: null },
     }, user?.email || 'system')
 
-    notifyReactivated(tenant).catch(e => console.warn('[Reactivate] email failed:', e.message))
+    ownerFirstName(tenant.id).then((first) => notifyReactivated(tenant, first)).catch(e => console.warn('[Reactivate] email failed:', e.message))
     return c.json({ success: true })
   } catch (err: any) {
     console.error('[Reactivate] failed:', err)

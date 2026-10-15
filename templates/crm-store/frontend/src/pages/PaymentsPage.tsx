@@ -26,7 +26,13 @@ export default function PaymentsPage() {
   const [saving, setSaving] = useState(false)
   const f = PROVIDER_FIELDS[form.provider] || PROVIDER_FIELDS.stripe
 
-  const load = () => api.getPaymentStatus().then(setStatus).catch(() => {}).finally(() => setLoading(false))
+  // The form starts on whatever IS connected: with Square connected it still read "Connect your stripe account" (E2E
+  // Run 2) — and reconnecting from it would have sent Square's keys as Stripe's.
+  const load = () => api.getPaymentStatus().then((s: any) => {
+    setStatus(s)
+    const p = s?.config?.provider, m = s?.config?.mode
+    if (p && PROVIDER_FIELDS[p]) setForm((prev) => ({ ...prev, provider: p, ...(m ? { mode: m } : {}) }))
+  }).catch(() => {}).finally(() => setLoading(false))
   useEffect(() => { load() }, [])
 
   const connect = async () => {
@@ -35,7 +41,7 @@ export default function PaymentsPage() {
       const res: any = await api.connectPayment(form)
       if (res?.webhookConfigured) toast('Connected \u2014 payment notifications set up automatically')
       else toast('Connected, but payment notifications need attention: ' + (res?.webhookNote || 'no webhook configured') + '. Orders still confirm on the customer\u2019s receipt page.', 'error')
-      setForm({ ...form, secretKey: '', webhookSecret: '' })
+      setForm((prev) => ({ ...prev, secretKey: '', webhookSecret: '' }))
       load()
     } catch (e: any) { toast(e?.message || 'Could not connect', 'error') } finally { setSaving(false) }
   }

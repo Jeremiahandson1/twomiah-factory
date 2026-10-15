@@ -719,12 +719,14 @@ export async function notifyDataExportReady(
 }
 
 export async function notifyReactivated(
-  tenant: { name: string; email?: string; admin_email?: string | null }
+  tenant: { name: string; email?: string; admin_email?: string | null },
+  // The owner's first name (services/tenantOwner.ts) — a person is welcomed back, not a company. Falls back to the company.
+  ownerFirst?: string | null,
 ): Promise<boolean> {
   const to = tenant.admin_email || tenant.email
   if (!to) return false
   const body = `
-    <p style="color:#333;line-height:1.6;">Welcome back, ${tenant.name} — your account has been reactivated.</p>
+    <p style="color:#333;line-height:1.6;">Welcome back${ownerFirst ? ', ' + ownerFirst : ''} — your ${tenant.name} account has been reactivated.</p>
     <p style="color:#333;line-height:1.6;">Your subscription has been restored and the offboard timer has been cancelled. Nothing was deleted during the grace period, so everything picks up where you left off.</p>`
   return sendEmail(to, 'Your Twomiah account is reactivated', wrap('Welcome Back', body))
 }

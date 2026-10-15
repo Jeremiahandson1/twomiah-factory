@@ -10,6 +10,7 @@ import { getRegistrar } from '../../services/registrar'
 import { type FactoryApp, UUID_RE, DOMAIN_RE, parseJsonBody, logTenantAudit, diffTenantChanges, FRONTEND_URL, checkCronSecret } from './shared'
 import { triggerAutoDeploy } from './deploy'
 import { finishRestart } from '../../services/subscriptionRestart'
+import { ownerFirstName } from '../../services/tenantOwner'
 import { registrantGaps, registrantMessage, cleanRegistrant } from '../../services/domainRegistrant'
 
 // Apply a webhook's tenant updates so that activation NEVER depends on an optional attribute.
@@ -217,7 +218,7 @@ factory.post('/stripe/webhook', async (c) => {
           clearOffboard: async (id) => supabase.from('tenants').update({ offboard_started_at: null, offboard_grace_ends_at: null, epp_code_sent_at: null }).eq('id', id),
           relockDomain: async (domain) => (await getRegistrar()).lock(domain),
           audit: async (id, changes) => { await logTenantAudit(id, 'offboard_reactivate', changes, 'stripe-webhook', 'Restarted — the subscription was paid again') },
-          notifyReactivated: (t) => notifyReactivated(t as any),
+          notifyReactivated: async (t) => notifyReactivated(t as any, await ownerFirstName(t.id)),
         })
         console.log('[Restart]', result.factoryCustomerId, JSON.stringify(done))
       }
