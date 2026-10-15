@@ -685,6 +685,9 @@ const TODAY = new Date().toISOString().slice(0, 10)
   check('geofence: a caregiver cannot probe a client they do not serve (403)', no.status === 403, no)
   const yes = await C1('POST', '/api/route-optimizer/geofence/check', { clientId: served.id, latitude: 44.8001, longitude: -91.5001 })
   check('geofence: a caregiver checks a client they serve', yes.status === 200 && yes.json.withinGeofence === true, yes.json)
+  // Standing exactly on the client's point is 0 feet away — inside, not "no distance".
+  const onPoint = await C1('POST', '/api/route-optimizer/geofence/check', { clientId: served.id, latitude: 44.8, longitude: -91.5 })
+  check('geofence: exactly on the client\'s point is inside, 0 feet', onPoint.status === 200 && onPoint.json.withinGeofence === true && onPoint.json.distanceFeet === 0, onPoint.json)
   const ns = await C1('PUT', '/api/notification-settings', { smsEnabled: false })
   check('notification settings: a caregiver saves their own', ns.status === 200 && ns.json.userId === cg1.id && ns.json.smsEnabled === false, ns.json)
 }

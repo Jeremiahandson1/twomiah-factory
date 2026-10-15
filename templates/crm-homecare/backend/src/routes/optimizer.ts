@@ -129,7 +129,8 @@ export const haversine = (lat1: number, lon1: number, lat2: number, lon2: number
 export const estimateDriveMinutes = (miles: number | null) => (miles ? Math.round(miles * 2) : 0) // ~30 mph
 const distanceFeet = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const miles = haversine(lat1, lon1, lat2, lon2)
-  return miles ? miles * 5280 : null
+  // 0 miles is a distance (standing on the client's point), not "unknown" — only null is unknown.
+  return miles == null ? null : miles * 5280
 }
 
 // Nearest-neighbour tour from node 0 over a distance matrix.
@@ -612,7 +613,7 @@ app.post('/geofence/check', async (c) => {
   const feet = distanceFeet(lat, lng, parseFloat(cl.latitude), parseFloat(cl.longitude))
   return c.json({
     withinGeofence: feet !== null && feet <= Number(cl.radius_feet),
-    distanceFeet: feet ? Math.round(feet) : null, radiusFeet: Number(cl.radius_feet),
+    distanceFeet: feet == null ? null : Math.round(feet), radiusFeet: Number(cl.radius_feet),
     autoClockIn: cl.auto_clock_in, autoClockOut: cl.auto_clock_out,
     clientName: `${cl.first_name} ${cl.last_name}`,
   })
