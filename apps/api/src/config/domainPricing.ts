@@ -59,7 +59,11 @@ export function renewalChargeCents(liveRenewCostCents: number | null): number | 
   return liveRenewCostCents! > 0 ? withStripeFee(liveRenewCostCents!) : null
 }
 
-/** The line a customer sees on the Stripe page. */
-export function domainChargeDescription(domain: string, years: number): string {
-  return domain + ' — ' + years + ' year' + (years === 1 ? '' : 's') + ' (registration + WHOIS privacy), at cost plus card processing'
+/**
+ * The line a customer sees on the Stripe page — with what each year after costs, when it is known, so the first
+ * renewal is never a surprise (a .site: $1.53 now, $31.40 a year after; owner, 10/15).
+ */
+export function domainChargeDescription(domain: string, years: number, renewalChargeCents?: number | null): string {
+  const renews = renewalChargeCents && renewalChargeCents > 0 ? '. Renews at $' + (renewalChargeCents / 100).toFixed(2) + ' a year after that' : ''
+  return domain + ' — ' + years + ' year' + (years === 1 ? '' : 's') + ' (registration + WHOIS privacy), at cost plus card processing' + renews
 }

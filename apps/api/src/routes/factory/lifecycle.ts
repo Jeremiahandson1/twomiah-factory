@@ -421,7 +421,7 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
     if (avail.premium) return c.json({ error: 'That is a Premium domain — pricing is non-standard and we do not auto-register Premium domains in this flow yet. Please contact support.' }, 422)
 
     // At cost plus the Stripe fee, from Namecheap's live prices (config/domainPricing.ts — decided 10/14).
-    const { checkTld, purchaseChargeCents, domainChargeDescription } = await import('../../config/domainPricing')
+    const { checkTld, purchaseChargeCents, domainChargeDescription, renewalChargeCents } = await import('../../config/domainPricing')
     const tld = checkTld(domain)
     if (!tld.ok) {
       if (tld.reason === 'unsupported_tld') {
@@ -432,10 +432,11 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
       return c.json({ error: 'Malformed domain' }, 400)
     }
     const registerCost = await registrar.getCostCents(tld.tld, 'REGISTER')
-    const renewCost = years > 1 ? await registrar.getCostCents(tld.tld, 'RENEW') : null
-    const charge = purchaseChargeCents(registerCost, renewCost, years)
+    // The renewal price is read for every purchase: the Stripe page states it (domainChargeDescription).
+    const renewCost = await registrar.getCostCents(tld.tld, 'RENEW')
+    const charge = purchaseChargeCents(registerCost, years > 1 ? renewCost : null, years)
     if (!charge.ok) return c.json({ error: 'We could not get the current price for .' + tld.tld + ' from our registrar. Please try again in a few minutes.' }, 503)
-    const price = { amountCents: charge.cents, description: domainChargeDescription(domain, years) }
+    const price = { amountCents: charge.cents, description: domainChargeDescription(domain, years, renewalChargeCents(renewCost)) }
 
     const returnBase = (tenant.website_url || tenant.render_frontend_url || '').replace(/\/+$/, '')
     if (!returnBase) return c.json({ error: 'Tenant has no site URL recorded.' }, 409)

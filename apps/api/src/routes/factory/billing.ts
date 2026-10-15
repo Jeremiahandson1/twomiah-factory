@@ -707,7 +707,7 @@ factory.post('/customers/:id/domain/register', requireRole('owner', 'admin'), as
     const avail = await registrar.checkAvailability(domain)
     if (!avail.available) return c.json({ error: 'That domain is not available.' }, 409)
     if (avail.premium) return c.json({ error: 'Premium-priced domain — not registered automatically.' }, 422)
-    const { checkTld, purchaseChargeCents, domainChargeDescription } = await import('../../config/domainPricing')
+    const { checkTld, purchaseChargeCents, domainChargeDescription, renewalChargeCents } = await import('../../config/domainPricing')
     const tld = checkTld(domain)
     if (!tld.ok) return c.json({ error: tld.reason === 'unsupported_tld' ? 'We do not sell .' + tld.tld + ' yet. We sell: ' + tld.supportedTlds.join(', ') : 'Malformed domain' }, 422)
 
@@ -718,14 +718,16 @@ factory.post('/customers/:id/domain/register', requireRole('owner', 'admin'), as
     }
 
     if (!tenant.stripe_customer_id) return c.json({ error: 'This company has no Stripe customer yet — they need to have paid for their plan first.' }, 409)
-    const charge = purchaseChargeCents(await registrar.getCostCents(tld.tld, 'REGISTER'), years > 1 ? await registrar.getCostCents(tld.tld, 'RENEW') : null, years)
+    // The renewal price is read for every purchase: the Stripe page states it (domainChargeDescription).
+    const renewCost = await registrar.getCostCents(tld.tld, 'RENEW')
+    const charge = purchaseChargeCents(await registrar.getCostCents(tld.tld, 'REGISTER'), years > 1 ? renewCost : null, years)
     if (!charge.ok) return c.json({ error: 'Namecheap did not give us a current price for .' + tld.tld + ' — try again in a few minutes.' }, 503)
     const back = FRONTEND_URL.replace(/\/+$/, '') + '/tenants/' + id
     const session = await factoryStripe.createOneTimeCheckoutSession({
       customerId: tenant.stripe_customer_id,
       amountCents: charge.cents,
       productName: 'Domain registration — ' + domain,
-      description: domainChargeDescription(domain, years),
+      description: domainChargeDescription(domain, years, renewalChargeCents(renewCost)),
       successUrl: back + '?domain=paid',
       cancelUrl: back + '?domain=cancelled',
       metadata: { purpose: 'domain_registration', tenant_id: id, domain, years: String(years) },

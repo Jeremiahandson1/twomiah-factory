@@ -167,14 +167,18 @@ factory.post('/public/domain/check', rateLimit(10 * 60 * 1000, 20), async (c) =>
     }
     const registrar = await getRegistrar()
     const primary = await registrar.checkAvailability(domain)
+    // What it costs — the first year and every year after — before anyone pays (services/domainQuote.ts, 10/15).
+    // null: a TLD we do not sell, or Namecheap could not say; the buy route refuses those with its own message.
+    const { quoteDomain, pricedSuggestions } = await import('../../services/domainQuote')
     // If the customer's first pick is available, ship that and skip the
     // expensive batch call. Keeps Namecheap quota low for the happy path.
-    if (primary.available) return c.json({ ...primary, suggestions: [] })
+    if (primary.available) return c.json({ ...primary, quote: primary.premium ? null : await quoteDomain(registrar, domain), suggestions: [] })
 
     const variants = generateDomainVariants(domain)
     const batched = variants.length > 0 ? await registrar.checkBatch(variants) : []
-    const suggestions = batched.filter(x => x.available && !x.premium).slice(0, 8)
-    return c.json({ ...primary, suggestions })
+    // Endings that renew close to their first-year price come first; one we cannot price is not offered.
+    const suggestions = await pricedSuggestions(registrar, batched.filter(x => x.available && !x.premium), 8)
+    return c.json({ ...primary, quote: null, suggestions })
   } catch (err: any) {
     console.error('[Domain] Availability check failed:', err)
     return c.json({ error: err.message || 'Availability check failed' }, 500)

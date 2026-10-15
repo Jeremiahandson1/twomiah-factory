@@ -8,14 +8,24 @@ interface DomainStatus {
   nameservers?: string[]
 }
 
+// What the domain costs, charged to the customer: now, and each year after (Factory services/domainQuote.ts).
+interface DomainQuote {
+  firstYearCents: number
+  renewalCents: number
+  renewsHigher: boolean
+}
+
 interface CheckResult {
   domain: string
   available: boolean
   priceUsd?: number
   premium?: boolean
-  suggestions?: Array<{ domain: string; priceUsd?: number }>
+  quote?: DomainQuote | null
+  suggestions?: Array<{ domain: string; priceUsd?: number; quote?: DomainQuote }>
   errorMessage?: string
 }
+
+const usd = (cents: number) => '$' + (cents / 100).toFixed(2)
 
 export function DomainPage() {
   const [statusLoading, setStatusLoading] = useState(true)
@@ -294,15 +304,28 @@ export function DomainPage() {
                   <Loader2 className="w-3 h-3 animate-spin" /> Checking…
                 </div>
               )}
+              {/* Both prices before anyone pays — the renewal in bold, and said plainly when it jumps (a .site is
+                  $1.53 now and $31.40 a year after). No price, no Register: the customer never buys blind. (10/15) */}
               {!checking && check?.available && (
-                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center justify-between">
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center justify-between gap-3">
                   <div className="text-sm">
                     <span className="font-semibold text-green-900">{check.domain}</span>
                     <span className="text-green-800"> is available</span>
-                    {check.priceUsd && <span className="text-green-700 ml-1">— ${check.priceUsd.toFixed(2)}/yr</span>}
+                    {check.quote ? (
+                      <div className="mt-1 text-green-900">
+                        {usd(check.quote.firstYearCents)} for the first year, then <strong>{usd(check.quote.renewalCents)} a year</strong> after that.
+                        {check.quote.renewsHigher && (
+                          <div className="mt-1 font-semibold text-orange-800">
+                            Heads up: this ending renews at {usd(check.quote.renewalCents)} a year — much more than the first year. A .com usually stays close.
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-orange-800">We can't show the price for this one right now, so it can't be registered here. Try again in a few minutes, or try a .com.</div>
+                    )}
                   </div>
                   <button onClick={() => startBuyCheckout(check.domain)}
-                    disabled={byodSubmitting}
+                    disabled={byodSubmitting || !check.quote}
                     className="btn-primary btn-sm">
                     {byodSubmitting ? 'Starting…' : 'Register'}
                   </button>
@@ -323,7 +346,7 @@ export function DomainPage() {
                           onClick={() => setBuyInput(s.domain)}
                           className="px-3 py-1.5 bg-white border border-orange-300 rounded-md text-sm font-mono text-ink hover:bg-orange-100 hover:border-orange-400 transition">
                           {s.domain}
-                          {s.priceUsd && <span className="text-xs text-muted ml-1.5">${s.priceUsd.toFixed(0)}/yr</span>}
+                          {s.quote && <span className="text-xs text-muted ml-1.5">{usd(s.quote.firstYearCents)}, then <strong>{usd(s.quote.renewalCents)}/yr</strong></span>}
                         </button>
                       ))}
                     </div>

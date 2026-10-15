@@ -2334,6 +2334,8 @@ jobs:
         run: bun run tests/shared/migrate-wait.test.ts
       - name: "A domain is never charged for until the registrar has the full address"
         run: bun run tests/shared/domain-registrant.test.ts
+      - name: "A domain shows what it costs now AND every year after, before anyone pays"
+        run: bun run tests/shared/domain-quote.test.ts
       - name: "The bill stays with the owner; a paid shop never locks a manager out (T60)"
         run: bun run tests/shared/billing-visibility.test.ts
       # happy-dom, so this needs the root dev dependencies — the two above are dependency-free.
