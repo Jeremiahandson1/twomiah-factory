@@ -11,8 +11,9 @@
 import { Context, Next } from 'hono'
 import jwt from 'jsonwebtoken'
 import { db } from '../../db/index.ts'
-import { users } from '../../db/schema.ts'
+import { users, storeSettings } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
+import { refuseWhileLocked } from '../shared/index.ts'
 
 export const authenticate = async (c: Context, next: Next) => {
   const testUser = c.req.header('x-test-user')
@@ -21,6 +22,9 @@ export const authenticate = async (c: Context, next: Next) => {
       .from(users).where(eq(users.id, testUser)).limit(1)
     if (!found || !found.isActive) return c.json({ error: 'User not found or inactive' }, 401)
     c.set('user', { userId: found.id, email: found.email, role: found.role })
+    // The bridge keeps the real middleware's lock, or no suite would ever see a locked store.
+    const locked = await refuseWhileLocked(c, db, storeSettings, storeSettings.subscription)
+    if (locked) return locked
     return next()
   }
 
@@ -45,6 +49,8 @@ export const authenticate = async (c: Context, next: Next) => {
     }
 
     c.set('user', { userId: found.id, email: found.email, role: found.role })
+    const locked = await refuseWhileLocked(c, db, storeSettings, storeSettings.subscription)
+    if (locked) return locked
     await next()
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {

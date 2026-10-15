@@ -85,7 +85,13 @@ const API = (p: string) => readFileSync(new URL('../../apps/api/src/' + p, impor
   const asked = body.indexOf('const refusal = restartRefusal(tenant)')
   const acted = body.indexOf('if (refusal) return c.json({ error: refusal.error, code: refusal.code }, refusal.status)')
   check('…and a refusal RETURNS its 409/410 before any checkout is opened — never a second subscription', asked > 0 && acted > asked && acted < body.indexOf('createSubscriptionCheckout'), { asked, acted })
-  check('…for the company\'s own plan, back to the lock page that waits for the payment', /planId: tenant\.plan/.test(body) && /successUrl: crm \+ '\/crm\/paywall\?restarted=1'/.test(body))
+  check('…for the company\'s own plan, back to the lock page that waits for the payment', /planId: tenant\.plan/.test(body) && /successUrl: crm \+ lockPage \+ '\?restarted=1'/.test(body) && /cancelUrl: crm \+ lockPage/.test(body))
+  // The CRM names its lock page (crm-store's is /paywall). Run the route's OWN rule on hostile input: only a plain
+  // same-site path may come back, or Stripe could be told to send a paying customer to another host.
+  const ruleSrc = body.match(/const lockPage = (.+?)\r?\n/)?.[1] || ''
+  const lockPageOf = (asked: string) => new Function('asked', 'return ' + ruleSrc)(asked)
+  check('the return path defaults to /crm/paywall and accepts the store\'s /paywall', ruleSrc.length > 0 && lockPageOf('') === '/crm/paywall' && lockPageOf('/paywall') === '/paywall', ruleSrc)
+  check('…and never another host: //evil.com, https://evil.com, /x?next=… and a backslash all fall back', ['//evil.com', 'https://evil.com', '/paywall?next=//evil.com', '/\\evil.com', 'paywall'].every((a) => lockPageOf(a) === '/crm/paywall'))
   // logTenantAudit returns early on an empty changes object — the first live restart's "checkout opened" row never landed.
   check('opening a restart checkout is recorded — with a change, which the audit helper requires', /logTenantAudit\(tenant\.id, 'restart_checkout', \{ restart_checkout_plan: \{/.test(body)
     && /if \(Object\.keys\(changes\)\.length === 0\) return/.test(API('routes/factory/shared.ts')))

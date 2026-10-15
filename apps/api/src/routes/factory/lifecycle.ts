@@ -180,14 +180,19 @@ factory.post('/customers/:id/restart-checkout', async (c) => {
     if (refusal) return c.json({ error: refusal.error, code: refusal.code }, refusal.status)
     const crm = String(tenant.render_frontend_url || tenant.render_backend_url || '').replace(/\/$/, '')
     if (!crm) return c.json({ error: 'This company has no CRM address to come back to — email support@twomiah.com.' }, 409)
+    const body = await c.req.json().catch(() => ({})) as { returnPath?: unknown }
+    const asked = typeof body?.returnPath === 'string' ? body.returnPath : ''
+    // Only a plain same-site path ("/paywall"), so the checkout can never send the customer to another host.
+    const lockPage = /^\/[a-z0-9/_-]{0,60}$/i.test(asked) && !asked.startsWith('//') ? asked : '/crm/paywall'
     const checkout = await factoryStripe.createSubscriptionCheckout(
       { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: tenant.stripe_customer_id },
       {
         planId: tenant.plan || 'starter10',
         billingCycle: tenant.billing_cycle === 'annual' ? 'annual' : 'monthly',
-        // Back to the lock page, which waits for the payment to land and then opens the CRM.
-        successUrl: crm + '/crm/paywall?restarted=1',
-        cancelUrl: crm + '/crm/paywall',
+        // Back to the lock page, which waits for the payment to land and then opens the CRM. The CRM names its own lock
+        // page: /crm/paywall in the CRMs, /paywall in crm-store (whose screens are not under /crm). A path, never a host.
+        successUrl: crm + lockPage + '?restarted=1',
+        cancelUrl: crm + lockPage,
       },
     )
     if (checkout.stripeCustomerId && !tenant.stripe_customer_id) {

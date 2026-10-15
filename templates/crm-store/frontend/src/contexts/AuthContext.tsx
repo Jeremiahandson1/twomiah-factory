@@ -11,6 +11,9 @@ import api, { User } from '../services/api'
 type AuthValue = {
   user: User | null
   permissions: string[] | null
+  /** Why the store is locked, or null — from /me (10/14). */
+  accountLock: string | null
+  storeName: string | null
   loading: boolean
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
@@ -22,12 +25,14 @@ const AuthContext = createContext<AuthValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [permissions, setPermissions] = useState<string[] | null>(null)
+  const [accountLock, setAccountLock] = useState<string | null>(null)
+  const [storeName, setStoreName] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!api.hasToken) { setLoading(false); return }
     api.getMe()
-      .then((s) => { setUser(s.user); setPermissions(s.permissions) })
+      .then((s) => { setUser(s.user); setPermissions(s.permissions); setAccountLock(s.accountLock ?? null); setStoreName(s.storeName ?? null) })
       .catch((err) => {
         const e = err as { status?: number; isTransient?: boolean }
         const isTransient = e?.isTransient === true || e?.status === 0 || (typeof e?.status === 'number' && e.status >= 500)
@@ -51,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, permissions, loading, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, permissions, accountLock, storeName, loading, isAuthenticated: !!user, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

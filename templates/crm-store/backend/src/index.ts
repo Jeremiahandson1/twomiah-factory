@@ -34,6 +34,7 @@ import userAdminRoutes from './routes/users.ts'
 import shippingAdminRoutes from './routes/shipping.ts'
 import mediaRoutes from './routes/media.ts'
 import auditRoutes from './routes/audit.ts'
+import { billingRoutes, subscriptionSyncRoute, refreshStoreSubscription } from './routes/billing.ts'
 import { requestScope } from './services/audit.ts'
 import { writeAudit } from './middleware/writeAudit.ts'
 
@@ -163,6 +164,10 @@ app.route('/api/admin/users', userAdminRoutes)
 app.route('/api/admin/shipping', shippingAdminRoutes)
 // Who did what, when — the owner's (audit:read).
 app.route('/api/audit', auditRoutes)
+// The store's subscription, mirrored from the Factory: it locks the admin when it ends, and the owner restarts it
+// by paying (routes/billing.ts). /api/billing stays open while locked; sync takes the Factory's key, not a login.
+app.route('/api/billing', billingRoutes)
+app.route('/api/internal/sync-subscription', subscriptionSyncRoute)
 // Public media proxy for product images (streamed from private R2). Must be
 // registered before the SPA catch-all below so `/media/*` is not swallowed.
 app.route('/media', mediaRoutes)
@@ -261,6 +266,9 @@ import('./routes/orders.ts').then((m) => {
 }).catch(() => { /* orders module unavailable — nothing to resume */ })
 import('./routes/payments.ts').then((m) => { setTimeout(() => { void m.ensureStripeWebhookEvents() }, 30_000) })
   .catch(() => { /* payments module unavailable */ })
+
+// Pull the subscription summary at boot, as every CRM does — a push missed while the service slept is caught up here.
+setTimeout(() => { void refreshStoreSubscription() }, 5_000)
 
 const PORT = Number(process.env.PORT) || 3001
 serve({ fetch: app.fetch, port: PORT }, (info) => {

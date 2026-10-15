@@ -33,8 +33,10 @@ for (const t of readdirSync(ROOT + 'templates').filter((d) => /^crm(-|$)/.test(d
     const body = mw.slice(mw.indexOf('export const authenticate'))
     const end = body.indexOf('\nexport ')
     const fn = end > 0 ? body.slice(0, end) : body
-    const lock = fn.indexOf('refuseWhileLocked(c, db, company)'), next = fn.indexOf('await next()')
-    if (lock < 0) fail(`${t}: its own authenticate never calls refuseWhileLocked(c, db, company) — a cancelled company keeps every door`)
+    // crm-store has no company row: it mirrors the Factory's summary into store_settings.subscription.
+    const call = t === 'crm-store' ? 'refuseWhileLocked(c, db, storeSettings, storeSettings.subscription)' : 'refuseWhileLocked(c, db, company)'
+    const lock = fn.indexOf(call), next = fn.indexOf('await next()')
+    if (lock < 0) fail(`${t}: its own authenticate never calls ${call} — a cancelled company keeps every door`)
     else if (next < 0 || lock > next) fail(`${t}: authenticate calls refuseWhileLocked AFTER next() — the route has already answered`)
   } else if (!usesShared) {
     fail(`${t}: createAuthMiddleware is not given the company table — the shared authenticate cannot see the lock`)
@@ -42,23 +44,37 @@ for (const t of readdirSync(ROOT + 'templates').filter((d) => /^crm(-|$)/.test(d
 
   // ── screen: the route guard, the lock page and its mount
   const app = read(T + 'frontend/src/App.tsx')
-  const guardFile = t === 'crm-roof' ? app : t === 'crm-dispensary' ? read(T + 'frontend/src/components/auth/ProtectedRoute.tsx') : read('packages/tenant-ui/src/auth/ProtectedRoute.tsx')
-  if (!/isAccountLocked\(company/.test(guardFile)) fail(`${t}: the route guard does not ask isAccountLocked(company) — a paid company that cancelled is never sent to the lock page`)
-  if (/isTrialExpired\(company/.test(guardFile)) fail(`${t}: the route guard still locks on isTrialExpired alone`)
-  if (!/path=["'](\/crm\/)?paywall["']/.test(app)) fail(`${t}: App.tsx mounts no paywall route — the redirect would land on a 404`)
+  if (t === 'crm-store') {
+    // The store's screens are at / and its /me carries the lock itself (no company row).
+    if (!/if \(accountLock\) return <Navigate to="\/paywall" replace \/>/.test(app)) fail(`${t}: Protected does not send a locked store to /paywall`)
+    if (!/accountLock: accountLockOf\(store\?\.subscription/.test(read(T + 'backend/src/routes/auth.ts'))) fail(`${t}: /api/auth/me does not tell every seat whether the store is locked`)
+  } else {
+    const guardFile = t === 'crm-roof' ? app : t === 'crm-dispensary' ? read(T + 'frontend/src/components/auth/ProtectedRoute.tsx') : read('packages/tenant-ui/src/auth/ProtectedRoute.tsx')
+    if (!/isAccountLocked\(company/.test(guardFile)) fail(`${t}: the route guard does not ask isAccountLocked(company) — a paid company that cancelled is never sent to the lock page`)
+    if (/isTrialExpired\(company/.test(guardFile)) fail(`${t}: the route guard still locks on isTrialExpired alone`)
+  }
+  if (!/path=["'](\/crm\/|\/)?paywall["']/.test(app)) fail(`${t}: App.tsx mounts no paywall route — the redirect would land on a 404`)
   const page = read(T + 'frontend/src/pages/PaywallPage.tsx')
   if (!/<PaywallScreen\b/.test(page)) fail(`${t}: pages/PaywallPage.tsx is not the shared PaywallScreen — its words would not follow why the company is locked`)
   // The way back is a payment, not an email (owner, 10/14): the lock page needs this template's API client to open it.
   else if (!/<PaywallScreen\b[^>]*\brequest=\{/.test(page)) fail(`${t}: the lock page is not given the API client (request=) — the owner could not restart by paying`)
   const billing = read(T + 'backend/src/routes/billing.ts')
-  if (!/createBillingRoutes\(/.test(billing) || !/canManage:/.test(billing)) fail(`${t}: routes/billing.ts does not mount the shared billing routes with canManage — POST /api/billing/restart-checkout would refuse everyone`)
+  if (t === 'crm-store') {
+    if (!/billingRoutes\.post\('\/restart-checkout'[\s\S]{0,200}mayManage\(c\)/.test(billing)) fail(`${t}: routes/billing.ts has no owner-only POST /restart-checkout`)
+    if (!/app\.route\('\/api\/internal\/sync-subscription', subscriptionSyncRoute\)/.test(read(T + 'backend/src/index.ts'))) fail(`${t}: the Factory's subscription push has nowhere to land`)
+  } else if (!/createBillingRoutes\(/.test(billing) || !/canManage:/.test(billing)) fail(`${t}: routes/billing.ts does not mount the shared billing routes with canManage — POST /api/billing/restart-checkout would refuse everyone`)
 
   // ── the API client: a refusal becomes the lock page, not "Request failed" on every screen
+  if (t === 'crm-store') {
+    // The store's client has one response path (a refreshed retry re-enters it), so the check sits there once.
+    if (!/res\.status === 402 && \(data as any\)\?\.code === 'ACCOUNT_LOCKED'[^\n]*location\.assign\('\/paywall'\)/.test(read(T + 'frontend/src/services/api.ts'))) fail(`${t}: the API client does not turn a 402 ACCOUNT_LOCKED into the lock page`)
+    continue
+  }
   const client = t === 'crm-roof' || t === 'crm-dispensary' ? read(T + 'frontend/src/services/api.ts') : read('packages/tenant-ui/src/api/client.ts')
   const notices = (client.match(/noticeAccountLock\(/g) || []).length
   if (notices < 3) fail(`${t}: the API client does not pass every response through noticeAccountLock (found ${notices - 1 < 0 ? 0 : notices - 1} call(s); both the first answer and the retry after a refresh need it)`)
 }
-if (crms < 10) fail(`only ${crms} CRM(s) mount sync-subscription — expected at least 10; the walk is not finding them`)
+if (crms < 11) fail(`only ${crms} CRM(s) mount sync-subscription — expected at least 11 (the ten CRMs and crm-store); the walk is not finding them`)
 
 // ── the shared rule
 const redact = read('packages/tenant-backend/src/auth/redactSettings.ts')

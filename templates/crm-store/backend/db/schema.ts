@@ -230,6 +230,11 @@ export const storeSettings = pgTable('store_settings', {
   // vertical running the programme then keeps its settings in the same shape.
   loyalty: jsonb('loyalty'),
   onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }), // set once by POST /api/onboarding/complete
+  // The Factory's subscription summary for this store — { subscriptionStatus, billingStatus, trialEndsAt, plan, … } —
+  // mirrored by /api/internal/sync-subscription and at boot. It is what locks the admin when the subscription ends
+  // (packages/tenant-backend/src/auth/accountLock.ts reads exactly these keys). The other CRMs keep it in
+  // company.settings; the store has no company row. (10/14)
+  subscription: jsonb('subscription'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

@@ -14,7 +14,7 @@ import { forgetAccountLock } from './auth/accountLock'
 export interface BillingFactoryClient extends FactoryApiClient {
   getSubscription(): Promise<TenantSubscription>
   getBillingPortalLink(): Promise<{ url: string | null; reason?: string }>
-  startRestartCheckout(): Promise<{ url: string }>
+  startRestartCheckout(returnPath?: string): Promise<{ url: string }>
 }
 
 export interface BillingDeps {

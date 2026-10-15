@@ -85,6 +85,13 @@
       "when": 1791300501000,
       "tag": "0011_audit_email_alias",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791300502000,
+      "tag": "0012_store_settings_subscription",
+      "breakpoints": true
     }
   ]
 }

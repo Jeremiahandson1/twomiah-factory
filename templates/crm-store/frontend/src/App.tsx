@@ -21,6 +21,7 @@ import SettingsPage from './pages/SettingsPage'
 import AuditLog from './pages/AuditLog'
 import OnboardingWizard from './pages/OnboardingWizard'
 import ContactSupportPage from './pages/support/ContactSupportPage'
+import PaywallPage from './pages/PaywallPage'
 import { useEffect, useState, type ReactNode } from 'react'
 import api from './services/api'
 import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, PermissionsProvider } from './shared'
@@ -38,9 +39,22 @@ function StorePermissions({ children }: { children: ReactNode }) {
 }
 
 function Protected({ children }: { children: JSX.Element }) {
-  const { isAuthenticated, loading } = useAuth()
+  const { isAuthenticated, loading, accountLock } = useAuth()
   if (loading) return <FullScreenSpinner />
-  return isAuthenticated ? children : <Navigate to="/login" replace />
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  // A store the Factory has locked sees only the lock page — the server refuses the rest anyway. (10/14)
+  if (accountLock) return <Navigate to="/paywall" replace />
+  return children
+}
+
+/** The lock page: signed in, and only while the store IS locked (an open store is sent home). */
+function LockedOnly({ children }: { children: JSX.Element }) {
+  const { isAuthenticated, loading, accountLock } = useAuth()
+  if (loading) return <FullScreenSpinner />
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  // Back from Stripe (?restarted=1) the page itself waits for the unlock and opens the store.
+  if (!accountLock && !location.search.includes('restarted=1')) return <Navigate to="/" replace />
+  return children
 }
 
 /** Sends fresh stores to the onboarding wizard until it's completed.
@@ -82,6 +96,7 @@ export default function App() {
             <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/paywall" element={<LockedOnly><PaywallPage /></LockedOnly>} />
             <Route path="/onboarding" element={<Protected><OnboardingWizard /></Protected>} />
             <Route path="/" element={<Protected><OnboardingGate><AppLayout /></OnboardingGate></Protected>}>
               <Route index element={<DashboardPage />} />

@@ -136,7 +136,8 @@ export type AssignableRole = 'manager' | 'staff'
  * Who is signed in, and what they may do. `permissions` is the server's own answer (routes/auth.ts) —
  * the screens ask it through the shared PermissionsProvider rather than guessing from the role name.
  */
-export type Session = { user: User; permissions: string[] }
+/** accountLock: why the store is locked ('subscription_ended' | 'trial_ended'), or null — every seat is told (10/14). */
+export type Session = { user: User; permissions: string[]; accountLock?: string | null; storeName?: string | null }
 
 export type Review = {
   id: string; productId: string; productName?: string | null; productSlug?: string | null
@@ -194,6 +195,9 @@ class ApiClient {
       throw new Error('Session expired')
     }
     const data = await res.json().catch(() => ({}))
+    // The store is locked (402 ACCOUNT_LOCKED — shared auth/accountLock.ts): go to the lock page with a full load, so
+    // /me is read again and the lock page — not a screen of failures — is what the person sees. (10/14)
+    if (res.status === 402 && (data as any)?.code === 'ACCOUNT_LOCKED' && !['/paywall', '/login'].includes(location.pathname)) location.assign('/paywall')
     if (!res.ok) {
       // The status and the server's code travel with the message, so a screen can tell "someone else changed this"
       // (409 order_changed / inventory_changed) from a plain failure and reload what it shows.
@@ -238,8 +242,12 @@ class ApiClient {
   }
   async logout() { try { await this.request('/api/auth/logout', { method: 'POST' }) } finally { this.clearTokens() } }
   async getMe(): Promise<Session> {
-    const data = await this.request<{ user: User; permissions?: string[] }>('/api/auth/me')
-    return { user: data.user, permissions: Array.isArray(data.permissions) ? data.permissions : [] }
+    const data = await this.request<{ user: User; permissions?: string[]; accountLock?: string | null; storeName?: string | null }>('/api/auth/me')
+    return { user: data.user, permissions: Array.isArray(data.permissions) ? data.permissions : [], accountLock: data.accountLock ?? null, storeName: data.storeName ?? null }
+  }
+  /** One authenticated call, for the shared lock page (PaywallScreen): resolves the body, throws with .message on a refusal. */
+  async call<T = any>(method: 'GET' | 'POST', path: string): Promise<T> {
+    return this.request<T>(path, { method })
   }
   async changePassword(currentPassword: string, newPassword: string) {
     return this.request('/api/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) })

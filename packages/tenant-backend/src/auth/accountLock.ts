@@ -56,9 +56,13 @@ let cached: { at: number; settings: any } | null = null
 
 export function forgetAccountLock(): void { cached = null }
 
-export async function currentAccountLock(db: any, companyTable: any): Promise<AccountLock | null> {
+/**
+ * `column` is where the Factory's summary is mirrored: company.settings in every CRM with a company row, and
+ * store_settings.subscription in crm-store, which is single-tenant and has none (10/14).
+ */
+export async function currentAccountLock(db: any, companyTable: any, column: any = companyTable.settings): Promise<AccountLock | null> {
   if (!cached || Date.now() - cached.at > CACHE_MS) {
-    const [row] = await db.select({ settings: companyTable.settings }).from(companyTable).limit(1)
+    const [row] = await db.select({ settings: column }).from(companyTable).limit(1)
     cached = { at: Date.now(), settings: row?.settings ?? null }
   }
   return accountLockOf(cached.settings)
@@ -66,11 +70,11 @@ export async function currentAccountLock(db: any, companyTable: any): Promise<Ac
 
 /**
  * The check `authenticate` runs after it knows who is asking. Returns the 402 to send, or null to go on.
- * Every authenticate in every template calls this — the shared one and the two templates that keep their own.
+ * Every authenticate in every template calls this — the shared one and the three templates that keep their own.
  */
-export async function refuseWhileLocked(c: any, db: any, companyTable: any): Promise<Response | null> {
+export async function refuseWhileLocked(c: any, db: any, companyTable: any, column?: any): Promise<Response | null> {
   if (isLockOpenPath(c.req.path)) return null
-  const lock = await currentAccountLock(db, companyTable)
+  const lock = await currentAccountLock(db, companyTable, column ?? companyTable.settings)
   if (!lock) return null
   return c.json({ error: ACCOUNT_LOCKED_MESSAGE[lock], code: 'ACCOUNT_LOCKED', lock }, 402)
 }

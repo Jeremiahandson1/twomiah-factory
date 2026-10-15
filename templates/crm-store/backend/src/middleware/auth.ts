@@ -1,8 +1,9 @@
 import { Context, Next } from 'hono'
 import jwt from 'jsonwebtoken'
 import { db } from '../../db/index.ts'
-import { users } from '../../db/schema.ts'
+import { users, storeSettings } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
+import { refuseWhileLocked } from '../shared/index.ts'
 
 // Tenant-staff JWT auth. crm-store is single-tenant-per-deployment, so there is
 // no companyId — the whole DB IS the tenant. We attach the authenticated user to
@@ -29,6 +30,10 @@ export const authenticate = async (c: Context, next: Next) => {
     }
 
     c.set('user', { userId: found.id, email: found.email, role: found.role })
+    // A store the Factory has locked keeps only sign-in and billing (shared auth/accountLock.ts). The store keeps the
+    // Factory's summary in store_settings.subscription — it has no company row. (10/14)
+    const locked = await refuseWhileLocked(c, db, storeSettings, storeSettings.subscription)
+    if (locked) return locked
     await next()
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {

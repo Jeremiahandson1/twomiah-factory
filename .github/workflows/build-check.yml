@@ -2420,6 +2420,74 @@ jobs:
       - name: "Base CRM suite"
         run: bun run tests/crm/harness/run.ts
 
+  # The other six suites that never ran in CI (10/14). Every template's suite now runs on every push; before this, a
+  # regression in roofing, RV, vet, restaurant, landscaping or the basic CRM was caught only if a suite was run by hand.
+  basic-suite:
+    name: "Basic CRM behaviour suite (real PGlite)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Basic CRM suite"
+        run: bun run tests/basic/harness/run.ts
+
+  landscaping-suite:
+    name: "Landscaping behaviour suite (real PGlite)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Landscaping suite"
+        run: bun run tests/landscaping/harness/run.ts
+
+  restaurant-suite:
+    name: "Restaurant behaviour suite (real PGlite)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Restaurant suite"
+        run: bun run tests/restaurant/harness/run.ts
+
+  roof-suite:
+    name: "Roofing behaviour suite (real PGlite)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Roofing suite"
+        run: bun run tests/roof/harness/run.ts
+
+  rv-suite:
+    name: "RV / powersports behaviour suite (real PGlite)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "RV suite"
+        run: bun run tests/rv/harness/run.ts
+
+  vet-suite:
+    name: "Veterinary behaviour suite (real PGlite)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Vet suite"
+        run: bun run tests/vet/harness/run.ts
+
   cancelled-company-locked:
     name: "a cancelled company is locked, and its owner restarts it by paying"
     runs-on: ubuntu-latest

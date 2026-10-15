@@ -6,6 +6,7 @@ import { db } from '../../db/index.ts'
 import { users, storeSettings } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { accountLockOf } from '../shared/index.ts'
 import { getPermissions, getExtraPermissions } from '../middleware/permissions.ts'
 import { sendPasswordReset } from '../services/email.ts'
 import audit from '../services/audit.ts'
@@ -134,7 +135,10 @@ auth.get('/me', authenticate, async (c) => {
     id: users.id, email: users.email, name: users.name, role: users.role,
   }).from(users).where(eq(users.id, u.userId)).limit(1)
   if (!found) return c.json({ error: 'Not found' }, 404)
-  return c.json({ user: found, permissions: await effectivePermissions(found.id, found.role) })
+  // Whether the store is locked — told to every seat, as its own fact (no billing detail), so the browser sends
+  // everyone to the lock page. With the store's name, which the lock page shows. (10/14)
+  const [store] = await db.select({ companyName: storeSettings.companyName, subscription: storeSettings.subscription }).from(storeSettings).limit(1)
+  return c.json({ user: found, permissions: await effectivePermissions(found.id, found.role), accountLock: accountLockOf(store?.subscription ?? null), storeName: store?.companyName ?? null })
 })
 
 const passwordSchema = z.object({

@@ -18,7 +18,16 @@ type Request = (method: 'GET' | 'POST', path: string) => Promise<any>
 const WAIT_MS = 90_000
 const POLL_MS = 3_000
 
-export function PaywallScreen({ company, onSignOut, request }: { company: PaywallCompany; onSignOut: () => void; request: Request }) {
+/**
+ * Still locked, by /api/auth/me? The CRMs answer it in company.settings.accountLock; crm-store, which has no company
+ * row, answers it at the top level (accountLock). A /me that did not answer is "don't know" → keep waiting.
+ */
+function stillLocked(me: any): boolean | null {
+  if (!me?.user) return null
+  return !!(me.company ? me.company.settings?.accountLock : me.accountLock)
+}
+
+export function PaywallScreen({ company, onSignOut, request, homePath = '/crm' }: { company: PaywallCompany; onSignOut: () => void; request: Request; /** Where the CRM opens once unlocked: /crm, or / in crm-store. */ homePath?: string }) {
   const ended = accountLockReason(company as any) === 'subscription_ended'
   const whose = company?.name ? `${company.name}'s CRM` : 'Your CRM'
   const restarted = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('restarted') === '1'
@@ -44,7 +53,7 @@ export function PaywallScreen({ company, onSignOut, request }: { company: Paywal
       if (stopped.current) return
       await request('GET', '/api/billing/subscription').catch(() => null)
       const me = await request('GET', '/api/auth/me').catch(() => null)
-      if (me?.company && !me.company.settings?.accountLock) { window.location.assign('/crm'); return }
+      if (stillLocked(me) === false) { window.location.assign(homePath); return }
       if (Date.now() - started > WAIT_MS) { setWaiting('slow'); return }
       setTimeout(tick, POLL_MS)
     }
