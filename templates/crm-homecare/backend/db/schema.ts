@@ -30,6 +30,9 @@ export const agencies = pgTable('agencies', {
   twilioAuthToken: text('twilio_auth_token'),
   // Onboarding (V1 domain + email setup wizard)
   onboardingCompletedAt: timestamp('onboarding_completed_at'),
+  // The agency's own clock (IANA zone, e.g. America/Chicago). Reports count calendar days and
+  // "today" on this clock. NULL = not set; services/agencyTime.ts derives one from `state`.
+  timezone: text('timezone'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -370,6 +373,10 @@ export const schedules = pgTable('schedules', {
   isSplitShift: boolean('is_split_shift').default(false),
   splitShiftGroupId: text('split_shift_group_id'),
   splitSegment: integer('split_segment'),
+  // Read by the shared schedule engine (services/scheduleOccurrences.ts) and Client Hours by Week.
+  // Same definitions as CVHC v50 / v54; the visits area ports the screens that set them.
+  isTraining: boolean('is_training').default(false).notNull(),
+  suspendedFrom: date('suspended_from'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -446,6 +453,10 @@ export const timeEntries = pgTable('time_entries', {
   clockOutLocation: json('clock_out_location'),
   isComplete: boolean('is_complete').default(false).notNull(),
   notes: text('notes'),
+  // Time-entry approval flags (CVHC v27): the dashboard counts entries awaiting approval and
+  // Client Hours by Week shows why a punch was flagged (offline_punch, admin_force_clockout, …).
+  needsApproval: boolean('needs_approval').default(false),
+  approvalReason: text('approval_reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -1722,6 +1733,10 @@ export const routePlans = pgTable('route_plans', {
   totalDurationMinutes: integer('total_duration_minutes'),
   optimizedAt: timestamp('optimized_at'),
   status: text('status').default('draft').notNull(),
+  totalServiceMinutes: integer('total_service_minutes'),
+  stopCount: integer('stop_count'),
+  notes: text('notes'),
+  createdById: text('created_by_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -1740,6 +1755,12 @@ export const routePlanStops = pgTable('route_plan_stops', {
   departureTime: timestamp('departure_time'),
   distanceFromPrevMiles: decimal('distance_from_prev_miles', { precision: 8, scale: 2 }),
   durationFromPrevMinutes: integer('duration_from_prev_minutes'),
+  serviceUnits: integer('service_units'),
+  notes: text('notes'),
+  // Live route tracking: pending → en_route → arrived → in_progress → completed | skipped
+  status: text('status').default('pending').notNull(),
+  actualArrival: timestamp('actual_arrival'),
+  actualDeparture: timestamp('actual_departure'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('route_plan_stops_route_plan_id_idx').on(t.routePlanId),
@@ -1882,6 +1903,8 @@ export const scheduleExceptions = pgTable('schedule_exceptions', {
   overrideCaregiverId: text('override_caregiver_id').references(() => users.id),
   overrideClientId: text('override_client_id').references(() => clients.id),
   overrideNotes: text('override_notes'),
+  // Why a 'cancelled' occurrence was cancelled (CVHC v63) — client_refused, client_hospital, …
+  cancelReason: text('cancel_reason'),
   createdBy: text('created_by').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [

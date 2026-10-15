@@ -3,6 +3,7 @@ import { eq, asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { agencies, users } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { isValidTimezone } from '../services/agencyTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -27,6 +28,12 @@ app.get('/', async (c) => {
 // PUT /
 app.put('/', requireAdmin, async (c) => {
   const body = await c.req.json()
+  // Every report counts days on this zone (services/agencyTime.ts) and passes it to Postgres'
+  // AT TIME ZONE — a zone Postgres does not know would fail every report, so refuse it here.
+  if (body.timezone !== undefined && body.timezone !== null && body.timezone !== '' && !isValidTimezone(body.timezone)) {
+    return c.json({ error: `"${String(body.timezone).slice(0, 64)}" is not a time zone — use an IANA name such as America/Chicago` }, 400)
+  }
+  if (body.timezone === '') body.timezone = null
   const [existing] = await db.select().from(agencies).limit(1)
 
   let agency

@@ -3,6 +3,8 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { wallClock } from '../services/scheduleOccurrences.ts'
+import { agencyToday } from '../services/agencyTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -13,6 +15,12 @@ app.use('*', requireAdmin)
 function normalizeTime(t: string | null | undefined): string {
   if (!t) return '08:00'
   return String(t).slice(0, 5)
+}
+
+// Hours between two HH:MM times, wrapping past midnight (an overnight shift is not negative hours).
+export function shiftSpan(startT: string | null | undefined, endT: string | null | undefined): number {
+  const h = toHours(normalizeTime(endT)) - toHours(normalizeTime(startT))
+  return h <= 0 ? h + 24 : h
 }
 
 function toHours(t: string | null | undefined): number {
@@ -98,7 +106,7 @@ app.get('/roster', async (c) => {
         u.id, u.first_name, u.last_name, u.phone, u.hire_date,
         COALESCE(cs.max_hours_per_week, 40) AS max_hours_per_week,
         COALESCE((
-          SELECT ROUND(SUM(EXTRACT(EPOCH FROM (end_time::time - start_time::time)) / 3600)::numeric, 2)
+          SELECT ROUND(SUM(EXTRACT(EPOCH FROM (end_time::time - start_time::time)) / 3600 + CASE WHEN end_time::time < start_time::time THEN 24 ELSE 0 END)::numeric, 2)
           FROM schedules WHERE caregiver_id = u.id AND is_active = true AND schedule_type = 'recurring' AND day_of_week IS NOT NULL
         ), 0) AS current_weekly_hours,
         COALESCE((SELECT COUNT(DISTINCT client_id) FROM schedules WHERE caregiver_id = u.id AND is_active = true), 0) AS active_client_count
@@ -182,7 +190,7 @@ app.post('/run', async (c) => {
 
     const existingRes = await db.execute(sql`
       SELECT s.id, s.caregiver_id, s.client_id, s.day_of_week,
-             s.start_time::text AS start_time, s.end_time::text AS end_time,
+             to_char(s.start_time, 'HH24:MI') AS start_time, to_char(s.end_time, 'HH24:MI') AS end_time,
              u.first_name AS cg_first, u.last_name AS cg_last,
              c.first_name AS cl_first, c.last_name AS cl_last
       FROM schedules s
@@ -210,7 +218,7 @@ app.post('/run', async (c) => {
     inputCaregivers.forEach((cg: any) => {
       const existingHrs = existingSchedules
         .filter((s: any) => s.caregiver_id === cg.id)
-        .reduce((sum: number, s: any) => sum + (toHours(normalizeTime(s.end_time)) - toHours(normalizeTime(s.start_time))), 0)
+        .reduce((sum: number, s: any) => sum + shiftSpan(s.start_time, s.end_time), 0)
       cgRemaining[cg.id] = Math.max(0, parseFloat(cg.targetHours) - existingHrs)
     })
 
@@ -310,7 +318,7 @@ app.post('/run', async (c) => {
     const cgSummary = inputCaregivers.map((cg: any) => {
       const info = cgMap[cg.id] || {}
       const existingHrs = existingSchedules.filter((s: any) => s.caregiver_id === cg.id)
-        .reduce((sum: number, s: any) => sum + (toHours(normalizeTime(s.end_time)) - toHours(normalizeTime(s.start_time))), 0)
+        .reduce((sum: number, s: any) => sum + shiftSpan(s.start_time, s.end_time), 0)
       const proposedHrs = proposals.filter(p => p.caregiverId === cg.id).reduce((sum: number, p: any) => sum + p.hoursPerVisit, 0)
       return {
         id: cg.id, name: `${info.first_name || ''} ${info.last_name || ''}`.trim(),
@@ -363,6 +371,7 @@ app.post('/apply', async (c) => {
     const body = await c.req.json()
     const { proposals } = body
     if (!proposals?.length) return c.json({ error: 'No proposals to apply' }, 400)
+    const today = await agencyToday()
 
     const created: string[] = []
     const errors: any[] = []
@@ -372,7 +381,7 @@ app.post('/apply', async (c) => {
         const id = createId()
         await db.execute(sql`
           INSERT INTO schedules (id, caregiver_id, client_id, schedule_type, day_of_week, start_time, end_time, notes, is_active)
-          VALUES (${id}, ${p.caregiverId}, ${p.clientId}, 'recurring', ${p.dayOfWeek}, ${p.startTime}, ${p.endTime}, 'Created by Roster Optimizer', true)
+          VALUES (${id}, ${p.caregiverId}, ${p.clientId}, 'recurring', ${p.dayOfWeek}, ${wallClock(today, p.startTime)}, ${wallClock(today, p.endTime)}, 'Created by Roster Optimizer', true)
         `)
         created.push(id)
       } catch (err: any) {
