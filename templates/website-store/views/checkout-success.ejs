@@ -1,11 +1,18 @@
 <%
 // checkout-success.ejs — locals: { order: {...}|null }
 // order = { orderNumber, status, email, subtotalCents, shippingCents, taxCents,
+//           discountCents, loyaltyDiscountCents, discountCode,
 //           totalCents, currency, items: [{ productName, variantName, quantity,
 //           lineTotalCents, imageUrl }] }
 const o = (typeof order !== 'undefined' && order) ? order : null;
 const cur = (o && o.currency) ? o.currency : 'usd';
 const orderItems = (o && Array.isArray(o.items)) ? o.items : [];
+// The discount, as the receipt shows it: the code's share and the loyalty reward's. Without these the lines did not
+// add up to the total (E2E Run 2).
+const discTotal = (o && o.discountCents > 0) ? o.discountCents : 0;
+const discLoyalty = (o && o.loyaltyDiscountCents > 0) ? Math.min(discTotal, o.loyaltyDiscountCents) : 0;
+// A refunded or cancelled order is not "confirmed" — the link in the shopper's email still opens it.
+const closed = o && (o.status === 'refunded' || o.status === 'cancelled');
 %>
 
 <div class="store-page checkout-success-page">
@@ -16,12 +23,12 @@ const orderItems = (o && Array.isArray(o.items)) ? o.items : [];
           <path d="M20 6L9 17l-5-5"></path>
         </svg>
       </div>
-      <h1 class="order-confirm__title">Thank you for your order!</h1>
+      <h1 class="order-confirm__title"><%= closed ? (o.status === 'refunded' ? 'This order was refunded' : 'This order was cancelled') : 'Thank you for your order!' %></h1>
 
       <% if (o) { %>
         <p class="order-confirm__lead">
-          Your order <strong>#<%= o.orderNumber %></strong> is confirmed.
-          <% if (o.email) { %>A receipt is on its way to <strong><%= o.email %></strong>.<% } else { %>A receipt is on its way to your inbox.<% } %>
+          <% if (closed) { %>Your order <strong>#<%= o.orderNumber %></strong> was <%= o.status %>. Contact the store if you have any questions.<% } else { %>Your order <strong>#<%= o.orderNumber %></strong> is confirmed.
+          <% if (o.email) { %>A receipt is on its way to <strong><%= o.email %></strong>.<% } else { %>A receipt is on its way to your inbox.<% } %><% } %>
         </p>
 
         <% if (orderItems.length > 0) { %>
@@ -57,6 +64,18 @@ const orderItems = (o && Array.isArray(o.items)) ? o.items : [];
                 <span>Subtotal</span>
                 <span><%= money(o.subtotalCents, cur) %></span>
               </div>
+              <% if (discTotal - discLoyalty > 0) { %>
+              <div class="order-summary__row">
+                <span>Discount<%= o.discountCode ? ' (' + o.discountCode + ')' : '' %></span>
+                <span>&minus;<%= money(discTotal - discLoyalty, cur) %></span>
+              </div>
+              <% } %>
+              <% if (discLoyalty > 0) { %>
+              <div class="order-summary__row">
+                <span>Loyalty reward</span>
+                <span>&minus;<%= money(discLoyalty, cur) %></span>
+              </div>
+              <% } %>
               <div class="order-summary__row">
                 <span>Shipping</span>
                 <span><%= (o.shippingCents && o.shippingCents > 0) ? money(o.shippingCents, cur) : 'Free' %></span>

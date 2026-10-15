@@ -15,6 +15,11 @@ export type EmailOrder = {
   subtotalCents: number
   shippingCents: number
   taxCents: number
+  // The whole amount taken off (a code and any loyalty reward together) and the loyalty share of it — the receipt
+  // listed subtotal, shipping and tax and a total that did not add up without these. (E2E Run 2, 10/15)
+  discountCents?: number
+  loyaltyDiscountCents?: number
+  discountCode?: string | null
   totalCents: number
   currency: string
   shippingAddress: Address | null
@@ -29,6 +34,14 @@ export type EmailItem = {
   lineTotalCents: number
 }
 
+/** The discount lines between the subtotal and shipping: the code's share and the loyalty reward's, each shown as taken off. */
+export function discountLines(o: { discountCents?: number; loyaltyDiscountCents?: number; discountCode?: string | null }): { label: string; cents: number }[] {
+  const total = Math.max(0, o.discountCents || 0), loyalty = Math.min(total, Math.max(0, o.loyaltyDiscountCents || 0))
+  const lines: { label: string; cents: number }[] = []
+  if (total - loyalty > 0) lines.push({ label: o.discountCode ? `Discount (${o.discountCode})` : 'Discount', cents: total - loyalty })
+  if (loyalty > 0) lines.push({ label: 'Loyalty reward', cents: loyalty })
+  return lines
+}
 function esc(s: unknown): string {
   return String(s ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -72,6 +85,7 @@ function totalsTable(o: EmailOrder): string {
     `<tr><td style="padding:2px 0;color:${bold ? '#111' : '#666'};${bold ? 'font-weight:600;' : ''}">${label}</td><td style="padding:2px 0;text-align:right;color:${bold ? '#111' : '#666'};${bold ? 'font-weight:600;' : ''}">${val}</td></tr>`
   return `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin-top:12px;">
     ${row('Subtotal', formatCents(o.subtotalCents, o.currency))}
+    ${discountLines(o).map((l) => row(l.label, '−' + formatCents(l.cents, o.currency))).join('')}
     ${row('Shipping', o.shippingCents > 0 ? formatCents(o.shippingCents, o.currency) : 'Free')}
     ${o.taxCents > 0 ? row('Tax', formatCents(o.taxCents, o.currency)) : ''}
     ${row('Total', formatCents(o.totalCents, o.currency), true)}

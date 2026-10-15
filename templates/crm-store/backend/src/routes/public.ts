@@ -108,6 +108,7 @@ async function finalizeOrder(order: typeof orders.$inferSelect, result: WebhookR
       customerEmail: result.customerEmail ?? order.customerEmail,
       customerName: result.customerName ?? null,
       subtotalCents: order.subtotalCents, shippingCents: order.shippingCents,
+      discountCents: order.discountCents, loyaltyDiscountCents: order.loyaltyDiscountCents, discountCode: order.discountCode,
       taxCents: order.taxCents, totalCents: order.totalCents, currency: order.currency,
       shippingAddress: result.shippingAddress ?? null,
     }
@@ -639,6 +640,10 @@ pub.get('/order-summary', async (c) => {
       status: order.status,
       email: order.customerEmail,
       subtotalCents: order.subtotalCents,
+      // The thank-you page listed subtotal, shipping and tax and a total $3.70 short of them (E2E Run 2).
+      discountCents: order.discountCents,
+      loyaltyDiscountCents: order.loyaltyDiscountCents,
+      discountCode: order.discountCode,
       shippingCents: order.shippingCents,
       taxCents: order.taxCents,
       totalCents: order.totalCents,

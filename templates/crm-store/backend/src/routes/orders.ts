@@ -166,6 +166,7 @@ export async function notifyShipped(order: typeof orders.$inferSelect): Promise<
       order: {
         orderNumber: order.orderNumber, customerEmail: order.customerEmail, customerName: order.customerName,
         subtotalCents: order.subtotalCents, shippingCents: order.shippingCents, taxCents: order.taxCents,
+        discountCents: order.discountCents, loyaltyDiscountCents: order.loyaltyDiscountCents, discountCode: order.discountCode,
         totalCents: order.totalCents, currency: order.currency, shippingAddress: order.shippingAddress,
         trackingCarrier: order.trackingCarrier, trackingNumber: order.trackingNumber,
       },
