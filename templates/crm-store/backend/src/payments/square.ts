@@ -65,10 +65,15 @@ export class SquareProvider implements PaymentProvider {
     if (!this.locationId) throw new Error('Square Location ID not configured')
     const currency = input.currency.toUpperCase()
 
+    // The discount comes off the GOODS only. It was an ORDER-scoped discount, which Square spreads over every line —
+    // tax and shipping included — so the Square order read "Sales tax $2.21, Shipping $4.58" for a store that charged
+    // $2.41 and $5.00 (E2E Run 2, read back from the sandbox order). Same total either way; only the goods carry it now.
+    const discounted = input.discountCents > 0
     const line_items: any[] = input.lineItems.map((li) => ({
       name: li.name,
       quantity: String(li.quantity),
       base_price_money: { amount: li.unitPriceCents, currency },
+      ...(discounted ? { applied_discounts: [{ discount_uid: 'discount' }] } : {}),
     }))
     if (input.taxCents > 0) {
       line_items.push({ name: 'Sales tax', quantity: '1', base_price_money: { amount: input.taxCents, currency } })
@@ -83,8 +88,8 @@ export class SquareProvider implements PaymentProvider {
         location_id: this.locationId,
         reference_id: input.clientReferenceId,
         line_items,
-        ...(input.discountCents > 0
-          ? { discounts: [{ uid: 'discount', name: 'Discount', amount_money: { amount: input.discountCents, currency }, scope: 'ORDER' }] }
+        ...(discounted
+          ? { discounts: [{ uid: 'discount', name: 'Discount', amount_money: { amount: input.discountCents, currency }, scope: 'LINE_ITEM' }] }
           : {}),
       },
       checkout_options: {
@@ -111,7 +116,9 @@ export class SquareProvider implements PaymentProvider {
     const event = JSON.parse(input.rawBody)
     const payment = event?.data?.object?.payment
     if (!payment || payment.status !== 'COMPLETED') return { type: 'ignored' }
-    return parsePayment(payment)
+    // The webhook carries the payment only; who it is for lives on the order (below).
+    const order = payment.order_id ? (await this.api('/v2/orders/' + encodeURIComponent(payment.order_id), 'GET').catch(() => null))?.order : null
+    return parsePayment(payment, order)
   }
 
   async retrieveSession(sessionId: string): Promise<WebhookResult> {
@@ -122,22 +129,30 @@ export class SquareProvider implements PaymentProvider {
     if (!tenderPaymentId) return { type: 'ignored' }
     const { payment } = await this.api('/v2/payments/' + encodeURIComponent(tenderPaymentId), 'GET')
     if (!payment || payment.status !== 'COMPLETED') return { type: 'ignored' }
-    return parsePayment(payment)
+    return parsePayment(payment, order)
   }
 }
 
-function parsePayment(payment: any): WebhookResult {
+/**
+ * WHO the order is for. A Payment Link checkout puts the shopper's name, email, phone and shipping address on the ORDER's
+ * shipment fulfillment (fulfillments[0].shipment_details.recipient) — the payment itself carried none of them, so every
+ * Square order arrived with a blank name and "No shipping address" (E2E Run 2, read back from the sandbox order).
+ * The recipient first; the payment's own fields as a fallback.
+ */
+function parsePayment(payment: any, order?: any): WebhookResult {
+  const recipient = order?.fulfillments?.find((f: any) => f?.shipment_details?.recipient)?.shipment_details?.recipient
   const ship = payment.shipping_address
+  const nameFromShip = ship ? [ship.first_name, ship.last_name].filter(Boolean).join(' ') : ''
   return {
     type: 'paid',
     providerSessionId: payment.order_id,
     providerPaymentId: payment.id,
     amountTotalCents: payment.amount_money?.amount ?? undefined,
     currency: payment.amount_money?.currency ?? undefined,
-    customerEmail: payment.buyer_email_address ?? undefined,
-    customerName: ship ? [ship.first_name, ship.last_name].filter(Boolean).join(' ') || undefined : undefined,
-    customerPhone: ship?.phone_number ?? undefined,
-    shippingAddress: toAddress(ship),
+    customerEmail: payment.buyer_email_address || recipient?.email_address || undefined,
+    customerName: recipient?.display_name || nameFromShip || undefined,
+    customerPhone: recipient?.phone_number || ship?.phone_number || undefined,
+    shippingAddress: toAddress(recipient?.address) || toAddress(ship),
     billingAddress: toAddress(payment.billing_address),
   }
 }
