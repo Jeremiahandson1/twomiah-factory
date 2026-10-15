@@ -2,8 +2,9 @@
 // Show the client's active assigned caregivers
 import React, { useState, useEffect } from 'react';
 import { apiCall } from '../../config';
+import CaregiverBackgroundChecks from './CaregiverBackgroundChecks';
 
-const PortalCaregivers = ({ token }) => {
+const PortalCaregivers = ({ token, agencyState }: { token: string; agencyState?: string | null }) => {
   const [caregivers, setCaregivers] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState('');
@@ -36,7 +37,7 @@ const PortalCaregivers = ({ token }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {caregivers.map(cg => (
             <div
-              key={cg.assignment_id}
+              key={cg.caregiver_id || cg.assignment_id}
               style={{
                 background: '#fff', borderRadius: '12px', padding: '20px',
                 boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
@@ -77,6 +78,13 @@ const PortalCaregivers = ({ token }) => {
                     ))}
                   </div>
                 )}
+
+                <CaregiverBackgroundChecks
+                  token={token}
+                  caregiverId={cg.caregiver_id}
+                  apiBase="/api"
+                  agencyState={agencyState}
+                />
               </div>
 
               {cg.phone && (

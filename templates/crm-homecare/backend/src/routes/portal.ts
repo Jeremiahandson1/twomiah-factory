@@ -2,7 +2,15 @@
  * Home Care Client Portal Routes
  *
  * Admin routes: manage portal access for clients
- * Portal routes: token-based auth for client/family access
+ * Portal routes: the client's (and their relatives') own view
+ *
+ * Who signs in: a client_portal_accounts row — one per PERSON, several per client
+ * (the client and each relative), each with their own email, password, lockout
+ * counter and invite/reset link. clientId is the authorisation scope; the account
+ * email in the token says which person it is.
+ *
+ * The older direct link (clients.portal_token, /portal?token=…) still works: it is
+ * redeemed once at /exchange for a session, and signable-document emails use it.
  */
 
 import { Hono } from 'hono'
@@ -27,6 +35,9 @@ import {
   portalMessages,
   clientDocuments,
   auditLogs,
+  clientPortalAccounts,
+  clientNotificationPreferences,
+  backgroundChecks,
 } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import emailService from '../services/email.ts'
@@ -34,6 +45,47 @@ import logger from '../services/logger.ts'
 import type { Context, Next } from 'hono'
 
 const app = new Hono()
+
+// The numbers the portal's sign-in rules run on.
+export const PORTAL_RULES = {
+  maxFailedLogins: 5,               // the 5th wrong password locks the account…
+  lockMinutes: 15,                  // …for 15 minutes
+  inviteHours: 48,                  // an invite link lasts 48 hours
+  resetHours: 1,                    // a forgot-password link lasts 1 hour
+  sessionHours: 8,                  // a portal sign-in lasts 8 hours
+  previewHours: 2,                  // an administrator's portal preview lasts 2 hours
+  minPasswordLength: 8,
+} as const
+
+const frontendUrl = () => process.env.FRONTEND_URL || ''
+const setupUrl = (token: string) => `${frontendUrl()}/portal/setup?token=${token}`
+const EMAIL_RE = /^\S+@\S+\.\S+$/
+const normEmail = (e: unknown) => String(e ?? '').trim().toLowerCase()
+const newToken = () => crypto.randomBytes(32).toString('hex')
+
+/** A send that only printed to the console (no provider configured) did not reach anybody. */
+async function delivered(send: Promise<{ success: boolean; dev?: boolean }>): Promise<{ sent: boolean; error: string | null }> {
+  try {
+    const r = await send
+    if (r?.dev) return { sent: false, error: 'No email provider is configured for this agency' }
+    return { sent: !!r?.success, error: r?.success ? null : 'Email send failed' }
+  } catch (err) {
+    return { sent: false, error: (err as Error)?.message || 'Email send failed' }
+  }
+}
+
+// Ensure the client's direct-link credential (clients.portal_token) exists and
+// is live. Signable-document emails carry this link, so a client whose portal
+// is switched on must have one.
+async function ensureClientLink(clientId: string, existing: { portalToken: string | null; portalTokenExp: Date | null }) {
+  const live = existing.portalToken && (!existing.portalTokenExp || new Date(existing.portalTokenExp) > new Date())
+  const set: Record<string, unknown> = { portalEnabled: true, updatedAt: new Date() }
+  if (!live) {
+    set.portalToken = newToken()
+    set.portalTokenExp = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+  }
+  await db.update(clients).set(set as any).where(eq(clients.id, clientId))
+}
 
 // =============================================
 // ADMIN ROUTES (require staff auth)
@@ -82,7 +134,7 @@ app.post('/contacts/:clientId/enable', authenticate, requireAdmin, async (c) => 
   })
 })
 
-// Disable portal for a client
+// Disable portal for a client — every way in: the direct link AND every person's login.
 app.post('/contacts/:clientId/disable', authenticate, requireAdmin, async (c) => {
   const clientId = c.req.param('clientId')
 
@@ -95,6 +147,10 @@ app.post('/contacts/:clientId/disable', authenticate, requireAdmin, async (c) =>
       updatedAt: new Date(),
     } as any)
     .where(eq(clients.id, clientId))
+  await db
+    .update(clientPortalAccounts)
+    .set({ portalEnabled: false, updatedAt: new Date() })
+    .where(eq(clientPortalAccounts.clientId, clientId))
 
   return c.json({ success: true })
 })
@@ -171,8 +227,9 @@ app.post('/contacts/:clientId/send-link', authenticate, requireAdmin, async (c) 
   return c.json({ success: true, sentTo: email })
 })
 
-// Get portal status for a client
-app.get('/contacts/:clientId/status', authenticate, async (c) => {
+// Get portal status for a client. Admin only: the answer carries the direct
+// link, which opens the portal as this client.
+app.get('/contacts/:clientId/status', authenticate, requireAdmin, async (c) => {
   const clientId = c.req.param('clientId')
 
   const [foundClient] = await db
@@ -197,85 +254,257 @@ app.get('/contacts/:clientId/status', authenticate, async (c) => {
   })
 })
 
-// Admin: create invite (used by EditClientModal)
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN: INVITE PEOPLE TO A CLIENT'S PORTAL
+// POST /api/portal/admin/invite
+// Body: { clientId, invitees: [{ email, name }] }  (or the older single { clientId, email, name })
+//
+// Each email becomes its OWN login. Sending to an email that already has a login
+// for this client regenerates its 48-hour link (lost invite, forgotten password);
+// the old link stops working. An email already used for a DIFFERENT client is
+// refused: the email is the login key.
+// ─────────────────────────────────────────────────────────────────────────────
 app.post('/admin/invite', authenticate, requireAdmin, async (c) => {
-  const { clientId, email } = await c.req.json()
+  const body = await c.req.json().catch(() => ({} as any))
+  const { clientId, email, name } = body || {}
+  const invitees: Array<{ email?: unknown; name?: unknown }> =
+    Array.isArray(body?.invitees) && body.invitees.length ? body.invitees : (email ? [{ email, name }] : [])
+  if (!clientId || invitees.length === 0) {
+    return c.json({ error: 'clientId and at least one email are required' }, 400)
+  }
+  for (const inv of invitees) {
+    if (!inv?.email || !EMAIL_RE.test(String(inv.email).trim())) {
+      return c.json({ error: `Invalid email address: ${inv?.email || '(blank)'}` }, 400)
+    }
+  }
 
   const [foundClient] = await db
     .select()
     .from(clients)
-    .where(eq(clients.id, clientId))
+    .where(and(eq(clients.id, String(clientId)), eq(clients.isActive, true)))
     .limit(1)
-
   if (!foundClient) {
-    return c.json({ error: 'Client not found' }, 404)
+    return c.json({ error: 'Client not found or inactive' }, 404)
   }
 
-  const portalToken = crypto.randomBytes(32).toString('hex')
-  const portalTokenExp = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+  const clientName = `${foundClient.firstName} ${foundClient.lastName}`
+  const [agency] = await db.select().from(agencies).limit(1)
+  const results: any[] = []
 
-  await db
-    .update(clients)
-    .set({
-      portalEnabled: true,
-      portalToken,
-      portalTokenExp,
-      portalEmail: email || foundClient.email,
-      updatedAt: new Date(),
-    } as any)
-    .where(eq(clients.id, clientId))
+  for (const inv of invitees) {
+    const invEmail = normEmail(inv.email)
+    const invName = inv.name ? String(inv.name).trim() || null : null
 
-  const setupUrl = `${process.env.FRONTEND_URL || ''}/portal/setup?token=${portalToken}`
+    const [existing] = await db
+      .select({ id: clientPortalAccounts.id, clientId: clientPortalAccounts.clientId })
+      .from(clientPortalAccounts)
+      .where(eq(clientPortalAccounts.email, invEmail))
+      .limit(1)
+    if (existing && existing.clientId !== foundClient.id) {
+      results.push({ email: invEmail, error: 'This email already has a portal account for a different client.' })
+      continue
+    }
 
-  // Try to send email, but don't fail if it errors
-  try {
-    const [agency] = await db.select().from(agencies).limit(1)
-    await emailService.sendPortalSetupInvite(email || foundClient.email!, {
-      contactName: `${foundClient.firstName} ${foundClient.lastName}`,
+    const inviteToken = newToken()
+    const inviteExpiresAt = new Date(Date.now() + PORTAL_RULES.inviteHours * 60 * 60 * 1000)
+
+    if (existing) {
+      await db.update(clientPortalAccounts).set({
+        ...(invName ? { displayName: invName } : {}),
+        inviteToken,
+        inviteExpiresAt,
+        updatedAt: new Date(),
+      }).where(eq(clientPortalAccounts.id, existing.id))
+    } else {
+      await db.insert(clientPortalAccounts).values({
+        clientId: foundClient.id,
+        email: invEmail,
+        displayName: invName,
+        inviteToken,
+        inviteExpiresAt,
+        portalEnabled: false, // switched on when they set a password
+      })
+    }
+
+    const inviteUrl = setupUrl(inviteToken)
+    // The record stands even if the email cannot go out: the office can copy the link.
+    const mail = await delivered(emailService.sendPortalSetupInvite(invEmail, {
+      contactName: invName || clientName,
+      clientName,
       companyName: agency?.name || '{{COMPANY_NAME}}',
-      setupUrl,
-    })
-  } catch (err) {
-    logger.warn('Failed to send portal invite email', { error: (err as Error).message })
+      setupUrl: inviteUrl,
+    }))
+    results.push({ email: invEmail, name: invName, inviteUrl, emailSent: mail.sent, emailError: mail.error, expiresAt: inviteExpiresAt })
   }
 
-  return c.json({ success: true, inviteUrl: setupUrl })
+  const ok = results.filter((r) => !r.error)
+  const failed = results.filter((r) => r.error)
+
+  // Inviting someone turns the client's portal on, which includes the direct link
+  // that signable-document emails carry.
+  if (ok.length) {
+    await ensureClientLink(foundClient.id, foundClient)
+    if (!foundClient.portalEmail) {
+      await db.update(clients).set({ portalEmail: ok[0].email, updatedAt: new Date() } as any).where(eq(clients.id, foundClient.id))
+    }
+  }
+
+  return c.json({
+    success: ok.length > 0,
+    results,
+    // The single-invite shape older screens read
+    inviteUrl: ok[0]?.inviteUrl || null,
+    emailSent: ok.length > 0 && ok.every((r) => r.emailSent),
+    emailError: ok.find((r) => r.emailError)?.emailError || null,
+    message: [
+      ok.length ? `Invites created for ${ok.map((r) => r.email).join(', ')} (${clientName}).` : null,
+      ok.some((r) => !r.emailSent) ? 'Some emails could not be sent — share those links manually.' : null,
+      failed.length ? `Skipped: ${failed.map((r) => `${r.email} (${r.error})`).join('; ')}` : null,
+    ].filter(Boolean).join(' '),
+  })
 })
 
-// Admin: toggle portal access
+// What one login's state is, in the words the screen shows.
+const accountStatusSql = sql<string>`CASE
+  WHEN ${clientPortalAccounts.inviteToken} IS NOT NULL AND ${clientPortalAccounts.inviteExpiresAt} > now() THEN 'invite_pending'
+  WHEN ${clientPortalAccounts.inviteToken} IS NOT NULL AND (${clientPortalAccounts.inviteExpiresAt} IS NULL OR ${clientPortalAccounts.inviteExpiresAt} <= now()) THEN 'invite_expired'
+  WHEN ${clientPortalAccounts.portalEnabled} = true THEN 'active'
+  ELSE 'disabled' END`
+
+// ADMIN: every login on one client's portal (one row per person)
+app.get('/admin/clients/:clientId/accounts', authenticate, requireAdmin, async (c) => {
+  const rows = await db
+    .select({
+      id: clientPortalAccounts.id,
+      email: clientPortalAccounts.email,
+      displayName: clientPortalAccounts.displayName,
+      portalEnabled: clientPortalAccounts.portalEnabled,
+      lastLogin: clientPortalAccounts.lastLogin,
+      lockedUntil: clientPortalAccounts.lockedUntil,
+      status: accountStatusSql,
+    })
+    .from(clientPortalAccounts)
+    .where(eq(clientPortalAccounts.clientId, c.req.param('clientId')))
+    .orderBy(clientPortalAccounts.createdAt)
+  return c.json(rows)
+})
+
+// ADMIN: take ONE person's access away; the client's other logins are untouched
+app.delete('/admin/accounts/:accountId', authenticate, requireAdmin, async (c) => {
+  const rows = await db
+    .delete(clientPortalAccounts)
+    .where(eq(clientPortalAccounts.id, c.req.param('accountId')))
+    .returning({ email: clientPortalAccounts.email })
+  if (!rows.length) return c.json({ error: 'Account not found' }, 404)
+  return c.json({ success: true, removed: rows[0].email })
+})
+
+// ADMIN: switch a client's whole portal on or off — every login and the direct link
 app.put('/admin/clients/:clientId/toggle', authenticate, requireAdmin, async (c) => {
   const clientId = c.req.param('clientId')
-  const { enabled } = await c.req.json()
+  const { enabled } = await c.req.json().catch(() => ({} as any))
+  if (typeof enabled !== 'boolean') return c.json({ error: 'enabled must be true or false' }, 400)
 
   await db
+    .update(clientPortalAccounts)
+    .set({ portalEnabled: enabled, updatedAt: new Date() })
+    .where(eq(clientPortalAccounts.clientId, clientId))
+  await db
     .update(clients)
-    .set({
-      portalEnabled: !!enabled,
-      updatedAt: new Date(),
-    } as any)
+    .set({ portalEnabled: enabled, updatedAt: new Date() } as any)
     .where(eq(clients.id, clientId))
 
   return c.json({ success: true })
 })
 
-// Admin: list portal-enabled clients
-app.get('/admin/clients', authenticate, async (c) => {
-  const rows = await db
-    .select({
-      id: clients.id,
-      firstName: clients.firstName,
-      lastName: clients.lastName,
-      email: clients.email,
-      portalEmail: clients.portalEmail,
-      portalEnabled: clients.portalEnabled,
-      lastPortalVisit: clients.lastPortalVisit,
-      portalTokenExp: clients.portalTokenExp,
-    })
-    .from(clients)
-    .where(eq(clients.isActive, true))
-    .orderBy(clients.lastName)
+// ADMIN: portal status for every active client
+app.get('/admin/clients', authenticate, requireAdmin, async (c) => {
+  const result: any = await db.execute(sql`
+    SELECT
+      c.id, c.first_name, c.last_name, c.phone, c.email, c.is_active,
+      agg.portal_enabled,
+      agg.portal_email,
+      agg.last_login,
+      agg.invite_expires_at,
+      COALESCE(agg.account_count, 0)::int AS account_count,
+      COALESCE(agg.portal_status, 'not_invited') AS portal_status
+    FROM clients c
+    LEFT JOIN LATERAL (
+      SELECT
+        bool_or(cpa.portal_enabled)                          AS portal_enabled,
+        string_agg(cpa.email, ', ' ORDER BY cpa.created_at)  AS portal_email,
+        MAX(cpa.last_login)                                  AS last_login,
+        MAX(cpa.invite_expires_at)                           AS invite_expires_at,
+        COUNT(*)                                             AS account_count,
+        CASE
+          WHEN bool_or(cpa.portal_enabled) THEN 'active'
+          WHEN bool_or(cpa.invite_token IS NOT NULL AND cpa.invite_expires_at > now()) THEN 'invite_pending'
+          WHEN bool_or(cpa.invite_token IS NOT NULL) THEN 'invite_expired'
+          ELSE 'disabled'
+        END AS portal_status
+      FROM client_portal_accounts cpa
+      WHERE cpa.client_id = c.id
+      HAVING COUNT(*) > 0
+    ) agg ON true
+    WHERE c.is_active = true
+    ORDER BY c.last_name, c.first_name
+  `)
+  return c.json(result.rows ?? result)
+})
 
-  return c.json(rows)
+// ADMIN: put a notification in a client's portal
+app.post('/admin/notify', authenticate, requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({} as any))
+  const { clientId, type, title, message, relatedVisitId, relatedInvoiceId, relatedCaregiverId } = body || {}
+  if (!clientId || !type || !title) {
+    return c.json({ error: 'clientId, type, and title are required' }, 400)
+  }
+  const [found] = await db.select({ id: clients.id }).from(clients).where(eq(clients.id, String(clientId))).limit(1)
+  if (!found) return c.json({ error: 'Client not found' }, 404)
+
+  const [row] = await db.insert(clientNotifications).values({
+    clientId: found.id,
+    type: String(type),
+    title: String(title),
+    message: message ? String(message) : null,
+    relatedVisitId: relatedVisitId ? String(relatedVisitId) : null,
+    relatedInvoiceId: relatedInvoiceId ? String(relatedInvoiceId) : null,
+    relatedCaregiverId: relatedCaregiverId ? String(relatedCaregiverId) : null,
+  }).returning()
+  return c.json(row, 201)
+})
+
+// ADMIN: see a client's portal exactly as they do ("View As" → Client Portal).
+// A short-lived token marked as a preview. It is READ-ONLY: portalAuth refuses
+// every write made with it, so an administrator cannot sign a document, send a
+// message or pay as the client.
+app.post('/admin/preview/:clientId', authenticate, requireAdmin, async (c) => {
+  const user = c.get('user') as any
+  const [found] = await db.select({ id: clients.id, firstName: clients.firstName, lastName: clients.lastName })
+    .from(clients).where(eq(clients.id, c.req.param('clientId'))).limit(1)
+  if (!found) return c.json({ error: 'Client not found' }, 404)
+
+  try {
+    await db.insert(auditLogs).values({
+      userId: user.userId,
+      action: 'ADMIN_IMPERSONATE_PORTAL',
+      tableName: 'clients',
+      recordId: found.id,
+      newData: { impersonating: `${found.firstName} ${found.lastName}`, impersonatedBy: user.email } as any,
+    } as any)
+  } catch (err) {
+    logger.error('[portal] audit write failed for portal preview', { error: (err as Error).message })
+  }
+
+  const token = jwt.sign(
+    { role: 'client', clientId: found.id, firstName: found.firstName, lastName: found.lastName, impersonatedBy: user.email, impersonation: true },
+    process.env.JWT_SECRET!,
+    { expiresIn: `${PORTAL_RULES.previewHours}h` },
+  )
+  return c.json({
+    token,
+    user: { id: found.id, name: `${found.firstName} ${found.lastName}`, role: 'client', impersonatedBy: user.email, firstName: found.firstName, lastName: found.lastName },
+  })
 })
 
 // =============================================
@@ -283,65 +512,75 @@ app.get('/admin/clients', authenticate, async (c) => {
 // =============================================
 
 app.post('/login', async (c) => {
-  const { email, password } = await c.req.json()
+  const { email, password } = await c.req.json().catch(() => ({} as any))
 
   if (!email || !password) {
-    return c.json({ error: 'Email and password required' }, 400)
+    return c.json({ error: 'Email and password are required' }, 400)
   }
 
-  const [foundClient] = await db
-    .select()
-    .from(clients)
-    .where(
-      and(
-        eq(clients.portalEmail, email.toLowerCase()),
-        eq(clients.portalEnabled, true),
-      )
-    )
+  const [found] = await db
+    .select({ account: clientPortalAccounts, client: clients })
+    .from(clientPortalAccounts)
+    .innerJoin(clients, eq(clientPortalAccounts.clientId, clients.id))
+    .where(and(
+      eq(clientPortalAccounts.email, normEmail(email)),
+      eq(clientPortalAccounts.portalEnabled, true),
+      eq(clients.isActive, true),
+    ))
     .limit(1)
 
-  if (!foundClient || !foundClient.portalPasswordHash) {
-    return c.json({ error: 'Invalid email or password' }, 401)
+  if (!found) {
+    return c.json({ error: 'Invalid credentials' }, 401)
+  }
+  const { account, client } = found
+
+  if (account.lockedUntil && new Date(account.lockedUntil) > new Date()) {
+    return c.json({ error: 'Account temporarily locked. Please try again later.' }, 423)
   }
 
-  const valid = await Bun.password.verify(password, foundClient.portalPasswordHash)
+  if (!account.passwordHash) {
+    return c.json({ error: 'Account setup not complete. Please check your invite email.' }, 401)
+  }
+
+  const valid = await Bun.password.verify(String(password), account.passwordHash)
   if (!valid) {
-    return c.json({ error: 'Invalid email or password' }, 401)
+    // THIS person's counter only — a client can have several logins and one
+    // relative's typos must not lock the others out.
+    const failCount = (account.failedLoginCount || 0) + 1
+    const lockedUntil = failCount >= PORTAL_RULES.maxFailedLogins
+      ? new Date(Date.now() + PORTAL_RULES.lockMinutes * 60 * 1000)
+      : null
+    await db.update(clientPortalAccounts)
+      .set({ failedLoginCount: failCount, lockedUntil, updatedAt: new Date() })
+      .where(eq(clientPortalAccounts.id, account.id))
+    return c.json({ error: 'Invalid credentials' }, 401)
   }
 
-  // Check token expiry
-  if (foundClient.portalTokenExp && new Date() > new Date(foundClient.portalTokenExp)) {
-    return c.json({ error: 'Portal access has expired. Please contact your care coordinator.' }, 401)
-  }
-
-  // Update last visit
-  await db
-    .update(clients)
+  await db.update(clientPortalAccounts)
+    .set({ failedLoginCount: 0, lockedUntil: null, lastLogin: new Date(), updatedAt: new Date() })
+    .where(eq(clientPortalAccounts.id, account.id))
+  await db.update(clients)
     .set({ lastPortalVisit: new Date(), updatedAt: new Date() } as any)
-    .where(eq(clients.id, foundClient.id))
+    .where(eq(clients.id, client.id))
 
+  // accountEmail says WHICH person is signed in; clientId is what they may see.
   const token = jwt.sign(
-    {
-      clientId: foundClient.id,
-      role: 'client',
-      firstName: foundClient.firstName,
-      lastName: foundClient.lastName,
-    },
+    { role: 'client', clientId: client.id, accountEmail: account.email, firstName: client.firstName, lastName: client.lastName },
     process.env.JWT_SECRET!,
-    { expiresIn: '30d' }
+    { expiresIn: `${PORTAL_RULES.sessionHours}h` },
   )
 
   return c.json({
     token,
     client: {
-      id: foundClient.id,
-      firstName: foundClient.firstName,
-      lastName: foundClient.lastName,
+      id: client.id,
+      firstName: client.firstName,
+      lastName: client.lastName,
+      email: account.email,
     },
   })
 })
 
-// Set password (from invite link)
 // Exchange an emailed portal link token for a client session.
 //
 // The link in a portal invite carries the database token from
@@ -356,7 +595,7 @@ app.post('/exchange', async (c) => {
   const [foundClient] = await db
     .select()
     .from(clients)
-    .where(and(eq(clients.portalToken, linkToken), eq(clients.portalEnabled, true)))
+    .where(and(eq(clients.portalToken, linkToken), eq(clients.portalEnabled, true), eq(clients.isActive, true)))
     .limit(1)
 
   // Deliberately the same message for "no such token" and "portal disabled":
@@ -390,53 +629,100 @@ app.post('/exchange', async (c) => {
   })
 })
 
+// Accept an invite (or a reset link) and set the password.
 app.post('/set-password', async (c) => {
-  const { token, password } = await c.req.json()
+  const { token, password } = await c.req.json().catch(() => ({} as any))
 
   if (!token || !password) {
-    return c.json({ error: 'Token and password required' }, 400)
+    return c.json({ error: 'Token and password are required' }, 400)
   }
 
-  if (password.length < 8) {
+  if (String(password).length < PORTAL_RULES.minPasswordLength) {
     return c.json({ error: 'Password must be at least 8 characters' }, 400)
   }
 
-  const [foundClient] = await db
-    .select()
-    .from(clients)
-    .where(
-      and(
-        eq(clients.portalToken, token),
-        eq(clients.portalEnabled, true),
-      )
-    )
+  const [account] = await db
+    .select({ id: clientPortalAccounts.id })
+    .from(clientPortalAccounts)
+    .where(and(
+      eq(clientPortalAccounts.inviteToken, String(token)),
+      sql`${clientPortalAccounts.inviteExpiresAt} > now()`,
+    ))
     .limit(1)
 
-  if (!foundClient) {
-    return c.json({ error: 'Invalid or expired invite link' }, 400)
+  if (!account) {
+    return c.json({ error: 'Invalid or expired invite link. Please contact your care coordinator.' }, 400)
   }
 
-  const portalPasswordHash = await Bun.password.hash(password, 'bcrypt')
+  const passwordHash = await Bun.password.hash(String(password), 'bcrypt')
 
+  // The link is single-use. Proving you hold the email also clears a lockout.
   await db
-    .update(clients)
+    .update(clientPortalAccounts)
     .set({
-      portalPasswordHash,
+      passwordHash,
+      inviteToken: null,
+      inviteExpiresAt: null,
+      portalEnabled: true,
+      failedLoginCount: 0,
+      lockedUntil: null,
       updatedAt: new Date(),
-    } as any)
-    .where(eq(clients.id, foundClient.id))
+    })
+    .where(eq(clientPortalAccounts.id, account.id))
 
-  return c.json({ success: true })
+  return c.json({ success: true, message: 'Password set. You can now log in.' })
 })
 
-// Generate portal access link (legacy compatibility)
-app.post('/generate-link', authenticate, async (c) => {
-  const { clientId } = await c.req.json()
+// Forgot password (self-service). Reuses the invite token and /portal/setup with a
+// 1-hour link. Always the same answer, so nobody can find out whose email has an
+// account by asking. Rate limited in index.ts.
+app.post('/forgot-password', async (c) => {
+  const { email } = await c.req.json().catch(() => ({} as any))
+  if (!email) return c.json({ error: 'Email is required' }, 400)
+
+  const generic = {
+    success: true,
+    message: 'If an account exists with that email, a password reset link has been sent. Please check your inbox.',
+  }
+
+  const [found] = await db
+    .select({ id: clientPortalAccounts.id, email: clientPortalAccounts.email, displayName: clientPortalAccounts.displayName, firstName: clients.firstName, lastName: clients.lastName })
+    .from(clientPortalAccounts)
+    .innerJoin(clients, eq(clientPortalAccounts.clientId, clients.id))
+    .where(and(
+      eq(clientPortalAccounts.email, normEmail(email)),
+      eq(clientPortalAccounts.portalEnabled, true),
+      eq(clients.isActive, true),
+    ))
+    .limit(1)
+  if (!found) return c.json(generic)
+
+  const resetToken = newToken()
+  await db.update(clientPortalAccounts)
+    .set({ inviteToken: resetToken, inviteExpiresAt: new Date(Date.now() + PORTAL_RULES.resetHours * 60 * 60 * 1000), updatedAt: new Date() })
+    .where(eq(clientPortalAccounts.id, found.id))
+
+  const [agency] = await db.select().from(agencies).limit(1)
+  const mail = await delivered(emailService.sendClientPortalPasswordReset(found.email, {
+    contactName: found.displayName || `${found.firstName} ${found.lastName}`,
+    companyName: agency?.name || '{{COMPANY_NAME}}',
+    resetUrl: setupUrl(resetToken),
+  }))
+  if (!mail.sent) logger.warn('[portal] forgot-password email not sent', { error: mail.error })
+
+  return c.json(generic)
+})
+
+// Generate portal access link (legacy compatibility). Admin only: the link opens
+// the portal as the client.
+app.post('/generate-link', authenticate, requireAdmin, async (c) => {
+  const { clientId } = await c.req.json().catch(() => ({} as any))
+  if (!clientId) return c.json({ error: 'clientId is required' }, 400)
 
   const portalToken = crypto.randomBytes(32).toString('hex')
   const portalTokenExp = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
 
-  await db
+  const rows = await db
     .update(clients)
     .set({
       portalEnabled: true,
@@ -444,7 +730,9 @@ app.post('/generate-link', authenticate, async (c) => {
       portalTokenExp,
       updatedAt: new Date(),
     } as any)
-    .where(eq(clients.id, clientId))
+    .where(eq(clients.id, String(clientId)))
+    .returning({ id: clients.id })
+  if (!rows.length) return c.json({ error: 'Client not found' }, 404)
 
   const url = `${process.env.FRONTEND_URL || ''}/portal?token=${portalToken}`
   return c.json({ token: portalToken, url })
@@ -471,6 +759,7 @@ async function portalAuth(c: Context, next: Next) {
         and(
           eq(clients.portalToken, headerToken),
           eq(clients.portalEnabled, true),
+          eq(clients.isActive, true),
         )
       )
       .limit(1)
@@ -495,45 +784,67 @@ async function portalAuth(c: Context, next: Next) {
     return
   }
 
-  if (bearerToken) {
-    // JWT auth (from login)
-    try {
-      const decoded = jwt.verify(bearerToken, process.env.JWT_SECRET!) as any
-      if (decoded.role !== 'client' || !decoded.clientId) {
-        return c.json({ error: 'Invalid portal token' }, 401)
-      }
+  if (!bearerToken) return c.json({ error: 'Portal authentication required' }, 401)
 
-      const [foundClient] = await db
-        .select()
-        .from(clients)
-        .where(
-          and(
-            eq(clients.id, decoded.clientId),
-            eq(clients.portalEnabled, true),
-          )
-        )
-        .limit(1)
-
-      if (!foundClient) {
-        return c.json({ error: 'Portal access disabled' }, 401)
-      }
-
-      // Update last visit
-      await db
-        .update(clients)
-        .set({ lastPortalVisit: new Date(), updatedAt: new Date() } as any)
-        .where(eq(clients.id, foundClient.id))
-
-      c.set('portalClientId', foundClient.id)
-      c.set('portalClient', foundClient)
-      await next()
-      return
-    } catch {
-      return c.json({ error: 'Invalid or expired token' }, 401)
-    }
+  let decoded: any
+  try {
+    decoded = jwt.verify(bearerToken, process.env.JWT_SECRET!) as any
+  } catch {
+    return c.json({ error: 'Invalid or expired token' }, 401)
+  }
+  if (decoded.role !== 'client' || !decoded.clientId) {
+    return c.json({ error: 'Client access required' }, 403)
   }
 
-  return c.json({ error: 'Portal authentication required' }, 401)
+  // An administrator's preview: the client must exist, and nothing may be changed.
+  if (decoded.impersonation) {
+    if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
+      return c.json({ error: 'Portal preview is read-only' }, 403)
+    }
+    const [foundClient] = await db.select().from(clients).where(eq(clients.id, decoded.clientId)).limit(1)
+    if (!foundClient) return c.json({ error: 'Client not found' }, 403)
+    c.set('portalClientId', foundClient.id)
+    c.set('portalClient', foundClient)
+    c.set('portalPreview', true)
+    await next()
+    return
+  }
+
+  const [foundClient] = await db
+    .select()
+    .from(clients)
+    .where(and(eq(clients.id, decoded.clientId), eq(clients.isActive, true)))
+    .limit(1)
+  if (!foundClient) return c.json({ error: 'Portal access revoked or client inactive' }, 403)
+
+  if (decoded.accountEmail) {
+    // Signed in with a password: THAT person's login must still be on. Removing one
+    // relative ends their access without waiting for the token to run out.
+    const [account] = await db
+      .select({ id: clientPortalAccounts.id, email: clientPortalAccounts.email, displayName: clientPortalAccounts.displayName, lastLogin: clientPortalAccounts.lastLogin })
+      .from(clientPortalAccounts)
+      .where(and(
+        eq(clientPortalAccounts.clientId, foundClient.id),
+        eq(clientPortalAccounts.email, normEmail(decoded.accountEmail)),
+        eq(clientPortalAccounts.portalEnabled, true),
+      ))
+      .limit(1)
+    if (!account) return c.json({ error: 'Portal access revoked or client inactive' }, 403)
+    c.set('portalAccount', account)
+  } else if (!foundClient.portalEnabled) {
+    // Signed in through the direct link: the client's portal switch is that link's gate.
+    return c.json({ error: 'Portal access disabled' }, 401)
+  }
+
+  // Update last visit
+  await db
+    .update(clients)
+    .set({ lastPortalVisit: new Date(), updatedAt: new Date() } as any)
+    .where(eq(clients.id, foundClient.id))
+
+  c.set('portalClientId', foundClient.id)
+  c.set('portalClient', foundClient)
+  await next()
 }
 
 // =============================================
@@ -543,6 +854,7 @@ async function portalAuth(c: Context, next: Next) {
 // Portal home: client profile + summary
 app.get('/me', portalAuth, async (c) => {
   const client = c.get('portalClient') as any
+  const account = c.get('portalAccount') as any
   const clientId = client.id
 
   // Visit count
@@ -590,16 +902,29 @@ app.get('/me', portalAuth, async (c) => {
     return new Date(t.lastMessageAt) > new Date(t.clientLastReadAt)
   }).length
 
+  const [agency] = await db.select({ name: agencies.name, state: agencies.state, phone: agencies.phone }).from(agencies).limit(1)
+
   return c.json({
     id: client.id,
     first_name: client.firstName,
     last_name: client.lastName,
-    email: client.portalEmail || client.email,
+    date_of_birth: client.dateOfBirth,
+    email: client.email,
     phone: client.phone,
     address: client.address,
     city: client.city,
     state: client.state,
     zip: client.zip,
+    service_type: client.serviceType,
+    start_date: client.startDate,
+    // Which person is signed in (null for the direct link and for a preview)
+    portal_email: account?.email || client.portalEmail || null,
+    display_name: account?.displayName || null,
+    last_login: account?.lastLogin || null,
+    preview: !!c.get('portalPreview'),
+    agency_name: agency?.name || null,
+    agency_state: agency?.state || null,
+    agency_phone: agency?.phone || null,
     summary: {
       totalVisits: visitResult.value,
       upcomingSchedules: upcomingResult.value,
@@ -608,6 +933,21 @@ app.get('/me', portalAuth, async (c) => {
       unreadMessages: unreadMessageCount,
     },
   })
+})
+
+// The client's own notification switches. Each is a boolean; anything else for a
+// key leaves it as it was.
+app.put('/preferences', portalAuth, async (c) => {
+  const clientId = c.get('portalClientId') as string
+  const body = await c.req.json().catch(() => ({} as any))
+  const keys = ['emailEnabled', 'portalEnabled', 'caregiverAlerts', 'scheduleAlerts', 'billingAlerts', 'assignmentAlerts'] as const
+  const patch: Record<string, boolean> = {}
+  for (const k of keys) if (typeof body?.[k] === 'boolean') patch[k] = body[k]
+
+  await db.insert(clientNotificationPreferences)
+    .values({ clientId, ...patch })
+    .onConflictDoUpdate({ target: clientNotificationPreferences.clientId, set: { ...patch, updatedAt: new Date() } })
+  return c.json({ success: true })
 })
 
 // Schedule (upcoming visits)
@@ -634,8 +974,8 @@ app.get('/visits', portalAuth, async (c) => {
 // Visit history (paginated)
 app.get('/history', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
-  const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50)
-  const offset = parseInt(c.req.query('offset') || '0')
+  const limit = Math.min(parseInt(c.req.query('limit') || '') || 20, 50)
+  const offset = Math.max(parseInt(c.req.query('offset') || '') || 0, 0)
 
   const rows = await db.select({
     id: timeEntries.id,
@@ -660,40 +1000,95 @@ app.get('/history', portalAuth, async (c) => {
   return c.json(rows)
 })
 
-// Invoices
+// Invoices — the last 24, each with its lines in date order: the per-day hours
+// breakdown the family checks the bill against.
 app.get('/invoices', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const invoiceRows = await db.select()
     .from(invoices)
     .where(eq(invoices.clientId, clientId))
     .orderBy(desc(invoices.createdAt))
-    .limit(20)
+    .limit(24)
 
   const results = await Promise.all(invoiceRows.map(async (inv) => {
-    const lineItems = await db.select()
+    const lineItems = await db.select({
+      id: invoiceLineItems.id,
+      serviceDate: invoiceLineItems.serviceDate,
+      description: invoiceLineItems.description,
+      hours: invoiceLineItems.hours,
+      rate: invoiceLineItems.rate,
+      amount: invoiceLineItems.amount,
+    })
       .from(invoiceLineItems)
       .where(eq(invoiceLineItems.invoiceId, inv.id))
+      .orderBy(sql`${invoiceLineItems.serviceDate} ASC NULLS LAST`, invoiceLineItems.createdAt)
     return { ...inv, lineItems }
   }))
 
   return c.json(results)
 })
 
-// Caregivers
+// Caregivers: everyone with an active assignment OR an active schedule for this
+// client, so a client sees who comes even where no assignment row was ever made.
+const servesClient = (caregiverId: string, clientId: string) => db.execute(sql`
+  SELECT 1 FROM client_assignments
+   WHERE caregiver_id = ${caregiverId} AND client_id = ${clientId} AND status = 'active'
+  UNION
+  SELECT 1 FROM schedules
+   WHERE caregiver_id = ${caregiverId} AND client_id = ${clientId} AND is_active = true
+     AND (status IS NULL OR status = 'active')
+  LIMIT 1
+`).then((r: any) => (r.rows ?? r).length > 0)
+
+export const caregiversServingClient = async (clientId: string, withPhone: boolean) => {
+  const r: any = await db.execute(sql`
+    SELECT DISTINCT ON (u.id)
+      COALESCE(ca.id, s.id)          AS assignment_id,
+      ca.assignment_date,
+      ca.hours_per_week,
+      COALESCE(ca.status, 'active')  AS status,
+      u.id                           AS caregiver_id,
+      u.first_name, u.last_name,
+      ${withPhone ? sql`u.phone` : sql`NULL::text`} AS phone,
+      u.certifications
+    FROM users u
+    LEFT JOIN client_assignments ca
+      ON ca.caregiver_id = u.id AND ca.client_id = ${clientId} AND ca.status = 'active'
+    LEFT JOIN schedules s
+      ON s.caregiver_id = u.id AND s.client_id = ${clientId} AND s.is_active = true
+     AND (s.status IS NULL OR s.status = 'active')
+    WHERE (ca.id IS NOT NULL OR s.id IS NOT NULL)
+    ORDER BY u.id, ca.assignment_date DESC NULLS LAST
+  `)
+  return r.rows ?? r
+}
+
+// A caregiver's background checks, SUMMARY ONLY — never findings, notes, cost,
+// reference numbers or identifiers — and only for a caregiver serving this client.
+export const backgroundCheckSummary = async (caregiverId: string, clientId: string) => {
+  if (!(await servesClient(caregiverId, clientId))) return null
+  return db.select({
+    id: backgroundChecks.id,
+    checkType: backgroundChecks.checkType,
+    provider: backgroundChecks.provider,
+    status: backgroundChecks.status,
+    initiatedDate: backgroundChecks.initiatedDate,
+    expirationDate: backgroundChecks.expirationDate,
+  })
+    .from(backgroundChecks)
+    .where(eq(backgroundChecks.caregiverId, caregiverId))
+    .orderBy(desc(backgroundChecks.initiatedDate))
+}
+
 app.get('/caregivers', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
-  const rows = await db.select({
-    assignment_id: clientAssignments.id,
-    first_name: users.firstName,
-    last_name: users.lastName,
-    phone: users.phone,
-    certifications: users.certifications,
-    hours_per_week: clientAssignments.hoursPerWeek,
-  })
-    .from(clientAssignments)
-    .innerJoin(users, eq(clientAssignments.caregiverId, users.id))
-    .where(and(eq(clientAssignments.clientId, clientId), eq(clientAssignments.status, 'active')))
+  return c.json(await caregiversServingClient(clientId, true))
+})
 
+app.get('/caregivers/:caregiverId/background-checks', portalAuth, async (c) => {
+  const clientId = c.get('portalClientId') as string
+  const rows = await backgroundCheckSummary(c.req.param('caregiverId'), clientId)
+  if (!rows) return c.json({ error: 'This caregiver is not assigned to you' }, 403)
   return c.json(rows)
 })
 
@@ -1126,7 +1521,8 @@ app.get('/documents/:id', portalAuth, async (c) => {
 
   if (!doc || doc.status === 'void') return c.json({ error: 'Document not found' }, 404)
 
-  if (!doc.viewedAt) {
+  // An administrator's preview must not stamp the document as seen by the client.
+  if (!doc.viewedAt && !c.get('portalPreview')) {
     await db
       .update(clientDocuments)
       .set({ viewedAt: new Date(), status: doc.status === 'sent' ? 'viewed' : doc.status, updatedAt: new Date() } as any)

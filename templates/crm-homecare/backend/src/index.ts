@@ -203,6 +203,10 @@ const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATCH' || m
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 6000 : 100000, (m) => !isWrite(m)))
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 1200 : 100000, isWrite))
 app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
+// Portal doors anyone can knock on. The client portal login has its own per-account
+// lockout; the family login and the reset-link request do not, so they are limited here.
+app.use('/api/family-portal/login', createRateLimiter(15 * 60 * 1000, 20))
+app.use('/api/portal/forgot-password', createRateLimiter(15 * 60 * 1000, 10))
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))

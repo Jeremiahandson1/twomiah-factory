@@ -6,29 +6,62 @@ import { useAuth } from '../contexts/AuthContext';
 const ImpersonationModal = ({ onImpersonate, onClose }) => {
   const { token } = useAuth();
   const [users, setUsers] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [tab, setTab] = useState('staff'); // 'staff' | 'clients'
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [impersonating, setImpersonating] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/auth/users`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.json())
-      .then(data => { setUsers(Array.isArray(data) ? data : []); setLoading(false); })
-      .catch(() => { setError('Failed to load users'); setLoading(false); });
+    Promise.all([
+      fetch(`${API_BASE_URL}/api/auth/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(r => r.ok ? r.json() : []),
+      fetch(`${API_BASE_URL}/api/clients?isActive=true&limit=500`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(r => r.ok ? r.json() : []),
+    ])
+      .then(([userData, clientData]) => {
+        setUsers(Array.isArray(userData) ? userData : []);
+        setClients(Array.isArray(clientData) ? clientData : (clientData?.clients || clientData?.data || []));
+        setLoading(false);
+      })
+      .catch(() => { setError('Failed to load data'); setLoading(false); });
   }, [token]);
 
-  const filtered = users.filter(u => {
-    const q = search.toLowerCase();
-    return (
-      u.first_name?.toLowerCase().includes(q) ||
-      u.last_name?.toLowerCase().includes(q) ||
-      u.email?.toLowerCase().includes(q) ||
-      u.role?.toLowerCase().includes(q)
-    );
-  });
+  const q = search.toLowerCase();
+  const filtered = users.filter(u =>
+    u.first_name?.toLowerCase().includes(q) ||
+    u.last_name?.toLowerCase().includes(q) ||
+    u.email?.toLowerCase().includes(q) ||
+    u.role?.toLowerCase().includes(q)
+  );
+  const filteredClients = clients.filter(c =>
+    c.first_name?.toLowerCase().includes(q) ||
+    c.last_name?.toLowerCase().includes(q) ||
+    c.email?.toLowerCase().includes(q) ||
+    c.phone?.includes(q)
+  );
+
+  // A read-only look at a client's portal, as the client sees it.
+  const handlePortalPreview = async (clientId) => {
+    setImpersonating(clientId);
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/portal/admin/preview/${clientId}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      onImpersonate(data.token, data.user);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setImpersonating(null);
+    }
+  };
 
   const handleImpersonate = async (userId) => {
     setImpersonating(userId);
@@ -79,12 +112,34 @@ const ImpersonationModal = ({ onImpersonate, onClose }) => {
           }}>×</button>
         </div>
 
+        {/* Tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb' }}>
+          {[
+            { key: 'staff', label: 'Staff', icon: '👤', count: users.length },
+            { key: 'clients', label: 'Client Portal', icon: '🏠', count: clients.length },
+          ].map(t => (
+            <button
+              key={t.key}
+              onClick={() => { setTab(t.key); setSearch(''); }}
+              style={{
+                flex: 1, padding: '0.65rem', border: 'none', cursor: 'pointer',
+                fontWeight: 600, fontSize: '0.85rem',
+                background: tab === t.key ? '#f0f9ff' : 'transparent',
+                color: tab === t.key ? '#2563eb' : '#4b5563',
+                borderBottom: tab === t.key ? '2px solid #2563eb' : '2px solid transparent',
+              }}
+            >
+              {t.icon} {t.label} ({t.count})
+            </button>
+          ))}
+        </div>
+
         {/* Search */}
         <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #f3f4f6' }}>
           <input
             autoFocus
             type="text"
-            placeholder="Search by name, email, or role..."
+            placeholder={tab === 'staff' ? 'Search by name, email, or role...' : 'Search by name, email, or phone...'}
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
@@ -99,7 +154,7 @@ const ImpersonationModal = ({ onImpersonate, onClose }) => {
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {loading && (
             <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>
-              Loading users...
+              Loading...
             </div>
           )}
           {error && (
@@ -107,12 +162,12 @@ const ImpersonationModal = ({ onImpersonate, onClose }) => {
               ⚠️ {error}
             </div>
           )}
-          {!loading && filtered.length === 0 && (
-            <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>
-              No users found
+          {tab === 'staff' && !loading && filtered.length === 0 && (
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
+              No staff found
             </div>
           )}
-          {filtered.map(u => (
+          {tab === 'staff' && filtered.map(u => (
             <div key={u.id} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '0.75rem 1.5rem', borderBottom: '1px solid #f9fafb',
@@ -156,6 +211,55 @@ const ImpersonationModal = ({ onImpersonate, onClose }) => {
                 }}
               >
                 {impersonating === u.id ? 'Loading...' : 'View As'}
+              </button>
+            </div>
+          ))}
+
+          {/* Clients */}
+          {tab === 'clients' && !loading && filteredClients.length === 0 && (
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
+              No clients found
+            </div>
+          )}
+          {tab === 'clients' && filteredClients.map(c => (
+            <div key={c.id} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '0.75rem 1.5rem', borderBottom: '1px solid #f9fafb',
+              transition: 'background 0.1s'
+            }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '38px', height: '38px', borderRadius: '50%',
+                  background: '#05966918',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '1.1rem'
+                }}>
+                  🏠
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                    {c.first_name} {c.last_name}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>
+                    {c.email || c.phone || 'No contact info'}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => handlePortalPreview(c.id)}
+                disabled={impersonating === c.id}
+                style={{
+                  padding: '0.4rem 1rem', borderRadius: '6px', border: 'none',
+                  background: impersonating === c.id ? '#e5e7eb' : '#047857',
+                  color: impersonating === c.id ? '#6b7280' : '#fff',
+                  fontSize: '0.82rem', fontWeight: 600, cursor: impersonating === c.id ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {impersonating === c.id ? 'Loading...' : 'View Portal'}
               </button>
             </div>
           ))}

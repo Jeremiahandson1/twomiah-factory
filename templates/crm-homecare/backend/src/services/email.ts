@@ -159,23 +159,71 @@ If you would rather sign on paper, or have questions about anything in it, conta
     text: `Hi ${data.contactName}, access your care portal for ${data.companyName}: ${data.portalUrl}`,
   }),
 
+  // Client portal invite. One per person: the client and each relative get their own
+  // login, so the greeting is that person and the portal is the client's.
   portalSetupInvite: (data) => ({
-    subject: `Set Up Your ${data.companyName} Portal Account`,
+    subject: `You're invited to the ${data.companyName} Client Portal`,
     html: `
       <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
       <body><div class="container">
-        <div class="header"><h1 style="margin:0;">${data.companyName}</h1><p style="margin:4px 0 0;opacity:0.9;">Home Care Portal</p></div>
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1><p style="margin:4px 0 0;opacity:0.9;">Client Portal</p></div>
         <div class="content">
-          <h2>Set Up Your Account</h2>
-          <p>Hi ${data.contactName},</p>
-          <p>You've been invited to access the ${data.companyName} client portal. Click below to set your password and get started.</p>
-          <p style="text-align:center;"><a href="${data.setupUrl}" class="button">Set Up My Account</a></p>
-          <p><small>This link expires in 7 days. If you did not expect this invitation, you can safely ignore it.</small></p>
+          <p>Hello ${data.contactName},</p>
+          <p>You've been invited to access ${data.clientName && data.clientName !== data.contactName ? `the care portal for <strong>${data.clientName}</strong>` : 'your personal care portal'}. From the portal, you can:</p>
+          <ul style="padding-left:20px;">
+            <li>View the upcoming visit schedule</li>
+            <li>See the assigned caregivers</li>
+            <li>Review invoices and billing</li>
+            <li>Receive important notifications</li>
+          </ul>
+          <p style="text-align:center;"><a href="${data.setupUrl}" class="button">Set Up Your Account</a></p>
+          <p><small>This link expires in 48 hours. If it has expired, please contact your care coordinator for a new invite.</small></p>
         </div>
         <div class="footer">${data.companyName} &mdash; HIPAA-compliant care portal</div>
       </div></body></html>
     `,
-    text: `Hi ${data.contactName}, set up your ${data.companyName} portal account: ${data.setupUrl}`,
+    text: `Hello ${data.contactName}, you've been invited to the ${data.companyName} Client Portal. Set up your account (link expires in 48 hours): ${data.setupUrl}`,
+  }),
+
+  // Self-service reset. Same /portal/setup page and token as an invite, reset wording.
+  clientPortalPasswordReset: (data) => ({
+    subject: `Reset your ${data.companyName} Client Portal password`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1><p style="margin:4px 0 0;opacity:0.9;">Client Portal</p></div>
+        <div class="content">
+          <p>Hello ${data.contactName},</p>
+          <p>We received a request to reset your Client Portal password. Click the button below to choose a new password:</p>
+          <p style="text-align:center;"><a href="${data.resetUrl}" class="button">Reset My Password</a></p>
+          <p><small>This link expires in 1 hour. If you didn't request a password reset, you can safely ignore this email &mdash; your current password still works.</small></p>
+        </div>
+        <div class="footer">${data.companyName} &mdash; HIPAA-compliant care portal</div>
+      </div></body></html>
+    `,
+    text: `Hello ${data.contactName}, reset your ${data.companyName} Client Portal password (link expires in 1 hour): ${data.resetUrl}`,
+  }),
+
+  // An administrator set a new family portal password; tell the relative what it is.
+  familyPasswordSetByAdmin: (data) => ({
+    subject: `${data.companyName} Family Portal — Password Reset`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1><p style="margin:4px 0 0;opacity:0.9;">Family Care Portal</p></div>
+        <div class="content">
+          <p>Hello ${data.familyName},</p>
+          <p>Your family portal password has been reset by an administrator.</p>
+          <div class="highlight">
+            <p style="margin:0;"><strong>Your new credentials:</strong></p>
+            <p style="margin:4px 0 0;">Email: ${data.email}<br/>New Password: <code style="background:#e5e7eb;padding:2px 6px;border-radius:3px;">${data.newPassword}</code></p>
+          </div>
+          <p style="text-align:center;"><a href="${data.portalUrl}" class="button">Sign In</a></p>
+        </div>
+        <div class="footer">${data.companyName} &mdash; HIPAA-compliant care portal</div>
+      </div></body></html>
+    `,
+    text: `Hello ${data.familyName}, your ${data.companyName} family portal password has been reset by an administrator. Email: ${data.email} | New password: ${data.newPassword} | Sign in: ${data.portalUrl}`,
   }),
 
   invoiceEmail: (data) => ({
@@ -323,6 +371,8 @@ const emailService = {
   sendInvoiceEmail: (to: string, data: Record<string, unknown>) => send(to, 'invoiceEmail', data),
   sendFamilyPortalWelcome: (to: string, data: Record<string, unknown>) => send(to, 'familyPortalWelcome', data),
   sendFamilyPasswordReset: (to: string, data: Record<string, unknown>) => send(to, 'familyPasswordReset', data),
+  sendFamilyPasswordSetByAdmin: (to: string, data: Record<string, unknown>) => send(to, 'familyPasswordSetByAdmin', data),
+  sendClientPortalPasswordReset: (to: string, data: Record<string, unknown>) => send(to, 'clientPortalPasswordReset', data),
   sendPasswordReset: (to: string, data: Record<string, unknown>) => send(to, 'passwordReset', data),
 }
 

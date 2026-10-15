@@ -11,8 +11,10 @@ import PaymentPage, { PaymentSuccess } from './components/PaymentPage';
 import PortalLogin from './components/portal/PortalLogin';
 import PortalSetup from './components/portal/PortalSetup';
 import ClientPortal from './components/portal/ClientPortal';
+import FamilyPortalLogin from './components/portal/FamilyPortalLogin';
+import FamilyPortal from './components/portal/FamilyPortal';
 import { ToastContainer, toast } from './components/Toast';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, setSessionExpiredCallback } from './config';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
@@ -46,6 +48,9 @@ const App = () => {
 
         {/* Client portal */}
         <Route path="/portal/*"          element={<PortalApp />} />
+
+        {/* Family portal */}
+        <Route path="/family/*"          element={<FamilyApp />} />
 
         {/* Lead Inbox */}
         <Route path="leads" element={<LeadInboxPage />} />
@@ -117,6 +122,10 @@ const PortalApp = () => {
   }, []);
 
   useEffect(() => {
+    setSessionExpiredCallback(handleLogout);
+  }, [handleLogout]);
+
+  useEffect(() => {
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
@@ -164,6 +173,59 @@ const PortalApp = () => {
   return (
     <ErrorBoundary>
       <ClientPortal user={client} token={token} onLogout={handleLogout} />
+    </ErrorBoundary>
+  );
+};
+
+// ── Family Portal App ─────────────────────────────────────────────────────────
+// A relative's own sign-in (family_members), separate from the client portal.
+const FamilyApp = () => {
+  const [familyUser, setFamilyUser] = useState(null);
+  const [loading, setLoading]       = useState(true);
+  const [token, setToken]           = useState(localStorage.getItem('family_token'));
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('family_token');
+    localStorage.removeItem('family_user');
+    setToken(null);
+    setFamilyUser(null);
+  }, []);
+
+  useEffect(() => {
+    setSessionExpiredCallback(handleLogout);
+  }, [handleLogout]);
+
+  useEffect(() => {
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if ((payload.exp && payload.exp * 1000 < Date.now()) || payload.role !== 'family') {
+          handleLogout();
+        } else {
+          let stored = null;
+          try { stored = JSON.parse(localStorage.getItem('family_user') || 'null'); } catch { stored = null; }
+          setFamilyUser(stored || { id: payload.familyMemberId });
+        }
+      } catch {
+        handleLogout();
+      }
+    }
+    setLoading(false);
+  }, [token, handleLogout]);
+
+  const handleLogin = (newToken, userData) => {
+    localStorage.setItem('family_token', newToken);
+    localStorage.setItem('family_user', JSON.stringify(userData || {}));
+    setToken(newToken);
+    setFamilyUser(userData || {});
+  };
+
+  if (loading) return <div className="loading"><div className="spinner"></div></div>;
+  if (!familyUser || !token) return <FamilyPortalLogin onLogin={handleLogin} />;
+
+  return (
+    <ErrorBoundary>
+      <FamilyPortal user={familyUser} token={token} onLogout={handleLogout} />
     </ErrorBoundary>
   );
 };
@@ -217,7 +279,7 @@ const MainApp = () => {
           <span>
             Viewing as <strong>{impersonationUser.name}</strong>
             <span style={{ fontWeight: 400, opacity: 0.85, marginLeft: '0.5rem' }}>
-              ({impersonationUser.role}) — read-only debug view
+              ({impersonationUser.role === 'client' ? 'client portal' : impersonationUser.role}) — read-only debug view
             </span>
           </span>
           <button
@@ -232,9 +294,11 @@ const MainApp = () => {
           </button>
         </div>
         <div style={{ paddingTop: '2.5rem' }}>
-          {impersonationUser.role === 'admin'
-            ? <AdminDashboard onLogout={exitImpersonation} />
-            : <CaregiverDashboard onLogout={exitImpersonation} />
+          {impersonationUser.role === 'client'
+            ? <ClientPortal user={impersonationUser} token={impersonationToken} onLogout={exitImpersonation} />
+            : impersonationUser.role === 'admin'
+              ? <AdminDashboard onLogout={exitImpersonation} />
+              : <CaregiverDashboard onLogout={exitImpersonation} />
           }
         </div>
       </ErrorBoundary>

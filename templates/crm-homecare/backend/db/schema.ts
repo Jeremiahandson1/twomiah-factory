@@ -891,10 +891,15 @@ export const notifications = pgTable('notifications', {
   isRead: boolean('is_read').default(false).notNull(),
   emailSent: boolean('email_sent').default(false).notNull(),
   pushSent: boolean('push_sent').default(false).notNull(),
+  // new → handled → archived. Moves together with isRead; the bell counts 'new'.
+  status: text('status').default('new').notNull(),
+  handledAt: timestamp('handled_at'),
+  handledById: text('handled_by_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('notifications_user_id_idx').on(t.userId),
   index('notifications_is_read_idx').on(t.isRead),
+  index('notifications_user_status_idx').on(t.userId, t.status),
 ])
 
 // ==================== NOTIFICATION PREFERENCES ====================
@@ -908,6 +913,17 @@ export const notificationPreferences = pgTable('notification_preferences', {
   billingAlerts: boolean('billing_alerts').default(true).notNull(),
   ratingAlerts: boolean('rating_alerts').default(true).notNull(),
   dailyDigest: boolean('daily_digest').default(true).notNull(),
+  smsEnabled: boolean('sms_enabled').default(true).notNull(),
+  shiftReminderAlerts: boolean('shift_reminder_alerts').default(true).notNull(),
+  payrollAlerts: boolean('payroll_alerts').default(true).notNull(),
+  paymentAlerts: boolean('payment_alerts').default(true).notNull(),
+  lowAuthAlerts: boolean('low_auth_alerts').default(true).notNull(),
+  expiringCertAlerts: boolean('expiring_cert_alerts').default(true).notNull(),
+  messageAlerts: boolean('message_alerts').default(true).notNull(),
+  // Quiet hours, e.g. 21:00 → 07:00 (an overnight window wraps midnight).
+  quietHoursStart: time('quiet_hours_start'),
+  quietHoursEnd: time('quiet_hours_end'),
+  quietHoursSkipEmergency: boolean('quiet_hours_skip_emergency').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -1170,6 +1186,9 @@ export const clientNotifications = pgTable('client_notifications', {
   title: text('title').notNull(),
   message: text('message'),
   isRead: boolean('is_read').default(false).notNull(),
+  relatedVisitId: text('related_visit_id'),
+  relatedInvoiceId: text('related_invoice_id'),
+  relatedCaregiverId: text('related_caregiver_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('client_notifications_client_id_idx').on(t.clientId),
@@ -1848,6 +1867,12 @@ export const familyMembers = pgTable('family_members', {
   portalTokenExp: timestamp('portal_token_exp'),
   lastLoginAt: timestamp('last_login_at'),
   isActive: boolean('is_active').default(true).notNull(),
+  // What this relative may see in the family portal.
+  canViewSchedule: boolean('can_view_schedule').default(true).notNull(),
+  canViewCarePlan: boolean('can_view_care_plan').default(true).notNull(),
+  canViewMedications: boolean('can_view_medications').default(false).notNull(),
+  canMessage: boolean('can_message').default(true).notNull(),
+  isPrimaryContact: boolean('is_primary_contact').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -1859,10 +1884,15 @@ export const familyMessages = pgTable('family_messages', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   familyMemberId: text('family_member_id').notNull().references(() => familyMembers.id, { onDelete: 'cascade' }),
   clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
-  senderType: text('sender_type').notNull(),
+  senderType: text('sender_type').notNull(), // 'family' (inbound) or 'staff' (outbound)
   senderName: text('sender_name'),
+  subject: text('subject'),
   body: text('body').notNull(),
   isRead: boolean('is_read').default(false).notNull(),
+  // The office's answer, kept on the family's message as well as sent as its own row.
+  reply: text('reply'),
+  repliedAt: timestamp('replied_at'),
+  repliedById: text('replied_by_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('family_messages_family_member_id_idx').on(t.familyMemberId),
@@ -2108,3 +2138,43 @@ export const clientDocuments = pgTable('client_documents', {
   index('client_documents_client_id_idx').on(t.clientId),
   index('client_documents_status_idx').on(t.status),
 ])
+
+// ==================== PORTAL (area: portal — migrations/0020_portal.sql) ====================
+// Client portal logins: one per PERSON, several per client (the client and each
+// relative), each with its own password, lockout counter and invite/reset link.
+// Replaces the single login that lived on clients.portal_email/portal_password_hash
+// (the migration copies it across). clients.portal_token stays: it is the emailed
+// direct-link credential used by /portal?token= and by signable-document emails.
+export const clientPortalAccounts = pgTable('client_portal_accounts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(), // lowercase; the login key, unique across all clients
+  displayName: text('display_name'), // who this login belongs to, e.g. "Tyler (son)"
+  passwordHash: text('password_hash'),
+  portalEnabled: boolean('portal_enabled').default(false).notNull(),
+  failedLoginCount: integer('failed_login_count').default(0).notNull(),
+  lockedUntil: timestamp('locked_until'),
+  inviteToken: text('invite_token'),
+  inviteExpiresAt: timestamp('invite_expires_at'),
+  lastLogin: timestamp('last_login'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('client_portal_accounts_email_idx').on(t.email),
+  index('client_portal_accounts_client_id_idx').on(t.clientId),
+  index('client_portal_accounts_invite_token_idx').on(t.inviteToken),
+])
+
+// A client's own notification switches (created by 0005, declared here since 0020).
+export const clientNotificationPreferences = pgTable('client_notification_preferences', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().unique('client_notification_preferences_client_id_key').references(() => clients.id, { onDelete: 'cascade' }),
+  emailEnabled: boolean('email_enabled').default(true),
+  portalEnabled: boolean('portal_enabled').default(true),
+  caregiverAlerts: boolean('caregiver_alerts').default(true),
+  scheduleAlerts: boolean('schedule_alerts').default(true),
+  billingAlerts: boolean('billing_alerts').default(true),
+  assignmentAlerts: boolean('assignment_alerts').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
