@@ -1239,6 +1239,8 @@ const CaregiverDashboard = ({ onLogout }) => {
       {sandataPrompt && (
         <SandataPrompt prompt={sandataPrompt} client={sandataClient(sandataPrompt.clientId)} ctx={sandataCtx}
           email={user?.email} onClose={() => setSandataPrompt(null)} />
+      )}
+
       {/* Documents waiting for this caregiver's signature */}
       {unsignedDocs.length > 0 && (
         <div className="card mb-4 border-l-4 border-red-600 dark:border-red-500">

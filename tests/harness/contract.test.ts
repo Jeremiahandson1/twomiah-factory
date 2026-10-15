@@ -458,8 +458,9 @@ const KNOWN_HOLE = [
     // honest starting points, not targets that have been worked.
     // 19 -> 16 (home care catch-up, 10/15, all eight port areas merged): POST /api/care-plans with an
     // empty body is a 400 (clientId and serviceType are required), not a NOT NULL violation; POST
-    // /api/billing/invoices/generate no longer answers 500 "Invalid Date" on an empty body; and the
-    // visits/reports routes refuse what they used to crash on.
+    // /api/billing/invoices/generate no longer answers 500 "Invalid Date" on an empty body. 16 is
+    // what the contract measures on the merged template (the per-route causes of the third were not
+    // itemised).
     'crm-homecare': 16,
     'crm-store': 1,
   }
