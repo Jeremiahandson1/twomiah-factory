@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { getDashboardReferrals, getDashboardHours } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import IncidentResponsesDue from './IncidentResponsesDue';
 
 const DashboardOverview = ({ summary, onNavigate }) => {
   const { token } = useAuth();
@@ -45,6 +46,7 @@ const DashboardOverview = ({ summary, onNavigate }) => {
 
   return (
     <>
+      <IncidentResponsesDue onNavigate={onNavigate} />
       {/* Key Metrics */}
       <div className="grid">
         <div className="stat-card">

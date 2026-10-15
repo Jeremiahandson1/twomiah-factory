@@ -1408,7 +1408,9 @@ export const incidents = pgTable('incidents', {
   clientId: text('client_id').references(() => clients.id),
   caregiverId: text('caregiver_id').references(() => users.id),
   incidentType: text('incident_type').notNull(),
-  severity: text('severity').default('low').notNull(),
+  // minor | moderate | severe | critical (config/incidentOptions.ts). 0019 mapped the old low/medium/high.
+  severity: text('severity').default('moderate').notNull(),
+  // When it happened. `date` is the incident date; `reportedDate` is when the agency was told.
   date: date('date').notNull(),
   description: text('description').notNull(),
   involvedParties: text('involved_parties'),
@@ -1416,15 +1418,93 @@ export const incidents = pgTable('incidents', {
   witnesses: text('witnesses'),
   injuriesOrDamage: text('injuries_or_damage'),
   followUpRequired: boolean('follow_up_required').default(false).notNull(),
+  // The case status: open | investigating | closed.
   investigationStatus: text('investigation_status').default('open').notNull(),
+  // The date the case was closed (stored at midnight) and who closed it.
   resolvedAt: timestamp('resolved_at'),
   resolvedById: text('resolved_by_id').references(() => users.id),
+  // Who entered it in the CRM (office user or the caregiver who filed it from the app).
   reportedById: text('reported_by_id').references(() => users.id),
+  // ── Incident case file (migration 0019) ──
+  // IR-<year>-<nnn>: assigned once on create, never recomputed or reused (incident_number_counters).
+  incidentNumber: text('incident_number'),
+  incidentTime: time('incident_time'),
+  followUpNotes: text('follow_up_notes'),
+  // Free-text reporter: a person or an organisation (e.g. the payer that raised the concern).
+  reportedBy: text('reported_by'),
+  reportedDate: date('reported_date'),
+  reporterContactName: text('reporter_contact_name'),
+  reporterPhone: text('reporter_phone'),
+  reporterEmail: text('reporter_email'),
+  responseDueDate: date('response_due_date'),
+  responseSentDate: date('response_sent_date'),
+  // substantiated | unsubstantiated | inconclusive
+  disposition: text('disposition'),
+  findings: text('findings'),
+  // not_required | pending | reported
+  mandatoryReportStatus: text('mandatory_report_status'),
+  mandatoryReportDetails: text('mandatory_report_details'),
+  // Printed in the payer response letter as its own numbered item.
+  payerResponseNotes: text('payer_response_notes'),
+  // Caregiver removed from this client pending investigation; caregiverRemoval records every
+  // schedule row changed and its prior value, so "return to schedule" restores exactly.
+  caregiverRemovedFrom: date('caregiver_removed_from'),
+  caregiverReturnedOn: date('caregiver_returned_on'),
+  caregiverRemoval: json('caregiver_removal'),
+  // Signed medication handling + misappropriation training acknowledgement (one per incident).
+  trainingAckSignedAt: timestamp('training_ack_signed_at', { withTimezone: true }),
+  trainingAckSignerName: text('training_ack_signer_name'),
+  trainingAckSignature: text('training_ack_signature'),
+  trainingAckSupervisor: text('training_ack_supervisor'),
+  // in_person | phone | video
+  trainingAckMethod: text('training_ack_method'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('incidents_status_idx').on(t.investigationStatus),
+  uniqueIndex('incidents_incident_number_idx').on(t.incidentNumber),
+  index('incidents_response_due_idx').on(t.responseDueDate),
 ])
+
+// ==================== INCIDENT CASE FILE (migration 0019) ====================
+// Investigation timeline: every call, interview, document reviewed and action taken, dated.
+export const incidentInvestigationNotes = pgTable('incident_investigation_notes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  incidentId: text('incident_id').notNull().references(() => incidents.id, { onDelete: 'cascade' }),
+  entryDate: date('entry_date').notNull(),
+  // call | interview | document | action | schedule | note
+  entryType: text('entry_type').default('note').notNull(),
+  summary: text('summary').notNull(),
+  createdById: text('created_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('incident_investigation_notes_incident_idx').on(t.incidentId, t.entryDate),
+])
+
+// Attachments are stored in the database as data URIs: a file written to the server's disk does not
+// survive a deploy.
+export const incidentAttachments = pgTable('incident_attachments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  incidentId: text('incident_id').notNull().references(() => incidents.id, { onDelete: 'cascade' }),
+  // payer_notice | statement | background_check | training | signed_response | photo | other
+  category: text('category').default('other').notNull(),
+  fileName: text('file_name').notNull(),
+  mimeType: text('mime_type').notNull(),
+  fileSize: integer('file_size'),
+  fileData: text('file_data').notNull(),
+  description: text('description'),
+  uploadedById: text('uploaded_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('incident_attachments_incident_idx').on(t.incidentId, t.createdAt),
+])
+
+// High-water mark per incident year, so a deleted incident's number is never handed out again
+// (a number already sent to a payer must keep meaning one incident).
+export const incidentNumberCounters = pgTable('incident_number_counters', {
+  year: integer('year').primaryKey(),
+  lastNumber: integer('last_number').notNull(),
+})
 
 // ==================== MEDICATIONS ====================
 export const medications = pgTable('medications', {

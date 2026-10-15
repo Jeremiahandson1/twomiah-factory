@@ -46,6 +46,9 @@ const ComplianceTracking = () => {
     { value: 'dementia_care', label: 'Dementia Care' },
     { value: 'fall_prevention', label: 'Fall Prevention' },
     { value: 'manual_handling', label: 'Manual Handling' },
+    { value: 'medication_administration', label: 'Medication Administration' },
+    { value: 'medication_reminders', label: 'Medication Reminders & Handling (PCW)' },
+    { value: 'misappropriation_policy', label: 'Client Funds, Property & Misappropriation Policy' },
     { value: 'other', label: 'Other' }
   ];
 

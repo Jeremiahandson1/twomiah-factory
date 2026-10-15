@@ -6,6 +6,7 @@ import { toast } from './Toast';
 import CaregiverClientModal from './CaregiverClientModal';
 import MileageTracker from './MileageTracker';
 import ShiftMissReport from './caregiver/ShiftMissReport';
+import IncidentReportForm from './caregiver/IncidentReportForm';
 import CaregiverHelp from './caregiver/CaregiverHelp';
 import CaregiverMessages from './caregiver/CaregiverMessages';
 import { useGeolocation, useHaptics, useOfflineSync, useBackgroundGeolocation, isNative, platform } from '../hooks/useNative';
@@ -1028,6 +1029,7 @@ const CaregiverDashboard = ({ onLogout }) => {
           <li><a href="#" className={currentPage === 'open-shifts' ? 'active' : ''} onClick={() => handlePageClick('open-shifts')}>📋 Open Shifts</a></li>
           <li><a href="#" className={currentPage === 'availability' ? 'active' : ''} onClick={() => handlePageClick('availability')}>⏰ Availability</a></li>
           <li><a href="#" className={currentPage === 'miss-report' ? 'active' : ''} onClick={() => handlePageClick('miss-report')}>🚨 Report Miss</a></li>
+          <li><a href="#" className={currentPage === 'incident-report' ? 'active' : ''} onClick={() => handlePageClick('incident-report')}>⚠️ Report Incident</a></li>
           <li><a href="#" className={currentPage === 'time-off' ? 'active' : ''} onClick={() => handlePageClick('time-off')}>🏖️ Time Off</a></li>
           <li style={{ paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '0.5rem' }}>
             <a href="#" className={currentPage === 'settings' ? 'active' : ''} onClick={() => handlePageClick('settings')}>⚙️ Settings</a>
@@ -1065,6 +1067,7 @@ const CaregiverDashboard = ({ onLogout }) => {
           {currentPage === 'availability' && renderAvailabilityPage()}
           {currentPage === 'time-off' && renderTimeOffPage()}
           {currentPage === 'miss-report' && renderMissReportPage()}
+          {currentPage === 'incident-report' && <IncidentReportForm onClose={() => setCurrentPage('home')} />}
           {currentPage === 'settings' && renderSettingsPage()}
         </div>
       </div>
@@ -1111,6 +1114,7 @@ const CaregiverDashboard = ({ onLogout }) => {
             { page: 'open-shifts',   icon: '📋', label: 'Open Shifts' },
             { page: 'availability',  icon: '⏰', label: 'Availability' },
             { page: 'miss-report',   icon: '🚨', label: 'Report Miss' },
+            { page: 'incident-report', icon: '⚠️', label: 'Report Incident' },
             { page: 'time-off',      icon: '🏖️', label: 'Time Off' },
           ].map(({ page, icon, label }) => (
             <button
