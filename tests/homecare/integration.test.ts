@@ -271,7 +271,7 @@ const famClient = await mkClient('Fam')
   check('a claim from a training visit is refused, saying why', one.status === 400 && /training/i.test(one.json.error), one.json)
   const batch = await A('POST', '/api/claims/batch-generate', { startDate: '2026-08-01', endDate: '2026-08-07' })
   const made = await q(sql`SELECT evv_visit_id FROM claims WHERE evv_visit_id IN ('ev_real', 'ev_train')`)
-  check('batch claims bill the real visit and skip the training one', batch.status === 200 && made.length === 1 && made[0].evv_visit_id === 'ev_real', { batch: batch.json, made })
+  check('batch claims bill the real visit and never pick up the training one', batch.status === 200 && batch.json.generated === 1 && batch.json.skipped === 0 && made.length === 1 && made[0].evv_visit_id === 'ev_real', { batch: batch.json, made })
 }
 
 // ══ 7. a claim made from an invoice is not counted twice ═════════════════════════════════════════
