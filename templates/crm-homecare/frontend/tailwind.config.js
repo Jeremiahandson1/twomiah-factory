@@ -53,6 +53,10 @@ const brandPalette = generatePalette('{{PRIMARY_COLOR}}');
 
 /** @type {import('tailwindcss').Config} */
 export default {
+  // Home care is light-only: index.css paints .card / .modal-content white and nothing puts `dark` on <html>.
+  // Tailwind's default ('media') switched every `dark:` class on with the OS setting, so light ink landed on those
+  // white grounds. 'class' (as every other CRM sets it) keeps `dark:` off until a theme toggle exists.
+  darkMode: 'class',
   content: [
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
