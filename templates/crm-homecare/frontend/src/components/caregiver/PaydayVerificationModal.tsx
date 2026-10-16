@@ -45,7 +45,7 @@ export default function PaydayVerificationModal({ pending, token, onResolved, on
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4">
       <div className="flex w-full max-w-xl max-h-[90vh] flex-col rounded-2xl bg-white dark:bg-slate-800 shadow-2xl">
         <div className="rounded-t-2xl bg-teal-700 px-6 py-5 text-white">
           <div className="text-sm font-medium text-teal-50">Payday Verification</div>

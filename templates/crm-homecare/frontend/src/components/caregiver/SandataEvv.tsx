@@ -151,7 +151,7 @@ export function SandataNotice({ userId, ctx, companyPhone, onSetup }: {
   };
   const tel = String(companyPhone || '').replace(/\D/g, '');
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/55 p-4">
       <div role="dialog" aria-modal="true" aria-labelledby="sandata-notice-title"
         className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white px-5 pb-4 pt-5 shadow-2xl dark:bg-slate-800">
         <h2 id="sandata-notice-title" className="mb-2 text-xl font-bold text-blue-900 dark:text-blue-200">📲 Important: Sandata EVV is required</h2>

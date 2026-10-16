@@ -284,7 +284,8 @@ const [{ today }] = await q(sql`SELECT to_char((NOW() AT TIME ZONE 'America/Chic
   // z-index 1000 opens BEHIND it (the New Job Posting dialog's hidden left side).
   const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e: any) =>
     e.isDirectory() ? walk(d + e.name + '/') : e.name.endsWith('.tsx') ? [d + e.name] : [])
-  const files = [...walk(ROOT + 'frontend/src/components/admin/'), ...walk(ROOT + 'frontend/src/pages/')]
+  // Every screen, the caregiver app's included: it has the same 1000 sidebar on a laptop.
+  const files = [...walk(ROOT + 'frontend/src/components/'), ...walk(ROOT + 'frontend/src/pages/')]
   const under: string[] = []
   for (const f of files) {
     const s = readFileSync(f, 'utf8')
