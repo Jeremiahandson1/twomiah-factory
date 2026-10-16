@@ -776,6 +776,9 @@ export const invoiceLineItems = pgTable('invoice_line_items', {
   serviceDate: date('service_date'),
   hours: decimal('hours', { precision: 6, scale: 2 }).notNull(),
   rate: decimal('rate', { precision: 10, scale: 2 }).notNull(),
+  // 0025: the unit `rate` is in — 'hourly' (hours × rate) or '15min' (hours × 4 units × rate), the
+  // rate_type of the rate that priced the line. The invoice prints quantity and rate in this unit.
+  rateType: text('rate_type'),
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
   // Billing port (0015, CVHC v58): why this line is the number it is.
   billedBasis: text('billed_basis'), // 'scheduled' | 'clocked' | 'unscheduled'

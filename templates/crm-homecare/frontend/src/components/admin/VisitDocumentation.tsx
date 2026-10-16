@@ -206,7 +206,7 @@ const VisitDocumentation = () => {
         <>
           <div className="card" style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <div><strong>{data.client.name}</strong>{data.client.payer ? ` · ${data.client.payer}` : ''}</div>
-            <div>{data.visits.length} visits · {documented} with notes</div>
+            <div>{data.visits.length} visit{data.visits.length === 1 ? '' : 's'} · {documented} with notes</div>
             <button className="btn btn-sm btn-secondary" disabled={!missing}
               onClick={() => setBulkOpen(true)}
               title="Write one note, with the care-plan tasks ticked, to every visit that has no note yet">
@@ -234,14 +234,14 @@ const VisitDocumentation = () => {
 
           {bulkOpen && (
             <div className="card" style={{ border: '1px solid #93C5FD', background: '#EFF6FF', color: '#111827' }}>
-              <strong>Fill {missing} visits without a note</strong>
+              <strong>Fill {missing} visit{missing === 1 ? '' : 's'} without a note</strong>
               <p style={{ margin: '0.4rem 0', color: '#374151' }}>
                 This note is written to each of those visits, with every care task ticked. Visits that already have a note are left alone. Edit any day that was different afterwards.
               </p>
               <textarea rows={3} style={{ width: '100%' }} value={bulkNote} onChange={(e) => setBulkNote(e.target.value)} />
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                 <button className="btn btn-primary btn-sm" disabled={bulkBusy || !bulkNote.trim()} onClick={bulkFill}>
-                  {bulkBusy ? 'Filling…' : `Fill ${missing} visits`}
+                  {bulkBusy ? 'Filling…' : `Fill ${missing} visit${missing === 1 ? '' : 's'}`}
                 </button>
                 <button className="btn btn-secondary btn-sm" onClick={() => setBulkOpen(false)}>Cancel</button>
               </div>

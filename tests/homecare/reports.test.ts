@@ -5,7 +5,8 @@
 //     a one-time overnight shift, a cancelled occurrence gone, a suspended schedule stopped.
 //   · DELIVERED hours = payroll-reviewed minutes (verified/approved/manual_entry) + clock entries no
 //     approved review covers — CVHC's rule, the same minutes counted once.
-//   · The P&L numbers CVHC's formulas give on this data: invoices prorated by days, payroll ×1.0765,
+//   · The P&L numbers on this data: invoices counted WHOLE by their first day of service (never
+//     prorated; services/invoiceMoney.ts), payroll ×1.0765,
 //     earned revenue at each client's rate (private pay rate, or the payer's 15-minute rate × 4).
 //   · Days are the AGENCY's days: a 7pm visit is on its own day, a 9:05 clock-in is on time against a
 //     9:00 schedule. Every one of those reads wrong on a UTC clock — that is the point of each check.
@@ -91,7 +92,12 @@ const CG1_MIN = 235 + 225 + 240, CG2_MIN = 120 + 60 + 60 + 60
 const A_MIN = 235 + 60 + 240 + 60, B_MIN = 120 + 225 + 60
 
 // Money.
-await db.insert(invoices).values({ invoiceNumber: 'INV-1', clientId: A.id, billingPeriodStart: '2026-09-01', billingPeriodEnd: '2026-09-14', subtotal: '280', total: '280', amountPaid: '100', paymentStatus: 'pending' } as any)
+// A RELEASED invoice (sent) with $100 recorded on the payments ledger — the shape the billing routes
+// write. (This fixture used to be a draft carrying amount_paid with no payment row.)
+const [inv1] = await db.insert(invoices).values({ invoiceNumber: 'INV-1', clientId: A.id, billingPeriodStart: '2026-09-01', billingPeriodEnd: '2026-09-14', subtotal: '280', total: '280', amountPaid: '100', paymentStatus: 'partial', sentAt: new Date('2026-09-15T15:00:00Z') } as any).returning()
+await db.execute(sql`INSERT INTO invoice_payments (id, invoice_id, amount, payment_method, payment_date) VALUES ('pay-inv1', ${inv1.id}, 100, 'check', '2026-09-20')`)
+// A DRAFT nobody has sent: never billed, never owed, in any report.
+await db.insert(invoices).values({ invoiceNumber: 'INV-DRAFT', clientId: A.id, billingPeriodStart: '2026-09-15', billingPeriodEnd: '2026-09-28', subtotal: '500', total: '500', paymentStatus: 'pending' } as any)
 await db.insert(claims).values({ clientId: B.id, payerId: rs.id, serviceDate: '2026-09-02', billedAmount: '50.00', paidAmount: '0', status: 'submitted' } as any)
 await db.insert(claims).values({ clientId: B.id, payerId: rs.id, serviceDate: '2026-09-03', billedAmount: '999.00', status: 'voided' } as any)
 await db.insert(expenses).values({ userId: owner.id, category: 'supplies', description: 'Gloves', amount: '25.00', date: '2026-09-05' } as any)
@@ -208,7 +214,9 @@ const SEPT = { startDate: '2026-09-01', endDate: '2026-09-30' }
   check('net = earned − expenses − payroll incl. tax', near(r.json?.netIncome, earned - 25 - gross * 1.0765), r.json)
   check('cash net = collected − expenses − payroll incl. tax', near(r.json?.netIncomeCash, 100 - 25 - gross * 1.0765), r.json)
   const wk = await office('GET', '/api/reports/pnl?startDate=2026-09-08&endDate=2026-09-14')
-  check('a week inside a two-week invoice bills HALF of it (7 of 14 days, prorated)', near(wk.json?.revenue?.total_billed, 140) && near(wk.json?.revenue?.total_collected, 50), wk.json?.revenue)
+  check('a week without the invoice\'s first day of service bills none of it (whole invoices, never prorated)', near(wk.json?.revenue?.total_billed, 0) && near(wk.json?.revenue?.total_collected, 0), wk.json?.revenue)
+  const wk1 = await office('GET', '/api/reports/pnl?startDate=2026-09-01&endDate=2026-09-07')
+  check('the week holding its first day bills the WHOLE invoice + the claim, and its $100 collected', near(wk1.json?.revenue?.total_billed, 330) && near(wk1.json?.revenue?.total_collected, 100), wk1.json?.revenue)
 }
 
 // ── drill-downs ───────────────────────────────────────────────────────────────────────────────────
@@ -303,7 +311,8 @@ const plusDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T12:00:
   check('today\'s shifts come off the engine (2)', s.json?.todayShifts === 2, s.json)
   check('one caregiver is clocked in now', s.json?.clockedInNow === 1, s.json)
   check('one of today\'s shifts has nobody clocked in', s.json?.remainingShifts === 1, s.json)
-  check('pending invoices: one, $280', s.json?.pendingInvoices?.count === 1 && near(s.json?.pendingInvoices?.amount, 280), s.json?.pendingInvoices)
+  check('pending invoices: one released invoice, $180 still owed (the $500 draft is not owed)', s.json?.pendingInvoices?.count === 1 && near(s.json?.pendingInvoices?.amount, 180), s.json?.pendingInvoices)
+  check('…and the draft is reported apart: one, $500', s.json?.pendingInvoices?.draftCount === 1 && near(s.json?.pendingInvoices?.draftAmount, 500), s.json?.pendingInvoices)
 
   const ai = await office('GET', '/api/dashboard/action-items')
   const item = (k: string) => (ai.json?.items || []).find((i: any) => i.key === k)?.count || 0

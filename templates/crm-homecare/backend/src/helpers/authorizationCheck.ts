@@ -7,12 +7,19 @@
 // callers surface `warnings` and must not refuse the write. `allowed` is always true.
 import { sql } from 'drizzle-orm'
 import { one } from './scheduleRows.ts'
+import { privatePaySql } from './payerFunding.ts'
+import { toAuthUnits } from '../services/authUnits.ts'
 
 export async function checkAuthorizationBalance(clientId: string | null | undefined, shiftHours: number): Promise<{
   allowed: true; warnings: string[]; authorization: any | null
 }> {
   const warnings: string[] = []
   if (!clientId) return { allowed: true, warnings, authorization: null }
+
+  // Authorizations apply only to payer-funded services (helpers/payerFunding.ts): a private-pay
+  // client — by the flag OR by a payer whose payer_type is private_pay — gets no authorization advice.
+  const pp = await one<any>(sql`SELECT ${privatePaySql('c')} AS private_pay FROM clients c WHERE c.id = ${clientId}`)
+  if (pp?.private_pay) return { allowed: true, warnings, authorization: null }
 
   const auth = await one<any>(sql`
     SELECT a.*, to_char(a.end_date, 'YYYY-MM-DD') AS end_ymd,
@@ -31,19 +38,12 @@ export async function checkAuthorizationBalance(clientId: string | null | undefi
     LIMIT 1`)
 
   if (!auth) {
-    const c = await one<any>(sql`SELECT is_private_pay FROM clients WHERE id = ${clientId}`)
-    if (c?.is_private_pay) return { allowed: true, warnings: [], authorization: null }
     return { allowed: true, warnings: ['No active authorization on file for this client'], authorization: null }
   }
 
   const remaining = parseFloat(auth.remaining_units) || 0
-  let requested: number
-  switch (auth.unit_type) {
-    case 'hourly': requested = shiftHours; break
-    case 'daily':
-    case 'visit': requested = 1; break
-    default: requested = shiftHours * 4 // 15-minute units
-  }
+  // One shift is shiftHours × 4 quarter-hours, one visit, one day — in the authorization's unit.
+  const requested = toAuthUnits(auth.unit_type, { quarterHours: shiftHours * 4, visits: 1, days: 1 })
   const threshold = parseFloat(auth.low_units_alert_threshold) || 0
 
   if (auth.health_status === 'expired') {

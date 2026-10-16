@@ -11,6 +11,7 @@ import { evvVisits, timeEntries, visitTimeChanges } from '../../db/schema.ts'
 import { getConfig } from './sandataClient.ts'
 import { normalizeLoc, EVV_REASON_CODES, EVV_REASONS_NEEDING_MEMO } from './sandataPayload.ts'
 import { decideSandataRequired, withTimeout } from './evvWeekly.ts'
+import { privatePaySql } from '../helpers/payerFunding.ts'
 
 const rowsOf = (r: any): any[] => (r && Array.isArray(r.rows) ? r.rows : Array.isArray(r) ? r : [])
 
@@ -97,13 +98,15 @@ export async function createEVVFromTimeEntry(timeEntryId: string) {
       SELECT te.id, te.client_id, te.caregiver_id, te.start_time, te.end_time,
              te.clock_in_location, te.clock_out_location, te.origin_phone,
              c.medicaid_id, cp.evv_worker_id, cp.npi_number,
-             ct.default_service_code, ct.default_modifier
+             ct.default_service_code, ct.default_modifier, ${privatePaySql('c')} AS private_pay
         FROM time_entries te
         JOIN clients c ON c.id = te.client_id
         LEFT JOIN caregiver_profiles cp ON cp.caregiver_id = te.caregiver_id
         LEFT JOIN care_types ct ON ct.id = c.care_type_id
        WHERE te.id = ${timeEntryId}`))[0]
     if (!te || !te.end_time) return null
+    // EVV applies only to payer-funded services (helpers/payerFunding.ts): no record for private pay.
+    if (te.private_pay) return null
 
     // drizzle hands raw `timestamp` columns back as strings without a zone; they are UTC.
     const start = asUtc(te.start_time)

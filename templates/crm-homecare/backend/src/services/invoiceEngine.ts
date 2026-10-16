@@ -177,7 +177,24 @@ export function applyRate(item: any, resolved: ResolvedRate) {
   const submitted = item.rate === '' || item.rate == null ? null : parseFloat(item.rate)
   const isWriteOff = submitted === 0
   const rate = isWriteOff ? 0 : resolved.rate
-  return { hours, rate, amount: isWriteOff ? 0 : lineAmount(hours, resolved) }
+  return { hours, rate, rate_type: resolved.rateType, amount: isWriteOff ? 0 : lineAmount(hours, resolved) }
+}
+
+/**
+ * How a stored line reads: quantity × rate = amount IN ONE UNIT. A per-15-minute rate prints
+ * "8 units × $7.50 / 15 min"; an hourly rate prints "2.00 h × $30.00 / h". The unit is the line's
+ * own rate_type (stamped when the line was written from the rate that priced it). Every reader that
+ * prints a line's quantity and rate uses this — the invoice screen mirrors it in the frontend.
+ */
+export function lineQuantity(li: { hours: any; rate: any; rate_type?: string | null; rateType?: string | null }) {
+  const hours = Number(li.hours) || 0
+  const rate = Number(li.rate) || 0
+  const perUnit = (li.rate_type ?? li.rateType) === '15min'
+  if (perUnit) {
+    const units = Math.round(hours * 4 * 100) / 100
+    return { quantity: units, quantityLabel: `${Number.isInteger(units) ? units : units.toFixed(2)} unit${units === 1 ? '' : 's'}`, rateLabel: `$${rate.toFixed(2)} / 15 min`, unit: 'unit' as const }
+  }
+  return { quantity: hours, quantityLabel: `${hours.toFixed(2)} h`, rateLabel: `$${rate.toFixed(2)} / h`, unit: 'hour' as const }
 }
 
 export interface LineItem {
@@ -430,9 +447,17 @@ export async function generateLineItems(
         default_basis: defaultBasis,
         chosen_basis: chosen,
       })
-      timeRangeLabel = punchLabel(entry)
-      shownStart = entry.start_hhmm
-      shownEnd = entry.end_hhmm
+      // The line describes what it BILLS: the shift's hours when the scheduled block bills, the
+      // punch when the clock bills. (A scheduled 2h line used to read "6:30 AM - 6:31 AM", the punch.)
+      if (chosen === 'clocked') {
+        timeRangeLabel = punchLabel(entry)
+        shownStart = entry.start_hhmm
+        shownEnd = entry.end_hhmm
+      } else {
+        timeRangeLabel = `${fmtTime12(visit.start_time)} - ${fmtTime12(visit.end_time)}`
+        shownStart = String(visit.start_time).slice(0, 5)
+        shownEnd = String(visit.end_time).slice(0, 5)
+      }
     } else {
       // No clock-in → bill scheduled. Nothing to reconcile.
       hours = hoursBetween(visit.start_time, visit.end_time)
@@ -601,13 +626,15 @@ export function generateInvoiceNumber(clientId: string) {
 /** Insert line items (inside the caller's transaction). */
 export async function insertLineItems(dbc: Dbc, invoiceId: string, items: any[]) {
   for (const item of items) {
+    // Every writer states the unit its rate is in — a line without it cannot print its own math.
+    if (item.rate_type !== '15min' && item.rate_type !== 'hourly') throw new Error(`invoice line written without a rate_type (${item.rate_type})`)
     await dbc.execute(sql`
       INSERT INTO invoice_line_items (
-        id, invoice_id, time_entry_id, caregiver_id, description, hours, rate, amount, service_date,
+        id, invoice_id, time_entry_id, caregiver_id, description, hours, rate, rate_type, amount, service_date,
         billed_basis, scheduled_minutes, clocked_minutes, start_time, end_time
       ) VALUES (
         ${createId()}, ${invoiceId}, ${item.time_entry_id || null}, ${item.caregiver_id},
-        ${clampLineItemDescription(item.description)}, ${item.hours}, ${item.rate}, ${item.amount},
+        ${clampLineItemDescription(item.description)}, ${item.hours}, ${item.rate}, ${item.rate_type}, ${item.amount},
         ${item.service_date || null}, ${item.billed_basis || null}, ${item.scheduled_minutes ?? null},
         ${item.clocked_minutes ?? null}, ${item.visit_start || null}, ${item.visit_end || null}
       )`)
@@ -654,6 +681,71 @@ export async function createInvoiceWithLines(opts: {
   })
 }
 
+// ── Payments: the ledger is invoice_payments ─────────────────────────────────────────────────
+// Every way money arrives on an invoice — Record Payment, Mark Paid, a Stripe checkout — writes ONE
+// invoice_payments row here, and amount_paid / payment_status are recomputed from the rows. Mark Paid
+// and the Stripe webhook used to stamp amount_paid = total with no row, so "Collected" (the sum of
+// payments recorded) and the invoice's own Paid figure disagreed.
+
+/** Recompute amount_paid and the status from the payments that exist (inside the caller's tx). */
+export async function rollUpPayments(tx: Dbc, invoiceId: string, paymentDate: string | null) {
+  await tx.execute(sql`
+    UPDATE invoices i SET
+      amount_paid = p.paid,
+      payment_status = CASE WHEN p.paid + COALESCE(i.amount_adjusted, 0) >= i.total THEN 'paid'
+                            WHEN p.paid > 0 THEN 'partial' ELSE 'pending' END,
+      payment_date = CASE WHEN p.paid + COALESCE(i.amount_adjusted, 0) >= i.total THEN COALESCE(${paymentDate}::date, i.payment_date, CURRENT_DATE) ELSE i.payment_date END,
+      paid_at = CASE WHEN p.paid + COALESCE(i.amount_adjusted, 0) >= i.total THEN COALESCE(i.paid_at, NOW()) ELSE NULL END,
+      updated_at = NOW()
+    FROM (SELECT COALESCE(SUM(amount), 0)::numeric AS paid FROM invoice_payments WHERE invoice_id = ${invoiceId}) p
+    WHERE i.id = ${invoiceId}`)
+}
+
+/**
+ * Record one payment on an invoice, with the invoice row locked so two payments cannot both pass the
+ * balance check. A payment past the balance is refused (409) unless allowOverpayment. amount 'balance'
+ * pays whatever is still due (Mark Paid). A non-null reference already recorded on this invoice is not
+ * recorded twice (a re-delivered Stripe webhook). Returns the payment row, or null when nothing was due
+ * or the reference was already recorded.
+ */
+export async function recordInvoicePayment(opts: {
+  invoiceId: string; amount: number | 'balance'; paymentDate: string; method: string;
+  reference?: string | null; notes?: string | null; userId?: string | null; allowOverpayment?: boolean;
+}) {
+  return await db.transaction(async (tx) => {
+    const inv = rowsOf(await tx.execute(sql`
+      SELECT total, COALESCE(amount_paid, 0) AS amount_paid, COALESCE(amount_adjusted, 0) AS amount_adjusted
+        FROM invoices WHERE id = ${opts.invoiceId} FOR UPDATE`))[0]
+    if (!inv) throw new BillingRefusal(404, { error: 'Invoice not found' })
+    if (opts.reference) {
+      const dup = rowsOf(await tx.execute(sql`
+        SELECT id FROM invoice_payments WHERE invoice_id = ${opts.invoiceId} AND reference_number = ${opts.reference} LIMIT 1`))
+      if (dup.length) return null
+    }
+    const total = Number(inv.total), alreadyPaid = Number(inv.amount_paid), adjusted = Number(inv.amount_adjusted)
+    const balanceDue = round2(total - alreadyPaid - adjusted)
+    const amt = opts.amount === 'balance' ? balanceDue : round2(opts.amount)
+    if (!(amt > 0)) {
+      if (opts.amount === 'balance') { await rollUpPayments(tx, opts.invoiceId, opts.paymentDate); return null }
+      throw new BillingRefusal(400, { error: 'Payment amount must be a positive number' })
+    }
+    if (!opts.allowOverpayment && round2(alreadyPaid + amt) > total - adjusted + 0.01) {
+      throw new BillingRefusal(409, {
+        error: `Payment of $${amt.toFixed(2)} exceeds the $${balanceDue.toFixed(2)} balance due on this invoice. It may already be recorded. To record an intentional overpayment, resubmit with allowOverpayment: true.`,
+        balanceDue, alreadyPaid, total,
+      })
+    }
+    const p = rowsOf(await tx.execute(sql`
+      INSERT INTO invoice_payments (id, invoice_id, amount, payment_date, payment_method, reference_number, notes, created_by_id)
+      VALUES (${createId()}, ${opts.invoiceId}, ${amt}, ${opts.paymentDate}::date, ${opts.method},
+              ${opts.reference || null}, ${opts.notes || null}, ${opts.userId || null})
+      RETURNING *`))[0]
+    await tx.execute(sql`UPDATE invoices SET payment_method = ${opts.method} WHERE id = ${opts.invoiceId}`)
+    await rollUpPayments(tx, opts.invoiceId, opts.paymentDate)
+    return p
+  })
+}
+
 // ── Who outside the office may see an invoice ────────────────────────────────────────────────
 // Invoices start as DRAFTS (sent_at NULL). The client/family portal, its PDF and the public pay page
 // show one only once the office sends, releases or takes a payment on it (CVHC v55). One rule for
@@ -666,4 +758,9 @@ export function isClientVisibleInvoice(inv: { sent_at?: unknown; sentAt?: unknow
 }
 export function clientVisibleInvoiceSql() {
   return sql`(${invoices.sentAt} IS NOT NULL OR ${invoices.paymentStatus} IN ('paid', 'partial'))`
+}
+/** The same rule for raw SQL over an aliased invoices table. A RELEASED invoice is one the family can
+ *  see; it is also what every money report counts as billed (services/invoiceMoney.ts). */
+export function releasedInvoiceSql(i = 'i') {
+  return sql.raw(`(${i}.sent_at IS NOT NULL OR ${i}.payment_status IN ('paid', 'partial'))`)
 }

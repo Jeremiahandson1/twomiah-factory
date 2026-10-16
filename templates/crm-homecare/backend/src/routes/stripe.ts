@@ -4,7 +4,8 @@ import { invoices, clients } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import logger from '../services/logger.ts'
-import { isClientVisibleInvoice } from '../services/invoiceEngine.ts'
+import { isClientVisibleInvoice, recordInvoicePayment } from '../services/invoiceEngine.ts'
+import { agencyToday } from '../services/agencyTime.ts'
 
 let stripe: any = null
 if (process.env.STRIPE_SECRET_KEY) {
@@ -239,16 +240,14 @@ app.post('/webhook', requireStripe, async (c) => {
 
       if (invoiceId) {
         const amountPaid = session.amount_total / 100
-        await db.update(invoices).set({
-          paymentStatus: 'paid',
-          // amount_paid is what every balance reads (portal, reminders, the line-item edit lock).
-          amountPaid: String(amountPaid),
-          paidAt: new Date(),
-          paymentMethod: 'stripe',
-          paymentDate: new Date().toISOString().split('T')[0],
-          stripePaymentIntentId: session.payment_intent,
-          updatedAt: new Date(),
-        }).where(eq(invoices.id, invoiceId))
+        // The payment goes on the ledger (invoice_payments) like every other payment; amount_paid and
+        // the status are recomputed from it. The payment intent is the reference, so a re-delivered
+        // webhook records nothing twice. Money that arrived is recorded even past the balance.
+        await recordInvoicePayment({
+          invoiceId, amount: amountPaid, paymentDate: await agencyToday(), method: 'stripe',
+          reference: session.payment_intent || session.id || null, notes: 'Stripe checkout', allowOverpayment: true,
+        })
+        await db.update(invoices).set({ stripePaymentIntentId: session.payment_intent, updatedAt: new Date() }).where(eq(invoices.id, invoiceId))
 
         logger.info(`Payment received for invoice ${invoiceId}: $${amountPaid}`)
       }

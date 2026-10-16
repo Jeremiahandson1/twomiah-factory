@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit'
+import { lineQuantity } from './invoiceEngine.ts'
 
 function buildInvoicePDF(doc: PDFKit.PDFDocument, invoice: any, agency: any, client: any) {
   const agencyName = agency?.name || '{{COMPANY_NAME}}'
@@ -33,7 +34,7 @@ function buildInvoicePDF(doc: PDFKit.PDFDocument, invoice: any, agency: any, cli
   const items = invoice.lineItems || []
   if (items.length > 0) {
     doc.fontSize(10).text('Description', 72, doc.y, { continued: true, width: 250 })
-    doc.text('Hours', { continued: true, width: 50, align: 'right' })
+    doc.text('Qty', { continued: true, width: 50, align: 'right' })
     doc.text('Rate', { continued: true, width: 80, align: 'right' })
     doc.text('Amount', { width: 80, align: 'right' })
     doc.moveDown(0.5)
@@ -43,12 +44,12 @@ function buildInvoicePDF(doc: PDFKit.PDFDocument, invoice: any, agency: any, cli
     doc.moveDown(0.5)
 
     for (const item of items) {
-      const hours = Number(item.hours || 0)
-      const rate = Number(item.rate || 0)
+      // Quantity and rate in the line's own unit, so quantity × rate = amount (invoiceEngine.lineQuantity).
+      const q = lineQuantity(item)
       const amount = Number(item.amount || 0)
       doc.text(item.description || '', 72, doc.y, { continued: true, width: 250 })
-      doc.text(hours.toFixed(1), { continued: true, width: 50, align: 'right' })
-      doc.text(`$${rate.toFixed(2)}`, { continued: true, width: 80, align: 'right' })
+      doc.text(q.quantityLabel, { continued: true, width: 50, align: 'right' })
+      doc.text(q.rateLabel, { continued: true, width: 80, align: 'right' })
       doc.text(`$${amount.toFixed(2)}`, { width: 80, align: 'right' })
     }
     doc.moveDown()

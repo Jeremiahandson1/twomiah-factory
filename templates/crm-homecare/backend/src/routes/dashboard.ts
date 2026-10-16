@@ -14,6 +14,7 @@ import {
 } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
+import { invoiceBalanceSql, releasedInvoiceSql } from '../services/invoiceMoney.ts'
 import { agencyTimezone, agencyToday, localDate, localTs, nowUtc } from '../services/agencyTime.ts'
 
 const app = new Hono()
@@ -44,7 +45,8 @@ app.get('/stats', async (c) => {
     db.select({ count: count() }).from(openShifts).where(and(eq(openShifts.status, 'open'), gte(openShifts.date, today.toISOString().split('T')[0]))),
     db.select({ count: count() }).from(noshowAlerts).where(eq(noshowAlerts.status, 'open')),
     db.select({ count: count() }).from(clientOnboarding).where(eq(clientOnboarding.allCompleted, false)),
-    db.select({ sum: sql<string>`sum(${invoices.total})` }).from(invoices).where(inArray(invoices.paymentStatus, ['pending', 'overdue'])),
+    // Outstanding = released invoices' open balance (services/invoiceMoney.ts) — drafts are not owed yet.
+    db.execute(sql`SELECT COALESCE(SUM(${invoiceBalanceSql()}), 0) AS sum FROM invoices i WHERE ${releasedInvoiceSql()} AND ${invoiceBalanceSql()} > 0.005`).then((r: any) => r.rows ?? r),
     db.select({ count: count() }).from(authorizations).where(and(eq(authorizations.status, 'active'), lte(authorizations.endDate, thirtyDaysFromNow.toISOString().split('T')[0]))),
     db.select({ count: count() }).from(timeEntries).where(and(gte(timeEntries.startTime, today), lt(timeEntries.startTime, tomorrow), eq(timeEntries.isComplete, false))),
   ])
@@ -251,10 +253,17 @@ app.get('/summary', async (c) => {
   const [totalClients, activeCaregivers, pendingInvoices, thisMonthRevenue, clockedInNow, todayShifts, remainingShifts] = await Promise.all([
     one(sql`SELECT COUNT(*)::int AS count FROM clients WHERE is_active = true`),
     one(sql`SELECT COUNT(*)::int AS count FROM users WHERE role = 'caregiver' AND is_active = true`),
-    one(sql`SELECT COUNT(*)::int AS count, SUM(total) AS amount FROM invoices WHERE payment_status = 'pending'`),
-    // Cash received this calendar month, by payment_date — not by billing period start (which
-    // missed every prior-month invoice paid this month).
-    one(sql`SELECT COALESCE(SUM(amount_paid), 0) AS amount FROM invoices
+    // Pending = RELEASED invoices with a balance still owed, at that balance (services/invoiceMoney.ts).
+    // A draft is not owed yet; it is counted separately below. A partly-paid invoice is pending for
+    // what is left (it used to be left out, and an unpaid draft counted in full).
+    one(sql`SELECT COUNT(*)::int AS count, COALESCE(SUM(${invoiceBalanceSql()}), 0) AS amount,
+               (SELECT COUNT(*)::int FROM invoices d WHERE NOT ${releasedInvoiceSql('d')}) AS draft_count,
+               (SELECT COALESCE(SUM(d.total), 0) FROM invoices d WHERE NOT ${releasedInvoiceSql('d')}) AS draft_amount
+             FROM invoices i WHERE ${releasedInvoiceSql()} AND ${invoiceBalanceSql()} > 0.005`),
+    // Cash received this calendar month: the payments recorded (invoice_payments) by payment date.
+    // invoices.payment_date is stamped only when an invoice is paid IN FULL, so a part payment
+    // counted nothing.
+    one(sql`SELECT COALESCE(SUM(amount), 0) AS amount FROM invoice_payments
              WHERE payment_date >= date_trunc('month', (${today})::date)
                AND payment_date <  date_trunc('month', (${today})::date) + INTERVAL '1 month'`),
     // Caregivers clocked in right now (an open entry started on the agency's today).
@@ -273,7 +282,10 @@ app.get('/summary', async (c) => {
   return c.json({
     totalClients: parseInt(totalClients.count) || 0,
     activeCaregivers: parseInt(activeCaregivers.count) || 0,
-    pendingInvoices: { count: parseInt(pendingInvoices.count) || 0, amount: parseFloat(pendingInvoices.amount || 0) },
+    pendingInvoices: {
+      count: parseInt(pendingInvoices.count) || 0, amount: parseFloat(pendingInvoices.amount || 0),
+      draftCount: parseInt(pendingInvoices.draft_count) || 0, draftAmount: parseFloat(pendingInvoices.draft_amount || 0),
+    },
     thisMonthRevenue: parseFloat(thisMonthRevenue.amount || 0),
     clockedInNow: parseInt(clockedInNow.count) || 0,
     todayShifts: parseInt(todayShifts.count) || 0,
@@ -321,8 +333,8 @@ app.get('/action-items', async (c) => {
 app.get('/referrals', async (c) => {
   const result = await rows(sql`SELECT rs.name, rs.type,
       (SELECT COUNT(*) FROM clients c WHERE c.referred_by_id = rs.id)::int AS referral_count,
-      COALESCE((SELECT SUM(i.total) FROM invoices i JOIN clients c2 ON c2.id = i.client_id
-                 WHERE c2.referred_by_id = rs.id AND i.payment_status = 'paid'), 0) AS total_revenue
+      COALESCE((SELECT SUM(ip.amount) FROM invoice_payments ip JOIN invoices i ON i.id = ip.invoice_id
+                 JOIN clients c2 ON c2.id = i.client_id WHERE c2.referred_by_id = rs.id), 0) AS total_revenue
     FROM referral_sources rs
     WHERE rs.is_active = true
     ORDER BY referral_count DESC`)

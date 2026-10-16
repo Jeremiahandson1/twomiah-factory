@@ -13,11 +13,12 @@ import emailService from '../services/email.ts'
 import {
   BillingRefusal, generateLineItems, loadBillingClient, resolveClientRate, noRateRefusal, applyRate,
   createInvoiceWithLines, insertLineItems, clampLineItemDescription, reformatTimesIn, to12h, round2,
-  fmtTime12, generateInvoiceNumber,
+  fmtTime12, generateInvoiceNumber, lineQuantity, recordInvoicePayment, rollUpPayments,
 } from '../services/invoiceEngine.ts'
 import { agencyTimezone, agencyToday, ymdIn, addDays } from '../services/agencyTime.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { portalClaimWeek, parseClaimPortal, WISCONSIN_PRESETS } from '../services/portalClaimDays.ts'
+import { billedInRangeSql } from '../services/invoiceMoney.ts'
 
 const app = new Hono()
 app.use('*', authenticate, requireAdmin)
@@ -203,7 +204,7 @@ app.post('/invoices/manual', refusalAware(async (c) => {
   if (!resolved || !(resolved.rate > 0)) throw noRateRefusal(client)
 
   const lines = items.map((item) => {
-    const { hours, rate, amount } = applyRate(item, resolved)
+    const { hours, rate, rate_type, amount } = applyRate(item, resolved)
     let description = item.description || 'Home Care Services'
     if (b.detailedMode && item.startTime && item.endTime) description = `${description} (${to12h(item.startTime)} - ${to12h(item.endTime)})`
     const hhmm = (t: any) => (typeof t === 'string' && TIME_RE.test(t) ? (t.length === 5 ? `${t}:00` : t) : null)
@@ -211,7 +212,7 @@ app.post('/invoices/manual', refusalAware(async (c) => {
       caregiver_id: item.caregiverId || item.caregiver_id,
       caregiver_name: item.caregiverName || '',
       time_entry_id: item.timeEntryId || item.time_entry_id || null,
-      description, hours, rate, amount,
+      description, hours, rate, rate_type, amount,
       service_date: isDate(item.serviceDate) ? item.serviceDate : null,
       visit_start: hhmm(item.startTime), visit_end: hhmm(item.endTime),
       billed_basis: null, scheduled_minutes: null, clocked_minutes: null,
@@ -455,7 +456,7 @@ app.post('/invoices/from-visits', refusalAware(async (c) => {
       lines.push({
         caregiver_id: v.caregiver_id,
         description: `${part.service} (${fmtTime12(v.start_time)} - ${fmtTime12(v.end_time)})`,
-        hours, rate: resolved.rate, amount: round2(hours * resolved.rate),
+        hours, rate: resolved.rate, rate_type: 'hourly', amount: round2(hours * resolved.rate),
         service_date: v.visit_date, visit_start: hms(v.start_time), visit_end: hms(v.end_time),
         billed_basis: 'scheduled', scheduled_minutes: part.minutes, clocked_minutes: null,
       })
@@ -509,38 +510,25 @@ app.get('/invoices/:id', async (c) => {
   })
 })
 
-// PUT /invoices/:id/payment-status — mark paid (stamps amount_paid = total) or another status.
-app.put('/invoices/:id/payment-status', async (c) => {
-  const id = c.req.param('id')
-  const b = await body(c)
+// PUT /invoices/:id/payment-status — Mark Paid, or set another status. "paid" RECORDS A PAYMENT for
+// whatever is still due (method 'other', dated paymentDate or today), so the payments ledger stays the
+// one source of what was collected; it used to stamp amount_paid = total with no payment row.
+async function setPaymentStatus(c: any, id: string, b: any) {
   const status = b.status || b.paymentStatus
   if (!['pending', 'paid', 'partial', 'overdue'].includes(status)) return c.json({ error: 'status must be pending, paid, partial or overdue' }, 400)
-  const pd = isDate(String(b.paymentDate || '').slice(0, 10)) ? String(b.paymentDate).slice(0, 10) : null
-  const r = rowsOf(await db.execute(sql`
-    UPDATE invoices
-       SET payment_status = ${status}::text,
-           payment_date = COALESCE(${pd}::date, CASE WHEN ${status}::text = 'paid' THEN CURRENT_DATE ELSE payment_date END),
-           paid_at = CASE WHEN ${status}::text = 'paid' THEN NOW() ELSE paid_at END,
-           amount_paid = CASE WHEN ${status}::text = 'paid' THEN total ELSE amount_paid END,
-           updated_at = NOW()
-     WHERE id = ${id}
-     RETURNING *`))
-  if (!r.length) return c.json({ error: 'Invoice not found' }, 404)
-  return c.json(r[0])
-})
+  const exists = rowsOf(await db.execute(sql`SELECT id FROM invoices WHERE id = ${id}`))[0]
+  if (!exists) return c.json({ error: 'Invoice not found' }, 404)
+  if (status === 'paid') {
+    const pd = isDate(String(b.paymentDate || '').slice(0, 10)) ? String(b.paymentDate).slice(0, 10) : await agencyToday()
+    await recordInvoicePayment({ invoiceId: id, amount: 'balance', paymentDate: pd, method: b.paymentMethod || 'other', notes: 'Marked paid', userId: userId(c) })
+  } else {
+    await db.execute(sql`UPDATE invoices SET payment_status = ${status}::text, updated_at = NOW() WHERE id = ${id}`)
+  }
+  return c.json(rowsOf(await db.execute(sql`SELECT * FROM invoices WHERE id = ${id}`))[0])
+}
+app.put('/invoices/:id/payment-status', refusalAware(async (c) => setPaymentStatus(c, c.req.param('id'), await body(c))))
 // The older verb for the same thing.
-app.patch('/invoices/:id/status', async (c) => {
-  const b = await body(c)
-  const status = b.status || b.paymentStatus
-  if (!['pending', 'paid', 'partial', 'overdue'].includes(status)) return c.json({ error: 'status must be pending, paid, partial or overdue' }, 400)
-  const r = rowsOf(await db.execute(sql`
-    UPDATE invoices SET payment_status = ${status}::text, updated_at = NOW(),
-           paid_at = CASE WHEN ${status}::text = 'paid' THEN NOW() ELSE paid_at END,
-           amount_paid = CASE WHEN ${status}::text = 'paid' THEN total ELSE amount_paid END
-     WHERE id = ${c.req.param('id')} RETURNING *`))
-  if (!r.length) return c.json({ error: 'Invoice not found' }, 404)
-  return c.json(r[0])
-})
+app.patch('/invoices/:id/status', refusalAware(async (c) => setPaymentStatus(c, c.req.param('id'), await body(c))))
 
 // DELETE /invoices/:id — the invoice and its dependent rows. When it was the client's latest billed
 // period, billed_through steps back to before it, so "Create Due Invoices" bills that period again
@@ -588,13 +576,13 @@ app.put('/invoices/:id/line-items', refusalAware(async (c) => {
   const fallbackCaregiver = existing[0]?.caregiver_id || null
   let subtotal = 0
   const prepared = items.map((item) => {
-    const { hours, rate, amount } = applyRate(item, resolved)
+    const { hours, rate, rate_type, amount } = applyRate(item, resolved)
     subtotal += amount
     let description = item.description || 'Home Care Services'
     if (b.detailedMode && item.startTime && item.endTime) description = `${description} (${to12h(item.startTime)} - ${to12h(item.endTime)})`
     return {
       caregiver_id: item.caregiverId || item.caregiver_id || fallbackCaregiver,
-      description: clampLineItemDescription(description), hours, rate, amount,
+      description: clampLineItemDescription(description), hours, rate, rate_type, amount,
       service_date: isDate(String(item.serviceDate || item.service_date || '').slice(0, 10)) ? String(item.serviceDate || item.service_date).slice(0, 10) : null,
       time_entry_id: item.timeEntryId || item.time_entry_id || null,
       visit_start: TIME_RE.test(item.start_time || '') ? hms(item.start_time) : null,
@@ -671,11 +659,11 @@ app.post('/invoices/:id/send-email', async (c) => {
   if (!emailService.isConfigured) return c.json({ error: 'Email service not configured on server.' }, 503)
   const amountDue = num(invoice.total) - num(invoice.amount_paid) - num(invoice.amount_adjusted)
   const lines = rowsOf(await db.execute(sql`
-    SELECT to_char(service_date, 'YYYY-MM-DD') AS service_date, description, hours, amount
+    SELECT to_char(service_date, 'YYYY-MM-DD') AS service_date, description, hours, rate, rate_type, amount
       FROM invoice_line_items WHERE invoice_id = ${id} ORDER BY service_date NULLS LAST, created_at`))
   const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string))
   const lineItemsHtml = lines.map((li) =>
-    `<tr><td>${li.service_date ? fmtUsDate(li.service_date) : ''}</td><td>${esc(reformatTimesIn(li.description))}</td><td>${num(li.hours).toFixed(2)}h</td><td>$${num(li.amount).toFixed(2)}</td></tr>`).join('')
+    `<tr><td>${li.service_date ? fmtUsDate(li.service_date) : ''}</td><td>${esc(reformatTimesIn(li.description))}</td><td>${esc(lineQuantity(li).quantityLabel)} × ${esc(lineQuantity(li).rateLabel)}</td><td>$${num(li.amount).toFixed(2)}</td></tr>`).join('')
   const agency = await agencyRow()
   try {
     await emailService.sendInvoiceEmail(to, {
@@ -756,20 +744,6 @@ app.get('/invoice-payments', async (c) => {
   return c.json(rows)
 })
 
-/** Recompute amount_paid and the status from the payments that exist (inside the caller's tx). */
-async function rollUpPayments(tx: any, invoiceId: string, paymentDate: string | null) {
-  await tx.execute(sql`
-    UPDATE invoices i SET
-      amount_paid = p.paid,
-      payment_status = CASE WHEN p.paid + COALESCE(i.amount_adjusted, 0) >= i.total THEN 'paid'
-                            WHEN p.paid > 0 THEN 'partial' ELSE 'pending' END,
-      payment_date = CASE WHEN p.paid + COALESCE(i.amount_adjusted, 0) >= i.total THEN COALESCE(${paymentDate}::date, i.payment_date, CURRENT_DATE) ELSE i.payment_date END,
-      paid_at = CASE WHEN p.paid + COALESCE(i.amount_adjusted, 0) >= i.total THEN COALESCE(i.paid_at, NOW()) ELSE NULL END,
-      updated_at = NOW()
-    FROM (SELECT COALESCE(SUM(amount), 0)::numeric AS paid FROM invoice_payments WHERE invoice_id = ${invoiceId}) p
-    WHERE i.id = ${invoiceId}`)
-}
-
 // POST /invoice-payments — record a payment. One transaction with the invoice row locked, so two
 // concurrent payments cannot both pass the balance check, and a payment past the balance is refused
 // (a check entered twice once doubled an invoice) unless allowOverpayment is sent.
@@ -780,28 +754,10 @@ app.post('/invoice-payments', refusalAware(async (c) => {
   if (!invoiceId) return c.json({ error: 'invoiceId is required' }, 400)
   if (!Number.isFinite(amt) || amt <= 0) return c.json({ error: 'Payment amount must be a positive number' }, 400)
   const paymentDate = isDate(b.paymentDate || b.payment_date) ? (b.paymentDate || b.payment_date) : await agencyToday()
-  const payment = await db.transaction(async (tx) => {
-    const inv = rowsOf(await tx.execute(sql`
-      SELECT total, COALESCE(amount_paid, 0) AS amount_paid, COALESCE(amount_adjusted, 0) AS amount_adjusted
-        FROM invoices WHERE id = ${invoiceId} FOR UPDATE`))[0]
-    if (!inv) throw new BillingRefusal(404, { error: 'Invoice not found' })
-    const total = num(inv.total), alreadyPaid = num(inv.amount_paid), adjusted = num(inv.amount_adjusted)
-    const balanceDue = +(total - alreadyPaid - adjusted).toFixed(2)
-    const newPaid = +(alreadyPaid + amt).toFixed(2)
-    if (!b.allowOverpayment && newPaid > total - adjusted + 0.01) {
-      throw new BillingRefusal(409, {
-        error: `Payment of $${amt.toFixed(2)} exceeds the $${balanceDue.toFixed(2)} balance due on this invoice. It may already be recorded. To record an intentional overpayment, resubmit with allowOverpayment: true.`,
-        balanceDue, alreadyPaid, total,
-      })
-    }
-    const p = rowsOf(await tx.execute(sql`
-      INSERT INTO invoice_payments (id, invoice_id, amount, payment_date, payment_method, reference_number, notes, created_by_id)
-      VALUES (${createId()}, ${invoiceId}, ${amt}, ${paymentDate}::date, ${b.paymentMethod || b.payment_method || 'check'},
-              ${b.referenceNumber || b.reference_number || null}, ${b.notes || null}, ${userId(c)})
-      RETURNING *`))[0]
-    await tx.execute(sql`UPDATE invoices SET payment_method = ${p.payment_method} WHERE id = ${invoiceId}`)
-    await rollUpPayments(tx, invoiceId, paymentDate)
-    return p
+  const payment = await recordInvoicePayment({
+    invoiceId, amount: amt, paymentDate, method: b.paymentMethod || b.payment_method || 'check',
+    reference: b.referenceNumber || b.reference_number || null, notes: b.notes || null, userId: userId(c),
+    allowOverpayment: !!b.allowOverpayment,
   })
   return c.json(payment, 201)
 }))
@@ -880,19 +836,25 @@ app.get('/rates', async (c) => c.json(rowsOf(await ratesQuery())))
 
 // GET /missing-rates — payer × care-type combinations with active clients and no active rate:
 // exactly the gaps that would otherwise refuse (or, before, silently mis-bill) at invoice time.
+// The test is the invoice engine's own (resolveClientRate): a rate for the payer and the client's care
+// type (or for any care type) in force TODAY. It used to test is_active alone, while the engine also
+// reads the dates — so the warning and the invoice could disagree about the same client.
 app.get('/missing-rates', async (c) => {
+  const today = await agencyToday()
   return c.json(rowsOf(await db.execute(sql`
-    SELECT rs.id AS payer_id, rs.name AS payer_name, ct.id AS care_type_id, ct.name AS care_type_name,
+    SELECT rs.id AS payer_id, rs.name AS payer_name, ct.id AS care_type_id, COALESCE(ct.name, 'No care type') AS care_type_name,
            COUNT(DISTINCT c.id)::int AS affected_clients
       FROM clients c
       JOIN referral_sources rs ON c.referred_by_id = rs.id
-      JOIN care_types ct ON c.care_type_id = ct.id
+      LEFT JOIN care_types ct ON c.care_type_id = ct.id
      WHERE c.is_active = true AND c.is_private_pay IS NOT TRUE
        AND NOT EXISTS (
          SELECT 1 FROM referral_source_rates rsr
           WHERE rsr.referral_source_id = rs.id
-            AND (rsr.care_type_id IS NULL OR rsr.care_type_id = ct.id)
-            AND rsr.is_active = true)
+            AND (rsr.care_type_id IS NULL OR rsr.care_type_id = c.care_type_id)
+            AND (rsr.is_active = true OR rsr.is_active IS NULL OR rsr.end_date IS NOT NULL)
+            AND (rsr.effective_date IS NULL OR rsr.effective_date <= ${today}::date)
+            AND (rsr.end_date IS NULL OR rsr.end_date >= ${today}::date))
      GROUP BY rs.id, rs.name, ct.id, ct.name
      ORDER BY rs.name, ct.name`)))
 })
@@ -1015,7 +977,9 @@ app.get('/export/evv', async (c) => {
 app.get('/billing-summary', async (c) => {
   const { startDate, endDate } = c.req.query()
   const s = isDate(startDate) ? startDate : null, e = isDate(endDate) ? endDate : null
-  const where = sql`(${s}::date IS NULL OR i.created_at >= ${s}::date) AND (${e}::date IS NULL OR i.created_at < (${e}::date + 1))`
+  // The money reports' one rule (services/invoiceMoney.ts): released invoices, dated by their first
+  // day of service, counted whole. It used to count drafts, by the day the invoice was created.
+  const where = billedInRangeSql(s || '1900-01-01', e || '2999-12-31')
   const summary = rowsOf(await db.execute(sql`
     SELECT COUNT(*)::int AS invoice_count, COALESCE(SUM(total), 0) AS total_billed, COALESCE(SUM(amount_paid), 0) AS total_collected,
            COALESCE(SUM(total - COALESCE(amount_paid, 0) - COALESCE(amount_adjusted, 0)), 0) AS total_outstanding
@@ -1062,7 +1026,8 @@ app.post('/import-csv', async (c) => {
     groups.get(key)!.lineItems.push({
       time_entry_id: null, caregiver_id: row.caregiverId,
       description: row.description || `Imported from ${source}`,
-      hours, rate, amount, service_date: sd, billed_basis: null,
+      // An imported row's rate is per hour: its amount defaults to hours × rate.
+      hours, rate, rate_type: 'hourly', amount, service_date: sd, billed_basis: null,
     })
   })
   for (const g of groups.values()) {

@@ -5,6 +5,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { wallClock } from '../services/scheduleOccurrences.ts'
 import { agencyToday } from '../services/agencyTime.ts'
+import { authUnitsToHours } from '../services/authUnits.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -149,14 +150,11 @@ app.get('/client-data/:clientId', async (c) => {
       const startDate = new Date(auth.start_date)
       const endDate = new Date(auth.end_date)
       const weeks = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)))
-      const totalHours = auth.unit_type === '15min'
-        ? parseFloat(auth.authorized_units) / 4
-        : parseFloat(auth.authorized_units)
-      const remainingTotalHours = auth.unit_type === '15min'
-        ? parseFloat(auth.remaining_units) / 4
-        : parseFloat(auth.remaining_units)
-      authorizedHoursPerWeek = parseFloat((totalHours / weeks).toFixed(2))
-      remainingHours = parseFloat(remainingTotalHours.toFixed(2))
+      // services/authUnits.ts: visits and days have no hour equivalent, so they give no hours here.
+      const totalHours = authUnitsToHours(parseFloat(auth.authorized_units), auth.unit_type)
+      const remainingTotalHours = authUnitsToHours(parseFloat(auth.remaining_units), auth.unit_type)
+      if (totalHours != null) authorizedHoursPerWeek = parseFloat((totalHours / weeks).toFixed(2))
+      if (remainingTotalHours != null) remainingHours = parseFloat(remainingTotalHours.toFixed(2))
     }
 
     const schedRes = await db.execute(sql`

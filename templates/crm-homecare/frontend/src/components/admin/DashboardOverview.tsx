@@ -97,7 +97,8 @@ const DashboardOverview = ({ summary, onNavigate }) => {
             ${formatCurrency(summary?.pendingInvoices?.amount)}
           </div>
           <p className="stat-subtext">
-            {summary?.pendingInvoices?.count || 0} invoices
+            {summary?.pendingInvoices?.count || 0} invoice{summary?.pendingInvoices?.count === 1 ? '' : 's'} owed
+            {summary?.pendingInvoices?.draftCount > 0 && ` · ${summary.pendingInvoices.draftCount} draft${summary.pendingInvoices.draftCount === 1 ? '' : 's'} not sent yet`}
           </p>
         </div>
         <div className="stat-card" title="Sum of payments received this calendar month. Outstanding A/R and future-dated invoices are not counted.">
