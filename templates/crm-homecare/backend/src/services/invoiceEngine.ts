@@ -41,6 +41,11 @@ import { db } from '../../db/index.ts'
 import { invoices } from '../../db/schema.ts'
 import { agencyTimezone, addDays } from './agencyTime.ts'
 import { occurrencesCte } from './scheduleOccurrences.ts'
+import { privatePaySql } from '../helpers/payerFunding.ts'
+
+/** Private pay by the one rule (helpers/payerFunding), as loadBillingClient computes it; the box alone otherwise. */
+const isPrivateByRule = (client: any): boolean =>
+  client?.private_pay_by_rule === true || client?.private_pay_by_rule === 't' || !!(client?.is_private_pay ?? client?.isPrivatePay)
 
 type Dbc = { execute: (q: any) => Promise<any> }
 const rowsOf = (r: any): any[] => (r?.rows ?? r ?? []) as any[]
@@ -232,10 +237,13 @@ export interface GenerateResult {
 /** The client row every generator reads. */
 export async function loadBillingClient(dbc: Dbc, clientId: string) {
   const r = rowsOf(await dbc.execute(sql`
-    SELECT id, first_name, last_name, email, referred_by_id, care_type_id, is_private_pay,
-           private_pay_rate, private_pay_rate_type, is_active, billing_frequency_weeks,
-           to_char(billed_through, 'YYYY-MM-DD') AS billed_through
-      FROM clients WHERE id = ${clientId}`))
+    SELECT c.id, c.first_name, c.last_name, c.email, c.referred_by_id, c.care_type_id, c.is_private_pay,
+           c.private_pay_rate, c.private_pay_rate_type, c.is_active, c.billing_frequency_weeks,
+           to_char(c.billed_through, 'YYYY-MM-DD') AS billed_through,
+           -- helpers/payerFunding: the box OR a payer whose payer_type is private_pay. Decides the billing
+           -- basis (clocked vs scheduled) and the invoice type; the box alone still decides the rate source.
+           ${privatePaySql('c')} AS private_pay_by_rule
+      FROM clients c WHERE c.id = ${clientId}`))
   return r[0] || null
 }
 
@@ -250,7 +258,7 @@ export async function generateLineItems(
   const choices = options.choices || {}
   const resolved = await resolveClientRate(dbc, client, periodStart, periodEnd)
   if (!resolved || !(resolved.rate > 0)) throw noRateRefusal(client)
-  const privatePay = !!client.is_private_pay
+  const privatePay = isPrivateByRule(client)
   const amountFor = (hours: number) => lineAmount(hours, resolved)
   const tz = await agencyTimezone()
 
@@ -669,7 +677,7 @@ export async function createInvoiceWithLines(opts: {
         ${createId()}, ${client.id}, ${generateInvoiceNumber(client.id)}, ${periodStart}::date, ${periodEnd}::date,
         ${round2(total)}, ${round2(total)}, 'pending', ${due}::date, ${opts.notes ?? null},
         ${client.is_private_pay ? null : (client.referred_by_id || null)},
-        ${client.is_private_pay ? 'private_pay' : 'insurance'}, ${opts.sentAt ?? null}
+        ${isPrivateByRule(client) ? 'private_pay' : 'insurance'}, ${opts.sentAt ?? null}
       ) RETURNING *, to_char(billing_period_start, 'YYYY-MM-DD') AS period_start_text`))[0]
     await insertLineItems(tx as any, inv.id, lineItems)
     if (opts.advanceBilledThrough === 'set') {

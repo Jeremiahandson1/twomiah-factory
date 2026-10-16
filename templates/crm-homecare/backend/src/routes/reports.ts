@@ -1125,11 +1125,14 @@ async function fetchClientReportData(clientId: string, from: string, to: string,
       ORDER BY a.end_date DESC NULLS LAST`)
   }
   if (wants.has('billing')) {
-    data.invoices = await rows(sql`SELECT id, invoice_number, billing_period_start, billing_period_end,
-        subtotal, tax, total, payment_status, payment_due_date, payment_date, payment_method
-      FROM invoices
-      WHERE client_id = ${clientId} AND billing_period_end >= (${from})::date AND billing_period_start <= (${to})::date
-      ORDER BY billing_period_start DESC`)
+    // Every invoice is listed; only released ones count toward the total (services/invoiceMoney.ts) — a draft
+    // is neither billed nor owed, here as on every other report.
+    data.invoices = await rows(sql`SELECT i.id, i.invoice_number, i.billing_period_start, i.billing_period_end,
+        i.subtotal, i.tax, i.total, i.payment_status, i.payment_due_date, i.payment_date, i.payment_method,
+        ${releasedInvoiceSql('i')} AS released
+      FROM invoices i
+      WHERE i.client_id = ${clientId} AND i.billing_period_end >= (${from})::date AND i.billing_period_start <= (${to})::date
+      ORDER BY i.billing_period_start DESC`)
   }
   if (wants.has('audit')) {
     // audit_logs records reads of and changes to the client row itself (record_id = clientId).
@@ -1467,13 +1470,15 @@ function renderClientReportPdf(doc: PDFKit.PDFDocument, data: any, agency: strin
   }
 
   if (data.invoices) {
-    const total = data.invoices.reduce((s: number, i: any) => s + (parseFloat(i.total) || 0), 0)
-    sectionHeader(`Invoices in Period (${data.invoices.length} • ${fmtMoney(total)} total)`)
+    const isReleased = (i: any) => i.released === true || i.released === 't'
+    const total = data.invoices.filter(isReleased).reduce((s: number, i: any) => s + (parseFloat(i.total) || 0), 0)
+    const drafts = data.invoices.filter((i: any) => !isReleased(i)).length
+    sectionHeader(`Invoices in Period (${data.invoices.length} • ${fmtMoney(total)} billed${drafts ? ` • ${drafts} draft${drafts === 1 ? '' : 's'} not counted` : ''})`)
     if (data.invoices.length === 0) emptyNote('No invoices in this period.')
     else renderTable([
       { label: 'Invoice #', w: 0.18, key: 'invoice_number' },
       { label: 'Period', w: 0.26, get: (r) => `${fmtDate(r.billing_period_start)} – ${fmtDate(r.billing_period_end)}` },
-      { label: 'Total', w: 0.14, get: (r) => fmtMoney(r.total) }, { label: 'Status', w: 0.14, key: 'payment_status' },
+      { label: 'Total', w: 0.14, get: (r) => fmtMoney(r.total) }, { label: 'Status', w: 0.14, get: (r) => (isReleased(r) ? r.payment_status : 'draft') },
       { label: 'Due', w: 0.14, get: (r) => fmtDate(r.payment_due_date) }, { label: 'Paid', w: 0.14, get: (r) => fmtDate(r.payment_date) },
     ], data.invoices)
   }

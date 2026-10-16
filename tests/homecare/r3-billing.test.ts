@@ -290,5 +290,21 @@ async function figures() {
   void cc
 }
 
+// ══ the invoice engine reads private pay by the one rule ═════════════════════════════════════
+// A client on the "Private Pay" payer with the box left unticked is private pay for EVV and
+// authorizations (helpers/payerFunding); the engine used to read the box alone and bill them like a
+// payer client (scheduled basis, invoice type 'insurance').
+{
+  const [boxOff] = await db.insert(clients).values({ firstName: 'Una', lastName: 'Ticked', referredById: ppPayer.id, isPrivatePay: false } as any).returning()
+  const [boxOn] = await db.insert(clients).values({ firstName: 'Tess', lastName: 'Ticked', isPrivatePay: true, privatePayRate: '30' } as any).returning()
+  const [payerClient] = await db.insert(clients).values({ firstName: 'Mae', lastName: 'Payer', isPrivatePay: false } as any).returning()
+  const a = await engine.loadBillingClient(db as any, boxOff.id)
+  const b = await engine.loadBillingClient(db as any, boxOn.id)
+  const c = await engine.loadBillingClient(db as any, payerClient.id)
+  check('engine: the Private Pay payer makes a client private pay with the box unticked', a?.private_pay_by_rule === true, a)
+  check('engine: the box alone still does', b?.private_pay_by_rule === true, b)
+  check('engine: a client with no payer and no box is not private pay', c?.private_pay_by_rule === false, c)
+}
+
 console.log(`\nhomecare-r3-billing: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)
