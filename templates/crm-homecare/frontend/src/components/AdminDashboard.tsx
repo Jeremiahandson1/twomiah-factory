@@ -61,7 +61,6 @@ import FormBuilder from './admin/FormBuilder';
 import RevenueForecast from './admin/RevenueForecast';
 import LiveBoard from './admin/LiveBoard';
 import ClientWeekHours from './admin/ClientWeekHours';
-import AIReceptionist from './admin/AIReceptionist';
 import AdsPage from '../pages/ads/AdsPage';
 import PayersServiceCodes from './admin/PayersServiceCodes';
 import AuthorizationsManagement from './admin/AuthorizationsManagement';
@@ -382,7 +381,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'visit-docs': return <VisitDocumentation />;
       case 'form-builder': return <FormBuilder />;
       case 'revenue-forecast': return <RevenueForecast />;
-      // ai-receptionist handled above (line 275)
+      // ai-receptionist handled above (pages/AiReceptionistPage — the one screen; components/admin/AIReceptionist.tsx is gone)
       case 'ads': return <AdsPage />;
       case 'lead-inbox': return <LeadInboxPage />;
       case 'contact-twomiah': return <ContactSupportPage />;

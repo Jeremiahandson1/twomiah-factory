@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import aiReceptionist from '../services/aiReceptionist.ts'
 import { db } from '../../db/index.ts'
@@ -71,6 +72,36 @@ app.use('*', authenticate, requireAdmin)
 
 // --- Rules CRUD ---
 
+/**
+ * A rule's body is checked before it reaches the database (crm-roof's schema, T-series M1). Without it a missing
+ * name / trigger / channel / message became a NOT NULL violation answered as a 500, and a trigger outside the list
+ * simply never fired. The keyword is nullable here: the screen sends null for a rule that is not a keyword rule.
+ * Unknown keys are dropped by zod, and the service keeps only its own field list on top (RULE_FIELDS).
+ */
+const ruleFields = z.object({
+  name: z.string().trim().min(1),
+  trigger: z.enum(['after_hours', 'missed_call', 'voicemail', 'new_lead', 'booking_request', 'keyword']),
+  channel: z.enum(['sms', 'email', 'both']),
+  messageTemplate: z.string().trim().min(1),
+  delayMinutes: z.number().int().min(0).max(10080).optional(),
+  isActive: z.boolean().optional(),
+  keywordMatch: z.string().nullable().optional(),
+})
+// The object and the cross-field rule are kept apart: superRefine returns a ZodEffects, which has no .partial().
+const ruleSchema = ruleFields.superRefine((r, ctx) => {
+  if (r.trigger === 'keyword' && !r.keywordMatch?.trim())
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['keywordMatch'], message: 'a keyword trigger needs a keyword to match' })
+})
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
+const settingsSchema = z.object({
+  isEnabled: z.boolean().optional(),
+  businessHoursStart: z.string().regex(HHMM, 'office hours are HH:MM').optional(),
+  businessHoursEnd: z.string().regex(HHMM, 'office hours are HH:MM').optional(),
+  timezone: z.string().min(1).max(64).optional(),
+  greetingText: z.string().max(2000).nullable().optional(),
+  forwardingNumber: z.string().max(40).nullable().optional(),
+})
+
 app.get('/rules', async (c) => {
   const user = c.get('user') as any
   const rules = await aiReceptionist.getRules(user.companyId)
@@ -79,16 +110,17 @@ app.get('/rules', async (c) => {
 
 app.post('/rules', async (c) => {
   const user = c.get('user') as any
-  const body = await c.req.json()
-  const rule = await aiReceptionist.createRule(user.companyId, body)
+  const body = ruleSchema.parse(await c.req.json())
+  const rule = await aiReceptionist.createRule(user.companyId, body as any)
   return c.json(rule, 201)
 })
 
 app.put('/rules/:id', async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
-  const body = await c.req.json()
-  const rule = await aiReceptionist.updateRule(id, user.companyId, body)
+  // an edit may send one field (the toggle sends { isActive }); the keyword cross-check applies to a whole rule
+  const body = ruleFields.partial().parse(await c.req.json())
+  const rule = await aiReceptionist.updateRule(id, user.companyId, body as any)
   if (!rule) return c.json({ error: 'Rule not found' }, 404)
   return c.json(rule)
 })
@@ -110,8 +142,8 @@ app.get('/settings', async (c) => {
 
 app.put('/settings', async (c) => {
   const user = c.get('user') as any
-  const body = await c.req.json()
-  const settings = await aiReceptionist.upsertSettings(user.companyId, body)
+  const body = settingsSchema.parse(await c.req.json())
+  const settings = await aiReceptionist.upsertSettings(user.companyId, body as any)
   return c.json(settings)
 })
 

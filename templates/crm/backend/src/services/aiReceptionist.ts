@@ -23,6 +23,20 @@ const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL
 
 // ─── Rule CRUD ──────────────────────────────────────────────────────────────────
 
+/**
+ * The fields a rule or the settings may be changed through — nothing else reaches .set(). updateRule and
+ * upsertSettings spread the request body straight into the UPDATE, so a PUT carrying companyId, id or createdAt
+ * moved the row to another tenant or rewrote its history. (10/16)
+ */
+export const RULE_FIELDS = ['name', 'trigger', 'channel', 'messageTemplate', 'delayMinutes', 'isActive', 'keywordMatch'] as const
+export const SETTINGS_FIELDS = ['isEnabled', 'businessHoursStart', 'businessHoursEnd', 'timezone', 'greetingText', 'forwardingNumber'] as const
+function allowedOnly<K extends string>(data: unknown, keys: readonly K[]): Partial<Record<K, any>> {
+  const src = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>
+  const out: Partial<Record<K, any>> = {}
+  for (const k of keys) if (Object.prototype.hasOwnProperty.call(src, k) && src[k] !== undefined) out[k] = src[k]
+  return out
+}
+
 export async function getRules(companyId: string) {
   return db.select().from(aiReceptionistRule)
     .where(eq(aiReceptionistRule.companyId, companyId))
@@ -62,7 +76,7 @@ export async function updateRule(ruleId: string, companyId: string, data: Partia
   keywordMatch: string
 }>) {
   const [rule] = await db.update(aiReceptionistRule)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...allowedOnly(data, RULE_FIELDS), updatedAt: new Date() })
     .where(and(eq(aiReceptionistRule.id, ruleId), eq(aiReceptionistRule.companyId, companyId)))
     .returning()
   return rule
@@ -108,7 +122,7 @@ export async function upsertSettings(companyId: string, data: Partial<{
 
   if (existing.length > 0) {
     const [updated] = await db.update(aiReceptionistSettings)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...allowedOnly(data, SETTINGS_FIELDS), updatedAt: new Date() })
       .where(eq(aiReceptionistSettings.companyId, companyId))
       .returning()
     return updated
