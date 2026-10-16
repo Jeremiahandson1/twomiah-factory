@@ -336,7 +336,7 @@ app.post('/invoices/generate-due', async (c) => {
       const overlaps = reconcile.filter((r) => r.overlap_minutes > 0)
       if (unresolved.length || overlaps.length) {
         const why: string[] = []
-        if (unresolved.length) why.push(`${unresolved.length} day(s) where the clock-in doesn't match the schedule`)
+        if (unresolved.length) why.push(`${unresolved.length} day${unresolved.length === 1 ? '' : 's'} where the clock-in doesn't match the schedule`)
         if (overlaps.length) why.push(`overlapping schedules on ${[...new Set(overlaps.map((o) => o.service_date))].join(', ')}`)
         skipped.push({ name, period: `${periodStart} – ${periodEnd}`, reason: why.join('; ') + ' — generate this client on its own to review', needsReview: true })
         break // don't advance, don't try later periods out of order
@@ -365,7 +365,7 @@ app.post('/invoices/generate-due', async (c) => {
   }
   return c.json({
     created, skipped, emptyPeriods, dryRun,
-    summary: `${created.length} invoice(s) ${dryRun ? 'would be ' : ''}created · ${skipped.length} skipped · ${emptyPeriods.length} empty period(s) advanced`,
+    summary: `${created.length} invoice${created.length === 1 ? '' : 's'} ${dryRun ? 'would be ' : ''}created · ${skipped.length} skipped · ${emptyPeriods.length} empty period${emptyPeriods.length === 1 ? '' : 's'} ${dryRun ? 'would be ' : ''}advanced`,
   })
 })
 
