@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import { useMayWrite } from '../auth/PermissionsContext'
+import { useMayWrite, usePermissions } from '../auth/PermissionsContext'
+import { useAuth } from '../auth/AuthContext'
 
 // Call Tracking › Settings — where the owner pastes the CallRail webhook signing key.
 //
@@ -13,6 +14,19 @@ import { useMayWrite } from '../auth/PermissionsContext'
 interface CallTrackingSettingsData {
   callrailSigningKeySet: boolean
   callrailWebhookUrl?: string
+}
+
+/**
+ * The panel as a section of another page (Settings › Integrations, for a template with no Call Tracking page):
+ * rendered only where the API would answer — Call Tracking switched on (the router's requireEnabledFeature) and
+ * integrations:update held (the route's own right), with the permission list KNOWN, so nobody is offered a
+ * control the server refuses. Nothing at all otherwise, header included.
+ */
+export function CallTrackingSection({ header }: { header?: React.ReactNode }): React.ReactElement | null {
+  const { hasFeature } = useAuth()
+  const { known, can } = usePermissions()
+  if (!(hasFeature('call_tracking') && known && can('integrations:update'))) return null
+  return <>{header}<CallTrackingSettings /></>
 }
 
 export function CallTrackingSettings(): React.ReactElement {

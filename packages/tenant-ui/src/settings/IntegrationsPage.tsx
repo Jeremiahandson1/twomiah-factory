@@ -11,6 +11,7 @@ import {
 import type { SettingsApi, IntegrationsConfig, LeadSourceGuide } from './integrationsTypes'
 import { leadSourceGuides } from '../leads/types'
 import { useConfirm } from '../ui/ConfirmProvider'
+import { CallTrackingSection } from './CallTrackingSettings'
 
 // The guides are the SAME vocabulary the Lead Sources page offers (one list per vertical — the template derives
 // config.leadSources from its leadsConfig). Before: a second, hand-written list here pointed users at a
@@ -175,6 +176,10 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
 
         <ToggleCard icon={<MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />} iconBg="bg-blue-100 dark:bg-blue-500/20" title="SMS Notifications" description={copy.sms} enabled={status.sms.enabled} usage={`${status.sms.usage} messages`} busy={saving === 'sms'} onToggle={() => toggle('sms')} onColor="text-blue-500" />
         <ToggleCard icon={<Mail className="w-6 h-6 text-orange-600 dark:text-orange-400" />} iconBg="bg-orange-100 dark:bg-orange-500/20" title="Email" description={copy.email} enabled={status.email.enabled} usage={`${status.email.usage} emails`} busy={saving === 'email'} onToggle={() => toggle('email')} onColor="text-orange-500" />
+
+        {/* The CallRail key, for a template whose call tracking has no page of its own (config.callTracking). The
+            section decides for itself whether the API would answer: Call Tracking on + integrations:update. */}
+        {config?.callTracking && <CallTrackingSection header={<SectionLabel label="Call Tracking" />} />}
 
         <SectionLabel label="Lead Sources" />
         {leadSources.map((g) => (

@@ -28,13 +28,14 @@ const [co] = await db.insert(company).values({
   enabledFeatures: ['ai_receptionist', 'two_way_texting', 'lead_inbox', 'contacts'],
   twilioAccountSid: 'AC' + '2'.repeat(32), twilioAuthToken: TOKEN, twilioPhoneNumber: NUMBER,
 } as any).returning()
-await db.insert(user).values({ email: 'owner-whr@test.local', passwordHash: 'x', firstName: 'O', lastName: 'R', role: 'owner', companyId: co.id, isActive: true } as any)
+const [owner] = await db.insert(user).values({ email: 'owner-whr@test.local', passwordHash: 'x', firstName: 'O', lastName: 'R', role: 'owner', companyId: co.id, isActive: true } as any).returning()
 
 const app = new Hono()
 app.route('/api/calltracking', (await import('./src/routes/calltracking.ts')).default)
 app.route('/api/ai-receptionist', (await import('./src/routes/aiReceptionist.ts')).default)
 app.route('/api/sms', (await import('./src/routes/sms.ts')).default)
 app.route('/api/leads', (await import('./src/routes/leads.ts')).default)
+app.route('/api/contacts', (await import('./src/routes/contacts.ts')).default)
 app.onError(errorHandler)
 
 process.env.NODE_ENV = 'production'
@@ -44,6 +45,11 @@ process.env.FACTORY_SYNC_KEY = FACTORY_KEY
 
 const send = async (path: string, body: string, headers: Record<string, string>) => {
   const res = await app.request(path, { method: 'POST', headers, body })
+  const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+  return { status: res.status, json: j, text: t }
+}
+const api = async (method: string, path: string, body?: unknown) => {
+  const res = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-test-user': owner.id, 'x-test-company': co.id, 'x-test-role': 'owner' }, body: body === undefined ? undefined : JSON.stringify(body) })
   const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
   return { status: res.status, json: j, text: t }
 }
@@ -71,8 +77,7 @@ console.log('\n══════════ Twilio call webhook ════�
 console.log('\n══════════ inbound SMS (/api/sms/webhook) ══════════')
 {
   const SMS = '/api/sms/webhook'
-  // A known customer: a text from a number in no contact writes contact_id 'unknown', which the foreign key
-  // refuses (a 500, separate from signing — reported, not fixed here).
+  // A known customer here; the unknown sender has its own section below.
   await db.insert(contact).values({ companyId: co.id, firstName: 'Known', lastName: 'Customer', mobilePhone: '+16085550303' } as any)
   const p = { MessageSid: 'SM-rf-1', From: '+16085550303', To: NUMBER, Body: 'Is my roof done?' }
   const u = await send(SMS, form(p), FORM)
@@ -96,6 +101,44 @@ console.log('\n══════════ the forked lead inbox ════
   check('the Factory\'s post → 201, one lead', ok.status === 201 && (await leads()) === n0 + 1, { status: ok.status, body: ok.text })
   check('/inbound/webhook with ?company_id= and no secret → 401', (await send(`/api/leads/inbound/webhook/angi?company_id=${co.id}`, '{"name":"M"}', { 'content-type': 'application/json' })).status === 401)
   check('…nothing filed', (await leads()) === n0 + 1)
+}
+
+console.log('\n══════════ a text from a number in no contact (10/16) ══════════')
+{
+  // It wrote contact_id 'unknown', the foreign key refused it, and the text was lost behind a 500.
+  const SMS = '/api/sms/webhook'
+  const p = { MessageSid: 'SM-rf-unknown', From: '(608) 555-0909', To: NUMBER, Body: 'Who do I call about my gutters?' }
+  const before = await texts()
+  const r = await send(SMS, form(p), { ...FORM, 'x-twilio-signature': twilioSignatureFor(TOKEN, `http://localhost${SMS}`, p) })
+  check('accepted 200, not a 500', r.status === 200, { status: r.status, body: r.text })
+  const [kept]: any[] = await db.select().from(smsMessage).where(eq(smsMessage.twilioSid, 'SM-rf-unknown'))
+  check('…the text is kept, unlinked (contact null), not lost', (await texts()) === before + 1 && kept && kept.contactId === null, kept)
+  const other = await db.insert(contact).values({ companyId: co.id, firstName: 'Other', lastName: 'Person', mobilePhone: '608-555-1111' } as any).returning()
+  const oc = await api('GET', `/api/sms/conversation/${other[0].id}`)
+  check('a contact with a different number does not get it', oc.status === 200 && !(oc.json?.messages || []).some((m: any) => m.twilioSid === 'SM-rf-unknown'), oc.text?.slice(0, 200))
+  const [still]: any[] = await db.select().from(smsMessage).where(eq(smsMessage.twilioSid, 'SM-rf-unknown'))
+  check('…and the text stays unlinked', still?.contactId === null, still)
+  const [newbie] = await db.insert(contact).values({ companyId: co.id, firstName: 'New', lastName: 'Caller', mobilePhone: '608.555.0909' } as any).returning()
+  const conv = await api('GET', `/api/sms/conversation/${newbie.id}`)
+  check('when a contact with that number is opened, the text is in their thread', conv.status === 200 && (conv.json?.messages || []).some((m: any) => m.twilioSid === 'SM-rf-unknown'), { status: conv.status, body: conv.text?.slice(0, 300) })
+  const [linked]: any[] = await db.select().from(smsMessage).where(eq(smsMessage.twilioSid, 'SM-rf-unknown'))
+  check('…and it is filed under them for good', linked?.contactId === newbie.id, linked)
+  // The contact record (GET /api/contacts/:id, the SMS thread on the contact page) files them too.
+  const p2 = { MessageSid: 'SM-rf-unknown-2', From: '+16085550808', To: NUMBER, Body: 'Second stray' }
+  await send(SMS, form(p2), { ...FORM, 'x-twilio-signature': twilioSignatureFor(TOKEN, `http://localhost${SMS}`, p2) })
+  const [third] = await db.insert(contact).values({ companyId: co.id, firstName: 'Third', lastName: 'Caller', phone: '608 555 0808' } as any).returning()
+  const card = await api('GET', `/api/contacts/${third.id}`)
+  check('the contact page\'s thread files a stray text by the contact\'s phone', card.status === 200 && (card.json?.smsThread || []).some((m: any) => m.twilioSid === 'SM-rf-unknown-2'), { status: card.status, body: card.text?.slice(0, 300) })
+}
+
+console.log('\n══════════ the lead email address handed out is the one the Factory routes (10/16) ══════════')
+{
+  process.env.TENANT_ID = 'aaaabbbb-cccc-dddd-eeee-ffff00001111'
+  const made = await api('POST', '/api/leads/sources', { platform: 'thumbtack', label: 'Thumbtack' })
+  check('a new source is handed {tenantId}-leads-{platform}@parse.twomiah.com', made.status === 201 && made.json?.inboundEmail === 'aaaabbbbccccddddeeeeffff00001111-leads-thumbtack@parse.twomiah.com', made.json)
+  const list = await api('GET', '/api/leads/sources')
+  const angi = (list.json?.data || []).find((s: any) => s.platform === 'angi')
+  check('an existing source is re-addressed when the list is read', angi?.inboundEmail === 'aaaabbbbccccddddeeeeffff00001111-leads-angi@parse.twomiah.com', angi)
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

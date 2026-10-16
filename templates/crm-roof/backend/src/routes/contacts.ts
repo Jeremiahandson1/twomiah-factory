@@ -9,6 +9,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 // The portal credential, stripped through the same helper the shared contacts module uses. Roof
 // forks this route, so the shared module's strip never ran here. (T42)
 import { withoutPortalCredential } from '../shared/index.ts'
+import { linkUnknownTexts } from '../services/sms.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -114,6 +115,7 @@ app.get('/:id', async (c) => {
 
   const [foundContact] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!foundContact) return c.json({ error: 'Contact not found' }, 404)
+  await linkUnknownTexts(currentUser.companyId, foundContact)
 
   const [contactJobs, smsThread] = await Promise.all([
     db.select().from(job).where(and(eq(job.contactId, id), eq(job.companyId, currentUser.companyId))).orderBy(desc(job.createdAt)),

@@ -4,7 +4,9 @@ import type { IntegrationsConfig, ImportConfig, MigrationConfig, ReviewsConfig }
 import { leadSourceGuides } from './shared'
 import { leadsConfig } from './leadsConfig'
 
-export const integrationsConfig: IntegrationsConfig = { leadSources: leadSourceGuides(leadsConfig.platforms), copy: { quickbooks: 'Sync invoices, payments and clients with your books.', sms: 'Send appointment reminders and updates to pet owners and staff.', email: 'Send invoices, receipts and reminders by email.' } }
+// callTracking: the CallRail signing-key panel lives here — this vertical has no Call Tracking page. It shows only when
+// Call Tracking is switched on, which the feature registry does not offer this vertical today.
+export const integrationsConfig: IntegrationsConfig = { callTracking: true, leadSources: leadSourceGuides(leadsConfig.platforms), copy: { quickbooks: 'Sync invoices, payments and clients with your books.', sms: 'Send appointment reminders and updates to pet owners and staff.', email: 'Send invoices, receipts and reminders by email.' } }
 
 export const importConfig: ImportConfig = {
     intro: 'Import clients, products and invoices from CSV files',

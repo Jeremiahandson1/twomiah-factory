@@ -5,7 +5,7 @@ import { smsMessage, contact, company } from '../../db/schema.ts'
 import { eq, and, desc, or, like } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { sendSms } from '../services/sms.ts'
+import { sendSms, linkUnknownTexts } from '../services/sms.ts'
 import { withoutPortalCredential, parseTwilioBody, verifyTwilioRequest, refuseUnverifiedWebhook } from '../shared/index.ts'
 
 const app = new Hono()
@@ -80,7 +80,10 @@ app.post('/webhook', async (c) => {
   // Store message
   await db.insert(smsMessage).values({
     companyId: comp.id,
-    contactId: contactRow?.id || 'unknown',
+    // A number in no contact: kept unlinked (null), as every other CRM keeps an unknown sender's thread — 'unknown' is
+    // not a contact id, the foreign key refused it, and the text was lost behind a 500. linkUnknownTexts files it
+    // under the contact the first time a contact with this number is opened.
+    contactId: contactRow?.id || null,
     direction: 'inbound',
     body: messageBody,
     fromNumber: from,
@@ -101,6 +104,7 @@ app.get('/conversation/:contactId', authenticate, async (c) => {
     .where(and(eq(contact.id, contactId), eq(contact.companyId, currentUser.companyId)))
     .limit(1)
   if (!contactRow) return c.json({ error: 'Contact not found' }, 404)
+  await linkUnknownTexts(currentUser.companyId, contactRow)
 
   const messages = await db.select().from(smsMessage)
     .where(and(eq(smsMessage.contactId, contactId), eq(smsMessage.companyId, currentUser.companyId)))

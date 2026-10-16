@@ -5,7 +5,7 @@ import { eq, and, or, ilike, count, desc, gte } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { createId } from '@paralleldrive/cuid2'
-import { verifyFactoryKey, readInboundBody } from '../shared/index.ts'
+import { verifyFactoryKey, readInboundBody, leadInboundAddress } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -104,13 +104,23 @@ app.get('/sources', async (c) => {
   const sources = await db.select().from(leadSource)
     .where(eq(leadSource.companyId, currentUser.companyId))
     .orderBy(desc(leadSource.createdAt))
+  // Rows made before 10/16 carry leads+…@inbound.twomiah.com, a domain with no DNS — re-address them so the page shows
+  // an address that delivers (the shared module heals its rows the same way).
+  for (const src of sources as any[]) {
+    const want = leadInboundAddress(src.companyId, src.platform)
+    if (src.platform && src.inboundEmail !== want) {
+      await db.update(leadSource).set({ inboundEmail: want, updatedAt: new Date() } as any).where(eq(leadSource.id, src.id))
+      src.inboundEmail = want
+    }
+  }
   return c.json({ data: (await mayHoldSecret(c)) ? sources : sources.map(withoutSecret) })
 })
 
 app.post('/sources', requirePermission('leads:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
-  const inboundEmail = `leads+${currentUser.companyId.slice(0, 8)}-${body.platform}@inbound.twomiah.com`
+  // The address the Factory routes (parse.twomiah.com → /inbound-parse → /inbound/email), as the shared module hands out.
+  const inboundEmail = leadInboundAddress(currentUser.companyId, body.platform)
   const webhookBase = (process.env.FRONTEND_URL || c.req.url.replace(/\/api\/leads\/sources$/, '')).replace(/\/+$/, '').replace(/^http:\/\//, 'https://')
   const webhookUrl = `${webhookBase}/api/leads/inbound/webhook/${body.platform}`
 

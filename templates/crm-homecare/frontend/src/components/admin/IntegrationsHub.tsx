@@ -5,6 +5,9 @@ import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import SandataPanel from './SandataPanel';
+// The CallRail signing key (shared panel): home care has no Call Tracking page, and this hub is where the agency's
+// integration credentials live. Admin + owner only — PUT /api/calltracking/settings is behind requireAdmin.
+import { CallTrackingSettings } from '../../shared';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt$ = (n) => n != null ? `$${parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')}` : '—';
@@ -64,7 +67,8 @@ const TABS = [
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 const IntegrationsHub = () => {
-  const { token } = useAuth();
+  const { token, isAdmin } = useAuth();
+  const tabs = isAdmin ? [...TABS, { id: 'calltracking', label: '📞 Call Tracking' }] : TABS;
   const [tab, setTab] = useState('overview');
   const [sandataConfig, setSandataConfig] = useState(null);
   const [gustoConfig, setGustoConfig] = useState(null);
@@ -776,7 +780,7 @@ const IntegrationsHub = () => {
 
       {/* Tabs */}
       <div style={{display:'flex',gap:'0.25rem',marginBottom:'1.25rem',borderBottom:'2px solid #E5E7EB',paddingBottom:'0'}}>
-        {TABS.map(t=>(
+        {tabs.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)} style={{
             padding:'0.6rem 1rem', border:'none', background:'none', cursor:'pointer',
             fontWeight:tab===t.id?'800':'500', fontSize:'0.85rem',
@@ -793,6 +797,7 @@ const IntegrationsHub = () => {
       {tab==='claims' && renderClaims()}
       {tab==='remittance' && renderRemittance()}
       {tab==='payroll' && renderPayroll()}
+      {tab==='calltracking' && isAdmin && <CallTrackingSettings />}
     </div>
   );
 };

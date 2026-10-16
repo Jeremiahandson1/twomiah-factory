@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import type { Context, Next } from 'hono'
-import { createHmac } from 'crypto'
+import { parseTwilioBody, verifyTwilioRequest, twilioConfigFor } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { users, clients, timeEntries, schedules } from '../../db/schema.ts'
+import { users, clients, timeEntries, schedules, agencies } from '../../db/schema.ts'
 import { eq, and, isNull, sql } from 'drizzle-orm'
 import { createEVVFromTimeEntry } from '../services/evvVisits.ts'
 
@@ -17,43 +17,26 @@ function xmlEscape(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-// Twilio signature validation middleware
-// Verifies X-Twilio-Signature header to prevent spoofed webhook requests
+// Twilio signature validation middleware — every IVR request proves it IS Twilio before it runs.
+//
+// Until 10/16 this skipped the check outside production, skipped it IN production when TWILIO_AUTH_TOKEN was unset
+// ("skipping signature validation" — so anyone could clock a caregiver in or out), and compared against c.req.url,
+// which behind Render's TLS proxy is http:// on the internal port: a genuine Twilio call could never match. It is
+// the shared verifyTwilioRequest now — the https / forwarded-host / port-less forms Twilio actually signed, a
+// timing-safe compare, and the one policy every Twilio webhook has: with no token, refused in production, allowed
+// outside it. The token is the agency's own Twilio account (agencies.twilio_auth_token) or the platform's
+// TWILIO_AUTH_TOKEN, as twilioConfigFor reads it everywhere else. Hono caches parseBody, so the handlers below
+// still read the same params.
 async function validateTwilioSignature(c: Context, next: Next) {
-  // Skip validation in development
-  if (process.env.NODE_ENV !== 'production') return next()
-
-  const authToken = process.env.TWILIO_AUTH_TOKEN
-  if (!authToken) {
-    console.warn('TWILIO_AUTH_TOKEN not set — skipping signature validation')
-    return next()
-  }
-
-  const signature = c.req.header('X-Twilio-Signature')
-  if (!signature) {
+  const params = await parseTwilioBody(c)
+  const [agency] = await db.select().from(agencies).limit(1)
+  const v = verifyTwilioRequest(c, params, twilioConfigFor(agency || null).authToken)
+  if (!v.ok) {
+    console.warn('[webhook] refused Twilio IVR request:', v.reason)
     c.header('Content-Type', 'text/xml')
     return c.body(`<?xml version="1.0" encoding="UTF-8"?>
 <Response><Say voice="alice">Request validation failed.</Say></Response>`, 403)
   }
-
-  // Build the full URL Twilio used to sign
-  const url = c.req.url
-  const body = await c.req.parseBody()
-
-  // Sort POST params and concatenate
-  const sortedParams = Object.keys(body).sort().reduce((acc, key) => acc + key + body[key], '')
-  const data = url + sortedParams
-
-  const expectedSignature = createHmac('sha1', authToken)
-    .update(Buffer.from(data, 'utf-8'))
-    .digest('base64')
-
-  if (signature !== expectedSignature) {
-    c.header('Content-Type', 'text/xml')
-    return c.body(`<?xml version="1.0" encoding="UTF-8"?>
-<Response><Say voice="alice">Request validation failed.</Say></Response>`, 403)
-  }
-
   return next()
 }
 
