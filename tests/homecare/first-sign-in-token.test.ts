@@ -50,7 +50,10 @@ const shared = new ApiClient({ baseUrl: '' })
 {
   // Home care's login (services/api.ts setTokens) stores the session after the shared client was built.
   store.set('accessToken', 'A1'); store.set('refreshToken', 'R1'); valid.add('A1')
-  const res = await shared.raw('/api/email-aliases', { method: 'POST', body: JSON.stringify({ alias: 'support' }) })
+  // A session the client thinks is dead ends with an event; record it rather than crash, so a broken client FAILS here.
+  const events: string[] = []
+  ;(globalThis as any).window = { dispatchEvent: (e: any) => { events.push(e?.type); return true }, location: { pathname: '/crm', assign() {} } }
+  const res = await shared.raw('/api/email-aliases', { method: 'POST', body: JSON.stringify({ alias: 'support' }) }).catch((e: any) => ({ status: `threw: ${e?.message}` }) as any)
   check(`first sign-in: the shared screen's save carries the token home care stored after the page loaded (${res.status})`, res.status === 201 && seen.at(-1)?.auth === 'Bearer A1', seen.at(-1))
 }
 {
