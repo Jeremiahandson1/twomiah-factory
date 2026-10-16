@@ -162,25 +162,28 @@ let openings: string[] = []
 
 // ══════════ 5. inside the notice window ════════════════════════════════════════════════════════
 //
-// With two days' notice, a slot the day after tomorrow is on the grid and still not bookable. The
-// old code called that "no longer available" too.
+// A slot on an open day inside the notice window is on the grid and still not bookable. The old
+// code called that "no longer available" too.
+//
+// The window is sized to the next OPEN day rather than fixed at "tomorrow": it used to book
+// tomorrow and skip these three checks whenever tomorrow was a weekend — so the notice rule went
+// untested every Friday and Saturday (Chicago), and the suite's count drifted 962 → 959 overnight.
 {
-  const s = await api('PUT', '/api/booking/settings', { leadTimeDays: 2 })
-  check('the shop now asks for two days notice', s.status === 200, { status: s.status, body: s.text?.slice(0, 200) })
+  const fmtDate = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+  const weekday = (d: Date) => new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'long' }).format(d).toLowerCase()
+  let ahead = 1
+  while (ahead <= 7 && !(HOURS as any)[weekday(new Date(Date.now() + ahead * 864e5))]?.enabled) ahead++
+  check('there is an open day within a week to test the notice window on', ahead <= 7, { ahead })
+  const notice = ahead + 1
+  const s = await api('PUT', '/api/booking/settings', { leadTimeDays: notice })
+  check(`the shop now asks for ${notice} days notice`, s.status === 200, { status: s.status, body: s.text?.slice(0, 200) })
 
-  const soon = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' })
-    .format(new Date(Date.now() + 864e5))
-  const day = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'long' }).format(new Date(Date.now() + 864e5)).toLowerCase()
-  if (!(HOURS as any)[day]?.enabled) {
-    console.log('  note  tomorrow is a closed day for this shop, so the notice case is not exercised today')
-  } else {
-    const res = await book(soon, '10:00')
-    const msg = String(res.json?.error || res.text || '')
-    check('a time inside the notice window is refused', res.status >= 400, { status: res.status, msg })
-    check('…and the refusal is about NOTICE, not about the slot being taken',
-      /too soon|notice/i.test(msg) && !/just been taken/i.test(msg), { msg })
-    check('…and it names how much notice is needed', /2 days|two days/i.test(msg), { msg })
-  }
+  const res = await book(fmtDate(new Date(Date.now() + ahead * 864e5)), '10:00')
+  const msg = String(res.json?.error || res.text || '')
+  check('a time inside the notice window is refused', res.status >= 400, { status: res.status, msg })
+  check('…and the refusal is about NOTICE, not about the slot being taken',
+    /too soon|notice/i.test(msg) && !/just been taken/i.test(msg), { msg })
+  check('…and it names how much notice is needed', new RegExp(`\\b${notice} days\\b`, 'i').test(msg), { msg, notice })
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)
