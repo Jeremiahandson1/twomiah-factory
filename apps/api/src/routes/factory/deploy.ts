@@ -1,6 +1,7 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { generate, cleanOldBuilds, type GenerateConfig } from '../../services/generator'
-import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../../services/deploy'
+import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure, latestRenderDeployStatus } from '../../services/deploy'
+import { waitUntilServing, readinessUrls, type ReadinessResult } from '../../services/deployReadiness'
 import factoryStripe from '../../services/factoryStripe'
 import { pushSubscriptionToTenant } from '../../services/tenantSubscription'
 import { getZipDownloadUrl } from '../../services/factoryStorage'
@@ -501,6 +502,7 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
 
     console.log('[Deploy] Using freshly generated zip:', zipPath)
 
+    let readiness: ReadinessResult | null = null
     const result = await deployCustomer(
       { id: tenant.id, slug: tenant.slug, name: tenant.name, industry: tenant.industry, products: job.template?.split('+') || ['crm'], config: config, planId: tenant.plan },
       zipPath, options
@@ -572,6 +574,22 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
         const { error: featErr } = await supabase.from('tenants').update({ features: deployedFeatures }).eq('id', tenant.id)
         if (featErr) console.warn('[Deploy] Features sync failed (non-blocking):', featErr.message)
         else console.log('[Deploy] Synced', deployedFeatures.length, 'features to tenant record for', tenant.slug)
+      }
+
+      // Wait until Render has finished — every service's newest deploy live and every emailed URL answering —
+      // before talking to the CRM or telling the owner it is ready (services/deployReadiness.ts). The rows above
+      // are already saved, so a Factory restart during the wait loses only the sync and the email, not the tenant.
+      // Same condition the ready email is sent on (below), so the email is never sent unwaited.
+      const webServiceIds = Object.entries(renderServiceIds).filter(([role]) => role !== 'database').map(([, id]) => id)
+      if ((result.success || result.deployedUrl || result.apiUrl) && webServiceIds.length) {
+        readiness = await waitUntilServing(webServiceIds, readinessUrls(result), {
+          latestDeployStatus: latestRenderDeployStatus,
+          probe: async (url) => { try { return (await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(15_000) })).status } catch { return 0 } },
+          sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+          now: () => Date.now(),
+        })
+        console.log(`[Deploy] Readiness for ${tenant.slug}: ${readiness.ready ? 'READY' : 'NOT READY'} after ${Math.round(readiness.waitedMs / 1000)}s — ${readiness.reason}`,
+          JSON.stringify({ services: readiness.services, probes: readiness.probes }))
       }
 
       // Sync features to the running CRM via HTTP API

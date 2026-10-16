@@ -19,6 +19,7 @@
  */
 import { sendEmail } from './email'
 import { ourPremiumSiteOrigin } from './premiumSiteUrl'
+import { waitUntilServing, readinessUrls } from './deployReadiness'
 
 const RENDER_API = 'https://api.render.com/v1'
 
@@ -252,7 +253,19 @@ async function doProvision(tenantId: string): Promise<{ success: boolean; crmUrl
     }
   }
 
-  // 7. Tell the customer
+  // 7. Tell the customer — once Render has finished every deploy above and the link really opens
+  // (services/deployReadiness.ts; the one /health check in step 3 can pass before a later deploy rolls over).
+  const crmServiceIds = [result.services?.backend?.id, result.services?.frontend?.id].filter(Boolean) as string[]
+  if (crmServiceIds.length) {
+    const { latestRenderDeployStatus } = await import('./deploy')
+    const readiness = await waitUntilServing(crmServiceIds, readinessUrls({ apiUrl: result.apiUrl, deployedUrl: result.apiUrl + '/crm' }), {
+      latestDeployStatus: latestRenderDeployStatus,
+      probe: async (url) => { try { return (await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(15_000) })).status } catch { return 0 } },
+      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+      now: () => Date.now(),
+    })
+    console.log(`[CrmAddon] Readiness: ${readiness.ready ? 'READY' : 'NOT READY'} after ${Math.round(readiness.waitedMs / 1000)}s — ${readiness.reason}`)
+  }
   const to = tenant.admin_email || tenant.email
   if (to) {
     await sendEmail(to,

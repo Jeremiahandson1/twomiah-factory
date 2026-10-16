@@ -910,6 +910,12 @@ async function getServiceDeploys(serviceId: string, limit = 5): Promise<any[]> {
   return await res.json() as any[]
 }
 
+// Render's status of a service's NEWEST deploy (newest first in the list), or 'unknown'. Used by the ready-email wait.
+export async function latestRenderDeployStatus(serviceId: string): Promise<string> {
+  const deploys = await getServiceDeploys(serviceId, 1)
+  return deploys[0]?.deploy?.status || 'unknown'
+}
+
 export async function updateRenderServiceSettings(serviceId: string, settings: {
   rootDir?: string; buildCommand?: string; startCommand?: string; publishPath?: string
 }): Promise<boolean> {
