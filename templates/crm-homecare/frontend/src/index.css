@@ -512,7 +512,10 @@ body {
     font-size: 1.4rem;
 }
 
-.modal-actions {
+/* The form area between header and actions; the padding comes from .modal-content. */
+.modal-body { display: block; }
+
+.modal-actions, .modal-footer {
     display: flex;
     gap: 0.75rem;
     justify-content: flex-end;
@@ -521,7 +524,8 @@ body {
     border-top: 1px solid #f0f0f0;
 }
 
-.close-btn {
+/* .modal-close is the same control under the name half the screens use. */
+.close-btn, .modal-close {
     background: none;
     border: none;
     font-size: 1.8rem;
@@ -531,7 +535,7 @@ body {
     line-height: 1;
 }
 
-.close-btn:hover { color: var(--color-text); }
+.close-btn:hover, .modal-close:hover { color: var(--color-text); }
 
 /* Alerts */
 .alert {
@@ -1049,12 +1053,13 @@ body {
 
     .modal-large { max-width: 100%; }
 
-    .form-actions, .modal-actions {
+    .form-actions, .modal-actions, .modal-footer {
         flex-direction: column;
     }
 
     .form-actions .btn,
-    .modal-actions .btn {
+    .modal-actions .btn,
+    .modal-footer .btn {
         width: 100%;
     }
 
@@ -1084,6 +1089,16 @@ body {
 /* ═══════════════════════════════════════════════════════
    MOBILE REDESIGN — Bottom Nav + Polish
    ═══════════════════════════════════════════════════════ */
+
+/* The bottom nav and its More drawer are phone-only. Every rule that styles them sits inside the 768px query
+   below, so above it they printed as a block of unstyled links at the top of the page (the caregiver screen
+   renders them unconditionally; the office screen hid them with a one-time innerWidth check). Hidden here by
+   rule, for every screen that renders them. */
+@media (min-width: 769px) {
+  .mobile-bottom-nav,
+  .mobile-more-drawer,
+  .mobile-more-drawer-overlay { display: none !important; }
+}
 
 @media (max-width: 768px) {
 

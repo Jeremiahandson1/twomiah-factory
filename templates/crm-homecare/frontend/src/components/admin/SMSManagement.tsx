@@ -389,8 +389,8 @@ const SMSManagement = () => {
 
       {/* Send Message Modal */}
       {showSendModal && (
-        <div className="modal-overlay" onClick={() => setShowSendModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+        <div className="modal active" onClick={() => setShowSendModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="modal-header">
               <h3>Send SMS</h3>
               <button className="modal-close" onClick={() => setShowSendModal(false)}>×</button>
@@ -409,8 +409,8 @@ const SMSManagement = () => {
 
       {/* Template Modal */}
       {showTemplateModal && (
-        <div className="modal-overlay" onClick={() => setShowTemplateModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowTemplateModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{editingTemplate ? 'Edit Template' : 'New Template'}</h3>
               <button className="modal-close" onClick={() => setShowTemplateModal(false)}>×</button>

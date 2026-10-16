@@ -531,8 +531,8 @@ const FamilyPortalAdmin = () => {
       )}
 
       {openThread && (
-        <div className="modal-overlay" onClick={() => setOpenThread(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setOpenThread(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{openThread.thread?.subject}</h3>
               <button className="modal-close" onClick={() => setOpenThread(null)}>×</button>
@@ -570,8 +570,8 @@ const FamilyPortalAdmin = () => {
 
       {/* Add Family Member Modal */}
       {showAddModal && (
-        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowAddModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Add Family Member</h3>
               <button className="modal-close" onClick={() => setShowAddModal(false)}>×</button>
@@ -587,8 +587,8 @@ const FamilyPortalAdmin = () => {
 
       {/* Reply Modal */}
       {showMessageModal && selectedMember && (
-        <div className="modal-overlay" onClick={() => setShowMessageModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowMessageModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Reply to Message</h3>
               <button className="modal-close" onClick={() => setShowMessageModal(false)}>×</button>

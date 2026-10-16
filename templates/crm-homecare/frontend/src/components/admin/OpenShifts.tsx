@@ -368,8 +368,8 @@ const OpenShifts = () => {
       </div>
 
       {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowCreateModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Post Open Shift</h3>
               <button className="modal-close" onClick={() => setShowCreateModal(false)}>×</button>
@@ -380,8 +380,8 @@ const OpenShifts = () => {
       )}
 
       {showClaimsModal && currentShift && (
-        <div className="modal-overlay" onClick={() => setShowClaimsModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal active" onClick={() => setShowClaimsModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Shift Details</h3>
               <button className="modal-close" onClick={() => setShowClaimsModal(false)}>×</button>
@@ -422,8 +422,8 @@ const OpenShifts = () => {
       )}
 
       {smartFillShift && (
-        <div className="modal-overlay" onClick={() => !smartFillBusy && setSmartFillShift(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
+        <div className="modal active" onClick={() => !smartFillBusy && setSmartFillShift(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
             <div className="modal-header">
               <h3>✨ Smart Fill — Suggested Caregivers</h3>
               <button className="modal-close" onClick={() => setSmartFillShift(null)}>×</button>

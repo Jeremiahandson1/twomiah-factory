@@ -120,8 +120,8 @@ const SuspendServicePanel = ({ client, token, onClose }) => {
     } finally { setBusy(false); }
   };
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+    <div className="modal active" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
         <div className="modal-header">
           <h3>⏸ Suspend / resume service — {client.firstName} {client.lastName}</h3>
           <button className="modal-close" onClick={onClose}>×</button>

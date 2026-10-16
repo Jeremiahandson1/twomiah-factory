@@ -293,8 +293,8 @@ const PayersServiceCodes = () => {
 
       {/* PAYER MODAL */}
       {showPayerModal && (
-        <div className="modal-overlay" onClick={() => setShowPayerModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+        <div className="modal active" onClick={() => setShowPayerModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="modal-header">
               <h3>{editingPayer ? 'Edit Payer' : 'Add Payer'}</h3>
               <button className="modal-close" onClick={() => setShowPayerModal(false)}>&times;</button>
@@ -387,8 +387,8 @@ const PayersServiceCodes = () => {
 
       {/* SERVICE CODE MODAL */}
       {showCodeModal && (
-        <div className="modal-overlay" onClick={() => setShowCodeModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+        <div className="modal active" onClick={() => setShowCodeModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
             <div className="modal-header">
               <h3>{editingCode ? 'Edit Service Code' : 'Add Service Code'}</h3>
               <button className="modal-close" onClick={() => setShowCodeModal(false)}>&times;</button>

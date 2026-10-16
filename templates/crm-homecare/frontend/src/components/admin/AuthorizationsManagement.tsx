@@ -333,8 +333,8 @@ const AuthorizationsManagement = () => {
 
       {/* MODAL */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
+        <div className="modal active" onClick={() => setShowModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px' }}>
             <div className="modal-header">
               <h3>{editing ? 'Edit Authorization' : 'New Authorization'}</h3>
               <button className="modal-close" onClick={() => setShowModal(false)}>&times;</button>
