@@ -76,7 +76,7 @@ import adsRoutes, { adsConnector } from './routes/ads.ts'
 import leadsRoutes from './routes/leads.ts'
 import wisetackRoutes from './routes/wisetack.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
-import emailAliasesRoutes from './routes/emailAliases.ts'
+import emailAliasesRoutes, { emailAliasesInternal } from './routes/emailAliases.ts'
 import emailDomainRoutes from './routes/emailDomain.ts'
 import accountRoutes from './routes/account.ts'
 import inboundParseRoutes from './routes/inboundParse.ts'
@@ -309,6 +309,7 @@ app.route('/api/gantt-charts', ganttChartsRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/api/company', companyRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)
+app.route('/api/internal/email-aliases', emailAliasesInternal)
 app.route('/api/email-domain', emailDomainRoutes)
 app.route('/api/account', accountRoutes)
 app.route('/api/internal/inbound-email', inboundParseRoutes)

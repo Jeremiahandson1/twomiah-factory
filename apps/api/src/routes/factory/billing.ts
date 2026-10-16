@@ -12,6 +12,7 @@ import { triggerAutoDeploy } from './deploy'
 import { finishRestart } from '../../services/subscriptionRestart'
 import { ownerFirstName } from '../../services/tenantOwner'
 import { registrantGaps, registrantMessage, cleanRegistrant } from '../../services/domainRegistrant'
+import { reconcileAliasesInBackground } from '../../services/emailAliasSync'
 
 // Apply a webhook's tenant updates so that activation NEVER depends on an optional attribute.
 // PostgREST rejects the whole update when it names a column the table lacks (PGRST204) — that is how
@@ -476,6 +477,9 @@ async function handleDomainRegistration(opts: {
     if (wire.sendgridDomainAuthId) {
       await supabase.from('tenants').update({ sendgrid_domain_auth_id: wire.sendgridDomainAuthId }).eq('id', tenantId)
     }
+    // The addresses saved in onboarding, before there was a domain (services/emailAliasSync.ts); the
+    // hourly sweep finishes once the new zone is active.
+    reconcileAliasesInBackground({ ...tenant, domain, cloudflare_zone_id: wire.cloudflareZoneId || tenant.cloudflare_zone_id })
     // Hand the registrar Cloudflare's nameservers. Only for domains WE bought:
     // a customer's own domain stays at their registrar and they point it
     // themselves. Without this the zone above is built and never used.

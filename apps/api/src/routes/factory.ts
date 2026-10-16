@@ -60,6 +60,10 @@ factory.use('*', async (c, next) => {
     || c.req.path.endsWith('/offboard/status')
     || c.req.path.includes('/email-domain/')
     || c.req.path.endsWith('/email-alias-sync')
+    // The CRM's address page: where each address stands (and a reconcile), and a resend of Cloudflare's
+    // confirmation email. X-Factory-Key, checked in lifecycle.ts. Exact match on the id segment.
+    || (c.req.method === 'GET' && /\/customers\/[0-9a-f-]{36}\/email-alias-status$/i.test(c.req.path))
+    || (c.req.method === 'POST' && /\/customers\/[0-9a-f-]{36}\/email-alias-confirmation$/i.test(c.req.path))
     || c.req.path.endsWith('/support-tickets')
     || c.req.path.endsWith('/offboard')
     || c.req.path.endsWith('/reactivate')

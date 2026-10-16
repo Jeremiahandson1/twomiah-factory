@@ -267,7 +267,36 @@ export async function applyTenantWafRules(zoneId: string): Promise<{ rulesetId: 
 // target) and rules (one per alias: localPart → destination).
 
 export async function enableEmailRouting(zoneId: string): Promise<void> {
-  await cfFetch('/zones/' + zoneId + '/email/routing/enable', { method: 'POST' })
+  // POST …/email/routing/dns is the current call; …/email/routing/enable is deprecated (still answered).
+  try {
+    await cfFetch('/zones/' + zoneId + '/email/routing/dns', { method: 'POST' })
+  } catch (e: any) {
+    if (String(e?.message || '').toLowerCase().includes('already')) throw e
+    await cfFetch('/zones/' + zoneId + '/email/routing/enable', { method: 'POST' })
+  }
+}
+
+/** Is Email Routing on for the zone? (GET /zones/:id/email/routing — enabled + status "ready" when its MX is in place.) */
+export async function getEmailRoutingSettings(zoneId: string): Promise<{ enabled: boolean; status: string }> {
+  const result = await cfFetch('/zones/' + zoneId + '/email/routing')
+  return { enabled: result?.enabled === true, status: String(result?.status || '') }
+}
+
+/** Every destination address on the account, with whether it has confirmed (Cloudflare's `verified` is a date or null). */
+export async function listEmailDestinationAddresses(): Promise<Array<{ id: string; email: string; verified: boolean }>> {
+  const out: Array<{ id: string; email: string; verified: boolean }> = []
+  for (let page = 1; page <= 40; page++) {
+    const result = await cfFetch('/accounts/' + accountId() + '/email/routing/addresses?per_page=50&page=' + page)
+    if (!Array.isArray(result) || result.length === 0) break
+    for (const a of result) out.push({ id: String(a.id || a.tag || ''), email: String(a.email || '').toLowerCase(), verified: !!a.verified })
+    if (result.length < 50) break
+  }
+  return out
+}
+
+/** Remove a destination address (used to send its confirmation email again: delete + add). */
+export async function deleteEmailDestinationAddress(id: string): Promise<void> {
+  await cfFetch('/accounts/' + accountId() + '/email/routing/addresses/' + id, { method: 'DELETE' })
 }
 
 export async function addEmailDestinationAddress(destination: string): Promise<{ tag: string; verified: boolean }> {
@@ -277,7 +306,7 @@ export async function addEmailDestinationAddress(destination: string): Promise<{
     method: 'POST',
     body: JSON.stringify({ email: destination }),
   })
-  return { tag: result.tag, verified: !!result.verified }
+  return { tag: result.id || result.tag, verified: !!result.verified } // tag is deprecated in favour of id
 }
 
 export interface EmailRoutingRule {

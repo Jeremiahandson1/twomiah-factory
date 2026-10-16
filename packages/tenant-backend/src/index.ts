@@ -8,7 +8,7 @@
 /** Timestamps leave this API with their zone — see instants.ts for the owner report behind it. */
 export { asInstant, withInstants } from './instants'
 
-export { createEmailAliasesRoutes } from './emailAliases'
+export { createEmailAliasesRoutes, createEmailAliasesInternalRoute } from './emailAliases'
 export { createInboundParseRoute } from './inboundParse'
 export { createInboundMessagesRoutes } from './inboundMessages'
 export { createGbpAdminRoutes, createGbpInternalRoutes } from './gbp'
@@ -25,6 +25,8 @@ export type { PlanDef, TenantSubscription } from './plans'
 export { createFactoryApiClient } from './factoryClient'
 export type {
   EmailAliasesDeps,
+  EmailAliasState,
+  EmailAliasStatusReport,
   InboundParseDeps,
   EmailDomainDeps,
   FactoryApiClient,

@@ -11,6 +11,7 @@ import path from 'path'
 import { getProductDefaults } from '../../config/pricing'
 import { hardDeleteTestTenant, cleanupOrphanTestTenants } from '../../services/testCleanup'
 import { ourPremiumSiteOrigin } from '../../services/premiumSiteUrl'
+import { reconcileAliasesInBackground } from '../../services/emailAliasSync'
 import { type FactoryApp, UUID_RE, checkCronSecret, secureEquals, logTenantAudit } from './shared'
 
 export function registerDeployRoutes(factory: FactoryApp) {
@@ -684,6 +685,14 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
         }
         console.log('[Deploy] Domain infra:', domainResult.success ? 'OK' : 'partial', 'steps=' + domainResult.steps.length, 'errors=' + domainResult.errors.length)
         if (domainResult.errors.length) console.warn('[Deploy] Domain infra errors:', domainResult.errors.join('; '))
+        // The CRM's saved addresses onto the zone (services/emailAliasSync.ts) — a redeploy of a tenant
+        // whose domain is already active sets up any address its CRM gained meanwhile.
+        reconcileAliasesInBackground({
+          id: tenant.id, slug: tenant.slug, domain: tenant.domain,
+          cloudflare_zone_id: domainResult.cloudflareZoneId || tenant.cloudflare_zone_id,
+          render_backend_url: result.apiUrl || tenant.render_backend_url,
+          factory_sync_key: result.factorySyncKey || tenant.factory_sync_key,
+        })
       } catch (domErr: any) {
         console.error('[Deploy] Domain infra wiring threw:', domErr.message)
       }

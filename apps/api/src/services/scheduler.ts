@@ -30,6 +30,8 @@ const JOBS: JobConfig[] = [
   // A2P vetting advances over hours–days; poll hourly. Monthly campaign fee is
   // self-guarded to once/~27 days per tenant, so a daily tick is plenty.
   { name: 'a2p-poll', path: '/api/v1/factory/internal/a2p/poll', schedule: 'hourly' },
+  // Tenants' branded addresses onto Cloudflare once their domain is active (services/emailAliasSync.ts).
+  { name: 'email-alias-sweep', path: '/api/v1/factory/internal/email-alias-sweep', schedule: 'hourly' },
   { name: 'messaging-monthly', path: '/api/v1/factory/internal/messaging/monthly', schedule: { dailyAtUtcHour: 9 } },
   { name: 'messaging-low-balance-nudge', path: '/api/v1/factory/internal/messaging/low-balance-nudge', schedule: { dailyAtUtcHour: 15 } },
 ]

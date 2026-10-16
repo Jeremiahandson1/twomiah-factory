@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import crypto from 'node:crypto'
 import type { EmailAliasesDeps } from './types'
 
 // Email alias CRUD — vendored into each tenant backend at generation.
@@ -6,7 +7,10 @@ import type { EmailAliasesDeps } from './types'
 // Every write is mirrored to the factory via factoryApiClient.syncEmailAlias
 // so Cloudflare Email Routing reflects the current state. Failures to sync
 // are logged but don't roll back the local DB change — the tenant's data is
-// authoritative and the factory can re-sync later via the admin "Resync" action.
+// authoritative: the Factory reads it back (createEmailAliasesInternalRoute, below) and
+// reconciles Cloudflare when a domain is connected, when it goes active, each hour, and each
+// time the addresses page asks for their status. An address saved before there is a domain is
+// therefore set up once there is one (E2E Run 5: the per-change sync 400'd and nothing replayed it).
 
 interface AliasInput {
   localPart: string
@@ -36,6 +40,35 @@ export function createEmailAliasesRoutes(deps: EmailAliasesDeps): Hono {
       return c.json({ aliases: rows })
     } catch (err: any) {
       return c.json({ error: err.message }, 500)
+    }
+  })
+
+  // Where each address stands on the domain (and a reconcile on the way). Never a 500 for the page: a
+  // Factory that cannot be reached is a state the page names, not a broken list.
+  app.get('/status', async (c) => {
+    if (!factoryApiClient.getEmailAliasStatus) return c.json({ state: 'error', domain: null, aliases: [], detail: 'Status is not available in this build' })
+    try {
+      return c.json(await factoryApiClient.getEmailAliasStatus())
+    } catch (err: any) {
+      return c.json({ state: 'error', domain: null, aliases: [], detail: err?.message || 'The Factory did not answer' })
+    }
+  })
+
+  // Send Cloudflare's confirmation email to a destination again.
+  app.post('/resend-confirmation', async (c) => {
+    const body = await c.req.json().catch(() => ({}))
+    const destination = typeof body?.destination === 'string' ? body.destination.trim().toLowerCase() : ''
+    if (!destination.includes('@')) return c.json({ error: 'destination email is required' }, 400)
+    // Only an address one of this CRM's aliases forwards to — never an arbitrary inbox.
+    const rows = await db.select().from(emailAliasesTable)
+    if (!rows.some((r: any) => String(r.forwardTo || '').trim().toLowerCase() === destination)) {
+      return c.json({ error: 'No address here forwards to ' + destination }, 404)
+    }
+    if (!factoryApiClient.resendEmailAliasConfirmation) return c.json({ error: 'Not available in this build' }, 501)
+    try {
+      return c.json(await factoryApiClient.resendEmailAliasConfirmation(destination))
+    } catch (err: any) {
+      return c.json({ error: err?.message || 'The Factory did not answer' }, err?.status && err.status < 500 ? err.status : 502)
     }
   })
 
@@ -115,5 +148,30 @@ export function createEmailAliasesRoutes(deps: EmailAliasesDeps): Hono {
     }
   })
 
+  return app
+}
+
+const keyMatches = (got: string, want: string) =>
+  got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want))
+
+/**
+ * GET /api/internal/email-aliases — the Factory reads this CRM's addresses (X-Factory-Key against
+ * FACTORY_SYNC_KEY) to create their Cloudflare forwarding once the domain is connected and active.
+ * Mount WITHOUT user auth, beside /api/internal/sync-subscription. Read-only; only what a rule needs.
+ */
+export function createEmailAliasesInternalRoute(deps: { db: any; emailAliasesTable: any }): Hono {
+  const app = new Hono()
+  app.get('/', async (c) => {
+    const key = process.env.FACTORY_SYNC_KEY
+    if (!key) return c.json({ error: 'Sync not configured' }, 503)
+    if (!keyMatches(String(c.req.header('X-Factory-Key') || ''), key)) return c.json({ error: 'Unauthorized' }, 401)
+    const rows = await deps.db.select().from(deps.emailAliasesTable)
+    return c.json({
+      aliases: rows.map((r: any) => ({
+        localPart: r.localPart, routingMode: r.routingMode === 'crm' ? 'crm' : 'forward',
+        forwardTo: r.forwardTo ?? null, enabled: r.enabled !== false,
+      })),
+    })
+  })
   return app
 }

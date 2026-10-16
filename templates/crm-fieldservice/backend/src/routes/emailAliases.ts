@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { createEmailAliasesRoutes, createFactoryApiClient } from '../shared/index.ts'
+import { createEmailAliasesRoutes, createEmailAliasesInternalRoute, createFactoryApiClient } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { emailAlias } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
@@ -12,3 +12,7 @@ app.route('/', createEmailAliasesRoutes({
   factoryApiClient: createFactoryApiClient(),
 }))
 export default app
+
+// The Factory's read of the saved addresses (X-Factory-Key), mounted at /api/internal/email-aliases: it
+// creates their forwarding once the domain is connected and active — including the ones saved before.
+export const emailAliasesInternal = createEmailAliasesInternalRoute({ db, emailAliasesTable: emailAlias })

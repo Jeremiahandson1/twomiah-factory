@@ -11,6 +11,7 @@ import { restartRefusal } from '../../services/subscriptionRestart'
 import { ownerFirstName } from '../../services/tenantOwner'
 import { registrantGaps } from '../../services/domainRegistrant'
 import { ourPremiumSiteOrigin } from '../../services/premiumSiteUrl'
+import { reconcileAliasesInBackground } from '../../services/emailAliasSync'
 import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
 
 export function registerLifecycleRoutes(factory: FactoryApp) {
@@ -533,6 +534,9 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
     if (result.sendgridDomainAuthId) {
       await supabase.from('tenants').update({ sendgrid_domain_auth_id: result.sendgridDomainAuthId }).eq('id', tenant.id)
     }
+    // The addresses saved before there was a domain (services/emailAliasSync.ts). Not awaited: a fresh
+    // zone is pending, so this usually just reports "waiting"; the hourly sweep finishes the job.
+    reconcileAliasesInBackground({ ...tenant, domain, cloudflare_zone_id: result.cloudflareZoneId || tenant.cloudflare_zone_id })
     return c.json({
       domain,
       status: result.success ? 'pending_nameservers' : 'partial',
@@ -554,13 +558,15 @@ factory.get('/internal/domain/status/:tenantId', async (c) => {
     const tenantId = c.req.param('tenantId')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
     const { data: tenant } = await supabase.from('tenants')
-      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id')
+      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, render_backend_url')
       .eq('id', tenantId).single()
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
     if (!tenant.domain) return c.json({ status: 'unconfigured', domain: null, nameservers: [] })
 
     const { getCloudflareZoneStatus } = await import('../../services/cloudflare')
     const zoneStatus = tenant.cloudflare_zone_id ? await getCloudflareZoneStatus(tenant.cloudflare_zone_id).catch(() => null) : null
+    // The owner is watching this page for "active": set the addresses up the moment it is.
+    if (zoneStatus?.status === 'active') reconcileAliasesInBackground(tenant)
     return c.json({
       status: zoneStatus?.status === 'active' ? 'active' : 'pending_nameservers',
       domain: tenant.domain,
@@ -1466,65 +1472,99 @@ factory.post('/customers/:id/cancel-now', requireRole('owner', 'admin'), async (
 // Called by the tenant's CRM backend whenever an email_alias is created,
 // updated, or deleted. The factory reflects the change in Cloudflare Email
 // Routing on the tenant's zone. Auth: tenant's factory_sync_key in X-Factory-Key.
+// A change that cannot apply yet — no domain, or its nameservers not on Cloudflare — is DEFERRED, not
+// refused: reconcileTenantAliases (services/emailAliasSync.ts) reads the CRM's addresses back and sets
+// them up once the domain is active. It used to answer 400 for every signup, and nothing replayed it.
 factory.post('/customers/:id/email-alias-sync', async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
     const { data: tenant } = await supabase.from('tenants').select('id, domain, factory_sync_key, cloudflare_zone_id').eq('id', tenantId).single()
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
-    if (!tenant.domain || !tenant.cloudflare_zone_id) return c.json({ error: 'Tenant has no domain or Cloudflare zone configured' }, 400)
 
     const body = await c.req.json().catch(() => ({}))
     const { localPart, routingMode, forwardTo, enabled } = body
-    if (!localPart || !/^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/.test(localPart)) return c.json({ error: 'Invalid localPart' }, 400)
+    const sync = await import('../../services/emailAliasSync')
+    if (!localPart || !sync.LOCAL_PART_RE.test(localPart)) return c.json({ error: 'Invalid localPart' }, 400)
+    if (enabled !== false && routingMode !== 'crm' && (!forwardTo || !String(forwardTo).includes('@'))) return c.json({ error: 'forwardTo required for forward mode' }, 400)
+    if (!tenant.domain || !tenant.cloudflare_zone_id) return c.json({ success: true, action: 'deferred', reason: 'waiting_for_domain' })
 
-    // Load cloudflare module lazily so this file's import graph doesn't fail for
-    // environments where CF isn't configured.
-    const cf = await import('../../services/cloudflare')
-    if (!cf.isCloudflareConfigured()) return c.json({ error: 'Cloudflare not configured' }, 503)
+    const deps = sync.defaultDeps()
+    if (!deps.cf.isCloudflareConfigured()) return c.json({ error: 'Cloudflare not configured' }, 503)
+    const zone = await deps.cf.getCloudflareZoneStatus(tenant.cloudflare_zone_id)
+    if (zone.status !== 'active') return c.json({ success: true, action: 'deferred', reason: 'waiting_for_nameservers' })
 
-    const matcherValue = localPart + '@' + tenant.domain
-    const existingRules = await cf.listEmailRoutingRules(tenant.cloudflare_zone_id)
-    const existing = existingRules.find(r => r.matcherValue.toLowerCase() === matcherValue.toLowerCase())
-
-    // Disabled or deleted alias → remove rule if present
-    if (enabled === false) {
-      if (existing) await cf.deleteEmailRoutingRule(tenant.cloudflare_zone_id, existing.tag)
-      return c.json({ success: true, action: existing ? 'removed' : 'noop' })
-    }
-
-    // Determine destination — forward mode sends to external email; crm mode
-    // sends to the factory-wide SendGrid Inbound Parse hostname (if configured).
-    let destination = ''
-    if (routingMode === 'crm') {
-      const parseHost = process.env.SENDGRID_INBOUND_PARSE_HOSTNAME || ''
-      if (!parseHost) return c.json({ error: 'Inbound Parse hostname not configured on factory (SENDGRID_INBOUND_PARSE_HOSTNAME)' }, 503)
-      // Prefix with tenant slug + local part so the webhook can route by recipient.
-      destination = tenantId.replace(/-/g, '') + '-' + localPart + '@' + parseHost
-    } else {
-      if (!forwardTo || !String(forwardTo).includes('@')) return c.json({ error: 'forwardTo required for forward mode' }, 400)
-      destination = String(forwardTo)
-      // Cloudflare requires destination addresses to be verified before use.
-      // Try to add it — noop if already exists. The verification email fires once per destination.
-      try { await cf.addEmailDestinationAddress(destination) } catch (e: any) {
-        if (!String(e.message).toLowerCase().includes('already')) {
-          console.warn('[EmailAliasSync] add destination failed (non-blocking):', e.message)
-        }
+    const alias = { localPart: String(localPart).toLowerCase(), routingMode: routingMode === 'crm' ? 'crm' as const : 'forward' as const, forwardTo: forwardTo ?? null, enabled: enabled !== false }
+    const r = await sync.applyAliasRule(deps, tenant.cloudflare_zone_id, String(tenant.domain).toLowerCase(), tenantId, alias)
+    if (r.error) return c.json({ error: r.error }, 503)
+    // Cloudflare emails a new destination a confirmation link; the rule stays off until it is clicked.
+    if (r.destination) {
+      try { await deps.cf.addEmailDestinationAddress(r.destination) } catch (e: any) {
+        if (!String(e.message).toLowerCase().includes('already')) console.warn('[EmailAliasSync] add destination failed (non-blocking):', e.message)
       }
     }
-
-    const rule = { matcherValue, forwardTo: destination, enabled: true, name: 'alias_' + localPart }
-    if (existing) {
-      await cf.updateEmailRoutingRule(tenant.cloudflare_zone_id, existing.tag, rule)
-      return c.json({ success: true, action: 'updated', ruleTag: existing.tag })
-    } else {
-      const created = await cf.addEmailRoutingRule(tenant.cloudflare_zone_id, rule)
-      return c.json({ success: true, action: 'created', ruleTag: created.tag })
-    }
+    return c.json({ success: true, action: r.action, ...(r.ruleTag ? { ruleTag: r.ruleTag } : {}) })
   } catch (err: any) {
     console.error('[EmailAliasSync] failed:', err)
     return c.json({ error: err.message }, 500)
   }
+})
+
+// Where each of the tenant's addresses stands — and a reconcile on the way, so the CRM's address page
+// asking is also "set them up now". Auth: X-Factory-Key.
+factory.get('/customers/:id/email-alias-status', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant } = await supabase.from('tenants').select('id, domain, factory_sync_key, cloudflare_zone_id, render_backend_url').eq('id', tenantId).single()
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    const { reconcileTenantAliases } = await import('../../services/emailAliasSync')
+    return c.json(await reconcileTenantAliases(tenant))
+  } catch (err: any) {
+    return c.json({ state: 'error', domain: null, aliases: [], detail: err.message })
+  }
+})
+
+// Send Cloudflare's confirmation email to one of the tenant's destinations again. Only a destination one
+// of the tenant's own addresses forwards to (read back from the CRM). Auth: X-Factory-Key.
+factory.post('/customers/:id/email-alias-confirmation', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant } = await supabase.from('tenants').select('id, domain, factory_sync_key, cloudflare_zone_id, render_backend_url').eq('id', tenantId).single()
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    const body = await c.req.json().catch(() => ({}))
+    const destination = String(body?.destination || '').trim().toLowerCase()
+    if (!destination.includes('@')) return c.json({ error: 'destination is required' }, 400)
+    const sync = await import('../../services/emailAliasSync')
+    const deps = sync.defaultDeps()
+    if (!deps.cf.isCloudflareConfigured()) return c.json({ error: 'Cloudflare not configured' }, 503)
+    const read = await sync.readCrmAliases(tenant, deps)
+    if (!('aliases' in read)) return c.json({ error: 'Could not read the CRM\'s addresses' }, 502)
+    const ours = read.aliases.some((a) => a.enabled && 'destination' in sync.aliasDestination(tenantId, a, deps.parseHost) && (sync.aliasDestination(tenantId, a, deps.parseHost) as any).destination === destination)
+    if (!ours) return c.json({ error: 'None of this company\'s addresses forwards to ' + destination }, 404)
+    return c.json(await sync.resendDestinationConfirmation(destination, deps))
+  } catch (err: any) {
+    console.error('[EmailAliasConfirmation] failed:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// Hourly (services/scheduler.ts): every tenant with a domain on Cloudflare is brought in line with its
+// CRM's addresses — the moment a customer's nameservers go active, the addresses saved before it work.
+factory.post('/internal/email-alias-sweep', async (c) => {
+  if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const { data: tenants, error } = await supabase.from('tenants')
+    .select('id, slug, domain, factory_sync_key, cloudflare_zone_id, render_backend_url, status')
+    .not('domain', 'is', null).not('cloudflare_zone_id', 'is', null).neq('status', 'offboarded')
+  if (error) return c.json({ error: error.message }, 500)
+  const { reconcileTenantAliases } = await import('../../services/emailAliasSync')
+  const results: any[] = []
+  for (const t of tenants || []) {
+    const r = await reconcileTenantAliases(t)
+    results.push({ slug: t.slug, state: r.state, live: r.aliases.filter((a) => a.state === 'live').length, aliases: r.aliases.length })
+  }
+  return c.json({ ok: true, tenants: results.length, results })
 })
 
 

@@ -98,7 +98,7 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
   return (
     <div>
       <h2 className="text-xl font-semibold mb-2">Email addresses</h2>
-      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">We've pre-checked the most common ones for your business type. All forward to your email below by default — you can split them out per-alias later in Settings.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">We've pre-checked the most common ones for your business type. All forward to your email below by default — you can split them out per-alias later in Settings. They start receiving mail once your domain is connected; Cloudflare, which carries the mail, sends the forward-to inbox one email to confirm it — click <strong>Verify email address</strong> in it.</p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
 

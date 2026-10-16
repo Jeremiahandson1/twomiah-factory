@@ -19,7 +19,7 @@ import productAdminRoutes from './routes/products.ts'
 import orderAdminRoutes from './routes/orders.ts'
 import settingsAdminRoutes from './routes/settings.ts'
 import paymentAdminRoutes from './routes/payments.ts'
-import emailAliasesRoutes from './routes/emailAliases.ts'
+import emailAliasesRoutes, { emailAliasesInternal } from './routes/emailAliases.ts'
 import emailDomainRoutes from './routes/emailDomain.ts'
 import domainRoutes from './routes/domain.ts'
 import companyShimRoutes from './routes/company.ts'
@@ -149,6 +149,7 @@ app.route('/api/admin/orders', orderAdminRoutes)
 app.route('/api/admin/settings', settingsAdminRoutes)
 app.route('/api/admin/payments', paymentAdminRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)
+app.route('/api/internal/email-aliases', emailAliasesInternal)
 // Settings › Email Domain called these with nothing mounted: every store was told "no domain set up",
 // even one with a domain, and Verify could never work.
 app.route('/api/email-domain', emailDomainRoutes)

@@ -341,6 +341,17 @@ jobs:
       - name: no bare toLocaleString/TimeString on an instant; the zone reaches every screen
         run: bun run scripts/check-homecare-instants-on-agency-clock.ts
 
+  email-alias-readback:
+    name: Branded addresses reach Cloudflare once the domain is connected
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: every CRM mounts the read-back; the Factory reconciles on attach, buy, deploy, activation and hourly
+        run: bun run scripts/check-email-alias-readback.ts
+
   events-ledger:
     name: Events money lives on the invoice (one ledger)
     runs-on: ubuntu-latest
@@ -2367,6 +2378,8 @@ jobs:
       # dependency-free like the ones above: node:crypto only, the package index read as text
       - name: "CallRail, Twilio and Plaid webhook signatures — CallRail's official test vector included"
         run: bun run tests/shared/webhook-signatures.test.ts
+      - name: "An address saved before the domain exists is set up once it does (fake Cloudflare + fake CRM)"
+        run: bun run tests/shared/email-alias-sync.test.ts
       # happy-dom, so this needs the root dev dependencies — the two above are dependency-free.
       - name: "The cart keeps a shopper's email and reward across a re-render"
         run: bun install --frozen-lockfile && bun run tests/shared/cart-dom.test.ts

@@ -55,7 +55,7 @@ import billingRoutes from './routes/billing.ts'
 import reviewsRoutes from './routes/reviews.ts'
 import financingRoutes from './routes/financing.ts'
 import stormRadarRoutes from './routes/stormRadar.ts'
-import emailAliasesRoutes from './routes/emailAliases.ts'
+import emailAliasesRoutes, { emailAliasesInternal } from './routes/emailAliases.ts'
 import emailDomainRoutes from './routes/emailDomain.ts'
 import accountRoutes from './routes/account.ts'
 import inboundParseRoutes from './routes/inboundParse.ts'
@@ -178,6 +178,7 @@ app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)
+app.route('/api/internal/email-aliases', emailAliasesInternal)
 app.route('/api/email-domain', emailDomainRoutes)
 app.route('/api/account', accountRoutes)
 app.route('/api/internal/inbound-email', inboundParseRoutes)

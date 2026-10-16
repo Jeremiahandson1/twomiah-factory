@@ -22,6 +22,28 @@ interface CompanyInfo {
   email?: string | null
 }
 
+// Where each address stands on the domain — the Factory's answer (GET /api/email-aliases/status, which
+// also sets the addresses up). Mail arrives only when the domain is active on Cloudflare, Email Routing
+// is on, and the forward-to inbox has confirmed; the page names whichever is missing.
+type AliasState = 'live' | 'confirm_destination' | 'waiting_for_domain' | 'waiting_for_nameservers' | 'off' | 'error'
+interface StatusReport {
+  state: 'live' | 'action_needed' | 'waiting_for_domain' | 'waiting_for_nameservers' | 'crm_needs_update' | 'error'
+  domain: string | null
+  nameservers?: string[]
+  detail?: string
+  aliases: Array<{ localPart: string; address: string | null; state: AliasState; destination?: string | null; detail?: string }>
+}
+
+// Each chip is a complete pair: ground + ink, in both themes.
+const CHIP: Record<AliasState, { label: string; cls: string }> = {
+  live: { label: 'Receiving mail', cls: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' },
+  confirm_destination: { label: 'Confirm the inbox', cls: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200' },
+  waiting_for_domain: { label: 'Waiting for your domain', cls: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-200' },
+  waiting_for_nameservers: { label: 'Waiting for nameservers', cls: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-200' },
+  off: { label: 'Off', cls: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-200' },
+  error: { label: 'Not set up', cls: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' },
+}
+
 
 // The bearer token is added by api.raw — the current one, refreshed when it has expired.
 function authHeaders(): Record<string, string> {
@@ -36,8 +58,30 @@ export function EmailAliasesPage(): React.ReactElement {
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
   const [newAlias, setNewAlias] = useState({ localPart: '', routingMode: 'forward' as 'forward' | 'crm', forwardTo: '' })
+  const [status, setStatus] = useState<StatusReport | null>(null)
+  const [resent, setResent] = useState<string>('')
 
   useEffect(() => { load() }, [])
+
+  // The status is the Factory's (and it reconciles Cloudflare on the way), so it loads after the list
+  // and never holds the list up.
+  async function loadStatus() {
+    try {
+      const res = await api.raw('/api/email-aliases/status', { headers: authHeaders() })
+      if (res.ok) setStatus(await res.json())
+    } catch { /* the rows simply show no state */ }
+  }
+
+  async function resendConfirmation(destination: string) {
+    setError(''); setResent('')
+    try {
+      const res = await api.raw('/api/email-aliases/resend-confirmation', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ destination }) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(data.error || 'Could not send it again'); return }
+      setResent(data.alreadyConfirmed ? destination + ' has already confirmed.' : 'Sent again to ' + destination + ' — check that inbox (and its spam folder).')
+      loadStatus()
+    } catch (err: any) { setError(err.message) }
+  }
 
   async function load() {
     setLoading(true); setError('')
@@ -58,6 +102,7 @@ export function EmailAliasesPage(): React.ReactElement {
       setError(err.message)
     }
     setLoading(false)
+    loadStatus()
   }
 
   async function addAlias() {
@@ -72,6 +117,7 @@ export function EmailAliasesPage(): React.ReactElement {
       setAliases(prev => [...prev, data.alias])
       setNewAlias({ localPart: '', routingMode: 'forward', forwardTo: company.email || '' })
       setAdding(false)
+      loadStatus()
     } catch (err: any) { setError(err.message) }
   }
 
@@ -85,6 +131,7 @@ export function EmailAliasesPage(): React.ReactElement {
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Update failed'); return }
       setAliases(prev => prev.map(a => a.id === id ? data.alias : a))
+      loadStatus()
     } catch (err: any) { setError(err.message) }
   }
 
@@ -95,10 +142,13 @@ export function EmailAliasesPage(): React.ReactElement {
       const res = await api.raw('/api/email-aliases/' + id, { method: 'DELETE', headers: authHeaders() })
       if (!res.ok) { const data = await res.json().catch(() => ({})); setError(data.error || 'Delete failed'); return }
       setAliases(prev => prev.filter(a => a.id !== id))
+      loadStatus()
     } catch (err: any) { setError(err.message) }
   }
 
-  const domain = company.domain
+  // The Factory knows the domain the moment it is attached, before the company record carries it.
+  const domain = company.domain || status?.domain || null
+  const stateOf = (localPart: string) => status?.aliases.find(x => x.localPart === localPart)
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -107,6 +157,31 @@ export function EmailAliasesPage(): React.ReactElement {
 
       {/* Onboarding saves the addresses before there is a domain, so "connect a domain FIRST" beside a list of them
           read as a contradiction (E2E run 1, 10/14). Say what is true: they are kept, and receive mail once one is connected. */}
+      {status?.state === 'waiting_for_nameservers' && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-4 mb-6 text-yellow-900 dark:text-yellow-200">
+          <div className="font-semibold mb-1">Waiting for {status.domain} to point at Cloudflare</div>
+          <div className="text-sm">
+            These addresses are set up by themselves as soon as the domain's nameservers are changed
+            {status.nameservers?.length ? <> to <strong>{status.nameservers.join(' and ')}</strong></> : null}
+            {' '}(see <strong>Settings → Email Domain</strong>). That usually takes under an hour once the change is made.
+          </div>
+        </div>
+      )}
+      {status?.state === 'action_needed' && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-md p-4 mb-6 text-sm text-amber-900 dark:text-amber-200">
+          <strong>Almost there.</strong> Cloudflare forwards an address only after the inbox it forwards to confirms. Open the confirmation email it sent (subject mentions Cloudflare Email Routing) and click <strong>Verify email address</strong>.
+        </div>
+      )}
+      {status?.state === 'live' && aliases.length > 0 && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700/50 rounded-md p-3 mb-6 text-sm text-green-800 dark:text-green-200">Every address is receiving mail.</div>
+      )}
+      {(status?.state === 'crm_needs_update' || status?.state === 'error') && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-4 mb-6 text-sm text-red-800 dark:text-red-200">
+          <strong>These addresses are not receiving mail yet.</strong> {status.detail || 'The setup could not be checked.'} If it does not clear within the hour, contact support.
+        </div>
+      )}
+      {resent && <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50 rounded-md p-3 mb-4 text-sm text-blue-800 dark:text-blue-200">{resent}</div>}
+
       {!domain && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-4 mb-6">
           <div className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">{aliases.length ? 'Waiting for your domain' : 'Connect a domain first'}</div>
@@ -129,7 +204,7 @@ export function EmailAliasesPage(): React.ReactElement {
           )}
 
           {aliases.map(a => (
-            <AliasRow key={a.id} alias={a} domain={domain} onUpdate={patch => updateAlias(a.id, patch)} onDelete={() => deleteAlias(a.id)} />
+            <AliasRow key={a.id} alias={a} domain={domain} state={stateOf(a.localPart)} onResend={resendConfirmation} onUpdate={patch => updateAlias(a.id, patch)} onDelete={() => deleteAlias(a.id)} />
           ))}
 
           {adding && domain && (
@@ -172,14 +247,30 @@ export function EmailAliasesPage(): React.ReactElement {
   )
 }
 
-function AliasRow({ alias, domain, onUpdate, onDelete }: { alias: Alias; domain: string | null | undefined; onUpdate: (patch: Partial<Alias>) => void; onDelete: () => void }) {
+function AliasRow({ alias, domain, state, onResend, onUpdate, onDelete }: {
+  alias: Alias; domain: string | null | undefined
+  state?: StatusReport['aliases'][number]
+  onResend: (destination: string) => void
+  onUpdate: (patch: Partial<Alias>) => void; onDelete: () => void
+}) {
   const [editingForward, setEditingForward] = useState(false)
   const [forwardDraft, setForwardDraft] = useState(alias.forwardTo || '')
 
   return (
     <div className="border border-gray-200 rounded-md p-4 flex items-center gap-4">
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-sm truncate">{alias.localPart}{domain ? '@' + domain : ''}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-sm truncate">{alias.localPart}{domain ? '@' + domain : ''}</span>
+          {state && <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${CHIP[state.state].cls}`}>{CHIP[state.state].label}</span>}
+        </div>
+        {state?.detail && (
+          <div className="text-xs mt-0.5 text-gray-600 dark:text-slate-300">
+            {state.detail}
+            {state.state === 'confirm_destination' && alias.routingMode === 'forward' && state.destination && (
+              <>{' '}<button onClick={() => onResend(state.destination!)} className="underline font-semibold text-orange-700 dark:text-orange-300">Send it again</button></>
+            )}
+          </div>
+        )}
         <div className="text-xs text-gray-500 dark:text-slate-400">
           {alias.routingMode === 'forward'
             ? (editingForward

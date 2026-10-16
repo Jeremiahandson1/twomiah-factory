@@ -65,6 +65,12 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     async syncEmailAlias(alias) {
       return call('POST', tenantBase() + '/email-alias-sync', alias)
     },
+    async getEmailAliasStatus() {
+      return call('GET', tenantBase() + '/email-alias-status')
+    },
+    async resendEmailAliasConfirmation(destination: string) {
+      return call('POST', tenantBase() + '/email-alias-confirmation', { destination })
+    },
     async getEmailDomainStatus() {
       return call('GET', tenantBase() + '/email-domain/status')
     },

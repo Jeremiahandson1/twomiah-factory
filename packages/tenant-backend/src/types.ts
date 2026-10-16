@@ -22,6 +22,31 @@ export interface FactoryApiClient {
 
   // Manually re-trigger SendGrid domain-auth polling.
   verifyEmailDomain(): Promise<{ ok: boolean; status?: string }>
+
+  // Where each address stands on the connected domain. The Factory reconciles first (reads this CRM's
+  // addresses, creates/updates/removes their Cloudflare rules), so asking is also "set them up now".
+  getEmailAliasStatus?(): Promise<EmailAliasStatusReport>
+
+  // Cloudflare sends a destination address a confirmation email; a rule forwarding to it stays off until
+  // it is clicked. Sends it again.
+  resendEmailAliasConfirmation?(destination: string): Promise<{ ok: boolean; error?: string }>
+}
+
+/** One address's state on the domain — the Factory's answer (apps/api/src/services/emailAliasSync.ts). */
+export type EmailAliasState =
+  | 'live'                    // the rule exists and its destination is confirmed: mail arrives
+  | 'confirm_destination'     // the rule exists; Cloudflare is waiting for the destination to confirm
+  | 'waiting_for_domain'      // no domain connected yet
+  | 'waiting_for_nameservers' // the domain is connected; its nameservers do not point at Cloudflare yet
+  | 'off'                     // turned off in the CRM
+  | 'error'                   // the Factory could not set it up (detail says why)
+
+export interface EmailAliasStatusReport {
+  state: 'live' | 'action_needed' | 'waiting_for_domain' | 'waiting_for_nameservers' | 'crm_needs_update' | 'error'
+  domain: string | null
+  nameservers?: string[]
+  detail?: string
+  aliases: Array<{ localPart: string; address: string | null; state: EmailAliasState; destination?: string | null; detail?: string }>
 }
 
 export interface EmailAliasesDeps {
