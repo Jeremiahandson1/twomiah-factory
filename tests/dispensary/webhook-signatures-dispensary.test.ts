@@ -21,7 +21,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 
 await setupSchema()
 const [co] = await db.insert(company).values({ name: 'Signed Leaf', slug: 'signed-leaf', email: 'sl@test.local', settings: {}, enabledFeatures: ['pay_by_bank', 'marketplace', 'lead_inbox', 'sms'] } as any).returning()
-await db.insert(user).values({ email: 'owner-whd@test.local', passwordHash: 'x', firstName: 'O', lastName: 'D', role: 'owner', companyId: co.id, isActive: true } as any)
+const [owner] = await db.insert(user).values({ email: 'owner-whd@test.local', passwordHash: 'x', firstName: 'O', lastName: 'D', role: 'owner', companyId: co.id, isActive: true } as any).returning()
 
 const app = new Hono()
 app.route('/api/sms', (await import('./src/routes/sms.ts')).default)
@@ -37,6 +37,11 @@ process.env.FACTORY_SYNC_KEY = FACTORY_KEY
 
 const send = async (path: string, body: string, headers: Record<string, string>) => {
   const res = await app.request(path, { method: 'POST', headers, body })
+  const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+  return { status: res.status, json: j, text: t }
+}
+const api = async (method: string, path: string, body?: unknown) => {
+  const res = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-test-user': owner.id, 'x-test-company': co.id, 'x-test-role': 'owner' }, body: body === undefined ? undefined : JSON.stringify(body) })
   const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
   return { status: res.status, json: j, text: t }
 }
@@ -130,6 +135,16 @@ console.log('\n══════════ the forked lead inbox ════
   check('/inbound/email from the Factory → 201', (await send('/api/leads/inbound/email', email, { ...JSONH, 'X-Factory-Key': FACTORY_KEY })).status === 201)
   check('/inbound/webhook with the source secret → 201', (await send('/api/leads/inbound/webhook/weedmaps', '{"name":"Real"}', { ...JSONH, 'x-webhook-secret': 'wm-secret' })).status === 201)
   check('two leads filed', (await leads()) === n0 + 2)
+}
+
+console.log('\n══════════ the lead email address handed out is the one the Factory routes (10/16) ══════════')
+{
+  process.env.TENANT_ID = '12345678-90ab-cdef-1234-567890abcdef'
+  const made = await api('POST', '/api/leads/sources', { platform: 'leafly', label: 'Leafly' })
+  check('a new source is handed {tenantId}-leads-{platform}@parse.twomiah.com', made.status === 201 && made.json?.inboundEmail === '1234567890abcdef1234567890abcdef-leads-leafly@parse.twomiah.com', made.json)
+  const list = await api('GET', '/api/leads/sources')
+  const wm = (list.json?.data || []).find((s: any) => s.platform === 'weedmaps')
+  check('an existing source is re-addressed when the list is read', wm?.inboundEmail === '1234567890abcdef1234567890abcdef-leads-weedmaps@parse.twomiah.com', wm)
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

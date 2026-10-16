@@ -24,6 +24,12 @@ export interface IntegrationsConfig {
   copy?: { quickbooks?: string; sms?: string; email?: string; intro?: string }
   /** Setup guides shown under "Lead Sources"; default = the trades set (Angi, Thumbtack, Google LSA). */
   leadSources?: LeadSourceGuide[]
+  /**
+   * Show the CallRail signing-key panel (CallTrackingSettings) here — for a template whose call tracking has no
+   * page of its own. Rendered only when the tenant has the Call Tracking feature (the API's own switch) and the
+   * person holds integrations:update (the API's own right). Templates WITH a Call Tracking page carry it there.
+   */
+  callTracking?: boolean
 }
 
 export interface ImportTypeDef {

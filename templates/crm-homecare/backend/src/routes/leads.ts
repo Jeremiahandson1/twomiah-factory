@@ -8,7 +8,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
-import { verifyFactoryKey, readInboundBody } from '../shared/index.ts'
+import { verifyFactoryKey, readInboundBody, leadInboundAddress } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -100,13 +100,23 @@ app.get('/sources', async (c) => {
   const sources = await db.select().from(leadSource)
     .where(eq(leadSource.companyId, currentUser.companyId))
     .orderBy(desc(leadSource.createdAt))
+  // Rows made before 10/16 carry leads+…@inbound.twomiah.com, a domain with no DNS — re-address them so the page shows
+  // an address that delivers (the shared module heals its rows the same way).
+  for (const src of sources as any[]) {
+    const want = leadInboundAddress(src.companyId, src.platform)
+    if (src.platform && src.inboundEmail !== want) {
+      await db.update(leadSource).set({ inboundEmail: want, updatedAt: new Date() } as any).where(eq(leadSource.id, src.id))
+      src.inboundEmail = want
+    }
+  }
   return c.json({ data: sources })
 })
 
 app.post('/sources', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
-  const inboundEmail = `leads+${currentUser.companyId.slice(0, 8)}-${body.platform}@inbound.twomiah.com`
+  // The address the Factory routes (parse.twomiah.com → /inbound-parse → /inbound/email), as the shared module hands out.
+  const inboundEmail = leadInboundAddress(currentUser.companyId, body.platform)
   // Inbound leads carry PHI (names, phones, care needs) — never hand out a
   // cleartext http:// endpoint. Prefer the configured public URL, and force https.
   const base = (process.env.FRONTEND_URL || process.env.PUBLIC_URL || c.req.url.replace(/\/api\/leads\/sources$/, ''))

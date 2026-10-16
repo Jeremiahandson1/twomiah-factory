@@ -443,7 +443,8 @@ export const jobNote = pgTable('job_note', {
 export const smsMessage = pgTable('sms_message', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
-  contactId: text('contact_id').notNull().references(() => contact.id),
+  // Nullable (0020): a text from a number in no contact is kept, unlinked, and linked when that number's contact is read.
+  contactId: text('contact_id').references(() => contact.id),
   jobId: text('job_id').references(() => job.id),
   direction: text('direction').notNull(),
   body: text('body').notNull(),

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useMayWrite } from '../../shared'
+import { useMayWrite, usePermissions, CallTrackingSettings } from '../../shared'
 import { useAuth } from '../../contexts/AuthContext'
 import { format } from 'date-fns'
 import api from '../../services/api'
@@ -78,6 +78,8 @@ export default function AIReceptionistPage() {
   // day-to-day work. Confirmed live: a manager gets 403 from PUT /settings. (T42)
   const mayWriteReceptionist = useMayWrite('ai-receptionist:update');
   const mayRemoveRule = useMayWrite('ai-receptionist:delete');
+  const { known: permsKnown, can } = usePermissions();
+  const maySetUpCallRail = permsKnown && can('integrations:update');
   const { token } = useAuth()
 
   const [tab, setTab] = useState<'rules' | 'calls' | 'settings'>('rules')
@@ -492,6 +494,14 @@ export default function AIReceptionistPage() {
           >
             {saving ? 'Saving...' : 'Save Settings'}
           </button>)}
+        </div>
+      )}
+
+      {/* The CallRail signing key. Roof has no Call Tracking page — /api/calltracking rides the AI Receptionist switch
+          (index.ts), and this page is that switch's screen. Owner + admins: integrations:update, the API's own right. */}
+      {tab === 'settings' && maySetUpCallRail && (
+        <div className="max-w-2xl mt-6">
+          <CallTrackingSettings />
         </div>
       )}
 

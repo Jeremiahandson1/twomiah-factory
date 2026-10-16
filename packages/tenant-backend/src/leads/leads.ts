@@ -118,6 +118,24 @@ export async function insertLead(db: any, leadTable: any, o: { companyId: string
   return row
 }
 
+/**
+ * The lead-source email address this tenant hands out — the one address the Factory routes.
+ *
+ * Mail to {factoryTenantId-without-dashes}-leads-{platform}@parse.twomiah.com reaches SendGrid Inbound Parse
+ * (MX parse.twomiah.com), which posts it to the Factory's /inbound-parse/:secret; that router reads the tenant from
+ * the 32-hex local-part prefix and `leads-<platform>` from the rest, and posts {platform, …} with X-Factory-Key to
+ * this tenant's /api/leads/inbound/email (apps/api/src/routes/factory/lifecycle.ts; docs/lead-inbox-setup.md).
+ * ONE builder for the shared module and the three forks (crm-dispensary, crm-homecare, crm-roof), which handed out
+ * leads+{companyId[0..8]}-{platform}@inbound.twomiah.com — a domain with no DNS, so no lead email ever arrived.
+ *
+ * Falls back to the company id only where TENANT_ID is unset (local dev) — there the Factory isn't in the path anyway.
+ */
+export function leadInboundAddress(companyId: string, platform: string, env: Record<string, string | undefined> = process.env, domain?: string): string {
+  const host = domain || env.INBOUND_PARSE_HOSTNAME || 'parse.twomiah.com'
+  const tenantKey = String(env.TENANT_ID || companyId).replace(/-/g, '').toLowerCase()
+  return `${tenantKey}-leads-${platform}@${host}`
+}
+
 export function createLeadsRoutes(deps: LeadsDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, audit } = deps
   const env = deps.env || process.env
@@ -127,10 +145,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   const maxLimit = deps.options?.maxLimit || 100
   const app = new Hono()
 
-  // The Factory's /inbound-parse router identifies the tenant from the full FACTORY tenant id (dashes stripped, 32 hex).
-  // Falls back to the company id only where TENANT_ID is unset (local dev) — there the Factory isn't in the path anyway.
-  const inboundTenantKey = (companyId: string) => String(env.TENANT_ID || companyId).replace(/-/g, '').toLowerCase()
-  const inboundAddress = (companyId: string, platform: string) => `${inboundTenantKey(companyId)}-leads-${platform}@${inboundDomain}`
+  const inboundAddress = (companyId: string, platform: string) => leadInboundAddress(companyId, platform, env, inboundDomain)
   // Build from FRONTEND_URL (https, real host). c.req.url is http:// behind Render's TLS-terminating proxy.
   const webhookBase = (c: any) => String(env.FRONTEND_URL || c.req.url.replace(/\/api\/leads\/.*$/, '')).replace(/\/+$/, '').replace(/^http:\/\//, 'https://')
   const webhookUrlFor = (c: any, platform: string) => `${webhookBase(c)}/api/leads/inbound/webhook/${platform}`

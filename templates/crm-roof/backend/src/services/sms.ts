@@ -1,7 +1,22 @@
 import { db } from '../../db/index.ts'
 import { reportSmsUsage, walletSufficient } from './messagingUsage'
 import { smsMessage, contact, company } from '../../db/schema.ts'
-import { eq } from 'drizzle-orm'
+import { eq, and, isNull, sql } from 'drizzle-orm'
+
+/**
+ * Texts that arrived from this contact's number before it belonged to a contact (contact_id null) are filed under the
+ * contact — matched on the last ten digits of mobile or phone, the rule the inbound webhook matches on. Only unlinked
+ * inbound rows, only on a match, so it writes once per stray text.
+ */
+export async function linkUnknownTexts(companyId: string, c: { id: string; mobilePhone?: string | null; phone?: string | null }) {
+  const tails = [c.mobilePhone, c.phone].map((p) => String(p || '').replace(/\D/g, '').slice(-10)).filter((d) => d.length >= 7)
+  if (!tails.length) return
+  const digitsOf = sql`regexp_replace(${smsMessage.fromNumber}, '\\D', '', 'g')`
+  for (const tail of Array.from(new Set(tails))) {
+    await db.update(smsMessage).set({ contactId: c.id })
+      .where(and(eq(smsMessage.companyId, companyId), isNull(smsMessage.contactId), eq(smsMessage.direction, 'inbound'), sql`${digitsOf} like ${'%' + tail}`))
+  }
+}
 
 export async function sendSms(companyId: string, contactId: string, body: string, jobId?: string) {
   const [comp] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)

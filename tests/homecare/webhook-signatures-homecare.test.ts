@@ -9,7 +9,7 @@ import { Hono } from 'hono'
 import { readFileSync } from 'node:fs'
 import { setupSchema } from './setup.ts'
 import { db } from './db/index.ts'
-import { agencies, users, lead, leadSource } from './db/schema.ts'
+import { agencies, users, lead, leadSource, clients, timeEntries } from './db/schema.ts'
 import { eq, sql } from 'drizzle-orm'
 import { twilioSignatureFor, callRailSignatureFor } from './src/shared/index.ts'
 
@@ -29,6 +29,7 @@ const app = new Hono()
 app.route('/api/calltracking', (await import('./src/routes/calltracking.ts')).default)
 app.route('/api/ai-receptionist', (await import('./src/routes/aiReceptionist.ts')).default)
 app.route('/api/leads', (await import('./src/routes/leads.ts')).default)
+app.route('/api/ivr', (await import('./src/routes/ivr.ts')).default)
 
 process.env.NODE_ENV = 'production'
 delete process.env.TWILIO_AUTH_TOKEN
@@ -121,6 +122,47 @@ console.log('\n══════════ the forked lead inbox: /inbound/em
   check('nothing filed', (await leads()) === n1)
   const good = await send('/api/leads/inbound/webhook/care_com', JSON.stringify({ name: 'Real Lead', phone: '6085550111' }), { 'content-type': 'application/json', 'x-webhook-secret': src.webhookSecret })
   check('the source\'s secret → 201 and filed', good.status === 201 && (await leads()) === n1 + 1, { status: good.status, body: good.text })
+}
+
+console.log('\n══════════ the lead email address handed out is the one the Factory routes (10/16) ══════════')
+{
+  // {factoryTenantId-without-dashes}-leads-{platform}@parse.twomiah.com → SendGrid Inbound Parse → Factory
+  // /inbound-parse (reads the 32-hex prefix and `leads-<platform>`) → this tenant's /inbound/email.
+  process.env.TENANT_ID = '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0'
+  const want = (p: string) => `0f1e2d3c4b5a69788796a5b4c3d2e1f0-leads-${p}@parse.twomiah.com`
+  const made = await as(owner)('POST', '/api/leads/sources', { platform: 'caring_com', label: 'Caring.com' })
+  check('a new source is handed the routed address', made.status === 201 && made.json?.inboundEmail === want('caring_com'), made.json)
+  check('…not the dead leads+…@inbound.twomiah.com', !String(made.json?.inboundEmail || '').includes('inbound.twomiah.com'))
+  const [dead] = await db.insert(leadSource).values({ platform: 'aplace', label: 'A Place for Mom', enabled: true, webhookSecret: 'x-dead', inboundEmail: `leads+${ag.id.slice(0, 8)}-aplace@inbound.twomiah.com`, companyId: ag.id } as any).returning()
+  const list = await as(owner)('GET', '/api/leads/sources')
+  const healed = (list.json?.data || []).find((s: any) => s.id === dead.id)
+  check('a source made with the dead address is re-addressed when the list is read', healed?.inboundEmail === want('aplace'), healed)
+  const [stored] = await db.select().from(leadSource).where(eq(leadSource.id, dead.id))
+  check('…and the fix is stored, not only shown', stored.inboundEmail === want('aplace'), stored.inboundEmail)
+}
+
+console.log('\n══════════ IVR (/api/ivr/*): Twilio-signed, not under /webhook/ (10/16) ══════════')
+{
+  const [cl] = await db.insert(clients).values({ firstName: 'Ivr', lastName: 'Client', ivrCode: '731', phone: '715-555-0100', address: '1 Main St', city: 'Town', state: 'WI', zip: '54701' } as any).returning()
+  const entries = async () => (await db.select().from(timeEntries).where(eq(timeEntries.clientId, cl.id))).length
+  const path = `/api/ivr/clock-in?caregiverId=${caregiver.id}`
+  const p = { Digits: '731', From: '+17155550101', CallSid: 'CA-ivr-1' }
+  const ivr = (url: string, headers: Record<string, string> = {}) => app.request(url, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers }, body: form(p) })
+  const u = await ivr(path)
+  check('unsigned → 403 in production (it was skipped whenever TWILIO_AUTH_TOKEN was unset)', u.status === 403, { status: u.status })
+  const f = await ivr(path, { 'x-twilio-signature': twilioSignatureFor('not-the-token', `http://localhost${path}`, p) })
+  check('signed with another token → 403', f.status === 403)
+  check('…no clock-in written', (await entries()) === 0)
+  // Render: Twilio signed the public https URL; the request reaches the app as http on the internal port.
+  const sig = twilioSignatureFor(TOKEN, `https://care.example.com${path}`, p)
+  const ok = await ivr(`http://care.example.com:10000${path}`, { host: 'care.example.com', 'x-forwarded-proto': 'https', 'x-twilio-signature': sig })
+  const okText = await ok.text()
+  check('signed for the public https URL, received behind the proxy → 200 (the old check compared c.req.url)', ok.status === 200 && /clocked in/i.test(okText), { status: ok.status, body: okText.slice(0, 200) })
+  check('…and the caregiver is clocked in once', (await entries()) === 1)
+  await db.update(agencies).set({ twilioAuthToken: null, twilioAccountSid: null } as any).where(eq(agencies.id, ag.id))
+  const none = await ivr(path, { 'x-twilio-signature': sig })
+  check('no Twilio token anywhere, in production → refused, never skipped', none.status === 403, { status: none.status })
+  await db.update(agencies).set({ twilioAuthToken: TOKEN, twilioAccountSid: 'AC' + '1'.repeat(32) } as any).where(eq(agencies.id, ag.id))
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

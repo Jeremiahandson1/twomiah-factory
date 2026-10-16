@@ -37,6 +37,10 @@ export async function verifyPlaidWebhook(rawBody: string, jwt: string | undefine
   let jwk: any
   try { jwk = await fetchKey(String(header.kid)) } catch { return { ok: false, reason: 'could not fetch the Plaid verification key' } }
   if (!jwk) return { ok: false, reason: 'unknown Plaid verification key' }
+  // /webhook_verification_key/get answers expired_at (Unix seconds, null while the key is live). A key Plaid has
+  // retired verifies nothing from then on: a signature under it after that moment is refused.
+  const expiredAt = jwk.expired_at === null || jwk.expired_at === undefined ? null : Number(jwk.expired_at)
+  if (expiredAt !== null && (!Number.isFinite(expiredAt) || expiredAt <= nowMs / 1000)) return { ok: false, reason: 'Plaid verification key has expired' }
   let valid = false
   try {
     const key = crypto.createPublicKey({ key: { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y }, format: 'jwk' })

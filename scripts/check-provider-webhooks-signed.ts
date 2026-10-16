@@ -11,8 +11,10 @@
  * 200 to the provider AND to everyone else.
  *
  * THE RULE: a write route (POST / PUT / PATCH / ALL) whose full path has a `webhook` or `webhooks`
- * segment must call a recognised verifier in its handler (or in a router-level .use() registered
- * before it), and the verifier must come BEFORE the handler's first write. Recognised:
+ * segment — or whose handler reads Twilio's request params (CallSid, Digits, …) or answers TwiML, wherever
+ * it is mounted (homecare's /api/ivr/*, 10/16) — must call a recognised verifier in its handler (or in a
+ * router-level .use() registered before it), and the verifier must come BEFORE the handler's first write.
+ * A LOCAL Twilio check must call the shared verifyTwilioRequest underneath. Recognised:
  *
  *   verifyTwilioRequest · verifyCallRailSignature · verifyPlaidWebhook · verifyWebhookSecret ·
  *   verifyFactoryKey   — packages/tenant-backend (tests/shared/webhook-signatures.test.ts)
@@ -61,7 +63,17 @@ const ALLOW: Record<string, string> = {
 }
 
 const VERIFIER = /\b(verifyTwilioRequest|verifyCallRailSignature|verifyPlaidWebhook|verifyWebhookSecret|verifyFactoryKey|constructEvent|constructEventAsync|constructWebhookEvent|verifyAndParseWebhook|verifyWisetackWebhook|verifyWebhook|validateTwilioSignature)\s*\(/g
-const LOCAL_MUST_COMPARE = /timingSafeEqual|createHmac|webhooks\.constructEvent(?:Async)?\(|verifyTwilioRequest\(|verifyCallRailSignature\(|verifyWebhookSecret\(|verifyFactoryKey\(/
+const VERIFIER_NAME = new RegExp(VERIFIER.source.replace(/\\s\*\\\($/, '\\b'), 'g')
+/**
+ * …and a route Twilio calls that is NOT under /webhook/ — homecare's IVR (/api/ivr/voice, /verify-pin, /clock-in …)
+ * skipped its own check in production whenever TWILIO_AUTH_TOKEN was unset. A write route whose handler reads
+ * Twilio's request params or answers TwiML is a Twilio webhook whatever its path, and is held to the same rule. (10/16)
+ */
+// A Twilio param READ (body.Digits, payload['CallSid'], { CallSid } = …) or TwiML in a string — in code, not in a comment
+// ("Digits, and enough of them to be a phone number" is a comment in dispensary's company route).
+const TWILIO_SHAPE = /(?:[.'"`[{,]\s*)(CallSid|MessageSid|SmsSid|RecordingSid|RecordingUrl|CallStatus|MessageStatus|Digits)\b|<Response[\s>]/
+const withoutComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s;{}(),])\/\/.*$/gm, '$1')
+const LOCAL_MUST_COMPARE =/timingSafeEqual|createHmac|webhooks\.constructEvent(?:Async)?\(|verifyTwilioRequest\(|verifyCallRailSignature\(|verifyWebhookSecret\(|verifyFactoryKey\(/
 const WRITE = /\bdb\s*\.\s*(insert|update|delete)\s*\(|\bdb\s*\.\s*execute\s*\(\s*sql`\s*(INSERT|UPDATE|DELETE)\b|\.handle\w*\s*\(|\blogCall\s*\(|\bevaluateRules\s*\(|\bprocess\w*Webhook\s*\(/i
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'ALL'])
 
@@ -193,24 +205,30 @@ function judge(files: Files): { findings: Finding[]; seen: number; stale: string
       const routePath = pm[2]
       for (const prefix of prefixes) {
         const full = (prefix + (routePath === '/' ? '' : routePath)) || '/'
-        if (!isWebhookPath(full)) continue
-        seen++
-        const key = `${owner} ${methods.join('|')} ${full}`
-        if (ALLOW[key]) { used.add(key); findings.push({ key, ok: true, why: `allowed: ${ALLOW[key]}` }); continue }
         // The handler: the registration's own text, plus the definition of a handler passed by name.
         let text = pm[3]
         const named = /,?\s*(\w+)\s*$/.exec(pm[3].trim()) ? /(\w+)\s*$/.exec(pm[3].trim())?.[1] : undefined
         if (named && !/^(c|async)$/.test(named)) text += '\n' + definitionOf(src, named)
+        if (!isWebhookPath(full) && !TWILIO_SHAPE.test(withoutComments(text))) continue
+        seen++
+        const key = `${owner} ${methods.join('|')} ${full}`
+        if (ALLOW[key]) { used.add(key); findings.push({ key, ok: true, why: `allowed: ${ALLOW[key]}` }); continue }
         const before = uses.filter((u) => u.at < m!.index).map((u) => u.text).join('\n')
-        const calls = Array.from((before + '\n' + text).matchAll(VERIFIER)).map((v) => v[1])
+        // In the handler a verifier is CALLED; on a router-level .use() it is passed by name (app.use('*', validateX)).
+        const calls = [...Array.from(before.matchAll(VERIFIER_NAME)), ...Array.from(text.matchAll(VERIFIER))].map((v) => v[1])
         if (!calls.length) { findings.push({ key, ok: false, why: 'calls no recognised verifier — anyone can post to it' }); continue }
         // A verifier defined in THIS file must actually compare something.
         const hollow = calls.filter((n) => { const d = definitionOf(src, n); return d && !LOCAL_MUST_COMPARE.test(d.replace(/^[^{]*\{/, '')) })
         if (hollow.length === calls.length) { findings.push({ key, ok: false, why: `its verifier ${hollow[0]}() is defined here and compares nothing` }); continue }
+        // A LOCAL Twilio check must be the shared one underneath. homecare's IVR had its own HMAC — which compares
+        // something, so the rule above passed it — and skipped itself outside production and whenever the token was
+        // unset, and compared against c.req.url, which Render's proxy rewrites. verifyTwilioRequest owns that policy.
+        const ownTwilio = calls.filter((n) => /twilio/i.test(n) && n !== 'verifyTwilioRequest' && definitionOf(src, n) && !/verifyTwilioRequest\(/.test(definitionOf(src, n)))
+        if (ownTwilio.length) { findings.push({ key, ok: false, why: `its Twilio check ${ownTwilio[0]}() is hand-rolled — call the shared verifyTwilioRequest (proxy URL forms, no skip in production)` }); continue }
         // Verify first: in the handler text, the first verifier call comes before the first write.
         const vAt = text.search(VERIFIER) === -1 ? -1 : text.search(new RegExp(VERIFIER.source))
         const wAt = text.search(WRITE)
-        if (vAt !== -1 && wAt !== -1 && wAt < vAt && !before.match(VERIFIER)) { findings.push({ key, ok: false, why: 'writes before it verifies' }); continue }
+        if (vAt !== -1 && wAt !== -1 && wAt < vAt && !before.match(VERIFIER_NAME)) { findings.push({ key, ok: false, why: 'writes before it verifies' }); continue }
         findings.push({ key, ok: true, why: `verified: ${Array.from(new Set(calls)).join(', ')}` })
       }
     }
@@ -230,7 +248,7 @@ for (const f of real.findings.filter((x) => !x.ok)) fail(`${f.key} — ${f.why}`
 for (const k of real.stale) fail(`ALLOW entry "${k}" names no webhook route any more — remove it`)
 for (const u of real.unreadable) fail(`a webhook registration the walk cannot read (path is not a literal): ${u}`)
 if (real.seen < 60) fail(`only ${real.seen} webhook routes found — the walk is broken, not the code`)
-const must = ['crm POST /api/calltracking/webhook/callrail/:companyId', 'crm-homecare POST /api/ai-receptionist/webhook/status/:agencyId', 'crm-dispensary POST /api/pay-by-bank/webhook', 'crm-roof POST /api/sms/webhook', 'crm-store POST /api/public/webhooks/payment', 'packages/tenant-backend POST /webhook/incoming']
+const must = ['crm POST /api/calltracking/webhook/callrail/:companyId', 'crm-homecare POST /api/ai-receptionist/webhook/status/:agencyId', 'crm-dispensary POST /api/pay-by-bank/webhook', 'crm-roof POST /api/sms/webhook', 'crm-store POST /api/public/webhooks/payment', 'packages/tenant-backend POST /webhook/incoming', 'crm-homecare POST /api/ivr/clock-in']
 for (const k of must) if (!real.findings.some((f) => f.key === k)) fail(`the walk did not see ${k}`)
 if (real.findings.some((f) => /\/webhook\/:provider\//.test(f.key))) fail('a catch-all /webhook/:provider/ route is back')
 
@@ -259,10 +277,21 @@ const m5 = failsWith('templates/crm-dispensary/backend/src/routes/marketplace.ts
 selfTest('app.on([\'POST\'], …) is seen, and the marketplace webhook without its secret check fails', m5.includes('crm-dispensary POST /api/marketplace/webhook/:partnerId'), m5)
 const m6 = failsWith('packages/tenant-backend/src/integrations/sms.ts', (s) => s.replace("app.post('/webhook/status', async (c) => {\n    const params = await parseTwilioBody(c)\n    const v = verifyTwilioRequest(c, params, await tokenFor(params))", "app.post('/webhook/status', async (c) => {\n    const params = await parseTwilioBody(c)\n    const v = { ok: true } as any"))
 selfTest('the shared package is walked too (SMS status webhook without its verify fails)', m6.includes('packages/tenant-backend POST /webhook/status'), m6)
+// Twilio routes that are NOT under /webhook/ — homecare's IVR (10/16)
+const IVR = 'templates/crm-homecare/backend/src/routes/ivr.ts'
+const IVR_KEYS = ['crm-homecare POST /api/ivr/voice', 'crm-homecare POST /api/ivr/verify-pin', 'crm-homecare POST /api/ivr/clock-in', 'crm-homecare POST /api/ivr/clock-out']
+const m7 = failsWith(IVR, (s) => s.replace("app.use('*', validateTwilioSignature)\n", ''))
+selfTest('the IVR without its router-level signature check fails every IVR route', IVR_KEYS.every((k) => m7.includes(k)), m7)
+const m8 = failsWith(IVR, (s) => s.replace(/async function validateTwilioSignature\(c: Context, next: Next\) \{[\s\S]*?\n\}\n/, "async function validateTwilioSignature(c: Context, next: Next) {\n  if (process.env.NODE_ENV !== 'production') return next()\n  const authToken = process.env.TWILIO_AUTH_TOKEN\n  if (!authToken) return next()\n  const sig = c.req.header('X-Twilio-Signature')\n  const expected = createHmac('sha1', authToken).update(c.req.url).digest('base64')\n  if (sig !== expected) return c.body('', 403)\n  return next()\n}\n"))
+selfTest('the IVR\'s old hand-rolled HMAC (skips without a token, no proxy forms) fails', IVR_KEYS.every((k) => m8.includes(k)), m8)
+const m9 = failsWith('templates/crm-roof/backend/src/routes/sms.ts', (s) => s.replace('\nexport default app', "\nconst voice = app\nvoice.post('/voice-planted', async (c) => { const b = await c.req.parseBody(); return c.text(String(b.CallSid)) })\nexport default app"))
+selfTest('a Twilio-shaped route outside /webhook/ (reads CallSid), through an alias, is seen and fails', m9.includes('crm-roof POST /api/sms/voice-planted'), m9)
+const m10 = failsWith('templates/crm-roof/backend/src/routes/sms.ts', (s) => s.replace('\nexport default app', "\napp.post('/twiml-planted', (c) => c.text('<Response><Say>hi</Say></Response>'))\nexport default app"))
+selfTest('a route that answers TwiML outside /webhook/ is seen and fails', m10.includes('crm-roof POST /api/sms/twiml-planted'), m10)
 
 console.log(
   failures
     ? `\nprovider-webhooks-signed: ${failures} problem(s)`
-    : `provider-webhooks-signed: ok — ${real.seen} webhook route(s) across ${new Set(real.findings.map((f) => f.key.split(' ')[0])).size} templates/packages verify the sender first (${Object.keys(ALLOW).length} allow-listed with a reason); 6 self-mutations caught`,
+    : `provider-webhooks-signed: ok — ${real.seen} webhook route(s) across ${new Set(real.findings.map((f) => f.key.split(' ')[0])).size} templates/packages verify the sender first (${Object.keys(ALLOW).length} allow-listed with a reason); 10 self-mutations caught`,
 )
 process.exit(failures ? 1 : 0)

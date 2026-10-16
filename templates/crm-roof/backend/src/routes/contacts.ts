@@ -114,6 +114,7 @@ app.get('/:id', async (c) => {
 
   const [foundContact] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!foundContact) return c.json({ error: 'Contact not found' }, 404)
+  await linkUnknownTexts(currentUser.companyId, foundContact)
 
   const [contactJobs, smsThread] = await Promise.all([
     db.select().from(job).where(and(eq(job.contactId, id), eq(job.companyId, currentUser.companyId))).orderBy(desc(job.createdAt)),
