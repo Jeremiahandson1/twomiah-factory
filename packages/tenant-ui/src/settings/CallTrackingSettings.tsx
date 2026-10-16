@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 // Call Tracking › Settings — where the owner pastes the CallRail webhook signing key.
 //
@@ -15,6 +16,8 @@ interface CallTrackingSettingsData {
 }
 
 export function CallTrackingSettings(): React.ReactElement {
+  // PUT /api/calltracking/settings asks integrations:update (homecare: requireAdmin, and it mounts no provider → yes).
+  const mayWrite = useMayWrite('integrations:update')
   const [data, setData] = useState<CallTrackingSettingsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refused, setRefused] = useState(false)
@@ -47,7 +50,7 @@ export function CallTrackingSettings(): React.ReactElement {
   }
 
   if (loading) return <div className="py-12 text-center text-sm text-gray-500 dark:text-slate-400">Loading…</div>
-  if (refused) return <div className="p-6 text-sm text-gray-600 dark:text-slate-300">Only the owner and admins can change call tracking settings.</div>
+  if (refused || !mayWrite) return <div className="p-6 text-sm text-gray-600 dark:text-slate-300">Only the owner and admins can change call tracking settings.</div>
 
   const isSet = !!data?.callrailSigningKeySet
   return (

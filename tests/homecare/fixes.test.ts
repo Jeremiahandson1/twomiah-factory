@@ -255,7 +255,8 @@ await insEntry('te_cg1_served', cg1.id, served.id)
       && /medicalNotes: formData\.medicalNotes \|\| null/.test(m) && /carePreferences: formData\.carePreferences \|\| null/.test(m))
   check('4. the columns are in schema.ts and the 0023 migration (journal idx 22, after 0022)',
     /medicalNotes: text\('medical_notes'\)/.test(src('backend/db/schema.ts')) && /care_preferences/.test(src('backend/db/migrations/0023_fixes.sql'))
-      && JSON.parse(src('backend/db/migrations/meta/_journal.json')).entries.slice(-2).map((e: any) => `${e.idx}:${e.tag}`).join() === '21:0022_integration,22:0023_fixes')
+      // the pair, wherever it sits — a later migration (0024_callrail_signing_key, 10/15) follows it
+      && ((es: any[]) => { const i = es.findIndex((e) => e.tag === '0023_fixes'); return i > 0 && `${es[i - 1].idx}:${es[i - 1].tag},${es[i].idx}:${es[i].tag}` === '21:0022_integration,22:0023_fixes' })(JSON.parse(src('backend/db/migrations/meta/_journal.json')).entries))
 }
 
 // ══ 5. my-shifts: dated visits from the one engine ═══════════════════════════════════════════════
