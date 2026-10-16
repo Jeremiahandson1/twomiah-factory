@@ -230,7 +230,7 @@ export default function CareTasksManager({ client, onClose }: { client: any; onC
                           return (
                             <tr key={t.task_id} className={`border-t border-amber-200 dark:border-amber-800 ${flag ? 'bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-100' : ''}`}>
                               <td className="px-1.5 py-1 font-semibold">{t.task_name}</td>
-                              <td>{t.cadence === 'weekly' ? '🗓️ Weekly' : '📅 Daily'}</td>
+                              <td>{t.cadence === 'weekly' ? '🗓️ Set times a week' : '📅 Every visit'}</td>
                               <td className="text-right font-bold">{completed}</td>
                               <td className="text-right">{skipped}</td>
                               <td className="text-right">{refused}</td>
@@ -348,9 +348,10 @@ export default function CareTasksManager({ client, onClose }: { client: any; onC
               <input aria-label="Minutes per task" inputMode="numeric" placeholder="Min/task" value={form.allottedMinutes} onChange={(e) => setForm({ ...form, allottedMinutes: e.target.value })} className={inp} />
             </div>
             <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '1fr 1fr 2fr 1fr' }}>
-              <select aria-label="Cadence" value={form.cadence} onChange={(e) => setForm({ ...form, cadence: e.target.value })} className={inp} title="Daily = every shift; Weekly = once per week">
-                <option value="daily">📅 Daily</option>
-                <option value="weekly">🗓️ Weekly</option>
+              {/* Values stay 'daily' / 'weekly' (stored cadence); the words say what they mean. */}
+              <select aria-label="How often" value={form.cadence} onChange={(e) => setForm({ ...form, cadence: e.target.value })} className={inp} title="Every visit = done on each scheduled visit; Set times a week = the number you enter">
+                <option value="daily">📅 Every visit</option>
+                <option value="weekly">🗓️ Set times a week</option>
               </select>
               <input aria-label="Times per week" inputMode="numeric" placeholder="x / week" value={form.weeklyFrequency} onChange={(e) => setForm({ ...form, weeklyFrequency: e.target.value })} className={inp} />
               <input aria-label="Days" placeholder="Days (e.g. Mon,Wed,Fri or Daily)" value={form.daysOfWeek} onChange={(e) => setForm({ ...form, daysOfWeek: e.target.value })} className={inp} />
@@ -362,7 +363,7 @@ export default function CareTasksManager({ client, onClose }: { client: any; onC
             </div>
             {form.cadence === 'daily' && (
               <div className="mb-2 text-xs text-gray-600 dark:text-slate-300">
-                A daily task is done on every visit, so it counts once per scheduled visit in the minutes per week. "Times per week" is used only while the client has no visits scheduled.
+                Done on every visit, so it counts once per scheduled visit in the minutes per week. "Times per week" is used only while the client has no visits scheduled.
               </div>
             )}
             <textarea aria-label="Description" placeholder="Optional description / instructions" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className={`w-full mb-2 ${inp}`} />
@@ -387,7 +388,7 @@ export default function CareTasksManager({ client, onClose }: { client: any; onC
                     <div className="font-semibold text-sm">{t.task_name}</div>
                     {t.description && <div className="text-xs mt-0.5 text-gray-500 dark:text-slate-400">{t.description}</div>}
                     <div className="text-xs mt-1 text-gray-500 dark:text-slate-400">
-                      <b className={t.cadence === 'weekly' ? 'text-violet-700 dark:text-violet-300' : 'text-blue-700 dark:text-blue-300'}>{t.cadence === 'weekly' ? '🗓️ Weekly' : '📅 Daily'}</b>
+                      <b className={t.cadence === 'weekly' ? 'text-violet-700 dark:text-violet-300' : 'text-blue-700 dark:text-blue-300'}>{t.cadence === 'weekly' ? '🗓️ Set times a week' : '📅 Every visit'}</b>
                       {' · '}{CATEGORIES.find(c => c.value === t.category)?.label || t.category}
                       {' · '}{t.times_per_week}×/wk{t.every_visit ? ' (every visit)' : ''} × {t.allotted_minutes} min = <b>{t.minutes_per_week} min/wk</b>
                       {t.days_of_week ? ` · ${t.days_of_week}` : ''}

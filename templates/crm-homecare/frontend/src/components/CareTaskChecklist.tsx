@@ -150,7 +150,7 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
       {error && <div className="mb-2 px-3 py-2 rounded-md text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200">{error}</div>}
       {daily.length > 0 && (
         <div className={weekly.length ? 'mb-3' : ''}>
-          <div className={header}>📅 Daily</div>
+          <div className={header}>📅 Every visit</div>
           <div className="flex flex-col gap-1.5">{daily.map(renderItem)}</div>
         </div>
       )}
