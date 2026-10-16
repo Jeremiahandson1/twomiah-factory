@@ -6,7 +6,7 @@ import EditClientModal from './EditClientModal';
 import CareTasksManager from './CareTasksManager';
 import ClientReportModal from './ClientReportModal';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatDate } from '../../utils/date';
+import { formatDate, toLocalYMD } from '../../utils/date';
 
 // AddressLink component - opens Google Maps
 const AddressLink = ({ address, city, state, zip }) => {
@@ -327,7 +327,7 @@ const ClientsManagement = () => {
               </div>
               <div className="form-group">
                 <label>Date of Birth</label>
-                <input type="date" max={new Date().toISOString().split('T')[0]} value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} />
+                <input type="date" max={toLocalYMD(new Date())} value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} />
               </div>
               <div className="form-group">
                 <label>Gender</label>

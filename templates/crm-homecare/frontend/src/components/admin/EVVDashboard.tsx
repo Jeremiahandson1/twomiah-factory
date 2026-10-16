@@ -4,6 +4,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { parseLocalDate } from '../../utils/date';
 
 const parseDate = (dateStr) => {
   if (!dateStr) return null;
@@ -16,7 +17,7 @@ const parseDate = (dateStr) => {
     const [year, month, day] = datePart.split('-').map(Number);
     return new Date(year, month - 1, day);
   }
-  return new Date(dateStr);
+  return parseLocalDate(dateStr);
 };
 
 const formatDate = (dateStr) => {
@@ -27,7 +28,7 @@ const formatDate = (dateStr) => {
 
 const formatTime = (dateStr) => {
   if (!dateStr) return '—';
-  const d = new Date(dateStr);
+  const d = parseLocalDate(dateStr);
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 };

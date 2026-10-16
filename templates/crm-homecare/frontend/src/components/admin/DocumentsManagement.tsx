@@ -1,5 +1,5 @@
 import { confirm } from '../ConfirmModal';
-import { formatDate } from '../../utils/date';
+import { formatDate, parseLocalDate } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/DocumentsManagement.jsx
 import React, { useState, useEffect } from 'react';
@@ -312,7 +312,7 @@ const DocumentsManagement = () => {
                   <td>
                     {doc.expiration_date ? (
                       <span style={{ 
-                        color: new Date(doc.expiration_date) < new Date() ? '#f44336' : '#333'
+                        color: parseLocalDate(doc.expiration_date) < new Date() ? '#f44336' : '#333'
                       }}>
                         {formatDate(doc.expiration_date)}
                       </span>

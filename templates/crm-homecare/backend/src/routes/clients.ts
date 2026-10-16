@@ -269,7 +269,19 @@ app.get('/:id/caregiver-view', async (c) => {
      WHERE c.id = ${id}`)
   const row = (r?.rows ?? r)[0]
   if (!row) return c.json({ error: 'Client not found' }, 404)
-  return c.json({ ...row, medical_conditions: listLines(row.medical_conditions), medications: listLines(row.medications), allergies: listLines(row.allergies) })
+  // Medications on file are the client's ACTIVE rows in the medications table (Medications page,
+  // the MAR the caregiver records doses against) — reading only the client record's free-text list
+  // showed "None on file" beside a real medication (Run 3 HIGH 7). Lines typed into Edit Client's
+  // medications box are on file too, so they follow, without repeating a name already listed.
+  const medRes: any = await db.execute(sql`
+    SELECT name, dosage, route, frequency, is_prn FROM medications
+     WHERE client_id = ${id} AND status = 'active' ORDER BY name`)
+  const medRows = (medRes?.rows ?? medRes) as any[]
+  const tableLines = medRows.map((m) => [m.name, m.dosage, m.route, m.frequency].filter(Boolean).join(' · ') + (m.is_prn ? ' (as needed)' : ''))
+  const known = new Set(medRows.map((m) => String(m.name || '').trim().toLowerCase()))
+  const textLines = (listLines(row.medications) || '').split('\n').filter((s) => s && !known.has(s.trim().toLowerCase()))
+  const allMeds = [...tableLines, ...textLines]
+  return c.json({ ...row, medical_conditions: listLines(row.medical_conditions), medications: allMeds.length ? allMeds.join('\n') : null, allergies: listLines(row.allergies) })
 })
 
 // GET /api/clients/:id/visit-notes — notes added on the card AND the notes caregivers write at

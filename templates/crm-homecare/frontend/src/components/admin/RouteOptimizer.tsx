@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { toLocalYMD, parseLocalDate } from '../../utils/date';
 
 const RouteOptimizer = () => {
   const { token } = useAuth();
@@ -16,7 +17,7 @@ const RouteOptimizer = () => {
 
   // ── Route Planner state ─────────────────────────────────────
   const [selectedCaregiver, setSelectedCaregiver] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(toLocalYMD(new Date()));
   const [routeStops, setRouteStops] = useState([]);
   const [optimizedRoute, setOptimizedRoute] = useState(null);
   const [preOptimizeMiles, setPreOptimizeMiles] = useState(null);
@@ -30,7 +31,7 @@ const RouteOptimizer = () => {
   const [existingSavedPlan, setExistingSavedPlan] = useState(null);
 
   // ── Daily view state ────────────────────────────────────────
-  const [dailyDate, setDailyDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dailyDate, setDailyDate] = useState(toLocalYMD(new Date()));
   const [dailyRoutes, setDailyRoutes] = useState([]);
   const [dailyLoading, setDailyLoading] = useState(false);
 
@@ -39,11 +40,11 @@ const RouteOptimizer = () => {
   const [hoursLoading, setHoursLoading] = useState(false);
   const [hoursStartDate, setHoursStartDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - d.getDay());
-    return d.toISOString().split('T')[0];
+    return toLocalYMD(d);
   });
   const [hoursEndDate, setHoursEndDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + (6 - d.getDay()));
-    return d.toISOString().split('T')[0];
+    return toLocalYMD(d);
   });
 
   // ── Saved Routes state ──────────────────────────────────────
@@ -861,9 +862,9 @@ const RouteOptimizer = () => {
       <div style={{ ...s.card, display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
         <div style={s.cardTitle}>📅 Daily Overview</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: 'auto' }}>
-          <button style={s.btnSm('#888')} onClick={() => { const d = new Date(dailyDate); d.setDate(d.getDate() - 1); setDailyDate(d.toISOString().split('T')[0]); }}>◀</button>
+          <button style={s.btnSm('#888')} onClick={() => { const d = parseLocalDate(dailyDate); d.setDate(d.getDate() - 1); setDailyDate(toLocalYMD(d)); }}>◀</button>
           <input type="date" style={{ ...s.input, width: 'auto' }} value={dailyDate} onChange={e => setDailyDate(e.target.value)} />
-          <button style={s.btnSm('#888')} onClick={() => { const d = new Date(dailyDate); d.setDate(d.getDate() + 1); setDailyDate(d.toISOString().split('T')[0]); }}>▶</button>
+          <button style={s.btnSm('#888')} onClick={() => { const d = parseLocalDate(dailyDate); d.setDate(d.getDate() + 1); setDailyDate(toLocalYMD(d)); }}>▶</button>
         </div>
         <div style={{ fontSize: '0.82rem', color: '#666', fontWeight: '600' }}>{dayName(dailyDate)}</div>
       </div>

@@ -272,13 +272,16 @@ const tylerTok = (await login('tyler@test.local', 'tylerpass1')).json.token
 // ── caregivers, background checks, invoices ─────────────────────────────────────
 {
   await db.insert(clientAssignments).values({ clientId: mary.id, caregiverId: caregiver.id, assignmentDate: '2026-09-01', status: 'active' } as any)
-  await db.insert(schedules).values({ clientId: mary.id, caregiverId: cg2.id, dayOfWeek: 2, isActive: true, status: 'active' } as any)
-  await db.insert(schedules).values({ clientId: bob.id, caregiverId: stranger.id, dayOfWeek: 3, isActive: true } as any)
+  // Real visits (times + an effective date): "serving" is read from the next four weeks of visits
+  // through the schedule engine (Run 3), and a schedule row with no times produces no visit.
+  const visitTimes = { startTime: new Date('2026-01-01T09:00:00Z'), endTime: new Date('2026-01-01T11:00:00Z'), effectiveDate: '2026-01-01' }
+  await db.insert(schedules).values({ clientId: mary.id, caregiverId: cg2.id, dayOfWeek: 2, isActive: true, status: 'active', ...visitTimes } as any)
+  await db.insert(schedules).values({ clientId: bob.id, caregiverId: stranger.id, dayOfWeek: 3, isActive: true, ...visitTimes } as any)
   await db.insert(backgroundChecks).values({ caregiverId: cg2.id, checkType: 'criminal', provider: 'State DOJ', status: 'completed', findings: 'SECRET FINDING', notes: 'SECRET NOTE', cost: '25.00', referenceNumber: 'REF-123' } as any)
 
   const r = await bearer(maryTok)('GET', '/api/portal/caregivers')
   const ids = (r.json || []).map((x: any) => x.caregiver_id).sort()
-  check('caregivers = an active assignment OR an active schedule', r.status === 200 && ids.length === 2 && ids.includes(caregiver.id) && ids.includes(cg2.id) && !ids.includes(stranger.id), r.json)
+  check('caregivers = an active assignment OR a visit in the next four weeks', r.status === 200 && ids.length === 2 && ids.includes(caregiver.id) && ids.includes(cg2.id) && !ids.includes(stranger.id), r.json)
   const bc = await bearer(maryTok)('GET', `/api/portal/caregivers/${cg2.id}/background-checks`)
   const s = JSON.stringify(bc.json)
   check('a scheduled caregiver\'s background check shows as a summary', bc.status === 200 && bc.json.length === 1 && bc.json[0].status === 'completed' && bc.json[0].provider === 'State DOJ', bc.json)

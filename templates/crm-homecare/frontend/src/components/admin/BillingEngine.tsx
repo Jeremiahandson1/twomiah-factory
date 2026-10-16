@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL, apiCall } from '../../config';
 import { toast } from '../Toast';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatDate } from '../../utils/date';
+import { formatDate, toLocalYMD } from '../../utils/date';
 
 const money = (n) => `$${(parseFloat(n || 0) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const STATUSES = ['draft', 'pending', 'ready', 'submitted', 'accepted', 'paid', 'denied', 'voided'];
@@ -123,7 +123,7 @@ const ClaimsTab = ({ token }) => {
   };
   const toggle = (id) => setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   const selectAllOpen = () => setSelected(claims.filter(c => ['pending', 'draft', 'ready'].includes(c.status)).map(c => c.id));
-  const day = new Date().toISOString().slice(0, 10);
+  const day = toLocalYMD(new Date());
 
   return (
     <div>

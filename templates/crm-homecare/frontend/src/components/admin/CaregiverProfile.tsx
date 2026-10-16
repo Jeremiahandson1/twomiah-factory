@@ -1,6 +1,6 @@
 // src/components/admin/CaregiverProfile.jsx
 import React, { useState, useEffect } from 'react';
-import { formatDate } from '../../utils/date';
+import { formatDate, parseLocalDate } from '../../utils/date';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -156,14 +156,14 @@ const CaregiverProfile = ({ caregiverId, onBack }) => {
   };
 
   const isExpiringSoon = (expirationDate) => {
-    const expDate = new Date(expirationDate);
+    const expDate = parseLocalDate(expirationDate);
     const today = new Date();
     const daysUntilExpire = Math.floor((expDate - today) / (1000 * 60 * 60 * 24));
     return daysUntilExpire < 90 && daysUntilExpire >= 0;
   };
 
   const isExpired = (expirationDate) => {
-    const expDate = new Date(expirationDate);
+    const expDate = parseLocalDate(expirationDate);
     const today = new Date();
     return expDate < today;
   };

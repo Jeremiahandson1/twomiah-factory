@@ -1,6 +1,6 @@
 import { toast } from '../Toast';
 import { confirm } from '../ConfirmModal';
-import { formatDate } from '../../utils/date';
+import { formatDate, parseLocalDate } from '../../utils/date';
 // src/components/admin/BackgroundChecks.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
@@ -232,7 +232,7 @@ const BackgroundChecks = () => {
 
   const isExpiringSoon = (expirationDate) => {
     if (!expirationDate) return false;
-    const expDate = new Date(expirationDate);
+    const expDate = parseLocalDate(expirationDate);
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
     return expDate <= thirtyDaysFromNow && expDate > new Date();
@@ -240,7 +240,7 @@ const BackgroundChecks = () => {
 
   const isExpired = (expirationDate) => {
     if (!expirationDate) return false;
-    return new Date(expirationDate) < new Date();
+    return parseLocalDate(expirationDate) < new Date();
   };
 
   const pendingCount = checks.filter(c => c.status === 'pending').length;

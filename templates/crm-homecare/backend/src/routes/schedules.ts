@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { SCHED_COLS, attachExceptions, rows, one, scheduleById, inList, isOffice, userIdOf } from '../helpers/scheduleRows.ts'
-import { schedTs, hms, shiftHours, DATE_RE, occurrencesCte } from '../services/scheduleOccurrences.ts'
+import { schedTs, hms, shiftHours, shiftTimesError, DATE_RE, occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { CANCEL_REASONS } from '../helpers/cancelReasons.ts'
 import { checkAuthorizationBalance } from '../helpers/authorizationCheck.ts'
 
@@ -114,8 +114,8 @@ app.post('/', requireAdmin, async (c) => {
   const b = await c.req.json().catch(() => ({})) as any
   const { caregiverId, clientId, scheduleType, dayOfWeek, date, startTime, endTime, notes, effectiveDate, isTraining } = b
   if (!caregiverId || !clientId) return c.json({ error: 'A caregiver and client are required.' }, 400)
-  if (!hms(startTime) || !hms(endTime)) return c.json({ error: 'A valid start and end time are required.' }, 400)
-  if (hms(startTime) === hms(endTime)) return c.json({ error: 'Start and end time cannot be the same' }, 400)
+  const timesError = shiftTimesError(startTime, endTime, b.overnight)
+  if (timesError) return c.json({ error: timesError }, 400)
 
   const isRecurring = dayOfWeek !== null && dayOfWeek !== undefined && dayOfWeek !== ''
   if (!isRecurring && !(date && DATE_RE.test(date))) return c.json({ error: 'A one-time shift needs its date (YYYY-MM-DD).' }, 400)

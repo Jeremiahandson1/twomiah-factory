@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDate, toLocalYMD } from '../../utils/date';
+import { formatTime } from '../../utils/datetime';
 
 const ShiftMissReport = ({ userId, onClose }) => {
   const { token } = useAuth();
@@ -98,7 +100,8 @@ const ShiftMissReport = ({ userId, onClose }) => {
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {upcomingShifts.slice(0, 5).map(shift => {
-              const shiftDate = shift.date ? new Date(shift.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Recurring';
+              // The server lists only visits still ahead (not clocked into, not already over today).
+              const shiftDate = shift.date ? formatDate(shift.date, { weekday: 'short', month: 'short', day: 'numeric' }) : 'Recurring';
               // One row per dated visit (a weekly pattern appears once per week): the pattern id AND the date pick it.
               const isSelected = form.scheduleId === shift.id && form.date === (shift.date || '').split('T')[0];
               return (
@@ -112,7 +115,7 @@ const ShiftMissReport = ({ userId, onClose }) => {
                     {shift.client_first_name} {shift.client_last_name}
                   </div>
                   <div style={{ fontSize: '0.82rem', color: '#6B7280' }}>
-                    {shiftDate} • {shift.start_time} – {shift.end_time}
+                    {shiftDate} • {formatTime(shift.start_time)} – {formatTime(shift.end_time)}
                   </div>
                 </button>
               );
@@ -128,7 +131,7 @@ const ShiftMissReport = ({ userId, onClose }) => {
         </label>
         <input type="date" value={form.date}
           onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
-          min={new Date().toISOString().split('T')[0]}
+          min={toLocalYMD(new Date())}
           style={{ width: '100%', padding: '0.75rem', border: '2px solid #E5E7EB', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box' }} />
       </div>
 

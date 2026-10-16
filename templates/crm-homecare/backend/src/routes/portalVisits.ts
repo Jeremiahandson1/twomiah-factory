@@ -6,13 +6,14 @@
 import { Hono } from 'hono'
 import { sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { portalAuth } from './portal.ts'
+import { portalAuth, servesClient } from './portal.ts'
 import { rows, one } from '../helpers/scheduleRows.ts'
 import { occurrencesCte, hms, DATE_RE } from '../services/scheduleOccurrences.ts'
 import { agencyNow, addDays } from '../services/agencyTime.ts'
 import { notifyUser, notifyAdmins } from '../services/visitNotify.ts'
 import {
   VCR_COLS, getRequest, workedVisitBlocker, applyRescheduleToSchedule, materializeVisit, visitIdentity, ownsScheduleVisit, clientName,
+  clientChangeBlocker, hoursUntilVisit, tellCaregiver, CANCEL_NOTICE_HOURS,
 } from './visitChangeRequests.ts'
 
 const portal = new Hono()
@@ -63,7 +64,20 @@ portal.get('/visits', portalAuth, async (c) => {
     const d = past ? b.scheduled_date.localeCompare(a.scheduled_date) : a.scheduled_date.localeCompare(b.scheduled_date)
     return d !== 0 ? d : String(a.start_time || '').localeCompare(String(b.start_time || ''))
   })
-  return c.json(all.slice(offset, offset + limit))
+  // can_change: may the family still cancel or move this visit? The same test the cancel and
+  // reschedule routes refuse by (clientChangeBlocker): not started yet, and not worked.
+  const page = all.slice(offset, offset + limit)
+  const now = await agencyNow()
+  const tz = now.tz
+  const worked = new Set((await rows<any>(sql`SELECT DISTINCT caregiver_id,
+      to_char(((start_time AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date, 'YYYY-MM-DD') AS d
+    FROM time_entries WHERE client_id = ${clientId}
+      AND ((start_time AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date >= ${addDays(today, -1)}::date`)).map((r) => `${r.caregiver_id}|${r.d}`))
+  return c.json(page.map((v) => ({
+    ...v,
+    can_change: v.status === 'scheduled' && hoursUntilVisit(v.scheduled_date, v.start_time, now) > 0
+      && !worked.has(`${v.caregiver_id}|${v.scheduled_date}`),
+  })))
 })
 
 // PUT /api/portal/visits/note — the family's own note on a visit
@@ -83,10 +97,11 @@ portal.put('/visits/note', portalAuth, async (c) => {
   return c.json({ success: true })
 })
 
-// POST /api/portal/visits/cancel-request — a client cancelling their own visit takes effect AT ONCE
-// (requests used to sit unreviewed for months while the caregiver's schedule still showed the visit),
-// unless the visit was already worked, the date is past, or there is nothing to write it onto — those
-// fall back to a pending request for the office.
+// POST /api/portal/visits/cancel-request — the client cancels one of their visits. THE RULE is written
+// out beside CANCEL_NOTICE_HOURS in visitChangeRequests.ts: a reason is required; a visit that has
+// started, is over or was worked is refused (409); with at least 24 hours' notice it comes off the
+// schedule at once; with less it is a late cancellation that waits for the office. The office and the
+// caregiver are told on both paths.
 portal.post('/visits/cancel-request', portalAuth, async (c) => {
   const clientId = c.get('portalClientId' as any) as string
   const b = await c.req.json().catch(() => ({})) as any
@@ -95,68 +110,105 @@ portal.post('/visits/cancel-request', portalAuth, async (c) => {
     return c.json({ error: 'visitDate, caregiverId, startTime, endTime are required' }, 400)
   }
   if (!DATE_RE.test(vi.visitDate)) return c.json({ error: 'visitDate must be YYYY-MM-DD' }, 400)
+  const reason = typeof b.reason === 'string' ? b.reason.trim().slice(0, 500) : ''
+  if (!reason) return c.json({ error: 'Please tell us why you are cancelling. Your caregiver and the office will see it.' }, 400)
   if (!(await ownsScheduleVisit(clientId, vi.scheduleId, vi.visitDate))) return c.json({ error: 'Visit not found' }, 404)
+  const blocked = await clientChangeBlocker({ caregiverId: vi.caregiverId, clientId, visitDate: vi.visitDate, startTime: vi.startTime })
+  if (blocked) return c.json({ error: blocked }, 409)
   let visitId = vi.visitId
   if (vi.source === 'schedule' && vi.scheduleId) visitId = await materializeVisit({ ...vi, clientId })
+  if (!vi.scheduleId && !visitId) return c.json({ error: 'Visit not found' }, 404)
+  const open = await one(sql`SELECT id FROM visit_change_requests WHERE client_id = ${clientId} AND visit_date = ${vi.visitDate}::date
+    AND original_start_time = ${vi.startTime}::time AND caregiver_id = ${vi.caregiverId}
+    AND status IN ('pending', 'counter_offered') LIMIT 1`)
+  if (open) return c.json({ error: 'A request for this visit is already waiting on the office.' }, 409)
 
-  const { date: today } = await agencyNow()
-  const worked = await workedVisitBlocker({ caregiverId: vi.caregiverId, clientId, visitDate: vi.visitDate })
-  const autoApply = !worked && vi.visitDate >= today && !!(vi.scheduleId || visitId)
-  const reason = b.reason ? String(b.reason).slice(0, 500) : null
+  const hours = hoursUntilVisit(vi.visitDate, vi.startTime, await agencyNow())
+  const applyNow = hours >= CANCEL_NOTICE_HOURS
   const id = createId()
   await rows(sql`INSERT INTO visit_change_requests (id, client_id, caregiver_id, request_type, visit_id, schedule_id, visit_date,
       original_start_time, original_end_time, cancel_reason, status, resolved_at, admin_notes, requested_by, created_at, updated_at)
     VALUES (${id}, ${clientId}, ${vi.caregiverId}, 'cancel', ${visitId || null}, ${vi.scheduleId}, ${vi.visitDate}::date,
-            ${vi.startTime}::time, ${vi.endTime}::time, ${reason}, ${autoApply ? 'approved' : 'pending'},
-            ${autoApply ? sql`NOW()` : sql`NULL`}, ${autoApply ? 'Auto-applied: cancelled by client via portal' : null}, 'client', NOW(), NOW())`)
-  if (autoApply) {
-    if (visitId) await rows(sql`UPDATE scheduled_visits SET status = 'cancelled', cancelled_reason = ${reason || 'Cancelled by client via portal'},
+            ${vi.startTime}::time, ${vi.endTime}::time, ${reason}, ${applyNow ? 'approved' : 'pending'},
+            ${applyNow ? sql`NOW()` : sql`NULL`},
+            ${applyNow ? `Applied at once: cancelled by the client in the portal with ${Math.floor(hours)} hours' notice` : null},
+            'client', NOW(), NOW())`)
+  if (applyNow) {
+    if (visitId) await rows(sql`UPDATE scheduled_visits SET status = 'cancelled', cancelled_reason = ${reason},
       cancelled_at = NOW(), updated_at = NOW() WHERE id = ${visitId} AND client_id = ${clientId}`)
     if (vi.scheduleId) await rows(sql`INSERT INTO schedule_exceptions (id, schedule_id, exception_date, exception_type, cancel_reason, created_at)
       VALUES (${createId()}, ${vi.scheduleId}, ${vi.visitDate}::date, 'cancelled', 'client_cancelled', NOW())
       ON CONFLICT (schedule_id, exception_date) DO NOTHING`)
   }
   const who = await clientName(clientId)
-  const at = vi.startTime.slice(0, 5)
-  const msg = autoApply
-    ? `${who} cancelled their visit on ${vi.visitDate} at ${at}.${reason ? ' Reason: ' + reason : ''} The shift has been removed from the schedule.`
-    : `${who} is requesting to cancel their visit on ${vi.visitDate} at ${at}.${reason ? ' Reason: ' + reason : ''}${worked ? ' (Not auto-applied: a time entry already exists for that day.)' : ''}`
-  await notifyUser(vi.caregiverId, autoApply ? 'visit_cancelled' : 'visit_cancel_request', autoApply ? 'Visit Cancelled' : 'Cancellation Request', msg)
-  await notifyAdmins(autoApply ? 'visit_cancelled' : 'visit_cancel_request', autoApply ? 'Client Cancelled Visit' : 'Client Cancellation Request', msg)
-  return c.json({ ...(await getRequest(id)), auto_applied: autoApply }, 201)
+  const when = `${vi.visitDate} at ${vi.startTime.slice(0, 5)}`
+  if (applyNow) {
+    await tellCaregiver(vi.caregiverId, 'visit_cancelled', 'Visit Cancelled',
+      `${who} cancelled the visit on ${when}. Reason: ${reason}. It is off your schedule.`)
+    await notifyAdmins('visit_cancelled', 'Client Cancelled Visit',
+      `${who} cancelled the visit on ${when} (${Math.floor(hours)} hours' notice). Reason: ${reason}. It has been taken off the schedule and the caregiver has been told.`)
+  } else {
+    await tellCaregiver(vi.caregiverId, 'visit_cancel_request', 'Cancellation Request',
+      `${who} asked to cancel the visit on ${when}. Reason: ${reason}. The visit stands until the office confirms.`)
+    await notifyAdmins('visit_cancel_request', 'Late Cancellation: needs your decision',
+      `${who} asked to cancel the visit on ${when}, with less than ${CANCEL_NOTICE_HOURS} hours' notice. Reason: ${reason}. It stays on the schedule until you approve or deny it in Schedule Hub → Staffing → Reschedules.`)
+  }
+  return c.json({ ...(await getRequest(id)), auto_applied: applyNow }, 201)
 })
 
-// GET /api/portal/caregivers/:caregiverId/availability?startDate&endDate — open slots for the
-// reschedule picker: the caregiver's availability windows minus visits booked for other clients and
-// approved time off.
+// GET /api/portal/caregivers/:caregiverId/availability?startDate&endDate&durationMinutes — the times
+// the reschedule picker offers: slots as long as the visit (durationMinutes, default 60), on the hour,
+// inside the caregiver's working hours, not clashing with their visits for other clients, not on time
+// off or a blackout day, and not already past.
+//
+// Working hours are caregiver_availability — the table the office's Caregiver Availability screen
+// and the optimizers read (this used to read caregiver_schedules, which no screen writes, so every
+// caregiver had "no available slots"). A day marked available with no start or end time means the
+// office never narrowed it: it gets the template's default working day, the same 08:00–17:00 a new
+// caregiver's week is created with (routes/caregivers.ts). No row at all = that default week
+// (Mon–Fri). status 'unavailable' = no slots.
+const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+export const DEFAULT_WORKING_DAY = { start: '08:00:00', end: '17:00:00' }
+const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+const fromMin = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}:00`
+
 portal.get('/caregivers/:caregiverId/availability', portalAuth, async (c) => {
   const clientId = c.get('portalClientId' as any) as string
   const caregiverId = c.req.param('caregiverId')
-  const { date: today } = await agencyNow()
+  const now = await agencyNow()
+  const today = now.date
   const startDate = DATE_RE.test(c.req.query('startDate') || '') ? c.req.query('startDate')! : today
   const endDate = DATE_RE.test(c.req.query('endDate') || '') ? c.req.query('endDate')! : addDays(startDate, 14)
   if (endDate < startDate || endDate > addDays(startDate, 62)) return c.json({ error: 'Pick a range of at most two months' }, 400)
-  // Only a caregiver who works for this client.
-  const works = await one(sql`SELECT 1 FROM schedules WHERE client_id = ${clientId} AND caregiver_id = ${caregiverId} AND is_active = true LIMIT 1`)
-  if (!works) return c.json([])
+  const dur = Math.round(Number(c.req.query('durationMinutes') || 60))
+  if (!Number.isFinite(dur) || dur < 15 || dur > 720) return c.json({ error: 'durationMinutes must be between 15 and 720' }, 400)
+  // Only a caregiver who serves this client now (the My Caregivers definition).
+  if (!(await servesClient(caregiverId, clientId))) return c.json([])
 
-  const avail = await rows<any>(sql`SELECT day_of_week, to_char(date, 'YYYY-MM-DD') AS date,
-      to_char(start_time, 'HH24:MI:SS') AS start_time, to_char(end_time, 'HH24:MI:SS') AS end_time
-    FROM caregiver_schedules WHERE caregiver_id = ${caregiverId} AND is_available = true`)
+  const av = await one<any>(sql`SELECT * FROM caregiver_availability WHERE caregiver_id = ${caregiverId}`)
+  if (av && av.status === 'unavailable') return c.json([])
   const busy = await rows<any>(sql`WITH ${occurrencesCte(startDate, endDate)}
     SELECT to_char(occ.occ_date, 'YYYY-MM-DD') AS d, to_char(occ.start_time, 'HH24:MI:SS') AS s, to_char(occ.end_time, 'HH24:MI:SS') AS e
       FROM occ WHERE occ.caregiver_id = ${caregiverId} AND occ.client_id <> ${clientId}`)
   const off = await rows<any>(sql`SELECT to_char(start_date, 'YYYY-MM-DD') AS s, to_char(end_date, 'YYYY-MM-DD') AS e FROM caregiver_time_off
-    WHERE caregiver_id = ${caregiverId} AND status = 'approved' AND end_date >= ${startDate}::date AND start_date <= ${endDate}::date`)
+    WHERE caregiver_id = ${caregiverId} AND (status = 'approved' OR type = 'blackout')
+      AND end_date >= ${startDate}::date AND start_date <= ${endDate}::date`)
 
   const slots: any[] = []
-  for (let d = startDate; d <= endDate; d = addDays(d, 1)) {
+  for (let d = startDate < today ? today : startDate; d <= endDate; d = addDays(d, 1)) {
     if (off.some((o) => o.s <= d && o.e >= d)) continue
     const dow = new Date(`${d}T12:00:00Z`).getUTCDay()
-    for (const w of avail.filter((a) => (a.day_of_week === dow && !a.date) || a.date === d)) {
-      if (!w.start_time || !w.end_time) continue
-      const clash = busy.some((x) => x.d === d && x.s < w.end_time && x.e > w.start_time)
-      if (!clash) slots.push({ date: d, dayOfWeek: dow, startTime: w.start_time, endTime: w.end_time })
+    const k = DAY_KEYS[dow]
+    const isWeekday = dow >= 1 && dow <= 5
+    const on = av ? (av[`${k}_available`] ?? isWeekday) : isWeekday
+    if (!on) continue
+    const ws = toMin(hms(av?.[`${k}_start_time`]) || DEFAULT_WORKING_DAY.start)
+    const we = toMin(hms(av?.[`${k}_end_time`]) || DEFAULT_WORKING_DAY.end)
+    for (let s = ws; s + dur <= we; s += 60) {
+      const st = fromMin(s), et = fromMin(s + dur)
+      if (d === today && st <= now.time) continue
+      if (busy.some((x) => x.d === d && x.s < et && x.e > st)) continue
+      slots.push({ date: d, dayOfWeek: dow, startTime: st, endTime: et })
     }
   }
   return c.json(slots)
@@ -173,6 +225,12 @@ portal.post('/visits/reschedule-request', portalAuth, async (c) => {
   }
   if (!DATE_RE.test(vi.visitDate) || !DATE_RE.test(b.proposedDate)) return c.json({ error: 'Dates must be YYYY-MM-DD' }, 400)
   if (!(await ownsScheduleVisit(clientId, vi.scheduleId, vi.visitDate))) return c.json({ error: 'Visit not found' }, 404)
+  const blocked = await clientChangeBlocker({ caregiverId: vi.caregiverId, clientId, visitDate: vi.visitDate, startTime: vi.startTime })
+  if (blocked) return c.json({ error: blocked }, 409)
+  const open = await one(sql`SELECT id FROM visit_change_requests WHERE client_id = ${clientId} AND visit_date = ${vi.visitDate}::date
+    AND original_start_time = ${vi.startTime}::time AND caregiver_id = ${vi.caregiverId}
+    AND status IN ('pending', 'counter_offered') LIMIT 1`)
+  if (open) return c.json({ error: 'A request for this visit is already waiting on the office.' }, 409)
   let visitId = vi.visitId
   if (vi.source === 'schedule' && vi.scheduleId) visitId = await materializeVisit({ ...vi, clientId })
   const id = createId()
@@ -182,7 +240,7 @@ portal.post('/visits/reschedule-request', portalAuth, async (c) => {
             ${vi.startTime}::time, ${vi.endTime}::time, ${b.proposedDate}::date, ${proposedStartTime}::time, ${proposedEndTime}::time,
             'client', 'pending', NOW(), NOW())`)
   const msg = `${await clientName(clientId)} is requesting to reschedule their visit from ${vi.visitDate} to ${b.proposedDate} at ${proposedStartTime.slice(0, 5)}.`
-  await notifyUser(vi.caregiverId, 'visit_reschedule_request', 'Reschedule Request', msg)
+  await tellCaregiver(vi.caregiverId, 'visit_reschedule_request', 'Reschedule Request', msg)
   await notifyAdmins('visit_reschedule_request', 'Client Reschedule Request', msg)
   return c.json(await getRequest(id), 201)
 })

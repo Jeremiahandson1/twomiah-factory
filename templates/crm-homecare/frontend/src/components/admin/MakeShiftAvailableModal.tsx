@@ -191,8 +191,14 @@ export default function MakeShiftAvailableModal({ schedule, date, clientName, ca
 
           <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', margin: '0.75rem 0', fontSize: '0.88rem', cursor: 'pointer' }}>
             <input type="checkbox" checked={sendText} onChange={e => setSendText(e.target.checked)} />
-            <span><strong>Text them</strong> about it (they also see it in the app under Open Shifts)</span>
+            <span><strong>Also text them</strong> (a text message to their phone)</span>
           </label>
+          {/* The picked caregivers are always told IN THE APP (bell and phone notification) — that is
+              how they find the offer. This box only adds a text; unticked, no text is sent (the
+              server's notify sends SMS only when sms is true). */}
+          <div style={{ margin: '-0.5rem 0 0.75rem 1.6rem', fontSize: '0.78rem', color: '#4B5563' }}>
+            Either way, the caregivers you picked get an in-app notification and see it under Open Shifts.
+          </div>
 
           <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem' }}>Optional message</label>
           <textarea value={customMessage} onChange={(e) => setCustomMessage(e.target.value)}

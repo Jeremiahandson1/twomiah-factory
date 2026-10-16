@@ -1,6 +1,6 @@
 // src/components/admin/CaregiverAvailability.jsx
 import React, { useState, useEffect } from 'react';
-import { formatDate } from '../../utils/date';
+import { formatDate, parseLocalDate } from '../../utils/date';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -485,7 +485,7 @@ const CaregiverAvailability = () => {
             ) : (
               <div style={{ display: 'grid', gap: '0.75rem' }}>
                 {blackoutDates
-                  .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
+                  .sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date))
                   .map(bd => (
                     <div
                       key={bd.id}

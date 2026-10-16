@@ -1,5 +1,5 @@
 import { confirm } from '../ConfirmModal';
-import { formatDate } from '../../utils/date';
+import { formatDate, toLocalYMD } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/ExpenseManagement.jsx
 // Complete expense tracking: Categories, Filtering, Reports, Receipt Management, Budgets
@@ -18,8 +18,8 @@ const ExpenseManagement = () => {
   
   // Filters
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+    startDate: toLocalYMD(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+    endDate: toLocalYMD(new Date())
   });
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,7 +39,7 @@ const ExpenseManagement = () => {
   });
 
   const [formData, setFormData] = useState({
-    expenseDate: new Date().toISOString().split('T')[0],
+    expenseDate: toLocalYMD(new Date()),
     category: 'supplies',
     vendor: '',
     description: '',
@@ -155,7 +155,7 @@ const ExpenseManagement = () => {
 
   const resetForm = () => {
     setFormData({
-      expenseDate: new Date().toISOString().split('T')[0],
+      expenseDate: toLocalYMD(new Date()),
       category: 'supplies',
       vendor: '',
       description: '',

@@ -2,13 +2,13 @@
 // coverage, and a visit is cancelled because the CLIENT was unavailable. Ported from the CVHC home
 // care CRM (routes/emergencyRoutes.js).
 import { Hono } from 'hono'
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { rows, one, isOffice, userIdOf } from '../helpers/scheduleRows.ts'
 import { occurrencesCte, hms, schedTs, DATE_RE } from '../services/scheduleOccurrences.ts'
 import { CLIENT_UNAVAILABLE_REASONS } from '../helpers/cancelReasons.ts'
-import { agencyNow, addDays } from '../services/agencyTime.ts'
+import { agencyNow, addDays, localDate } from '../services/agencyTime.ts'
 import { notifyUser, notifyAdmins, sendPush, recordAudit } from '../services/visitNotify.ts'
 
 const app = new Hono()
@@ -20,6 +20,15 @@ async function occurrenceOn(scheduleId: string, date: string) {
     SELECT occ.caregiver_id, occ.client_id, to_char(occ.start_time, 'HH24:MI:SS') AS start_time, to_char(occ.end_time, 'HH24:MI:SS') AS end_time
       FROM occ WHERE occ.schedule_id = ${scheduleId} AND occ.occ_date = ${date}::date`)
 }
+
+// A visit is WORKED once its caregiver has a punch for that client on that agency day (clocked in,
+// or in and out) — the same test visitChangeRequests#workedVisitBlocker applies before a move.
+// A worked visit cannot be called out of: it is happening, or it happened.
+const workedSql = (tz: string, caregiverCol: SQL, clientCol: SQL, dateCol: SQL) => sql`EXISTS (
+  SELECT 1 FROM time_entries te
+   WHERE te.caregiver_id = ${caregiverCol} AND te.client_id = ${clientCol}
+     AND ${localDate(sql`te.start_time`, tz)} = ${dateCol})`
+export const MISS_REPORT_WORKED = 'That visit was already worked (there is a clock-in for it), so it cannot be called out of. Call the office if something is wrong with it.'
 
 // POST /api/emergency/miss-report { scheduleId?, date, reason?, alternativeContact? } — a caregiver
 // can't make a shift. Records the absence, CANCELS that occurrence (so nothing reminds, no-show-alerts,
@@ -40,6 +49,9 @@ app.post('/miss-report', async (c) => {
       if (occ) {
         // A day that belongs to someone else (a covered day) is not this caregiver's to call out of.
         if (!isOffice(user) && occ.caregiver_id !== caregiverId) return c.json({ error: 'That visit is not on your schedule' }, 403)
+        const { tz } = await agencyNow()
+        const worked = await one<any>(sql`SELECT ${workedSql(tz, sql`${occ.caregiver_id}`, sql`${occ.client_id}`, sql`${date}::date`)} AS w`)
+        if (worked?.w === true) return c.json({ error: MISS_REPORT_WORKED }, 409)
         info = { ...info, start_time: occ.start_time, end_time: occ.end_time, client_id: occ.client_id }
       } else if (!isOffice(user) && info.caregiver_id !== caregiverId) {
         return c.json({ error: 'That visit is not on your schedule' }, 403)
@@ -192,9 +204,12 @@ app.post('/assign-coverage', requireAdmin, async (c) => {
 // covered by someone else is theirs, and a day this caregiver covers for someone is this caregiver's.
 // `id` is the schedule (pattern) id and `date` the visit's date — the pair the miss report takes.
 export const MY_SHIFTS_DAYS = 14
+// Only visits that can still be called out of: not WORKED (no clock-in for it), and not one of
+// today's that has already ended (Run 3: today's finished visit was offered). An overnight visit
+// (ends before it starts) is still ahead until it begins.
 app.get('/my-shifts', async (c) => {
   const user = c.get('user') as any
-  const { date: today } = await agencyNow()
+  const { date: today, time: nowTime, tz } = await agencyNow()
   return c.json(await rows(sql`
     WITH ${occurrencesCte(today, addDays(today, MY_SHIFTS_DAYS - 1))}
     SELECT occ.schedule_id AS id, occ.schedule_id, to_char(occ.occ_date, 'YYYY-MM-DD') AS date,
@@ -203,6 +218,8 @@ app.get('/my-shifts', async (c) => {
            occ.client_id, c.first_name AS client_first_name, c.last_name AS client_last_name, c.address AS client_address
       FROM occ JOIN clients c ON occ.client_id = c.id
      WHERE occ.caregiver_id = ${userIdOf(user)}
+       AND NOT ${workedSql(tz, sql`occ.caregiver_id`, sql`occ.client_id`, sql`occ.occ_date`)}
+       AND NOT (occ.occ_date = ${today}::date AND occ.end_time > occ.start_time AND occ.end_time <= ${nowTime}::time)
      ORDER BY occ.occ_date ASC, occ.start_time ASC
      LIMIT 14`))
 })

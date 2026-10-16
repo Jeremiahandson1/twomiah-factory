@@ -215,7 +215,9 @@ await insEntry('te_cg1_served', cg1.id, served.id)
   const values = JSON.stringify(v.json)
   check('3. …with no SSN, Medicaid id, insurance numbers, pay or portal fields', leaked.length === 0 && !/1421146410|INS-999|GRP-1|enc:ssn|MCO-7/.test(values), leaked)
   check('3. …the emergency contact from the client\'s contacts', v.json.emergency_contact_name === 'Dana Client' && v.json.emergency_contact_phone === '7155550123' && v.json.emergency_contact_relationship === 'Daughter', v.json)
-  check('3. …the lists as text the card prints, one per line (none = null)', v.json.medical_conditions === 'CHF\nDiabetes' && v.json.allergies === 'Penicillin' && v.json.medications === null, v.json)
+  // Medications: the client's active row in the medications table (Lisinopril) — the record's own
+  // list is empty here; the merge with it is pinned in caregiver-visit.test.ts (Run 3 HIGH 7).
+  check('3. …the lists as text the card prints, one per line (none = null)', v.json.medical_conditions === 'CHF\nDiabetes' && v.json.allergies === 'Penicillin' && v.json.medications === 'Lisinopril', v.json)
   check('3. …the medical notes, care preferences and mobility needs', v.json.medical_notes === 'Low-salt diet' && v.json.care_preferences === 'Coffee first, then shower' && v.json.mobility_assistance_needs === 'Walker', v.json)
   const vo = await CG1('GET', `/api/clients/${other.id}/caregiver-view`)
   check('3. a client they do not serve is refused', vo.status === 403, vo)
@@ -272,7 +274,12 @@ await insEntry('te_cg1_served', cg1.id, served.id)
   const cg2s = await insSched({ caregiver_id: cg2.id, client_id: c5b.id, day_of_week: dow(addDays(TODAY, 2)), start: '15:00', end: '16:00', effective_date: addDays(TODAY, -21) })
   await q(sql`INSERT INTO schedule_exceptions (id, schedule_id, exception_date, exception_type, override_caregiver_id) VALUES ('ex_fx2', ${cg2s}, ${addDays(TODAY, 2)}::date, 'modified', ${cg1.id})`)
 
+  // my-shifts leaves out today's visits that already ended (Run 3), so the clock is pinned before
+  // today's 07:00 visit — the list is the same whatever hour the suite runs.
+  const { setSystemTime } = await import('bun:test')
+  setSystemTime(new Date(`${TODAY}T06:00:00Z`))
   const r = await CG1('GET', '/api/emergency/my-shifts')
+  setSystemTime()
   const mine = (r.json || []).filter((s: any) => s.client_id === c5.id || s.client_id === c5b.id)
   const got = mine.map((s: any) => `${s.date}|${s.id}`)
   const want = [`${TODAY}|${weekly}`, `${addDays(TODAY, 2)}|${cg2s}`, `${addDays(TODAY, 3)}|${oneOff}`]

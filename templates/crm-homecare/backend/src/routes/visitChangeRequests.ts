@@ -15,7 +15,14 @@ import { authenticate } from '../middleware/auth.ts'
 import { rows, one, isOffice, userIdOf } from '../helpers/scheduleRows.ts'
 import { occurrencesCte, hms, schedTs, DATE_RE } from '../services/scheduleOccurrences.ts'
 import { agencyNow, addDays } from '../services/agencyTime.ts'
-import { notifyUser, notifyAdmins, notifyClient } from '../services/visitNotify.ts'
+import { notifyUser, notifyAdmins, notifyClient, sendPush } from '../services/visitNotify.ts'
+
+/** A caregiver hears about a change to their visit in the app AND on their phone (best-effort push). */
+export async function tellCaregiver(caregiverId: string | null | undefined, type: string, title: string, message: string) {
+  if (!caregiverId) return
+  await notifyUser(caregiverId, type, title, message)
+  await sendPush(caregiverId, { title, body: message, data: { type } })
+}
 
 export const VCR_COLS = sql.raw(`
   vcr.id, vcr.client_id, vcr.caregiver_id, vcr.request_type, vcr.visit_id, vcr.schedule_id,
@@ -45,6 +52,45 @@ export async function workedVisitBlocker({ caregiverId, clientId, visitDate }: {
       AND ((start_time AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date = ${visitDate}::date LIMIT 1`)
   if (!r) return null
   return `That visit was already worked — there is a time entry on ${visitDate}. Moving it now would pull the punch out of payroll's cap and out of billing. Correct the time entry instead.`
+}
+
+// ── What a client may still change, and how a client's cancel is handled (Run 3 HIGH 6) ──────────
+//
+// THE RULE for a cancel asked for in the client portal:
+//   1. A reason is required. The office and the caregiver both read it; an empty one tells them nothing.
+//   2. A visit that has started, is over, or was worked (a time entry that day) cannot be cancelled or
+//      moved from the portal at all (409, "call the office"): it happened, and changing it is a
+//      time-entry / billing matter for the office, not a schedule change.
+//   3. With at least CANCEL_NOTICE_HOURS' notice before the visit starts, the cancel is applied at
+//      once: the visit leaves the schedule (so nobody drives out for nothing, and requests no longer sit
+//      unreviewed while the caregiver's phone still shows the visit). The office is told in-app, and
+//      the caregiver in-app AND by push.
+//   4. With less notice it is a LATE cancellation and waits for the office (the caregiver may already
+//      be on the way, and late cancels are the agency's policy call): the visit stays on the schedule
+//      until someone resolves it. The office is told it needs a decision; the caregiver is told the
+//      client asked and that the visit stands until confirmed.
+//   Either way, when the office later approves or denies, the caregiver is told the outcome.
+export const CANCEL_NOTICE_HOURS = 24
+
+/** Hours from the agency's wall clock `now` to a visit's wall-clock start (negative once started). */
+export function hoursUntilVisit(visitDate: string, startTime: string, now: { date: string; time: string }): number {
+  const at = Date.parse(`${visitDate}T${hms(startTime) || '00:00:00'}Z`)
+  const from = Date.parse(`${now.date}T${hms(now.time) || '00:00:00'}Z`)
+  return (at - from) / 3600000
+}
+
+/** Why the client can no longer cancel or move this visit from the portal — or null when they can. */
+export async function clientChangeBlocker({ caregiverId, clientId, visitDate, startTime }: {
+  caregiverId: string; clientId: string; visitDate: string; startTime: string
+}): Promise<string | null> {
+  const now = await agencyNow()
+  if (hoursUntilVisit(visitDate, startTime, now) <= 0) {
+    return 'This visit has already started or is over, so it can no longer be cancelled or moved here. Please call the office.'
+  }
+  if (await workedVisitBlocker({ caregiverId, clientId, visitDate })) {
+    return 'Your caregiver has already clocked in for this visit, so it can no longer be cancelled or moved here. Please call the office.'
+  }
+  return null
 }
 
 /**
@@ -207,11 +253,18 @@ staff.put('/:id/resolve', async (c) => {
 
   if (action === 'approve') {
     if (r.request_type === 'cancel') {
+      // A late cancel waits here; if the visit was worked meanwhile it is no longer the schedule's to drop.
+      const worked = await workedVisitBlocker({ caregiverId: r.caregiver_id, clientId: r.client_id, visitDate: r.visit_date })
+      if (worked) return c.json({ error: worked }, 409)
       if (r.visit_id) await rows(sql`UPDATE scheduled_visits SET status = 'cancelled', cancelled_reason = ${r.cancel_reason || 'Client requested'},
         cancelled_by = ${actor}, cancelled_at = NOW(), updated_at = NOW() WHERE id = ${r.visit_id}`)
       if (r.schedule_id) await rows(sql`INSERT INTO schedule_exceptions (id, schedule_id, exception_date, exception_type, created_by, cancel_reason, created_at)
         VALUES (${createId()}, ${r.schedule_id}, ${r.visit_date}::date, 'cancelled', ${actor}, 'client_cancelled', NOW())
         ON CONFLICT (schedule_id, exception_date) DO NOTHING`)
+      if (r.caregiver_id !== actor) {
+        await tellCaregiver(r.caregiver_id, 'visit_cancelled', 'Visit Cancelled',
+          `The ${await clientName(r.client_id)} visit on ${r.visit_date} at ${String(r.original_start_time).slice(0, 5)} is cancelled. It is off your schedule.`)
+      }
     }
     if (r.request_type === 'reschedule') {
       // Re-checked at approval: the visit may have been worked since the request.
@@ -241,6 +294,11 @@ staff.put('/:id/resolve', async (c) => {
     if (r.requested_by === 'client') {
       await notifyClient(r.client_id, 'change_request_denied', `${typeLabel} Not Approved`,
         `Your ${typeLabel.toLowerCase()} request for ${r.visit_date} was not approved.${adminNotes ? ' Note: ' + adminNotes : ''}`)
+      // The caregiver was told the client asked; tell them the visit stands.
+      if (r.caregiver_id !== actor) {
+        await tellCaregiver(r.caregiver_id, 'change_request_denied', `${typeLabel} Not Approved`,
+          `The client's ${typeLabel.toLowerCase()} request for the ${r.visit_date} visit was not approved. The visit stays as scheduled.`)
+      }
     } else {
       // The client never knew about a caregiver's request — answer the caregiver.
       await notifyUser(r.caregiver_id, 'reschedule_denied', 'Reschedule Not Approved',

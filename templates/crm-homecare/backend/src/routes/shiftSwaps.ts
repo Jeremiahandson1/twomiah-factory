@@ -82,6 +82,10 @@ app.post('/', async (c) => {
   if (!occ) return c.json({ error: 'That shift has no visit on that date.' }, 400)
   if (!isOffice(user) && occ.caregiver_id !== requester) return c.json({ error: 'You can only swap your own shifts' }, 403)
   if (target && target === requester) return c.json({ error: 'Pick a different caregiver to take the shift' }, 400)
+  // One open swap per visit day (pending, or accepted and waiting on the office) — as a Move is.
+  const open = await one(sql`SELECT ${SWAP_COLS} FROM shift_swaps ss LEFT JOIN schedules s ON s.id = ss.schedule_id
+    WHERE ss.schedule_id = ${b.scheduleId} AND ss.shift_date = ${shiftDate}::date AND ss.status IN ('pending', 'accepted') LIMIT 1`)
+  if (open) return c.json({ error: 'A swap for this visit is already waiting for an answer.', swap: open }, 409)
 
   const id = createId()
   await rows(sql`INSERT INTO shift_swaps (id, schedule_id, requester_id, target_id, client_id, shift_date, start_time, end_time, reason, status, created_at)

@@ -1,5 +1,5 @@
 import { confirm } from '../ConfirmModal';
-import { formatDate } from '../../utils/date';
+import { formatDate, parseLocalDate } from '../../utils/date';
 // src/components/admin/ComplianceTracking.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
@@ -186,7 +186,7 @@ const ComplianceTracking = () => {
 
   const isExpiringSoon = (expirationDate) => {
     if (!expirationDate) return false;
-    const expDate = new Date(expirationDate);
+    const expDate = parseLocalDate(expirationDate);
     const today = new Date();
     const daysUntilExpire = Math.floor((expDate - today) / (1000 * 60 * 60 * 24));
     return daysUntilExpire < 30 && daysUntilExpire >= 0;
@@ -194,7 +194,7 @@ const ComplianceTracking = () => {
 
   const isExpired = (expirationDate) => {
     if (!expirationDate) return false;
-    const expDate = new Date(expirationDate);
+    const expDate = parseLocalDate(expirationDate);
     const today = new Date();
     return expDate < today;
   };
@@ -583,7 +583,7 @@ const ComplianceTracking = () => {
               ) : (
                 <div style={{ display: 'grid', gap: '0.75rem' }}>
                   {trainingRecords
-                    .sort((a, b) => new Date(b.completion_date) - new Date(a.completion_date))
+                    .sort((a, b) => parseLocalDate(b.completion_date) - parseLocalDate(a.completion_date))
                     .map(training => (
                       <div
                         key={training.id}

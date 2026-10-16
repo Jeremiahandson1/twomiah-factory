@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { toLocalYMD } from '../../utils/date';
 
 const CompanyOptimizer = () => {
   const { token } = useAuth();
@@ -28,7 +29,7 @@ const CompanyOptimizer = () => {
 
   const [optimizerWeek, setOptimizerWeek] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - d.getDay());
-    return d.toISOString().split('T')[0];
+    return toLocalYMD(d);
   });
   const [optimizerMode, setOptimizerMode] = useState('generate_fresh');
   const [optimizerOptions, setOptimizerOptions] = useState({

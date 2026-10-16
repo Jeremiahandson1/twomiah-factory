@@ -1,7 +1,7 @@
 // src/components/MileageTracker.jsx
 // Simple start/stop mileage tracking for caregivers
 import React, { useState } from 'react';
-import { formatDate } from '../utils/date';
+import { formatDate, toLocalYMD } from '../utils/date';
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -149,7 +149,7 @@ const MileageTracker = ({ caregiverId }) => {
         },
         body: JSON.stringify({
           caregiverId,
-          date: new Date().toISOString().split('T')[0],
+          date: toLocalYMD(new Date()),
           miles: calculatedMiles,
           fromLocation: startLocation,
           toLocation: endLocation,

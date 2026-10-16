@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { toLocalYMD } from '../../utils/date';
 
 const formatDuration = (minutes) => {
   if (!minutes) return '—';
@@ -148,8 +149,8 @@ const CaregiverHistory = ({ caregiverId, caregiverName, onBack }) => {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({
-    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0],
+    start: toLocalYMD(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)),
+    end: toLocalYMD(new Date()),
   });
   const [selectedEntryId, setSelectedEntryId] = useState(null);
   const [stats, setStats] = useState({ totalShifts: 0, totalHours: 0, avgDuration: 0, clients: new Set() });

@@ -1,6 +1,6 @@
 // src/components/admin/EmergencyCoverage.jsx
 import React, { useState, useEffect } from 'react';
-import { formatDate } from '../../utils/date';
+import { formatDate, toLocalYMD, parseLocalDate } from '../../utils/date';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
 import { confirm } from '../ConfirmModal';
@@ -15,7 +15,7 @@ const EmergencyCoverage = () => {
   const [searching, setSearching] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [searchForm, setSearchForm] = useState({
-    date: new Date().toISOString().split('T')[0],
+    date: toLocalYMD(new Date()),
     startTime: '08:00',
     endTime: '16:00',
     clientId: '',
@@ -155,7 +155,7 @@ const EmergencyCoverage = () => {
                     {report.first_name} {report.last_name} — Called Out
                   </div>
                   <div style={{ fontSize: '0.85rem', color: '#6B7280', marginTop: '0.25rem' }}>
-                    📅 {new Date(report.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                    📅 {parseLocalDate(report.date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
                     {report.start_time && ` • ${report.start_time} – ${report.end_time}`}
                     {report.client_name && ` • Client: ${report.client_name}`}
                   </div>
