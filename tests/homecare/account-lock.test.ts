@@ -89,6 +89,7 @@ const clientCount = async () => Number((await db.select({ n: count() }).from(cli
   check('…and both doors into the CRM (ProtectedRoute and MainApp) send a locked agency there', (appTsx.match(/if \(isAccountLocked\(company\)\) return <Navigate to=\{LOCK_PAGE\} replace \/>;/g) || []).length === 2)
   const page = readFileSync(fe + 'pages/PaywallPage.tsx', 'utf8')
   check('the lock page is the shared PaywallScreen, given the API client (the owner restarts by paying)', /<PaywallScreen\b[^>]*homePath="\/"[^>]*request=\{/.test(page))
+  check('…and an agency that is not locked is sent from the lock page back into the CRM', /if \(!isAccountLocked\(company\)\) return <Navigate to="\/" replace \/>;/.test(page))
   const dash = readFileSync(fe + 'components/AdminDashboard.tsx', 'utf8')
   check('the admin dashboard no longer keeps a second, trial-only lock of its own', !/import PaywallPage|<PaywallPage|isTrialExpired\(/.test(dash))
   const banner = readFileSync(fe + 'components/trial/TrialBanner.tsx', 'utf8')
