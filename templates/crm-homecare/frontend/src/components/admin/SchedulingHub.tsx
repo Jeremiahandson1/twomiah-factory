@@ -865,9 +865,14 @@ const SchedulingHub = () => {
   // STAFFING ACTIONS
   // ═══════════════════════════════════════════════
 
-  const approveSwap = async (id) => {
-    const _cok = await confirm('Approve this shift swap?', {danger: true}); if (!_cok) return;
-    try { await api(`/api/shift-swaps/${id}/approve`, { method: 'PUT' }); loadSwaps(); }
+  // Approving moves that ONE day to the coworker. The pop-up names the day and both people (it was a
+  // red 'Confirm Action' with a bin icon, read as a delete), and the result is said out loud (Run 4).
+  const approveSwap = async (sw) => {
+    const day = sw.shift_date ? formatDate(sw.shift_date, { weekday: 'short', month: 'short', day: 'numeric' }) : 'this shift';
+    const from = `${sw.requester_first || ''} ${sw.requester_last || ''}`.trim() || 'the caregiver';
+    const to = `${sw.target_first || ''} ${sw.target_last || ''}`.trim() || 'the coworker';
+    const _cok = await confirm(`Move ${day} (${sw.start_time?.slice(0, 5) || ''}–${sw.end_time?.slice(0, 5) || ''}) from ${from} to ${to}? Both are notified.`, { title: 'Approve shift swap', confirmLabel: 'Approve swap' }); if (!_cok) return;
+    try { await api(`/api/shift-swaps/${sw.id}/approve`, { method: 'PUT' }); showMsg(`Swap approved — ${day} is now ${to}'s. Both caregivers were notified.`); loadSwaps(); }
     catch (e) { showMsg('Failed: ' + e.message, 'error'); }
   };
 
@@ -1491,7 +1496,7 @@ const SchedulingHub = () => {
                       <td>→</td>
                       <td>{sw.target_first ? <strong>{sw.target_first} {sw.target_last}</strong> : <em style={{ color: '#666' }}>Open</em>}</td>
                       <td><span style={bge(sw.status==='pending'?'#FEF3C7':sw.status==='accepted'?'#DBEAFE':sw.status==='approved'?'#D1FAE5':'#FEE2E2', sw.status==='pending'?'#D97706':sw.status==='accepted'?'#2563EB':sw.status==='approved'?'#059669':'#DC2626')}>{sw.status?.toUpperCase()}</span></td>
-                      <td>{sw.status === 'accepted' && <div style={{ display: 'flex', gap: '0.25rem' }}><button className='btn btn-sm btn-success' onClick={() => approveSwap(sw.id)}>✓</button><button className='btn btn-sm btn-danger' onClick={() => rejectSwap(sw.id)}>✗</button></div>}</td>
+                      <td>{sw.status === 'accepted' && <div style={{ display: 'flex', gap: '0.25rem' }}><button className='btn btn-sm btn-success' title='Approve swap' aria-label='Approve swap' onClick={() => approveSwap(sw)}>✓</button><button className='btn btn-sm btn-danger' title='Turn down swap' aria-label='Turn down swap' onClick={() => rejectSwap(sw.id)}>✗</button></div>}</td>
                     </tr>
                   ))}
                 </tbody>

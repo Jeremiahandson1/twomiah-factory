@@ -2,7 +2,7 @@
 // Client messaging with the agency
 import React, { useState, useEffect, useRef } from 'react';
 import { apiCall } from '../../config';
-import { parseLocalDate } from '../../utils/date';
+import { formatAgencyDate } from '../../utils/agencyClock';
 
 const formatRelativeTime = (isoStr) => {
   if (!isoStr) return '';
@@ -14,7 +14,8 @@ const formatRelativeTime = (isoStr) => {
   if (mins < 60)  return `${mins}m ago`;
   if (hours < 24) return `${hours}h ago`;
   if (days < 7)   return `${days}d ago`;
-  return parseLocalDate(isoStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  // An instant's day on the agency's clock — slicing the UTC date put an evening message on the next day.
+  return formatAgencyDate(isoStr, { month: 'short', day: 'numeric' });
 };
 
 const PortalMessages = ({ token, onRead }) => {

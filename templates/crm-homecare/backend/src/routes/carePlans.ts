@@ -26,7 +26,9 @@ import { carePlanPdf, pdfFileName } from '../services/carePdf.ts'
 import { isAssessmentSource } from '../services/assessmentImports.ts'
 import { checkAuthorizationBalance } from '../helpers/authorizationCheck.ts'
 import { shiftHours } from '../services/scheduleOccurrences.ts'
-import { agencyTimezone } from '../services/agencyTime.ts'
+import { agencyTimezone, agencyToday } from '../services/agencyTime.ts'
+import { activePlanWhere, isPlanActive, CARE_PLAN_STATUSES } from '../services/carePlanStatus.ts'
+import { clientVisitsPerWeek, withWeeklyMinutes } from '../services/careTaskMinutes.ts'
 import { userIdOf, writeCareAudit, rowsOf } from '../helpers/careAudit.ts'
 import { maySeeClient, servedBy, isOfficeUser, userIdOf as caregiverIdOf } from '../helpers/caregiverAccess.ts'
 
@@ -44,7 +46,7 @@ export const CARE_PLAN_FIELDS = {
   communicationNotes: 'communicationNotes', startDate: 'startDate', endDate: 'endDate',
 } as const
 const DATE_FIELDS = new Set(['startDate', 'endDate'])
-const STATUSES = ['active', 'draft', 'inactive', 'completed']
+const STATUSES: readonly string[] = CARE_PLAN_STATUSES
 
 async function resolveVisitSchedule(value: unknown, clientId: string): Promise<{ set: false } | { set: true; text: string | null; asOf: string | null } | { error: string }> {
   if (value === undefined) return { set: false }
@@ -60,8 +62,10 @@ const planSelect = {
   clientFirstName: clients.firstName,
   clientLastName: clients.lastName,
 }
-const flatten = (r: any) => ({
+// isActive is the server's answer (services/carePlanStatus.ts) — no screen re-derives it.
+const flatten = (r: any, today: string) => ({
   ...r.plan,
+  isActive: isPlanActive(r.plan, today),
   clientFirstName: r.clientFirstName,
   clientLastName: r.clientLastName,
   clientName: `${r.clientFirstName || ''} ${r.clientLastName || ''}`.trim(),
@@ -78,13 +82,15 @@ app.get('/', async (c) => {
     .leftJoin(clients, eq(carePlans.clientId, clients.id))
     .where(and(clientId ? eq(carePlans.clientId, clientId) : undefined, scope))
     .orderBy(desc(carePlans.createdAt))
-  return c.json(rows.map(flatten))
+  const today = await agencyToday()
+  return c.json(rows.map((r) => flatten(r, today)))
 })
 
 app.get('/summary', requireAdmin, async (c) => {
+  const today = await agencyToday()
   const [total, active, byServiceType, byClient] = await Promise.all([
     db.execute(sql`SELECT COUNT(*)::int AS total_plans FROM care_plans`),
-    db.execute(sql`SELECT COUNT(*)::int AS active_plans FROM care_plans WHERE (start_date IS NULL OR start_date <= CURRENT_DATE) AND (end_date IS NULL OR end_date >= CURRENT_DATE)`),
+    db.select({ active_plans: sql<number>`COUNT(*)::int` }).from(carePlans).where(activePlanWhere(today)),
     db.execute(sql`SELECT service_type, COUNT(*)::int AS count FROM care_plans GROUP BY service_type ORDER BY count DESC`),
     db.execute(sql`SELECT cl.id, cl.first_name || ' ' || cl.last_name AS client_name, COUNT(cp.id)::int AS plan_count
                      FROM clients cl LEFT JOIN care_plans cp ON cl.id = cp.client_id
@@ -183,7 +189,7 @@ app.put('/:id', requireAdmin, async (c) => {
     return updated
   })
   await writeCareAudit(user, 'UPDATE', 'care_plans', id, row)
-  return c.json(row)
+  return c.json({ ...row, isActive: isPlanActive(row, await agencyToday()) })
 })
 
 app.get('/:id/revisions', requireAdmin, async (c) => {
@@ -208,10 +214,10 @@ app.get('/:id/pdf', requireAdmin, async (c) => {
     .from(clientEmergencyContacts)
     .where(eq(clientEmergencyContacts.clientId, r.plan.clientId))
     .orderBy(desc(clientEmergencyContacts.isPrimary), asc(clientEmergencyContacts.createdAt)).limit(1)
-  const tasks = rowsOf(await db.execute(sql`
-    SELECT task_name, category, weekly_frequency, allotted_minutes, assessment_source
+  const tasks = withWeeklyMinutes(rowsOf(await db.execute(sql`
+    SELECT task_name, category, cadence, weekly_frequency, allotted_minutes, assessment_source
       FROM client_task_templates WHERE client_id = ${r.plan.clientId} AND is_active = true
-     ORDER BY sort_order, created_at`))
+     ORDER BY sort_order, created_at`)), await clientVisitsPerWeek(r.plan.clientId))
   const tz = await agencyTimezone()
   const createdOn = new Date(r.plan.createdAt).toLocaleDateString('en-US', { timeZone: tz })
   const pdf = await carePlanPdf({

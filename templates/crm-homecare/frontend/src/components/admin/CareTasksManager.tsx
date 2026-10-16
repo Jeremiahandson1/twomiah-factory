@@ -167,7 +167,8 @@ export default function CareTasksManager({ client, onClose }: { client: any; onC
     finally { setImporting(false); }
   };
 
-  const weeklyMinutes = tasks.reduce((sum, t) => sum + ((parseInt(t.weekly_frequency, 10) || 1) * (parseInt(t.allotted_minutes, 10) || 0)), 0);
+  // The server's minutes per week (services/careTaskMinutes.ts): a daily task counts once per scheduled visit.
+  const weeklyMinutes = tasks.reduce((sum, t) => sum + (Number(t.minutes_per_week) || 0), 0);
   const activeFormat = formats.find(f => f.id === format);
 
   return (
@@ -359,6 +360,11 @@ export default function CareTasksManager({ client, onClose }: { client: any; onC
                 <option value="PM">PM</option>
               </select>
             </div>
+            {form.cadence === 'daily' && (
+              <div className="mb-2 text-xs text-gray-600 dark:text-slate-300">
+                A daily task is done on every visit, so it counts once per scheduled visit in the minutes per week. "Times per week" is used only while the client has no visits scheduled.
+              </div>
+            )}
             <textarea aria-label="Description" placeholder="Optional description / instructions" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className={`w-full mb-2 ${inp}`} />
             <div className="flex gap-2">
               <button type="button" onClick={save} className="btn btn-primary btn-sm">{editingId ? 'Save Changes' : 'Add Task'}</button>
@@ -383,7 +389,7 @@ export default function CareTasksManager({ client, onClose }: { client: any; onC
                     <div className="text-xs mt-1 text-gray-500 dark:text-slate-400">
                       <b className={t.cadence === 'weekly' ? 'text-violet-700 dark:text-violet-300' : 'text-blue-700 dark:text-blue-300'}>{t.cadence === 'weekly' ? '🗓️ Weekly' : '📅 Daily'}</b>
                       {' · '}{CATEGORIES.find(c => c.value === t.category)?.label || t.category}
-                      {' · '}{t.weekly_frequency || 1}×/wk × {t.allotted_minutes} min = <b>{(t.weekly_frequency || 1) * (t.allotted_minutes || 0)} min/wk</b>
+                      {' · '}{t.times_per_week}×/wk{t.every_visit ? ' (every visit)' : ''} × {t.allotted_minutes} min = <b>{t.minutes_per_week} min/wk</b>
                       {t.days_of_week ? ` · ${t.days_of_week}` : ''}
                       {t.time_of_day && t.time_of_day !== 'any' ? ` · ${t.time_of_day}` : ''}
                     </div>

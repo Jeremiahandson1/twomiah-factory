@@ -368,7 +368,10 @@ const tylerTok = (await login('tyler@test.local', 'tylerpass1')).json.token
   const mine = await fam('GET', '/api/family-portal/portal/messages')
   const orig = mine.json?.find((m: any) => m.direction === 'inbound')
   const out = mine.json?.find((m: any) => m.direction === 'outbound')
-  check('the relative sees the reply on their message and as its own message', orig?.reply === 'She had a good day.' && out?.message === 'She had a good day.', mine.json)
+  // Run 4: the reply is its own message, ONCE — the copy kept on the family's row for the office is
+  // not sent, or the portal printed every reply twice.
+  check('the relative sees the reply once, as its own message', out?.message === 'She had a good day.'
+    && mine.json.filter((m: any) => m.message === 'She had a good day.').length === 1 && orig?.reply === undefined, mine.json)
 
   const off = await asAdmin('PUT', `/api/family-portal/admin/members/${created.json.id}/status`, { isActive: false })
   check('an admin switches the relative off', off.status === 200)

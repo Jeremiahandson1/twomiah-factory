@@ -1094,7 +1094,8 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
 // minutes reach it, the caregiver app stops sending caregivers to Sandata for this client until
 // Sunday (the rest is non-EVV time). Saved on its own (PATCH /api/clients/:id/evv-units), not with
 // the main client PUT. Ported from the CVHC CRM.
-const EvvWeeklyUnits = ({ clientId, initialUnits, token }) => {
+// Exported: Portal Claim Days opens this same box for a client whose EVV units are blank.
+export const EvvWeeklyUnits = ({ clientId, initialUnits, token }) => {
   const [units, setUnits] = useState(initialUnits == null ? '' : String(initialUnits));
   const [week, setWeek] = useState(null);       // this week's usage, or null if not a Sandata client
   const [saving, setSaving] = useState(false);

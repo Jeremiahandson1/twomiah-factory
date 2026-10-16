@@ -28,7 +28,7 @@ import { ON_TIME_GRACE_MINUTES } from '../helpers/punchRules.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { billedInRangeSql, invoiceBalanceSql, invoiceServiceDateSql, releasedInvoiceSql } from '../services/invoiceMoney.ts'
 import {
-  agencyTimezone, agencyToday, addDays, isYmd, localDate, localTs, dayStartUtc, dayEndUtc,
+  agencyTimezone, agencyToday, agencyWeekStart, addDays, isYmd, localDate, localTs, dayStartUtc, dayEndUtc,
 } from '../services/agencyTime.ts'
 
 const app = new Hono()
@@ -114,9 +114,6 @@ const payerRateLateral = (dateExpr: SQL) => sql`LEFT JOIN LATERAL (
 
 // The on-time grace as a SQL literal (a bound parameter cannot take a unary minus).
 const GRACE_SQL = sql.raw(String(ON_TIME_GRACE_MINUTES))
-
-/** The Sunday starting the Sun–Sat week that holds `ymd`. */
-const sundayOf = (ymd: string) => addDays(ymd, -new Date(`${ymd}T12:00:00Z`).getUTCDay())
 
 // A performance rating's calendar day.
 const ratedOn = (tz: string) => localDate(sql`pr.created_at`, tz)
@@ -870,9 +867,9 @@ app.get('/client-visits-summary', async (c) => {
 // nearest scheduled start. Minutes are shown as 15-minute units (minutes ÷ 15, two decimals) — the
 // claims engine's unit.
 app.get('/client-week', async (c) => {
-  // No weekStart → THIS week (the Sunday of the agency's today), so the screen opens on the current week.
+  // No weekStart → THIS week (services/agencyTime.agencyWeekStart, shared with Portal Claim Days).
   const asked = c.req.query('weekStart')
-  const weekStart = asked == null || asked === '' ? sundayOf(await agencyToday()) : String(asked)
+  const weekStart = asked == null || asked === '' ? await agencyWeekStart() : String(asked)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) return c.json({ error: 'weekStart must be YYYY-MM-DD' }, 400)
   const start = new Date(`${weekStart}T12:00:00Z`)
   if (isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== weekStart || start.getUTCDay() !== 0) {

@@ -90,8 +90,11 @@ await insSched({ caregiver_id: cg2.id, client_id: zed.id, day_of_week: dow(TODAY
   const v = await CG1('GET', `/api/clients/${pat.id}/caregiver-view`)
   check('1. the card lists the active medication from the Medications page (the MAR list)',
     v.status === 200 && /^Lisinopril · 10 mg · daily$/m.test(v.json.medications || ''), v.json?.medications)
-  check('1. …and the client record\'s own lines, without repeating a name already listed',
-    (v.json.medications || '').split('\n').join('|') === 'Lisinopril · 10 mg · daily|Aspirin 81mg', v.json?.medications)
+  // Run 4: ONE source. With medication rows on file the client record's free-text box is not
+  // printed beside them (it listed the same medicine a second time); it is the card's text only for
+  // a client with no rows (r4-care.test.ts).
+  check('1. …and ONLY the Medications list when it has rows — not the client record\'s free-text lines too',
+    (v.json.medications || '').split('\n').join('|') === 'Lisinopril · 10 mg · daily' && v.json.medications_source === 'medications', v.json)
   check('1. …never a discontinued one', !/Warfarin/.test(v.json.medications || ''), v.json?.medications)
   const none = await A('GET', `/api/clients/${sam.id}/caregiver-view`)
   check('1. a client with none on file is null (the card prints "None on file")', none.status === 200 && none.json.medications === null, none.json)

@@ -120,6 +120,20 @@ export function formatInZone(d: Date | string | null | undefined, tz: string): s
   return date.toLocaleString('en-US', { timeZone: tz })
 }
 
+/** The Sunday (YYYY-MM-DD) of the Sun–Sat week containing `ymd` (pure calendar arithmetic). */
+export function sundayOfWeek(ymd: string): string {
+  return addDays(ymd, -new Date(`${String(ymd).slice(0, 10)}T12:00:00Z`).getUTCDay())
+}
+
+/**
+ * The Sunday of the agency's CURRENT Sun–Sat week. The week-at-a-time screens (Client Hours by Week,
+ * Portal Claim Days) open here when they are not asked for a week — this week, on the agency's
+ * clock, never the laptop's and never "last full week" (Run 4).
+ */
+export async function agencyWeekStart(): Promise<string> {
+  return sundayOfWeek(await agencyToday())
+}
+
 /** `date` + n days, as YYYY-MM-DD (pure calendar arithmetic, no zone involved). */
 export function addDays(ymd: string, n: number): string {
   const d = new Date(`${String(ymd).slice(0, 10)}T12:00:00Z`)

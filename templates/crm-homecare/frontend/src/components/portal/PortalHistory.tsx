@@ -2,6 +2,7 @@
 // Past completed visits from time_entries
 import React, { useState, useEffect } from 'react';
 import { apiCall } from '../../config';
+import { formatAgencyDateTime } from '../../utils/agencyClock';
 
 const formatDuration = (minutes) => {
   if (!minutes) return '—';
@@ -11,14 +12,11 @@ const formatDuration = (minutes) => {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 };
 
-const formatDateTime = (isoStr) => {
-  if (!isoStr) return '—';
-  const d = new Date(isoStr);
-  return d.toLocaleString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit',
-  });
-};
+// A visit's clock-in, on the agency's clock (utils/agencyClock.ts), not the browser's.
+const formatDateTime = (isoStr) => (isoStr ? formatAgencyDateTime(isoStr, {
+  month: 'short', day: 'numeric', year: 'numeric',
+  hour: 'numeric', minute: '2-digit',
+}) || '—' : '—');
 
 const PortalHistory = ({ token }) => {
   const [visits, setVisits]   = useState([]);

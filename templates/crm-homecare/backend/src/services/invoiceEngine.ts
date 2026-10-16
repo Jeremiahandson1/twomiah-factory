@@ -739,7 +739,7 @@ export async function recordInvoicePayment(opts: {
     }
     if (!opts.allowOverpayment && round2(alreadyPaid + amt) > total - adjusted + 0.01) {
       throw new BillingRefusal(409, {
-        error: `Payment of $${amt.toFixed(2)} exceeds the $${balanceDue.toFixed(2)} balance due on this invoice. It may already be recorded. To record an intentional overpayment, resubmit with allowOverpayment: true.`,
+        error: `Payment of $${amt.toFixed(2)} exceeds the $${balanceDue.toFixed(2)} balance due on this invoice. It may already be recorded — check the invoice's payments before entering it again.`,
         balanceDue, alreadyPaid, total,
       })
     }

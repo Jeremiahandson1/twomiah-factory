@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiCall } from '../../config';
 import CaregiverBackgroundChecks from './CaregiverBackgroundChecks';
+import { formatAgencyDateTime, setAgencyTimezone } from '../../utils/agencyClock';
 
 const CARD = {
   background: '#fff',
@@ -33,11 +34,9 @@ const dayOf = (d) => {
 };
 const fmtDay = (d, opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }) =>
   dayOf(d)?.toLocaleDateString('en-US', opts) || '';
-const fmtDateTime = (d) => {
-  if (!d) return '';
-  const dt = new Date(d);
-  return isNaN(dt.getTime()) ? '' : dt.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-};
+// An instant (a vitals reading, a visit's clock-in, a message) on the agency's clock — the clock the
+// visit times are on — not the browser's (utils/agencyClock.ts).
+const fmtDateTime = (d) => formatAgencyDateTime(d);
 
 const pick = (o, ...keys) => { for (const k of keys) if (o?.[k] != null && o[k] !== '') return o[k]; return null; };
 
@@ -348,7 +347,15 @@ const MessagesView = ({ token, canMessage }) => {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchMessages(); }, [token]);
+  // The office's reply arrives without a reload: the list is re-read every 30 seconds while this tab
+  // is open, and when the window comes back into focus.
+  useEffect(() => {
+    fetchMessages();
+    const timer = setInterval(fetchMessages, 30000);
+    const onFocus = () => fetchMessages();
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(timer); window.removeEventListener('focus', onFocus); };
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -443,15 +450,6 @@ const MessagesView = ({ token, canMessage }) => {
                 </div>
                 {m.subject && <div style={{ fontWeight: 600, fontSize: '0.88rem', marginBottom: '4px' }}>{m.subject}</div>}
                 <div style={{ color: '#555', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{m.message}</div>
-                {inbound && m.reply && (
-                  <div style={{
-                    marginTop: '10px', padding: '10px', background: '#f0f8f0',
-                    borderRadius: '6px', borderLeft: '3px solid #27ae60',
-                  }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#1e7e34', marginBottom: '4px' }}>Reply from Care Team</div>
-                    <div style={{ color: '#555', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>{m.reply}</div>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -551,7 +549,7 @@ const FamilyPortal = ({ user, token, onLogout }) => {
 
   useEffect(() => {
     apiCall('/api/family-portal/portal/client', { method: 'GET' }, token)
-      .then(data => { if (data) setClient(data); })
+      .then(data => { if (data) { setAgencyTimezone(data.timezone); setClient(data); } })
       .catch(() => {});
     apiCall('/api/family-portal/portal/me', { method: 'GET' }, token)
       .then(data => { if (data) setMember(data); })

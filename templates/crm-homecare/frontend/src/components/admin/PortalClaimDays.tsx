@@ -8,9 +8,9 @@ import React, { useState, useEffect } from 'react';
 import { apiCall } from '../../config';
 import { toast } from '../Toast';
 import { useAuth } from '../../contexts/AuthContext';
+import { EvvWeeklyUnits } from './EditClientModal';
 
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const lastFullWeekSunday = () => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() - d.getDay() - 7); return ymd(d); };
 const shiftWeek = (ws, n) => { const d = new Date(ws + 'T12:00:00'); d.setDate(d.getDate() + 7 * n); return ymd(d); };
 const dayLabel = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
 const hrs = (u) => `${(u * 0.25).toFixed(2).replace(/\.?0+$/, '')}h`;
@@ -21,7 +21,10 @@ export default function PortalClaimDays() {
   const [payers, setPayers] = useState([]);
   const [presets, setPresets] = useState([]);
   const [payerId, setPayerId] = useState('');
-  const [weekStart, setWeekStart] = useState(lastFullWeekSunday());
+  // Opens on THIS week on the agency's clock: the first load sends no weekStart and the server answers
+  // with the Sunday of the agency's today (the laptop computed "last full week" here — Run 4).
+  const [weekStart, setWeekStart] = useState('');
+  const [evvFor, setEvvFor] = useState(null); // the client whose EVV units are being entered
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -46,7 +49,8 @@ export default function PortalClaimDays() {
     if (!payerId || !portal) { setData(null); return; }
     setLoading(true); setError('');
     try {
-      const j = await apiCall(`/api/billing/portal-claim-days?payerId=${encodeURIComponent(payerId)}&weekStart=${weekStart}`, { method: 'GET' }, token);
+      const qs = weekStart ? `&weekStart=${weekStart}` : '';
+      const j = await apiCall(`/api/billing/portal-claim-days?payerId=${encodeURIComponent(payerId)}${qs}`, { method: 'GET' }, token);
       setData(j);
     } catch (e) { setError(e.message); setData(null); }
     setLoading(false);
@@ -145,9 +149,9 @@ export default function PortalClaimDays() {
 
       {portal && (
         <div className="my-4 flex flex-wrap items-center gap-2">
-          <button type="button" className="btn btn-secondary" onClick={() => setWeekStart(shiftWeek(weekStart, -1))}>← Prev week</button>
-          <strong className="text-gray-900 dark:text-slate-100">{data ? `${dayLabel(data.week_start)} – ${dayLabel(data.week_end)}` : weekStart}</strong>
-          <button type="button" className="btn btn-secondary" onClick={() => setWeekStart(shiftWeek(weekStart, 1))}>Next week →</button>
+          <button type="button" className="btn btn-secondary" disabled={!(weekStart || data?.week_start)} onClick={() => setWeekStart(shiftWeek(weekStart || data.week_start, -1))}>← Prev week</button>
+          <strong className="text-gray-900 dark:text-slate-100">{data ? `${dayLabel(data.week_start)} – ${dayLabel(data.week_end)}` : (weekStart || 'This week')}</strong>
+          <button type="button" className="btn btn-secondary" disabled={!(weekStart || data?.week_start)} onClick={() => setWeekStart(shiftWeek(weekStart || data.week_start, 1))}>Next week →</button>
           <span className="flex-1" />
           <button type="button" className="btn btn-secondary" onClick={() => window.print()} disabled={!data}>🖨 Print</button>
           <button type="button" className="btn btn-primary" onClick={downloadCsv} disabled={!data || !data.clients.length}>⬇ CSV for {portal.name}</button>
@@ -177,7 +181,13 @@ export default function PortalClaimDays() {
                   EVV <strong>{c.totals.evvUnits}</strong>{c.totals.evvAuthorizedUnits != null ? ` of ${c.totals.evvAuthorizedUnits}` : ''} u · {portal.otherLabel} <strong>{c.totals.homemakerUnits}</strong> u
                 </span>
                 {!c.in_evv && <span className="text-xs text-gray-600 dark:text-slate-400">(no Medicaid ID — not an EVV client)</span>}
-                {c.in_evv && c.totals.evvAuthorizedUnits == null && <span className="text-xs text-amber-800 dark:text-amber-300">⚠ no weekly EVV units entered — all EVV time counted as EVV</span>}
+                {c.in_evv && c.totals.evvAuthorizedUnits == null && (
+                  <span className="text-xs text-amber-800 dark:text-amber-300">
+                    ⚠ "EVV (Sandata) units per week" is blank for {c.client_name}, so all EVV time is claimed as {portal.evvCode}.
+                    {c.weekly_authorized_units != null && ` The ${c.weekly_authorized_units} weekly authorized units are the total for both codes, not the EVV share.`}
+                    {' '}<button type="button" className="btn btn-sm btn-secondary" onClick={() => setEvvFor(c)}>Set EVV units</button>
+                  </span>
+                )}
                 {c.in_evv && c.totals.evvAuthorizedUnits != null && c.totals.evvUnits < c.totals.evvAuthorizedUnits && <span className="text-xs text-amber-800 dark:text-amber-300">⚠ under authorized EVV units</span>}
               </div>
               <table className="w-full border-collapse">
@@ -204,6 +214,22 @@ export default function PortalClaimDays() {
             </div>
           ))}
         </>
+      )}
+
+      {/* The client's EVV share — the same box as Edit Client → "EVV (Sandata) Units Per Week". */}
+      {evvFor && (
+        <div className="modal active" onClick={() => { setEvvFor(null); load(); }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>EVV units for {evvFor.client_name}</h3>
+              <button type="button" className="modal-close" aria-label="Close" onClick={() => { setEvvFor(null); load(); }}>×</button>
+            </div>
+            <EvvWeeklyUnits clientId={evvFor.client_id} initialUnits={evvFor.evv_weekly_units} token={token} />
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => { setEvvFor(null); load(); }}>Done</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

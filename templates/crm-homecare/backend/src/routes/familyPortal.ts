@@ -23,8 +23,9 @@ import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
 import { caregiversServingClient, backgroundCheckSummary } from './portal.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
-import { agencyToday, addDays } from '../services/agencyTime.ts'
+import { agencyToday, addDays, agencyTimezone } from '../services/agencyTime.ts'
 import { listClientVitals } from '../services/vitals.ts'
+import { activePlanWhere } from '../services/carePlanStatus.ts'
 import type { Context, Next } from 'hono'
 import { refusePortalWhileLocked } from '../helpers/portalLock.ts'
 
@@ -381,7 +382,9 @@ app.get('/portal/client', familyAuth, async (c) => {
     address: clients.address, city: clients.city, state: clients.state, zip: clients.zip, phone: clients.phone,
   }).from(clients).where(eq(clients.id, c.get('familyClientId') as string)).limit(1)
   const [agency] = await db.select({ name: agencies.name, state: agencies.state }).from(agencies).limit(1)
-  return c.json({ ...client, agencyName: agency?.name || null, agencyState: agency?.state || null })
+  // timezone: the portal prints instants (vitals, visit notes, messages) on the agency's clock — the
+  // clock its visit times are on (frontend utils/agencyClock.ts).
+  return c.json({ ...client, agencyName: agency?.name || null, agencyState: agency?.state || null, timezone: await agencyTimezone() })
 })
 
 // The next four weeks of visits from the agency's today, through the ONE schedule engine: weekly and
@@ -432,7 +435,8 @@ app.get('/portal/care-plan', familyAuth, async (c) => {
     endDate: carePlans.endDate,
     status: carePlans.status,
   }).from(carePlans)
-    .where(and(eq(carePlans.clientId, c.get('familyClientId') as string), eq(carePlans.status, 'active')))
+    // The office's rule (services/carePlanStatus.ts): status Active and inside its dates — never a draft.
+    .where(and(eq(carePlans.clientId, c.get('familyClientId') as string), activePlanWhere(await agencyToday())))
     .orderBy(desc(carePlans.createdAt)).limit(1)
   return c.json(plan || null)
 })
@@ -488,7 +492,10 @@ app.get('/portal/notes', familyAuth, async (c) => {
   return c.json(rows)
 })
 
-// A family member's own messages and the office's replies to them.
+// A family member's own messages and the office's replies to them — one row per message. An office
+// reply is its own 'staff' row (POST /admin/messages/:id/reply); the copy kept on the family's row
+// (`reply`, the office's "answered" marker, overwritten by a second reply) is NOT sent here, or the
+// portal shows every reply twice (Run 4).
 app.get('/portal/messages', familyAuth, async (c) => {
   const member = c.get('familyMember') as any
   const rows = await db.select({
@@ -497,8 +504,6 @@ app.get('/portal/messages', familyAuth, async (c) => {
     senderType: familyMessages.senderType,
     subject: familyMessages.subject,
     message: familyMessages.body,
-    reply: familyMessages.reply,
-    repliedAt: familyMessages.repliedAt,
     createdAt: familyMessages.createdAt,
   }).from(familyMessages)
     .where(and(eq(familyMessages.clientId, member.clientId), eq(familyMessages.familyMemberId, member.id)))

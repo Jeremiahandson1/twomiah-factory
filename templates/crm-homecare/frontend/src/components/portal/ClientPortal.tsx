@@ -2,6 +2,7 @@
 // Main portal container — handles nav and renders the active view
 import React, { useState, useEffect } from 'react';
 import { apiCall } from '../../config';
+import { setAgencyTimezone } from '../../utils/agencyClock';
 import PortalVisits      from './PortalVisits';
 import PortalHistory     from './PortalHistory';
 import PortalCaregivers  from './PortalCaregivers';
@@ -44,6 +45,7 @@ const ClientPortal = ({ user, token, onLogout }) => {
     apiCall('/api/portal/me', { method: 'GET' }, token)
       .then(data => {
         if (data) {
+          setAgencyTimezone(data.agency_timezone);
           setProfile(data);
           setUnreadCount(data.summary?.unreadNotifications || 0);
           setUnreadMessages(data.summary?.unreadMessages || 0);
