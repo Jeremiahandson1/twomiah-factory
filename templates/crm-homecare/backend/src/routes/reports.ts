@@ -26,6 +26,7 @@ import { auditLogs } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { ON_TIME_GRACE_MINUTES } from '../helpers/punchRules.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
+import { billedInRangeSql, invoiceBalanceSql, invoiceServiceDateSql, releasedInvoiceSql } from '../services/invoiceMoney.ts'
 import {
   agencyTimezone, agencyToday, addDays, isYmd, localDate, localTs, dayStartUtc, dayEndUtc,
 } from '../services/agencyTime.ts'
@@ -151,7 +152,7 @@ app.post('/overview', async (c) => {
     // Revenue billed in the period — invoices + claims, the same as the Revenue tab.
     one(sql`SELECT COALESCE(SUM(billed), 0) AS "totalRevenue" FROM (
         SELECT i.total AS billed FROM invoices i
-        WHERE i.billing_period_start >= (${startDate})::date AND i.billing_period_end <= (${endDate})::date
+        WHERE ${billedInRangeSql(startDate, endDate)}
           AND (${clientId}::text IS NULL OR i.client_id = ${clientId})
         UNION ALL
         SELECT cl.billed_amount FROM claims cl
@@ -179,7 +180,7 @@ app.post('/overview', async (c) => {
       SELECT c.id, c.first_name, c.last_name, c.service_type,
         COALESCE((SELECT SUM(o.hours) FROM occ o WHERE o.client_id = c.id AND (${caregiverId}::text IS NULL OR o.caregiver_id = ${caregiverId})), 0) AS total_hours,
         COALESCE((SELECT SUM(i.total) FROM invoices i WHERE i.client_id = c.id
-                  AND i.billing_period_start >= (${startDate})::date AND i.billing_period_end <= (${endDate})::date), 0) AS revenue,
+                  AND ${billedInRangeSql(startDate, endDate)}), 0) AS revenue,
         COALESCE((SELECT COUNT(DISTINCT o.caregiver_id) FROM occ o WHERE o.client_id = c.id AND (${caregiverId}::text IS NULL OR o.caregiver_id = ${caregiverId})), 0)::int AS caregiver_count
       FROM clients c
       WHERE c.is_active = true
@@ -430,7 +431,8 @@ app.post('/revenue', async (c) => {
   const today = await agencyToday(tz)
   const invF = clientId ? sql`AND i.client_id = ${clientId}` : sql``
   const clmF = clientId ? sql`AND cl.client_id = ${clientId}` : sql``
-  const invIn = sql`i.billing_period_start >= (${startDate})::date AND i.billing_period_end <= (${endDate})::date`
+  // Invoices: released, dated by their first day of service, counted whole (services/invoiceMoney.ts).
+  const invIn = billedInRangeSql(startDate, endDate)
   // A claim made FROM an invoice (claims.invoice_id) bills the same money as that invoice: the
   // invoice already counts it, so such claims are left out everywhere invoices are counted too.
   const clmIn = sql`cl.service_date BETWEEN (${startDate})::date AND (${endDate})::date AND COALESCE(cl.status, '') <> 'voided' AND cl.invoice_id IS NULL`
@@ -455,14 +457,14 @@ app.post('/revenue', async (c) => {
         FROM claims cl JOIN clients c ON c.id = cl.client_id WHERE ${clmIn} ${clmF}
       ) u GROUP BY service_type ORDER BY revenue DESC`),
     rows(sql`SELECT payer, COALESCE(SUM(billed), 0) AS billed, COALESCE(SUM(collected), 0) AS collected,
-        COALESCE(SUM(billed - collected), 0) AS outstanding FROM (
+        COALESCE(SUM(billed - collected - adjusted), 0) AS outstanding FROM (
         SELECT COALESCE(rs.name, CASE WHEN c.is_private_pay THEN 'Private Pay' ELSE 'Unknown' END) AS payer,
-          i.total AS billed, COALESCE(i.amount_paid, 0) AS collected
+          i.total AS billed, COALESCE(i.amount_paid, 0) AS collected, COALESCE(i.amount_adjusted, 0) AS adjusted
         FROM invoices i JOIN clients c ON c.id = i.client_id
         LEFT JOIN referral_sources rs ON rs.id = i.referral_source_id
         WHERE ${invIn} ${invF}
         UNION ALL
-        SELECT COALESCE(rs.name, 'Unknown Payer'), cl.billed_amount, COALESCE(cl.paid_amount, 0)
+        SELECT COALESCE(rs.name, 'Unknown Payer'), cl.billed_amount, COALESCE(cl.paid_amount, 0), 0
         FROM claims cl LEFT JOIN referral_sources rs ON rs.id = cl.payer_id
         WHERE ${clmIn} ${clmF}
       ) u GROUP BY payer ORDER BY billed DESC`),
@@ -476,10 +478,10 @@ app.post('/revenue', async (c) => {
         COALESCE(SUM(bal) FILTER (WHERE (${today})::date - due > 90), 0) AS d90_plus,
         COALESCE(SUM(bal), 0) AS total_outstanding
       FROM (
-        SELECT (i.total - COALESCE(i.amount_paid, 0) - COALESCE(i.amount_adjusted, 0)) AS bal,
+        SELECT ${invoiceBalanceSql()} AS bal,
                COALESCE(i.payment_due_date, i.billing_period_end + 30) AS due
         FROM invoices i
-        WHERE (i.total - COALESCE(i.amount_paid, 0) - COALESCE(i.amount_adjusted, 0)) > 0.005 ${invF}
+        WHERE ${releasedInvoiceSql()} AND ${invoiceBalanceSql()} > 0.005 ${invF}
         UNION ALL
         SELECT (COALESCE(cl.billed_amount, 0) - COALESCE(cl.paid_amount, 0)),
                (COALESCE(cl.submission_date, cl.service_date) + COALESCE(rs.expected_pay_days, 30))
@@ -532,13 +534,14 @@ app.get('/pnl', async (c) => {
   if ('error' in range) return c.json({ error: range.error }, 400)
   const { startDate: start, endDate: end } = range
 
-  const frac = sql`GREATEST(0, LEAST(i.billing_period_end, (${end})::date) - GREATEST(i.billing_period_start, (${start})::date) + 1)::numeric
-            / NULLIF(i.billing_period_end - i.billing_period_start + 1, 0)`
+  // Invoices count whole, released only, by their first day of service (services/invoiceMoney.ts) —
+  // the same invoices the Revenue tab counts. They are no longer prorated by billing-period days.
+  const invIn = billedInRangeSql(start, end)
   const [revenue, revenueByPayer, expenses, d] = await Promise.all([
     one(sql`SELECT COALESCE(SUM(billed), 0) AS total_billed, COALESCE(SUM(collected), 0) AS total_collected,
         COALESCE(SUM(billed) - SUM(collected), 0) AS outstanding FROM (
-        SELECT i.total * ${frac} AS billed, COALESCE(i.amount_paid, 0) * ${frac} AS collected
-        FROM invoices i WHERE i.billing_period_end >= (${start})::date AND i.billing_period_start <= (${end})::date
+        SELECT i.total AS billed, COALESCE(i.amount_paid, 0) AS collected
+        FROM invoices i WHERE ${invIn}
         UNION ALL
         SELECT COALESCE(cl.billed_amount, 0), COALESCE(cl.paid_amount, 0)
         FROM claims cl WHERE cl.service_date BETWEEN (${start})::date AND (${end})::date AND COALESCE(cl.status, '') <> 'voided'
@@ -546,10 +549,10 @@ app.get('/pnl', async (c) => {
       ) u`),
     rows(sql`SELECT payer_name, SUM(cnt)::int AS invoice_count, COALESCE(SUM(billed), 0) AS billed, COALESCE(SUM(collected), 0) AS collected FROM (
         SELECT COALESCE(rs.name, 'Private Pay') AS payer_name, 1 AS cnt,
-          i.total * ${frac} AS billed, COALESCE(i.amount_paid, 0) * ${frac} AS collected
+          i.total AS billed, COALESCE(i.amount_paid, 0) AS collected
         FROM invoices i LEFT JOIN clients c ON i.client_id = c.id
-        LEFT JOIN referral_sources rs ON c.referred_by_id = rs.id
-        WHERE i.billing_period_end >= (${start})::date AND i.billing_period_start <= (${end})::date
+        LEFT JOIN referral_sources rs ON rs.id = i.referral_source_id
+        WHERE ${invIn}
         UNION ALL
         SELECT COALESCE(rs.name, 'Unknown Payer'), 1, cl.billed_amount, COALESCE(cl.paid_amount, 0)
         FROM claims cl LEFT JOIN referral_sources rs ON cl.payer_id = rs.id
@@ -798,17 +801,17 @@ app.get('/client-revenue-by-month', async (c) => {
   const { startDate, endDate, tz } = r
   const today = await agencyToday(tz)
   const result = await rows(sql`SELECT c.id AS client_id, c.first_name, c.last_name,
-      TO_CHAR(date_trunc('month', i.billing_period_start), 'YYYY-MM') AS month,
+      TO_CHAR(date_trunc('month', ${invoiceServiceDateSql()}), 'YYYY-MM') AS month,
       COUNT(i.id)::int AS invoice_count,
       ROUND(SUM(i.total)::numeric, 2) AS total_billed,
       ROUND(SUM(COALESCE(i.amount_paid, 0))::numeric, 2) AS total_paid,
-      ROUND(SUM(i.total - COALESCE(i.amount_paid, 0))::numeric, 2) AS outstanding,
+      ROUND(SUM(${invoiceBalanceSql()})::numeric, 2) AS outstanding,
       COUNT(*) FILTER (WHERE i.payment_status = 'paid')::int AS paid_count,
       COUNT(*) FILTER (WHERE i.payment_status = 'pending' AND i.payment_due_date < (${today})::date)::int AS overdue_count,
       to_char(MAX(i.billing_period_end), 'YYYY-MM-DD') AS last_billed
     FROM invoices i
     JOIN clients c ON i.client_id = c.id
-    WHERE i.billing_period_start >= (${startDate})::date AND i.billing_period_start <= (${endDate})::date
+    WHERE ${billedInRangeSql(startDate, endDate)}
     GROUP BY c.id, c.first_name, c.last_name, 4
     ORDER BY month DESC, total_billed DESC`)
   if (c.req.query('format') === 'csv') {
@@ -1526,8 +1529,8 @@ app.post('/:type/export', async (c) => {
         to_char(i.billing_period_end, 'YYYY-MM-DD') AS billing_period_end,
         i.total, i.amount_paid, i.payment_status, COALESCE(rs.name, 'Private Pay') AS payer
       FROM invoices i JOIN clients c ON i.client_id = c.id
-      LEFT JOIN referral_sources rs ON c.referred_by_id = rs.id
-      WHERE i.billing_period_start >= (${sd})::date AND i.billing_period_end <= (${ed})::date
+      LEFT JOIN referral_sources rs ON rs.id = i.referral_source_id
+      WHERE ${billedInRangeSql(sd, ed)}
       ORDER BY i.billing_period_start DESC, c.last_name`)
   } else if (type === 'compliance') {
     data = await rows(sql`SELECT u.first_name || ' ' || u.last_name AS caregiver,
@@ -1645,7 +1648,7 @@ app.post('/:type/export-pdf', async (c) => {
   } else if (type === 'revenue') {
     reportData = { revenue: await one(sql`SELECT COALESCE(SUM(total), 0) AS total_billed, COALESCE(SUM(amount_paid), 0) AS collected,
         COUNT(*)::int AS invoice_count
-      FROM invoices WHERE billing_period_start >= (${startDate})::date AND billing_period_end <= (${endDate})::date`) }
+      FROM invoices i WHERE ${billedInRangeSql(startDate, endDate)}`) }
   }
 
   const agency = await agencyName()

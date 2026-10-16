@@ -169,6 +169,13 @@
       "when": 1791487400001,
       "tag": "0024_callrail_signing_key",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791487400002,
+      "tag": "0025_invoice_line_rate_type",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,7 @@ import { eq, and, asc, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { authorizations, clients, referralSources } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { normalizeAuthUnit, AUTH_UNITS, AUTH_UNIT_LABEL } from '../services/authUnits.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -93,13 +94,24 @@ function normalizeAuth(body: any) {
   for (const k of ['payerId', 'procedureCode', 'modifier', 'notes', 'authNumber', 'midasAuthId', 'unitType']) {
     if (v[k] === '') delete v[k]
   }
+  if (body.unitType == null && body.unit_type != null) v.unitType = body.unit_type
+  delete v.unit_type
+  // One spelling per unit (services/authUnits.ts): the deduction, the pre-submit check, the
+  // forecast and the optimizer all convert by it. An unknown unit is refused, not stored.
+  if (v.unitType != null && v.unitType !== '') {
+    const u = normalizeAuthUnit(v.unitType)
+    if (!u) return { error: `Unit type must be one of: ${AUTH_UNITS.map((x) => AUTH_UNIT_LABEL[x]).join(', ')}` }
+    v.unitType = u
+  }
   return v
 }
 
 app.post('/', async (c) => {
   const body = await c.req.json()
   const user = c.get('user') as any
-  const [auth] = await db.insert(authorizations).values({ ...normalizeAuth(body), createdById: user.userId }).returning()
+  const v = normalizeAuth(body)
+  if (v.error) return c.json({ error: v.error }, 400)
+  const [auth] = await db.insert(authorizations).values({ ...v, createdById: user.userId }).returning()
   return c.json(auth, 201)
 })
 
@@ -107,7 +119,9 @@ app.post('/', async (c) => {
 app.put('/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
-  const [auth] = await db.update(authorizations).set({ ...normalizeAuth(body), updatedAt: new Date() }).where(eq(authorizations.id, id)).returning()
+  const v = normalizeAuth(body)
+  if (v.error) return c.json({ error: v.error }, 400)
+  const [auth] = await db.update(authorizations).set({ ...v, updatedAt: new Date() }).where(eq(authorizations.id, id)).returning()
   return c.json(auth)
 })
 

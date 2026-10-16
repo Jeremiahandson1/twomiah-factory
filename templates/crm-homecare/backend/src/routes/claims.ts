@@ -354,7 +354,11 @@ app.post('/', async (c) => {
   const inv = rowsOf(await db.execute(sql`
     SELECT i.id, i.client_id, i.total, to_char(i.billing_period_start, 'YYYY-MM-DD') AS s, to_char(i.billing_period_end, 'YYYY-MM-DD') AS e,
            COALESCE(i.referral_source_id, c.referred_by_id) AS payer_id, rs.payer_type,
-           (SELECT COALESCE(SUM(hours), 0) FROM invoice_line_items WHERE invoice_id = i.id) AS hours
+           (SELECT COALESCE(SUM(hours), 0) FROM invoice_line_items WHERE invoice_id = i.id) AS hours,
+           -- The dates of service are the invoice's LINES, not its billing period: the claim's
+           -- service_date is the first day served (837P and the portal exports read it).
+           (SELECT to_char(MIN(service_date), 'YYYY-MM-DD') FROM invoice_line_items WHERE invoice_id = i.id) AS first_day,
+           (SELECT to_char(MAX(service_date), 'YYYY-MM-DD') FROM invoice_line_items WHERE invoice_id = i.id) AS last_day
       FROM invoices i JOIN clients c ON i.client_id = c.id LEFT JOIN referral_sources rs ON rs.id = COALESCE(i.referral_source_id, c.referred_by_id)
      WHERE i.id = ${b.invoiceId}`))[0]
   if (!inv) return c.json({ error: 'Invoice not found' }, 404)
@@ -362,11 +366,11 @@ app.post('/', async (c) => {
   const units = Math.round(Number(inv.hours) * 4 * 100) / 100 // 15-minute units
   const claim = rowsOf(await db.execute(sql`
     INSERT INTO claims (
-      id, invoice_id, claim_number, payer_id, payer_type, client_id, service_date_from, service_date_to, place_of_service,
+      id, invoice_id, claim_number, payer_id, payer_type, client_id, service_date, service_date_from, service_date_to, place_of_service,
       service_code, modifier, diagnosis_code, units_billed, billed_amount, status, created_by_id
     ) VALUES (
       ${claimId}, ${inv.id}, ${`CLM-${Date.now().toString(36).toUpperCase()}`}, ${inv.payer_id}, ${inv.payer_type || null}, ${inv.client_id},
-      ${inv.s}::date, ${inv.e}::date, ${b.placeOfService || '12'}, ${b.procedureCode || null}, ${b.modifier || null},
+      ${inv.first_day || inv.s}::date, ${inv.first_day || inv.s}::date, ${inv.last_day || inv.e}::date, ${b.placeOfService || '12'}, ${b.procedureCode || null}, ${b.modifier || null},
       ${b.diagnosisCode || null}, ${units}, ${inv.total}, 'draft', ${userId(c)}
     ) RETURNING *`))[0]
   await db.execute(sql`

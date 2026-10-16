@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and, gte, lte, desc, count } from 'drizzle-orm'
+import { eq, and, gte, lte, desc, count, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import {
   evvVisits,
@@ -8,6 +8,7 @@ import {
 } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createEVVFromTimeEntry } from '../services/evvVisits.ts'
+import { privatePaySql } from '../helpers/payerFunding.ts'
 
 const app = new Hono()
 
@@ -22,7 +23,10 @@ app.get('/', async (c) => {
   const limit = parseInt(c.req.query('limit') || '50')
   const skip = (page - 1) * limit
 
-  const conditions = []
+  // EVV applies only to payer-funded services: a private-pay client's visits are not listed
+  // (helpers/payerFunding.ts — by the payer's TYPE, never its name). New private-pay visits get no
+  // EVV record at all (services/evvVisits.ts); this also keeps out rows written before that rule.
+  const conditions: any[] = [sql`NOT EXISTS (SELECT 1 FROM clients pc WHERE pc.id = ${evvVisits.clientId} AND ${privatePaySql('pc')})`]
   if (status) conditions.push(eq(evvVisits.sandataStatus, status))
   if (startDate) conditions.push(gte(evvVisits.serviceDate, startDate))
   if (endDate) conditions.push(lte(evvVisits.serviceDate, endDate))
@@ -125,6 +129,8 @@ app.post('/create-from-entry/:timeEntryId', async (c) => {
     .limit(1)
   if (!entry) return c.json({ error: 'Time entry not found' }, 404)
   if (!entry.endTime) return c.json({ error: 'This visit is still clocked in — close it first' }, 400)
+  const [pp] = (await db.execute(sql`SELECT ${privatePaySql('c')} AS private_pay FROM time_entries te JOIN clients c ON c.id = te.client_id WHERE te.id = ${entry.id}`) as any).rows ?? []
+  if (pp?.private_pay) return c.json({ error: 'This is a private-pay visit. EVV applies only to payer-funded services, so it has no EVV record.' }, 400)
   const visit = await createEVVFromTimeEntry(entry.id)
   if (!visit) return c.json({ error: 'The EVV record could not be created' }, 400)
   return c.json(visit, 201)

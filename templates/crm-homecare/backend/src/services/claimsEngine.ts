@@ -26,6 +26,7 @@ import { db } from '../../db/index.ts'
 import { routeClaim } from './payerRouter.ts'
 import logger from './logger.ts'
 import { notFound } from '../utils/errors.ts'
+import { normalizeAuthUnit, toAuthUnits, AUTH_UNIT_LABEL } from './authUnits.ts'
 
 const rowsOf = (r: any): any[] => (r?.rows ?? r ?? []) as any[]
 
@@ -170,9 +171,32 @@ export async function batchGenerateClaims(startDate: string, endDate: string, us
  * Check authorization before claim submission
  * Returns { canSubmit, warnings, blockers }
  */
+/**
+ * What one claim uses of its authorization, in the authorization's unit (services/authUnits.ts).
+ * units_billed is 15-minute units. A claim from an EVV visit is one visit on one day; a claim made
+ * from an invoice covers each distinct visit (day + scheduled start + caregiver) and day on its
+ * lines; anything else counts one visit per service day of its date span.
+ */
+export async function claimAuthUsage(claimId: string): Promise<{ quarterHours: number; visits: number; days: number }> {
+  const c = rowsOf(await db.execute(sql`
+    SELECT cl.units_billed, cl.evv_visit_id, cl.invoice_id,
+           COALESCE(cl.service_date_to, cl.service_date, cl.service_date_from) - COALESCE(cl.service_date_from, cl.service_date, cl.service_date_to) + 1 AS span_days,
+           (SELECT COUNT(DISTINCT (ili.service_date, ili.start_time, ili.caregiver_id))::int FROM invoice_line_items ili
+             WHERE cl.invoice_id IS NOT NULL AND ili.invoice_id = cl.invoice_id AND ili.service_date IS NOT NULL) AS invoice_visits,
+           (SELECT COUNT(DISTINCT ili.service_date)::int FROM invoice_line_items ili
+             WHERE cl.invoice_id IS NOT NULL AND ili.invoice_id = cl.invoice_id AND ili.service_date IS NOT NULL) AS invoice_days
+      FROM claims cl WHERE cl.id = ${claimId}`))[0]
+  if (!c) return { quarterHours: 0, visits: 0, days: 0 }
+  const quarterHours = parseFloat(c.units_billed || '0') || 0
+  if (c.evv_visit_id) return { quarterHours, visits: 1, days: 1 }
+  if (c.invoice_id && Number(c.invoice_days) > 0) return { quarterHours, visits: Number(c.invoice_visits) || Number(c.invoice_days), days: Number(c.invoice_days) }
+  const span = Math.max(1, Number(c.span_days) || 1)
+  return { quarterHours, visits: span, days: span }
+}
+
 export async function checkAuthorizationForSubmission(claimId: string) {
   const c = rowsOf(await db.execute(sql`
-    SELECT cl.authorization_id, cl.units_billed, a.authorized_units, a.used_units,
+    SELECT cl.authorization_id, cl.units_billed, a.authorized_units, a.used_units, a.unit_type,
            to_char(a.end_date, 'YYYY-MM-DD') AS end_date, a.status AS auth_status
       FROM claims cl LEFT JOIN authorizations a ON cl.authorization_id = a.id
      WHERE cl.id = ${claimId}`))[0]
@@ -184,18 +208,21 @@ export async function checkAuthorizationForSubmission(claimId: string) {
     warnings.push('No authorization linked to this claim')
     return { canSubmit: true, warnings, blockers }
   }
+  // Both sides in the AUTHORIZATION's unit: the claim's 15-minute units are converted first.
+  const unit = normalizeAuthUnit(c.unit_type) ?? '15min'
+  const unitName = AUTH_UNIT_LABEL[unit]
   const remaining = parseFloat(c.authorized_units || '0') - parseFloat(c.used_units || '0')
-  const unitsToBill = parseFloat(c.units_billed || '0')
+  const unitsToBill = toAuthUnits(unit, await claimAuthUsage(claimId))
   const totalAuth = parseFloat(c.authorized_units || '0')
   if (remaining <= 0 || c.auth_status === 'exhausted') blockers.push('Authorization has no remaining units. Request a renewal before submitting.')
-  if (unitsToBill > remaining && remaining > 0) blockers.push(`Claim requires ${unitsToBill} units but only ${remaining.toFixed(1)} remain on authorization.`)
-  if (remaining > 0 && remaining < totalAuth * 0.1) warnings.push(`Only ${remaining.toFixed(1)} units remaining (${((remaining / totalAuth) * 100).toFixed(0)}% of ${totalAuth}). Consider requesting renewal.`)
+  if (unitsToBill > remaining && remaining > 0) blockers.push(`Claim requires ${unitsToBill} ${unitName} but only ${remaining.toFixed(1)} remain on authorization.`)
+  if (remaining > 0 && remaining < totalAuth * 0.1) warnings.push(`Only ${remaining.toFixed(1)} ${unitName} remaining (${((remaining / totalAuth) * 100).toFixed(0)}% of ${totalAuth}). Consider requesting renewal.`)
   if (c.end_date) {
     const daysUntilExpiry = Math.ceil((new Date(c.end_date + 'T23:59:59Z').getTime() - Date.now()) / 86400000)
     if (daysUntilExpiry <= 0) blockers.push('Authorization has expired.')
     else if (daysUntilExpiry <= 30) warnings.push(`Authorization expires in ${daysUntilExpiry} days.`)
   }
-  return { canSubmit: blockers.length === 0, warnings, blockers, remainingUnits: remaining, unitsToBill }
+  return { canSubmit: blockers.length === 0, warnings, blockers, remainingUnits: remaining, unitsToBill, unitType: unit }
 }
 
 /**
@@ -206,13 +233,15 @@ export async function checkAuthorizationForSubmission(claimId: string) {
 export async function deductAuthorizationUnits(claimId: string): Promise<boolean> {
   const c = rowsOf(await db.execute(sql`
     SELECT cl.units_billed, cl.authorization_id, cl.client_id, cl.units_deducted_at,
-           a.authorized_units, a.used_units, a.low_units_alert_threshold, a.auth_number,
+           a.authorized_units, a.used_units, a.low_units_alert_threshold, a.auth_number, a.unit_type,
            to_char(a.end_date, 'YYYY-MM-DD') AS end_date
       FROM claims cl JOIN authorizations a ON cl.authorization_id = a.id
      WHERE cl.id = ${claimId}`))[0]
   if (!c) return false
-  const units = parseFloat(c.units_billed || '0')
-  if (units <= 0 || !c.authorization_id || c.units_deducted_at) return false
+  if (!(parseFloat(c.units_billed || '0') > 0) || !c.authorization_id || c.units_deducted_at) return false
+  // The claim bills 15-minute units; the authorization counts in its own unit_type.
+  const units = toAuthUnits(c.unit_type, await claimAuthUsage(claimId))
+  if (units <= 0) return false
 
   const won = rowsOf(await db.execute(sql`
     UPDATE claims SET units_deducted_at = NOW() WHERE id = ${claimId} AND units_deducted_at IS NULL RETURNING id`))

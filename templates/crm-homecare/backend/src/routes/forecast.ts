@@ -12,6 +12,8 @@ import { db } from '../../db/index.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { agencyTimezone, agencyToday, addDays } from '../services/agencyTime.ts'
+import { authUnitsToHoursSql } from '../services/authUnits.ts'
+import { billedInRangeSql, invoiceServiceDateSql } from '../services/invoiceMoney.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -39,20 +41,29 @@ app.get('/revenue', async (c) => {
   const since = (() => { const d = new Date(`${today}T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() - months); return d.toISOString().slice(0, 10) })()
 
   const [actual, projected, weekly, topClients] = await Promise.all([
-    // Actual billed revenue by month — claims, dated by service date (the same date Reports uses, so
-    // a claim shows up in both or in neither). Voided and rejected claims are out.
-    rows(sql`SELECT to_char(DATE_TRUNC('month', cl.service_date), 'YYYY-MM-DD') AS period,
-        SUM(cl.billed_amount) AS billed, SUM(cl.paid_amount) AS collected, COUNT(*)::int AS claim_count
-      FROM claims cl
-      WHERE cl.service_date >= (${since})::date AND COALESCE(cl.status, '') NOT IN ('voided', 'rejected')
-      GROUP BY 1 ORDER BY 1`),
+    // Actual billed revenue by month — claims dated by service date, and released invoices dated by
+    // their first day of service and counted whole (services/invoiceMoney.ts) — the same rule Reports
+    // uses, so a figure shows up in both or in neither. Voided and rejected claims are out, and a
+    // claim made from an invoice is left out because the invoice already counts that money.
+    rows(sql`SELECT period, SUM(billed) AS billed, SUM(collected) AS collected,
+        SUM(claim_count)::int AS claim_count, SUM(invoice_count)::int AS invoice_count FROM (
+        SELECT to_char(DATE_TRUNC('month', cl.service_date), 'YYYY-MM-DD') AS period,
+          cl.billed_amount AS billed, COALESCE(cl.paid_amount, 0) AS collected, 1 AS claim_count, 0 AS invoice_count
+        FROM claims cl
+        WHERE cl.service_date >= (${since})::date AND COALESCE(cl.status, '') NOT IN ('voided', 'rejected')
+          AND cl.invoice_id IS NULL
+        UNION ALL
+        SELECT to_char(DATE_TRUNC('month', ${invoiceServiceDateSql()}), 'YYYY-MM-DD'),
+          i.total, COALESCE(i.amount_paid, 0), 0, 1
+        FROM invoices i WHERE ${billedInRangeSql(since, today)}
+      ) u GROUP BY 1 ORDER BY 1`),
     // Weekly authorization vs schedule, per client. Authorized units are WEEKLY hours ('15min' units
     // ÷ 4); a client with an active schedule is live, whatever the paper auth dates say.
     rows(sql`WITH ${occurrencesCte(today, addDays(today, 6))},
       sched AS (SELECT client_id, SUM(hours) AS hrs FROM occ GROUP BY client_id),
       auths AS (
         SELECT client_id,
-          SUM(CASE WHEN unit_type = '15min' THEN COALESCE(authorized_units, 0) / 4.0 ELSE COALESCE(authorized_units, 0) END) AS weekly_hours,
+          SUM(${sql.raw(authUnitsToHoursSql('COALESCE(authorized_units, 0)', 'unit_type'))}) AS weekly_hours,
           MAX(end_date) AS end_date
         FROM authorizations WHERE status = 'active'
         GROUP BY client_id
@@ -82,12 +93,18 @@ app.get('/revenue', async (c) => {
       JOIN clients c ON c.id = occ.client_id
       ${payerRateLateral(sql`occ.occ_date`)}
       GROUP BY 1 ORDER BY 1`),
-    // Top clients by billed claims, last 90 days.
-    rows(sql`SELECT cl.client_id, c.first_name || ' ' || c.last_name AS client_name,
-        SUM(cl.billed_amount) AS total_billed, SUM(cl.paid_amount) AS total_collected,
-        COUNT(*)::int AS claim_count, AVG(cl.billed_amount) AS avg_claim
-      FROM claims cl JOIN clients c ON cl.client_id = c.id
-      WHERE cl.service_date >= (${addDays(today, -90)})::date AND COALESCE(cl.status, '') NOT IN ('voided', 'rejected')
+    // Top clients by billed claims and released invoices, last 90 days (the same rule as above).
+    rows(sql`SELECT u.client_id, c.first_name || ' ' || c.last_name AS client_name,
+        SUM(u.billed) AS total_billed, SUM(u.collected) AS total_collected,
+        SUM(u.is_claim)::int AS claim_count, SUM(1 - u.is_claim)::int AS invoice_count, AVG(u.billed) AS avg_claim
+      FROM (
+        SELECT cl.client_id, cl.billed_amount AS billed, COALESCE(cl.paid_amount, 0) AS collected, 1 AS is_claim FROM claims cl
+        WHERE cl.service_date >= (${addDays(today, -90)})::date AND COALESCE(cl.status, '') NOT IN ('voided', 'rejected')
+          AND cl.invoice_id IS NULL
+        UNION ALL
+        SELECT i.client_id, i.total, COALESCE(i.amount_paid, 0), 0 FROM invoices i
+        WHERE ${billedInRangeSql(addDays(today, -90), today)}
+      ) u JOIN clients c ON u.client_id = c.id
       GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 10`),
   ])
 

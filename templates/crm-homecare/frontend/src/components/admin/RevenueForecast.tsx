@@ -98,7 +98,7 @@ export default function RevenueForecast() {
           <h4 style={{ margin: '0 0 1rem', color: '#374151' }}>Billed vs Collected — Last {months} Month{months > 1 ? 's' : ''}</h4>
           {actual.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: '#9CA3AF', background: '#F9FAFB', borderRadius: '10px', border: '2px dashed #E5E7EB' }}>
-              No billing data for this period. Billing data will appear here once claims are submitted.
+              No billing data for this period. Billing data will appear here once an invoice is sent or released (drafts do not count) or a claim is made.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -116,7 +116,7 @@ export default function RevenueForecast() {
                         <span style={{ color: '#3B82F6', fontWeight: 700 }}>Billed: {fmt$(billed)}</span>
                         <span style={{ color: '#10B981', fontWeight: 700 }}>Collected: {fmt$(collected)}</span>
                         <span style={{ color: collRate >= 90 ? '#10B981' : collRate >= 70 ? '#F59E0B' : '#EF4444', fontWeight: 700 }}>{collRate}% rate</span>
-                        <span style={{ color: '#9CA3AF' }}>{row.claim_count} claims</span>
+                        <span style={{ color: '#9CA3AF' }}>{row.claim_count} claim{row.claim_count === 1 ? '' : 's'} · {row.invoice_count || 0} invoice{Number(row.invoice_count) === 1 ? '' : 's'}</span>
                       </div>
                     </div>
                     <div style={{ height: '8px', background: '#F3F4F6', borderRadius: '4px', overflow: 'hidden' }}>
@@ -241,7 +241,7 @@ export default function RevenueForecast() {
                       <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
                         <span style={{ fontWeight: 700, color: '#3B82F6' }}>{fmt$(c.total_billed)}</span>
                         <span style={{ color: '#10B981' }}>Collected: {fmt$(c.total_collected)}</span>
-                        <span style={{ color: '#9CA3AF' }}>{c.claim_count} claims</span>
+                        <span style={{ color: '#9CA3AF' }}>{c.claim_count} claim{c.claim_count === 1 ? '' : 's'} · {c.invoice_count || 0} invoice{Number(c.invoice_count) === 1 ? '' : 's'}</span>
                       </div>
                     </div>
                     <div style={{ height: '6px', background: '#F3F4F6', borderRadius: '3px', overflow: 'hidden' }}>
