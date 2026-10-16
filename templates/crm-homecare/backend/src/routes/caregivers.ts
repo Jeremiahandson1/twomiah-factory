@@ -204,11 +204,13 @@ app.get('/admins', async (c) => {
 
 // POST /api/users/admins — create an office/admin user (no caregiver records)
 app.post('/admins', requireAdmin, async (c) => {
-  const { firstName, lastName, email, phone, password = 'Welcome1!', role } = await c.req.json()
+  // An office seat is always an admin. The body's `role` used to be honoured, so any admin could mint an owner;
+  // and a missing password fell back to a fixed 'Welcome1!' that every such account shared.
+  const { firstName, lastName, email, phone, password } = await c.req.json()
   if (!firstName || !lastName || !email) {
     return c.json({ error: 'firstName, lastName and email are required' }, 400)
   }
-  if (String(password).length < 8) {
+  if (!password || String(password).length < 8) {
     return c.json({ error: 'Password must be at least 8 characters' }, 400)
   }
   const normalizedEmail = String(email).toLowerCase().trim()
@@ -219,7 +221,7 @@ app.post('/admins', requireAdmin, async (c) => {
   const [user] = await db.insert(users).values({
     firstName, lastName, email: normalizedEmail, phone: phone || null,
     passwordHash,
-    role: role === 'owner' ? 'owner' : 'admin',
+    role: 'admin',
   }).returning({
     id: users.id, firstName: users.firstName, lastName: users.lastName,
     email: users.email, phone: users.phone, role: users.role, isActive: users.isActive,
@@ -309,10 +311,12 @@ app.get('/:id', async (c) => {
 
 // POST /api/caregivers
 app.post('/', requireAdmin, async (c) => {
-  const { password = 'Welcome1!', profile, ...data } = await c.req.json()
+  // No fallback password: a shared default ('Welcome1!') was a known login on every account created without one.
+  // The row's identity and secrets are never the body's to set.
+  const { password, profile, id: _id, passwordHash: _ph, role: _role, createdAt: _ca, updatedAt: _ua, ...data } = await c.req.json()
 
   // H-01: this is a login into a PHI system — enforce a real password minimum.
-  if (String(password).length < 8) {
+  if (!password || String(password).length < 8) {
     return c.json({ error: 'Password must be at least 8 characters' }, 400)
   }
   // H-11: return usable 400/409 instead of a bare 500 on missing/duplicate email.

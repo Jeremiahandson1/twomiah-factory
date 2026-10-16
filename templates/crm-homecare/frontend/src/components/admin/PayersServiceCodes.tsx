@@ -6,6 +6,30 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 
+// The payer's billing classification (referral_sources.payer_type). Claims, EVV, the punch rules and the
+// reports read it; the values match backend routes/payers.ts PAYER_TYPES and payerRouter.PAYER_ROUTES.
+const PAYER_TYPE_OPTIONS = [
+  { value: 'MCO', label: 'Family Care MCO' },
+  { value: 'IRIS', label: 'IRIS (self-directed)' },
+  { value: 'medicaid', label: 'Medicaid fee-for-service' },
+  { value: 'HMO', label: 'Medicaid HMO' },
+  { value: 'medicare', label: 'Medicare' },
+  { value: 'va', label: 'Veterans Affairs (VA)' },
+  { value: 'managed_care', label: 'Commercial insurance' },
+  { value: 'private_pay', label: 'Private pay' },
+  { value: 'other', label: 'Other' },
+];
+const payerTypeLabel = (v) => PAYER_TYPE_OPTIONS.find(o => o.value === v)?.label
+  || ({ mco_family_care: 'Family Care MCO', FFS: 'Medicaid fee-for-service' })[v] || v || '—';
+// A Sandata preset's program decides the payer type: WIMCO is a Family Care MCO, WIHMO an HMO, FFS fee-for-service.
+const TYPE_FOR_PROGRAM = { WIMCO: 'MCO', WIHMO: 'HMO', FFS: 'medicaid' };
+const EMPTY_PAYER = {
+  // No default type: a wrong one silently changes how claims and EVV treat the payer, so the form makes you choose.
+  name: '', payerType: '', contactName: '', email: '', phone: '',
+  address: '', city: '', state: '', zip: '', payerIdNumber: '', isActivePayer: true, notes: '',
+  sandataEvvRequired: false, sandataPayerId: '', sandataPayerProgram: ''
+};
+
 const PayersServiceCodes = () => {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState('payers');
@@ -17,11 +41,7 @@ const PayersServiceCodes = () => {
   const [editingPayer, setEditingPayer] = useState(null);
   const [editingCode, setEditingCode] = useState(null);
 
-  const [payerForm, setPayerForm] = useState({
-    name: '', type: 'insurance', contactName: '', contactEmail: '', contactPhone: '',
-    address: '', city: '', state: '', zip: '', payerId: '', isActivePayer: true, notes: '',
-    sandataEvvRequired: false, sandataPayerId: '', sandataPayerProgram: ''
-  });
+  const [payerForm, setPayerForm] = useState(EMPTY_PAYER);
   // Sandata payer-code presets — offered only to an agency in a state that has them (Wisconsin).
   const [sandataPresets, setSandataPresets] = useState([]);
 
@@ -117,7 +137,7 @@ const PayersServiceCodes = () => {
   };
 
   const resetPayerForm = () => {
-    setPayerForm({ name: '', type: 'insurance', contactName: '', contactEmail: '', contactPhone: '', address: '', city: '', state: '', zip: '', payerId: '', isActivePayer: true, notes: '', sandataEvvRequired: false, sandataPayerId: '', sandataPayerProgram: '' });
+    setPayerForm(EMPTY_PAYER);
   };
 
   const resetCodeForm = () => {
@@ -127,11 +147,11 @@ const PayersServiceCodes = () => {
   const openEditPayer = (payer) => {
     setEditingPayer(payer);
     setPayerForm({
-      name: payer.name || '', type: payer.type || 'insurance',
-      contactName: payer.contactName || '', contactEmail: payer.contactEmail || '',
-      contactPhone: payer.contactPhone || '', address: payer.address || '',
+      name: payer.name || '', payerType: payer.payerType || '',
+      contactName: payer.contactName || '', email: payer.email || '',
+      phone: payer.phone || '', address: payer.address || '',
       city: payer.city || '', state: payer.state || '', zip: payer.zip || '',
-      payerId: payer.payerId || '', isActivePayer: payer.isActivePayer ?? true,
+      payerIdNumber: payer.payerIdNumber || '', isActivePayer: payer.isActivePayer ?? true,
       notes: payer.notes || '',
       sandataEvvRequired: payer.sandataEvvRequired === true,
       sandataPayerId: payer.sandataPayerId || '', sandataPayerProgram: payer.sandataPayerProgram || ''
@@ -151,16 +171,17 @@ const PayersServiceCodes = () => {
   };
 
   const getTypeBadge = (type) => {
+    // Grounds dark enough for white text (≥ 4.5:1).
     const colors = {
-      insurance: '#2196f3', medicaid: '#9c27b0', medicare: '#4caf50',
-      private: '#ff9800', other: '#9e9e9e'
+      MCO: '#6a1b9a', mco_family_care: '#6a1b9a', IRIS: '#4527a0', medicaid: '#7b1fa2', FFS: '#7b1fa2', HMO: '#283593',
+      medicare: '#2e7d32', va: '#1565c0', managed_care: '#1565c0', private_pay: '#b45309', other: '#616161'
     };
     return (
       <span style={{
         padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem',
-        fontWeight: 'bold', color: 'white', backgroundColor: colors[type] || '#9e9e9e'
+        fontWeight: 'bold', color: 'white', backgroundColor: colors[type] || '#616161'
       }}>
-        {type?.toUpperCase() || 'N/A'}
+        {payerTypeLabel(type)}
       </span>
     );
   };
@@ -217,10 +238,10 @@ const PayersServiceCodes = () => {
                 ) : payers.map(p => (
                   <tr key={p.id}>
                     <td style={{ fontWeight: 600 }}>{p.name}</td>
-                    <td>{getTypeBadge(p.type)}</td>
-                    <td>{p.payerId || '—'}</td>
+                    <td>{getTypeBadge(p.payerType)}</td>
+                    <td>{p.payerIdNumber || '—'}</td>
                     <td>{p.contactName || '—'}</td>
-                    <td>{p.contactPhone || '—'}</td>
+                    <td>{p.phone || '—'}</td>
                     <td>
                       <span style={{
                         padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold',
@@ -307,18 +328,18 @@ const PayersServiceCodes = () => {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div className="form-group">
-                    <label>Type</label>
-                    <select value={payerForm.type} onChange={(e) => setPayerForm({ ...payerForm, type: e.target.value })}>
-                      <option value="insurance">Insurance</option>
-                      <option value="medicaid">Medicaid</option>
-                      <option value="medicare">Medicare</option>
-                      <option value="private">Private Pay</option>
-                      <option value="other">Other</option>
+                    <label>Payer type *</label>
+                    <select value={payerForm.payerType} onChange={(e) => setPayerForm({ ...payerForm, payerType: e.target.value })} required>
+                      <option value="">Choose…</option>
+                      {PAYER_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      {payerForm.payerType && !PAYER_TYPE_OPTIONS.some(o => o.value === payerForm.payerType) && (
+                        <option value={payerForm.payerType}>{payerTypeLabel(payerForm.payerType)}</option>
+                      )}
                     </select>
                   </div>
                   <div className="form-group">
                     <label>Payer ID</label>
-                    <input type="text" value={payerForm.payerId} onChange={(e) => setPayerForm({ ...payerForm, payerId: e.target.value })} />
+                    <input type="text" value={payerForm.payerIdNumber} onChange={(e) => setPayerForm({ ...payerForm, payerIdNumber: e.target.value })} placeholder="e.g. MCFC-CW" />
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -328,12 +349,12 @@ const PayersServiceCodes = () => {
                   </div>
                   <div className="form-group">
                     <label>Contact Phone</label>
-                    <input type="text" value={payerForm.contactPhone} onChange={(e) => setPayerForm({ ...payerForm, contactPhone: e.target.value })} />
+                    <input type="text" value={payerForm.phone} onChange={(e) => setPayerForm({ ...payerForm, phone: e.target.value })} />
                   </div>
                 </div>
                 <div className="form-group">
                   <label>Contact Email</label>
-                  <input type="email" value={payerForm.contactEmail} onChange={(e) => setPayerForm({ ...payerForm, contactEmail: e.target.value })} />
+                  <input type="email" value={payerForm.email} onChange={(e) => setPayerForm({ ...payerForm, email: e.target.value })} />
                 </div>
                 <div className="form-group">
                   <label>
@@ -352,7 +373,12 @@ const PayersServiceCodes = () => {
                       <label>Fill Sandata codes from a known payer</label>
                       <select value="" onChange={(e) => {
                         const pr = sandataPresets.find(x => x.sandataPayerId === e.target.value);
-                        if (pr) setPayerForm({ ...payerForm, sandataPayerId: pr.sandataPayerId, sandataPayerProgram: pr.sandataPayerProgram });
+                        if (pr) setPayerForm({
+                          ...payerForm, sandataPayerId: pr.sandataPayerId, sandataPayerProgram: pr.sandataPayerProgram,
+                          // The same code routes the claim (payerRouter: MCO + MCFC-CW → My Choice Wisconsin).
+                          payerIdNumber: payerForm.payerIdNumber || pr.sandataPayerId,
+                          payerType: payerForm.payerType || TYPE_FOR_PROGRAM[pr.sandataPayerProgram] || '',
+                        });
                       }}>
                         <option value="">Choose…</option>
                         {sandataPresets.map(pr => <option key={pr.sandataPayerId} value={pr.sandataPayerId}>{pr.label} — {pr.sandataPayerId} / {pr.sandataPayerProgram}</option>)}

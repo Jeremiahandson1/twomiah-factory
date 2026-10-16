@@ -233,6 +233,7 @@ for (const [mount, file] of [
   ['/api/ivr', 'ivr'],
   ['/api/evv', 'evv'],
   ['/api/referral-sources', 'referralSources'],
+  ['/api/payers', 'payers'],
   ['/api/company', 'company'],
 ] as const) {
   app.route(mount, (await import(`./src/routes/${file}.ts`)).default)
@@ -450,8 +451,13 @@ const [someEv] = await db.select().from(evvVisits).where(eq(evvVisits.clientId, 
 
 // ── referral sources / payers: office only, Sandata fields saved ─────────────────────────────
 {
-  const r = await as(admin)('POST', '/api/referral-sources', { name: 'Inclusa', sandataEvvRequired: true, sandataPayerId: 'INCLUSA', sandataPayerProgram: 'WIMCO' })
+  // Payers are made on /api/payers (the Payers screen). /api/referral-sources writes referral fields only.
+  const r = await as(admin)('POST', '/api/payers', { name: 'Inclusa', payerType: 'MCO', sandataEvvRequired: true, sandataPayerId: 'INCLUSA', sandataPayerProgram: 'WIMCO' })
   check('an admin creates a Sandata payer', r.status === 201 && r.json?.sandataEvvRequired === true && r.json?.sandataPayerId === 'INCLUSA', r.json)
+  const cg = await as(caregiver)('POST', '/api/payers', { name: 'X', payerType: 'MCO' })
+  check('…a caregiver cannot', cg.status === 403, cg.json)
+  const rs = await as(admin)('POST', '/api/referral-sources', { name: 'Dr. Lee', type: 'doctor', sandataEvvRequired: true, payerType: 'private_pay' })
+  check('a referral source cannot carry payer settings', rs.status === 201 && rs.json?.sandataEvvRequired === false && rs.json?.payerType === 'other', rs.json)
 }
 
 // ══ 4. the queue, with Sandata stubbed ═══════════════════════════════════════════════════════

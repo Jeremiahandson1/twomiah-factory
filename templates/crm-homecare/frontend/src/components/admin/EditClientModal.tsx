@@ -60,6 +60,8 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
         zip: client.zip || '',
         // Billing/Referral (the column is referred_by_id; referralSourceId is the form's name for it)
         referralSourceId: v('referredById', 'referred_by_id') || client.referral_source_id || '',
+        medicaidId: v('medicaidId', 'medicaid_id') || '',
+        mcoMemberId: v('mcoMemberId', 'mco_member_id') || '',
         careTypeId: v('careTypeId', 'care_type_id') || '',
         isPrivatePay: v('isPrivatePay', 'is_private_pay') || false,
         privatePayRate: v('privatePayRate', 'private_pay_rate') ?? '',
@@ -155,6 +157,8 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
           state: formData.state || null,
           zip: formData.zip || null,
           referralSourceId: formData.referralSourceId || null,
+          medicaidId: String(formData.medicaidId || '').trim() || null,
+          mcoMemberId: String(formData.mcoMemberId || '').trim() || null,
           careTypeId: formData.careTypeId || null,
           isPrivatePay: formData.isPrivatePay,
           privatePayRate: formData.isPrivatePay ? parseFloat(formData.privatePayRate) : null,
@@ -589,12 +593,12 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                   <h4 style={{ borderBottom: '2px solid #007bff', paddingBottom: '0.5rem', marginTop: '1rem', marginBottom: '1rem' }}>Referral Information</h4>
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>Referral Source</label>
+                      <label>Payer / referral source</label>
                       <select
                         value={formData.referralSourceId}
                         onChange={(e) => setFormData({ ...formData, referralSourceId: e.target.value })}
                       >
-                        <option value="">Select referral source...</option>
+                        <option value="">Select payer...</option>
                         {referralSources.map(rs => (
                           <option key={rs.id} value={rs.id}>{rs.name}</option>
                         ))}
@@ -613,8 +617,28 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                       </select>
                     </div>
                   </div>
+                  <div className="form-grid-2">
+                    <div className="form-group">
+                      <label>Medicaid (MA) ID</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="10–12 digits"
+                        value={formData.medicaidId}
+                        onChange={(e) => setFormData({ ...formData, medicaidId: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>MCO member ID</label>
+                      <input
+                        type="text"
+                        value={formData.mcoMemberId}
+                        onChange={(e) => setFormData({ ...formData, mcoMemberId: e.target.value })}
+                      />
+                    </div>
+                  </div>
                   <div className="alert alert-info">
-                    <strong>Rate:</strong> Billing rate is determined by the Referral Source + Care Type combination. 
+                    <strong>Rate:</strong> Billing rate is determined by the Referral Source + Care Type combination.
                     Manage rates in the Billing Dashboard.
                   </div>
                 </>

@@ -22,20 +22,32 @@ app.get('/', async (c) => {
   return c.json(rows)
 })
 
+// The Referral Sources screen edits who refers clients: these fields only. A payer's billing and Sandata
+// settings on the same row belong to /api/payers, so a body here can never rewrite payer_type, the Sandata
+// codes, is_active or the id.
+const REFERRAL_FIELDS = ['name', 'type', 'contactName', 'email', 'phone', 'address', 'city', 'state', 'zip', 'notes'] as const
+function referralData(body: any): Record<string, any> {
+  const data: Record<string, any> = {}
+  for (const k of REFERRAL_FIELDS) if (body?.[k] !== undefined) data[k] = body[k] === null ? null : String(body[k]).trim() || null
+  return data
+}
+
 // POST /api/referral-sources — office only (payers carry billing and Sandata EVV settings)
 app.post('/', requireAdmin, async (c) => {
-  const body = await c.req.json()
-  const [row] = await db.insert(referralSources).values(body).returning()
+  const data = referralData(await c.req.json().catch(() => null))
+  if (!data.name) return c.json({ error: 'Name is required' }, 400)
+  const [row] = await db.insert(referralSources).values(data as any).returning()
   return c.json(row, 201)
 })
 
 // PUT /api/referral-sources/:id
 app.put('/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
-  const body = await c.req.json()
+  const data = referralData(await c.req.json().catch(() => null))
+  if (data.name === null) return c.json({ error: 'Name is required' }, 400)
   const [row] = await db
     .update(referralSources)
-    .set({ ...body, updatedAt: new Date() })
+    .set({ ...data, updatedAt: new Date() })
     .where(eq(referralSources.id, id))
     .returning()
   if (!row) return c.json({ error: 'Not found' }, 404)

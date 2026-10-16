@@ -185,6 +185,8 @@ const ClientsManagement = () => {
     state: '{{STATE}}',
     zip: '',
     referralSourceId: '',
+    medicaidId: '',
+    mcoMemberId: '',
     careTypeId: '',
     isPrivatePay: false,
     privatePayRate: '',
@@ -237,7 +239,9 @@ const ClientsManagement = () => {
         city: formData.city || null,
         state: formData.state || null,
         zip: formData.zip || null,
-        referralSourceId: formData.referralSourceId || null,
+        referralSourceId: formData.isPrivatePay ? null : (formData.referralSourceId || null),
+        medicaidId: formData.isPrivatePay ? null : (formData.medicaidId.trim() || null),
+        mcoMemberId: formData.isPrivatePay ? null : (formData.mcoMemberId.trim() || null),
         careTypeId: formData.careTypeId || null,
         isPrivatePay: formData.isPrivatePay,
         privatePayRate: formData.isPrivatePay ? parseFloat(formData.privatePayRate) : null,
@@ -258,7 +262,10 @@ const ClientsManagement = () => {
         body: JSON.stringify(cleanedData)
       });
 
-      if (!response.ok) throw new Error('Failed to create client');
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${response.status}`);
+      }
 
       setFormData(initialFormData);
       setShowForm(false);
@@ -380,11 +387,19 @@ const ClientsManagement = () => {
               {!formData.isPrivatePay ? (
                 <>
                   <div className="form-group">
-                    <label>Referral Source</label>
+                    <label>Payer / referral source</label>
                     <select value={formData.referralSourceId} onChange={(e) => setFormData({ ...formData, referralSourceId: e.target.value })}>
-                      <option value="">Select referral source...</option>
+                      <option value="">Select payer...</option>
                       {referralSources.map(rs => (<option key={rs.id} value={rs.id}>{rs.name}</option>))}
                     </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Medicaid (MA) ID</label>
+                    <input value={formData.medicaidId} onChange={(e) => setFormData({ ...formData, medicaidId: e.target.value })} placeholder="10–12 digits" inputMode="numeric" />
+                  </div>
+                  <div className="form-group">
+                    <label>MCO member ID</label>
+                    <input value={formData.mcoMemberId} onChange={(e) => setFormData({ ...formData, mcoMemberId: e.target.value })} />
                   </div>
                   <div className="form-group">
                     <label>Care Type</label>

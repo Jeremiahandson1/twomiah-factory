@@ -115,7 +115,8 @@ const SMSManagement = () => {
       });
       if (res.ok) {
         const result = await res.json();
-        toast(`Sent ${result.sent} messages successfully!`);
+        const notSent = (result.skipped || 0) + (result.failed || 0) + (result.unknown || 0);
+        toast(`Sent ${result.sent} message${result.sent === 1 ? '' : 's'}` + (notSent ? ` · ${notSent} not sent (texts switched off, no valid phone, or failed)` : ''), notSent && !result.sent ? 'error' : 'success');
         setShowSendModal(false);
         loadMessages();
       } else {
@@ -440,7 +441,8 @@ const SendMessageForm = ({ templates, caregivers, clients, onSend, onSendBulk, o
 
   const handleTemplateSelect = (templateId) => {
     setSelectedTemplate(templateId);
-    const template = templates.find(t => t.id === parseInt(templateId));
+    // Template ids are text (cuid); parseInt turned every one into NaN, so choosing a template did nothing.
+    const template = templates.find(t => String(t.id) === String(templateId));
     if (template) {
       setFormData({ ...formData, body: template.body });
     }
