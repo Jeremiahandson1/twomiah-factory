@@ -17,7 +17,7 @@ export const PAYER_TYPES = [
   // Accepted for rows that already carry them (seed / imports); the screen offers the list above.
   'mco_family_care', 'FFS',
 ] as const
-const PAYER_FIELDS = [
+export const PAYER_FIELDS = [
   'name', 'payerType', 'contactName', 'email', 'phone', 'address', 'city', 'state', 'zip',
   'payerIdNumber', 'npi', 'isActivePayer', 'notes', 'expectedPayDays', 'submissionMethod',
   'sandataEvvRequired', 'sandataPayerId', 'sandataPayerProgram',

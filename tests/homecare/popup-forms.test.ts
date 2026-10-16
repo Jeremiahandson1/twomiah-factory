@@ -70,6 +70,19 @@ const SCREEN_PAYER = {
 }
 let payerId = ''
 {
+  // The screen's own form object, read from the source: every key it sends is a field the route writes, and
+  // every type it offers is one the route accepts. (The original fault was the SCREEN's names.)
+  const { readFileSync } = await import('fs')
+  const tsx = readFileSync(`${process.env.FACTORY_ROOT}templates/crm-homecare/frontend/src/components/admin/PayersServiceCodes.tsx`, 'utf8')
+  const empty = tsx.match(/const EMPTY_PAYER = \{([\s\S]*?)\};/)?.[1] || ''
+  const keys = [...empty.replace(/\/\/.*$/gm, '').matchAll(/(\w+)\s*:/g)].map((m) => m[1])
+  const offered = [...(tsx.match(/const PAYER_TYPE_OPTIONS = \[([\s\S]*?)\];/)?.[1] || '').matchAll(/value: '([^']+)'/g)].map((m) => m[1])
+  const route = await import('./src/routes/payers.ts')
+  check('the Payers form sends only fields the route writes', keys.length >= 10 && keys.every((k) => (route.PAYER_FIELDS as readonly string[]).includes(k)), { keys, notWritten: keys.filter((k) => !(route.PAYER_FIELDS as readonly string[]).includes(k)) })
+  check('…and offers only payer types the route accepts', offered.length >= 5 && offered.every((v) => (route.PAYER_TYPES as readonly string[]).includes(v)), offered)
+  check('…and the test payload is the screen\'s shape', keys.every((k) => k in SCREEN_PAYER) && Object.keys(SCREEN_PAYER).every((k) => keys.includes(k)), { keys, test: Object.keys(SCREEN_PAYER) })
+}
+{
   const r = await as(admin)('POST', '/api/payers', { ...SCREEN_PAYER, id: 'hijacked-id', isActive: false, claimPortal: { name: 'X' } })
   payerId = r.json?.id
   check('the Add Payer payload creates a payer', r.status === 201 && !!payerId, r.json)
