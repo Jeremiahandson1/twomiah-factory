@@ -205,7 +205,7 @@ function NewExperimentModal({ onClose, onCreated }: { onClose: () => void; onCre
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[2000] p-4" onClick={onClose}>
       <div className="bg-white dark:bg-slate-900 rounded-lg p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900 dark:text-white">New A/B test</h3>
@@ -629,7 +629,7 @@ function ApprovalsTab({ onCountChange }: { onCountChange: (n: number) => void })
 
       {/* Changes request modal */}
       {changesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => { setChangesModal(null); setFeedback(''); }} />
           <div className="relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border dark:border-slate-800 w-full max-w-lg">
             <div className="flex items-center justify-between p-4 border-b dark:border-slate-800">
@@ -698,8 +698,8 @@ function StatusBadge({ status }: { status: string }) {
 function AdDetailSlideOver({ ad, onClose }: { ad: any; onClose: () => void }) {
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white dark:bg-slate-900 shadow-xl border-l dark:border-slate-800 overflow-y-auto">
+      <div className="fixed inset-0 z-[1990] bg-black/30" onClick={onClose} />
+      <div className="fixed inset-y-0 right-0 z-[2000] w-full max-w-md bg-white dark:bg-slate-900 shadow-xl border-l dark:border-slate-800 overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b dark:border-slate-800">
           <h3 className="font-semibold text-gray-900 dark:text-white">Ad Details</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">

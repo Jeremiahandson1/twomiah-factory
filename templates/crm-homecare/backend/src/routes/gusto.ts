@@ -2,8 +2,8 @@
 //
 // Hours come from APPROVED payroll shift reviews (payable_minutes) — the same number payroll pays.
 // Staff who never clock in are paid their scheduled hours, so raw clock time misses most paid work.
-// Overtime = payable hours over 40 in a Sunday–Saturday week, priced at 1.5x the caregiver's
-// default pay rate ($15 when none is set).
+// Overtime = payable hours over 40 in a Sunday–Saturday week. Hours, rates and pay are
+// services/payrollPay.ts — the one rule Payroll → Calculate uses too.
 //
 // The direct "Send to Gusto" push is refused (501) until it is rebuilt against Gusto's current API:
 // the old scaffold sent raw clock hours to an endpoint that does not exist. The CSV is the path.
@@ -14,6 +14,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { db } from '../../db/index.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { getAgencyProfile } from '../services/agencyProfile.ts'
+import { payrollForRange } from '../services/payrollPay.ts'
 
 const app = new Hono()
 app.use('*', authenticate, requireAdmin)
@@ -41,19 +42,26 @@ async function gustoRequest(method: string, endpoint: string) {
   return { ok: res.ok, status: res.status, data: await res.json().catch(() => null) }
 }
 
-// The weekly payable-hours CTE both the preview and the CSV read. $start/$end are calendar days.
-const weekly = (start: string, end: string) => sql`weekly AS (
-  SELECT psr.caregiver_id,
-    (psr.shift_date - EXTRACT(DOW FROM psr.shift_date)::int) AS week_start,
-    SUM(psr.payable_minutes) / 60.0 AS week_hours,
-    COALESCE(SUM(psr.payable_minutes) FILTER (WHERE EXTRACT(DOW FROM psr.shift_date) IN (0, 6)), 0) / 60.0 AS weekend_hours,
-    COUNT(*) AS shifts
-  FROM payroll_shift_reviews psr
-  WHERE psr.shift_date BETWEEN ${start}::date AND ${end}::date
-    AND psr.status IN ('verified', 'approved', 'manual_entry')
-    AND psr.payable_minutes > 0
-  GROUP BY psr.caregiver_id, (psr.shift_date - EXTRACT(DOW FROM psr.shift_date)::int)
-)`
+// The weekly payable hours both the preview and the CSV read — services/payrollPay.ts, the same
+// rule Payroll → Calculate pays by. $start/$end are calendar days.
+async function gustoRows(start: string, end: string) {
+  const lines = await payrollForRange(start, end)
+  if (!lines.length) return []
+  const ids = sql.join(lines.map((l) => sql`${l.caregiverId}`), sql`, `)
+  const maps = rows(await db.execute(sql`SELECT user_id, gusto_employee_id, is_synced FROM gusto_employee_map WHERE user_id IN (${ids})`))
+  const mapBy = new Map(maps.map((m: any) => [String(m.user_id), m]))
+  return lines.map((l) => {
+    const m: any = mapBy.get(l.caregiverId)
+    return {
+      id: l.caregiverId, first_name: l.firstName, last_name: l.lastName, email: l.email,
+      gusto_employee_id: m?.gusto_employee_id ?? null, gusto_mapped: !!m?.is_synced,
+      shift_count: l.shifts,
+      total_hours: l.totalHours.toFixed(2), regular_hours: l.regularHours.toFixed(2),
+      overtime_hours: l.overtimeHours.toFixed(2), weekend_hours: l.weekendHours.toFixed(2),
+      hourly_rate: l.baseRate.toFixed(2), overtime_rate: l.otRate.toFixed(2), gross_pay: l.grossPay.toFixed(2),
+    }
+  })
+}
 
 // GET /api/gusto/config
 app.get('/config', (c) => {
@@ -121,25 +129,7 @@ app.post('/sync-employees', async (c) => {
 app.get('/preview', async (c) => {
   const startDate = c.req.query('startDate'), endDate = c.req.query('endDate')
   if (!isDay(startDate) || !isDay(endDate)) return c.json({ error: 'startDate and endDate required' }, 400)
-  const result = rows(await db.execute(sql`
-    WITH ${weekly(startDate!, endDate!)}
-    SELECT
-      u.id, u.first_name, u.last_name, u.email,
-      gem.gusto_employee_id, COALESCE(gem.is_synced, false) AS gusto_mapped,
-      SUM(w.shifts)::int AS shift_count,
-      ROUND(SUM(w.week_hours)::numeric, 2) AS total_hours,
-      ROUND(SUM(LEAST(w.week_hours, 40))::numeric, 2) AS regular_hours,
-      ROUND(SUM(GREATEST(w.week_hours - 40, 0))::numeric, 2) AS overtime_hours,
-      ROUND(SUM(w.weekend_hours)::numeric, 2) AS weekend_hours,
-      COALESCE(u.default_pay_rate, 15) AS hourly_rate,
-      ROUND((SUM(LEAST(w.week_hours, 40)) * COALESCE(u.default_pay_rate, 15)
-           + SUM(GREATEST(w.week_hours - 40, 0)) * COALESCE(u.default_pay_rate, 15) * 1.5)::numeric, 2) AS gross_pay
-    FROM weekly w
-    JOIN users u ON u.id = w.caregiver_id
-    LEFT JOIN gusto_employee_map gem ON gem.user_id = u.id
-    GROUP BY u.id, u.first_name, u.last_name, u.email, u.default_pay_rate, gem.gusto_employee_id, gem.is_synced
-    ORDER BY u.last_name, u.first_name
-  `))
+  const result = await gustoRows(startDate!, endDate!)
 
   // Work in the period that is NOT in the export yet. Clock entries are cut on the agency's own
   // calendar day, not UTC's.
@@ -179,17 +169,8 @@ app.post('/export', (c) =>
 app.get('/export-csv', async (c) => {
   const startDate = c.req.query('startDate'), endDate = c.req.query('endDate')
   if (!isDay(startDate) || !isDay(endDate)) return c.json({ error: 'startDate and endDate required' }, 400)
-  const result = rows(await db.execute(sql`
-    WITH ${weekly(startDate!, endDate!)}
-    SELECT u.first_name, u.last_name, u.email,
-      ROUND(SUM(LEAST(w.week_hours, 40))::numeric, 2) AS regular_hours,
-      ROUND(SUM(GREATEST(w.week_hours - 40, 0))::numeric, 2) AS overtime_hours,
-      ROUND(SUM(w.week_hours)::numeric, 2) AS total_hours
-    FROM weekly w
-    JOIN users u ON u.id = w.caregiver_id
-    GROUP BY u.id, u.first_name, u.last_name, u.email
-    ORDER BY u.last_name, u.first_name
-  `))
+  const result = await gustoRows(startDate!, endDate!)
+
   const q = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
   const lines = ['First Name,Last Name,Email,Regular Hours,Overtime Hours,Total Hours']
   for (const r of result) lines.push([q(r.first_name), q(r.last_name), q(r.email), r.regular_hours, r.overtime_hours, r.total_hours].join(','))

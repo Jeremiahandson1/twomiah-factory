@@ -24,6 +24,16 @@ const BackgroundChecks = () => {
   const [docs, setDocs] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // New hires whose onboarding packet (with the background-check consent) is not signed yet. A check
+  // is created when the packet is signed — no consent, no check — so until then they are listed here,
+  // not as a "pending" check that was never requested.
+  const [awaitingConsent, setAwaitingConsent] = useState<any[]>([]);
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/onboarding-packets`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => setAwaitingConsent((Array.isArray(list) ? list : []).filter((p) => p.status === 'sent' || p.status === 'opened')))
+      .catch(() => setAwaitingConsent([]));
+  }, [token]);
 
   // The Wisconsin registries (WORCS, the state Caregiver Registry) are offered to a WI agency only.
   const checkTypes = [
@@ -322,7 +332,17 @@ const BackgroundChecks = () => {
         {loading ? (
           <div className="loading"><div className="spinner"></div></div>
         ) : checks.length === 0 ? (
-          <p>No background checks found.</p>
+          <div>
+            <p>No background checks found.</p>
+            {awaitingConsent.length > 0 && (
+              <p style={{ color: '#374151' }}>
+                {awaitingConsent.length} new hire{awaitingConsent.length === 1 ? ' has' : 's have'} not signed the onboarding packet yet
+                ({awaitingConsent.map((p) => [p.first_name, p.last_name].filter(Boolean).join(' ')).join(', ')}).
+                Their background check starts when they sign its consent{wisconsin ? ', and the Wisconsin eligibility card appears on their caregiver record once the WORCS result is in' : ''}.
+                See Caregivers → Onboarding Queue.
+              </p>
+            )}
+          </div>
         ) : (
           <table className="table">
             <thead>

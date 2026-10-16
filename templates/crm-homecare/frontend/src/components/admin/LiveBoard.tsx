@@ -26,6 +26,13 @@ const statusConfig: Record<string, { bg: string; border: string; color: string; 
   upcoming: { bg: '#F3F4F6', border: '#D1D5DB', color: '#4B5563', label: 'Upcoming', icon: '⏳', pulse: false },
 };
 
+// Clocked time in hours and minutes: a 2-minute visit reads "2m", never "0.0h".
+const fmtDuration = (mins: unknown) => {
+  const m = Math.max(0, Math.round(Number(mins) || 0));
+  const h = Math.floor(m / 60), r = m % 60;
+  return h ? `${h}h ${String(r).padStart(2, '0')}m` : `${r}m`;
+};
+
 const parseLoc = (v: any) => {
   if (!v) return null;
   if (typeof v === 'object') return v;
@@ -205,9 +212,9 @@ const LiveBoard = () => {
                   </div>
                 )}
 
-                {shift.shift_status === 'completed' && shift.duration_minutes && (
+                {shift.shift_status === 'completed' && shift.duration_minutes != null && (
                   <div style={{ marginTop: '0.35rem', fontSize: '0.82rem', color: '#4338CA' }}>
-                    Total: {(shift.duration_minutes / 60).toFixed(1)}h
+                    Clocked: {fmtDuration(shift.duration_minutes)}
                   </div>
                 )}
 
@@ -248,7 +255,7 @@ const LiveBoard = () => {
       `}</style>
 
       {closeTarget && (
-        <div onClick={() => !closing && setCloseTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
+        <div onClick={() => !closing && setCloseTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', color: '#111827', borderRadius: 10, maxWidth: 440, width: '95%', padding: '1.25rem' }}>
             <h3 style={{ margin: '0 0 0.35rem', fontSize: '1rem' }}>Close shift — {closeTarget.caregiver_first} {closeTarget.caregiver_last}</h3>
             <div style={{ fontSize: '0.82rem', color: '#4B5563', marginBottom: '0.9rem' }}>
@@ -283,7 +290,7 @@ const LiveBoard = () => {
       )}
 
       {mapShift && (
-        <div onClick={() => setMapShift(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20 }}>
+        <div onClick={() => setMapShift(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', color: '#111827', borderRadius: 10, maxWidth: 900, width: '95%', maxHeight: '90vh', overflow: 'auto', padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <h3 style={{ margin: 0, fontSize: '1rem' }}>

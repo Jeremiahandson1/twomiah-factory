@@ -19,6 +19,11 @@ const fmtTime = (t) => {
 };
 const vkey = (v) => `${v.visit_date}|${v.start_time}|${v.caregiver_id}`;
 const money = (n) => `$${Number(n).toFixed(2)}`;
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+// A person's name the way every other screen prints it: "Pat Example".
+const fullName = (c) => [c?.first_name, c?.last_name].filter(Boolean).join(' ');
+// What the caregiver recorded on the visit, in words. Refused and skipped are facts from the visit.
+const STATUS_LABEL = { completed: 'Done', refused: 'Refused', skipped: 'Skipped' };
 
 const VisitDocumentation = () => {
   const { token } = useAuth();
@@ -47,7 +52,7 @@ const VisitDocumentation = () => {
         const list = Array.isArray(rows) ? rows : (rows?.clients || []);
         setClients(list
           .filter((c) => c.is_active !== false && c.isActive !== false)
-          .sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)));
+          .sort((a, b) => fullName(a).localeCompare(fullName(b))));
       })
       .catch(() => setClients([]));
   }, [headers]);
@@ -103,9 +108,13 @@ const VisitDocumentation = () => {
     const k = vkey(v);
     if (openKey === k) { setOpenKey(null); return; }
     const saved = v.doc?.tasks || [];
-    // A new note starts with every care-plan task ticked (these are done every visit); untick
-    // anything that didn't happen. A saved note shows what was saved.
+    const recorded = v.punch?.tasks || [];
+    // A task the caregiver recorded on this visit (done / refused / skipped) shows that status and
+    // cannot be changed here. The rest: a new note starts ticked (done every visit), a saved note
+    // shows what was saved.
     const tasks = (data.tasks || []).map((t) => {
+      const r = recorded.find((x) => x.taskId === t.id);
+      if (r) return { taskId: t.id, taskName: t.task_name, done: r.status === 'completed', status: r.status, notes: r.notes, recordedBy: 'caregiver' };
       const s = saved.find((x) => x.taskId === t.id);
       return { taskId: t.id, taskName: t.task_name, done: v.doc ? !!s?.done : true };
     });
@@ -131,8 +140,8 @@ const VisitDocumentation = () => {
     } finally { setSaving(false); }
   };
 
-  // Writes the same note (with every care task ticked) to visits that have none. Visits that
-  // already have a note are left alone.
+  // Writes the same note to visits that have none. Tasks the caregiver recorded keep their status;
+  // the rest are ticked done. Visits that already have a note are left alone.
   const bulkFill = async () => {
     setBulkBusy(true); setMessage(null);
     try {
@@ -179,7 +188,7 @@ const VisitDocumentation = () => {
           <label>Client</label>
           <select value={clientId} onChange={(e) => { setClientId(e.target.value); setOpenKey(null); }}>
             <option value="">Select a client…</option>
-            {clients.map((c) => <option key={c.id} value={c.id}>{c.last_name}, {c.first_name}</option>)}
+            {clients.map((c) => <option key={c.id} value={c.id}>{fullName(c)}</option>)}
           </select>
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
@@ -206,10 +215,10 @@ const VisitDocumentation = () => {
         <>
           <div className="card" style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <div><strong>{data.client.name}</strong>{data.client.payer ? ` · ${data.client.payer}` : ''}</div>
-            <div>{data.visits.length} visits · {documented} with notes</div>
+            <div>{plural(data.visits.length, 'visit')} · {documented} with notes</div>
             <button className="btn btn-sm btn-secondary" disabled={!missing}
               onClick={() => setBulkOpen(true)}
-              title="Write one note, with the care-plan tasks ticked, to every visit that has no note yet">
+              title="Write one note to every visit that has no note yet; tasks the caregiver recorded keep their status">
               Fill notes for visits without one ({missing})
             </button>
             <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={downloadNotes}
@@ -234,14 +243,14 @@ const VisitDocumentation = () => {
 
           {bulkOpen && (
             <div className="card" style={{ border: '1px solid #93C5FD', background: '#EFF6FF', color: '#111827' }}>
-              <strong>Fill {missing} visits without a note</strong>
+              <strong>Fill {plural(missing, 'visit')} without a note</strong>
               <p style={{ margin: '0.4rem 0', color: '#374151' }}>
-                This note is written to each of those visits, with every care task ticked. Visits that already have a note are left alone. Edit any day that was different afterwards.
+                This note is written to each of those visits. A task the caregiver recorded on the visit (done, refused or skipped) keeps what they recorded; the other care tasks are ticked done. Visits that already have a note are left alone. Edit any day that was different afterwards.
               </p>
               <textarea rows={3} style={{ width: '100%' }} value={bulkNote} onChange={(e) => setBulkNote(e.target.value)} />
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                 <button className="btn btn-primary btn-sm" disabled={bulkBusy || !bulkNote.trim()} onClick={bulkFill}>
-                  {bulkBusy ? 'Filling…' : `Fill ${missing} visits`}
+                  {bulkBusy ? 'Filling…' : `Fill ${plural(missing, 'visit')}`}
                 </button>
                 <button className="btn btn-secondary btn-sm" onClick={() => setBulkOpen(false)}>Cancel</button>
               </div>
@@ -285,7 +294,17 @@ const VisitDocumentation = () => {
                         <td style={{ padding: '0.5rem', maxWidth: 280 }}>
                           {v.doc
                             ? <span style={{ color: '#065F46' }}>✓ {v.doc.note ? (v.doc.note.length > 60 ? `${v.doc.note.slice(0, 60)}…` : v.doc.note) : 'Tasks only'}</span>
-                            : <span style={{ color: '#6B7280' }}>No note</span>}
+                            : <span style={{ color: '#4B5563' }}>No note</span>}
+                          {v.punch?.clock_out_note && (
+                            <div style={{ color: '#374151', fontSize: '0.85rem' }} title={v.punch.clock_out_note}>
+                              Clock-out note: {v.punch.clock_out_note.length > 60 ? `${v.punch.clock_out_note.slice(0, 60)}…` : v.punch.clock_out_note}
+                            </div>
+                          )}
+                          {(v.punch?.tasks || []).filter((t) => t.status !== 'completed').map((t) => (
+                            <div key={t.taskId} style={{ color: '#92400E', fontSize: '0.85rem' }}>
+                              {STATUS_LABEL[t.status] || t.status}: {t.taskName}{t.notes ? ` — ${t.notes}` : ''}
+                            </div>
+                          ))}
                         </td>
                         <td style={{ padding: '0.5rem', whiteSpace: 'nowrap' }}>{v.invoiced ? v.invoiced.invoiceNumber : '—'}</td>
                         <td style={{ padding: '0.5rem' }}>
@@ -296,7 +315,16 @@ const VisitDocumentation = () => {
                         <tr style={{ background: '#EFF6FF', color: '#111827' }}>
                           <td colSpan={7} style={{ padding: '0.5rem 0.5rem 1rem' }}>
                             {draft.tasks.length === 0 && <div style={{ color: '#4B5563', marginBottom: 6 }}>This client has no care tasks set.</div>}
-                            {draft.tasks.map((t, i) => (
+                            {draft.tasks.map((t, i) => t.recordedBy === 'caregiver' ? (
+                              <div key={t.taskId} style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '4px 0' }}
+                                title="Recorded by the caregiver on this visit — change it on the visit's checklist, not here">
+                                <input type="checkbox" checked={t.done} disabled readOnly aria-label={`${t.taskName}: ${STATUS_LABEL[t.status] || t.status}`} />
+                                <span>{t.taskName}</span>
+                                <span style={{ fontWeight: 700, color: t.status === 'completed' ? '#065F46' : '#92400E' }}>
+                                  {STATUS_LABEL[t.status] || t.status} (caregiver){t.notes ? ` — ${t.notes}` : ''}
+                                </span>
+                              </div>
+                            ) : (
                               <label key={t.taskId} style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '4px 0', cursor: 'pointer' }}>
                                 <input type="checkbox" checked={t.done}
                                   onChange={(e) => setDraft((d) => ({ ...d, tasks: d.tasks.map((x, j) => (j === i ? { ...x, done: e.target.checked } : x)) }))} />

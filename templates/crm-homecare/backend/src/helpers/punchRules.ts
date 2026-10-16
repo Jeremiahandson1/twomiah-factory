@@ -15,6 +15,22 @@
 export const VARIANCE_GRACE_MINUTES = 7
 export const MAX_SHIFT_MINUTES = 16 * 60
 
+// ── Punctuality ("on time") ─────────────────────────────────────────────────────────────
+// A clock-in is ON TIME when it is within the same 7-minute grace of the visit's scheduled start,
+// EITHER side. Early by more than the grace is OFF SCHEDULE ("early"), not on time: a caregiver
+// at the door at 6:30 for a 9:30 visit is not keeping the client's schedule, and the clock-out
+// rule would flag the same punch. Late by more than the grace is "late". A punch matched to no
+// scheduled visit is "unscheduled" and never on time.
+export const ON_TIME_GRACE_MINUTES = VARIANCE_GRACE_MINUTES
+export type Punctuality = 'on_time' | 'early' | 'late' | 'unscheduled'
+/** `minutesFromStart` = clock-in minus scheduled start, in minutes (negative = early); null = no visit. */
+export function punctualityOf(minutesFromStart: number | null | undefined): Punctuality {
+  if (minutesFromStart == null || !Number.isFinite(minutesFromStart)) return 'unscheduled'
+  if (minutesFromStart < -ON_TIME_GRACE_MINUTES) return 'early'
+  if (minutesFromStart > ON_TIME_GRACE_MINUTES) return 'late'
+  return 'on_time'
+}
+
 export interface BillingDecision { billableMinutes: number; needsApproval: boolean; approvalReason: string | null }
 
 export function applyExcessiveDurationGuard(d: { durationMinutes: number; allottedMinutes: number | null } & BillingDecision): BillingDecision {

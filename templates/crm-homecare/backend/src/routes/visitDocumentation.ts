@@ -14,7 +14,8 @@ import PDFDocument from 'pdfkit'
 import { db } from '../../db/index.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { rows, one, userIdOf } from '../helpers/scheduleRows.ts'
-import { occurrencesCte, hms, DATE_RE } from '../services/scheduleOccurrences.ts'
+import { hms, DATE_RE } from '../services/scheduleOccurrences.ts'
+import { scheduledVisits, visitKey, clientPunches, matchPunch, recordedTasks, clockOutNote, mergeTasks } from '../services/visitRecord.ts'
 import { recordAudit } from '../services/visitNotify.ts'
 
 const app = new Hono()
@@ -33,18 +34,32 @@ function fmtDate(d: string) {
   return `${Number(m)}/${Number(day)}/${y}`
 }
 
-// Scheduled (non-cancelled) visits for one client in a range, with the caregiver's name.
-async function scheduledVisits(clientId: string, from: string, to: string) {
-  return rows<any>(sql`WITH ${occurrencesCte(from, to)}
-    SELECT to_char(o.occ_date, 'YYYY-MM-DD') AS visit_date, to_char(o.start_time, 'HH24:MI:SS') AS start_time,
-           to_char(o.end_time, 'HH24:MI:SS') AS end_time, o.minutes, o.caregiver_id, o.schedule_id,
-           u.first_name || ' ' || u.last_name AS caregiver_name
-      FROM occ o LEFT JOIN users u ON u.id = o.caregiver_id
-     WHERE o.client_id = ${clientId}
-     ORDER BY o.occ_date, o.start_time`)
+// Visits, their punches and the caregiver's recorded task statuses: services/visitRecord.ts.
+
+/**
+ * A saved note's tasks as they stand now: the caregiver's recorded statuses win over the saved
+ * snapshot (a note saved before the caregiver recorded a refusal still shows the refusal).
+ */
+function effectiveTasks(doc: any, active: { id: string; task_name: string }[], rec: Map<string, { status: string; notes: string | null }> | undefined) {
+  const saved: any[] = Array.isArray(doc?.tasks) ? doc.tasks : []
+  if (!saved.length && !rec?.size) return saved
+  const savedBy = new Map(saved.map((t) => [t.taskId, t]))
+  return mergeTasks(active, rec, (id) => !!savedBy.get(id)?.done,
+    saved.filter((t) => !active.some((a) => a.id === t.taskId)))
 }
 
-const visitKey = (v: any) => `${v.visit_date}|${hms(v.start_time)}|${v.caregiver_id}`
+/** Each visit's punch (matched once) and that punch's recorded task statuses. */
+async function punchesFor(clientId: string, from: string, to: string, visits: any[]) {
+  const punches = await clientPunches(clientId, from, to)
+  const taken = new Set<string>()
+  const byVisit = new Map<string, any>()
+  for (const v of visits) {
+    const p = matchPunch(v, punches, taken)
+    if (p) { taken.add(p.id); byVisit.set(visitKey(v), p) }
+  }
+  const recorded = await recordedTasks([...byVisit.values()].map((p) => p.id))
+  return { byVisit, recorded }
+}
 
 /**
  * The client's active care tasks — the checklist a note ticks. They come from the care-task module
@@ -93,15 +108,24 @@ app.get('/clients/:clientId', async (c) => {
 
   const docByKey = new Map(docs.map((d) => [visitKey(d), d]))
   const lineByDay = new Map(lines.map((l) => [`${l.visit_date}|${l.caregiver_id}`, l]))
+  const { byVisit, recorded } = await punchesFor(clientId, from, to, visits)
+  const taskName = new Map(tasks.map((t) => [t.id, t.task_name]))
   return c.json({
     client: { id: client.id, name: `${client.first_name} ${client.last_name}`, payer: client.referral_source_name || (client.is_private_pay ? 'Private pay' : null) },
     tasks,
     visits: visits.map((v) => {
       const line = lineByDay.get(`${v.visit_date}|${v.caregiver_id}`)
       const covering = invoices.find((i) => i.start <= v.visit_date && i.end >= v.visit_date)
+      const p = byVisit.get(visitKey(v))
+      const rec = p ? recorded.get(p.id) : undefined
       return {
         ...v,
-        doc: docByKey.get(visitKey(v)) || null,
+        doc: (() => { const d = docByKey.get(visitKey(v)); return d ? { ...d, tasks: effectiveTasks(d, tasks, rec) } : null })(),
+        // What the caregiver recorded on the visit's punch: clock times, clock-out note, task statuses.
+        punch: p ? {
+          time_entry_id: p.id, clock_in: p.clock_in, clock_out: p.clock_out, clock_out_note: clockOutNote(p.notes),
+          tasks: rec ? [...rec.entries()].map(([taskId, r]) => ({ taskId, taskName: taskName.get(taskId) || null, status: r.status, notes: r.notes })) : [],
+        } : null,
         invoiced: line ? { invoiceId: line.invoice_id, invoiceNumber: line.invoice_number }
           : covering ? { invoiceId: covering.id, invoiceNumber: covering.invoice_number, byPeriod: true } : null,
       }
@@ -127,11 +151,19 @@ app.put('/clients/:clientId/visits', async (c) => {
   const visit = (await scheduledVisits(clientId, visitDate, visitDate))
     .find((v) => hms(v.start_time) === hms(startTime) && v.caregiver_id === caregiverId)
   if (!visit) return c.json({ error: 'No scheduled visit for that client, date, time and caregiver.' }, 404)
+  // A task the caregiver recorded on the visit keeps the caregiver's status; the office's ticks
+  // apply to the rest (services/visitRecord.ts mergeTasks).
+  const { byVisit, recorded } = await punchesFor(clientId, visitDate, visitDate, [visit])
+  const p = byVisit.get(visitKey(visit))
+  const active = await careTasks(clientId)
+  const officeBy = new Map(cleanTasks.map((t: any) => [t.taskId, t.done]))
+  const mergedTasks = mergeTasks(active, p ? recorded.get(p.id) : undefined, (id) => officeBy.get(id) ?? false,
+    cleanTasks.filter((t: any) => !active.some((a) => a.id === t.taskId)))
 
   const saved = await one<any>(sql`
     INSERT INTO visit_documentation (id, client_id, caregiver_id, visit_date, start_time, end_time, schedule_id, tasks, note, entered_by_id, created_at, updated_at)
     VALUES (${createId()}, ${clientId}, ${caregiverId}, ${visitDate}::date, ${hms(startTime)}::time, ${visit.end_time}::time,
-            ${visit.schedule_id}, ${JSON.stringify(cleanTasks)}::json, ${cleanNote || null}, ${userIdOf(user)}, NOW(), NOW())
+            ${visit.schedule_id}, ${JSON.stringify(mergedTasks)}::json, ${cleanNote || null}, ${userIdOf(user)}, NOW(), NOW())
     ON CONFLICT (client_id, visit_date, start_time, caregiver_id) DO UPDATE
       SET end_time = EXCLUDED.end_time, schedule_id = EXCLUDED.schedule_id, tasks = EXCLUDED.tasks,
           note = EXCLUDED.note, entered_by_id = EXCLUDED.entered_by_id, updated_at = NOW()
@@ -143,8 +175,10 @@ app.put('/clients/:clientId/visits', async (c) => {
 })
 
 // POST /api/visit-docs/clients/:clientId/visits/bulk { from, to, note, onlyMissing } — write the same
-// note, with every active care task ticked, to each scheduled visit in the range. onlyMissing
-// (default true) never touches a visit that already has a note, so real entries can't be overwritten.
+// note to each scheduled visit in the range. Each visit's tasks carry what the caregiver RECORDED on
+// that visit (completed / skipped / refused, with the note) — never overwritten; only tasks the
+// caregiver left unrecorded are ticked done. onlyMissing (default true) never touches a visit that
+// already has documentation, so real entries can't be overwritten.
 app.post('/clients/:clientId/visits/bulk', async (c) => {
   const user = c.get('user') as any
   const clientId = c.req.param('clientId')
@@ -163,14 +197,18 @@ app.post('/clients/:clientId/visits/bulk', async (c) => {
   const have = new Set(existing.map(visitKey))
   const targets = visits.filter((v) => !(skipExisting && have.has(visitKey(v))))
   if (targets.length === 0) return c.json({ written: 0, skipped: visits.length })
-  const tasks = JSON.stringify(taskRows.map((t) => ({ taskId: t.id, taskName: t.task_name, done: true })))
+  const { byVisit, recorded } = await punchesFor(clientId, from, to, visits)
+  const tasksFor = (v: any) => {
+    const p = byVisit.get(visitKey(v))
+    return JSON.stringify(mergeTasks(taskRows, p ? recorded.get(p.id) : undefined, () => true))
+  }
 
   await db.transaction(async (tx) => {
     for (const v of targets) {
       await tx.execute(sql`
         INSERT INTO visit_documentation (id, client_id, caregiver_id, visit_date, start_time, end_time, schedule_id, tasks, note, entered_by_id, created_at, updated_at)
         VALUES (${createId()}, ${clientId}, ${v.caregiver_id}, ${v.visit_date}::date, ${v.start_time}::time, ${v.end_time}::time,
-                ${v.schedule_id}, ${tasks}::json, ${cleanNote}, ${userIdOf(user)}, NOW(), NOW())
+                ${v.schedule_id}, ${tasksFor(v)}::json, ${cleanNote}, ${userIdOf(user)}, NOW(), NOW())
         ON CONFLICT (client_id, visit_date, start_time, caregiver_id) DO UPDATE
           SET end_time = EXCLUDED.end_time, schedule_id = EXCLUDED.schedule_id, tasks = EXCLUDED.tasks,
               note = EXCLUDED.note, entered_by_id = EXCLUDED.entered_by_id, updated_at = NOW()`)
@@ -189,7 +227,12 @@ function drawVisitBlock(doc: PDFKit.PDFDocument, v: any, L: number, R: number, e
   doc.fillColor('#111827').font('Helvetica-Bold').fontSize(10)
     .text(`${fmtDate(v.visit_date)}   ${fmtTime12(v.start_time)} – ${fmtTime12(v.end_time)}   ·   ${v.caregiver_name || ''}`, L, doc.y)
   doc.font('Helvetica').fontSize(9).fillColor('#111827')
-  for (const t of tasks) doc.text(`${t.done ? '[X]' : '[  ]'}  ${t.taskName}`, L + 12, doc.y)
+  for (const t of tasks) {
+    // A refused or skipped task says so, with the caregiver's note — an empty box would read as "forgot".
+    const mark = t.status === 'refused' ? '[R]' : t.status === 'skipped' ? '[S]' : t.done ? '[X]' : '[  ]'
+    const why = (t.status === 'refused' || t.status === 'skipped') ? ` (${t.status}${t.notes ? `: ${t.notes}` : ''})` : ''
+    doc.text(`${mark}  ${t.taskName}${why}`, L + 12, doc.y)
+  }
   if (noteText) doc.moveDown(0.2).text(noteText, L + 12, doc.y, { width: R - L - 12, lineGap: 1.5 })
   else if (!tasks.length) doc.fillColor('#6B7280').text('No note recorded for this visit.', L + 12, doc.y)
   doc.moveDown(0.5)
@@ -212,7 +255,13 @@ app.get('/clients/:clientId/notes.pdf', async (c) => {
   const docs = await rows<any>(sql`SELECT ${DOC_COLS} FROM visit_documentation vd
     WHERE vd.client_id = ${clientId} AND vd.visit_date BETWEEN ${from}::date AND ${to}::date`)
   const docByKey = new Map(docs.map((d) => [visitKey(d), d]))
-  const list = visits.map((v) => ({ ...v, doc: docByKey.get(visitKey(v)) || null }))
+  const { byVisit, recorded } = await punchesFor(clientId, from!, to!, visits)
+  const active = await careTasks(clientId)
+  const list = visits.map((v) => {
+    const d = docByKey.get(visitKey(v)) || null
+    const p = byVisit.get(visitKey(v))
+    return { ...v, doc: d ? { ...d, tasks: effectiveTasks(d, active, p ? recorded.get(p.id) : undefined) } : null }
+  })
 
   const pdf: Buffer = await new Promise((resolve, reject) => {
     const doc = new PDFDocument({ size: 'LETTER', margin: 54 })

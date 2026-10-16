@@ -16,6 +16,7 @@ import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { servedBy, maySeeClient, careWriteRefusal, userIdOf } from '../helpers/caregiverAccess.ts'
+import { visitOfOpenPunch, appendVisitNote } from '../services/visitRecord.ts'
 import { getConfig } from '../services/sandataClient.ts'
 import { UNIT_MINUTES, visitMinutesSql, weekCte } from '../services/evvWeekly.ts'
 
@@ -272,8 +273,10 @@ app.get('/:id/caregiver-view', async (c) => {
   return c.json({ ...row, medical_conditions: listLines(row.medical_conditions), medications: listLines(row.medications), allergies: listLines(row.allergies) })
 })
 
-// GET /api/clients/:id/visit-notes — notes added on the card AND the notes caregivers write at
-// clock-out (time_entries.notes), newest first, 100 at most; the system's auto-close markers are not notes.
+// GET /api/clients/:id/visit-notes — the client's visit notes (visit_documentation.note: the office's,
+// and a caregiver's written while clocked in — services/visitRecord.ts), general card notes
+// (client_visit_notes) and clock-out notes (time_entries.notes), newest first, 100 at most; the
+// system's auto-close markers are not notes.
 app.get('/:id/visit-notes', async (c) => {
   const id = c.req.param('id')
   if (!(await maySeeClient(c.get('user'), id))) return c.json({ error: 'You can only see the clients you care for.' }, 403)
@@ -283,6 +286,10 @@ app.get('/:id/visit-notes', async (c) => {
       FROM (
         SELECT vn.id, vn.note, vn.created_at, vn.caregiver_id, 'manual' AS source
           FROM client_visit_notes vn WHERE vn.client_id = ${id}
+        UNION ALL
+        SELECT vd.id, vd.note, vd.updated_at, COALESCE(vd.entered_by_id, vd.caregiver_id), 'visit' AS source
+          FROM visit_documentation vd
+         WHERE vd.client_id = ${id} AND vd.note IS NOT NULL AND TRIM(vd.note) <> ''
         UNION ALL
         SELECT te.id, te.notes AS note, te.start_time AS created_at, te.caregiver_id, 'clock_out' AS source
           FROM time_entries te
@@ -309,6 +316,20 @@ app.post('/:id/visit-notes', async (c) => {
   if (note.length > VISIT_NOTE_MAX) return c.json({ error: `A visit note can be at most ${VISIT_NOTE_MAX} characters` }, 400)
   const [exists] = await db.select({ id: clients.id }).from(clients).where(eq(clients.id, id)).limit(1)
   if (!exists) return c.json({ error: 'Client not found' }, 404)
+
+  // Clocked in here for a scheduled visit → the note is THAT visit's note, in the one visit-note
+  // store the office's Visit Documentation, the care-notes PDF and the invoice read.
+  const open = await visitOfOpenPunch(userIdOf(user), id)
+  if (open) {
+    const saved = await appendVisitNote(db, id, open.visit, userIdOf(user), note)
+    await db.insert(auditLogs).values({
+      userId: String(userIdOf(user) || 'unknown'), action: 'APPEND_NOTE', tableName: 'visit_documentation', recordId: saved.id,
+      newData: { note, visitDate: open.visit.visit_date, startTime: open.visit.start_time, timeEntryId: open.timeEntryId },
+    } as any).catch((e: any) => console.error('[visit-notes] audit:', e?.message))
+    return c.json({ id: saved.id, client_id: id, caregiver_id: userIdOf(user), note, created_at: saved.updated_at, source: 'visit', visit_date: open.visit.visit_date }, 201)
+  }
+
+  // Not on a visit: a general note on the client's card.
   const noteId = createId()
   const r: any = await db.execute(sql`
     INSERT INTO client_visit_notes (id, client_id, caregiver_id, note, created_at, updated_at)

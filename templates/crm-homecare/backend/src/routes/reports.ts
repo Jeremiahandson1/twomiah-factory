@@ -3,7 +3,9 @@
 // The business rules, as CVHC settled them:
 //   · SCHEDULED hours come from the shared schedule engine (services/scheduleOccurrences.ts) — actual
 //     occurrences in the range, respecting effective/end dates, bi-weekly, cancellations, suspensions.
-//   · DELIVERED hours ("worked") = payroll-reviewed shifts (verified / approved / manual_entry — what
+//   · WORKED hours = the CLOCKED time: clock-in to clock-out of completed punches (clockedCte), never
+//     the payable or scheduled hours. A 2-minute punch is 0.03 h worked.
+//   · PAYABLE ("delivered") hours = payroll-reviewed shifts (verified / approved / manual_entry — what
 //     actually gets paid, including staff who never clock in) PLUS clock entries no approved review
 //     covers yet. Clock data alone held a third of the real hours at CVHC.
 //   · REVENUE = invoices (private pay) + claims (payers). Claims are dated by service date. Revenue
@@ -22,6 +24,7 @@ import PDFDocument from 'pdfkit'
 import { db } from '../../db/index.ts'
 import { auditLogs } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { ON_TIME_GRACE_MINUTES } from '../helpers/punchRules.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import {
   agencyTimezone, agencyToday, addDays, isYmd, localDate, localTs, dayStartUtc, dayEndUtc,
@@ -83,6 +86,19 @@ function deliveredCte(start: string, end: string, tz: string): SQL {
   )`
 }
 
+// Clocked (worked) time: completed punches whose clock-in falls in the range on the agency's calendar,
+// at their real clocked length — never the payable minutes.
+function clockedCte(start: string, end: string, tz: string): SQL {
+  return sql`clocked AS (
+    SELECT te.caregiver_id, te.client_id, ${localDate(sql`te.start_time`, tz)} AS work_date,
+           COALESCE(te.duration_minutes, ROUND(EXTRACT(EPOCH FROM (te.end_time - te.start_time)) / 60)::int) AS mins
+    FROM time_entries te
+    WHERE te.end_time IS NOT NULL
+      AND te.start_time >= ${dayStartUtc(start, tz)}
+      AND te.start_time <  ${dayEndUtc(end, tz)}
+  )`
+}
+
 // The payer's hourly rate for a client on a date: the referral source's rate for the client's care
 // type effective that day (a '15min' rate × 4). LATERAL fragment; `c` = clients, dateExpr = the day.
 const payerRateLateral = (dateExpr: SQL) => sql`LEFT JOIN LATERAL (
@@ -94,6 +110,12 @@ const payerRateLateral = (dateExpr: SQL) => sql`LEFT JOIN LATERAL (
       AND (r.end_date IS NULL OR r.end_date >= ${dateExpr})
     ORDER BY r.effective_date DESC NULLS LAST LIMIT 1
   ) prate ON true`
+
+// The on-time grace as a SQL literal (a bound parameter cannot take a unary minus).
+const GRACE_SQL = sql.raw(String(ON_TIME_GRACE_MINUTES))
+
+/** The Sunday starting the Sun–Sat week that holds `ymd`. */
+const sundayOf = (ymd: string) => addDays(ymd, -new Date(`${ymd}T12:00:00Z`).getUTCDay())
 
 // A performance rating's calendar day.
 const ratedOn = (tz: string) => localDate(sql`pr.created_at`, tz)
@@ -111,12 +133,16 @@ app.post('/overview', async (c) => {
 
   const occFilter = sql`${caregiverId ? sql` AND occ.caregiver_id = ${caregiverId}` : sql``}${clientId ? sql` AND occ.client_id = ${clientId}` : sql``}`
 
-  const [summary, worked, satisfaction, revenue, topCaregivers, topClients] = await Promise.all([
+  const [summary, payable, clocked, satisfaction, revenue, topCaregivers, topClients] = await Promise.all([
     one(sql`WITH ${occurrencesCte(startDate, endDate)}
       SELECT COALESCE(SUM(occ.hours), 0) AS "totalHours", COUNT(*)::int AS "totalShifts"
       FROM occ WHERE 1=1 ${occFilter}`),
     one(sql`WITH ${deliveredCte(startDate, endDate, tz)}
-      SELECT COALESCE(SUM(mins), 0) / 60.0 AS worked FROM delivered
+      SELECT COALESCE(SUM(mins), 0) / 60.0 AS payable FROM delivered
+      WHERE (${caregiverId}::text IS NULL OR caregiver_id = ${caregiverId})
+        AND (${clientId}::text IS NULL OR client_id = ${clientId})`),
+    one(sql`WITH ${clockedCte(startDate, endDate, tz)}
+      SELECT COALESCE(SUM(mins), 0) / 60.0 AS clocked FROM clocked
       WHERE (${caregiverId}::text IS NULL OR caregiver_id = ${caregiverId})
         AND (${clientId}::text IS NULL OR client_id = ${clientId})`),
     one(sql`SELECT COALESCE(AVG(pr.satisfaction_score), 0) AS "avgSatisfaction"
@@ -163,12 +189,14 @@ app.post('/overview', async (c) => {
   ])
 
   const schedHours = num(summary.totalHours)
-  const workedHours = num(worked.worked)
+  const payableHours = num(payable.payable)
   return c.json({
     summary: {
       totalHours: schedHours,
-      workedHours,
-      deliveredPct: schedHours > 0 ? Math.round((workedHours / schedHours) * 100) : null,
+      // Worked = clocked time; payable = what payroll pays (delivered). Two numbers, two labels.
+      workedHours: num(clocked.clocked),
+      payableHours,
+      deliveredPct: schedHours > 0 ? Math.round((payableHours / schedHours) * 100) : null,
       totalRevenue: num(revenue.totalRevenue),
       totalShifts: parseInt(summary.totalShifts) || 0,
       avgSatisfaction: num(satisfaction.avgSatisfaction) || null,
@@ -210,14 +238,16 @@ app.post('/hours', async (c) => {
       GROUP BY u.id, u.first_name, u.last_name
       HAVING SUM(occ.hours) > 0
       ORDER BY total_hours DESC`),
-    rows(sql`WITH ${deliveredCte(startDate, endDate, tz)}
-      SELECT caregiver_id, ROUND(SUM(mins) / 60.0, 2) AS worked_hours
-      FROM delivered
-      WHERE (${caregiverId}::text IS NULL OR caregiver_id = ${caregiverId})
-        AND (${clientId}::text IS NULL OR client_id = ${clientId})
-      GROUP BY caregiver_id`),
+    rows(sql`WITH ${deliveredCte(startDate, endDate, tz)}, ${clockedCte(startDate, endDate, tz)}
+      SELECT x.caregiver_id, ROUND(SUM(x.pay) / 60.0, 2) AS payable_hours, ROUND(SUM(x.clk) / 60.0, 2) AS worked_hours
+      FROM (SELECT caregiver_id, client_id, mins AS pay, 0 AS clk FROM delivered
+            UNION ALL SELECT caregiver_id, client_id, 0, mins FROM clocked) x
+      WHERE (${caregiverId}::text IS NULL OR x.caregiver_id = ${caregiverId})
+        AND (${clientId}::text IS NULL OR x.client_id = ${clientId})
+      GROUP BY x.caregiver_id`),
   ])
   const worked = Object.fromEntries(workedByCg.map((r: any) => [r.caregiver_id, num(r.worked_hours)]))
+  const payableBy = Object.fromEntries(workedByCg.map((r: any) => [r.caregiver_id, num(r.payable_hours)]))
   const totalHours = hoursByType.reduce((s: number, r: any) => s + num(r.hours), 0)
 
   return c.json({
@@ -226,7 +256,7 @@ app.post('/hours', async (c) => {
       ...r,
       percentage: totalHours > 0 ? ((num(r.hours) / totalHours) * 100).toFixed(1) : 0,
     })),
-    caregiverBreakdown: caregiverBreakdown.map((r: any) => ({ ...r, worked_hours: worked[r.id] ?? 0 })),
+    caregiverBreakdown: caregiverBreakdown.map((r: any) => ({ ...r, worked_hours: worked[r.id] ?? 0, payable_hours: payableBy[r.id] ?? 0 })),
     totalHours,
   })
 })
@@ -261,23 +291,39 @@ app.post('/performance', async (c) => {
       FROM performance_ratings pr
       WHERE ${ratedOn(tz)} BETWEEN (${startDate})::date AND (${endDate})::date
       GROUP BY 1 ORDER BY 1 DESC`),
-    // Punctuality — clock-in on the agency clock vs the scheduled start, 5 minutes' grace.
-    rows(sql`SELECT u.id, u.first_name, u.last_name,
-        COUNT(te.id)::int AS total_shifts,
-        COUNT(CASE WHEN (${localTs(sql`te.start_time`, tz)})::time <= sch.start_time::time + INTERVAL '5 minutes' THEN 1 END)::int AS on_time_count
-      FROM users u
-      LEFT JOIN time_entries te ON te.caregiver_id = u.id
-        AND te.start_time >= ${dayStartUtc(startDate, tz)}
-        AND te.start_time < ${dayEndUtc(endDate, tz)}
-        AND te.end_time IS NOT NULL
-      LEFT JOIN schedules sch ON te.schedule_id = sch.id
+    // Punctuality (helpers/punchRules.ts punctualityOf): the clock-in on the agency clock against
+    // the scheduled start of the visit it was matched to (that day's occurrence of its schedule,
+    // overrides included). On time = within the 7-minute grace EITHER side; early or late beyond it
+    // is off schedule; a punch matched to no visit is unscheduled.
+    rows(sql`WITH ${occurrencesCte(startDate, endDate)},
+      p AS (
+        SELECT te.caregiver_id,
+               EXTRACT(EPOCH FROM ((${localTs(sql`te.start_time`, tz)}) - (o.occ_date + o.start_time))) / 60.0 AS off_min
+          FROM time_entries te
+          LEFT JOIN LATERAL (
+            SELECT occ.occ_date, occ.start_time FROM occ
+             WHERE occ.schedule_id = te.schedule_id AND occ.occ_date = ${localDate(sql`te.start_time`, tz)}
+             ORDER BY ABS(EXTRACT(EPOCH FROM ((${localTs(sql`te.start_time`, tz)}) - (occ.occ_date + occ.start_time))))
+             LIMIT 1) o ON true
+         WHERE te.end_time IS NOT NULL
+           AND te.start_time >= ${dayStartUtc(startDate, tz)}
+           AND te.start_time < ${dayEndUtc(endDate, tz)}
+      )
+      SELECT u.id, u.first_name, u.last_name,
+        COUNT(*)::int AS total_shifts,
+        COUNT(*) FILTER (WHERE p.off_min IS NOT NULL AND ABS(p.off_min) <= ${GRACE_SQL})::int AS on_time_count,
+        COUNT(*) FILTER (WHERE p.off_min < -${GRACE_SQL})::int AS early_count,
+        COUNT(*) FILTER (WHERE p.off_min > ${GRACE_SQL})::int AS late_count,
+        COUNT(*) FILTER (WHERE p.off_min IS NULL)::int AS unscheduled_count
+      FROM users u JOIN p ON p.caregiver_id = u.id
       WHERE u.role = 'caregiver' AND u.is_active = true
       GROUP BY u.id, u.first_name, u.last_name
-      HAVING COUNT(te.id) > 0
-      ORDER BY (COUNT(CASE WHEN (${localTs(sql`te.start_time`, tz)})::time <= sch.start_time::time + INTERVAL '5 minutes' THEN 1 END)::float / NULLIF(COUNT(te.id), 0)) DESC`),
-    rows(sql`WITH ${deliveredCte(startDate, endDate, tz)}
-      SELECT caregiver_id, ROUND(SUM(mins) / 60.0, 1) AS worked_hours
-      FROM delivered GROUP BY caregiver_id`),
+      ORDER BY 5 DESC`),
+    rows(sql`WITH ${deliveredCte(startDate, endDate, tz)}, ${clockedCte(startDate, endDate, tz)}
+      SELECT x.caregiver_id, ROUND(SUM(x.pay) / 60.0, 2) AS payable_hours, ROUND(SUM(x.clk) / 60.0, 2) AS worked_hours
+      FROM (SELECT caregiver_id, mins AS pay, 0 AS clk FROM delivered
+            UNION ALL SELECT caregiver_id, 0, mins FROM clocked) x
+      GROUP BY x.caregiver_id`),
     // GPS capture stays clock-based — it only applies to app users' entries.
     rows(sql`SELECT te.caregiver_id,
         ROUND(100.0 * COUNT(te.clock_in_location) / COUNT(*), 0) AS gps_capture_pct
@@ -294,6 +340,7 @@ app.post('/performance', async (c) => {
     caregiverPerformance: performance.map((r: any) => ({
       ...r,
       worked_hours: num(deliveryByCg[r.id]?.worked_hours ?? 0),
+      payable_hours: num(deliveryByCg[r.id]?.payable_hours ?? 0),
       gps_capture_pct: gpsByCg[r.id] ?? null,
     })),
     ratingDistribution,
@@ -301,6 +348,7 @@ app.post('/performance', async (c) => {
       ...r,
       on_time_percentage: r.total_shifts > 0 ? ((r.on_time_count / r.total_shifts) * 100).toFixed(1) : 0,
     })),
+    onTimeRule: { graceMinutes: ON_TIME_GRACE_MINUTES, earlyCountsOnTime: false },
   })
 })
 
@@ -645,9 +693,10 @@ app.get('/hours-by-payer', async (c) => {
     SELECT payer_key, payer_name, payer_type,
       COUNT(DISTINCT client_id)::int AS active_clients,
       COUNT(te_id)::int AS visits,
-      ROUND(SUM(COALESCE(billable_minutes, duration_minutes)) / 60.0, 2) AS total_hours,
+      -- total = the CLOCKED time; billable = what the punch rule pays (scheduled for a payer).
+      ROUND(SUM(duration_minutes) / 60.0, 2) AS total_hours,
       ROUND(SUM(COALESCE(billable_minutes, duration_minutes)) / 60.0, 2) AS billable_hours,
-      ROUND(AVG(COALESCE(billable_minutes, duration_minutes)) / 60.0, 2) AS avg_visit_hours,
+      ROUND(AVG(duration_minutes) / 60.0, 2) AS avg_visit_hours,
       to_char(MIN(work_day), 'YYYY-MM-DD') AS first_visit,
       to_char(MAX(work_day), 'YYYY-MM-DD') AS last_visit
     FROM labeled
@@ -657,8 +706,8 @@ app.get('/hours-by-payer', async (c) => {
     return csvResponse(`hours-by-payer-${startDate}-to-${endDate}.csv`, toCSV(result, [
       { key: 'payer_name', label: 'Payer' }, { key: 'payer_type', label: 'Type' },
       { key: 'active_clients', label: 'Clients' }, { key: 'visits', label: 'Visits' },
-      { key: 'total_hours', label: 'Total Hours' }, { key: 'billable_hours', label: 'Billable Hours' },
-      { key: 'avg_visit_hours', label: 'Avg Visit Hours' },
+      { key: 'total_hours', label: 'Clocked Hours' }, { key: 'billable_hours', label: 'Billable Hours' },
+      { key: 'avg_visit_hours', label: 'Avg Clocked Visit Hours' },
       { key: 'first_visit', label: 'First Visit' }, { key: 'last_visit', label: 'Last Visit' },
     ]))
   }
@@ -696,12 +745,13 @@ app.get('/caregiver-utilization', async (c) => {
     LEFT JOIN actuals a ON a.caregiver_id = u.id
     WHERE u.role = 'caregiver' AND u.is_active = true
     ORDER BY utilization_pct DESC NULLS LAST, u.last_name`)
+  for (const r of result) r.name = [r.first_name, r.last_name].filter(Boolean).join(' ')
   if (c.req.query('format') === 'csv') {
     return csvResponse(`caregiver-utilization-${startDate}-to-${endDate}.csv`, toCSV(result, [
-      { key: 'first_name', label: 'First' }, { key: 'last_name', label: 'Last' },
+      { key: 'name', label: 'Name' },
       { key: 'max_hours_per_week', label: 'Max Hrs/Week' },
       { key: 'capacity_hours', label: 'Period Capacity (hrs)' },
-      { key: 'actual_hours', label: 'Actual (hrs)' },
+      { key: 'actual_hours', label: 'Billable (hrs)' },
       { key: 'visits', label: 'Visits' },
       { key: 'utilization_pct', label: 'Utilization %' },
     ]))
@@ -781,7 +831,7 @@ app.get('/client-visits-summary', async (c) => {
       rs.name AS payer_name, ct.name AS care_type_name,
       COUNT(te.id)::int AS visits,
       COUNT(DISTINCT te.caregiver_id)::int AS distinct_caregivers,
-      ROUND(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0, 2) AS total_hours,
+      ROUND(SUM(te.duration_minutes) / 60.0, 2) AS total_hours,
       ROUND(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0, 2) AS billable_hours,
       to_char(MIN(${localDate(sql`te.start_time`, tz)}), 'YYYY-MM-DD') AS first_visit,
       to_char(MAX(${localDate(sql`te.start_time`, tz)}), 'YYYY-MM-DD') AS last_visit
@@ -800,7 +850,7 @@ app.get('/client-visits-summary', async (c) => {
       { key: 'first_name', label: 'First' }, { key: 'last_name', label: 'Last' },
       { key: 'payer_name', label: 'Payer' }, { key: 'care_type_name', label: 'Care Type' },
       { key: 'visits', label: 'Visits' }, { key: 'distinct_caregivers', label: 'Distinct Caregivers' },
-      { key: 'total_hours', label: 'Total Hours' }, { key: 'billable_hours', label: 'Billable Hours' },
+      { key: 'total_hours', label: 'Clocked Hours' }, { key: 'billable_hours', label: 'Billable Hours' },
       { key: 'first_visit', label: 'First Visit' }, { key: 'last_visit', label: 'Last Visit' },
     ]))
   }
@@ -817,8 +867,10 @@ app.get('/client-visits-summary', async (c) => {
 // nearest scheduled start. Minutes are shown as 15-minute units (minutes ÷ 15, two decimals) — the
 // claims engine's unit.
 app.get('/client-week', async (c) => {
-  const weekStart = String(c.req.query('weekStart') || '')
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) return c.json({ error: 'weekStart (YYYY-MM-DD) required' }, 400)
+  // No weekStart → THIS week (the Sunday of the agency's today), so the screen opens on the current week.
+  const asked = c.req.query('weekStart')
+  const weekStart = asked == null || asked === '' ? sundayOf(await agencyToday()) : String(asked)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) return c.json({ error: 'weekStart must be YYYY-MM-DD' }, 400)
   const start = new Date(`${weekStart}T12:00:00Z`)
   if (isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== weekStart || start.getUTCDay() !== 0) {
     return c.json({ error: 'weekStart must be a Sunday' }, 400)
@@ -1462,11 +1514,12 @@ app.post('/:type/export', async (c) => {
   if (type === 'overview' || type === 'caregiver_hours' || type === 'caregiver-hours') {
     // Capped/cleaned minutes, not raw duration: raw is inflated by every missed clock-out.
     data = await rows(sql`SELECT u.first_name || ' ' || u.last_name AS caregiver,
-        COALESCE(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0, 0) AS actual_hours,
+        COALESCE(SUM(te.duration_minutes) / 60.0, 0) AS clocked_hours,
+        COALESCE(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0, 0) AS payable_hours,
         COUNT(te.id)::int AS shifts, COUNT(DISTINCT te.client_id)::int AS unique_clients
       FROM users u LEFT JOIN time_entries te ON te.caregiver_id = u.id AND ${inRange}
       WHERE u.role = 'caregiver'
-      GROUP BY u.id, u.first_name, u.last_name ORDER BY actual_hours DESC`)
+      GROUP BY u.id, u.first_name, u.last_name ORDER BY payable_hours DESC`)
   } else if (type === 'billing' || type === 'revenue') {
     data = await rows(sql`SELECT c.first_name || ' ' || c.last_name AS client,
         i.invoice_number, to_char(i.billing_period_start, 'YYYY-MM-DD') AS billing_period_start,
@@ -1507,7 +1560,7 @@ app.post('/:type/export', async (c) => {
     // An ESTIMATE from capped clocked minutes × pay rate ($18/h when none is on file, CVHC's figure).
     // True pay comes from the payroll run.
     data = await rows(sql`SELECT u.first_name || ' ' || u.last_name AS caregiver,
-        COALESCE(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0, 0) AS hours_worked,
+        COALESCE(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0, 0) AS payable_hours,
         COALESCE(u.default_pay_rate, 18.00) AS hourly_rate,
         COALESCE(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0 * COALESCE(u.default_pay_rate, 18.00), 0) AS gross_pay,
         COUNT(te.id)::int AS shifts

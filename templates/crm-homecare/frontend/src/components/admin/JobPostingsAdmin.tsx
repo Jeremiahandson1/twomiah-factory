@@ -196,7 +196,7 @@ export default function JobPostingsAdmin() {
       })}
 
       {editing && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-4" onClick={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/55 p-4" onClick={(e) => { if (e.target === e.currentTarget) setEditing(null); }}>
           <div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-xl bg-white dark:bg-slate-800 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-extrabold text-gray-900 dark:text-slate-100">{editing === 'new' ? 'New Job Posting' : `Edit: ${editing.title}`}</h2>
