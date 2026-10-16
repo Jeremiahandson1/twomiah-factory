@@ -17,7 +17,7 @@ export default function PerformanceReviewsPage() {
 
   const load = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('accessToken');
       const res = await fetch(`${API_BASE_URL}/api/performance-reviews`, { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
       setReviews(json.data || json || []);
@@ -26,7 +26,7 @@ export default function PerformanceReviewsPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('accessToken');
     await fetch(`${API_BASE_URL}/api/performance-reviews`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

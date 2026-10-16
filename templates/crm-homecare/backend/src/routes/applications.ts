@@ -177,19 +177,32 @@ app.post('/:id/hire', async (c) => {
     console.error('[hire] onboarding packet creation failed:', err?.message)
   }
 
-  sendCaregiverWelcome({ to: email, firstName: a.firstName, tempPassword })
-    .catch((err) => console.error('[Caregiver welcome email error]', err?.message))
+  // The login goes to the new caregiver by email. The password is handed back to the office's screen ONLY when that email
+  // did not go — a send that threw, or no email provider configured (sendRaw's dev mode prints and sends nothing) — so
+  // the office can pass it on. It used to be printed on screen every time, beside an email that already carried it. (Run 3)
+  let credentialsEmailed = false
+  try {
+    const sent = await sendCaregiverWelcome({ to: email, firstName: a.firstName, tempPassword })
+    credentialsEmailed = !!sent?.success && !sent?.dev
+  } catch (err: any) {
+    console.error('[Caregiver welcome email error]', err?.message)
+  }
 
+  const who = `${a.firstName} ${a.lastName}`
   return c.json({
     success: true,
     caregiverId: caregiver.id,
-    tempPassword,
     caregiver,
     packetUrl,
     packetCreated,
-    message: packetCreated
-      ? `${a.firstName} ${a.lastName} is now a caregiver. An onboarding packet email has been sent for background check consent, and a separate email has their login credentials.`
-      : `${a.firstName} ${a.lastName} is now a caregiver. A welcome email has been sent with login instructions.`,
+    credentialsEmailed,
+    emailedTo: email,
+    ...(credentialsEmailed ? {} : { tempPassword }),
+    message: credentialsEmailed
+      ? (packetCreated
+        ? `${who} is now a caregiver. Their login details were emailed to ${email}, and an onboarding packet email asks for background check consent.`
+        : `${who} is now a caregiver. Their login details were emailed to ${email}.`)
+      : `${who} is now a caregiver, but the email with their login could not be sent to ${email}. Give them the temporary password below yourself.`,
   })
 })
 

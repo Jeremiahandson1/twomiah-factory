@@ -133,7 +133,9 @@ const contacts = async () => Number((await db.select({ n: count() }).from(contac
   const { accountLockOf, isLockOpenPath } = shared
   check('rule: no status at all (provisioned by hand) is open — a tenant never guesses', accountLockOf({}) === null && accountLockOf(null) === null && accountLockOf('{}') === null)
   check('rule: a JSON-string settings blob is read too', accountLockOf(JSON.stringify({ subscriptionStatus: 'canceled', billingStatus: 'canceled' })) === 'subscription_ended')
-  check('doors: sign-in, two-factor and billing stay open', ['/api/auth/me', '/api/auth/mfa-devices/devices', '/api/billing/subscription', '/api/billing', '/api/messaging-billing/status'].every(isLockOpenPath))
+  check('doors: sign-in, two-factor and billing stay open', ['/api/auth/me', '/api/auth/mfa-devices/devices', '/api/billing/subscription', '/api/billing/portal-link', '/api/billing/restart-checkout', '/api/messaging-billing/status'].every(isLockOpenPath))
+  // Billing is open door by door: home care's /api/billing is also its client invoicing, which a cancelled agency must not keep.
+  check('doors: the rest of /api/billing is NOT open (home care invoices live there)', !isLockOpenPath('/api/billing') && !isLockOpenPath('/api/billing/invoices') && !isLockOpenPath('/api/billing/invoice-payments'))
   check('doors: a look-alike prefix is NOT open', !isLockOpenPath('/api/authorizations') && !isLockOpenPath('/api/billings') && !isLockOpenPath('/api/contacts'))
 }
 

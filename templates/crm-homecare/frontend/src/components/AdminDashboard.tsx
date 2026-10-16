@@ -4,8 +4,6 @@ import { API_BASE_URL } from '../config';
 import { getDashboardSummary } from '../config';
 import { useAuth } from '../contexts/AuthContext';
 import { TrialBanner } from './trial/TrialBanner';
-import { isTrialExpired } from './auth/trialStatus';
-import PaywallPage from '../pages/PaywallPage';
 import { toast } from './Toast';
 import HelpPanel from './HelpPanel';
 import ImpersonationModal from './ImpersonationModal';
@@ -200,7 +198,6 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
     const h = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : '';
     return h || 'dashboard';
   });
-  const trialExpired = isTrialExpired(company);
   const [showHelp, setShowHelp] = useState(false);
   const [showImpersonation, setShowImpersonation] = useState(false);
   const [selectedCaregiverId, setSelectedCaregiverId] = useState(null);
@@ -323,12 +320,10 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
   };
 
   const renderPage = () => {
-    // Hard-lock on trial expiry — every page except subscription-pricing
-    // (upgrade path) shows the paywall. Agency admin can still click into
-    // billing/subscription-pricing to add a payment method and unlock.
-    if (trialExpired && currentPage !== 'subscription-pricing') {
-      return <PaywallPage onUpgrade={() => setCurrentPage('subscription-pricing')} />;
-    }
+    // A locked agency never reaches this screen: App.tsx sends it to the one lock page (pages/PaywallPage.tsx, the
+    // shared PaywallScreen) on the server's answer. The trial-only check that stood here guessed "createdAt + 30 days"
+    // and could lock a paying agency in the browser while the server let it in (the T60 fault, fixed fleet-wide in
+    // packages/tenant-ui but never here). (Run 3)
 
     // A feature page reached by its address (#ai-receptionist) while the feature is off says so and stays put.
     if (FEATURE_FOR_ITEM[currentPage] && !itemAllowed(currentPage)) {

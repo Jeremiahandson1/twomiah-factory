@@ -24,7 +24,7 @@ export default function NoShowPage() {
 
   const load = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('accessToken');
       const res = await fetch(`${API_BASE_URL}/api/no-show`, { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
       setIncidents(json.data || json || []);
@@ -33,7 +33,7 @@ export default function NoShowPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('accessToken');
     await fetch(`${API_BASE_URL}/api/no-show`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

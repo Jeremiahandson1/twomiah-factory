@@ -1,4 +1,6 @@
 // src/config.ts - API utilities with token expiry handling
+import api from './services/api';
+
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // Global logout callback — set by App on mount
@@ -20,7 +22,9 @@ export const apiCall = async (endpoint, options = {}, token) => {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
 
   if (token) {
-    if (isTokenExpired(token)) {
+    // A staff session's token is refreshed underneath fetch (services/sessionFetch.ts): an expired one is replaced and
+    // the call goes through. Only a portal or family token — which has no refresh — ends its session here.
+    if (isTokenExpired(token) && !api.issued.has(token)) {
       if (_onSessionExpired) _onSessionExpired();
       throw new Error('SESSION_EXPIRED');
     }

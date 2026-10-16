@@ -30,7 +30,7 @@ export default function PtoPage() {
 
   const load = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('accessToken');
       const res = await fetch(`${API_BASE_URL}/api/pto`, { headers: { Authorization: `Bearer ${token}` } });
       const json = await res.json();
       setRequests(json.data || json || []);
@@ -39,7 +39,7 @@ export default function PtoPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('accessToken');
     await fetch(`${API_BASE_URL}/api/pto`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -51,7 +51,7 @@ export default function PtoPage() {
   };
 
   const act = async (id: string, action: string) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('accessToken');
     await fetch(`${API_BASE_URL}/api/pto/${id}/${action}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
     load();
   };

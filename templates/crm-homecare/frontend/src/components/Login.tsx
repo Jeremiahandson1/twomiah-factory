@@ -10,6 +10,9 @@ const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) =>
   const [showForgot, setShowForgot] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // services/sessionFetch.ts sends a session that could not be refreshed here, with ?expired=1, so the person is told
+  // why they are signing in again rather than seeing a page of empty lists.
+  const [expired] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('expired') === '1');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,6 +36,7 @@ const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) =>
         <h1>{"{{COMPANY_NAME}}"}</h1>
         <p>Sign in to your account</p>
 
+        {expired && !error && <div className="alert alert-info" role="status">Your session ended. Please sign in again to pick up where you left off.</div>}
         {error && <div className="alert alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>

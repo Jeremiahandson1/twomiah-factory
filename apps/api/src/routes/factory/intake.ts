@@ -398,7 +398,8 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     }
 
     // Send welcome email immediately (non-blocking)
-    notifyWelcome(tenant).catch(e => console.warn('[Email] Welcome email failed:', e.message))
+    // The owner by first name: the signup has it now; the build that tenantOwner reads it from does not exist yet.
+    notifyWelcome(tenant, signupText(body.owner_first_name) ?? null).catch(e => console.warn('[Email] Welcome email failed:', e.message))
 
     // Auto-generate code build so triggerAutoDeploy has a factory_jobs record to deploy
     const ownerServices = signupServices(body.services)

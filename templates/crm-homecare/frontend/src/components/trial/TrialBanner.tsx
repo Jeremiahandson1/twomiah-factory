@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { trialEndDate } from '../../shared';
 
 /**
  * Care trial countdown banner. Unlike the react-router templates, Care
@@ -17,19 +18,10 @@ export function TrialBanner({ onUpgrade }: { onUpgrade?: () => void }) {
       ? (() => { try { return JSON.parse(company.settings); } catch { return {}; } })()
       : (company.settings || {});
 
-    const sub = settings.subscriptionStatus;
-    if (sub === 'active' || sub === 'past_due') {
-      return { daysRemaining: 0, urgent: false, hidden: true };
-    }
-
-    let trialEnd: Date | null = null;
-    if (settings.trialEndsAt) {
-      trialEnd = new Date(settings.trialEndsAt);
-    } else if (company.createdAt) {
-      trialEnd = new Date(company.createdAt);
-      trialEnd.setDate(trialEnd.getDate() + 30);
-    }
-    if (!trialEnd || isNaN(trialEnd.getTime())) {
+    // ONE answer for the banner and the lock (packages/tenant-ui trialEndDate): the Factory's trialEndsAt, or no trial.
+    // This copy guessed "createdAt + 30 days" when there was none — the T60 fault, which counts a PAID agency down.
+    const trialEnd = trialEndDate({ ...company, settings });
+    if (!trialEnd) {
       return { daysRemaining: 0, urgent: false, hidden: true };
     }
 

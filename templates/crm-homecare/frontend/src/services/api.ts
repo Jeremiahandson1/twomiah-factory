@@ -1,3 +1,6 @@
+import { createSessionFetch } from './sessionFetch';
+import { toast } from '../components/Toast';
+
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 // A hung backend used to leave requests pending forever ("Saving…" with no
@@ -27,16 +30,21 @@ class ApiClient {
   baseUrl: string;
   accessToken: string | null;
   refreshToken: string | null;
+  refreshPromise: Promise<boolean> | null = null;
+  /** Every access token this session has held — a screen may still be sending one it captured before a refresh. */
+  issued = new Set<string>();
 
   constructor() {
     this.baseUrl = API_URL;
     this.accessToken = localStorage.getItem('accessToken') || localStorage.getItem('token');
     this.refreshToken = localStorage.getItem('refreshToken');
+    if (this.accessToken) this.issued.add(this.accessToken);
   }
 
   setTokens(accessToken: string, refreshToken: string) {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken;
+    this.issued.add(accessToken);
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     // Remove legacy 'token' key if present
@@ -46,6 +54,7 @@ class ApiClient {
   clearTokens() {
     this.accessToken = null;
     this.refreshToken = null;
+    this.issued.clear();
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('token');
@@ -60,21 +69,9 @@ class ApiClient {
     };
 
     try {
+      // An expired session is refreshed and the request replayed underneath fetch (services/sessionFetch.ts), for this
+      // client and every raw fetch() alike — so a 401 that reaches here is a real refusal (a wrong password).
       const response = await fetchWithTimeout(url, { ...options, headers });
-
-      // Handle 401 — try to refresh token
-      if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/refresh')) {
-        const refreshed = await this.refreshAccessToken();
-        if (refreshed) {
-          headers.Authorization = `Bearer ${this.accessToken}`;
-          return fetchWithTimeout(url, { ...options, headers }).then(r => this.handleResponse(r));
-        } else {
-          this.clearTokens();
-          window.location.href = '/login';
-          throw new Error('Session expired');
-        }
-      }
-
       return this.handleResponse(response);
     } catch (error) {
       console.error('API Error:', error);
@@ -166,4 +163,27 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+
+/** The lock page's address. The Factory's restart checkout returns here (?restarted=1). */
+export const LOCK_PAGE = '/crm/paywall';
+
+// Every request in this tab goes through one response path (services/sessionFetch.ts): the session refreshed and the
+// request replayed on a 401, a dead session sent to sign in, a locked agency sent to the lock page, a View As refusal
+// shown. Installed once, when this module first loads — before any screen can fetch.
+if (typeof window !== 'undefined' && !(window as any).__homecareSessionFetch) {
+  (window as any).__homecareSessionFetch = true;
+  window.fetch = createSessionFetch(window.fetch.bind(window), {
+    current: () => api.accessToken,
+    owns: (token) => api.issued.has(token),
+    refresh: () => (api.refreshToken ? api.refreshAccessToken() : Promise.resolve(false)),
+    ended: () => {
+      api.clearTokens();
+      window.location.assign('/login?expired=1');
+    },
+    notify: (message) => toast(message, 'error', 6000),
+    locked: () => window.location.assign(LOCK_PAGE),
+    onLockPage: () => window.location.pathname.startsWith(LOCK_PAGE),
+  }) as typeof window.fetch;
+}
+
 export default api;

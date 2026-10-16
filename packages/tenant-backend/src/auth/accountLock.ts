@@ -36,8 +36,15 @@ export function accountLockOf(settings: any, now: number = Date.now()): AccountL
   return null
 }
 
-/** The doors a locked company keeps: the way back in, and nothing else. */
-export const LOCK_OPEN_PREFIXES = ['/api/auth', '/api/billing', '/api/messaging-billing'] as const
+/**
+ * The doors a locked company keeps: the way back in, and nothing else.
+ *
+ * Billing is named door by door — the three routes of the shared subscription router (billing.ts) — not as the whole of
+ * /api/billing. In home care /api/billing is ALSO the agency's own client invoicing (invoices, payments, rates, claim
+ * portals), and a prefix would have left every one of those open to a cancelled agency (Run 3, 10/16). In every other
+ * CRM /api/billing holds only these three, so the doors there are unchanged.
+ */
+export const LOCK_OPEN_PREFIXES = ['/api/auth', '/api/billing/subscription', '/api/billing/portal-link', '/api/billing/restart-checkout', '/api/messaging-billing'] as const
 
 export function isLockOpenPath(path: string): boolean {
   return LOCK_OPEN_PREFIXES.some((p) => path === p || path.startsWith(p + '/'))

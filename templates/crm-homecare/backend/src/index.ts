@@ -18,6 +18,7 @@ import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
 import { refuseViewAsWrites } from './middleware/viewAsReadOnly.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
+import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient } from './shared/index.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -373,6 +374,12 @@ app.post('/api/internal/sync-features', async (c) => {
   return c.json({ success: true, features: agency.enabledFeatures })
 })
 
+// The Factory's subscription summary (shared billing.ts). Cancel now, a lapsed card, an ended trial: the Factory pushes
+// here and the agency locks on the next request (middleware/auth.ts → refuseWhileLocked). This route was missing, so
+// the push answered 404 and a cancelled agency kept its whole CRM (Run 3, blocker 2). Same X-Factory-Key as sync-features.
+const subscriptionDeps = { db, companyTable: agencies, userTable: users, factoryApiClient: createFactoryApiClient(), seatLimitEnv: process.env.SEAT_LIMIT }
+app.route('/api/internal/sync-subscription', createSubscriptionSyncRoute(subscriptionDeps))
+
 // Path A++ — seed CRM owner with credentials matching the premium
 // admin. Homecare-specific: uses `users` (plural) + no per-user
 // agencyId FK on the schema, so we don't need to look up the parent
@@ -529,6 +536,8 @@ initializeSocket(server as any)
 startWorcsPoll().catch((err) => logger.error('[worcsPoll] failed to start', { error: err?.message }))
 // Shift reminders + over-visit-length texts (guarded: never double-run).
 startVisitJobs()
+// Pull the subscription summary once at boot, so a push missed while this service slept still locks (or unlocks) it.
+refreshSubscriptionFromFactory(subscriptionDeps).catch((err) => logger.warn('[billing] boot subscription refresh failed', { error: err?.message }))
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

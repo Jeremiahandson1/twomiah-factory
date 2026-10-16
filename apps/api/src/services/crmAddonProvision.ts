@@ -17,7 +17,8 @@
  *  7. Email the customer; on any failure email staff so the manual
  *     script can be run within the 24h SLA
  */
-import { sendEmail } from './email'
+import { sendEmail, greeting } from './email'
+import { ownerFirstName } from './tenantOwner'
 import { ourPremiumSiteOrigin } from './premiumSiteUrl'
 import { waitUntilServing, readinessUrls } from './deployReadiness'
 
@@ -270,7 +271,8 @@ async function doProvision(tenantId: string): Promise<{ success: boolean; crmUrl
   if (to) {
     await sendEmail(to,
       'Your Twomiah CRM is ready',
-      '<p>Hi ' + (tenant.name || 'there') + ',</p>' +
+      // The owner by first name, never the company (services/email.ts greeting) — the same rule as every ready email.
+      greeting(await ownerFirstName(tenant.id)) +
       '<p>Your CRM is live at <a href="' + result.apiUrl + '/crm">' + result.apiUrl + '/crm</a>.</p>' +
       '<p>Sign in with the same email and password you use for your website admin.</p>'
     ).catch(() => {})

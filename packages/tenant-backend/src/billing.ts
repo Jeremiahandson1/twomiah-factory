@@ -97,7 +97,11 @@ export function createBillingRoutes(deps: BillingDeps): Hono {
     const fresh = await refreshSubscriptionFromFactory(deps)
     const [comp] = await db.select().from(companyTable).where(eq(companyTable.id, currentUser.companyId)).limit(1)
     const subscription = fresh || cachedSubscription(comp)
-    const active = await db.select({ id: userTable.id }).from(userTable).where(and(eq(userTable.companyId, currentUser.companyId), eq(userTable.isActive, true)))
+    // One tenant per database. A user table with no company column (home care's `users`) IS the tenant's staff;
+    // naming userTable.companyId there would hand drizzle an undefined column and 500 the lock page's first call.
+    const active = await db.select({ id: userTable.id }).from(userTable).where(userTable.companyId
+      ? and(eq(userTable.companyId, currentUser.companyId), eq(userTable.isActive, true))
+      : eq(userTable.isActive, true))
     const envSeats = Number.parseInt(deps.seatLimitEnv || '', 10)
     const seatLimit = Number.isInteger(envSeats) && envSeats > 0 ? envSeats : (subscription?.seats ?? null)
     return c.json({

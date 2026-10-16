@@ -1,8 +1,9 @@
 import { Context, Next } from 'hono'
 import jwt from 'jsonwebtoken'
 import { db } from '../../db/index.ts'
-import { loginActivity } from '../../db/schema.ts'
+import { loginActivity, agencies } from '../../db/schema.ts'
 import { isStaffTokenRevoked } from '../services/tokenRevocation.ts'
+import { refuseWhileLocked } from '../shared/index.ts'
 
 export const authenticate = async (c: Context, next: Next) => {
   const authHeader = c.req.header('authorization')
@@ -18,6 +19,11 @@ export const authenticate = async (c: Context, next: Next) => {
   // A token issued before the user's last logout is dead on every device (server-side logout).
   if (await isStaffTokenRevoked(decoded)) return c.json({ error: 'Invalid or expired token' }, 401)
   c.set('user', decoded)
+  // A company the Factory has cancelled is LOCKED (shared auth/accountLock.ts): 402 ACCOUNT_LOCKED on everything but
+  // signing in and the subscription's own doors. Home care was left out of the 10/14 lock, so "Cancel now" in the
+  // Factory left the agency's CRM fully open (Run 3, blocker 2). The agency row is this tenant's company.
+  const locked = await refuseWhileLocked(c, db, agencies)
+  if (locked) return locked
   await next()
 }
 
