@@ -23,8 +23,10 @@ const POLL_MS = 3_000
  * row, answers it at the top level (accountLock). A /me that did not answer is "don't know" → keep waiting.
  */
 function stillLocked(me: any): boolean | null {
+  // Home care's /me is the user itself with `company` beside it — no `user` key — so a company answers on its own.
+  if (me?.company) return !!me.company.settings?.accountLock
   if (!me?.user) return null
-  return !!(me.company ? me.company.settings?.accountLock : me.accountLock)
+  return !!me.accountLock
 }
 
 export function PaywallScreen({ company, onSignOut, request, homePath = '/crm' }: { company: PaywallCompany; onSignOut: () => void; request: Request; /** Where the CRM opens once unlocked: /crm, or / in crm-store. */ homePath?: string }) {

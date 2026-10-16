@@ -5,6 +5,8 @@
  */
 
 import { verticalFor, crmTemplateFor } from '../config/industryRouting'
+import { planFor } from '../config/planSeats'
+import { ownerFirstName } from './tenantOwner'
 
 const RESEND_API = 'https://api.resend.com/emails'
 
@@ -109,6 +111,41 @@ function kv(label: string, value: string): string {
   return `<p style="margin:4px 0;color:#333;"><strong style="color:#666;">${label}:</strong> ${value}</p>`
 }
 
+// ─── Who the email is to, and what they bought ───────────────────────────────
+// Every vertical's welcome and ready email is built here, so these are rules for all of them (Run 3, 10/16: the home
+// care owner was greeted "Welcome aboard!" / "Great news!" and told the plan was "Starter10"; the other emails greeted
+// the COMPANY — "Hi Test Home Care Co,").
+
+const escHtml = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+/** A plan as the customer bought it — "Starter", never its id "starter10". An id the catalog does not know is tidied. */
+export function planDisplayName(planId?: string | null): string {
+  const known = planFor(planId || 'starter10')
+  if (known) return known.name
+  return String(planId).replace(/_/g, ' ').replace(/\d+$/, '').trim().replace(/\b\w/g, (ch) => ch.toUpperCase()) || 'Starter'
+}
+
+/** The owner's first name, trimmed; null when there is none. A company name is never a person's name. */
+function firstNameOf(v?: string | null): string | null {
+  const s = String(v ?? '').trim().split(/\s+/)[0] || ''
+  return s ? s.slice(0, 40) : null
+}
+
+/** "Hi Jane," — or "Hi there," when the owner's name is not known. */
+export function greeting(ownerFirst?: string | null): string {
+  const first = firstNameOf(ownerFirst)
+  return `<p style="color:#333;line-height:1.6;">Hi ${first ? escHtml(first) : 'there'},</p>`
+}
+
+/**
+ * The owner's first name for an email: the one the caller has (signup has it in hand before any build exists), else the
+ * one the signup stored on the tenant's build (services/tenantOwner.ts). Never throws — a lookup failure is "Hi there,".
+ */
+async function ownerOf(tenant: { id?: string | null; name?: string | null }, given?: string | null): Promise<string | null> {
+  if (given !== undefined) return firstNameOf(given)
+  return tenant?.id ? firstNameOf(await ownerFirstName(tenant.id).catch(() => null)) : null
+}
+
 // ─── Product name helper ────────────────────────────────────────────────────
 
 function getProductName(industry?: string, products?: string[]): string {
@@ -134,28 +171,30 @@ function getProductName(industry?: string, products?: string[]): string {
 
 // ─── Notification helpers ────────────────────────────────────────────────────
 
-export async function notifyWelcome(
-  tenant: { name: string; email?: string; plan?: string; industry?: string; products?: string[] }
-): Promise<boolean> {
-  if (!tenant.email) return false
+type WelcomeTenant = { id?: string | null; name: string; email?: string; plan?: string; industry?: string; products?: string[] }
 
+/** The welcome email, built. Pure: the owner's first name is passed in. */
+export function buildWelcomeEmail(tenant: WelcomeTenant, ownerFirst: string | null): { subject: string; html: string } {
   const product = getProductName(tenant.industry, tenant.products)
-  const planLabel = (tenant.plan || 'starter').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const first = firstNameOf(ownerFirst)
 
   const body = `
-    <p style="color:#333;line-height:1.6;">Welcome aboard! Your <strong>Twomiah ${product}</strong> account for <strong>${tenant.name}</strong> has been created.</p>
+    <p style="color:#333;line-height:1.6;">Welcome aboard${first ? ', ' + escHtml(first) : ''}! Your <strong>Twomiah ${product}</strong> account for <strong>${tenant.name}</strong> has been created.</p>
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:16px 0;">
       ${kv('Company', tenant.name)}
-      ${kv('Plan', planLabel)}
+      ${kv('Plan', planDisplayName(tenant.plan))}
     </div>
     <p style="color:#333;line-height:1.6;">As soon as your subscription is active, we&rsquo;ll build your system &mdash; this typically takes about <strong>10 minutes</strong> &mdash; and send a second email with your login URL and sign-in instructions. Every plan is backed by our <strong>30-day money-back guarantee</strong>.</p>
     <p style="color:#666;font-size:14px;">If you have questions in the meantime, just reply to this email.</p>`
 
-  return sendEmail(
-    tenant.email,
-    `Welcome to Twomiah ${product} — ${tenant.name}`,
-    wrap(`Welcome to Twomiah ${product}`, body)
-  )
+  return { subject: `Welcome to Twomiah ${product} — ${tenant.name}`, html: wrap(`Welcome to Twomiah ${product}`, body) }
+}
+
+/** ownerFirst: the signup has the owner's name in hand before any build (and so before tenantOwner can find it). */
+export async function notifyWelcome(tenant: WelcomeTenant, ownerFirst?: string | null): Promise<boolean> {
+  if (!tenant.email) return false
+  const { subject, html } = buildWelcomeEmail(tenant, await ownerOf(tenant, ownerFirst))
+  return sendEmail(tenant.email, subject, html)
 }
 
 // Staff alert: a PAID (or paying) tenant's provisioning failed. This must never
@@ -206,13 +245,19 @@ export async function notifyMessagingLowBalance(
   return sendEmail(tenant.email, 'Action needed: your messaging wallet is low', wrap('Top up your usage wallet', body))
 }
 
-export async function notifyDeployComplete(
-  tenant: { name: string; email?: string; slug: string; industry?: string; products?: string[]; admin_password?: string; twomiah_subdomain?: string | null },
-  urls: { apiUrl?: string; deployedUrl?: string; siteUrl?: string; repoUrl?: string; adsUrl?: string; twomiahSubdomain?: string }
-): Promise<boolean> {
-  if (!tenant.email) return false
+type ReadyTenant = { id?: string | null; name: string; email?: string; slug: string; industry?: string; products?: string[]; admin_password?: string; twomiah_subdomain?: string | null }
+type ReadyUrls = { apiUrl?: string; deployedUrl?: string; siteUrl?: string; repoUrl?: string; adsUrl?: string; twomiahSubdomain?: string }
 
+export async function notifyDeployComplete(tenant: ReadyTenant, urls: ReadyUrls, ownerFirst?: string | null): Promise<boolean> {
+  if (!tenant.email) return false
+  const { subject, html } = buildDeployCompleteEmail(tenant, urls, await ownerOf(tenant, ownerFirst))
+  return sendEmail(tenant.email, subject, html)
+}
+
+/** The "your CRM is ready" email, built. Pure: the owner's first name is passed in. */
+export function buildDeployCompleteEmail(tenant: ReadyTenant, urls: ReadyUrls, ownerFirst: string | null): { subject: string; html: string } {
   const product = getProductName(tenant.industry, tenant.products)
+  const first = firstNameOf(ownerFirst)
 
   const products = tenant.products || []
   const hasWebsite = products.includes('website') || products.includes('website-premium')
@@ -246,7 +291,7 @@ export async function notifyDeployComplete(
   const passwordLine = `<p style="color:#333;line-height:1.6;">Log in with the email and password you chose at signup.<br><span style="color:#666;font-size:13px;">Didn&rsquo;t set one, or forgot it? Click <strong>Forgot password</strong> on the login page and we&rsquo;ll email you a secure link to set it.</span></p>`
 
   const body = `
-    <p style="color:#333;line-height:1.6;">Great news! Your <strong>Twomiah ${isStore ? 'store' : product + ' CRM'}</strong> for <strong>${tenant.name}</strong> is ready to use.</p>
+    <p style="color:#333;line-height:1.6;">Great news${first ? ', ' + escHtml(first) : ''}! Your <strong>Twomiah ${isStore ? 'store' : product + ' CRM'}</strong> for <strong>${tenant.name}</strong> is ready to use.</p>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:16px;margin:16px 0;">
       <p style="margin:0 0 8px;color:#166534;font-weight:600;">&#10003; Your ${isStore ? 'store' : 'CRM'} is live</p>
       ${urlLines.join('\n      ')}
@@ -272,11 +317,10 @@ export async function notifyDeployComplete(
     <p style="color:#666;font-size:14px;">Services may take a few minutes to fully start up after deployment.</p>
     ${urls.deployedUrl ? btn(urls.deployedUrl, isStore ? 'Log In to Your Store Admin' : 'Log In to Your CRM') : websiteAdminUrl ? btn(websiteAdminUrl, 'Open Website Admin') : urls.siteUrl ? btn(urls.siteUrl, 'View Your Website') : ''}`
 
-  return sendEmail(
-    tenant.email,
-    isStore ? 'Your Twomiah store is ready' : `Your Twomiah ${product} CRM is ready`,
-    wrap(isStore ? 'Your Store is Ready' : `Your ${product} CRM is Ready`, body)
-  )
+  return {
+    subject: isStore ? 'Your Twomiah store is ready' : `Your Twomiah ${product} CRM is ready`,
+    html: wrap(isStore ? 'Your Store is Ready' : `Your ${product} CRM is Ready`, body),
+  }
 }
 
 export async function notifyStillWorking(
@@ -287,7 +331,7 @@ export async function notifyStillWorking(
   const product = getProductName(tenant.industry, tenant.products)
 
   const body = `
-    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${greeting(await ownerOf(tenant))}
     <p style="color:#333;line-height:1.6;">Your <strong>Twomiah ${product}</strong> build is taking a little longer than usual — we&rsquo;re still working on it. No action needed on your end.</p>
     <div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:16px;margin:16px 0;">
       <p style="margin:0;color:#92400e;">This sometimes happens on first deploys while cloud infrastructure provisions. You&rsquo;ll get another email as soon as your CRM is live.</p>
@@ -516,7 +560,7 @@ export async function notifyTrialWarning(
   if (!tenant.email) return false
 
   const product = getProductName(tenant.industry, tenant.products)
-  const planLabel = (tenant.plan || 'starter').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const planLabel = planDisplayName(tenant.plan)
   const loginUrl = tenant.render_frontend_url || `https://${tenant.slug}.onrender.com`
   const upgradeUrl = loginUrl.replace(/\/$/, '') + '/crm/settings/billing'
 
@@ -537,7 +581,7 @@ export async function notifyTrialWarning(
     : `${daysRemaining} days left in your Twomiah ${product} trial`
 
   const body = `
-    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${greeting(await ownerOf(tenant))}
     ${banner}
     <p style="color:#333;line-height:1.6;">Your <strong>Twomiah ${product}</strong> free trial has been up and running for ${30 - daysRemaining} days. You still have full access to every feature on the <strong>${planLabel}</strong> plan.</p>
     <p style="color:#333;line-height:1.6;">When your trial ends, your CRM will enter a read-only paywall state until you add a payment method. Your data stays safe — upgrade any time to unlock it.</p>
@@ -557,7 +601,7 @@ export async function notifyTrialExpired(
   const upgradeUrl = loginUrl.replace(/\/$/, '') + '/crm/settings/billing'
 
   const body = `
-    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${greeting(await ownerOf(tenant))}
     <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px;margin:16px 0;">
       <p style="margin:0 0 8px;color:#991b1b;font-weight:600;font-size:16px;">\u26A0 Your free trial has ended</p>
       <p style="margin:0;color:#991b1b;">Your Twomiah ${product} CRM is now locked. Upgrade to restore access.</p>
@@ -601,7 +645,7 @@ export async function notifyDomainRenewal(
   const subject = `Your domain ${tenant.domain || ''} renews in ${daysRemaining} days`
   const cta = billingUrl ? btn(billingUrl, 'Review Billing') : ''
   const body = `
-    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${greeting(await ownerOf(tenant))}
     ${renewalBanner(daysRemaining, 'domain')}
     <p style="color:#333;line-height:1.6;">We're reaching out ahead of the auto-renewal so there are no surprises. Your domain <strong>${tenant.domain || '(unnamed)'}</strong> is set to renew automatically.</p>
     <p style="color:#666;font-size:14px;">If your website, email, or CRM depend on this domain (they do), a lapsed renewal means downtime. Updating your payment method now avoids it.</p>
@@ -620,7 +664,7 @@ export async function notifyDomainRenewalPaymentNeeded(
   const amount = '$' + (o.amountCents / 100).toFixed(2)
   const subject = `Action needed: renew ${tenant.domain || 'your domain'} before ${when}`
   const body = `
-    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${greeting(await ownerOf(tenant))}
     <p style="color:#333;line-height:1.6;">Your domain <strong>${tenant.domain || ''}</strong> is due to renew on <strong>${when}</strong>. We tried to charge the renewal (${amount} for one year) to your card on file and it did not go through.</p>
     <p style="color:#333;line-height:1.6;">Pay it below and we will renew the domain straight away. If it is not paid by ${when}, the domain lapses — and your website and email on it stop working.</p>
     ${o.hostedUrl ? btn(o.hostedUrl, 'Pay ' + amount + ' and renew') : ''}`
@@ -640,11 +684,11 @@ export async function notifySubscriptionRenewal(
 ): Promise<boolean> {
   const to = tenant.admin_email || tenant.email
   if (!to) return false
-  const planLabel = (tenant.plan || 'starter').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const planLabel = planDisplayName(tenant.plan)
   const subject = `Your Twomiah ${planLabel} subscription renews in ${daysRemaining} days`
   const cta = billingUrl ? btn(billingUrl, 'Update Billing') : ''
   const body = `
-    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${greeting(await ownerOf(tenant))}
     ${renewalBanner(daysRemaining, 'subscription')}
     <p style="color:#333;line-height:1.6;">Your <strong>${planLabel}</strong> plan is set to renew automatically. Confirm your card is current to avoid any interruption.</p>
     ${cta}`
@@ -662,7 +706,7 @@ export async function notifyOffboardStarted(
   if (!to) return false
   const graceStr = graceEndsAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const body = `
-    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${greeting(await ownerOf(tenant))}
     <p style="color:#333;line-height:1.6;">We've started offboarding your Twomiah account. Here's what happens next:</p>
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:16px 0;">
       <p style="margin:0 0 8px;color:#1e3a8a;font-weight:600;">Your 30-day grace period</p>
@@ -686,7 +730,7 @@ export async function notifyEppCode(
   const to = tenant.admin_email || tenant.email
   if (!to) return false
   const body = `
-    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${greeting(await ownerOf(tenant))}
     <p style="color:#333;line-height:1.6;">Here's the EPP authorization code for transferring <strong>${tenant.domain || '(your domain)'}</strong> to another registrar.</p>
     <div style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:16px;margin:16px 0;font-family:monospace;word-break:break-all;">
       ${eppCode}
@@ -711,7 +755,7 @@ export async function notifyDataExportReady(
   if (!to) return false
   const expStr = expiresAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const body = `
-    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${greeting(await ownerOf(tenant))}
     <p style="color:#333;line-height:1.6;">Your account data export is ready. It includes every contact, job, quote, invoice, document, and attachment from your account.</p>
     ${btn(signedUrl, 'Download Export')}
     <p style="color:#666;font-size:14px;margin-top:16px;">This download link expires on <strong>${expStr}</strong>. Save the files to your own storage before then.</p>`
@@ -737,7 +781,7 @@ export async function notifyOffboardComplete(
   const to = tenant.admin_email || tenant.email
   if (!to) return false
   const body = `
-    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${greeting(await ownerOf(tenant))}
     <p style="color:#333;line-height:1.6;">Your offboarding is complete. Your Twomiah services have been decommissioned per the plan you chose. Thanks for trying us — if you ever come back, your slug is still reserved and the door is always open.</p>`
   return sendEmail(to, 'Offboarding complete', wrap('Goodbye (for now)', body))
 }

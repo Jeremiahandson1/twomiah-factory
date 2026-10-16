@@ -4,6 +4,23 @@ import api from '../services/api';
 
 const AuthContext = createContext<any>(null);
 
+/**
+ * The agency record for the screens — or, when the agency is LOCKED (cancelled in the Factory), the summary sign-in and
+ * /me sent, whose settings.accountLock sends every role to the lock page (App.tsx). A locked agency's /api/company is a
+ * 402, and treating that as "session invalid" signed the person out instead of showing them the way back.
+ */
+async function agencyOrLock(summary: any) {
+  if (summary?.settings?.accountLock) return summary;
+  try {
+    return await api.company.get();
+  } catch (err: any) {
+    if (err?.status === 402 && err?.data?.code === 'ACCOUNT_LOCKED') {
+      return { ...(summary || {}), settings: { ...(summary?.settings || {}), accountLock: err.data.lock || 'subscription_ended' } };
+    }
+    throw err;
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
@@ -17,10 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const [userData, companyData] = await Promise.all([
-        api.getMe(),
-        api.company.get(),
-      ]);
+      const userData = await api.getMe();
+      // /me carries the agency's lock (settings.accountLock); a locked agency's /api/company is a 402.
+      const companyData = await agencyOrLock(userData?.company);
       setUser(userData);
       setCompany(companyData);
     } catch (err) {
@@ -43,47 +59,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, [checkAuth]);
 
-  // M-05: the app is built on raw fetch(), so an expired session used to leave
-  // every screen silently empty (401s with no redirect). Wrap fetch once so any
-  // authenticated /api 401 triggers a session re-check. Crucially we do NOT clear
-  // tokens here — that would clobber the api service's own 401→refresh flow.
-  // Instead we let that flow settle, then verify via getMe: if it still fails the
-  // session is genuinely dead and we return the user to login.
-  useEffect(() => {
-    const orig = window.fetch;
-    let checking = false;
-    window.fetch = async (...args: any[]) => {
-      const res = await orig(...args);
-      try {
-        const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
-        const isAuthEndpoint = /\/api\/auth\//.test(url);
-        if (res.status === 401 && url.includes('/api/') && !isAuthEndpoint && api.accessToken && !checking) {
-          checking = true;
-          setTimeout(async () => {
-            try {
-              await api.getMe();   // routes through api.request → refresh if possible
-              checking = false;    // session refreshed and valid — carry on
-            } catch {
-              api.clearTokens();
-              setUser(null);
-              setCompany(null);
-              window.location.href = '/';
-            }
-          }, 400);
-        }
-      } catch { /* never let the wrapper break a request */ }
-      return res;
-    };
-    return () => { window.fetch = orig; };
-  }, []);
+  // An expired session (M-05, Run 3 HIGH 10) is handled under fetch itself — refreshed and replayed, or sent to sign in —
+  // for every screen at once: services/sessionFetch.ts, installed by services/api.ts.
 
   const login = async (email: string, password: string) => {
     setError(null);
     try {
       const data = await api.login(email, password);
       setUser(data.user);
-      // Fetch company after login
-      const companyData = await api.company.get();
+      // Fetch company after login. A cancelled agency answers 402 here: sign-in's own company summary carries the lock.
+      const companyData = await agencyOrLock(data.company);
       setCompany(companyData);
       return data;
     } catch (err: any) {

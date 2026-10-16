@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { API_BASE_URL } from '../config';
 import ApplicationForm from '../components/ApplicationForm';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 const pay = (p: any) => (p.pay_range_min
   ? `$${p.pay_range_min}${p.pay_range_max && p.pay_range_max !== p.pay_range_min ? `–$${p.pay_range_max}` : ''}/${p.pay_rate_unit}`
@@ -17,6 +18,9 @@ export default function CareersPage() {
   const [posting, setPosting] = useState<any>(null);
   const [notFound, setNotFound] = useState(false);
   const [general, setGeneral] = useState(false);
+  // The tab names the agency and the opening — not "<agency> CRM", which is index.html's title for the office.
+  // (Template literals: the generator pastes the name in raw, and an apostrophe would end a quoted string.)
+  usePageTitle(slug && posting?.title ? `${posting.title} — Careers at {{COMPANY_NAME}}` : `Careers — {{COMPANY_NAME}}`);
 
   useEffect(() => {
     setNotFound(false);

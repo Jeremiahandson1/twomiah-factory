@@ -6,6 +6,7 @@ import { db } from '../../db/index.ts'
 import { users, caregiverProfiles, agencies, auditLogs } from '../../db/schema.ts'
 import { authenticate, requireAdmin, logAuthEvent } from '../middleware/auth.ts'
 import { markUserLoggedOut } from '../services/tokenRevocation.ts'
+import { accountLockOf } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -13,6 +14,21 @@ const generateTokens = (userId: string, email: string, role: string, companyId?:
   const accessToken = jwt.sign({ userId, email, role, companyId }, process.env.JWT_SECRET!, { expiresIn: '1h' })
   const refreshToken = jwt.sign({ userId, type: 'refresh' }, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET!, { expiresIn: '7d' })
   return { accessToken, refreshToken }
+}
+
+/**
+ * The agency as sign-in and /me describe it. settings.accountLock is the server's answer to "is this agency locked?"
+ * (shared auth/accountLock.ts) and reaches every role: these two doors stay open while locked, /api/company does not,
+ * so this is how the screen learns to show the lock page instead of a CRM full of refusals. Nothing else from settings.
+ */
+function companySummary(agency: any) {
+  if (!agency) return { vertical: 'homecare', name: 'Agency', settings: { accountLock: null } }
+  return {
+    id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, phone: agency.phone,
+    email: agency.email, address: agency.address, city: agency.city, state: agency.state, zip: agency.zip, website: agency.website,
+    vertical: 'homecare',
+    settings: { accountLock: accountLockOf(agency.settings) },
+  }
 }
 
 // POST /api/auth/login
@@ -52,7 +68,7 @@ app.post('/login', async (c) => {
     accessToken,
     refreshToken,
     user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role },
-    company: agency ? { id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, phone: agency.phone, email: agency.email, address: agency.address, city: agency.city, state: agency.state, zip: agency.zip, website: agency.website, vertical: 'homecare' } : { vertical: 'homecare', name: 'Agency' },
+    company: companySummary(agency),
   })
 })
 
@@ -123,7 +139,7 @@ app.get('/me', authenticate, async (c) => {
   // Fetch agency for company info
   const [agency] = await db.select().from(agencies).limit(1)
 
-  return c.json({ ...user, profile: profile || null, company: agency ? { id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, phone: agency.phone, email: agency.email, address: agency.address, city: agency.city, state: agency.state, zip: agency.zip, website: agency.website, vertical: 'homecare' } : { vertical: 'homecare', name: 'Agency' } })
+  return c.json({ ...user, profile: profile || null, company: companySummary(agency) })
 })
 
 // GET /api/auth/users — user list for "View As" impersonation (was 404 → empty)

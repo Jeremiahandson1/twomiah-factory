@@ -101,8 +101,8 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Failed to hire');
 
-      // The temporary password is shown once, here; the welcome email carries it too.
-      setMessage(`✓ ${data.message || 'Applicant hired and caregiver account created!'} Temporary password: ${data.tempPassword}`);
+      // The login is emailed to the new caregiver; the password comes back (and is shown) only when that email did not go.
+      setMessage(`✓ ${data.message || 'Applicant hired and caregiver account created!'}${!data.credentialsEmailed && data.tempPassword ? ` Temporary password: ${data.tempPassword}` : ''}`);
       loadApplication();
     } catch (error) {
       toast('Failed to hire: ' + error.message, 'error');

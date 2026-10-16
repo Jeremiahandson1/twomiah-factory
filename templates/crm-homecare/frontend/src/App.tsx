@@ -22,15 +22,32 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import AdsPage from './pages/ads/AdsPage';
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage } from './shared';
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, isAccountLocked } from './shared';
+import PaywallPage from './pages/PaywallPage';
+import { LOCK_PAGE } from './services/api';
+import { usePageTitle } from './hooks/usePageTitle';
+
+// The agency's name, filled in when the CRM is generated (as the sign-in page's heading is). index.html's own title is
+// "<agency> CRM" — right for the office, wrong on the pages the public, clients and families open. A template literal,
+// because the generator pastes the name in raw and "Mary's Home Care" would end a quoted string.
+const AGENCY = `{{COMPANY_NAME}}`;
 
 // ── Protected Route wrapper ──────────────────────────────────────────────────
+// A locked agency (cancelled in the Factory — the server refuses it 402) goes to the lock page, every role, from every
+// door: this wrapper and MainApp below.
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
+  const { user, company, loading } = useAuth();
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
   if (!user) return <Login onLogin={() => {}} />;
+  if (isAccountLocked(company)) return <Navigate to={LOCK_PAGE} replace />;
 
+  return <>{children}</>;
+};
+
+/** The browser tab's title for a public page, which has no CRM around it. */
+const Titled = ({ title, children }: { title: string; children: React.ReactNode }) => {
+  usePageTitle(title);
   return <>{children}</>;
 };
 
@@ -42,22 +59,26 @@ const App = () => {
 
       <Routes>
         {/* Public payment routes */}
-        <Route path="/pay/:invoiceId"    element={<PaymentPage />} />
-        <Route path="/payment-success"   element={<PaymentSuccess />} />
+        <Route path="/pay/:invoiceId"    element={<Titled title={`Pay your invoice — ${AGENCY}`}><PaymentPage /></Titled>} />
+        <Route path="/payment-success"   element={<Titled title={`Payment received — ${AGENCY}`}><PaymentSuccess /></Titled>} />
 
-        {/* Public careers page + the new hire's tokenized onboarding packet (no sign-in) */}
+        {/* Public careers page + the new hire's tokenized onboarding packet (no sign-in). The careers page names its
+            own tab (it knows the opening); the packet is the new hire's. */}
         <Route path="/careers"           element={<CareersPage />} />
         <Route path="/careers/:slug"     element={<CareersPage />} />
-        <Route path="/onboarding/:token" element={<OnboardingPacketPage />} />
+        <Route path="/onboarding/:token" element={<Titled title={`Your onboarding — ${AGENCY}`}><OnboardingPacketPage /></Titled>} />
 
         {/* Client portal setup (invite link) */}
-        <Route path="/portal/setup"      element={<PortalSetup />} />
+        <Route path="/portal/setup"      element={<Titled title={`Client portal — ${AGENCY}`}><PortalSetup /></Titled>} />
 
         {/* Client portal */}
-        <Route path="/portal/*"          element={<PortalApp />} />
+        <Route path="/portal/*"          element={<Titled title={`Client portal — ${AGENCY}`}><PortalApp /></Titled>} />
 
         {/* Family portal */}
-        <Route path="/family/*"          element={<FamilyApp />} />
+        <Route path="/family/*"          element={<Titled title={`Family portal — ${AGENCY}`}><FamilyApp /></Titled>} />
+
+        {/* The lock page: a cancelled agency, every role. The Factory's restart checkout returns here. */}
+        <Route path="/crm/paywall"       element={<AuthProvider><PaywallPage /></AuthProvider>} />
 
         {/* Lead Inbox */}
         <Route path="leads" element={<LeadInboxPage />} />
@@ -272,6 +293,9 @@ const MainApp = () => {
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
 
   if (!user) return <Login onLogin={handleLogin} />;
+
+  // A locked agency sees the lock page, never a CRM whose every call is refused.
+  if (isAccountLocked(company)) return <Navigate to={LOCK_PAGE} replace />;
 
   // Active impersonation — show target user's view with a banner
   if (impersonationToken && impersonationUser) {

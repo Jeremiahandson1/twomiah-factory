@@ -65,7 +65,12 @@ export default function SubscriptionControls({ tenant, showToast, onChanged }: P
     setBusy(false)
     if (r.ok) {
       const refunded = r.data?.refund?.refunded ? ` and $${(r.data.refund.refunded / 100).toFixed(2)} refunded` : r.data?.refund?.skipped ? ` (no refund: ${r.data.refund.skipped})` : ''
-      showToast('Subscription ended' + refunded); close(); onChanged()
+      // Ended in Stripe is not the same as locked in the CRM: the CRM is told by a push that can fail (asleep, or — as
+      // home care was until Run 3 — no route to receive it). Say so, rather than "The CRM is locked".
+      const lockStep = Array.isArray(r.data?.steps) ? r.data.steps.find((s: any) => s?.step === 'crm_locked') : null
+      if (lockStep && lockStep.status !== 'ok') showToast('Subscription ended' + refunded + ' — but the CRM did not confirm the lock: ' + (lockStep.detail || 'it locks on its next subscription sync'), 'error')
+      else showToast('Subscription ended' + refunded + (lockStep ? '. The CRM is locked.' : ''))
+      close(); onChanged()
     } else showToast(r.data?.error || 'Could not cancel the subscription', 'error')
   }
   const reactivate = async () => {

@@ -7,8 +7,9 @@ import { Hono } from 'hono'
 import { sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { db } from '../../db/index.ts'
-import { agencies } from '../../db/schema.ts'
+import { agencies, users } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { createBillingRoutes, createFactoryApiClient } from '../shared/index.ts'
 import emailService from '../services/email.ts'
 import {
   BillingRefusal, generateLineItems, loadBillingClient, resolveClientRate, noRateRefusal, applyRate,
@@ -22,6 +23,18 @@ import { billedInRangeSql } from '../services/invoiceMoney.ts'
 
 const app = new Hono()
 app.use('*', authenticate, requireAdmin)
+
+// The agency's OWN Twomiah subscription — the shared router every CRM mounts here (GET /subscription, POST /portal-link,
+// POST /restart-checkout). The lock page restarts a cancelled agency through it; those three paths are the only part of
+// /api/billing a locked agency keeps (shared auth/accountLock.ts), so the client invoicing below locks with everything else.
+// Reading it is the office's (requireAdmin above). Changing what the agency pays for — the Stripe portal, a restart — is
+// the owner's alone, as billing:manage is in every other CRM.
+app.route('/', createBillingRoutes({
+  db, companyTable: agencies, userTable: users,
+  factoryApiClient: createFactoryApiClient(),
+  canManage: (c: any) => (c.get('user') as any)?.role === 'owner',
+  seatLimitEnv: process.env.SEAT_LIMIT,
+}))
 
 const rowsOf = (r: any): any[] => (r?.rows ?? r ?? []) as any[]
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/

@@ -280,11 +280,19 @@ const ApplicationsDashboard = () => {
                 <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
                 <h3 style={{ margin: '0 0 0.5rem', color: '#059669' }}>Caregiver Created!</h3>
                 <p style={{ color: '#374151', marginBottom: '1rem' }}><strong>{hireModal.first_name} {hireModal.last_name}</strong> is now a caregiver.</p>
-                <div style={{ padding: '1rem', background: '#FEF3C7', borderRadius: '8px', border: '1px solid #FCD34D', textAlign: 'left', marginBottom: '1.5rem' }}>
-                  <div style={{ fontWeight: '700', marginBottom: '0.5rem', color: '#92400E' }}>⚠️ Login Credentials (save these!)</div>
-                  <div style={{ fontSize: '0.9rem' }}><strong>Email:</strong> {hireForm.email}</div>
-                  <div style={{ fontSize: '0.9rem' }}><strong>Temp Password:</strong> {hireResult.tempPassword}</div>
-                </div>
+                {/* The login is emailed to the new caregiver. The password is on screen only when that email did not go
+                    (the server then returns it), so the office can hand it over — never beside an email that has it. */}
+                {hireResult.credentialsEmailed ? (
+                  <div style={{ padding: '1rem', background: '#F0FDF4', borderRadius: '8px', border: '1px solid #BBF7D0', textAlign: 'left', marginBottom: '1.5rem', color: '#065F46', fontSize: '0.9rem' }}>
+                    ✉️ Login details emailed to <strong>{hireResult.emailedTo || hireForm.email}</strong>.
+                  </div>
+                ) : (
+                  <div style={{ padding: '1rem', background: '#FEF3C7', borderRadius: '8px', border: '1px solid #FCD34D', textAlign: 'left', marginBottom: '1.5rem', color: '#78350F' }}>
+                    <div style={{ fontWeight: '700', marginBottom: '0.5rem', color: '#92400E' }}>⚠️ The login email could not be sent — give them these yourself</div>
+                    <div style={{ fontSize: '0.9rem' }}><strong>Email:</strong> {hireResult.emailedTo || hireForm.email}</div>
+                    {hireResult.tempPassword && <div style={{ fontSize: '0.9rem' }}><strong>Temp Password:</strong> {hireResult.tempPassword}</div>}
+                  </div>
+                )}
                 {hireResult.message && <p style={{ color: '#374151', fontSize: '0.88rem', textAlign: 'left', marginBottom: '1rem' }}>{hireResult.message}</p>}
                 {hireResult.packetUrl && (
                   <p style={{ color: '#374151', fontSize: '0.8rem', textAlign: 'left', marginBottom: '1.5rem', wordBreak: 'break-all' }}>

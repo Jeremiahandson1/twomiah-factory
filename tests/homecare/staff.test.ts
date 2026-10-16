@@ -230,7 +230,10 @@ let appId = ''
   const badRate = await asAdmin('POST', `/api/applications/${appId}/hire`, { hourlyRate: 'lots' })
   check('a non-numeric rate is refused before anything is created', badRate.status === 400, badRate.json)
   const hire = await asAdmin('POST', `/api/applications/${appId}/hire`, { hourlyRate: 16.5 })
-  check('hire creates the caregiver', hire.status === 200 && hire.json.success && !!hire.json.caregiverId && !!hire.json.tempPassword, hire.json)
+  check('hire creates the caregiver', hire.status === 200 && hire.json.success && !!hire.json.caregiverId, hire.json)
+  // No email provider here (sendRaw's dev mode sends nothing), so the office is handed the password to pass on —
+  // and told the email did not go. With a working provider it is not returned at all (hire-credentials.test.ts).
+  check('…no email provider: the login was NOT emailed, so the temporary password comes back for the office', hire.json.credentialsEmailed === false && !!hire.json.tempPassword && /could not be sent/.test(hire.json.message), hire.json)
   check('…and reports the onboarding packet', hire.json.packetCreated === true && hire.json.packetUrl.startsWith('https://staff-test.example/onboarding/'), hire.json.packetUrl)
   const [u] = await db.select().from(users).where(eq(users.id, hire.json.caregiverId))
   check('the login is the lower-cased applicant email, role caregiver', u.email === 'jamie.applicant@example.test' && u.role === 'caregiver', u)

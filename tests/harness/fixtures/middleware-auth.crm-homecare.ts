@@ -12,6 +12,9 @@
 // object is identical either way — the decoded-token shape, built from headers instead of a token.
 import type { Context, Next } from 'hono'
 import jwt from 'jsonwebtoken'
+import { refuseWhileLocked } from '../shared/index.ts'
+import { db } from '../../db/index.ts'
+import { agencies } from '../../db/schema.ts'
 
 export const authenticate = async (c: Context, next: Next) => {
   const testUser = c.req.header('x-test-user')
@@ -24,6 +27,9 @@ export const authenticate = async (c: Context, next: Next) => {
       email: c.req.header('x-test-email') || `${testUser}@test.local`,
       role: c.req.header('x-test-role') || 'caregiver',
     })
+    // The bridge keeps the real middleware's lock, or no suite would ever see a cancelled agency.
+    const locked = await refuseWhileLocked(c, db, agencies)
+    if (locked) return locked
     await next()
     return
   }
@@ -31,13 +37,16 @@ export const authenticate = async (c: Context, next: Next) => {
   const authHeader = c.req.header('authorization')
   const token = authHeader?.split(' ')[1]
   if (!token) return c.json({ error: 'Access token required' }, 401)
+  let decoded: any
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
-    c.set('user', decoded)
-    await next()
+    decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
   } catch {
     return c.json({ error: 'Invalid or expired token' }, 401)
   }
+  c.set('user', decoded)
+  const locked = await refuseWhileLocked(c, db, agencies)
+  if (locked) return locked
+  await next()
 }
 
 // Byte-for-byte the rule from the template: admin or owner, else 403. This is homecare's ENTIRE
