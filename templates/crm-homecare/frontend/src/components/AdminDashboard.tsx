@@ -12,7 +12,6 @@ import IntegrationsHub from './admin/IntegrationsHub';
 import FeaturesPage from './admin/FeaturesPage';
 
 // Admin pages
-import SubscriptionPricingPage from '../pages/billing/PricingPage';
 import AiReceptionistPage from '../pages/AiReceptionistPage';
 import PerformanceReviewsPage from '../pages/PerformanceReviewsPage';
 import NoShowPage from '../pages/NoShowPage';
@@ -70,7 +69,7 @@ import UserManagement from './admin/UserManagement';
 import VisitDocumentation from './admin/VisitDocumentation';
 import ShiftApprovals from './admin/ShiftApprovals';
 import LeadSourcesPage from '../pages/leads/LeadSourcesPage';
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from '../shared';
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, BillingPage } from '../shared';
 
 const NAV_SECTIONS = [
   {
@@ -170,6 +169,7 @@ const NAV_SECTIONS = [
     id: 'settings', label: 'Settings', icon: '⚙️',
     items: [
       { id: 'user-management', label: 'Users & Access', icon: '👤' },
+      { id: 'plan-billing', label: 'Plan & Billing', icon: '💳' },
     ]
   },
 ];
@@ -343,7 +343,9 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'billing-import': return <BillingImport />;
       case 'portal-claim-days': return <PortalClaimDays />;
       case 'billing-engine': return <BillingEngine />;
-      case 'subscription-pricing': return <SubscriptionPricingPage />;
+      // The Twomiah plan — the shared Billing page every CRM uses (Factory subscription, owner's billing portal).
+      // It replaced an in-app pricing page that sold old prices through the legacy /api/subscription checkout.
+      case 'plan-billing': return <BillingPage />;
       case 'forecast': return <RevenueForecast />;
       case 'live-board': return <LiveBoard />;
       case 'client-week': return <ClientWeekHours />;
@@ -603,7 +605,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
         <HelpPanel isOpen={showHelp} onClose={() => setShowHelp(false)} currentPage={currentPage} />
 
         {/* Trial countdown banner — only renders when within 7 days of trial expiry */}
-        <TrialBanner onUpgrade={() => setCurrentPage('subscription-pricing')} />
+        <TrialBanner onUpgrade={() => setCurrentPage('plan-billing')} />
 
         {/* Impersonation modal */}
         {showImpersonation && (

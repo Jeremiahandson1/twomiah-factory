@@ -6,7 +6,7 @@ import { trialEndDate } from '../../shared';
  * Care trial countdown banner. Unlike the react-router templates, Care
  * uses state-based navigation, so the upgrade button takes an onUpgrade
  * callback instead of a <Link>. AdminDashboard is expected to pass
- *   onUpgrade={() => setCurrentPage('subscription-pricing')}
+ *   onUpgrade={() => setCurrentPage('plan-billing')}
  */
 export function TrialBanner({ onUpgrade }: { onUpgrade?: () => void }) {
   const { company } = useAuth();
