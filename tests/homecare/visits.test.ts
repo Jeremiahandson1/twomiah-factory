@@ -601,14 +601,24 @@ const closeOpen = async (who: any) => q(sql`UPDATE time_entries SET end_time = N
   const { scanOvertimeAlerts } = await import('./src/jobs/overtimeAlerts.ts')
   const day = '2026-11-03'
   const at = new Date(`${day}T10:00:00Z`)
-  await insSched({ caregiver_id: cg2.id, client_id: clP.id, date: day, start: '11:00', end: '12:00' })
-  const cancelled = await insSched({ caregiver_id: cg3.id, client_id: clP.id, date: day, start: '11:02', end: '12:00' })
+  // Caregivers of their own, and assertions about only them. The scan reminds the whole agency, and earlier sections
+  // leave open-ended weekly visits on weekdays counted from today — §7 gives cg2 one at 11:00, so on any day that
+  // makes it a Tuesday it lands on 2026-11-03 too and the scan rightly sends it (this was red 10/16 00:57Z as n1 === 2).
+  const cgRem = await mkUser('caregiver', 'cgreminder', '7155550131')
+  const cgRemCancelled = await mkUser('caregiver', 'cgremcancel', '7155550132')
+  await insSched({ caregiver_id: cgRem.id, client_id: clP.id, date: day, start: '11:00', end: '12:00' })
+  const cancelled = await insSched({ caregiver_id: cgRemCancelled.id, client_id: clP.id, date: day, start: '11:02', end: '12:00' })
   await q(sql`INSERT INTO schedule_exceptions (id, schedule_id, exception_date, exception_type, created_at) VALUES ('exc_rem', ${cancelled}, ${day}, 'cancelled', NOW())`)
   pushes.length = 0
   const n1 = await scanShiftReminders(at)
+  const firstScan = pushes.slice()
   const n2 = await scanShiftReminders(new Date(at.getTime() + 5 * 60000))
-  check('a visit an hour away gets one "Shift in 1 hour" — a cancelled one gets none', n1 === 1 && pushes.length === 1 && pushes[0].userId === cg2.id && pushes[0].payload.body.includes('11:00–12:00'), pushes)
-  check('…and the next scan does not send it again', n2 === 0)
+  const secondScan = pushes.slice(firstScan.length)
+  const toRem = firstScan.filter((p) => p.userId === cgRem.id)
+  check('a visit an hour away gets one "Shift in 1 hour" — a cancelled one gets none',
+    toRem.length === 1 && toRem[0].payload.title === 'Shift in 1 hour' && toRem[0].payload.body.includes('11:00–12:00')
+      && !pushes.some((p) => p.userId === cgRemCancelled.id) && n1 === firstScan.length, { n1, firstScan })
+  check('…and the next scan does not send it again', n2 === secondScan.length && !secondScan.some((p) => p.userId === cgRem.id || firstScan.some((f) => f.payload.tag === p.payload.tag)), secondScan)
 
   texts.length = 0
   const T = new Date(Date.now() - 3 * 3600000)
