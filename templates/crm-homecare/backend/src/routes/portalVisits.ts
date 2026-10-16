@@ -11,6 +11,7 @@ import { rows, one } from '../helpers/scheduleRows.ts'
 import { occurrencesCte, hms, DATE_RE } from '../services/scheduleOccurrences.ts'
 import { agencyNow, addDays } from '../services/agencyTime.ts'
 import { notifyUser, notifyAdmins } from '../services/visitNotify.ts'
+import { DEFAULT_WORKING_DAY } from '../services/workingDay.ts'
 import {
   VCR_COLS, getRequest, workedVisitBlocker, applyRescheduleToSchedule, materializeVisit, visitIdentity, ownsScheduleVisit, clientName,
   clientChangeBlocker, hoursUntilVisit, tellCaregiver, CANCEL_NOTICE_HOURS,
@@ -168,7 +169,7 @@ portal.post('/visits/cancel-request', portalAuth, async (c) => {
 // caregiver's week is created with (routes/caregivers.ts). No row at all = that default week
 // (Mon–Fri). status 'unavailable' = no slots.
 const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-export const DEFAULT_WORKING_DAY = { start: '08:00:00', end: '17:00:00' }
+export { DEFAULT_WORKING_DAY }
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 const fromMin = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}:00`
 

@@ -17,6 +17,7 @@ import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { requireAdminOrSelf } from '../helpers/selfService.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { DEFAULT_WORKING_DAY } from '../services/workingDay.ts'
 
 const app = new Hono()
 
@@ -616,7 +617,7 @@ app.get('/:id/availability', requireAdminOrSelf('id'), async (c) => {
   // First read creates the default week (Mon–Fri 08:00–17:00, weekends off), as CVHC does.
   await db.insert(caregiverAvailability).values({
     caregiverId: id, status: 'available', maxHoursPerWeek: 40,
-    ...Object.fromEntries(DAYS.slice(0, 5).flatMap((d) => [[`${d}Available`, true], [`${d}StartTime`, '08:00'], [`${d}EndTime`, '17:00']])),
+    ...Object.fromEntries(DAYS.slice(0, 5).flatMap((d) => [[`${d}Available`, true], [`${d}StartTime`, DEFAULT_WORKING_DAY.start], [`${d}EndTime`, DEFAULT_WORKING_DAY.end]])),
     saturdayAvailable: false, sundayAvailable: false,
   } as any).onConflictDoNothing({ target: caregiverAvailability.caregiverId })
   const [row] = rowsOfExec(await db.execute(sql`SELECT * FROM caregiver_availability WHERE caregiver_id = ${id}`))

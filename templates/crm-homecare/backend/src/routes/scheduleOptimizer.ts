@@ -5,6 +5,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { wallClock } from '../services/scheduleOccurrences.ts'
 import { agencyToday } from '../services/agencyTime.ts'
+import { DEFAULT_WORKING_DAY } from '../services/workingDay.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -56,8 +57,8 @@ function findAvailableSlot(
 ): string | null {
   const AVAIL_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   const dayKey = AVAIL_KEYS[dayOfWeek]
-  const cgStart: string = cgInfo?.[`${dayKey}_start_time`] || '08:00'
-  const cgEnd: string = cgInfo?.[`${dayKey}_end_time`] || '18:00'
+  const cgStart: string = cgInfo?.[`${dayKey}_start_time`] || DEFAULT_WORKING_DAY.start
+  const cgEnd: string = cgInfo?.[`${dayKey}_end_time`] || DEFAULT_WORKING_DAY.end
   const cgPrefStart: string | undefined = cgInfo?.[`${dayKey}_preferred_start`]
   const cgPrefEnd: string | undefined = cgInfo?.[`${dayKey}_preferred_end`]
 

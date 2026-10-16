@@ -5,6 +5,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { wallClock, occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { agencyToday } from '../services/agencyTime.ts'
+import { DEFAULT_WORKING_DAY } from '../services/workingDay.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -302,8 +303,8 @@ app.post('/run', async (c) => {
             if (!isAvailable) continue
 
             const daySlots = cgSlotMap[cg.id][day]
-            const windowStart = cgInfo?.[`${dayKey}_start_time`] ? normalizeTime(cgInfo[`${dayKey}_start_time`]) : '08:00'
-            const windowEnd = cgInfo?.[`${dayKey}_end_time`] ? normalizeTime(cgInfo[`${dayKey}_end_time`]) : '18:00'
+            const windowStart = cgInfo?.[`${dayKey}_start_time`] ? normalizeTime(cgInfo[`${dayKey}_start_time`]) : DEFAULT_WORKING_DAY.start
+            const windowEnd = cgInfo?.[`${dayKey}_end_time`] ? normalizeTime(cgInfo[`${dayKey}_end_time`]) : DEFAULT_WORKING_DAY.end
             const prefStart = cgInfo?.[`${dayKey}_preferred_start`] ? normalizeTime(cgInfo[`${dayKey}_preferred_start`]) : null
             const prefEnd = cgInfo?.[`${dayKey}_preferred_end`] ? normalizeTime(cgInfo[`${dayKey}_preferred_end`]) : null
             const startTime = findSlotWithPreferred(daySlots, visitMins, windowStart, windowEnd, prefStart, prefEnd, timeWindowStart || null, timeWindowEnd || null)
