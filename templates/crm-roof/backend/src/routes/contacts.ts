@@ -9,6 +9,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 // The portal credential, stripped through the same helper the shared contacts module uses. Roof
 // forks this route, so the shared module's strip never ran here. (T42)
 import { withoutPortalCredential } from '../shared/index.ts'
+import { linkUnknownTexts } from '../services/sms.ts'
 
 const app = new Hono()
 app.use('*', authenticate)

@@ -35,6 +35,7 @@ app.route('/api/calltracking', (await import('./src/routes/calltracking.ts')).de
 app.route('/api/ai-receptionist', (await import('./src/routes/aiReceptionist.ts')).default)
 app.route('/api/sms', (await import('./src/routes/sms.ts')).default)
 app.route('/api/leads', (await import('./src/routes/leads.ts')).default)
+app.route('/api/contacts', (await import('./src/routes/contacts.ts')).default)
 app.onError(errorHandler)
 
 process.env.NODE_ENV = 'production'
@@ -112,14 +113,22 @@ console.log('\n══════════ a text from a number in no contact
   check('accepted 200, not a 500', r.status === 200, { status: r.status, body: r.text })
   const [kept]: any[] = await db.select().from(smsMessage).where(eq(smsMessage.twilioSid, 'SM-rf-unknown'))
   check('…the text is kept, unlinked (contact null), not lost', (await texts()) === before + 1 && kept && kept.contactId === null, kept)
+  const other = await db.insert(contact).values({ companyId: co.id, firstName: 'Other', lastName: 'Person', mobilePhone: '608-555-1111' } as any).returning()
+  const oc = await api('GET', `/api/sms/conversation/${other[0].id}`)
+  check('a contact with a different number does not get it', oc.status === 200 && !(oc.json?.messages || []).some((m: any) => m.twilioSid === 'SM-rf-unknown'), oc.text?.slice(0, 200))
+  const [still]: any[] = await db.select().from(smsMessage).where(eq(smsMessage.twilioSid, 'SM-rf-unknown'))
+  check('…and the text stays unlinked', still?.contactId === null, still)
   const [newbie] = await db.insert(contact).values({ companyId: co.id, firstName: 'New', lastName: 'Caller', mobilePhone: '608.555.0909' } as any).returning()
   const conv = await api('GET', `/api/sms/conversation/${newbie.id}`)
   check('when a contact with that number is opened, the text is in their thread', conv.status === 200 && (conv.json?.messages || []).some((m: any) => m.twilioSid === 'SM-rf-unknown'), { status: conv.status, body: conv.text?.slice(0, 300) })
   const [linked]: any[] = await db.select().from(smsMessage).where(eq(smsMessage.twilioSid, 'SM-rf-unknown'))
   check('…and it is filed under them for good', linked?.contactId === newbie.id, linked)
-  const other = await db.insert(contact).values({ companyId: co.id, firstName: 'Other', lastName: 'Person', mobilePhone: '608-555-1111' } as any).returning()
-  const oc = await api('GET', `/api/sms/conversation/${other[0].id}`)
-  check('a contact with a different number does not get it', oc.status === 200 && !(oc.json?.messages || []).some((m: any) => m.twilioSid === 'SM-rf-unknown'), oc.text?.slice(0, 200))
+  // The contact record (GET /api/contacts/:id, the SMS thread on the contact page) files them too.
+  const p2 = { MessageSid: 'SM-rf-unknown-2', From: '+16085550808', To: NUMBER, Body: 'Second stray' }
+  await send(SMS, form(p2), { ...FORM, 'x-twilio-signature': twilioSignatureFor(TOKEN, `http://localhost${SMS}`, p2) })
+  const [third] = await db.insert(contact).values({ companyId: co.id, firstName: 'Third', lastName: 'Caller', phone: '608 555 0808' } as any).returning()
+  const card = await api('GET', `/api/contacts/${third.id}`)
+  check('the contact page\'s thread files a stray text by the contact\'s phone', card.status === 200 && (card.json?.smsThread || []).some((m: any) => m.twilioSid === 'SM-rf-unknown-2'), { status: card.status, body: card.text?.slice(0, 300) })
 }
 
 console.log('\n══════════ the lead email address handed out is the one the Factory routes (10/16) ══════════')
