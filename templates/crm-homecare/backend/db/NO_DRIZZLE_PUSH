@@ -1,0 +1,10 @@
+This file's presence makes the boot skip `drizzle-kit push --force` (apps/api/src/services/deploy.ts, dbReconcileStep).
+
+Home care's schema is owned by its SQL migrations (db/migrations, applied by db/migrate.ts), many of them ported from
+the CVHC CRM. They create things db/schema.ts does not express: CHECK constraints (invoice_line_items billed basis,
+clients billing frequency, visit photo size cap), partial and expression indexes (uniq_active_recurring_schedule),
+Postgres-named constraints and foreign keys. Run against a migrated database, push --force drops all of them — and,
+before schema.ts declared them, whole tables with their rows (scheduled_visits, client_visit_notes, subscription …).
+
+db/reconcile.ts still runs: it only ever adds what schema.ts declares and the migrations have not created.
+A schema change here is a migration. Do not delete this file to "fix" a missing column.

@@ -35,7 +35,8 @@ function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETC
 //      … IF NOT EXISTS derived from schema.ts (packages/tenant-backend/src/schemaReconcile.ts).
 //      One information_schema query, seconds to run, no prompts, never drops anything.
 //   3. `drizzle-kit push --force` — best-effort polish for what the additive step does not do
-//      (type/nullability changes, FKs, dropping columns removed from the schema).
+//      (type/nullability changes, FKs, dropping columns removed from the schema). Skipped where
+//      db/NO_DRIZZLE_PUSH exists: there the migrations own the schema and push would undo them.
 //
 // Step 2 exists because step 3 alone was never reliable: push introspects the whole database before
 // it does anything, and on Render's Postgres a 300-table CRM schema takes longer than the boot
@@ -55,13 +56,17 @@ function dbReconcileStep(): string {
     '{ [ -f db/prune-legacy.ts ] && bun run db/prune-legacy.ts 2>&1 | head -20; } || echo "[boot] prune-legacy skipped"; ' +
     // The guarantee. Older tenant repos (generated before this step existed) have no db/reconcile.ts.
     '{ [ -f db/reconcile.ts ] && timeout -k 10 120 bun db/reconcile.ts 2>&1 | tail -40; } || echo "[boot] reconcile skipped"; ' +
+    // A template whose SQL migrations own its schema opts out of push with db/NO_DRIZZLE_PUSH. crm-homecare's
+    // migrations carry CHECKs, partial and expression indexes and CVHC-era tables that schema.ts does not express;
+    // push --force would drop every one of them (proved against a migrated scratch database, 10/15).
+    'if [ -f db/NO_DRIZZLE_PUSH ]; then echo "[boot] drizzle push skipped — db/NO_DRIZZLE_PUSH: the migrations own this schema"; else ' +
     // Best-effort push: one bounded attempt. -k 10 SIGKILLs a push still alive 10s after SIGTERM so
     // its DB connection is freed. Worst case ≈2.5 min, inside Render's port-bind window.
     'for i in 1; do ' +
       'OUT=$(timeout -k 10 150 bunx drizzle-kit push --force 2>&1); echo "$OUT" | grep -v "Pulling schema" | tail -30; ' +
       'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] schema reconciled to drizzle schema"; break; fi; ' +
       'echo "[boot] drizzle push not verified (attempt $i) — db/reconcile.ts already applied the additive schema"; ' +
-    'done'
+    'done; fi'
   )
 }
 

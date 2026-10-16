@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, integer, bigint, decimal, timestamp, date, time, json, uniqueIndex, index, check, primaryKey } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, bigint, decimal, timestamp, date, time, json, jsonb, uniqueIndex, index, check, primaryKey } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 
@@ -107,6 +107,9 @@ export const users = pgTable('users', {
   refreshToken: text('refresh_token'),
   resetToken: text('reset_token'),
   resetTokenExp: timestamp('reset_token_exp'),
+  // 0005 (CVHC v13/v19) created these on every agency; declared so the boot's `drizzle-kit push` never drops them.
+  status: text('status').default('active'),
+  resetTokenExpires: timestamp('reset_token_expires', { withTimezone: true }),
   ivrPin: text('ivr_pin').unique(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -131,6 +134,9 @@ export const caregiverProfiles = pgTable('caregiver_profiles', {
   taxonomyCode: text('taxonomy_code').default('374700000X'),
   evvWorkerId: text('evv_worker_id'),
   medicaidProviderId: text('medicaid_provider_id'),
+  // 0005 (CVHC v13); declared so the boot's `drizzle-kit push` never drops them.
+  smsEnabled: boolean('sms_enabled').default(true),
+  smsOpenShifts: boolean('sms_open_shifts').default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -242,6 +248,8 @@ export const referralSources = pgTable('referral_sources', {
   submissionMethod: text('submission_method').default('manual'),
   feaOrganization: text('fea_organization'),
   billingAddress: text('billing_address'),
+  // 0005 (CVHC v13); declared so the boot's `drizzle-kit push` never drops it.
+  billingContact: text('billing_contact'),
   billingContactName: text('billing_contact_name'),
   billingContactEmail: text('billing_contact_email'),
   billingContactPhone: text('billing_contact_phone'),
@@ -306,6 +314,12 @@ export const clients = pgTable('clients', {
   // Edit Client's "Medical notes" / "Care preferences", shown on the caregiver's client card (0023_fixes).
   medicalNotes: text('medical_notes'),
   carePreferences: text('care_preferences'),
+  // 0005 (CVHC v13/v14) created these on every agency; declared so the boot's `drizzle-kit push` never drops them.
+  status: text('status').default('active'),
+  emergencyContactName: text('emergency_contact_name'),
+  emergencyContactPhone: text('emergency_contact_phone'),
+  emergencyContactRelationship: text('emergency_contact_relationship'),
+  mobilityAssistanceNeeds: text('mobility_assistance_needs'),
   // Billing port (0015, CVHC v62): invoice cadence in weeks (1-8; NULL = manual only) and the last
   // day already covered by an invoice — "Create Due Invoices" resumes the day after.
   billingFrequencyWeeks: integer('billing_frequency_weeks'),
@@ -446,6 +460,9 @@ export const openShifts = pgTable('open_shifts', {
   claimedAt: timestamp('claimed_at'),
   approvedById: text('approved_by_id').references(() => users.id, { onDelete: 'set null' }),
   approvedAt: timestamp('approved_at'),
+  // 0005 (CVHC v13) spellings of who took / approved it; declared so `drizzle-kit push` never drops them.
+  claimedBy: text('claimed_by'),
+  approvedBy: text('approved_by'),
   broadcastSent: boolean('broadcast_sent').default(false).notNull(),
   // The caregivers the office offered it to (NULL = everyone); the first of them to accept gets it.
   visibleTo: text('visible_to').array(),
@@ -601,6 +618,8 @@ export const authorizations = pgTable('authorizations', {
   renewalRequested: boolean('renewal_requested').default(false).notNull(),
   renewalRequestedAt: timestamp('renewal_requested_at'),
   renewalRequestedBy: text('renewal_requested_by').references(() => users.id),
+  // 0005 (CVHC v12): the payer column's predecessor; declared so `drizzle-kit push` never drops it.
+  referralSourceId: text('referral_source_id'),
   createdById: text('created_by_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -1027,6 +1046,9 @@ export const backgroundChecks = pgTable('background_checks', {
   result: text('result'),
   completedDate: date('completed_date'),
   notes: text('notes'),
+  // 0005 (CVHC v12); declared so the boot's `drizzle-kit push` never drops them.
+  createdBy: text('created_by'),
+  submittedDate: date('submitted_date'),
   createdById: text('created_by_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -1049,6 +1071,13 @@ export const notifications = pgTable('notifications', {
   status: text('status').default('new').notNull(),
   handledAt: timestamp('handled_at'),
   handledById: text('handled_by_id').references(() => users.id, { onDelete: 'set null' }),
+  // 0005 (CVHC v14) addressing columns; declared so the boot's `drizzle-kit push` never drops them.
+  recipientType: text('recipient_type'),
+  recipientId: text('recipient_id'),
+  notificationType: text('notification_type'),
+  subject: text('subject'),
+  sentBy: text('sent_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('notifications_user_id_idx').on(t.userId),
@@ -1254,6 +1283,8 @@ export const auditLogs = pgTable('audit_logs', {
   newData: json('new_data'),
   ipAddress: text('ip_address'),
   reasonCode: text('reason_code'),
+  // 0005 (CVHC v12); declared so the boot's `drizzle-kit push` never drops it.
+  isSensitive: boolean('is_sensitive').default(false),
   timestamp: timestamp('timestamp').defaultNow().notNull(),
 }, (t) => [
   index('audit_logs_user_id_idx').on(t.userId),
@@ -1586,6 +1617,8 @@ export const careTypes = pgTable('care_types', {
   defaultServiceCode: text('default_service_code'),
   defaultModifier: text('default_modifier'),
   requiresEvv: boolean('requires_evv').default(true),
+  // 0005 (CVHC v13); declared so the boot's `drizzle-kit push` never drops it.
+  requiredCertifications: jsonb('required_certifications').default([]),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -2006,7 +2039,8 @@ export const claimStatusHistory = pgTable('claim_status_history', {
 // ==================== DENIAL CODE LOOKUP ====================
 export const denialCodeLookup = pgTable('denial_code_lookup', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  code: text('code').notNull().unique(),
+  // Named as 0007's UNIQUE created it; drizzle's default name (_code_unique) makes push offer to truncate the table.
+  code: text('code').notNull().unique('denial_code_lookup_code_key'),
   description: text('description').notNull(),
   category: text('category'),
   remediation: text('remediation'),
@@ -2341,7 +2375,7 @@ export const payrollLineItems = pgTable('payroll_line_items', {
 // We record one row per visitor assignment + one per conversion event.
 export const adsExperiment = pgTable('ads_experiment', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull().references(() => agencies.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   path: text('path').notNull(),
   status: text('status').notNull().default('draft'),
@@ -2929,4 +2963,130 @@ export const expoPushTokens = pgTable('expo_push_tokens', {
 }, (t) => [
   uniqueIndex('expo_push_tokens_token_idx').on(t.token),
   index('expo_push_tokens_user_id_idx').on(t.userId),
+])
+
+// ==================== DECLARED FROM THE MIGRATIONS ====================
+// Tables the migrations create that had no declaration here. The boot runs `drizzle-kit push --force`, which drops
+// every table and column this file does not declare — so a migrated table missing from here is one push away from
+// being deleted with its rows. tests/shared/schema-owned-by-migrations.test.ts holds the line.
+
+// 0005 (CVHC v13). The client portal's visit list; 0016 added the client's note and the schedule it came from.
+export const scheduledVisits = pgTable('scheduled_visits', {
+  id: text('id').primaryKey(),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').references(() => users.id),
+  visitDate: date('visit_date').notNull(),
+  scheduledDate: date('scheduled_date'),
+  startTime: time('start_time'),
+  endTime: time('end_time'),
+  status: text('status').default('scheduled'),
+  notes: text('notes'),
+  cancelledReason: text('cancelled_reason'),
+  cancelledBy: text('cancelled_by').references(() => users.id),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  assignmentId: text('assignment_id'),
+  createdBy: text('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  clientNotes: text('client_notes'),
+  sourceScheduleId: text('source_schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('idx_scheduled_visits_client').on(t.clientId),
+])
+
+// 0005 (CVHC v13)
+export const clientVisitNotes = pgTable('client_visit_notes', {
+  id: text('id').primaryKey(),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').references(() => users.id),
+  note: text('note').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index('idx_visit_notes_client').on(t.clientId),
+])
+
+// 0005 (CVHC v13)
+export const clientServices = pgTable('client_services', {
+  id: text('id').primaryKey(),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  servicePricingId: text('service_pricing_id').notNull(),
+  isPrimary: boolean('is_primary').default(false),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index('idx_client_services_client').on(t.clientId),
+])
+
+// 0009: the agency's own Twomiah plan (company_id = agencies.id), apart from per-client billing.
+export const subscription = pgTable('subscription', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id').notNull().unique(),
+  stripeSubscriptionId: text('stripe_subscription_id').notNull().unique(),
+  packageId: text('package_id').notNull(),
+  billingCycle: text('billing_cycle').notNull(),
+  status: text('status').default('active').notNull(),
+  userCount: integer('user_count').default(1).notNull(),
+  basePrice: decimal('base_price', { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal('total_price', { precision: 10, scale: 2 }).notNull(),
+  features: json('features').default([]).notNull(),
+  addons: json('addons'),
+  trialEndsAt: timestamp('trial_ends_at'),
+  currentPeriodStart: timestamp('current_period_start').notNull(),
+  currentPeriodEnd: timestamp('current_period_end').notNull(),
+  canceledAt: timestamp('canceled_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('subscription_company_id_idx').on(t.companyId),
+  index('subscription_status_idx').on(t.status),
+])
+
+// 0009
+export const addonPurchase = pgTable('addon_purchase', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id').notNull(),
+  addonId: text('addon_id').notNull(),
+  quantity: integer('quantity').default(1).notNull(),
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  stripePaymentId: text('stripe_payment_id'),
+  expiresAt: timestamp('expires_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('addon_purchase_company_id_idx').on(t.companyId),
+])
+
+// 0009
+export const usageRecord = pgTable('usage_record', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id').notNull(),
+  type: text('type').notNull(),
+  quantity: integer('quantity').default(1).notNull(),
+  metadata: json('metadata'),
+  recordedAt: timestamp('recorded_at').defaultNow().notNull(),
+}, (t) => [
+  index('usage_record_company_id_idx').on(t.companyId),
+  index('usage_record_type_idx').on(t.type),
+])
+
+// 0009
+export const billingInvoice = pgTable('billing_invoice', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id').notNull(),
+  number: text('number').notNull().unique(),
+  periodStart: timestamp('period_start').notNull(),
+  periodEnd: timestamp('period_end').notNull(),
+  lineItems: json('line_items').notNull(),
+  subtotal: decimal('subtotal', { precision: 10, scale: 2 }).notNull(),
+  tax: decimal('tax', { precision: 10, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 10, scale: 2 }).notNull(),
+  status: text('status').default('pending').notNull(),
+  dueDate: timestamp('due_date').notNull(),
+  paidAt: timestamp('paid_at'),
+  stripeInvoiceId: text('stripe_invoice_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('billing_invoice_company_id_idx').on(t.companyId),
 ])
