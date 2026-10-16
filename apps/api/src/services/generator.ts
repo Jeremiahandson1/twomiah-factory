@@ -819,9 +819,37 @@ function copyAndInject(src: string, dest: string, tokens: Record<string, string>
   }
 }
 
-function injectTokens(content: string, tokens: Record<string, string>): string {
+// The owner's free text — business name, address, city, owner name, page copy — is pasted into SOURCE CODE:
+// ~1,200 sites put these tokens inside '…', "…" or `…` literals, and ~200 in JSX text. "Mary's Home Care" ended
+// the string early and the CRM failed to build at signup; a `"` broke a JSX attribute, a `{` or `<` broke JSX text,
+// a `${` opened an expression. Escaping cannot work here — the same value lands in a string, an attribute and JSX
+// text, which escape differently — so the characters that are syntax are written as their typographic forms,
+// which read the same and are never syntax: ’ “ ” ‹ › ( ). Emails, URLs, secrets, colours, JSON and markup tokens
+// are left alone: those are not free text, and changing one would change what it addresses.
+export const FREE_TEXT_TOKENS = new Set([
+  '{{COMPANY_NAME}}', '{{COMPANY_LEGAL_NAME}}', '{{COMPANY_NAME_UPPER}}', '{{COMPANY_SHORT}}', '{{COMPANY_ADDRESS}}',
+  '{{COMPANY_DESCRIPTION}}', '{{CITY}}', '{{STATE}}', '{{STATE_FULL}}', '{{ZIP}}', '{{SERVICE_REGION}}', '{{SERVICE_AREAS}}',
+  '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}', '{{NEARBY_CITY_4}}', '{{INDUSTRY}}', '{{META_DESCRIPTION}}',
+  '{{HERO_TAGLINE}}', '{{HERO_BADGE}}', '{{HERO_TITLE}}', '{{HERO_DESCRIPTION}}', '{{TRUST_BADGE_1}}', '{{TRUST_BADGE_2}}',
+  '{{ABOUT_TEXT}}', '{{CTA_TEXT}}', '{{OWNER_NAME}}', '{{OWNER_FIRST_NAME}}', '{{OWNER_LAST_NAME}}',
+])
+
+/** Free text made safe to paste into any literal, attribute or JSX text: no character in it is syntax. */
+export function literalSafeText(v: string): string {
+  return String(v)
+    .replace(/\r?\n/g, ' ')
+    .replace(/\\/g, '/')
+    .replace(/"([^"]*)"/g, '“$1”')
+    .replace(/"/g, '”')
+    .replace(/['`]/g, '’')
+    .replace(/\$\{/g, '$ (')
+    .replace(/</g, '‹').replace(/>/g, '›')
+    .replace(/\{/g, '(').replace(/\}/g, ')')
+}
+
+export function injectTokens(content: string, tokens: Record<string, string>): string {
   for (const [token, value] of Object.entries(tokens)) {
-    content = content.split(token).join(value)
+    content = content.split(token).join(FREE_TEXT_TOKENS.has(token) ? literalSafeText(value) : value)
   }
   return content
 }
