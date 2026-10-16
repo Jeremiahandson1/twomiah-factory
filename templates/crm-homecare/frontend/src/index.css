@@ -3,12 +3,18 @@
 @tailwind utilities;
 
 :root {
+    /* The -dark / -light / -pale tokens are shades of the tenant's brand, not the brand itself. All six used to be
+       the raw brand colour, so every pairing of two of them was ink on its own colour (1:1): the stat tiles' number
+       on a gradient that starts in it, the schedule count, the weekly badge, and every table row on hover. */
     --color-teal: {{PRIMARY_COLOR}};
-    --color-teal-dark: {{PRIMARY_COLOR}};
-    --color-teal-light: {{PRIMARY_COLOR}};
+    /* 45% keeps a pale brand (yellow, light grey) readable: ≥ 5.4:1 against white and both tints, measured
+       over eleven brand colours from #111827 to #e5e7eb. */
+    --color-teal-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 45%, black);
+    --color-teal-light: color-mix(in srgb, {{PRIMARY_COLOR}} 12%, white);
     --color-gold: {{SECONDARY_COLOR}};
-    --color-gold-light: {{SECONDARY_COLOR}};
-    --color-gold-pale: {{SECONDARY_COLOR}};
+    --color-gold-dark: color-mix(in srgb, {{SECONDARY_COLOR}} 45%, black);
+    --color-gold-light: color-mix(in srgb, {{SECONDARY_COLOR}} 40%, white);
+    --color-gold-pale: color-mix(in srgb, {{SECONDARY_COLOR}} 15%, white);
     --color-cream: #FDFCFA;
     --color-white: #FFFFFF;
     --color-text: #2D3A3A;
@@ -903,7 +909,7 @@ body {
 
 .badge-weekly {
     background: var(--color-gold-pale);
-    color: var(--color-gold);
+    color: var(--color-gold-dark);
     padding: 0.1rem 0.4rem;
     border-radius: 10px;
     font-size: 0.7rem;
