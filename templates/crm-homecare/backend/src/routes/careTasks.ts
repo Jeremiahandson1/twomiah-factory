@@ -9,8 +9,9 @@
 //   /api/care-tasks/time-entry/:timeEntryId          the checklist for one shift (its caregiver, or the office)
 //   /api/care-tasks/time-entry/:timeEntryId/:taskId  PUT mark completed / skipped / refused / pending
 //
-// Minutes per week is weekly_frequency x allotted_minutes, always derived on read; a 15-minute
-// unit is minutes / 15.
+// Minutes per week is derived on read by services/careTaskMinutes.ts (a daily task counts once per
+// scheduled visit; a weekly or assessment-imported task its own times per week); a 15-minute unit
+// is minutes / 15.
 import { Hono } from 'hono'
 import { sql, eq, and } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
@@ -22,6 +23,7 @@ import { formatsForState } from '../services/assessmentImports.ts'
 import { AssessmentPdfError } from '../services/midasAssessmentPdf.ts'
 import { isOffice, userIdOf, writeCareAudit, rowsOf, wholeNumber } from '../helpers/careAudit.ts'
 import { requireClientAccess, careWriteRefusal } from '../helpers/caregiverAccess.ts'
+import { clientVisitsPerWeek, withWeeklyMinutes } from '../services/careTaskMinutes.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -40,7 +42,6 @@ export const normCadence = (v: unknown) => (v === 'weekly' ? 'weekly' : 'daily')
 
 const TASK_COLUMNS = sql`id, client_id, task_name, description, category, allotted_minutes,
   weekly_frequency, days_of_week, time_of_day, assessment_source, cadence,
-  (COALESCE(weekly_frequency, 1) * COALESCE(allotted_minutes, 0)) AS minutes_per_week,
   sort_order, is_active, created_at, updated_at`
 
 const clientExists = async (id: string) =>
@@ -57,11 +58,13 @@ app.get('/assessment-formats', requireAdmin, async (c) => {
 
 // ── the client's checklist ──────────────────────────────────────────────────
 app.get('/client/:clientId', requireClientAccess(), async (c) => {
+  const clientId = c.req.param('clientId')
   const rows = rowsOf(await db.execute(sql`
     SELECT ${TASK_COLUMNS} FROM client_task_templates
-     WHERE client_id = ${c.req.param('clientId')} AND is_active = true
+     WHERE client_id = ${clientId} AND is_active = true
      ORDER BY sort_order, created_at`))
-  return c.json(rows)
+  // times_per_week / minutes_per_week / every_visit: the one rule (services/careTaskMinutes.ts).
+  return c.json(withWeeklyMinutes(rows, await clientVisitsPerWeek(clientId)))
 })
 
 app.post('/client/:clientId', requireAdmin, async (c) => {

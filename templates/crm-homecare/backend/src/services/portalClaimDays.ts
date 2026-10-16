@@ -16,6 +16,11 @@
 //   · a Sun–Sat week; 1 unit = 15 minutes
 //   · EVV minutes come from the visits that went through EVV, in time order, never more than the
 //     client's weekly EVV allowance (NULL allowance = all EVV time counts as EVV)
+//   · that allowance is clients.evv_weekly_units (Edit Client → "EVV (Sandata) Units Per Week") and
+//     nothing else. clients.weekly_authorized_units is the client's TOTAL weekly authorization —
+//     both codes together (S5125 + S5130 for My Choice) — so it can never stand in for a blank EVV
+//     share: capping EVV at the total would claim homemaker time as attendant care. A blank EVV share
+//     is reported by name, with the total beside it, and the screen opens that one field (Run 4).
 //   · everything else is the other code (homemaker)
 //   · units are rounded PER DAY, and the week's EVV units are trimmed latest-day-first so rounding
 //     can never claim more than the allowance
@@ -95,7 +100,7 @@ export async function portalClaimWeek(dbc: Dbc, payerId: string, weekStart: stri
            COALESCE(s.is_training, false) AS is_training,
            u.first_name || ' ' || u.last_name AS caregiver,
            c.first_name, c.last_name, c.medicaid_id, c.mco_member_id, c.is_private_pay,
-           c.evv_weekly_units
+           c.evv_weekly_units, c.weekly_authorized_units
       FROM time_entries te
       JOIN clients c ON c.id = te.client_id
       JOIN users u ON u.id = te.caregiver_id
@@ -114,6 +119,9 @@ export async function portalClaimWeek(dbc: Dbc, payerId: string, weekStart: stri
         client_id: v.client_id, client_name: `${v.first_name} ${v.last_name}`.trim(),
         medicaid_id: v.medicaid_id || null, mco_member_id: v.mco_member_id || null,
         evv_weekly_units: v.evv_weekly_units == null ? null : Number(v.evv_weekly_units),
+        // The client's TOTAL weekly authorized units (Edit Client) — named beside a missing EVV share so the
+        // office sees which field is blank; never used as the EVV cap (it includes the other code's time).
+        weekly_authorized_units: v.weekly_authorized_units == null ? null : Number(v.weekly_authorized_units),
         in_evv: clientInEvv(v), visits: [] as any[],
       })
     }

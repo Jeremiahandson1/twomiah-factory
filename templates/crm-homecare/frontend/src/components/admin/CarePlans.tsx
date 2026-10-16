@@ -30,8 +30,23 @@ const today = () => {
 const emptyForm = () => ({
   clientId: '', serviceType: 'personal_care', serviceDescription: '', frequency: '', careGoals: '',
   specialInstructions: '', precautions: '', medicationNotes: '', mobilityNotes: '', dietaryNotes: '',
-  communicationNotes: '', startDate: today(), endDate: '',
+  communicationNotes: '', startDate: today(), endDate: '', status: 'active',
 });
+// The plan's status as the office sets it. "Active" on the card is the SERVER's answer (isActive:
+// status Active and inside its dates — services/carePlanStatus.ts), the same one the family portal
+// and the caregiver app use; the screen never re-derives it.
+const STATUS_OPTIONS: [string, string][] = [['active', 'Active'], ['draft', 'Draft'], ['inactive', 'Inactive'], ['completed', 'Completed']];
+const isActivePlan = (plan: any) => plan.is_active === true || plan.isActive === true;
+const planTag = (plan: any): [string, string] => {
+  if (isActivePlan(plan)) return ['Active', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'];
+  const grey = 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200';
+  if (plan.status === 'draft') return ['Draft — not active', 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'];
+  if (plan.status === 'inactive') return ['Inactive', grey];
+  if (plan.status === 'completed') return ['Completed', grey];
+  const t = today();
+  if (plan.start_date && String(plan.start_date).slice(0, 10) > t) return [`Starts ${formatDate(plan.start_date)}`, 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200'];
+  return ['Ended', grey];
+};
 const fmtAsOf = (d: any) => (d ? new Date(`${String(d).slice(0, 10)}T12:00:00`).toLocaleDateString() : '');
 
 const inp = 'w-full px-3 py-2 rounded-md border text-sm border-gray-300 bg-white text-gray-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
@@ -124,7 +139,7 @@ export default function CarePlans() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Failed');
-      setMessage(`Created draft care plan from "${data.appliedTemplate}"`);
+      setMessage(`Created a draft care plan from "${data.appliedTemplate}". It is not active yet — review it, then click ✓ Activate.`);
       setShowTemplateModal(false);
       setTemplateClientId('');
       loadData();
@@ -219,6 +234,7 @@ export default function CarePlans() {
       communicationNotes: plan.communication_notes || '',
       startDate: plan.start_date ? String(plan.start_date).slice(0, 10) : '',
       endDate: plan.end_date ? String(plan.end_date).slice(0, 10) : '',
+      status: plan.status || 'active',
     });
     setVisitSchedule({ text: plan.visit_schedule || '', asOf: plan.visit_schedule_as_of, action: null });
     setMessage('');
@@ -258,10 +274,17 @@ export default function CarePlans() {
     } catch (error: any) { setMessage('Error: ' + error.message); }
   };
 
-  // Dates can arrive as full timestamps; compare the calendar-date part only, against today.
-  const isActivePlan = (plan: any) => {
-    const t = today();
-    return (!plan.start_date || String(plan.start_date).slice(0, 10) <= t) && (!plan.end_date || String(plan.end_date).slice(0, 10) >= t);
+  // A draft (every plan made from a template starts as one) goes live only when the office says so.
+  const activatePlan = async (plan: any) => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/care-plans/${plan.id}`, { method: 'PUT', headers: json, body: JSON.stringify({ status: 'active' }) });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || `Could not activate the plan (HTTP ${r.status})`);
+      setMessage(data.isActive === false || (data.start_date && String(data.start_date).slice(0, 10) > today())
+        ? 'Care plan set to Active — it shows as active from its start date.'
+        : 'Care plan is now active.');
+      loadData();
+    } catch (e: any) { setMessage('Error: ' + e.message); }
   };
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
@@ -345,6 +368,13 @@ export default function CarePlans() {
                 <label className={label} htmlFor="cp-end">End Date (if applicable)</label>
                 <input id="cp-end" type="date" value={formData.endDate} onChange={(e) => setFormData({ ...formData, endDate: e.target.value })} className={inp} />
               </div>
+              <div>
+                <label className={label} htmlFor="cp-status">Status</label>
+                <select id="cp-status" value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className={inp}>
+                  {STATUS_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+                <small className="text-gray-500 dark:text-slate-400">Only an Active plan inside its dates is the client's current plan — the one caregivers and family see.</small>
+              </div>
             </div>
 
             <div className="mt-4">
@@ -386,6 +416,7 @@ export default function CarePlans() {
           {clients.map(client => {
             const clientPlans = carePlans[client.id] || [];
             const activePlans = clientPlans.filter(isActivePlan);
+            const draftCount = clientPlans.filter((p: any) => p.status === 'draft').length;
             const isExpanded = expandedClient === client.id;
             return (
               <div key={client.id} className={panel}>
@@ -399,7 +430,8 @@ export default function CarePlans() {
                     <h3 className="m-0 text-base font-semibold">{client.first_name} {client.last_name}</h3>
                     <small className="text-gray-500 dark:text-slate-400">
                       {activePlans.length} active plan{activePlans.length !== 1 ? 's' : ''}
-                      {clientPlans.length > activePlans.length && ` • ${clientPlans.length - activePlans.length} archived`}
+                      {draftCount > 0 && ` • ${draftCount} draft${draftCount !== 1 ? 's' : ''}`}
+                      {clientPlans.length - activePlans.length - draftCount > 0 && ` • ${clientPlans.length - activePlans.length - draftCount} not active`}
                     </small>
                   </div>
                   <span className="text-lg">{isExpanded ? '▼' : '▶'}</span>
@@ -415,19 +447,21 @@ export default function CarePlans() {
                           const active = isActivePlan(plan);
                           const live = currentSchedules[client.id];
                           const tasks = careTasks[client.id];
-                          const mins = (t: any) => (t.weekly_frequency || 1) * (t.allotted_minutes || 0);
+                          // The server's minutes per week (services/careTaskMinutes.ts): a daily task counts once per scheduled visit.
+                          const mins = (t: any) => Number(t.minutes_per_week) || 0;
                           return (
                             <div key={plan.id} className={`p-4 rounded-lg border ${active ? 'border-blue-400 bg-sky-50 text-gray-900 dark:border-blue-700 dark:bg-slate-900 dark:text-slate-100' : 'border-gray-200 bg-gray-50 text-gray-700 opacity-75 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}>
                               <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
                                 <div>
                                   <strong>{serviceLabel(plan.service_type)}</strong>
-                                  {plan.status === 'draft' && <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">Draft</span>}
                                   {plan.frequency && <div className="text-sm text-gray-500 dark:text-slate-400">{plan.frequency}</div>}
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
-                                  {active
-                                    ? <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">Active</span>
-                                    : <span className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200">Archived</span>}
+                                  {(() => { const [text, cls] = planTag(plan); return <span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{text}</span>; })()}
+                                  {plan.status === 'draft' && (
+                                    <button type="button" className={`${btnSm} border-emerald-700 bg-emerald-700 text-white dark:border-emerald-600 dark:bg-emerald-700 dark:text-white`}
+                                      title="Make this draft the client's current care plan" onClick={() => activatePlan(plan)}>✓ Activate</button>
+                                  )}
                                   <button type="button" className={`${btnSm} border-teal-600 bg-teal-600 text-white dark:border-teal-500 dark:bg-teal-600 dark:text-white`}
                                     onClick={() => { setShowGenModal(plan); setGenForm({ caregiverId: '', startTime: '09:00', endTime: '13:00', daysOfWeek: [], startDate: plan.start_date ? String(plan.start_date).slice(0, 10) : '', endDate: plan.end_date ? String(plan.end_date).slice(0, 10) : '' }); }}>
                                     Generate Schedule
@@ -471,7 +505,7 @@ export default function CarePlans() {
                                       <div key={cat} className="mt-1.5 text-sm">
                                         <div className="font-semibold">{groupLabel} — {group.reduce((a, t) => a + mins(t), 0)} min/week</div>
                                         <ul className="mt-0.5 mb-0 pl-5 list-disc">
-                                          {group.map(t => <li key={t.id}>{t.task_name}: {t.weekly_frequency || 1}x/week × {t.allotted_minutes || 0} min</li>)}
+                                          {group.map(t => <li key={t.id}>{t.task_name}: {t.times_per_week}x/week{t.every_visit ? ' (every visit)' : ''} × {t.allotted_minutes || 0} min</li>)}
                                         </ul>
                                       </div>
                                     );

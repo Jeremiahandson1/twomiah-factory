@@ -4,6 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 
+// A relative's switches: [the API's name, the list row's snake alias, the label].
+const PERMISSIONS = [
+  ['canViewSchedule', 'can_view_schedule', 'Schedule'],
+  ['canViewCarePlan', 'can_view_care_plan', 'Care plan'],
+  ['canViewMedications', 'can_view_medications', 'Medications & vitals'],
+  ['canMessage', 'can_message', 'Messages'],
+];
+
 const FamilyPortalAdmin = () => {
   const { token } = useAuth();
   const [familyMembers, setFamilyMembers] = useState([]);
@@ -14,6 +22,7 @@ const FamilyPortalAdmin = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
+  const [editingMember, setEditingMember] = useState(null);
   const [clients, setClients] = useState([]);
   // The client portal's message threads (client → office) are answered here too.
   const [threads, setThreads] = useState([]);
@@ -119,7 +128,9 @@ const FamilyPortalAdmin = () => {
     }
   };
 
-  // Change one of a relative's details or permission switches.
+  // Save a relative's details and permission switches (PUT /admin/members/:id — anything not sent
+  // stays as it is). The family portal re-reads them on every request, so a switch turned off takes
+  // effect on the relative's next screen.
   const updateMember = async (memberId, patch) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/family-portal/admin/members/${memberId}`, {
@@ -129,6 +140,8 @@ const FamilyPortalAdmin = () => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Update failed');
+      setEditingMember(null);
+      toast('Family member saved', 'success');
       loadFamilyMembers();
     } catch (error) {
       toast('Failed: ' + error.message, 'error');
@@ -368,22 +381,12 @@ const FamilyPortalAdmin = () => {
                       <td>{member.client_first_name} {member.client_last_name}</td>
                       <td>{getRelationshipBadge(member.relationship)}</td>
                       <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem' }}>
-                          {[
-                            ['canViewSchedule', 'can_view_schedule', 'Schedule'],
-                            ['canViewCarePlan', 'can_view_care_plan', 'Care plan'],
-                            ['canViewMedications', 'can_view_medications', 'Medications'],
-                            ['canMessage', 'can_message', 'Messages'],
-                          ].map(([camel, snake, label]) => (
-                            <label key={camel} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                              <input
-                                type="checkbox"
-                                checked={!!(member[snake] ?? member[camel])}
-                                onChange={(e) => updateMember(member.id, { [camel]: e.target.checked })}
-                              />
-                              {label}
-                            </label>
-                          ))}
+                        {/* What the relative can see; changed in ✏️ Edit (one door, saved together). */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                          {PERMISSIONS.map(([camel, snake, label]) => {
+                            const on = !!(member[snake] ?? member[camel]);
+                            return <span key={camel}>{on ? '✓' : '✗'} {label}{on ? '' : ' (off)'}</span>;
+                          })}
                         </div>
                       </td>
                       <td>{getStatusBadge(member.is_active)}</td>
@@ -392,7 +395,15 @@ const FamilyPortalAdmin = () => {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                          <button 
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            onClick={() => setEditingMember(member)}
+                            title="Edit details and what they can see"
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
                             className="btn btn-sm btn-secondary"
                             onClick={() => resetPassword(member.id)}
                             title="Reset Password"
@@ -564,6 +575,23 @@ const FamilyPortalAdmin = () => {
                 <button type="submit" className="btn btn-primary">Send Reply</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Family Member Modal */}
+      {editingMember && (
+        <div className="modal active" onClick={() => setEditingMember(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Edit {editingMember.name}</h3>
+              <button className="modal-close" aria-label="Close" onClick={() => setEditingMember(null)}>×</button>
+            </div>
+            <EditMemberForm
+              member={editingMember}
+              onSubmit={(patch) => updateMember(editingMember.id, patch)}
+              onCancel={() => setEditingMember(null)}
+            />
           </div>
         </div>
       )}
@@ -763,6 +791,74 @@ const AddMemberForm = ({ clients, onSubmit, onCancel }) => {
       <div className="modal-actions">
         <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>
         <button type="submit" className="btn btn-primary">Create Account</button>
+      </div>
+    </form>
+  );
+};
+
+// Edit Member Form — the relative's contact details and every switch, saved in one PUT with exactly
+// the keys PUT /api/family-portal/admin/members/:id reads.
+const RELATIONSHIPS = ['spouse', 'child', 'parent', 'sibling', 'guardian', 'other'];
+const EditMemberForm = ({ member, onSubmit, onCancel }) => {
+  const flag = (camel, snake) => !!(member[snake] ?? member[camel]);
+  const [form, setForm] = useState({
+    name: member.name || '',
+    phone: member.phone || '',
+    relationship: member.relationship || 'other',
+    canViewSchedule: flag('canViewSchedule', 'can_view_schedule'),
+    canViewCarePlan: flag('canViewCarePlan', 'can_view_care_plan'),
+    canViewMedications: flag('canViewMedications', 'can_view_medications'),
+    canMessage: flag('canMessage', 'can_message'),
+    isPrimaryContact: flag('isPrimaryContact', 'is_primary_contact'),
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) { toast('Name is required'); return; }
+    setSaving(true);
+    try { await onSubmit({ ...form, name: form.name.trim(), phone: form.phone.trim() }); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+        <div className="form-group">
+          <label htmlFor="fm-name">Name *</label>
+          <input id="fm-name" type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+        </div>
+        <div className="form-group">
+          <label htmlFor="fm-phone">Phone</label>
+          <input id="fm-phone" type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+        </div>
+        <div className="form-group">
+          <label htmlFor="fm-rel">Relationship</label>
+          <select id="fm-rel" value={form.relationship} onChange={(e) => setForm({ ...form, relationship: e.target.value })}>
+            {RELATIONSHIPS.map((r) => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="form-group">
+        <label>What they can see in the family portal</label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+          {PERMISSIONS.map(([camel, , label]) => (
+            <label key={camel} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <input type="checkbox" checked={form[camel]} onChange={(e) => setForm({ ...form, [camel]: e.target.checked })} />
+              {label}
+            </label>
+          ))}
+        </div>
+      </div>
+      <div className="form-group">
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <input type="checkbox" checked={form.isPrimaryContact} onChange={(e) => setForm({ ...form, isPrimaryContact: e.target.checked })} />
+          Primary contact for this client
+        </label>
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
       </div>
     </form>
   );

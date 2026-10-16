@@ -43,7 +43,8 @@ import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
 import { clientVisibleInvoiceSql } from '../services/invoiceEngine.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
-import { agencyToday, addDays } from '../services/agencyTime.ts'
+import { agencyToday, addDays, agencyTimezone } from '../services/agencyTime.ts'
+import { medicationsOnFile } from '../services/medicationsOnFile.ts'
 import type { Context, Next } from 'hono'
 
 const app = new Hono()
@@ -929,6 +930,9 @@ app.get('/me', portalAuth, async (c) => {
     agency_name: agency?.name || null,
     agency_state: agency?.state || null,
     agency_phone: agency?.phone || null,
+    // The portal prints instants (a visit's clock-in, a message, a signature) on the agency's clock,
+    // the same clock as its visit times (frontend utils/agencyClock.ts).
+    agency_timezone: await agencyTimezone(),
     summary: {
       totalVisits: visitResult.value,
       upcomingSchedules: upcomingResult.value,
@@ -1215,6 +1219,7 @@ app.get('/care-plan', portalAuth, async (c) => {
     phone: cg.phone,
     hoursPerWeek: cg.hours_per_week,
   }))
+  const meds = await medicationsOnFile(clientId, client.medications)
 
   return c.json({
     client: {
@@ -1230,7 +1235,9 @@ app.get('/care-plan', portalAuth, async (c) => {
       serviceType: client.serviceType,
       medicalConditions: client.medicalConditions || [],
       allergies: client.allergies || [],
-      medications: client.medications || [],
+      // The Medications list, or (no rows) the client record's legacy note — services/medicationsOnFile.ts.
+      medications: meds.lines,
+      medicationsSource: meds.source,
       notes: client.notes,
       insuranceProvider: client.insuranceProvider,
       primaryDiagnosisCode: client.primaryDiagnosisCode,

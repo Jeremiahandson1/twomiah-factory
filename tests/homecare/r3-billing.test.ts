@@ -140,6 +140,10 @@ let patInv: any, samInv: any
   const over = await A('POST', '/api/billing/invoice-payments', { invoiceId: samInv.id, amount: 50, paymentDate: today })
   check('a $50 payment on a $20 balance is refused 409 WITH the reason the screen shows', over.status === 409
     && /^Payment of \$50\.00 exceeds the \$20\.00 balance due/.test(over.json.error), over)
+  // Run 4: the office's screen (Billing → Record Payment) has no overpayment control, so the reason
+  // names no developer flag — it says what to check.
+  check('…in the office\'s words: no "allowOverpayment" flag, a thing to check instead', !/allowOverpayment|resubmit/i.test(over.json.error)
+    && /check the invoice's payments before entering it again\.$/.test(over.json.error), over.json.error)
 }
 
 // ══ 2. one rule for every report ═════════════════════════════════════════════════════════════════

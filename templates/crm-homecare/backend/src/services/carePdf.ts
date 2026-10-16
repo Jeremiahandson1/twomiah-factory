@@ -61,21 +61,23 @@ export type CarePlanPdfInput = {
   /** the plan's creation date on the agency's calendar, m/d/yyyy */
   createdOn: string
   emergencyContact?: { name: string; phone: string } | null
-  tasks: { task_name: string; category: string; weekly_frequency: number; allotted_minutes: number; assessment_source: string | null }[]
+  // times_per_week / minutes_per_week: services/careTaskMinutes.ts (the screens' numbers)
+  tasks: { task_name: string; category: string; weekly_frequency: number; allotted_minutes: number; assessment_source: string | null; times_per_week?: number; minutes_per_week?: number }[]
   isAssessmentSource: (s: string | null) => boolean
 }
 
 /** The care plan's "Care Tasks" section text, grouped by category with minutes per week. */
 export function careTasksSection(tasks: CarePlanPdfInput['tasks'], fromAssessment: boolean): string {
   if (!tasks.length) return ''
-  const mins = (t: any) => (t.weekly_frequency || 1) * (t.allotted_minutes || 0)
+  const times = (t: any) => t.times_per_week ?? (t.weekly_frequency || 1)
+  const mins = (t: any) => t.minutes_per_week ?? Math.round(times(t) * (t.allotted_minutes || 0))
   const lines: string[] = []
   for (const [cat, label] of CARE_TASK_CATEGORY_LABELS) {
     const group = tasks.filter((t) => (CARE_TASK_CATEGORY_LABELS.has(t.category) ? t.category : 'other') === cat)
     if (!group.length) continue
     if (lines.length) lines.push('')
     lines.push(`${label} — ${group.reduce((a, t) => a + mins(t), 0)} min/week`)
-    group.forEach((t) => lines.push(`   •  ${t.task_name}: ${t.weekly_frequency || 1}x/week × ${t.allotted_minutes || 0} min = ${mins(t)} min/week`))
+    group.forEach((t) => lines.push(`   •  ${t.task_name}: ${times(t)}x/week × ${t.allotted_minutes || 0} min = ${mins(t)} min/week`))
   }
   const total = tasks.reduce((a, t) => a + mins(t), 0)
   lines.push('', `Total: ${total} min/week (${(total / 60).toFixed(2)} hours)`)

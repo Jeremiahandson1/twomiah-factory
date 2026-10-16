@@ -35,12 +35,12 @@ export default function ClientScreen() {
     const [c, p] = await Promise.all([careGet(`/api/clients/${id}`), careGet(`/api/care-plans?clientId=${encodeURIComponent(String(id))}`)])
     if (c.ok && c.data?.id) { setClient(c.data); setState('ok') } else setState(c.status === 404 ? 'notfound' : care.clientById(id) ? 'ok' : 'failed')
     if (p.ok) {
+      // The CRM decides which plan is current (isActive: status Active and inside its dates — the
+      // office's and the family portal's rule). A draft is never shown as the plan to follow.
       const plans = asList(p.data)
-      const today = care.today
-      const current = plans.find((x: any) => (x.status || 'active') === 'active' && (!x.startDate || String(x.startDate).slice(0, 10) <= today) && (!x.endDate || String(x.endDate).slice(0, 10) >= today)) || plans[0]
-      setPlan(current || null)
+      setPlan(plans.find((x: any) => x.isActive === true) || null)
     }
-  }, [id, care.today, care.clientById])
+  }, [id, care.clientById])
   useEffect(() => { load() }, [load])
 
   const name = client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : care.clientName(id)
@@ -80,7 +80,7 @@ export default function ClientScreen() {
           {plan.updatedAt ? <Text style={[styles.meta, { color: t.textSecondary }]}>Plan updated {formatYmdShort(String(plan.updatedAt).slice(0, 10))}</Text> : null}
         </Card>
       ) : (
-        <Text style={[styles.meta, { color: t.textSecondary, marginBottom: 12 }]}>No care plan on file. Ask the office if you need instructions for this client.</Text>
+        <Text style={[styles.meta, { color: t.textSecondary, marginBottom: 12 }]}>No active care plan on file. Ask the office if you need instructions for this client.</Text>
       )}
 
       <SectionTitle>Your upcoming visits</SectionTitle>

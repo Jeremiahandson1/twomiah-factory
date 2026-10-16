@@ -197,6 +197,13 @@ const CaregiverClientModal = ({ clientId, isOpen, onClose }) => {
                 {/* Medications */}
                 <div className="card" style={{ marginBottom: '1rem' }}>
                   <h4 style={{ marginTop: 0 }}>💊 Medications</h4>
+                  {/* The office's Medications list is the record; the client record's old free-text
+                      note shows only when that list is empty, and says so. */}
+                  {client.medications_source === 'client_record' && (
+                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                      Notes from the client record — not on the office's Medications list yet.
+                    </p>
+                  )}
                   <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>
                     {client.medications || 'None on file'}
                   </p>

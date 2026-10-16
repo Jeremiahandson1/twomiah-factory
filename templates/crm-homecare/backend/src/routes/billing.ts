@@ -16,7 +16,7 @@ import {
   createInvoiceWithLines, insertLineItems, clampLineItemDescription, reformatTimesIn, to12h, round2,
   fmtTime12, generateInvoiceNumber, lineQuantity, recordInvoicePayment, rollUpPayments,
 } from '../services/invoiceEngine.ts'
-import { agencyTimezone, agencyToday, ymdIn, addDays } from '../services/agencyTime.ts'
+import { agencyTimezone, agencyToday, agencyWeekStart, ymdIn, addDays } from '../services/agencyTime.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { portalClaimWeek, parseClaimPortal, WISCONSIN_PRESETS } from '../services/portalClaimDays.ts'
 import { billedInRangeSql } from '../services/invoiceMoney.ts'
@@ -1091,7 +1091,7 @@ app.put('/claim-portals/:payerId', async (c) => {
 
 // GET /portal-claim-days?payerId&weekStart=YYYY-MM-DD — per client, per day of one Sun–Sat week, the
 // EVV-code units and the other-code units to key into the payer's portal. weekStart snaps to its
-// Sunday; default = the last full week.
+// Sunday; default = the agency's current week.
 app.get('/portal-claim-days', async (c) => {
   const { payerId, weekStart } = c.req.query()
   if (!payerId) return c.json({ error: 'payerId is required' }, 400)
@@ -1100,7 +1100,8 @@ app.get('/portal-claim-days', async (c) => {
   const cfg = parseClaimPortal(payer.claim_portal)
   if (!cfg) return c.json({ error: `${payer.name} has no portal export set up yet.` }, 400)
   const tz = await agencyTimezone()
-  const day = isDate(weekStart) ? weekStart : addDays(ymdIn(new Date(), tz), -7)
+  // No weekStart → THIS week on the agency's clock (the screen used to open on last week — Run 4).
+  const day = isDate(weekStart) ? weekStart : await agencyWeekStart()
   const week = await portalClaimWeek(db, payerId, day, tz)
   return c.json({ payer: { id: payer.id, name: payer.name }, portal: cfg, ...week })
 })

@@ -7,7 +7,7 @@
 // and that is stored with the signature.
 
 import React, { useState, useEffect, useRef } from 'react';
-import { formatDate } from '../../utils/date';
+import { formatAgencyDate, formatAgencyDateTime } from '../../utils/agencyClock';
 import { apiCall } from '../../config';
 
 const STATUS_LABEL = {
@@ -194,7 +194,7 @@ const PortalDocuments = ({ token }) => {
 
         <h2 style={{ margin: '0 0 0.25rem', color: '#1a5276' }}>{openDoc.title}</h2>
         <p style={{ color: '#718096', fontSize: '0.85rem', margin: '0 0 1.25rem' }}>
-          Sent {formatDate(openDoc.sentAt)}
+          Sent {formatAgencyDate(openDoc.sentAt)}
         </p>
 
         {error && (
@@ -214,7 +214,7 @@ const PortalDocuments = ({ token }) => {
           <div style={{ background: '#c6f6d5', border: '1px solid #9ae6b4', borderRadius: '10px', padding: '1.25rem', marginTop: '1.25rem' }}>
             <strong style={{ color: '#22543d' }}>Signed</strong>
             <div style={{ color: '#22543d', fontSize: '0.9rem', marginTop: '0.35rem' }}>
-              {openDoc.signedBy} ({openDoc.signerRelationship}) on {new Date(openDoc.signedAt).toLocaleString()}
+              {openDoc.signedBy} ({openDoc.signerRelationship}) on {formatAgencyDateTime(openDoc.signedAt)}
             </div>
             {openDoc.signatureImage && (
               <img
@@ -364,8 +364,8 @@ const PortalDocuments = ({ token }) => {
                   <div style={{ fontWeight: 600, color: '#2d3748' }}>{doc.title}</div>
                   <div style={{ fontSize: '0.8rem', color: '#718096', marginTop: '2px' }}>
                     {doc.status === 'signed' && doc.signedAt
-                      ? `Signed ${formatDate(doc.signedAt)} by ${doc.signedBy}`
-                      : `Sent ${formatDate(doc.sentAt)}`}
+                      ? `Signed ${formatAgencyDate(doc.signedAt)} by ${doc.signedBy}`
+                      : `Sent ${formatAgencyDate(doc.sentAt)}`}
                   </div>
                 </div>
                 <span style={{
