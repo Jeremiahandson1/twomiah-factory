@@ -151,6 +151,11 @@ export { createPortalRoutes, PORTAL_QUOTE_HIDDEN, PORTAL_INVOICE_HIDDEN } from '
 // requests, and the messaging-usage wallet gate; one implementation for every CRM.
 export { reportSmsUsage, walletSufficient } from './integrations/messagingUsage'
 export { formatPhoneE164, parseTwilioBody, verifyTwilioRequest, twilioSignatureFor, twilioClient, twilioConfigFromEnv, twilioConfigFor, companyTwilioNumbers, twilioConfigured, TWIML_EMPTY } from './integrations/twilio'
+// Provider webhook signatures (every /webhook/ POST must call one — scripts/check-provider-webhooks-signed.ts)
+export { verifyCallRailSignature, callRailSignatureFor, mapCallRailPayload } from './integrations/callrail'
+export { refuseUnverifiedWebhook, verifyWebhookSecret } from './integrations/webhookAuth'
+export { verifyPlaidWebhook, plaidKeyFetcher } from './integrations/plaid'
+export type { PlaidKeyFetcher } from './integrations/plaid'
 export { createIntegrationsRoutes } from './integrations/integrations'
 export type { IntegrationsRoutesDeps } from './integrations/integrations'
 export type { TwilioConfig } from './integrations/twilio'
@@ -177,7 +182,7 @@ export type { MarketingService, MarketingServiceDeps, MarketingRoutesDeps, Marke
 
 // Lead Inbox — inbound leads (Factory-forwarded email + secret-locked webhooks), lead sources, convert-to-contact; one implementation for every CRM.
 export { moveLegacyWebsiteLeadsToInbox } from './leads/legacyWebsiteLeads'
-export { createLeadsRoutes, insertLead, parseLeadEmail, parseWebhookPayload, readInboundBody, TRADES_LEAD_PLATFORMS, LEAD_STATUSES } from './leads/leads'
+export { createLeadsRoutes, insertLead, parseLeadEmail, parseWebhookPayload, readInboundBody, verifyFactoryKey, TRADES_LEAD_PLATFORMS, LEAD_STATUSES } from './leads/leads'
 export type { LeadsDeps, LeadsOptions, LeadsTables, ParsedLead } from './leads/leads'
 
 // Twomiah Ads — pass-through to the Twomiah Ads service with the tenant's key (spend-guarded), plus A/B landing-page tests

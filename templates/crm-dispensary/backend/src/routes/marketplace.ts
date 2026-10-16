@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { verifyWebhookSecret } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -89,9 +90,9 @@ app.post('/webhook/:partnerId', async (c) => {
   const integration = ((integrationResult as any).rows || integrationResult)?.[0]
   if (!integration) return c.json({ error: 'Integration not found or inactive' }, 404)
 
-  // Validate webhook secret from header
-  const webhookSecret = c.req.header('X-Webhook-Secret')
-  if (integration.webhook_secret && webhookSecret !== integration.webhook_secret) {
+  // The install's webhook secret, ALWAYS, compared in constant time. It was checked only when the row
+  // had one (an install without a secret took anyone's payload) and with !== . (10/15)
+  if (!verifyWebhookSecret(c.req.header('X-Webhook-Secret'), integration.webhook_secret)) {
     return c.json({ error: 'Invalid webhook secret' }, 401)
   }
 

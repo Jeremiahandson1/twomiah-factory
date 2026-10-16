@@ -5,17 +5,25 @@ import { db } from '../../db/index.ts'
 import { contact } from '../../db/schema.ts'
 import { and, eq } from 'drizzle-orm'
 import sms from '../services/sms.ts'
+import { parseTwilioBody, verifyTwilioRequest, refuseUnverifiedWebhook } from '../shared/index.ts'
 
 const app = new Hono()
 
 // ============================================
-// WEBHOOKS (No auth - called by Twilio)
+// WEBHOOKS (no session — called by Twilio, so each one proves it IS Twilio)
 // ============================================
+//
+// Until 10/15 both accepted any caller (anyone could write a text into a customer's thread or flip a
+// message's delivery status) and read Twilio's form-encoded body as JSON, which threw and was answered
+// 200. X-Twilio-Signature is checked first against TWILIO_AUTH_TOKEN — the account services/sms.ts
+// sends with. No token: refused in production, allowed outside it; the 403 says which key is missing.
 
 // Incoming SMS webhook
 app.post('/webhook/incoming', async (c) => {
+  const body = await parseTwilioBody(c)
+  const v = verifyTwilioRequest(c, body, process.env.TWILIO_AUTH_TOKEN)
+  if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio inbound SMS webhook', v.reason)
   try {
-    const body = await c.req.json()
     await sms.handleIncomingSMS(body)
     // Twilio expects TwiML response
     return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 200, {
@@ -31,8 +39,10 @@ app.post('/webhook/incoming', async (c) => {
 
 // Message status webhook
 app.post('/webhook/status', async (c) => {
+  const body = await parseTwilioBody(c)
+  const v = verifyTwilioRequest(c, body, process.env.TWILIO_AUTH_TOKEN)
+  if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio SMS status webhook', v.reason)
   try {
-    const body = await c.req.json()
     await sms.handleStatusUpdate(body)
     return c.body(null, 200)
   } catch (error) {

@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { money } from '../shared/invoicing/money.ts'
+import { verifyPlaidWebhook, plaidKeyFetcher, refuseUnverifiedWebhook } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -23,8 +24,23 @@ const camelAll = (rows: any[]): any[] => (Array.isArray(rows) ? rows.map(camel) 
 // WEBHOOK (no auth — called by Plaid)
 // ============================================
 
+//
+// Plaid signs every webhook: Plaid-Verification is an ES256 JWT over the raw body (verifyPlaidWebhook).
+// Until 10/15 this accepted ANY caller and moved ach_transactions to completed / failed on its word —
+// anyone could mark a bank payment settled. Verified first, against the key Plaid publishes for this
+// shop's client id; refused 403 otherwise, and with no Plaid config in production.
 app.post('/webhook', async (c) => {
-  const body = await c.req.json()
+  const raw = await c.req.text()
+  const cfgResult = await db.execute(sql`
+    SELECT plaid_client_id AS client_id, plaid_secret AS secret, plaid_environment AS environment FROM plaid_config
+    WHERE enabled = true
+    LIMIT 1
+  `)
+  const cfg = ((cfgResult as any).rows || cfgResult)?.[0]
+  const v = await verifyPlaidWebhook(raw, c.req.header('plaid-verification'), plaidKeyFetcher(cfg))
+  if (!v.ok) return refuseUnverifiedWebhook(c, 'Plaid transfer webhook', v.reason)
+  let body: any
+  try { body = JSON.parse(raw) } catch { return c.json({ error: 'Body must be JSON' }, 400) }
 
   // Plaid sends TRANSFER_EVENTS webhook
   if (body.webhook_type === 'TRANSFER_EVENTS') {

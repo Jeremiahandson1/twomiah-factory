@@ -10,6 +10,7 @@ export { EmailDomainPage } from './settings/EmailDomainPage'
 export { AccountOffboardPage } from './settings/AccountOffboardPage'
 export { InboundMessagesPage } from './settings/InboundMessagesPage'
 export { GbpReviewsPage } from './settings/GbpReviewsPage'
+export { CallTrackingSettings } from './settings/CallTrackingSettings'
 export { BillingPage } from './settings/BillingPage'
 // Settings → Integrations / Import / Migrate + the Reviews page — one implementation for every CRM; the template passes its api (+toast) and a vertical config.
 export { IntegrationsPage, DEFAULT_LEAD_SOURCES } from './settings/IntegrationsPage'

@@ -354,19 +354,19 @@ const ALLOW: Record<string, [Kind, string]> = {
   'routes/stripe.ts POST /invoice/:invoiceId/pay': ['public', 'the emailed pay-this-invoice link starts a Stripe checkout'],
   'routes/saasBilling.ts POST /self-hosted/purchase': ['public', 'buying a self-hosted licence starts a Stripe checkout'],
   'index.ts ALL /api/*': ['public', 'the JSON 404 for an unknown /api route'],
-  // UNSIGNED provider webhooks — public today, and they accept any caller. Not an authorisation gate
-  // a role could close: they need the provider's signature check. Reported, not silently passed.
-  'routes/aiReceptionist.ts POST /webhook/recording/:agencyId': ['public', 'Twilio recording callback — UNSIGNED, needs validateTwilioSignature'],
-  'routes/aiReceptionist.ts POST /webhook/status/:agencyId': ['public', 'Twilio status callback — UNSIGNED, needs validateTwilioSignature'],
-  'routes/calltracking.ts POST /webhook/callrail/:agencyId': ['public', 'CallRail webhook — UNSIGNED, needs CallRail signature'],
-  'routes/calltracking.ts POST /webhook/twilio/:agencyId': ['public', 'Twilio call webhook — UNSIGNED, needs validateTwilioSignature'],
-  'routes/calltracking.ts POST /webhook/:provider/:agencyId': ['public', 'generic call-tracking webhook — UNSIGNED'],
-  'routes/leads.ts POST /inbound/email': ['public', 'forwarded lead email, matched by the To address — UNSIGNED'],
+  // The provider webhooks that were listed here as UNSIGNED ('public') until 10/15 now verify the
+  // provider's signature, so they are 'secret' like every other machine door. The generic
+  // POST /webhook/:provider/:agencyId is gone — it had no provider behind it.
+  'routes/aiReceptionist.ts POST /webhook/recording/:agencyId': ['secret', 'Twilio recording callback — verifyTwilioRequest (X-Twilio-Signature)'],
+  'routes/aiReceptionist.ts POST /webhook/status/:agencyId': ['secret', 'Twilio status callback — verifyTwilioRequest (X-Twilio-Signature)'],
+  'routes/calltracking.ts POST /webhook/callrail/:agencyId': ['secret', 'CallRail webhook — verifyCallRailSignature (Signature: HMAC-SHA1 of the raw body)'],
+  'routes/calltracking.ts POST /webhook/twilio/:agencyId': ['secret', 'Twilio call webhook — verifyTwilioRequest (X-Twilio-Signature)'],
+  'routes/leads.ts POST /inbound/email': ['secret', 'lead email from the Factory — verifyFactoryKey (X-Factory-Key, timing-safe)'],
 }
 
 const SELF_MARK = /\b(requireAdminOrSelf|selfSubject|ownsRow|isOffice|isOfficeUser|careWriteRefusal|maySeeClient|requireClientAccess|mayUseThread|caregiverClientRule)\b|\b(?:user|currentUser|viewer)\??\.(?:userId|id)\b|\buserIdOf\(|\buserId\(c\)/
 const PORTAL_MARK = /\b(portalAuth|familyAuth)\b/
-const SECRET_MARK = /X-Factory-Key|verifyWebhook|validateTwilioSignature|x-webhook-secret|constructEvent/i
+const SECRET_MARK = /X-Factory-Key|verifyWebhook|validateTwilioSignature|x-webhook-secret|constructEvent|verifyTwilioRequest|verifyCallRailSignature|verifyFactoryKey/i
 
 type Verdict = { key: string; ok: boolean; why: string }
 function judge(files: Record<string, string>): { verdicts: Verdict[]; unrecognised: string[]; writes: number; admin: number; stale: string[]; redundant: string[] } {

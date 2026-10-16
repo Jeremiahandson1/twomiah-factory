@@ -3,15 +3,20 @@ import { formatDate } from '../../utils/date';
 import { 
   Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed,
   Clock, MapPin, Tag, Play, Loader2, Search,
-  TrendingUp, Users, DollarSign, BarChart3
+  TrendingUp, Users, DollarSign, BarChart3, Settings as SettingsIcon
 } from 'lucide-react';
 import api from '../../services/api';
+import { usePermissions } from '../../contexts/PermissionsContext';
+import { CallTrackingSettings } from '../../shared';
 
 /**
  * Call Tracking Page
  */
 export default function CallTrackingPage() {
-  const [tab, setTab] = useState('calls'); // calls, numbers, reports
+  const [tab, setTab] = useState('calls'); // calls, numbers, reports, settings
+  // The CallRail signing key is an integration credential: owner + admins (integrations:update), as the server asks.
+  const { known, can } = usePermissions();
+  const maySetUp = known && can('integrations:update');
   const [calls, setCalls] = useState([]);
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -75,6 +80,7 @@ export default function CallTrackingPage() {
           { id: 'calls', label: 'Call Log', icon: Phone },
           { id: 'attribution', label: 'Attribution', icon: BarChart3 },
           { id: 'numbers', label: 'Tracking Numbers', icon: PhoneIncoming },
+          ...(maySetUp ? [{ id: 'settings', label: 'Settings', icon: SettingsIcon }] : []),
         ].map(t => (
           <button
             key={t.id}
@@ -111,6 +117,9 @@ export default function CallTrackingPage() {
           )}
           {tab === 'numbers' && (
             <TrackingNumbersTab />
+          )}
+          {tab === 'settings' && maySetUp && (
+            <CallTrackingSettings />
           )}
         </>
       )}

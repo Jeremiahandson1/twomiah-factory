@@ -12,7 +12,7 @@ app.use('*', authenticate)
 // Never serialize provider secrets to the client (VET-41 / F-26 pattern): GET & PUT
 // /api/company returned the whole agency row — Twilio auth token, account SID, Stripe
 // customer id — to any authenticated user. PHI app, so this matters more here.
-const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword', 'sandataPasswordEncrypted'] as const
+const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword', 'sandataPasswordEncrypted', 'callrailSigningKey'] as const
 function sanitizeCompany<T extends Record<string, any>>(row: T): T {
   if (!row) return row
   const clone: any = { ...row }

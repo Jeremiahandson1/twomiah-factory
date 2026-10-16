@@ -29,6 +29,8 @@ export const agencies = pgTable('agencies', {
   twilioPhoneNumber: text('twilio_phone_number'),
   twilioAccountSid: text('twilio_account_sid'),
   twilioAuthToken: text('twilio_auth_token'),
+  // CallRail webhook signing key (Call Tracking › Settings). Write-only: never returned, the screen sees set / not set.
+  callrailSigningKey: text('callrail_signing_key'),
   // Onboarding (V1 domain + email setup wizard)
   onboardingCompletedAt: timestamp('onboarding_completed_at'),
   // EVV / Sandata account (0014_evv). Sandata's ProviderID is `medicaidId` above. The password is

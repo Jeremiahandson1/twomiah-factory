@@ -59,6 +59,19 @@ const SETTABLE_STATUSES = ['new', 'contacted', 'dismissed'] as const
 const PLATFORM_RE = /^[a-z][a-z0-9_]{1,30}$/
 
 const safeEqual = (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
+
+/**
+ * Is this the Factory? X-Factory-Key against FACTORY_SYNC_KEY, timing-safe. ONE check for the inbound
+ * lead-email door — this module's and the three forks' (crm-dispensary, crm-homecare, crm-roof), which
+ * took the lead email from anyone until 10/15. No key configured → 503 (the door is not set up), wrong
+ * or missing key → 401.
+ */
+export function verifyFactoryKey(c: any, key: string | undefined = process.env.FACTORY_SYNC_KEY): { ok: true } | { ok: false; status: 401 | 503; error: string } {
+  if (!key) return { ok: false, status: 503, error: 'Inbound email not configured' }
+  const got = String(c.req.header('X-Factory-Key') || '')
+  if (!safeEqual(got, key)) return { ok: false, status: 401, error: 'Unauthorized' }
+  return { ok: true }
+}
 const clampInt = (v: unknown, min: number, max: number, dflt: number) => { const n = parseInt(String(v ?? ''), 10); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt }
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (ch) => '\\' + ch)
 const clip = (v: unknown, n: number) => { const s = v == null ? '' : String(v).trim(); return s ? s.slice(0, n) : undefined }
@@ -131,10 +144,8 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   // ─── Public inbound endpoints ───────────────────────────────────────────────
 
   app.post('/inbound/email', async (c) => {
-    const key = env.FACTORY_SYNC_KEY
-    if (!key) return c.json({ error: 'Inbound email not configured' }, 503)
-    const got = c.req.header('X-Factory-Key') || ''
-    if (!safeEqual(got, key)) return c.json({ error: 'Unauthorized' }, 401)
+    const fk = verifyFactoryKey(c, env.FACTORY_SYNC_KEY)
+    if (!fk.ok) return c.json({ error: fk.error }, fk.status)
     const body = await readInboundBody(c)
     if (!body) return c.json({ error: 'Invalid body' }, 400)
     // The Factory already resolved the tenant from the recipient address; this backend holds one company.
