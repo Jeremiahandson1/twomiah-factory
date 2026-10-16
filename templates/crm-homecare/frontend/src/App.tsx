@@ -15,6 +15,7 @@ import PortalSetup from './components/portal/PortalSetup';
 import ClientPortal from './components/portal/ClientPortal';
 import FamilyPortalLogin from './components/portal/FamilyPortalLogin';
 import FamilyPortal from './components/portal/FamilyPortal';
+import PortalPaused, { usePortalPaused } from './components/portal/PortalPaused';
 import { ToastContainer, toast } from './components/Toast';
 import { API_BASE_URL, setSessionExpiredCallback } from './config';
 import { ConfirmModal } from './components/ConfirmModal';
@@ -110,6 +111,8 @@ const PortalApp = () => {
   // not a JWT. Redeem it once for a session, then take it out of the URL so it
   // does not sit in browser history or get pasted into a share.
   const [redeeming] = useState(() => new URLSearchParams(window.location.search).has('token'));
+  // A locked agency's portal is paused: every data call is refused 402 (services/sessionFetch.ts raises it).
+  const paused = usePortalPaused();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -198,6 +201,8 @@ const PortalApp = () => {
     </>
   );
 
+  if (paused) return <PortalPaused onLogout={handleLogout} />;
+
   return (
     <ErrorBoundary>
       <ClientPortal user={client} token={token} onLogout={handleLogout} />
@@ -211,6 +216,7 @@ const FamilyApp = () => {
   const [familyUser, setFamilyUser] = useState(null);
   const [loading, setLoading]       = useState(true);
   const [token, setToken]           = useState(localStorage.getItem('family_token'));
+  const paused = usePortalPaused();
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('family_token');
@@ -250,6 +256,7 @@ const FamilyApp = () => {
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
   if (!familyUser || !token) return <FamilyPortalLogin onLogin={handleLogin} />;
+  if (paused) return <PortalPaused onLogout={handleLogout} />;
 
   return (
     <ErrorBoundary>

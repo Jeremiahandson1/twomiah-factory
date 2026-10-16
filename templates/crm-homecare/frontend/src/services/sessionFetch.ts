@@ -18,7 +18,9 @@
 //   3. if the session cannot be refreshed, it has ended: the person is sent to sign in, told why, and the screen's
 //      request never settles — so no screen paints an empty list on its way out.
 // And for every /api/* response, whoever sent it:
-//   4. 402 ACCOUNT_LOCKED → the lock page (unless already there);
+//   4. 402 ACCOUNT_LOCKED → the lock page (unless already there) — for staff. A request sent with a PORTAL's credentials
+//      (a family or client portal token, or the client's x-portal-token link) is the portal's: it is told the agency is
+//      paused (portalPaused) and stays where it is. The staff lock page means nothing to a relative (Run 4, blocker 3);
 //   5. 403 view_as_read_only → the server's own sentence, shown once as a toast.
 // Sign-in, refresh and sign-out (/api/auth/login|refresh|logout) pass through untouched: a wrong password is a 401 the
 // login form must show, not a session to refresh.
@@ -36,6 +38,8 @@ export interface SessionPort {
   notify(message: string): void
   /** Open the lock page. */
   locked(): void
+  /** A portal (family or client) request was refused because the agency is locked: show the portal's "paused" screen. */
+  portalPaused(): void
   /** Is the lock page (or a door a locked agency keeps) on screen now? */
   onLockPage(): boolean
 }
@@ -59,6 +63,20 @@ function bearerOf(h: Headers): string | null {
   return m ? m[1].trim() : null
 }
 
+/** Sent with a family or client portal's credentials, not a staff session's? (The JWT's role claim, read not verified.) */
+export function isPortalRequest(h: Headers): boolean {
+  if (h.get('x-portal-token')) return true
+  const token = bearerOf(h)
+  if (!token) return false
+  try {
+    const part = token.split('.')[1] || ''
+    const role = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')))?.role
+    return role === 'family' || role === 'client'
+  } catch {
+    return false
+  }
+}
+
 /** The never-settling answer for a screen whose session has ended: the page is navigating to sign-in. */
 const NEVER = () => new Promise<Response>(() => {})
 
@@ -72,11 +90,12 @@ export function createSessionFetch(nativeFetch: (input: any, init?: any) => Prom
     return nativeFetch(input, { ...(init || {}), headers })
   }
 
-  async function notice(res: Response): Promise<void> {
+  async function notice(res: Response, sentWith: Headers): Promise<void> {
     if (res.status !== 402 && res.status !== 403) return
     const body = await res.clone().json().catch(() => null)
     if (res.status === 402 && body?.code === 'ACCOUNT_LOCKED') {
-      if (!port.onLockPage()) port.locked()
+      if (isPortalRequest(sentWith)) port.portalPaused()
+      else if (!port.onLockPage()) port.locked()
       return
     }
     if (res.status === 403 && body?.code === 'view_as_read_only' && body?.error) {
@@ -114,7 +133,7 @@ export function createSessionFetch(nativeFetch: (input: any, init?: any) => Prom
     } else {
       res = await nativeFetch(input, init)
     }
-    await notice(res)
+    await notice(res, headers)
     return res
   }
 }

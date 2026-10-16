@@ -26,6 +26,7 @@ import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { agencyToday, addDays } from '../services/agencyTime.ts'
 import { listClientVitals } from '../services/vitals.ts'
 import type { Context, Next } from 'hono'
+import { refusePortalWhileLocked } from '../helpers/portalLock.ts'
 
 const app = new Hono()
 
@@ -358,6 +359,9 @@ async function familyAuth(c: Context, next: Next) {
   const [member] = await db.select(memberColumns).from(familyMembers)
     .where(and(eq(familyMembers.id, decoded.familyMemberId), eq(familyMembers.isActive, true))).limit(1)
   if (!member) return c.json({ error: 'Access denied' }, 403)
+  // A cancelled agency's portal is paused, like its staff CRM (helpers/portalLock.ts).
+  const locked = await refusePortalWhileLocked(c)
+  if (locked) return locked
 
   c.set('familyMember', member)
   c.set('familyClientId', member.clientId)

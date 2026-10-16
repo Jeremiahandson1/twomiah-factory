@@ -88,7 +88,16 @@ for (const t of readdirSync(ROOT + 'templates').filter((d) => /^crm(-|$)/.test(d
     // services/sessionFetch.ts, which services/api.ts installs over window.fetch. The lock page's sign-in summary must
     // carry the lock too, since a locked agency's /api/company is itself a 402.
     const sf = read(T + 'frontend/src/services/sessionFetch.ts'), apiTs = read(T + 'frontend/src/services/api.ts')
-    if (!/res\.status === 402 && body\?\.code === 'ACCOUNT_LOCKED'[\s\S]{0,80}port\.locked\(\)/.test(sf)) fail(`${t}: services/sessionFetch.ts does not turn a 402 ACCOUNT_LOCKED into the lock page`)
+    // Staff go to the lock page; a family or client portal's request shows the portal's "paused" screen (Run 4).
+    if (!/res\.status === 402 && body\?\.code === 'ACCOUNT_LOCKED'\) \{\s*if \(isPortalRequest\(sentWith\)\) port\.portalPaused\(\)\s*else if \(!port\.onLockPage\(\)\) port\.locked\(\)/.test(sf)) fail(`${t}: services/sessionFetch.ts does not turn a 402 ACCOUNT_LOCKED into the lock page (staff) or the paused screen (portals)`)
+    // The family and client portals sign their people in on their own paths, never through `authenticate`: each portal
+    // auth asks the lock itself, after it knows who is asking (Run 4, blocker 3 — the family portal kept serving).
+    const fam = read(T + 'backend/src/routes/familyPortal.ts'), por = read(T + 'backend/src/routes/portal.ts')
+    const famAuth = fam.slice(fam.indexOf('async function familyAuth('), fam.indexOf('async function familyAuth(') + 1500)
+    if (!/const locked = await refusePortalWhileLocked\(c\)\s*if \(locked\) return locked\s*c\.set\('familyMember'/.test(famAuth)) fail(`${t}: the family portal's familyAuth does not refuse a locked agency`)
+    const porAuth = por.slice(por.indexOf('export async function portalAuth('), por.indexOf('// PORTAL ROUTES'))
+    const nexts = (porAuth.match(/await next\(\)/g) || []).length, guarded = (porAuth.match(/if \(locked\) return locked\s*await next\(\)/g) || []).length
+    if (!nexts || nexts !== guarded) fail(`${t}: the client portal's portalAuth lets ${nexts - guarded} of its ${nexts} ways in past a locked agency`)
     if (!/window\.fetch = createSessionFetch\(/.test(apiTs) || !/locked: \(\) => window\.location\.assign\(LOCK_PAGE\)/.test(apiTs)) fail(`${t}: services/api.ts does not install the session fetch with the lock page — raw fetch() screens would show "Failed to load" instead`)
     if (!/settings: \{ accountLock: accountLockOf\(agency\.settings\) \}/.test(read(T + 'backend/src/routes/auth.ts'))) fail(`${t}: sign-in and /api/auth/me do not tell every role whether the agency is locked`)
     continue

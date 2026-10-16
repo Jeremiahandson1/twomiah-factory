@@ -82,6 +82,8 @@ const UserManagement = () => {
     const active = u.is_active !== false && u.isActive !== false;
     const name = `${u.first_name || u.firstName || ''} ${u.last_name || u.lastName || ''}`.trim();
     const isSelf = u.id === user?.id;
+    // The owner's login is changed only by the owner (the server refuses anyone else: owner_only).
+    const mayChange = u.role !== 'owner' || user?.role === 'owner';
     return (
       <tr key={u.id} style={active ? undefined : { opacity: 0.55 }}>
         <td><strong>{name || '—'}</strong></td>
@@ -94,11 +96,11 @@ const UserManagement = () => {
             : <span className="badge badge-danger">Deactivated</span>}
         </td>
         <td style={{ whiteSpace: 'nowrap' }}>
-          <button className="btn btn-sm btn-secondary" onClick={() => resetPassword(u.id, name)}>Reset Password</button>
+          {mayChange && <button className="btn btn-sm btn-secondary" onClick={() => resetPassword(u.id, name)}>Reset Password</button>}
           {opts.canPromote && (
             <button className="btn btn-sm btn-secondary" style={{ marginLeft: '0.5rem' }} onClick={() => promoteToAdmin(u.id, name)}>Make Admin</button>
           )}
-          {!isSelf && (
+          {!isSelf && mayChange && (
             <button
               className={`btn btn-sm ${active ? 'btn-danger' : 'btn-success'}`}
               style={{ marginLeft: '0.5rem' }}

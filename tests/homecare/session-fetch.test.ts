@@ -51,6 +51,7 @@ function world(opts: { refreshWorks?: boolean } = {}) {
     ended: () => events.push('ended'),
     notify: (m: string) => events.push('notify:' + m),
     locked: () => events.push('locked'),
+    portalPaused: () => events.push('portalPaused'),
     onLockPage: () => false,
   }
   return { fetch: createSessionFetch(native, port), seen, events, refreshes: () => refreshes, port }
@@ -125,6 +126,26 @@ const settles = async (p: Promise<any>, ms = 200) => Promise.race([p.then(() => 
   const w2 = world(); w2.port.onLockPage = () => true
   await w2.fetch('/api/locked/clients', { headers: { Authorization: 'Bearer fresh' } })
   check('…but not again from the lock page itself', !w2.events.includes('locked'), w2.events)
+}
+{
+  // A portal's 402 is the portal's (Run 4, blocker 3): a family member or client is told the agency is paused and stays on
+  // their portal — the staff lock page means nothing to them. Their tokens are not this session's, and never refreshed.
+  const b64 = (o: unknown) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const tok = (role: string) => `${b64({ alg: 'HS256' })}.${b64({ role, clientId: 'c1' })}.sig`
+  for (const [who, headers] of [
+    ['a family member', { Authorization: `Bearer ${tok('family')}` }],
+    ['a client (signed in)', { Authorization: `Bearer ${tok('client')}` }],
+    ['a client (emailed link)', { 'x-portal-token': 'db-link-token' }],
+  ] as const) {
+    const w = world()
+    const r = await w.fetch('/api/locked/family-portal/portal/schedule', { headers })
+    check(`${who}: a 402 ACCOUNT_LOCKED shows the portal's "paused" screen, not the staff lock page (${r.status})`, r.status === 402 && w.events.includes('portalPaused') && !w.events.includes('locked') && w.refreshes() === 0, w.events)
+  }
+  const staffish = world()
+  await staffish.fetch('/api/locked/clients', { headers: { Authorization: `Bearer ${tok('admin')}` } })
+  check('a staff role in a token it did not issue (View As) still goes to the lock page', staffish.events.includes('locked') && !staffish.events.includes('portalPaused'), staffish.events)
+  const api = readFileSync(FE + 'services/api.ts', 'utf8'), app = readFileSync(FE + 'App.tsx', 'utf8')
+  check('the portal apps listen: api.ts raises the event, both portal apps render PortalPaused on it', /portalPaused: \(\) => \{[^}]*dispatchEvent\(new CustomEvent\(PORTAL_PAUSED_EVENT\)\)/.test(api) && (app.match(/if \(paused\) return <PortalPaused onLogout=\{handleLogout\} \/>;/g) || []).length === 2 && (app.match(/const paused = usePortalPaused\(\);/g) || []).length === 2)
 }
 
 // ── the wiring: installed once over window.fetch, every screen behind it, the old half-measure gone

@@ -45,6 +45,7 @@ import { clientVisibleInvoiceSql } from '../services/invoiceEngine.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { agencyToday, addDays } from '../services/agencyTime.ts'
 import type { Context, Next } from 'hono'
+import { refusePortalWhileLocked } from '../helpers/portalLock.ts'
 
 const app = new Hono()
 
@@ -782,6 +783,8 @@ export async function portalAuth(c: Context, next: Next) {
 
     c.set('portalClientId', foundClient.id)
     c.set('portalClient', foundClient)
+    const locked = await refusePortalWhileLocked(c)
+    if (locked) return locked
     await next()
     return
   }
@@ -808,6 +811,8 @@ export async function portalAuth(c: Context, next: Next) {
     c.set('portalClientId', foundClient.id)
     c.set('portalClient', foundClient)
     c.set('portalPreview', true)
+    const locked = await refusePortalWhileLocked(c)
+    if (locked) return locked
     await next()
     return
   }
@@ -846,6 +851,9 @@ export async function portalAuth(c: Context, next: Next) {
 
   c.set('portalClientId', foundClient.id)
   c.set('portalClient', foundClient)
+  // A cancelled agency's portal is paused, like its staff CRM (helpers/portalLock.ts) — on every way in.
+  const locked = await refusePortalWhileLocked(c)
+  if (locked) return locked
   await next()
 }
 

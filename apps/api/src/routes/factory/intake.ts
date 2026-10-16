@@ -20,6 +20,7 @@ import { runDeploy, triggerAutoDeploy } from './deploy'
 import { getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
 import { crmTemplateFor, deployProductsForVertical, verticalFor } from '../../config/industryRouting'
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
+import { stateTimezone, notesWithTimezone } from '../../config/stateTimezone'
 
 // What a signup asked for beyond the plan. Everything free is already on for every plan; these
 // are the answers that change setup: goals ("bookings" → booking on the website once premium
@@ -336,6 +337,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       }
     }
 
+    const signupZone = stateTimezone(body.state)
     const tenantRecord: Record<string, any> = {
       name: body.name.trim(),
       slug,
@@ -366,7 +368,9 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       features: (Array.isArray(body.features) && body.features.length)
         ? body.features
         : getDefaultFeaturesForTemplate(crmTemplateFor(body.industry)),
-      notes: body.notes || null,
+      // The zone the CRM will run on — its state's (config/stateTimezone.ts), not the form's Timezone select, which
+      // starts on Eastern and reached us only as text in these notes (Run 4: a Wisconsin agency recorded as Eastern).
+      notes: notesWithTimezone(body.notes, signupZone),
       admin_password: body.admin_password || null,
       website_theme: body.website_theme || null,
     }
@@ -391,9 +395,9 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // The owner's answers, kept on the tenant (intake_data.signup — everything else reads
     // intake_data.intake, so a signup row is never mistaken for an intake). Non-fatal.
     const choices = signupChoices(body)
-    if (choices.goals.length || choices.addons.length) {
+    if (choices.goals.length || choices.addons.length || signupZone) {
       const { error: choiceErr } = await supabase.from('tenants')
-        .update({ intake_data: { signup: { ...choices, at: new Date().toISOString() } } }).eq('id', tenant.id)
+        .update({ intake_data: { signup: { ...choices, ...(signupZone ? { timezone: signupZone } : {}), at: new Date().toISOString() } } }).eq('id', tenant.id)
       if (choiceErr) console.warn('[Signup] Could not save add-on choices:', choiceErr.message)
     }
 

@@ -125,8 +125,8 @@ const MessageBoard = () => {
     !userSearch || `${u.first_name} ${u.last_name}`.toLowerCase().includes(userSearch.toLowerCase()) || u.role.includes(userSearch.toLowerCase())
   );
 
-  const roleColor = (role) => role === 'admin' ? '#7C3AED' : '{{PRIMARY_COLOR}}';
-  const roleLabel = (role) => role === 'admin' ? 'Admin' : 'Caregiver';
+  const roleColor = (role) => role === 'admin' || role === 'owner' ? '#7C3AED' : '{{PRIMARY_COLOR}}';
+  const roleLabel = (role) => role === 'owner' ? 'Owner' : role === 'admin' ? 'Admin' : 'Caregiver';
 
   // ─── INBOX ────────────────────────────────────────────────────────────────
   if (view === 'inbox') return (

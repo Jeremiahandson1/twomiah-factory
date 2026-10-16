@@ -166,6 +166,8 @@ export const api = new ApiClient();
 
 /** The lock page's address. The Factory's restart checkout returns here (?restarted=1). */
 export const LOCK_PAGE = '/crm/paywall';
+/** Raised when a portal request is refused 402 ACCOUNT_LOCKED (services/sessionFetch.ts rule 4). */
+export const PORTAL_PAUSED_EVENT = 'portal:paused';
 
 // Every request in this tab goes through one response path (services/sessionFetch.ts): the session refreshed and the
 // request replayed on a 401, a dead session sent to sign in, a locked agency sent to the lock page, a View As refusal
@@ -182,6 +184,8 @@ if (typeof window !== 'undefined' && !(window as any).__homecareSessionFetch) {
     },
     notify: (message) => toast(message, 'error', 6000),
     locked: () => window.location.assign(LOCK_PAGE),
+    // A family or client portal refused because the agency is locked: the portal shows "paused" (App.tsx usePortalPaused).
+    portalPaused: () => { (window as any).__portalPaused = true; window.dispatchEvent(new CustomEvent(PORTAL_PAUSED_EVENT)); },
     onLockPage: () => window.location.pathname.startsWith(LOCK_PAGE),
   }) as typeof window.fetch;
 }

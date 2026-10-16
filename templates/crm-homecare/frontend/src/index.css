@@ -615,7 +615,12 @@ body {
 /* Login Page */
 .login-container {
     display: flex;
-    height: 100vh;
+    /* #root is a flex row (the sidebar layout), so without these the container shrank to the card's 380px and sat at
+       the left edge with the rest of the page blank (Run 4, ~900px). It fills the row; min-height lets a tall card
+       (an error, the forgot-password form) grow instead of being cut off. */
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 100vh;
     background: linear-gradient(135deg, var(--color-teal) 0%, var(--color-teal-dark) 100%);
     align-items: center;
     justify-content: center;

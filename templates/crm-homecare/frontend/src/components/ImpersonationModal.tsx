@@ -81,8 +81,8 @@ const ImpersonationModal = ({ onImpersonate, onClose }) => {
     }
   };
 
-  const roleIcon = (role) => role === 'admin' ? '🔑' : '👤';
-  const roleColor = (role) => role === 'admin' ? '#7c3aed' : '#2563eb';
+  const roleIcon = (role) => role === 'admin' || role === 'owner' ? '🔑' : '👤';
+  const roleColor = (role) => role === 'admin' || role === 'owner' ? '#7c3aed' : '#2563eb';
 
   return (
     <div style={{

@@ -90,6 +90,14 @@ check('…on the same condition the email is sent on, so the email is never sent
   /if \(\(result\.success \|\| result\.deployedUrl \|\| result\.apiUrl\) && webServiceIds\.length\) \{\s*readiness = await waitUntilServing\(/.test(runDeploy)
     && /if \(result\.success \|\| result\.deployedUrl \|\| result\.apiUrl\) \{[\s\S]{0,900}notifyDeployComplete\(/.test(runDeploy))
 check('…and not on the database, which has no deploys to wait for', /filter\(\(\[role\]\) => role !== 'database'\)/.test(runDeploy))
+// Run 4: "The CRM returned 502 for ~2–3 minutes after the Factory showed the tenant Active; the Factory showed no
+// website address." Active was written with the URLs, before the wait; the website's address only after it.
+const iActive = runDeploy.indexOf("update({ status: 'active' })"), iSite = runDeploy.indexOf('optionalUpdate.website_url = result.siteUrl')
+check('the tenant is marked Active only after the readiness wait — on the same result the email follows', iActive > iWait && iActive < iMail, { iWait, iActive, iMail })
+check('…and the URLs saved before the wait no longer carry the status',
+  /const criticalUpdate: Record<string, any> = \{\}/.test(runDeploy) && (runDeploy.match(/status: 'active'/g) || []).length === 1)
+check('the website address is saved BEFORE the wait, like the CRM\'s URL — not up to 30 minutes later', iSite > 0 && iSite < iWait, { iSite, iWait })
+check('nothing else in the Factory marks a tenant Active early', (route.match(/status: 'active'/g) || []).length === 1)
 const addon = read('apps/api/src/services/crmAddonProvision.ts')
 const aWait = addon.indexOf('await waitUntilServing('), aMail = addon.indexOf("'Your Twomiah CRM is ready'")
 check('adding a CRM to a website customer waits before its own "CRM is ready" email', aWait > 0 && aMail > aWait, { aWait, aMail })

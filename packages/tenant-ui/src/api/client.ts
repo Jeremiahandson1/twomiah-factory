@@ -50,6 +50,8 @@ const REFRESH_KEY = 'refreshToken'
 
 const storage = {
   get: (k: string) => { try { return localStorage.getItem(k) } catch { return null } },
+  /** The stored value, null when absent — or undefined when storage cannot be read at all (private mode, no window). */
+  read: (k: string): string | null | undefined => { try { return localStorage.getItem(k) } catch { return undefined } },
   set: (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* private mode */ } },
   remove: (k: string) => { try { localStorage.removeItem(k) } catch { /* private mode */ } },
 }
@@ -82,27 +84,43 @@ export type RefreshOutcome = 'ok' | 'revoked' | 'retry'
 export class ApiClient {
   readonly baseUrl: string
   private readonly timeoutMs: number
-  private accessToken: string | null
-  private refreshToken: string | null
+  // The session's tokens are the ones in storage, read when a request goes — not a copy taken when this module loaded.
+  // A template that signs in through a client of its own (home care, dispensary, roof, the store) writes the same two
+  // keys; this singleton had read them once, at page load, before anyone had signed in, so every shared screen sent no
+  // token until a reload: home care's wizard step 3 (Branded Email) got 401 "Access token required" on the first sign-in
+  // (Run 4, HIGH 1). A refresh made by the other client is picked up the same way. The in-memory copy is only the
+  // fallback for a browser whose storage cannot be read (private mode).
+  private memAccessToken: string | null
+  private memRefreshToken: string | null
   private _refreshPromise: Promise<RefreshOutcome> | null = null
+
+  private get accessToken(): string | null {
+    const stored = storage.read(ACCESS_KEY)
+    return stored === undefined ? this.memAccessToken : stored
+  }
+
+  private get refreshToken(): string | null {
+    const stored = storage.read(REFRESH_KEY)
+    return stored === undefined ? this.memRefreshToken : stored
+  }
 
   constructor(options: ApiClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? ((import.meta as any).env?.VITE_API_URL || '')
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-    this.accessToken = storage.get(ACCESS_KEY)
-    this.refreshToken = storage.get(REFRESH_KEY)
+    this.memAccessToken = storage.get(ACCESS_KEY)
+    this.memRefreshToken = storage.get(REFRESH_KEY)
   }
 
   setTokens(accessToken: string, refreshToken: string): void {
-    this.accessToken = accessToken
-    this.refreshToken = refreshToken
+    this.memAccessToken = accessToken
+    this.memRefreshToken = refreshToken
     storage.set(ACCESS_KEY, accessToken)
     storage.set(REFRESH_KEY, refreshToken)
   }
 
   clearTokens(): void {
-    this.accessToken = null
-    this.refreshToken = null
+    this.memAccessToken = null
+    this.memRefreshToken = null
     storage.remove(ACCESS_KEY)
     storage.remove(REFRESH_KEY)
   }

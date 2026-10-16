@@ -539,8 +539,12 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
     }
 
     if (result.repoUrl) {
-      // Critical fields — must be saved even if optional columns fail
-      const criticalUpdate: Record<string, any> = { status: 'active' }
+      // Critical fields — must be saved even if optional columns fail.
+      // NOT the status — Active is written once the deploy is serving (below, after the readiness wait), the same
+      // moment the ready email goes out. Written here, the Factory showed the tenant Active while its CRM answered
+      // 502 for minutes (Run 4). Until then a first deploy stays 'deploying' (triggerAutoDeploy) — the Factory's
+      // "Deploying" — and a redeploy keeps the status it had, since the old instance is still serving.
+      const criticalUpdate: Record<string, any> = {}
       if (result.deployedUrl) criticalUpdate.render_frontend_url = result.deployedUrl
       if (result.apiUrl) criticalUpdate.render_backend_url = result.apiUrl
       if (result.supabaseProjectRef) criticalUpdate.supabase_project_ref = result.supabaseProjectRef
@@ -554,14 +558,15 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
         criticalUpdate.admin_email = tenant.email
       }
 
-      const { error: criticalErr } = await supabase.from('tenants').update(criticalUpdate).eq('id', tenant.id)
+      const { error: criticalErr } = Object.keys(criticalUpdate).length
+        ? await supabase.from('tenants').update(criticalUpdate).eq('id', tenant.id)
+        : { error: null as any }
       if (criticalErr) {
         console.error('[Deploy] CRITICAL tenant update failed:', criticalErr.message, JSON.stringify(criticalUpdate))
       } else {
-        console.log('[Deploy] Critical tenant fields saved (status, urls, database_url) for', tenant.slug)
+        console.log('[Deploy] Critical tenant fields saved (urls, database_url) for', tenant.slug)
         // Audit log for deploy — mask sensitive fields
         const auditChanges: Record<string, { old: any; new: any }> = {}
-        if (criticalUpdate.status) auditChanges.status = { old: tenant.status, new: criticalUpdate.status }
         if (criticalUpdate.render_frontend_url) auditChanges.render_frontend_url = { old: tenant.render_frontend_url || null, new: criticalUpdate.render_frontend_url }
         if (criticalUpdate.render_backend_url) auditChanges.render_backend_url = { old: tenant.render_backend_url || null, new: criticalUpdate.render_backend_url }
         if (criticalUpdate.database_url) auditChanges.database_url = { old: tenant.database_url ? '***masked***' : null, new: '***masked***' }
@@ -576,9 +581,27 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
         else console.log('[Deploy] Synced', deployedFeatures.length, 'features to tenant record for', tenant.slug)
       }
 
+      // Optional fields — save separately so a missing column doesn't block critical data.
+      // Saved BEFORE the readiness wait: the website's address is a fact of the deploy, like the CRM's URL above.
+      // It was written only after the wait (up to 30 minutes), so the Factory showed the tenant with no website
+      // address while the site was building — and never, if the Factory restarted during the wait (Run 4).
+      const optionalUpdate: Record<string, any> = {}
+      if (result.siteUrl) optionalUpdate.website_url = result.siteUrl
+      if (result.adsUrl) optionalUpdate.ads_url = result.adsUrl
+      if (result.r2BucketName) optionalUpdate.r2_bucket_name = result.r2BucketName
+
+      // One write per field: these were one update, so a column missing from the live schema
+      // (r2_bucket_name is) failed the whole statement and website_url was never saved — the
+      // tenant's site URL, which the domain-buy return links and the platform read.
+      for (const [field, value] of Object.entries(optionalUpdate)) {
+        const { error: optErr } = await supabase.from('tenants').update({ [field]: value }).eq('id', tenant.id)
+        if (optErr) console.warn('[Deploy] Optional tenant field ' + field + ' failed (non-blocking):', optErr.message)
+      }
+
       // Wait until Render has finished — every service's newest deploy live and every emailed URL answering —
       // before talking to the CRM or telling the owner it is ready (services/deployReadiness.ts). The rows above
-      // are already saved, so a Factory restart during the wait loses only the sync and the email, not the tenant.
+      // are already saved, so a Factory restart during the wait loses only the status, the sync and the email,
+      // not the tenant; a first deploy is then left 'deploying' with its URLs saved (set it Active on the tenant page).
       // Same condition the ready email is sent on (below), so the email is never sent unwaited.
       const webServiceIds = Object.entries(renderServiceIds).filter(([role]) => role !== 'database').map(([, id]) => id)
       if ((result.success || result.deployedUrl || result.apiUrl) && webServiceIds.length) {
@@ -591,6 +614,13 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
         console.log(`[Deploy] Readiness for ${tenant.slug}: ${readiness.ready ? 'READY' : 'NOT READY'} after ${Math.round(readiness.waitedMs / 1000)}s — ${readiness.reason}`,
           JSON.stringify({ services: readiness.services, probes: readiness.probes }))
       }
+
+      // Active now — on the readiness result, at the moment the ready email is sent (below). A wait that timed out
+      // or saw a Render deploy fail still ends here, as the email does: staff see the reason in the log above.
+      const { error: activeErr } = await supabase.from('tenants').update({ status: 'active' }).eq('id', tenant.id)
+      if (activeErr) console.error('[Deploy] Failed to mark tenant active:', activeErr.message)
+      else await logTenantAudit(tenant.id, 'deploy', { status: { old: tenant.status, new: 'active' } }, 'system',
+        `Serving: ${readiness ? (readiness.ready ? 'ready' : 'NOT ready — ' + readiness.reason) : 'no web service to wait for'}`)
 
       // Sync features to the running CRM via HTTP API
       const syncKey = result.factorySyncKey || tenant.factory_sync_key
@@ -612,20 +642,6 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
         } catch (syncErr: any) {
           console.warn('[Deploy] CRM feature sync failed (CRM may still be starting):', syncErr.message)
         }
-      }
-
-      // Optional fields — save separately so a missing column doesn't block critical data
-      const optionalUpdate: Record<string, any> = {}
-      if (result.siteUrl) optionalUpdate.website_url = result.siteUrl
-      if (result.adsUrl) optionalUpdate.ads_url = result.adsUrl
-      if (result.r2BucketName) optionalUpdate.r2_bucket_name = result.r2BucketName
-
-      // One write per field: these were one update, so a column missing from the live schema
-      // (r2_bucket_name is) failed the whole statement and website_url was never saved — the
-      // tenant's site URL, which the domain-buy return links and the platform read.
-      for (const [field, value] of Object.entries(optionalUpdate)) {
-        const { error: optErr } = await supabase.from('tenants').update({ [field]: value }).eq('id', tenant.id)
-        if (optErr) console.warn('[Deploy] Optional tenant field ' + field + ' failed (non-blocking):', optErr.message)
       }
 
       // NOTE (pay-then-deploy, 2026-07): deploys must NEVER create billing.

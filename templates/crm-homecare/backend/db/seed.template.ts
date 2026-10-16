@@ -6,6 +6,7 @@ import {
   serviceCodes, referralSources, serviceLocations, formTemplates,
   helpArticles, denialCodeLookup,
 } from './schema.ts'
+import { ensureSignupOwner } from './signupOwner.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -29,27 +30,17 @@ async function main() {
   }).returning())[0]
   console.log(`Agency: ${agency.name}`)
 
-  // ── ADMIN USER ────────────────────────────────────────
-  // Create admin user only if not already present — never overwrite existing password
-  const [existingAdmin] = await db.select().from(users).where(eq(users.email, '{{ADMIN_EMAIL}}')).limit(1)
-  let admin: typeof existingAdmin
-  if (existingAdmin) {
-    admin = existingAdmin
-    console.log('Admin user already exists - skipping password reset')
-  } else {
-    const passwordHash = '{{HASHED_DEFAULT_PASSWORD}}' // bcrypt hash injected at generation — plaintext never touches the repo
-    admin = (await db.insert(users).values({
-      email: '{{ADMIN_EMAIL}}',
-      passwordHash,
-      firstName: '{{OWNER_FIRST_NAME}}',
-      lastName: '{{OWNER_LAST_NAME}}',
-      role: 'admin',
-      isActive: true,
-      certifications: [],
-      certificationsExpiry: [],
-    }).returning())[0]
-    console.log('Created admin user')
-  }
+  // ── OWNER LOGIN ───────────────────────────────────────
+  // The sign-up login is the agency's OWNER — the one who may restart or change the subscription (db/signupOwner.ts).
+  // It was seeded an 'admin', so the agency had no owner and the person who pays could not restart it (Run 4).
+  // Created only if not already present — never overwrite an existing password.
+  const { user: admin, result: ownerResult } = await ensureSignupOwner(db, users, {
+    email: '{{ADMIN_EMAIL}}',
+    passwordHash: '{{HASHED_DEFAULT_PASSWORD}}', // bcrypt hash injected at generation — plaintext never touches the repo
+    firstName: '{{OWNER_FIRST_NAME}}',
+    lastName: '{{OWNER_LAST_NAME}}',
+  })
+  console.log(ownerResult === 'created' ? 'Created owner login' : ownerResult === 'promoted' ? 'Sign-up login made the agency owner (it had none)' : 'Owner login already exists - password left as set')
 
   const [existingPref] = await db.select().from(notificationPreferences).where(eq(notificationPreferences.userId, admin.id)).limit(1)
   if (!existingPref) {

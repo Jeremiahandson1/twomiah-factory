@@ -34,6 +34,20 @@ function hidePay(user: any, data: any, ownId?: string): any {
 }
 app.use('*', authenticate)
 
+/**
+ * The account owner's login is the owner's (Run 4): it holds the subscription (billing:manage — restart, the Stripe
+ * portal), so an office admin may not reset its password, deactivate it, demote it to admin or rewrite it. Before the
+ * sign-up login was seeded as the owner these doors were harmless; now they would hand an admin the owner's billing.
+ * An owner may change any login, their own included.
+ */
+async function refuseOwnerTarget(c: any, targetId: string | null | undefined): Promise<Response | null> {
+  const actor = c.get('user') as any
+  if (actor?.role === 'owner' || !targetId) return null
+  const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, targetId)).limit(1)
+  if (target?.role !== 'owner') return null
+  return c.json({ error: "The account owner's login can only be changed by the owner.", code: 'owner_only' }, 403)
+}
+
 function toSnake(obj: any): any {
   if (Array.isArray(obj)) return obj.map(toSnake)
   if (obj === null || obj === undefined || typeof obj !== 'object' || obj instanceof Date) return obj
@@ -370,7 +384,11 @@ app.post('/', requireAdmin, async (c) => {
 // PUT /api/caregivers/:id
 app.put('/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
-  const { profile, availability, password, payRate, ...data } = await c.req.json()
+  const ownerOnly = await refuseOwnerTarget(c, id)
+  if (ownerOnly) return ownerOnly
+  // role, the password hash and the row's identity are never written from the body (as POST / does): a role change is
+  // convert-to-admin's, a password is `password` below — and `role: 'owner'` here would mint an owner.
+  const { profile, availability, password, payRate, role: _role, passwordHash: _ph, id: _id, createdAt: _ca, updatedAt: _ua, ...data } = await c.req.json()
   // Map frontend alias payRate → defaultPayRate
   if (payRate !== undefined && data.defaultPayRate === undefined) {
     data.defaultPayRate = String(payRate)
@@ -684,6 +702,8 @@ app.post('/:id/blackout-dates', requireAdminOrSelf('id'), async (c) => {
 // PUT/POST /:id/reset-password — the UI calls both shapes across screens.
 const resetUserPassword = async (c: any) => {
   const id = c.req.param('id')
+  const ownerOnly = await refuseOwnerTarget(c, id)
+  if (ownerOnly) return ownerOnly
   const { password } = await c.req.json()
   if (!password || password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400)
   const passwordHash = await Bun.password.hash(password, 'bcrypt')
@@ -697,6 +717,9 @@ app.post('/:id/reset-password', requireAdmin, resetUserPassword)
 app.post('/convert-to-admin', requireAdmin, async (c) => {
   const { userId } = await c.req.json()
   if (!userId) return c.json({ error: 'userId required' }, 400)
+  // "Make Admin" is for a caregiver; on the owner it would be a demotion (and the agency would lose its owner).
+  const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1)
+  if (target?.role === 'owner') return c.json({ error: 'The account owner is already in the office — they cannot be made an admin.', code: 'owner_only' }, 403)
   const [updated] = await db.update(users)
     .set({ role: 'admin', updatedAt: new Date() })
     .where(eq(users.id, userId))
@@ -708,6 +731,8 @@ app.post('/convert-to-admin', requireAdmin, async (c) => {
 // PATCH /api/caregivers/:id/toggle-active
 app.patch('/:id/toggle-active', requireAdmin, async (c) => {
   const id = c.req.param('id')
+  const ownerOnly = await refuseOwnerTarget(c, id)
+  if (ownerOnly) return ownerOnly
 
   const [user] = await db
     .select({ isActive: users.isActive })
