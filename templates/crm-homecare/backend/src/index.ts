@@ -11,6 +11,8 @@ import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import { eq } from 'drizzle-orm'
 import { agencies, users } from '../db/schema.ts'
+import { timingSafeEqual } from 'node:crypto'
+import { setAgencyFeatures } from './services/agencyFeatures.ts'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
@@ -360,16 +362,15 @@ app.route('/api/route-optimizer', optimizerRoutes)
 app.post('/api/internal/sync-features', async (c) => {
   const syncKey = process.env.FACTORY_SYNC_KEY
   if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
-  const authHeader = c.req.header('X-Factory-Key')
-  if (authHeader !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const authHeader = c.req.header('X-Factory-Key') || ''
+  if (authHeader.length !== syncKey.length || !timingSafeEqual(Buffer.from(authHeader), Buffer.from(syncKey))) return c.json({ error: 'Unauthorized' }, 401)
   const { features } = await c.req.json()
   if (!Array.isArray(features)) return c.json({ error: 'features must be an array' }, 400)
-  const [agency] = await db.select().from(agencies).limit(1)
+  // BOTH fields (services/agencyFeatures.ts). This wrote settings.enabledFeatures alone, so the column the API gate
+  // and Settings › Features read never heard what the Factory sold. (10/16)
+  const agency = await setAgencyFeatures(null, features)
   if (!agency) return c.json({ error: 'No agency found' }, 404)
-  const currentSettings = (agency.settings || {}) as Record<string, any>
-  currentSettings.enabledFeatures = features
-  await db.update(agencies).set({ settings: currentSettings }).where(eq(agencies.id, agency.id))
-  return c.json({ success: true, features })
+  return c.json({ success: true, features: agency.enabledFeatures })
 })
 
 // Path A++ — seed CRM owner with credentials matching the premium

@@ -5,6 +5,7 @@ import { agencies, users } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { isValidTimezone, resolveTimezone } from '../services/agencyTime.ts'
 import { parseMileageRate, MILEAGE_RATE_REFUSAL } from '../services/mileageRate.ts'
+import { setAgencyFeatures } from '../services/agencyFeatures.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -71,15 +72,9 @@ app.put('/features', requireAdmin, async (c) => {
   if (!Array.isArray(features) || features.some((f) => typeof f !== 'string')) {
     return c.json({ error: 'features must be an array of feature ids' }, 400)
   }
-  const [existing] = await db.select().from(agencies).limit(1)
-  if (!existing) return c.json({ error: 'Agency not found' }, 404)
-  let settings = existing.settings || {}
-  if (typeof settings === 'string') { try { settings = JSON.parse(settings) } catch { settings = {} } }
-  const [agency] = await db
-    .update(agencies)
-    .set({ enabledFeatures: features, settings: { ...settings, enabledFeatures: features }, updatedAt: new Date() })
-    .where(eq(agencies.id, existing.id))
-    .returning()
+  // The one writer (services/agencyFeatures.ts): both fields, and the API gate's cache dropped.
+  const agency = await setAgencyFeatures(null, features)
+  if (!agency) return c.json({ error: 'Agency not found' }, 404)
   return c.json(sanitizeCompany(agency))
 })
 

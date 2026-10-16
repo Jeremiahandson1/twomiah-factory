@@ -179,8 +179,21 @@ const NAV_SECTIONS = [
 // All searchable items flattened
 const ALL_ITEMS = NAV_SECTIONS.flatMap(s => s.items);
 
+/**
+ * Items that belong to a switchable feature — shown in the sidebar, the mobile drawer and search only when the
+ * agency has it, and refused at the page when it does not. The API is gated the same way (requireEnabledFeature
+ * on its router), so a hidden item is not an open API, and an open item is not a 403. (10/16)
+ */
+const FEATURE_FOR_ITEM: Record<string, string> = {
+  'ai-receptionist': 'ai_receptionist',
+};
+
 const AdminDashboard = ({ onLogout, onImpersonate }) => {
-  const { user, token, company } = useAuth();
+  const { user, token, company, hasFeature } = useAuth();
+  const itemAllowed = (id: string) => !FEATURE_FOR_ITEM[id] || hasFeature(FEATURE_FOR_ITEM[id]);
+  const navSections = NAV_SECTIONS
+    .map(sec => ({ ...sec, items: sec.items.filter(i => itemAllowed(i.id)) }))
+    .filter(sec => sec.items.length > 0);
   // M-04: seed the section from the URL hash so sections are deep-linkable and
   // the browser back button works, instead of the URL never changing.
   const [currentPage, setCurrentPage] = useState(() => {
@@ -222,10 +235,10 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
     if (!searchQuery.trim()) { setSearchResults([]); return; }
     const q = searchQuery.toLowerCase();
     const results = ALL_ITEMS.filter(item =>
-      item.label.toLowerCase().includes(q)
+      itemAllowed(item.id) && item.label.toLowerCase().includes(q)
     );
     setSearchResults(results);
-  }, [searchQuery]);
+  }, [searchQuery, company]);
 
   useEffect(() => {
     // Close search on outside click
@@ -315,6 +328,15 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
     // billing/subscription-pricing to add a payment method and unlock.
     if (trialExpired && currentPage !== 'subscription-pricing') {
       return <PaywallPage onUpgrade={() => setCurrentPage('subscription-pricing')} />;
+    }
+
+    // A feature page reached by its address (#ai-receptionist) while the feature is off says so and stays put.
+    if (FEATURE_FOR_ITEM[currentPage] && !itemAllowed(currentPage)) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <p className="text-gray-600 dark:text-slate-400">{company ? 'This module is not enabled for your agency.' : 'Loading…'}</p>
+        </div>
+      );
     }
 
     switch (currentPage) {
@@ -410,7 +432,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
         </div>
 
         <ul className="sidebar-nav" style={{ paddingBottom: '1rem' }}>
-          {NAV_SECTIONS.map(section => {
+          {navSections.map(section => {
             const isCollapsed = collapsedSections[section.id];
             const hasActive = section.items.some(i => i.id === currentPage);
             return (
@@ -622,7 +644,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
           {/* More Drawer */}
           <div className={`mobile-more-drawer ${moreDrawerOpen ? 'open' : ''}`}>
             <div className="mobile-more-drawer-handle" />
-            {NAV_SECTIONS.map(section => (
+            {navSections.map(section => (
               <div key={section.id} className="mobile-more-drawer-section">
                 <div className="mobile-more-drawer-section-title">{section.icon} {section.label}</div>
                 {section.items.map(item => (

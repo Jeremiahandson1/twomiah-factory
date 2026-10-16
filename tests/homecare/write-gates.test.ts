@@ -474,7 +474,8 @@ delete process.env.STRIPE_SECRET_KEY
 await setupSchema()
 const q = async (s: any) => { const r: any = await db.execute(s); return (r?.rows ?? r) as any[] }
 
-const [ag] = await db.insert(agencies).values({ name: 'Gates Care', slug: 'gates', state: 'WI', timezone: 'UTC' } as any).returning()
+// ai_receptionist on: the AI Receptionist router is feature-gated (10/16); this agency is one that has it.
+const [ag] = await db.insert(agencies).values({ name: 'Gates Care', slug: 'gates', state: 'WI', timezone: 'UTC', enabledFeatures: ['ai_receptionist'] } as any).returning()
 const mkUser = async (role: string, tag: string) => (await db.insert(users).values({
   email: `${tag}-gates@test.local`, passwordHash: 'x', firstName: tag, lastName: 'Tester', role,
 } as any).returning())[0]

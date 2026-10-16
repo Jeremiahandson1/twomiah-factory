@@ -154,6 +154,7 @@ export { formatPhoneE164, parseTwilioBody, verifyTwilioRequest, twilioSignatureF
 // Provider webhook signatures (every /webhook/ POST must call one — scripts/check-provider-webhooks-signed.ts)
 export { verifyCallRailSignature, callRailSignatureFor, mapCallRailPayload } from './integrations/callrail'
 export { refuseUnverifiedWebhook, verifyWebhookSecret } from './integrations/webhookAuth'
+export { aiRuleFields, aiRuleCreateSchema, aiRuleUpdateSchema, aiSettingsSchema, AI_RULE_TRIGGERS, AI_RULE_CHANNELS } from './integrations/aiReceptionistSchemas'
 export { verifyPlaidWebhook, plaidKeyFetcher } from './integrations/plaid'
 export type { PlaidKeyFetcher } from './integrations/plaid'
 export { createIntegrationsRoutes } from './integrations/integrations'

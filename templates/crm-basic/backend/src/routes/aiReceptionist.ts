@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireEnabledFeature } from '../middleware/enabledFeature.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import aiReceptionist from '../services/aiReceptionist.ts'
+import { aiRuleCreateSchema, aiRuleUpdateSchema, aiSettingsSchema } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
@@ -79,18 +80,21 @@ app.get('/rules', requirePermission('ai-receptionist:read'), async (c) => {
   return c.json({ data: rules })
 })
 
+// Rule and settings bodies: the ONE shared schema (packages/tenant-backend/src/integrations/aiReceptionistSchemas.ts).
+// A malformed create is a 400 naming the field, not a NOT NULL 500; unknown keys are dropped before the service,
+// which keeps only RULE_FIELDS / SETTINGS_FIELDS on top. (10/16)
 app.post('/rules', requirePermission('ai-receptionist:create'), async (c) => {
   const user = c.get('user') as any
-  const body = await c.req.json()
-  const rule = await aiReceptionist.createRule(user.companyId, body)
+  const body = aiRuleCreateSchema.parse(await c.req.json())
+  const rule = await aiReceptionist.createRule(user.companyId, body as any)
   return c.json(rule, 201)
 })
 
 app.put('/rules/:id', requirePermission('ai-receptionist:update'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
-  const body = await c.req.json()
-  const rule = await aiReceptionist.updateRule(id, user.companyId, body)
+  const body = aiRuleUpdateSchema.parse(await c.req.json())
+  const rule = await aiReceptionist.updateRule(id, user.companyId, body as any)
   if (!rule) return c.json({ error: 'Rule not found' }, 404)
   return c.json(rule)
 })
@@ -112,8 +116,8 @@ app.get('/settings', requirePermission('ai-receptionist:read'), async (c) => {
 
 app.put('/settings', requirePermission('ai-receptionist:update'), async (c) => {
   const user = c.get('user') as any
-  const body = await c.req.json()
-  const settings = await aiReceptionist.upsertSettings(user.companyId, body)
+  const body = aiSettingsSchema.parse(await c.req.json())
+  const settings = await aiReceptionist.upsertSettings(user.companyId, body as any)
   return c.json(settings)
 })
 

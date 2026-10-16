@@ -12,17 +12,28 @@ import { eq } from 'drizzle-orm'
 export interface EnabledFeatureDeps {
   db: any
   tables: { company: any }
+  /**
+   * Also read settings.enabledFeatures and take the union. crm-homecare only: until 10/16 its Factory sync wrote the
+   * list into the settings blob alone while Settings › Features wrote both, so an agency's features can sit in either
+   * field — and the screens (AuthContext.hasFeature) already read both. A gate reading the column alone would lock a
+   * paying agency out of what the Factory sold it. The sync now writes both; this keeps the rows it has not reached yet.
+   */
+  readSettingsBlob?: boolean
 }
 
-export function createEnabledFeatureGate({ db, tables: { company } }: EnabledFeatureDeps) {
+export function createEnabledFeatureGate({ db, tables: { company }, readSettingsBlob = false }: EnabledFeatureDeps) {
   const cache = new Map<string, { at: number; list: string[] }>()
 
   /** The tenant's enabled feature ids, cached for 15 s per company. */
   async function enabledFeaturesFor(companyId: string): Promise<string[]> {
     const hit = cache.get(companyId)
     if (hit && Date.now() - hit.at < 15_000) return hit.list
-    const [co] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
-    const list = Array.isArray(co?.enabledFeatures) ? (co!.enabledFeatures as string[]) : []
+    const [co] = await db.select(readSettingsBlob ? { enabledFeatures: company.enabledFeatures, settings: company.settings } : { enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
+    const column = Array.isArray(co?.enabledFeatures) ? (co!.enabledFeatures as string[]) : []
+    let blob: unknown = readSettingsBlob ? (co as any)?.settings : null
+    if (typeof blob === 'string') { try { blob = JSON.parse(blob) } catch { blob = null } }
+    const fromBlob = Array.isArray((blob as any)?.enabledFeatures) ? ((blob as any).enabledFeatures as unknown[]).filter((x): x is string => typeof x === 'string') : []
+    const list = readSettingsBlob ? [...new Set([...column, ...fromBlob])] : column
     cache.set(companyId, { at: Date.now(), list })
     return list
   }

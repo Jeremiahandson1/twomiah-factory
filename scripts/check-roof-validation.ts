@@ -141,16 +141,19 @@ for (const t of terminal) {
 
 // ── M1: receptionist rules ────────────────────────────────────────────────────────────────────────
 {
+  // Since 10/16 roof's schema is the ONE shared one every AI-receptionist template uses
+  // (packages/tenant-backend/src/integrations/aiReceptionistSchemas.ts; fleet-wide: check-ai-receptionist-bodies.ts).
   const ai = read(B + 'routes/aiReceptionist.ts')
-  if (!/const ruleFields = z\.object\(/.test(ai))
+  const schema = read('packages/tenant-backend/src/integrations/aiReceptionistSchemas.ts')
+  if (!/export const aiRuleFields = z\.object\(/.test(schema))
     fail('receptionist rules were handed to the database unvalidated — four junk inputs stored, two came back as 500s that were really NOT NULL violations (M1)')
-  if (!/trigger: z\.enum\(\[/.test(ai) || !/channel: z\.enum\(\[/.test(ai))
+  if (!/trigger: z\.enum\(AI_RULE_TRIGGERS\)/.test(schema) || !/channel: z\.enum\(AI_RULE_CHANNELS\)/.test(schema))
     fail('…a rule with an unknown trigger or channel simply never fires')
-  if (!/const body = ruleSchema\.parse/.test(ai))
+  if (!/const body = aiRuleCreateSchema\.parse/.test(ai))
     fail('…and the create route must use it')
   // the object and the cross-field rule stay apart: superRefine returns a ZodEffects with no
   // `.partial()`, so folding them together makes the edit route throw at runtime
-  if (!/const body = ruleFields\.partial\(\)\.parse/.test(ai))
+  if (!/export const aiRuleUpdateSchema = aiRuleFields\.partial\(\)/.test(schema) || !/const body = aiRuleUpdateSchema\.parse/.test(ai))
     fail('…while the edit route partials the plain object, not the refined one')
 }
 

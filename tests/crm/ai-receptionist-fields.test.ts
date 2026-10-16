@@ -53,6 +53,33 @@ const mine = await db.select().from(aiReceptionistSettings).where(eq(aiReception
 const theirs = await db.select().from(aiReceptionistSettings).where(eq(aiReceptionistSettings.companyId, other.id))
 check('settings: the update lands and stays this company\'s', s2.status === 200 && mine[0]?.greetingText === 'Moved?' && theirs.length === 0, { mine, theirs })
 
+console.log('\n══════════ a malformed body is a 400 naming the field, not a 500 (10/16) ══════════')
+{
+  const bad: Array<[string, string, string, unknown]> = [
+    ['no message', 'POST', '/api/ai-receptionist/rules', { name: 'x', trigger: 'missed_call', channel: 'sms' }],
+    ['no name', 'POST', '/api/ai-receptionist/rules', { trigger: 'missed_call', channel: 'sms', messageTemplate: 'x' }],
+    ['a trigger that never fires', 'POST', '/api/ai-receptionist/rules', { name: 'x', trigger: 'sometimes', channel: 'sms', messageTemplate: 'x' }],
+    ['a channel that does not exist', 'POST', '/api/ai-receptionist/rules', { name: 'x', trigger: 'missed_call', channel: 'fax', messageTemplate: 'x' }],
+    ['a keyword rule with no keyword', 'POST', '/api/ai-receptionist/rules', { name: 'x', trigger: 'keyword', channel: 'sms', messageTemplate: 'x' }],
+    ['a negative delay', 'POST', '/api/ai-receptionist/rules', { name: 'x', trigger: 'missed_call', channel: 'sms', messageTemplate: 'x', delayMinutes: -5 }],
+    ['an edit to a blank message', 'PUT', `/api/ai-receptionist/rules/${id}`, { messageTemplate: '   ' }],
+    ['office hours that are not HH:MM', 'PUT', '/api/ai-receptionist/settings', { businessHoursStart: '9am' }],
+    ['isEnabled as a string', 'PUT', '/api/ai-receptionist/settings', { isEnabled: 'yes' }],
+  ]
+  const before = (await db.select().from(aiReceptionistRule).where(eq(aiReceptionistRule.companyId, co.id))).length
+  for (const [what, m, p, b] of bad) {
+    const r = await api(m, p, b)
+    check(`${what} → 400`, r.status === 400, { status: r.status, body: r.text?.slice(0, 160) })
+  }
+  check('…and none of them wrote a rule', (await db.select().from(aiReceptionistRule).where(eq(aiReceptionistRule.companyId, co.id))).length === before)
+  const ok = await api('POST', '/api/ai-receptionist/rules', { name: 'Keyword', trigger: 'keyword', channel: 'both', messageTemplate: 'On our way', keywordMatch: 'urgent', delayMinutes: 0 })
+  check('a whole, valid rule still creates (201)', ok.status === 201 && ok.json?.keywordMatch === 'urgent', ok.json)
+  const toggle = await api('PUT', `/api/ai-receptionist/rules/${ok.json?.id}`, { isActive: false })
+  check('the screens\' one-field toggle still saves', toggle.status === 200 && toggle.json?.isActive === false, toggle.json)
+  const hours = await api('PUT', '/api/ai-receptionist/settings', { businessHoursStart: '08:00', businessHoursEnd: '17:30' })
+  check('valid office hours save', hours.status === 200 && hours.json?.businessHoursEnd === '17:30', hours.json)
+}
+
 console.log('\n══════════ the same shape in every template that carries this service ══════════')
 const ROOT = (process.env.FACTORY_ROOT || '') + 'templates/'
 for (const t of ['crm', 'crm-basic', 'crm-fieldservice', 'crm-homecare', 'crm-landscaping', 'crm-roof', 'crm-rv', 'crm-salon', 'crm-vet']) {

@@ -23,7 +23,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 }
 
 await setupSchema()
-const [ag] = await db.insert(agencies).values({ name: 'Receptionist Care', slug: 'receptionist-care' } as any).returning()
+const [ag] = await db.insert(agencies).values({ name: 'Receptionist Care', slug: 'receptionist-care', enabledFeatures: ['ai_receptionist'] } as any).returning()
 const [other] = await db.insert(agencies).values({ name: 'Other Agency', slug: 'other-agency' } as any).returning()
 const mk = async (role: string) => (await db.insert(users).values({ email: `${role}-air@test.local`, passwordHash: 'x', firstName: role, lastName: 'A', role } as any).returning())[0]
 const owner = await mk('owner'), admin = await mk('admin'), caregiver = await mk('caregiver')
@@ -153,6 +153,70 @@ console.log('\n══════════ the mounted screen sends only what
   check('no localStorage token read in the screen', !/localStorage/.test(page))
   check('Admin › AI Receptionist mounts this screen', /case 'ai-receptionist': return <AiReceptionistPage \/>/.test(dash) && /import AiReceptionistPage from '\.\.\/pages\/AiReceptionistPage'/.test(dash))
   check('the unmounted snake_case screen is gone, and nothing imports it', !/admin\/AIReceptionist'/.test(dash))
+}
+
+console.log('\n══════════ the ai_receptionist feature gates the router — both fields read, webhooks still open (10/16) ══════════')
+{
+  const { setAgencyFeatures } = await import('./src/services/agencyFeatures.ts')
+  const { forgetFeatures } = await import('./src/middleware/enabledFeature.ts')
+  const mkAg = async (slug: string, extra: any) => (await db.insert(agencies).values({ name: slug, slug, ...extra } as any).returning())[0]
+  const asIn = (agency: any) => async (method: string, path: string, body?: unknown) => {
+    const res = await app.request(path, { method, headers: { 'content-type': 'application/json', 'x-test-user': admin.id, 'x-test-company': agency.id, 'x-test-role': 'admin' }, body: body === undefined ? undefined : JSON.stringify(body) })
+    const t = await res.text(); let j: any = t; try { j = JSON.parse(t) } catch {}
+    return { status: res.status, json: j }
+  }
+  const off = await mkAg('air-off', { enabledFeatures: ['contacts', 'scheduling'] })
+  for (const [m, p] of [['GET', `${R}/rules`], ['POST', `${R}/rules`], ['GET', `${R}/settings`], ['PUT', `${R}/settings`]] as const) {
+    const r = await asIn(off)(m, p, m === 'GET' ? undefined : { name: 'x', trigger: 'missed_call', channel: 'sms', messageTemplate: 'x' })
+    check(`feature off: ${m} ${p} → 403 FEATURE_NOT_ENABLED`, r.status === 403 && r.json?.code === 'FEATURE_NOT_ENABLED', r)
+  }
+  // 547-style row: the Factory's sync wrote settings.enabledFeatures only; the column was never set.
+  const blobOnly = await mkAg('air-blob', { enabledFeatures: [], settings: { enabledFeatures: ['ai_receptionist', 'contacts'] } })
+  const b = await asIn(blobOnly)('GET', `${R}/rules`)
+  check('the feature only in settings.enabledFeatures (how the Factory sync wrote it) → allowed, not locked out', b.status === 200 && Array.isArray(b.json?.data), b)
+  const colOnly = await mkAg('air-col', { enabledFeatures: ['ai_receptionist'], settings: {} })
+  check('the feature only in the column (Settings › Features, the in-CRM billing) → allowed', (await asIn(colOnly)('GET', `${R}/rules`)).status === 200)
+  // the Twilio webhooks are above the gate: a call to an agency with the feature off is still received (signature-checked)
+  const hook = await app.request(`${R}/webhook/status/${off.id}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'CallSid=CA1&CallStatus=completed' })
+  check('feature off: the Twilio status webhook is still reachable (not 403 FEATURE_NOT_ENABLED)', hook.status === 200, { status: hook.status })
+
+  // ONE writer: both fields, and the gate hears it at once (cache dropped)
+  const sw = await mkAg('air-switch', { enabledFeatures: ['ai_receptionist'], settings: { enabledFeatures: ['ai_receptionist'], other: 'kept' } })
+  check('switch: on before', (await asIn(sw)('GET', `${R}/rules`)).status === 200)
+  await setAgencyFeatures(sw.id, ['contacts'])
+  const [row] = await db.select().from(agencies).where(eq(agencies.id, sw.id))
+  check('setAgencyFeatures writes the column AND the settings blob, and keeps the rest of the blob', JSON.stringify(row.enabledFeatures) === '["contacts"]' && JSON.stringify((row.settings as any)?.enabledFeatures) === '["contacts"]' && (row.settings as any)?.other === 'kept', row)
+  check('…and the gate refuses on the very next request (no 15 s stale cache)', (await asIn(sw)('GET', `${R}/rules`)).status === 403)
+  await setAgencyFeatures(sw.id, ['contacts', 'ai_receptionist'])
+  check('…switched back on, allowed at once', (await asIn(sw)('GET', `${R}/rules`)).status === 200)
+  forgetFeatures()
+
+  // the writers really are that one writer — static, since index.ts boots a server and cannot be imported here
+  const SRC = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'
+  const idx = readFileSync(SRC + 'backend/src/index.ts', 'utf8')
+  const syncAt = idx.indexOf("app.post('/api/internal/sync-features'")
+  const syncBody = idx.slice(syncAt, idx.indexOf('\n})', syncAt))
+  check('the Factory sync-features route writes through setAgencyFeatures (both fields)', syncAt > 0 && /setAgencyFeatures\(/.test(syncBody) && !/currentSettings\.enabledFeatures\s*=/.test(syncBody), syncBody.slice(0, 300))
+  check('…and checks X-Factory-Key in constant time', /timingSafeEqual\(/.test(syncBody))
+  const comp = readFileSync(SRC + 'backend/src/routes/company.ts', 'utf8')
+  const bill = readFileSync(SRC + 'backend/src/services/billing.ts', 'utf8')
+  const strays = [['routes/company.ts', comp], ['services/billing.ts', bill], ['index.ts', idx]].filter(([, s]) => /\.set\(\{[^}]*enabledFeatures/.test(s as string))
+  check('no other writer sets enabledFeatures directly (company.ts, billing.ts, index.ts)', strays.length === 0, strays.map(([f]) => f))
+  check('billing.ts writes its tier features through setAgencyFeatures (4 places)', (bill.match(/setAgencyFeatures\(/g) || []).length === 4)
+  const gateSrc = readFileSync(SRC + 'backend/src/middleware/enabledFeature.ts', 'utf8')
+  check('the gate reads both fields (readSettingsBlob: true)', /readSettingsBlob: true/.test(gateSrc))
+  const routeSrc = readFileSync(SRC + 'backend/src/routes/aiReceptionist.ts', 'utf8')
+  const gateAt = routeSrc.indexOf("app.use('*', requireEnabledFeature('ai_receptionist'))")
+  check('the router gate sits below every webhook and above every other route', gateAt > routeSrc.lastIndexOf("'/webhook/") && gateAt < routeSrc.indexOf("app.get('/rules'"), { gateAt })
+
+  console.log('\n══════════ the nav follows the feature (static) ══════════')
+  const dash = readFileSync(SRC + 'frontend/src/components/AdminDashboard.tsx', 'utf8')
+  check('AI Receptionist is a feature item (FEATURE_FOR_ITEM)', /'ai-receptionist': 'ai_receptionist'/.test(dash))
+  check('the sidebar and the mobile drawer both list navSections (filtered), never NAV_SECTIONS', (dash.match(/\{navSections\.map\(/g) || []).length === 2 && !/\{NAV_SECTIONS\.map\(/.test(dash))
+  check('search offers only allowed items', /itemAllowed\(item\.id\) && item\.label/.test(dash))
+  check('the page itself refuses a feature item that is off (reached by #ai-receptionist)', /if \(FEATURE_FOR_ITEM\[currentPage\] && !itemAllowed\(currentPage\)\)/.test(dash))
+  const ctx = readFileSync(SRC + 'frontend/src/contexts/AuthContext.tsx', 'utf8')
+  check('the screens\' hasFeature reads both fields too — the same answer as the gate', /company\?\.enabledFeatures\?\.includes\(featureId\)/.test(ctx) && /settings\.enabledFeatures\?\.includes\(featureId\)/.test(ctx))
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

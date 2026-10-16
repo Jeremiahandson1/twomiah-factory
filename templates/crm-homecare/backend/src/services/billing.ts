@@ -28,6 +28,7 @@ import { agencies as company } from '../../db/schema.ts';
 import { eq, sql } from 'drizzle-orm';
 import { SAAS_TIERS, SELF_HOSTED_PACKAGES, SELF_HOSTED_ADDONS, FEATURE_BUNDLES, calculateUserPrice } from '../config/pricing.ts';
 import { notFound } from '../utils/errors.ts'
+import { setAgencyFeatures } from './agencyFeatures.ts'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -152,13 +153,8 @@ export async function createSubscription(companyId: string, {
   `);
 
   // Update company with enabled features
-  await db.update(company)
-    .set({
-      enabledFeatures: tier.features,
-      subscriptionTier: tierId,
-      updatedAt: new Date(),
-    })
-    .where(eq(company.id, companyId));
+  // Both feature fields, through the one writer (services/agencyFeatures.ts) — this wrote the column alone.
+  await setAgencyFeatures(companyId, tier.features, { subscriptionTier: tierId });
 
   return { stripeSubscription };
 }
@@ -231,13 +227,7 @@ export async function changeTier(companyId: string, newTierId: string, { immedia
     WHERE id = ${subscription.id}
   `);
 
-  await db.update(company)
-    .set({
-      enabledFeatures: newTier.features,
-      subscriptionTier: newTierId,
-      updatedAt: new Date(),
-    })
-    .where(eq(company.id, companyId));
+  await setAgencyFeatures(companyId, newTier.features, { subscriptionTier: newTierId });
 
   return { success: true };
 }
@@ -337,14 +327,7 @@ export async function processOneTimePurchase(companyId: string, {
     throw new Error('Payment failed');
   }
 
-  await db.update(company)
-    .set({
-      enabledFeatures,
-      subscriptionTier: packageId,
-      lifetimeAccess: true,
-      updatedAt: new Date(),
-    })
-    .where(eq(company.id, companyId));
+  await setAgencyFeatures(companyId, enabledFeatures, { subscriptionTier: packageId, lifetimeAccess: true });
 
   return { success: true, paymentIntent };
 }
@@ -627,13 +610,7 @@ async function handleSubscriptionDeleted(stripeSubscription: any) {
     `);
 
     const tier = (SAAS_TIERS as any).starter;
-    await db.update(company)
-      .set({
-        enabledFeatures: tier.features,
-        subscriptionTier: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(company.id, subscription.company_id));
+    await setAgencyFeatures(subscription.company_id, tier.features, { subscriptionTier: null });
   }
 }
 
