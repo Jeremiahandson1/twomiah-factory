@@ -2338,6 +2338,9 @@ jobs:
         run: bun run tests/shared/domain-quote.test.ts
       - name: "The bill stays with the owner; a paid shop never locks a manager out (T60)"
         run: bun run tests/shared/billing-visibility.test.ts
+      # dependency-free like the ones above: node:crypto only, the package index read as text
+      - name: "CallRail, Twilio and Plaid webhook signatures — CallRail's official test vector included"
+        run: bun run tests/shared/webhook-signatures.test.ts
       # happy-dom, so this needs the root dev dependencies — the two above are dependency-free.
       - name: "The cart keeps a shopper's email and reward across a re-render"
         run: bun install --frozen-lockfile && bun run tests/shared/cart-dom.test.ts
@@ -2754,6 +2757,17 @@ jobs:
           bun-version: latest
       - name: "check authenticate runs before authorize"
         run: bun run scripts/check-authenticate-runs-before-authorize.ts
+
+  provider-webhooks-signed:
+    name: "A provider webhook proves who sent it before it writes anything"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check provider webhooks signed"
+        run: bun run scripts/check-provider-webhooks-signed.ts
 
   roof-write-controls-ask-permission:
     name: "A crm-roof screen that writes asks whether this person may"

@@ -65,7 +65,8 @@ export interface CompanyDeps {
 /** How long an emailed invite link works. The teamInvite email says so: "This invitation expires in 7 days." */
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-export const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword'] as const
+// callrailSigningKey: the CallRail webhook signing key (Call Tracking › Settings). Write-only — the screen is told "set" / "not set".
+export const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword', 'callrailSigningKey'] as const
 export function sanitizeCompany<T extends Record<string, any>>(row: T): T {
   if (!row) return row
   const clone: any = { ...row }

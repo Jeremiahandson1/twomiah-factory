@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { lead, agencies } from '../../db/schema.ts'
 import logger from '../services/logger.ts'
+import { verifyWebhookSecret } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -13,7 +14,8 @@ function verifyWebhook(c: any): boolean {
     process.env.FACTORY_SYNC_KEY,
   ].filter(Boolean)
   if (!allowed.length || !secret) return false
-  return allowed.includes(secret)
+  // constant-time, as every other secret check here (was allowed.includes(secret)). (10/15)
+  return allowed.some((k) => verifyWebhookSecret(secret, k))
 }
 
 // POST /api/webhooks/leads - receive leads from website contact forms

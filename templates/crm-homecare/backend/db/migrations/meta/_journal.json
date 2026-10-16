@@ -162,6 +162,13 @@
       "when": 1791487400000,
       "tag": "0023_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791487400001,
+      "tag": "0024_callrail_signing_key",
+      "breakpoints": true
     }
   ]
 }

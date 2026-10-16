@@ -8,33 +8,29 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { verifyFactoryKey, readInboundBody } from '../shared/index.ts'
 
 const app = new Hono()
 
 // ─── Public Inbound Endpoints (no auth) ────────────────────────────────────────
 
 app.post('/inbound/email', async (c) => {
-  // This endpoint receives forwarded lead notification emails
-  // No auth — identified by the To address which contains the company ID
-  const body = await c.req.json()
+  // Lead-source email, posted by the Factory's inbound-parse router as {platform, from, subject, text, html}
+  // with X-Factory-Key — the same door, and now the same timing-safe check, as the shared leads module
+  // (verifyFactoryKey). Until 10/15 this fork took the email from ANYONE, and matched a `to` address the
+  // Factory never sends (leads+…@inbound.twomiah.com, a domain with no DNS), so real lead email 400'd.
+  const fk = verifyFactoryKey(c)
+  if (!fk.ok) return c.json({ error: fk.error }, fk.status)
+  const body = await readInboundBody(c)
+  if (!body) return c.json({ error: 'Invalid body' }, 400)
+  // The Factory already resolved the tenant from the recipient address; this backend holds one company.
+  const platform = String(body.platform || '')
+  if (!/^[a-z][a-z0-9_]{1,30}$/.test(platform)) return c.json({ error: 'Invalid lead platform' }, 400)
+  const [source] = await db.select().from(leadSource)
+    .where(and(eq(leadSource.platform, platform), eq(leadSource.enabled, true))).limit(1)
+  if (!source) return c.json({ error: 'Source not found or disabled' }, 404)
 
-  const { to, from, subject, text, html } = body
-
-  // Extract company ID from inbound email: leads+{companyIdPrefix}-{platform}@inbound.twomiah.com
-  const toMatch = (to || '').match(/leads\+([a-z0-9]+)-([a-z_]+)@/)
-  if (!toMatch) return c.json({ error: 'Invalid inbound address' }, 400)
-
-  const companyIdPrefix = toMatch[1]
-  const platform = toMatch[2]
-
-  // Find company by ID prefix
-  const companies = await db.select().from(leadSource)
-    .where(eq(leadSource.platform, platform))
-  const source = companies.find(s => s.companyId.startsWith(companyIdPrefix))
-  if (!source || !source.enabled) return c.json({ error: 'Source not found or disabled' }, 404)
-
-  // Parse lead details based on platform
-  const parsed = parseLeadEmail(platform, subject || '', text || '', html || '')
+  const parsed = parseLeadEmail(platform, String(body.subject || ''), String(body.text || ''), String(body.html || ''))
 
   const [newLead] = await db.insert(lead).values({
     id: createId(),
@@ -59,30 +55,17 @@ app.post('/inbound/email', async (c) => {
 
 app.post('/inbound/webhook/:source', async (c) => {
   const sourcePlatform = c.req.param('source')
-  const body = await c.req.json()
-
-  // Verify webhook secret if provided
-  const secret = c.req.header('x-webhook-secret') || c.req.query('secret')
-
-  // Find matching source by webhook secret
-  let source: any = null
-  if (secret) {
-    const [found] = await db.select().from(leadSource)
-      .where(and(eq(leadSource.platform, sourcePlatform), eq(leadSource.webhookSecret, secret)))
-      .limit(1)
-    source = found
-  } else {
-    // For platforms that don't support secrets, use company_id from query
-    const companyId = c.req.query('company_id')
-    if (companyId) {
-      const [found] = await db.select().from(leadSource)
-        .where(and(eq(leadSource.platform, sourcePlatform), eq(leadSource.companyId, companyId)))
-        .limit(1)
-      source = found
-    }
-  }
-
+  // The source's own secret, always (?secret= or x-webhook-secret — both on the Lead Sources page), as the
+  // shared leads module asks. The ?company_id= fallback "for platforms that don't support secrets" accepted
+  // the lead from anyone who knew the company id; it is gone. (10/15)
+  const secret = String(c.req.header('x-webhook-secret') || c.req.query('secret') || '')
+  if (!secret) return c.json({ error: 'Missing webhook secret (send ?secret= or the x-webhook-secret header — both are on the Lead Sources page)' }, 401)
+  const [source] = await db.select().from(leadSource)
+    .where(and(eq(leadSource.platform, sourcePlatform), eq(leadSource.webhookSecret, secret)))
+    .limit(1)
   if (!source || !source.enabled) return c.json({ error: 'Source not found or disabled' }, 404)
+  const body = await readInboundBody(c)
+  if (!body) return c.json({ error: 'Body must be JSON or form-encoded' }, 400)
 
   const parsed = parseWebhookPayload(sourcePlatform, body)
 

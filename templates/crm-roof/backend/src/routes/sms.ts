@@ -6,7 +6,7 @@ import { eq, and, desc, or, like } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { sendSms } from '../services/sms.ts'
-import { withoutPortalCredential } from '../shared/index.ts'
+import { withoutPortalCredential, parseTwilioBody, verifyTwilioRequest, refuseUnverifiedWebhook } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -35,20 +35,28 @@ app.post('/send', authenticate, requirePermission('sms:create'), async (c) => {
   }
 })
 
-// Twilio inbound webhook (NO auth - called by Twilio)
+// Twilio inbound webhook (no session — called by Twilio, so it proves it IS Twilio)
+//
+// index.ts exempts this path from authentication because it "verifies itself" — it did not: any caller
+// could write a message into any customer's thread. X-Twilio-Signature is now checked against the auth
+// token of the account that owns the number (the company's own columns, which services/sms.ts sends
+// with; the platform's TWILIO_AUTH_TOKEN otherwise) before anything is written. (10/15)
 app.post('/webhook', async (c) => {
-  const body = await c.req.parseBody()
-  const from = body.From as string
-  const messageBody = body.Body as string
-  const twilioSid = body.MessageSid as string
-  const to = body.To as string
+  const body = await parseTwilioBody(c)
+  const from = body.From
+  const messageBody = body.Body
+  const twilioSid = body.MessageSid
+  const to = body.To
+
+  // Find company by Twilio phone number — its account signed this request
+  const [comp] = to ? await db.select().from(company).where(eq(company.twilioPhoneNumber, to)).limit(1) : []
+  const v = verifyTwilioRequest(c, body, comp?.twilioAuthToken || undefined)
+  if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio inbound SMS webhook', v.reason)
 
   if (!from || !messageBody) {
     return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 200, { 'Content-Type': 'text/xml' })
   }
 
-  // Find company by Twilio phone number
-  const [comp] = await db.select().from(company).where(eq(company.twilioPhoneNumber, to)).limit(1)
   if (!comp) {
     return c.text('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', 200, { 'Content-Type': 'text/xml' })
   }

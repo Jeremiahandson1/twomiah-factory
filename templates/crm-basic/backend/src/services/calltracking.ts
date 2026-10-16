@@ -14,6 +14,7 @@
 import { db } from '../../db/index.ts';
 import { contact, lead } from '../../db/schema.ts';
 import { eq, and, sql, count } from 'drizzle-orm';
+import { mapCallRailPayload } from '../shared/index.ts';
 import { insertLead } from '../shared/index.ts';
 import { isFeatureEnabled } from '../middleware/enabledFeature.ts';
 import { emitToCompany, EVENTS } from './socket.ts';
@@ -348,35 +349,9 @@ export async function tagCallAsLead(callId: string, companyId: string, { value, 
  * Handle CallRail webhook
  */
 export async function handleCallRailWebhook(companyId: string, payload: any) {
-  const data = {
-    trackingNumber: payload.tracking_phone_number,
-    callerNumber: payload.caller_phone_number,
-    callerName: payload.caller_name,
-    callerCity: payload.caller_city,
-    callerState: payload.caller_state,
-    source: payload.source,
-    campaign: payload.campaign,
-    medium: payload.medium,
-    keyword: payload.keywords,
-    landingPage: payload.landing_page_url,
-    direction: payload.direction,
-    status: mapCallRailStatus(payload.answered ? 'answered' : 'missed'),
-    duration: payload.duration,
-    startTime: payload.start_time,
-    recordingUrl: payload.recording,
-    providerId: payload.id,
-  };
-
-  return logCall(companyId, data);
-}
-
-function mapCallRailStatus(status: string): string {
-  const map: Record<string, string> = {
-    answered: 'completed',
-    missed: 'missed',
-    voicemail: 'voicemail',
-  };
-  return map[status] || status;
+  // CallRail's field names (customer_phone_number, customer_name, source_name …) — the mapper here read
+  // caller_phone_number / caller_name, which CallRail never sends, so a real call was logged with no caller.
+  return logCall(companyId, mapCallRailPayload(payload));
 }
 
 /**

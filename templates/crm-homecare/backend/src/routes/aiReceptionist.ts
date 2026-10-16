@@ -1,22 +1,34 @@
 import { Hono } from 'hono'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import aiReceptionist from '../services/aiReceptionist.ts'
+import { db } from '../../db/index.ts'
+import { agencies } from '../../db/schema.ts'
+import { eq } from 'drizzle-orm'
+import { parseTwilioBody, verifyTwilioRequest, twilioConfigFor, refuseUnverifiedWebhook } from '../shared/index.ts'
 
 const app = new Hono()
 
-// --- Twilio Recording Webhook (no auth -- called by Twilio) ---
+// --- Twilio webhooks (no session — called by Twilio, so each one proves it IS Twilio) ---
+//
+// X-Twilio-Signature is checked BEFORE anything runs; a forged or unsigned request is answered 403 and
+// nothing else happens. Until 10/15 these accepted any caller: anyone with a agencyId could fire the AI
+// receptionist's missed-call / after-hours rules (texts and emails to whatever number they named) or
+// feed it a recording to transcribe. The token is the agency's own Twilio account (Settings ›
+// Integrations) or the platform's TWILIO_AUTH_TOKEN. With neither: refused in production, allowed
+// outside it, and the 403 says which key is missing.
+
+/** The Twilio auth token this agency's calls are signed with. */
+const twilioTokenFor = async (id: string) => {
+  const [row] = await db.select().from(agencies).where(eq(agencies.id, id)).limit(1)
+  return twilioConfigFor(row || null).authToken
+}
 
 app.post('/webhook/recording/:agencyId', async (c) => {
   const agencyId = c.req.param('agencyId')
-
-  // Twilio sends form-encoded data
-  let payload: any
-  const ct = c.req.header('content-type') || ''
-  if (ct.includes('application/x-www-form-urlencoded') || ct.includes('multipart/form-data')) {
-    payload = await c.req.parseBody()
-  } else {
-    payload = await c.req.json()
-  }
+  // Twilio sends form-encoded data (JSON still read, for tools); the signature covers the parsed params
+  const payload: any = await parseTwilioBody(c)
+  const v = verifyTwilioRequest(c, payload, await twilioTokenFor(agencyId))
+  if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio recording webhook', v.reason)
 
   // Process async -- don't block Twilio's webhook response
   aiReceptionist.processRecordingWebhook(agencyId, payload).catch(err => {
@@ -30,13 +42,9 @@ app.post('/webhook/recording/:agencyId', async (c) => {
 
 app.post('/webhook/status/:agencyId', async (c) => {
   const agencyId = c.req.param('agencyId')
-  let payload: any
-  const ct = c.req.header('content-type') || ''
-  if (ct.includes('application/x-www-form-urlencoded') || ct.includes('multipart/form-data')) {
-    payload = await c.req.parseBody()
-  } else {
-    payload = await c.req.json()
-  }
+  const payload: any = await parseTwilioBody(c)
+  const v = verifyTwilioRequest(c, payload, await twilioTokenFor(agencyId))
+  if (!v.ok) return refuseUnverifiedWebhook(c, 'Twilio status webhook', v.reason)
 
   // If call was not answered, evaluate rules for missed_call / after_hours triggers
   if (payload.CallStatus === 'no-answer' || payload.CallStatus === 'busy' || payload.CallStatus === 'failed') {
