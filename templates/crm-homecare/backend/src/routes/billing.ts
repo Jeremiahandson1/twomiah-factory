@@ -1103,7 +1103,11 @@ app.get('/portal-claim-days', async (c) => {
   // No weekStart → THIS week on the agency's clock (the screen used to open on last week — Run 4).
   const day = isDate(weekStart) ? weekStart : await agencyWeekStart()
   const week = await portalClaimWeek(db, payerId, day, tz)
-  return c.json({ payer: { id: payer.id, name: payer.name }, portal: cfg, ...week })
+  // An empty week has to say why (Run 5): the visits come only from clients whose payer is this one.
+  const linked = rowsOf(await db.execute(sql`
+    SELECT COUNT(*)::int AS n FROM clients
+     WHERE referred_by_id = ${payerId} AND COALESCE(is_private_pay, false) = false AND COALESCE(is_active, true) = true`))[0]
+  return c.json({ payer: { id: payer.id, name: payer.name }, portal: cfg, ...week, linked_clients: Number(linked?.n) || 0 })
 })
 
 export default app

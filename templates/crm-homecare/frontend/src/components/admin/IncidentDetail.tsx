@@ -6,6 +6,7 @@ import { confirm } from '../ConfirmModal';
 import { formatDate } from '../../utils/date';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiCall } from '../../config';
+import { formatDateTime } from '../../utils/datetime';
 import {
   INCIDENT_TYPES, SEVERITIES, INCIDENT_STATUSES, DISPOSITIONS, MANDATORY_REPORT_STATUSES,
   ENTRY_TYPES, ATTACHMENT_CATEGORIES, TRAINING_ACK_METHODS, incidentLabel,
@@ -25,7 +26,7 @@ const fileSize = (n?: number | null) => (n == null ? '' : n > 1_000_000 ? `${(n 
 const dateTime = (v?: string | null) => {
   if (!v) return '';
   const d = new Date(v);
-  return isNaN(d.getTime()) ? '' : d.toLocaleString();
+  return isNaN(d.getTime()) ? '' : formatDateTime(d);
 };
 
 const toForm = (i: any) => ({

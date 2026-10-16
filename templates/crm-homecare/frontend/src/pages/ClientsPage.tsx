@@ -4,6 +4,7 @@ import api from '../services/api';
 import { Plus, Search, User } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import ClientModal from '../components/admin/ClientModal';
+import { serviceLabel } from '../utils/serviceTypes';
 
 export default function ClientsPage() {
   const [clients, setClients] = useState([]);
@@ -24,11 +25,6 @@ export default function ClientsPage() {
   };
 
   useEffect(() => { load(); }, [search]);
-
-  const serviceLabel = (type) => ({
-    personal_care: 'Personal Care', companionship: 'Companion', respite_care: 'Respite',
-    skilled_nursing: 'Skilled Nursing', homemaker: 'Homemaker',
-  }[type] || type || 'General');
 
   return (
     <div className="p-6">

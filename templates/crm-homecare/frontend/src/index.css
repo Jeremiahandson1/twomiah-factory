@@ -523,6 +523,9 @@ body {
 
 .modal-actions, .modal-footer {
     display: flex;
+    /* Wraps: a row of eight invoice buttons, right-aligned, ran off the pop-up's LEFT edge and
+       "Release to Portal" could not be clicked (Run 5). */
+    flex-wrap: wrap;
     gap: 0.75rem;
     justify-content: flex-end;
     margin-top: 1.25rem;

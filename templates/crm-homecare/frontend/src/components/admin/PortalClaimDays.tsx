@@ -169,7 +169,13 @@ export default function PortalClaimDays() {
             {totals.pending > 0 && <div className="rounded-lg bg-amber-50 px-4 py-2.5 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">⚠ {totals.pending} visit{totals.pending === 1 ? '' : 's'} still awaiting approval — review before claiming</div>}
           </div>
 
-          {data.clients.length === 0 && <p>No {payer?.name} visits this week.</p>}
+          {data.clients.length === 0 && (
+            <p className="text-gray-700 dark:text-slate-300">
+              {data.linked_clients === 0
+                ? <>No client has {payer?.name} as their payer yet. Set it on the client (Edit Client › Payer / referral source); their clocked-out visits then show here.</>
+                : <>No finished {payer?.name} visits this week. A visit shows here once the caregiver clocks out, for the {data.linked_clients} client{data.linked_clients === 1 ? '' : 's'} whose payer is {payer?.name}.</>}
+            </p>
+          )}
 
           {data.clients.map((c) => (
             <div key={c.client_id} className="mb-4 overflow-hidden rounded-xl border border-gray-200 dark:border-slate-700" style={{ breakInside: 'avoid' }}>

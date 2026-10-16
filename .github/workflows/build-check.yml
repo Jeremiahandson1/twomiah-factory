@@ -330,6 +330,17 @@ jobs:
       - name: no new Date(<calendar day>), no new Date(x).toLocaleDateString(), no toISOString() day-slicing
         run: bun run scripts/check-homecare-local-dates.ts
 
+  homecare-agency-clock:
+    name: Home care prints every time of day on the agency's clock
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: no bare toLocaleString/TimeString on an instant; the zone reaches every screen
+        run: bun run scripts/check-homecare-instants-on-agency-clock.ts
+
   events-ledger:
     name: Events money lives on the invoice (one ledger)
     runs-on: ubuntu-latest

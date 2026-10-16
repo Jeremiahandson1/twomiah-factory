@@ -1,10 +1,11 @@
 // components/portal/FamilyPortal.tsx
 // Family member portal — what a relative may see of their loved one's care, tab by
 // tab, as the office has allowed (schedule, care plan, medications, messaging).
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiCall } from '../../config';
 import CaregiverBackgroundChecks from './CaregiverBackgroundChecks';
 import { formatAgencyDateTime, setAgencyTimezone } from '../../utils/agencyClock';
+import { serviceLabel } from '../../utils/serviceTypes';
 
 const CARD = {
   background: '#fff',
@@ -183,7 +184,7 @@ const CarePlanView = ({ token }) => {
         <div style={CARD}>
           {pick(plan, 'service_type', 'serviceType') && (
             <div style={{ fontWeight: 700, marginBottom: '8px', fontSize: '1rem' }}>
-              {pick(plan, 'service_type', 'serviceType')}
+              {serviceLabel(pick(plan, 'service_type', 'serviceType'))}
               {pick(plan, 'frequency') && <span style={{ fontWeight: 400, color: '#555' }}> · {plan.frequency}</span>}
             </div>
           )}
@@ -540,21 +541,33 @@ const OverviewView = ({ client, userName, permissions, setActiveTab }) => {
 };
 
 // ── Main Family Portal ────────────────────────────────────────
-// `user` is the family member; their permissions are re-read from the server on
-// open, so a change the office makes shows up without signing out.
+// `user` is the family member; their permissions are re-read from the server on open, on every
+// tab change, when the window comes back into view, and each minute — so a box the office unticks
+// takes its menu away in a tab that is already open (Run 5: Medications stayed until a reload, though
+// the server already refused it).
 const FamilyPortal = ({ user, token, onLogout }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [client, setClient] = useState(null);
   const [member, setMember] = useState(user);
 
-  useEffect(() => {
-    apiCall('/api/family-portal/portal/client', { method: 'GET' }, token)
-      .then(data => { if (data) { setAgencyTimezone(data.timezone); setClient(data); } })
-      .catch(() => {});
+  const refreshMember = useCallback(() => {
     apiCall('/api/family-portal/portal/me', { method: 'GET' }, token)
       .then(data => { if (data) setMember(data); })
       .catch(() => {});
   }, [token]);
+
+  useEffect(() => {
+    apiCall('/api/family-portal/portal/client', { method: 'GET' }, token)
+      .then(data => { if (data) { setAgencyTimezone(data.timezone); setClient(data); } })
+      .catch(() => {});
+    refreshMember();
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshMember(); };
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = setInterval(refreshMember, 60000);
+    return () => { document.removeEventListener('visibilitychange', onVisible); clearInterval(timer); };
+  }, [token, refreshMember]);
+
+  useEffect(() => { if (activeTab !== 'overview') refreshMember(); }, [activeTab, refreshMember]);
 
   const permissions = {
     canViewSchedule: !!(member?.canViewSchedule ?? member?.can_view_schedule),
@@ -570,6 +583,11 @@ const FamilyPortal = ({ user, token, onLogout }) => {
   if (permissions.canViewMedications) tabs.push({ key: 'medications', label: 'Medications', icon: '💊' });
   if (permissions.canViewMedications) tabs.push({ key: 'vitals',      label: 'Vitals',      icon: '❤️' });
   if (permissions.canMessage)         tabs.push({ key: 'messages',    label: 'Messages',    icon: '💬' });
+
+  // A tab whose permission was just taken away closes back to the overview.
+  useEffect(() => {
+    if (!tabs.some(t => t.key === activeTab)) setActiveTab('overview');
+  }, [activeTab, tabs.map(t => t.key).join()]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const userName = member?.name || 'Family Member';
   const agencyState = client?.agency_state || client?.agencyState || null;

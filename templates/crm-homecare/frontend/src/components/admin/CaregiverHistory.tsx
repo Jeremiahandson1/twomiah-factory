@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { toLocalYMD } from '../../utils/date';
+import { formatAgencyDateTime } from '../../utils/agencyClock';
 
 const formatDuration = (minutes) => {
   if (!minutes) return '—';
@@ -14,7 +15,7 @@ const formatDuration = (minutes) => {
 
 const formatDateTime = (dt) => {
   if (!dt) return '—';
-  return new Date(dt).toLocaleString('en-US', {
+  return formatAgencyDateTime(dt, {
     month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
@@ -22,7 +23,7 @@ const formatDateTime = (dt) => {
 
 const formatTime = (dt) => {
   if (!dt) return '—';
-  return new Date(dt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  return formatAgencyDateTime(dt, { hour: '2-digit', minute: '2-digit' });
 };
 
 // Simple inline map using Leaflet via CDN
@@ -81,7 +82,7 @@ const GPSRouteMap = ({ timeEntryId, onClose }) => {
     // Start marker (green)
     if (latlngs.length > 0) {
       L.circleMarker(latlngs[0], { radius: 10, fillColor: '#16A34A', color: '#fff', weight: 2, fillOpacity: 1 })
-        .bindPopup(`<b>Clock In</b><br>${new Date(points[0].timestamp).toLocaleTimeString()}`)
+        .bindPopup(`<b>Clock In</b><br>${formatAgencyDateTime(points[0].timestamp, { hour: 'numeric', minute: '2-digit' })}`)
         .addTo(map);
     }
 
@@ -89,7 +90,7 @@ const GPSRouteMap = ({ timeEntryId, onClose }) => {
     if (latlngs.length > 1) {
       const last = latlngs[latlngs.length - 1];
       L.circleMarker(last, { radius: 10, fillColor: '#DC2626', color: '#fff', weight: 2, fillOpacity: 1 })
-        .bindPopup(`<b>Clock Out</b><br>${new Date(points[points.length - 1].timestamp).toLocaleTimeString()}`)
+        .bindPopup(`<b>Clock Out</b><br>${formatAgencyDateTime(points[points.length - 1].timestamp, { hour: 'numeric', minute: '2-digit' })}`)
         .addTo(map);
     }
 

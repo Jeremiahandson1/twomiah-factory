@@ -3,6 +3,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDateTime } from '../../utils/datetime';
 
 // A relative's switches: [the API's name, the list row's snake alias, the label].
 const PERMISSIONS = [
@@ -28,11 +29,21 @@ const FamilyPortalAdmin = () => {
   const [threads, setThreads] = useState([]);
   const [openThread, setOpenThread] = useState(null); // { thread, messages }
   const [threadReply, setThreadReply] = useState('');
+  // 'loading' until the first answer: an empty list before then is not "no messages" (Run 5 saw
+  // "0 unread · No messages from family members." flash over a message that was there).
+  const [messagesState, setMessagesState] = useState('loading');
+  const [threadsState, setThreadsState] = useState('loading');
 
   useEffect(() => {
     loadFamilyMembers();
     loadClients();
   }, [filter]);
+
+  // Both inboxes load with the page, so the unread counts on the tiles and tabs are real from the start.
+  useEffect(() => {
+    loadMessages();
+    loadThreads();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeTab === 'messages') {
@@ -78,10 +89,13 @@ const FamilyPortalAdmin = () => {
       const res = await fetch(`${API_BASE_URL}/api/family-portal/admin/messages`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setMessages(Array.isArray(data) ? data : []);
+      setMessagesState('ready');
     } catch (error) {
       console.error('Failed to load messages:', error);
+      setMessagesState(prev => (prev === 'ready' ? 'ready' : 'error'));
     }
   };
 
@@ -90,10 +104,13 @@ const FamilyPortalAdmin = () => {
       const res = await fetch(`${API_BASE_URL}/api/family-portal/admin/portal-threads`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = res.ok ? await res.json() : [];
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
       setThreads(Array.isArray(data) ? data : []);
+      setThreadsState('ready');
     } catch (error) {
       console.error('Failed to load portal messages:', error);
+      setThreadsState(prev => (prev === 'ready' ? 'ready' : 'error'));
     }
   };
 
@@ -298,7 +315,7 @@ const FamilyPortalAdmin = () => {
         <div className="stat-card" onClick={() => setActiveTab('messages')} style={{ cursor: 'pointer' }}>
           <h4>Unread Messages</h4>
           <div className="value" style={{ color: unreadMessages > 0 ? '#f44336' : '#333' }}>
-            {unreadMessages}
+            {messagesState === 'loading' ? '…' : unreadMessages}
           </div>
         </div>
       </div>
@@ -391,7 +408,7 @@ const FamilyPortalAdmin = () => {
                       </td>
                       <td>{getStatusBadge(member.is_active)}</td>
                       <td style={{ fontSize: '0.85rem' }}>
-                        {member.last_login ? new Date(member.last_login).toLocaleString() : 'Never'}
+                        {member.last_login ? formatDateTime(member.last_login) : 'Never'}
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
@@ -441,7 +458,11 @@ const FamilyPortalAdmin = () => {
       {/* Messages Tab */}
       {activeTab === 'messages' && (
         <div className="card">
-          {messages.length === 0 ? (
+          {messagesState === 'loading' ? (
+            <div className="loading"><div className="spinner"></div></div>
+          ) : messagesState === 'error' ? (
+            <p>Could not load the family messages — refresh to try again.</p>
+          ) : messages.length === 0 ? (
             <p>No messages from family members.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -463,7 +484,7 @@ const FamilyPortalAdmin = () => {
                       </span>
                     </div>
                     <span style={{ fontSize: '0.85rem', color: '#666' }}>
-                      {new Date(msg.created_at).toLocaleString()}
+                      {formatDateTime(msg.created_at)}
                     </span>
                   </div>
                   
@@ -514,7 +535,11 @@ const FamilyPortalAdmin = () => {
       {/* Client Portal Messages Tab */}
       {activeTab === 'threads' && (
         <div className="card">
-          {threads.length === 0 ? (
+          {threadsState === 'loading' ? (
+            <div className="loading"><div className="spinner"></div></div>
+          ) : threadsState === 'error' ? (
+            <p>Could not load the client portal messages — refresh to try again.</p>
+          ) : threads.length === 0 ? (
             <p>No messages from the client portal.</p>
           ) : (
             <table className="table">
@@ -531,7 +556,7 @@ const FamilyPortalAdmin = () => {
                   <tr key={t.id} style={{ fontWeight: (t.has_unread ?? t.hasUnread) ? 700 : 400 }}>
                     <td>{t.client_first_name || t.clientFirstName} {t.client_last_name || t.clientLastName}</td>
                     <td>{t.subject}{(t.has_unread ?? t.hasUnread) && <span style={{ marginLeft: '0.4rem', color: '#B91C1C', fontSize: '0.75rem' }}>● new</span>}</td>
-                    <td style={{ fontSize: '0.85rem' }}>{new Date(t.last_message_at || t.lastMessageAt).toLocaleString()}</td>
+                    <td style={{ fontSize: '0.85rem' }}>{formatDateTime(t.last_message_at || t.lastMessageAt)}</td>
                     <td><button className="btn btn-sm btn-primary" onClick={() => viewThread(t.id)}>Open</button></td>
                   </tr>
                 ))}
@@ -558,7 +583,7 @@ const FamilyPortalAdmin = () => {
                     borderLeft: staff ? '3px solid #1976d2' : '3px solid #9e9e9e',
                   }}>
                     <div style={{ fontSize: '0.78rem', color: '#555', marginBottom: '0.25rem' }}>
-                      <strong>{m.sender_name || m.senderName || (staff ? 'Staff' : 'Client')}</strong> · {new Date(m.created_at || m.createdAt).toLocaleString()}
+                      <strong>{m.sender_name || m.senderName || (staff ? 'Staff' : 'Client')}</strong> · {formatDateTime(m.created_at || m.createdAt)}
                     </div>
                     <div style={{ whiteSpace: 'pre-wrap' }}>{m.body}</div>
                   </div>

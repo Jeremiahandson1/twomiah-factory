@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../contexts/AuthContext';
+import { formatDateTime } from '../utils/datetime';
 
 const CaregiverClientModal = ({ clientId, isOpen, onClose }) => {
   const { token } = useAuth();
@@ -272,7 +273,7 @@ const CaregiverClientModal = ({ clientId, isOpen, onClose }) => {
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#666' }}>
                             <span><strong>{note.caregiver_name || 'Caregiver'}</strong></span>
-                            <span>{new Date(note.created_at).toLocaleString()}</span>
+                            <span>{formatDateTime(note.created_at)}</span>
                           </div>
                           <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{note.note}</p>
                         </div>

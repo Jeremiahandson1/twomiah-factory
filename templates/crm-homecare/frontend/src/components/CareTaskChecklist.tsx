@@ -1,6 +1,6 @@
 // CareTaskChecklist — during a shift, the client's care tasks: tap Done / Skip / Refused, add a
-// note. Daily tasks are done every shift; weekly tasks show "done earlier this week" once any
-// shift this week has completed them. Used on the caregiver's active shift and by the office.
+// note. "Every visit" tasks are done on every shift; "Set times a week" tasks show "done earlier this
+// week" once any shift this week has completed them (the same labels as Care Tasks in the office). Used on the caregiver's active shift and by the office.
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../contexts/AuthContext';
@@ -156,7 +156,7 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
       )}
       {weekly.length > 0 && (
         <div>
-          <div className={header}>🗓️ This Week</div>
+          <div className={header}>🗓️ Set times a week</div>
           <div className="flex flex-col gap-1.5">{weekly.map(renderItem)}</div>
         </div>
       )}

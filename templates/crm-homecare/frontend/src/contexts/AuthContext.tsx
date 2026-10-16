@@ -1,6 +1,7 @@
 import React from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import { setAgencyTimezone } from '../utils/agencyClock';
 
 const AuthContext = createContext<any>(null);
 
@@ -21,6 +22,15 @@ async function agencyOrLock(summary: any) {
   }
 }
 
+/**
+ * Every screen prints a time (a clock-in, a message, a signature) on the agency's clock, not the browser's: a 4:00 PM
+ * Central clock-in showed "9:00 PM" on Shift Approvals in a browser on UTC (Run 5). Adopted before the screens mount.
+ */
+function adoptClock(company: any) {
+  setAgencyTimezone(company?.effectiveTimezone);
+  return company;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
@@ -36,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userData = await api.getMe();
       // /me carries the agency's lock (settings.accountLock); a locked agency's /api/company is a 402.
-      const companyData = await agencyOrLock(userData?.company);
+      const companyData = adoptClock(await agencyOrLock(userData?.company));
       setUser(userData);
       setCompany(companyData);
     } catch (err) {
@@ -66,9 +76,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const data = await api.login(email, password);
+      adoptClock(data.company); // sign-in's summary names the zone before any screen mounts
       setUser(data.user);
       // Fetch company after login. A cancelled agency answers 402 here: sign-in's own company summary carries the lock.
-      const companyData = await agencyOrLock(data.company);
+      const companyData = adoptClock(await agencyOrLock(data.company));
       setCompany(companyData);
       return data;
     } catch (err: any) {
@@ -87,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateCompany = (updates: any) => {
+    if (updates?.effectiveTimezone) setAgencyTimezone(updates.effectiveTimezone);
     setCompany((prev: any) => ({ ...prev, ...updates }));
   };
 

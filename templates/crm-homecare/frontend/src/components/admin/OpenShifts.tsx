@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from '../Toast';
 import { API_BASE_URL } from '../../config';
-import { formatDate } from '../../utils/datetime';
+import { formatDate, formatDateTime } from '../../utils/datetime';
 import { useAuth } from '../../contexts/AuthContext';
 import { confirm } from '../ConfirmModal';
 
@@ -410,7 +410,7 @@ const OpenShifts = () => {
                         <td>{claim.first_name} {claim.last_name}</td>
                         <td>{claim.phone}</td>
                         <td>{claim.status}</td>
-                        <td>{new Date(claim.created_at).toLocaleString()}</td>
+                        <td>{formatDateTime(claim.created_at)}</td>
                       </tr>
                     ))}
                   </tbody>

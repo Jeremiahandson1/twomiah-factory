@@ -5,6 +5,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatAgencyDateTime } from '../../utils/agencyClock';
 
 const ADLTracking = () => {
   const { token } = useAuth();
@@ -343,7 +344,7 @@ const ADLTracking = () => {
                             <td><strong>{getCategoryName(log.adl_category)}</strong></td>
                             <td>{getStatusBadge(log.status)}</td>
                             <td>{getAssistanceBadge(log.assistance_level)}</td>
-                            <td>{new Date(log.performed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td>{formatAgencyDateTime(log.performed_at, { hour: '2-digit', minute: '2-digit' })}</td>
                             <td>{log.caregiver_first} {log.caregiver_last}</td>
                             <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {log.notes || '-'}

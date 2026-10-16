@@ -5,6 +5,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDateTime } from '../../utils/datetime';
 
 const AlertsManagement = () => {
   const { token } = useAuth();
@@ -293,7 +294,7 @@ const AlertsManagement = () => {
                       </div>
                     </div>
                     <span style={{ fontSize: '0.85rem', color: '#666' }}>
-                      {new Date(alert.created_at).toLocaleString()}
+                      {formatDateTime(alert.created_at)}
                     </span>
                   </div>
 

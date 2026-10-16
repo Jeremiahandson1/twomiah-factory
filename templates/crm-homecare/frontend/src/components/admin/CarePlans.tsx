@@ -10,18 +10,17 @@ import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { confirm } from '../ConfirmModal';
 import { formatDate } from '../../utils/date';
+import { formatDateTime } from '../../utils/datetime';
+import { serviceLabel } from '../../utils/serviceTypes';
 
 // Same categories as the Care Tasks screen, in display order.
 const TASK_GROUPS: [string, string][] = [
   ['adl', 'Personal Care (ADL)'], ['iadl', 'Homemaking (IADL)'], ['medication', 'Medication Reminders'],
   ['companion', 'Companion / Social'], ['safety', 'Safety Checks'], ['other', 'Other'],
 ];
-const SERVICE_LABELS: Record<string, string> = {
-  personal_care: 'Personal Care', medication_management: 'Medication Management', companionship: 'Companionship',
-  respite_care: 'Respite Care', mobility_assistance: 'Mobility Assistance', meal_prep: 'Meal Preparation',
-  transportation: 'Transportation', other: 'Other',
-};
-const serviceLabel = (s: string) => SERVICE_LABELS[s] || s;
+// The service types a care plan offers; their names are utils/serviceTypes.ts's, shared with every screen.
+const PLAN_SERVICE_TYPES = ['personal_care', 'medication_management', 'companionship', 'respite_care',
+  'mobility_assistance', 'meal_prep', 'transportation', 'other'];
 
 const today = () => {
   const now = new Date();
@@ -353,7 +352,7 @@ export default function CarePlans() {
               <div>
                 <label className={label} htmlFor="cp-service">Service Type *</label>
                 <select id="cp-service" value={formData.serviceType} onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })} className={inp}>
-                  {Object.entries(SERVICE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  {PLAN_SERVICE_TYPES.map((v) => <option key={v} value={v}>{serviceLabel(v)}</option>)}
                 </select>
               </div>
               <div>
@@ -622,7 +621,7 @@ export default function CarePlans() {
                         <div className="flex items-center justify-between mb-1.5">
                           <strong>Revision #{rev.revision_number}</strong>
                           <span className="text-xs text-gray-500 dark:text-slate-400">
-                            {new Date(rev.changed_at).toLocaleString()}{rev.changed_by_first && ` · by ${rev.changed_by_first} ${rev.changed_by_last?.[0] || ''}.`}
+                            {formatDateTime(rev.changed_at)}{rev.changed_by_first && ` · by ${rev.changed_by_first} ${rev.changed_by_last?.[0] || ''}.`}
                           </span>
                         </div>
                         {changes.length === 0 ? (

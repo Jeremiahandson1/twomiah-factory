@@ -7,6 +7,7 @@ import { users, caregiverProfiles, agencies, auditLogs } from '../../db/schema.t
 import { authenticate, requireAdmin, logAuthEvent } from '../middleware/auth.ts'
 import { markUserLoggedOut } from '../services/tokenRevocation.ts'
 import { accountLockOf } from '../shared/index.ts'
+import { resolveTimezone } from '../services/agencyTime.ts'
 
 const app = new Hono()
 
@@ -22,10 +23,12 @@ const generateTokens = (userId: string, email: string, role: string, companyId?:
  * so this is how the screen learns to show the lock page instead of a CRM full of refusals. Nothing else from settings.
  */
 function companySummary(agency: any) {
-  if (!agency) return { vertical: 'homecare', name: 'Agency', settings: { accountLock: null } }
+  if (!agency) return { vertical: 'homecare', name: 'Agency', effectiveTimezone: resolveTimezone(null), settings: { accountLock: null } }
   return {
     id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, phone: agency.phone,
     email: agency.email, address: agency.address, city: agency.city, state: agency.state, zip: agency.zip, website: agency.website,
+    // The zone every screen prints times on (utils/agencyClock.ts) — the same one the reports count days on.
+    effectiveTimezone: resolveTimezone(agency),
     vertical: 'homecare',
     settings: { accountLock: accountLockOf(agency.settings) },
   }

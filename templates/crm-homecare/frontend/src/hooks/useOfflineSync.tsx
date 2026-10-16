@@ -1,5 +1,6 @@
 // useOfflineSync.js - Hook to register SW and show offline/sync status
 import React, { useState, useEffect } from 'react';
+import { formatAgencyDateTime } from '../utils/agencyClock';
 
 export function useOfflineSync() {
   const [online, setOnline]         = useState(navigator.onLine);
@@ -84,7 +85,7 @@ export function OfflineBanner() {
       <span>{message}</span>
       {lastSynced && (
         <span style={{ opacity: 0.8, fontSize: 12 }}>
-          · Last synced {lastSynced.toLocaleTimeString()}
+          · Last synced {formatAgencyDateTime(lastSynced, { hour: 'numeric', minute: '2-digit' })}
         </span>
       )}
       <style>{`@keyframes slideUp { from { transform: translateY(100%) } to { transform: translateY(0) } }`}</style>

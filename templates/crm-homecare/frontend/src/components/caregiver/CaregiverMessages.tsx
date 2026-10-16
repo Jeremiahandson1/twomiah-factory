@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatAgencyDate, formatAgencyDateTime } from '../../utils/agencyClock';
 
 const CaregiverMessages = ({ onClose }) => {
   const { token } = useAuth();
@@ -76,9 +77,9 @@ const CaregiverMessages = ({ onClose }) => {
     const diff = now - d;
     if (diff < 60000) return 'just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (diff < 604800000) return d.toLocaleDateString([], { weekday: 'short' });
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    if (diff < 86400000) return formatAgencyDateTime(d, { hour: '2-digit', minute: '2-digit' });
+    if (diff < 604800000) return formatAgencyDate(d, { weekday: 'short' });
+    return formatAgencyDate(d, { month: 'short', day: 'numeric' });
   };
 
   const totalUnread = threads.reduce((sum, t) => sum + (parseInt(t.unread_count) || 0), 0);

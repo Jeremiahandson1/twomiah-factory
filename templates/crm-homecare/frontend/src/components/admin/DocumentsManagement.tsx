@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import SignaturePad from '../SignaturePad';
+import { formatDateTime } from '../../utils/datetime';
 
 const DocumentsManagement = () => {
   const { token } = useAuth();
@@ -331,7 +332,7 @@ const DocumentsManagement = () => {
                         </button>
                       )}
                       {doc.signed_at && (
-                        <span title={`Signed ${new Date(doc.signed_at).toLocaleString()}`}
+                        <span title={`Signed ${formatDateTime(doc.signed_at)}`}
                           className="self-center px-1.5 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
                           ✓ Signed
                         </span>

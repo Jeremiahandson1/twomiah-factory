@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatAgencyDateTime } from '../../utils/agencyClock';
 
 const FIELDS = [
   { key: 'systolicBp', label: 'Systolic', unit: 'mmHg', dbKey: 'systolic_bp', decimal: false, range: [50, 260] },
@@ -133,7 +134,7 @@ export default function VitalsTracker({ clientId, timeEntryId }: { clientId: str
               <tbody>
                 {history.map(h => (
                   <tr key={h.id} className="border-t border-gray-100 dark:border-slate-700">
-                    <td className="px-2 py-1.5 whitespace-nowrap">{new Date(h.recorded_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">{formatAgencyDateTime(h.recorded_at, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
                     {FIELDS.map(f => <td key={f.key} className="px-2 py-1.5 text-right">{h[f.dbKey] != null && h[f.dbKey] !== '' ? h[f.dbKey] : '—'}</td>)}
                     <td className="px-2 py-1.5">{h.caregiver_first ? `${h.caregiver_first} ${h.caregiver_last?.[0] || ''}.` : '—'}</td>
                   </tr>

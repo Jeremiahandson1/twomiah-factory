@@ -1,10 +1,12 @@
-// The agency's clock for the client and family portals.
+// The agency's clock — for the office, the caregivers and the client and family portals.
 //
 // Visit times in the portals are the agency's wall-clock times (a 9:00 visit is 9:00 where the
 // agency is). An INSTANT — a vitals reading, a clock-in, a message, a signature — printed with the
 // browser's zone disagreed with them: a reading taken at 11:10 AM Central showed "4:10 PM" in a
 // browser on UTC (Run 4). The portals therefore print instants in the agency's zone, which the
-// server names (GET /api/portal/me agency_timezone, GET /api/family-portal/portal/client timezone).
+// server names (GET /api/portal/me agency_timezone, GET /api/family-portal/portal/client timezone). The
+// office and caregiver screens learn it at sign-in (company.effectiveTimezone, contexts/AuthContext.tsx)
+// and print through these helpers and utils/datetime.ts — never a bare toLocaleString on an instant.
 // Until it has answered (or if it never does) the browser's zone is used.
 
 let zone: string | undefined;

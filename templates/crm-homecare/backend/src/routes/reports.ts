@@ -26,6 +26,13 @@ import { auditLogs } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { ON_TIME_GRACE_MINUTES } from '../helpers/punchRules.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
+
+// A client's service type (alias `c`): the one set on the client, else their care plan's — the client
+// forms have no service-type field and a care plan's is required, so every agency's revenue landed in
+// one "UNSPECIFIED" row (Run 5) — else 'unspecified'. The active plan wins, then the newest.
+const clientServiceTypeSql = sql`COALESCE(NULLIF(c.service_type, ''), (SELECT cp.service_type FROM care_plans cp
+    WHERE cp.client_id = c.id AND NULLIF(cp.service_type, '') IS NOT NULL
+    ORDER BY (cp.status = 'active') DESC, cp.updated_at DESC LIMIT 1), 'unspecified')`
 import { billedInRangeSql, invoiceBalanceSql, invoiceServiceDateSql, releasedInvoiceSql } from '../services/invoiceMoney.ts'
 import {
   agencyTimezone, agencyToday, agencyWeekStart, addDays, isYmd, localDate, localTs, dayStartUtc, dayEndUtc,
@@ -174,7 +181,7 @@ app.post('/overview', async (c) => {
       LIMIT 10`),
     // Top clients — scheduled hours + REAL invoiced revenue.
     rows(sql`WITH ${occurrencesCte(startDate, endDate)}
-      SELECT c.id, c.first_name, c.last_name, c.service_type,
+      SELECT c.id, c.first_name, c.last_name, ${clientServiceTypeSql} AS service_type,
         COALESCE((SELECT SUM(o.hours) FROM occ o WHERE o.client_id = c.id AND (${caregiverId}::text IS NULL OR o.caregiver_id = ${caregiverId})), 0) AS total_hours,
         COALESCE((SELECT SUM(i.total) FROM invoices i WHERE i.client_id = c.id
                   AND ${billedInRangeSql(startDate, endDate)}), 0) AS revenue,
@@ -222,7 +229,7 @@ app.post('/hours', async (c) => {
       FROM occ WHERE 1=1 ${occFilter}
       GROUP BY 1 ORDER BY 1`),
     rows(sql`WITH ${occurrencesCte(startDate, endDate)}
-      SELECT COALESCE(c.service_type, 'unspecified') AS service_type, COALESCE(SUM(occ.hours), 0) AS hours
+      SELECT ${clientServiceTypeSql} AS service_type, COALESCE(SUM(occ.hours), 0) AS hours
       FROM occ JOIN clients c ON c.id = occ.client_id
       WHERE 1=1 ${occFilter}
       GROUP BY 1 ORDER BY 2 DESC`),
@@ -447,10 +454,10 @@ app.post('/revenue', async (c) => {
     // Scheduled hours (context only — NOT billed hours)
     one(sql`WITH ${occurrencesCte(startDate, endDate)} SELECT COALESCE(SUM(occ.hours), 0) AS scheduled_hours FROM occ`),
     rows(sql`SELECT service_type, COALESCE(SUM(revenue), 0) AS revenue, COALESCE(SUM(collected), 0) AS collected FROM (
-        SELECT COALESCE(c.service_type, 'unspecified') AS service_type, i.total AS revenue, COALESCE(i.amount_paid, 0) AS collected
+        SELECT ${clientServiceTypeSql} AS service_type, i.total AS revenue, COALESCE(i.amount_paid, 0) AS collected
         FROM invoices i JOIN clients c ON c.id = i.client_id WHERE ${invIn} ${invF}
         UNION ALL
-        SELECT COALESCE(c.service_type, 'unspecified'), cl.billed_amount, COALESCE(cl.paid_amount, 0)
+        SELECT ${clientServiceTypeSql}, cl.billed_amount, COALESCE(cl.paid_amount, 0)
         FROM claims cl JOIN clients c ON c.id = cl.client_id WHERE ${clmIn} ${clmF}
       ) u GROUP BY service_type ORDER BY revenue DESC`),
     rows(sql`SELECT payer, COALESCE(SUM(billed), 0) AS billed, COALESCE(SUM(collected), 0) AS collected,
@@ -1550,7 +1557,7 @@ app.post('/:type/export', async (c) => {
       ORDER BY bc.expiration_date ASC NULLS FIRST, u.last_name`)
   } else if (type === 'clients') {
     data = await rows(sql`SELECT c.first_name || ' ' || c.last_name AS client,
-        c.email, c.phone, c.city, c.state, c.service_type,
+        c.email, c.phone, c.city, c.state, ${clientServiceTypeSql} AS service_type,
         CASE WHEN c.is_active THEN 'active' ELSE 'inactive' END AS status,
         to_char(${localDate(sql`c.created_at`, tz)}, 'YYYY-MM-DD') AS enrolled_date,
         COALESCE(rs.name, 'Unknown') AS referral_source,

@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from '../Toast';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatAgencyDateTime } from '../../utils/agencyClock';
 
 export default function VisitPhotoGallery({ clientId, limit = 60 }: { clientId?: string | null; limit?: number }) {
   const { token } = useAuth();
@@ -42,7 +43,7 @@ export default function VisitPhotoGallery({ clientId, limit = 60 }: { clientId?:
     } finally { setLoadingFull(false); }
   };
 
-  const fmtDate = (t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const fmtDate = (t) => formatAgencyDateTime(t, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   if (!clientId) return <div style={{ padding: 20, color: '#6B7280' }}>Pick a client to view their visit photos.</div>;
   if (loading) return <div style={{ padding: 20, color: '#6B7280' }}>Loading photos…</div>;

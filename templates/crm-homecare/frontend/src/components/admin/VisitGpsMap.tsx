@@ -4,6 +4,7 @@
 // tracked distance and duration and an "Open in Google Maps" link.
 import React, { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from '../../config';
+import { formatDateTime } from '../../utils/datetime';
 
 // Leaflet is already a dependency of this app; it is imported on first use so the map code and its
 // stylesheet only load when someone opens a map. (CVHC loaded it from a CDN at runtime.)
@@ -99,7 +100,7 @@ export default function VisitGpsMap({ token, timeEntryId, clientLat, clientLng, 
               html: '<div style="background:#047857;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);">▶</div>',
               iconSize: [24, 24], iconAnchor: [12, 12],
             }),
-          }).addTo(mapInstance).bindPopup(`<strong>Clock-in</strong><br/>${new Date(trail[0].t).toLocaleString()}`);
+          }).addTo(mapInstance).bindPopup(`<strong>Clock-in</strong><br/>${formatDateTime(trail[0].t)}`);
           if (trail.length > 1) {
             const last = trail[trail.length - 1];
             L.marker([last.lat, last.lng], {
@@ -109,7 +110,7 @@ export default function VisitGpsMap({ token, timeEntryId, clientLat, clientLng, 
                 html: '<div style="background:#DC2626;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);">■</div>',
                 iconSize: [24, 24], iconAnchor: [12, 12],
               }),
-            }).addTo(mapInstance).bindPopup(`<strong>Last GPS ping</strong><br/>${new Date(last.t).toLocaleString()}`);
+            }).addTo(mapInstance).bindPopup(`<strong>Last GPS ping</strong><br/>${formatDateTime(last.t)}`);
           }
           const all = home ? [...latlngs, [home.lat, home.lng]] : latlngs;
           mapInstance.fitBounds(all, { padding: [32, 32] });

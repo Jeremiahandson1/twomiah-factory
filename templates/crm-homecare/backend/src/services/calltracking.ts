@@ -14,6 +14,7 @@ import { db } from '../../db/index.ts';
 import { clients } from '../../db/schema.ts';
 import { eq, and, sql, count } from 'drizzle-orm';
 import { mapCallRailPayload } from '../shared/index.ts';
+import { agencyTimezone, agencyToday, ymdIn } from './agencyTime.ts';
 
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
 function rows(result: any): any[] {
@@ -183,7 +184,7 @@ export async function logCall(agencyId: string, data: {
       firstName,
       lastName,
       phone: data.callerNumber,
-      notes: `First call: ${new Date().toLocaleDateString()}`,
+      notes: `First call: ${await agencyToday()}`,
     } as any);
   }
 }
@@ -397,17 +398,19 @@ export async function getCallVolumeReport(agencyId: string, { startDate, endDate
   `));
 
   const grouped: Record<string, { calls: number; answered: number; missed: number; duration: number }> = {};
+  // Hours, weekdays and days on the agency's clock — the server's is UTC.
+  const tz = await agencyTimezone();
 
   for (const call of calls as any[]) {
     let key: string;
     const date = new Date(call.start_time);
 
     if (groupBy === 'hour') {
-      key = String(date.getHours());
+      key = String(Number(new Intl.DateTimeFormat('en-US', { hour: '2-digit', hourCycle: 'h23', timeZone: tz }).format(date)));
     } else if (groupBy === 'dayOfWeek') {
-      key = date.toLocaleDateString('en-US', { weekday: 'long' });
+      key = date.toLocaleDateString('en-US', { weekday: 'long', timeZone: tz });
     } else {
-      key = date.toISOString().split('T')[0];
+      key = ymdIn(date, tz);
     }
 
     if (!grouped[key]) {

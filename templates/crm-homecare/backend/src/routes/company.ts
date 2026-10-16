@@ -60,7 +60,7 @@ app.put('/', requireAdmin, async (c) => {
     ;[agency] = await db.insert(agencies).values({ ...body, slug }).returning()
   }
 
-  return c.json(sanitizeCompany(agency))
+  return c.json({ ...sanitizeCompany(agency), effectiveTimezone: resolveTimezone(agency) })
 })
 
 // PUT /features — self-serve feature toggles (Settings → Features).

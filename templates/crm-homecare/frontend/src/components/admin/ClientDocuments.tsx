@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../utils/date';
+import { formatDateTime } from '../../utils/datetime';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -181,8 +182,8 @@ export default function ClientDocuments() {
         </div>
         <p style={{ color: '#718096', fontSize: '0.85rem', marginTop: 0 }}>
           {viewDoc.client ? `${viewDoc.client.firstName} ${viewDoc.client.lastName} · ` : ''}
-          sent {new Date(viewDoc.sentAt).toLocaleString()}
-          {viewDoc.viewedAt ? ` · opened ${new Date(viewDoc.viewedAt).toLocaleString()}` : ''}
+          sent {formatDateTime(viewDoc.sentAt)}
+          {viewDoc.viewedAt ? ` · opened ${formatDateTime(viewDoc.viewedAt)}` : ''}
         </p>
 
         {viewDoc.status === 'signed' && (
@@ -191,8 +192,8 @@ export default function ClientDocuments() {
             <table style={{ marginTop: '0.75rem', fontSize: '0.88rem', color: '#2d3748', borderCollapse: 'collapse' }}>
               <tbody>
                 <tr><td style={{ paddingRight: '1.5rem', color: '#718096' }}>Signed by</td><td>{viewDoc.signedBy} ({viewDoc.signerRelationship})</td></tr>
-                <tr><td style={{ paddingRight: '1.5rem', color: '#718096' }}>Signed at</td><td>{new Date(viewDoc.signedAt).toLocaleString()}</td></tr>
-                <tr><td style={{ paddingRight: '1.5rem', color: '#718096' }}>Consent given</td><td>{viewDoc.consentAt ? new Date(viewDoc.consentAt).toLocaleString() : '—'}</td></tr>
+                <tr><td style={{ paddingRight: '1.5rem', color: '#718096' }}>Signed at</td><td>{formatDateTime(viewDoc.signedAt)}</td></tr>
+                <tr><td style={{ paddingRight: '1.5rem', color: '#718096' }}>Consent given</td><td>{viewDoc.consentAt ? formatDateTime(viewDoc.consentAt) : '—'}</td></tr>
                 <tr><td style={{ paddingRight: '1.5rem', color: '#718096' }}>IP address</td><td>{viewDoc.signedIp || '—'}</td></tr>
                 <tr><td style={{ paddingRight: '1.5rem', color: '#718096', verticalAlign: 'top' }}>Device</td><td style={{ wordBreak: 'break-word' }}>{viewDoc.signedUserAgent || '—'}</td></tr>
                 <tr><td style={{ paddingRight: '1.5rem', color: '#718096', verticalAlign: 'top' }}>Document hash</td><td style={{ wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '0.8rem' }}>{viewDoc.documentHash}</td></tr>
@@ -206,7 +207,7 @@ export default function ClientDocuments() {
 
         {viewDoc.status === 'declined' && (
           <div style={{ background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '10px', padding: '1.25rem', marginBottom: '1.25rem', color: '#822727' }}>
-            <strong>Declined {viewDoc.declinedAt ? new Date(viewDoc.declinedAt).toLocaleString() : ''}</strong>
+            <strong>Declined {viewDoc.declinedAt ? formatDateTime(viewDoc.declinedAt) : ''}</strong>
             {viewDoc.declineReason && <div style={{ marginTop: '0.35rem' }}>{viewDoc.declineReason}</div>}
           </div>
         )}

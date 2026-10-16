@@ -6,11 +6,12 @@ import { toast } from '../Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import EligibilityCard, { isWisconsinAgency } from './EligibilityCard';
 import { toLocalYMD, parseLocalDate } from '../../utils/date';
+import { formatAgencyDateTime } from '../../utils/agencyClock';
 
 const fmt$ = (n) => n != null ? `$${parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')}` : '—';
 const fmtHrs = (n) => n != null ? `${parseFloat(n||0).toFixed(2)}h` : '—';
 const fmtDate = (d) => d ? parseLocalDate(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
-const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
+const fmtDateTime = (d) => d ? formatAgencyDateTime(d, {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 const s = {
@@ -339,8 +340,8 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
               <tr key={sh.id} style={{ borderBottom: '1px solid #F3F4F6' }}>
                 <td style={{ padding: '0.4rem 0.75rem', fontWeight: 600 }}>{sh.client_first} {sh.client_last}</td>
                 <td style={{ padding: '0.4rem 0.75rem', color: '#6B7280' }}>{fmtDate(sh.start_time)}</td>
-                <td style={{ padding: '0.4rem 0.75rem' }}>{new Date(sh.start_time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</td>
-                <td style={{ padding: '0.4rem 0.75rem' }}>{sh.end_time ? new Date(sh.end_time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—'}</td>
+                <td style={{ padding: '0.4rem 0.75rem' }}>{formatAgencyDateTime(sh.start_time, {hour:'numeric',minute:'2-digit'})}</td>
+                <td style={{ padding: '0.4rem 0.75rem' }}>{sh.end_time ? formatAgencyDateTime(sh.end_time, {hour:'numeric',minute:'2-digit'}) : '—'}</td>
                 <td style={{ padding: '0.4rem 0.75rem', fontWeight: 700 }}>{sh.hours ? fmtHrs(sh.hours) : '—'}</td>
                 <td style={{ padding: '0.4rem 0.75rem' }}>
                   <span style={s.badge(sh.is_complete?'#065F46':'#92400E', sh.is_complete?'#D1FAE5':'#FEF3C7')}>
@@ -695,8 +696,8 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
                 <tr key={sh.id} style={{borderBottom:'1px solid #F3F4F6'}}>
                   <td style={{padding:'0.5rem 0.75rem',fontWeight:600}}>{sh.client_first_name||sh.client_first} {sh.client_last_name||sh.client_last}</td>
                   <td style={{padding:'0.5rem 0.75rem',color:'#6B7280'}}>{fmtDate(sh.start_time)}</td>
-                  <td style={{padding:'0.5rem 0.75rem'}}>{new Date(sh.start_time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</td>
-                  <td style={{padding:'0.5rem 0.75rem'}}>{sh.end_time?new Date(sh.end_time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'Active'}</td>
+                  <td style={{padding:'0.5rem 0.75rem'}}>{formatAgencyDateTime(sh.start_time, {hour:'numeric',minute:'2-digit'})}</td>
+                  <td style={{padding:'0.5rem 0.75rem'}}>{sh.end_time?formatAgencyDateTime(sh.end_time, {hour:'numeric',minute:'2-digit'}):'Active'}</td>
                   <td style={{padding:'0.5rem 0.75rem',fontWeight:700}}>{sh.hours||sh.duration_hours?fmtHrs(sh.hours||sh.duration_hours):'—'}</td>
                   <td style={{padding:'0.5rem 0.75rem',color:'{{PRIMARY_COLOR}}'}}>{sh.hours&&profile?.default_pay_rate?fmt$(parseFloat(sh.hours)*parseFloat(profile.default_pay_rate)):'—'}</td>
                   <td style={{padding:'0.5rem 0.75rem'}}>{parseInt(sh.gps_point_count||0)>0?`✅ ${sh.gps_point_count} pts`:'⚠️ No GPS'}</td>
@@ -726,7 +727,7 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
     if (!gpsData && !gpsLoading) loadGpsData();
 
     const shift = selectedShift;
-    const fmtTs = (ts) => ts ? new Date(ts).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
+    const fmtTs = (ts) => ts ? formatAgencyDateTime(ts, {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
     const fmtCoord = (n) => n != null ? parseFloat(n).toFixed(5) : '—';
 
     return (

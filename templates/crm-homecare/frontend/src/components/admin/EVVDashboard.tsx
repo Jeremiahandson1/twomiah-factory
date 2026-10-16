@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { parseLocalDate } from '../../utils/date';
+import { formatAgencyDateTime } from '../../utils/agencyClock';
 
 const parseDate = (dateStr) => {
   if (!dateStr) return null;
@@ -30,7 +31,7 @@ const formatTime = (dateStr) => {
   if (!dateStr) return '—';
   const d = parseLocalDate(dateStr);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return formatAgencyDateTime(d, { hour: 'numeric', minute: '2-digit' });
 };
 
 const EVVDashboard = () => {

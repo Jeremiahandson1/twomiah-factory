@@ -2,6 +2,7 @@
 // Read-only view of the client's care plan for family members
 import React, { useState, useEffect } from 'react';
 import { apiCall } from '../../config';
+import { serviceLabel } from '../../utils/serviceTypes';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '\u2014';
@@ -58,7 +59,7 @@ const PortalCarePlan = ({ token }) => {
           <InfoField label="Gender" value={client.gender} />
           <InfoField label="Phone" value={client.phone} />
           <InfoField label="Address" value={[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')} />
-          <InfoField label="Service Type" value={client.serviceType} />
+          <InfoField label="Service Type" value={client.serviceType ? serviceLabel(client.serviceType) : null} />
           {client.insuranceProvider && (
             <InfoField label="Insurance" value={client.insuranceProvider} />
           )}

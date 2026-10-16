@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { parseLocalDate } from '../../utils/date';
+import { formatDateTime } from '../../utils/datetime';
 
 // Parses a user-agent string into a human-readable device/browser summary
 function parseUserAgent(ua) {
@@ -213,7 +214,7 @@ const LoginActivity = () => {
                           {timeAgo(row.created_at)}
                         </div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)' }}>
-                          {new Date(row.created_at).toLocaleString()}
+                          {formatDateTime(row.created_at)}
                         </div>
                       </td>
                       <td>

@@ -8,8 +8,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
 import { EVV_REASONS, EVV_REASONS_NEEDING_MEMO } from '../../utils/sandata';
+import { formatAgencyDateTime } from '../../utils/agencyClock';
 
-const fmtDT = (d) => (d ? new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
+const fmtDT = (d) => (d ? formatAgencyDateTime(d, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—');
 // datetime-local wants local wall time without a zone.
 const toLocalInput = (d) => {
   if (!d) return '';

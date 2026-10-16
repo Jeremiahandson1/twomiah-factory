@@ -11,13 +11,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from '../Toast';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatAgencyDateTime } from '../../utils/agencyClock';
 
 const fmtHrs = (h) => (h == null || h === '' ? '—' : `${parseFloat(h).toFixed(2)}h`);
 const fmt$ = (n) => (n == null || n === '' ? '—' : `$${parseFloat(n).toFixed(2)}`);
 const fmtDateTime = (t) => {
   if (!t) return '—';
-  const d = new Date(t);
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return formatAgencyDateTime(t, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 };
 
 const REASON_LABEL = {

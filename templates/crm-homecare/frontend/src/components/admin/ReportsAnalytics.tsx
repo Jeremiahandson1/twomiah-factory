@@ -5,6 +5,7 @@ import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import AgencyTimezone from './AgencyTimezone';
 import { toLocalYMD } from '../../utils/date';
+import { serviceLabel } from '../../utils/serviceTypes';
 
 // Report dates arrive as YYYY-MM-DD (the agency's calendar day). Parsed at LOCAL midnight so a viewer
 // west of UTC does not see the day before. (Local, not utils/date: importing that here makes the
@@ -218,7 +219,7 @@ const ReportsAnalytics = () => {
                     <td><strong>{cl.first_name} {cl.last_name}</strong></td>
                     <td>
                       <span className="badge badge-success">
-                        {cl.service_type?.replace('_', ' ').toUpperCase() || 'N/A'}
+                        {serviceLabel(cl.service_type)}
                       </span>
                     </td>
                     <td>{Number(parseFloat(cl.total_hours || 0)).toFixed(2)} hrs</td>
@@ -257,7 +258,7 @@ const ReportsAnalytics = () => {
                 <tbody>
                   {hoursByType.map((type, idx) => (
                     <tr key={idx}>
-                      <td>{type.service_type?.replace('_', ' ').toUpperCase() || 'N/A'}</td>
+                      <td>{serviceLabel(type.service_type)}</td>
                       <td>{Number(parseFloat(type.hours || 0)).toFixed(2)}</td>
                       <td>
                         <div style={{ width: '100px', height: '6px', background: '#e0e0e0', borderRadius: '3px', overflow: 'hidden' }}>
@@ -610,7 +611,7 @@ const ReportsAnalytics = () => {
                     const r = parseFloat(st.revenue) || 0;
                     return (
                       <tr key={idx}>
-                        <td>{st.service_type?.replace('_', ' ').toUpperCase() || 'N/A'}</td>
+                        <td>{serviceLabel(st.service_type)}</td>
                         <td><strong>{money(r)}</strong></td>
                         <td>{revenueTotal > 0 ? ((r / revenueTotal) * 100).toFixed(1) : 0}%</td>
                       </tr>

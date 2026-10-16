@@ -15,6 +15,7 @@ import MakeShiftAvailableModal from './MakeShiftAvailableModal';
 import { confirm } from '../ConfirmModal';
 import { endsBeforeStart, shiftTimesError } from '../../utils/shiftTimes';
 import { toLocalYMD, parseLocalDate } from '../../utils/date';
+import { formatAgencyDate, formatAgencyDateTime } from '../../utils/agencyClock';
 
 function getWeekStart(date) {
   const d = parseLocalDate(date);
@@ -236,11 +237,13 @@ const SchedulingHub = () => {
     return res.json().catch(() => ({}));
   };
 
-  // Schedule endpoints return authWarnings (authorization balance, etc). They are
-  // advisory — the shift IS created — but they must not be swallowed.
-  const showAuthWarnings = (body) => {
+  // Schedule endpoints return authWarnings (authorization balance, etc). They are advisory — the
+  // shift IS created — so they ride on the success message in amber: a red "No active authorization"
+  // over a 201 read as a failure (Run 5), and a second message replaced the "created" one.
+  const showSaved = (text, body, failed = false) => {
     const w = body?.authWarnings;
-    if (Array.isArray(w) && w.length) showMsg(`⚠️ ${w[0]}`, 'error');
+    if (Array.isArray(w) && w.length) showMsg(`${text} ⚠️ ${w[0]}`, failed ? 'error' : 'warning');
+    else showMsg(text, failed ? 'error' : 'success');
   };
 
   const loadCoreData = async () => {
@@ -548,8 +551,7 @@ const SchedulingHub = () => {
         // Say WHY, not just how many. "(2 failed)" with no reason is why a
         // server-side block went undiagnosed for months.
         if (failed > 0) m += ` — ${failed} failed: ${firstFailure}`;
-        if (failed > 0) showMsg(m, 'error'); else showMsg(m);
-        if (lastWarnings) showAuthWarnings({ authWarnings: lastWarnings });
+        showSaved(m, { authWarnings: lastWarnings }, failed > 0);
       } else if (formData.scheduleType === 'recurring') {
         const body = await api('/api/schedules-enhanced', { method: 'POST', body: JSON.stringify({
           caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'recurring',
@@ -557,16 +559,14 @@ const SchedulingHub = () => {
           notes: formData.notes, frequency: 'weekly', effectiveDate: formData.date || today, anchorDate: null,
           isTraining: formData.isTraining, overnight
         })});
-        showMsg('Schedule created!');
-        showAuthWarnings(body);
+        showSaved('Schedule created!', body);
       } else {
         const body = await api('/api/schedules', { method: 'POST', body: JSON.stringify({
           caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'one-time',
           dayOfWeek: null, date: formData.date, startTime: formData.startTime, endTime: formData.endTime, notes: formData.notes,
           isTraining: formData.isTraining, overnight
         })});
-        showMsg('Schedule created!');
-        showAuthWarnings(body);
+        showSaved('Schedule created!', body);
       }
       setFormData(prev => ({ ...prev, clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: getTodayCT(), startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false }));
       setSelectedDays([]);
@@ -1840,7 +1840,7 @@ const SchedulingHub = () => {
           caregiverName={makeAvailableModal.caregiverName}
           onClose={() => setMakeAvailableModal(null)}
           onDone={({ notified, texted, warning }) => {
-            showMsg(warning || `Posted to Available Shifts — ${notified} caregiver${notified === 1 ? '' : 's'} can accept it${texted ? `, ${texted} texted` : ''}`, warning ? 'error' : undefined);
+            showMsg(warning || `Posted to Available Shifts — ${notified} caregiver${notified === 1 ? '' : 's'} can accept it${texted ? `, ${texted} texted` : ''}`, warning ? 'warning' : undefined);
             loadCaregiverSchedules(selectedCaregiverId);
             if (mainTab === 'staffing' && staffingTab === 'open-shifts') loadOpenShifts();
           }}
@@ -1861,7 +1861,7 @@ const SchedulingHub = () => {
     return (
       <>
         {message.text && (
-          <div style={{ position: 'fixed', top: '1rem', right: '1rem', padding: '0.75rem 1.25rem', borderRadius: '8px', zIndex: 2000, background: message.type === 'error' ? '#FEE2E2' : '#D1FAE5', color: message.type === 'error' ? '#DC2626' : '#059669', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontWeight: '600' }}>{message.text}</div>
+          <div style={{ position: 'fixed', top: '1rem', right: '1rem', padding: '0.75rem 1.25rem', borderRadius: '8px', zIndex: 2000, background: message.type === 'error' ? '#FEE2E2' : message.type === 'warning' ? '#FEF3C7' : '#D1FAE5', color: message.type === 'error' ? '#B91C1C' : message.type === 'warning' ? '#92400E' : '#047857', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontWeight: '600' }}>{message.text}</div>
         )}
 
         {/* Back button + page title */}
@@ -2172,7 +2172,7 @@ const SchedulingHub = () => {
   return (
     <>
       {message.text && (
-        <div style={{ position: 'fixed', top: '1rem', right: '1rem', padding: '0.75rem 1.25rem', borderRadius: '8px', zIndex: 2000, background: message.type === 'error' ? '#FEE2E2' : '#D1FAE5', color: message.type === 'error' ? '#DC2626' : '#059669', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontWeight: '600' }}>{message.text}</div>
+        <div style={{ position: 'fixed', top: '1rem', right: '1rem', padding: '0.75rem 1.25rem', borderRadius: '8px', zIndex: 2000, background: message.type === 'error' ? '#FEE2E2' : message.type === 'warning' ? '#FEF3C7' : '#D1FAE5', color: message.type === 'error' ? '#B91C1C' : message.type === 'warning' ? '#92400E' : '#047857', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontWeight: '600' }}>{message.text}</div>
       )}
 
       <div style={{ marginBottom: '1rem' }}><h2 style={{ margin: 0 }}>📅 Scheduling</h2></div>
@@ -2328,8 +2328,8 @@ function BookingsTab() {
           return (
             <div key={b.id} style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <div style={{ minWidth: '100px' }}>
-                <div style={{ fontWeight: 700, fontSize: '1rem' }}>{dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-                <div style={{ color: '#6B7280', fontSize: '0.875rem' }}>{dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
+                <div style={{ fontWeight: 700, fontSize: '1rem' }}>{formatAgencyDate(dt, { month: 'short', day: 'numeric' })}</div>
+                <div style={{ color: '#6B7280', fontSize: '0.875rem' }}>{formatAgencyDateTime(dt, { hour: 'numeric', minute: '2-digit' })}</div>
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>{b.customerName}</div>

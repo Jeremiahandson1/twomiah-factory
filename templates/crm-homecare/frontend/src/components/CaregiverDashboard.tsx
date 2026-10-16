@@ -23,6 +23,7 @@ import { savePunch, newLocalId, offlineSession, flushPunches, isUnreachable, pen
 import { isBiweeklyOn, toYMD } from '../utils/biweekly';
 import { CLIENT_UNAVAILABLE_REASONS } from '../utils/cancelReasons';
 import { toLocalYMD, parseLocalDate } from '../utils/date';
+import { formatAgencyDateTime } from '../utils/agencyClock';
 
 // A punch must never hang on a dead connection: give up after 20s and treat it as "no signal",
 // so the tap is saved on the phone instead of lost.
@@ -736,7 +737,7 @@ const CaregiverDashboard = ({ onLogout }) => {
         const saved = savePunch({ userId: user.id, localId, kind: 'in', at: tapAt, clientId: selectedClient, latitude: lat, longitude: lng });
         if (!saved) throw new Error('No signal, and this phone could not save the clock-in. Call the office with your start time.');
         await hapticNotify('warning');
-        toast(`No signal — clock-in saved on your phone at ${new Date(tapAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}. It will send by itself when you have signal.`, 'warning');
+        toast(`No signal — clock-in saved on your phone at ${formatAgencyDateTime(tapAt, { hour: 'numeric', minute: '2-digit' })}. It will send by itself when you have signal.`, 'warning');
         setActiveSession({ id: `offline-${localId}`, offline: true, client_id: selectedClient, start_time: tapAt });
         promptSandata('in', selectedClient, undefined);
         return;
@@ -781,7 +782,7 @@ const CaregiverDashboard = ({ onLogout }) => {
     const tapAt = new Date().toISOString(); // the real clock-out time, even if the send fails
     const finishSavedOffline = async () => {
       await hapticNotify('warning');
-      toast(`No signal — clock-out saved on your phone at ${new Date(tapAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}. It will send by itself when you have signal.${pendingPhotos.length ? ' Photos could not be saved offline.' : ''}`, 'warning');
+      toast(`No signal — clock-out saved on your phone at ${formatAgencyDateTime(tapAt, { hour: 'numeric', minute: '2-digit' })}. It will send by itself when you have signal.${pendingPhotos.length ? ' Photos could not be saved offline.' : ''}`, 'warning');
       setActiveSession(null);
       setSelectedClient('');
       setVisitNote('');

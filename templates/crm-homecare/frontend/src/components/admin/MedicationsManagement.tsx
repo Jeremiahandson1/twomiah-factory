@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import VitalsTracker from './VitalsTracker';
+import { formatDateTime } from '../../utils/datetime';
 
 const MedicationsManagement = () => {
   const { token } = useAuth();
@@ -369,7 +370,7 @@ const MedicationsManagement = () => {
                   <tbody>
                     {logs.map(log => (
                       <tr key={log.id}>
-                        <td>{new Date(log.administered_time).toLocaleString()}</td>
+                        <td>{formatDateTime(log.administered_time)}</td>
                         <td><strong>{log.medication_name}</strong></td>
                         <td>{log.dosage_given || log.dosage || '-'}</td>
                         <td>{getLogStatusBadge(log.effective_status || log.status)}</td>

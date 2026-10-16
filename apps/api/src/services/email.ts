@@ -184,7 +184,7 @@ export function buildWelcomeEmail(tenant: WelcomeTenant, ownerFirst: string | nu
       ${kv('Company', tenant.name)}
       ${kv('Plan', planDisplayName(tenant.plan))}
     </div>
-    <p style="color:#333;line-height:1.6;">As soon as your subscription is active, we&rsquo;ll build your system &mdash; this typically takes about <strong>10 minutes</strong> &mdash; and send a second email with your login URL and sign-in instructions. Every plan is backed by our <strong>30-day money-back guarantee</strong>.</p>
+    <p style="color:#333;line-height:1.6;">As soon as your subscription is active, we&rsquo;ll build your system &mdash; this usually takes <strong>a few minutes</strong> &mdash; and send a second email with your login URL and sign-in instructions. Every plan is backed by our <strong>30-day money-back guarantee</strong>.</p>
     <p style="color:#666;font-size:14px;">If you have questions in the meantime, just reply to this email.</p>`
 
   return { subject: `Welcome to Twomiah ${product} — ${tenant.name}`, html: wrap(`Welcome to Twomiah ${product}`, body) }

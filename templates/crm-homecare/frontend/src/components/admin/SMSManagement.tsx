@@ -4,6 +4,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDateTime } from '../../utils/datetime';
 
 const SMSManagement = () => {
   const { token } = useAuth();
@@ -321,7 +322,7 @@ const SMSManagement = () => {
                       </td>
                       <td>{getStatusBadge(msg.status)}</td>
                       <td style={{ fontSize: '0.85rem' }}>
-                        {new Date(msg.created_at).toLocaleString()}
+                        {formatDateTime(msg.created_at)}
                       </td>
                     </tr>
                   ))}

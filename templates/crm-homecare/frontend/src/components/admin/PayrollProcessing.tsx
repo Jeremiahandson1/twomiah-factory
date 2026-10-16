@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import PaydayVerificationSetting from './PaydayVerificationSetting';
+import { formatAgencyDateTime } from '../../utils/agencyClock';
 
 const PayrollProcessing = () => {
   const { token } = useAuth();
@@ -673,12 +674,12 @@ const PayrollProcessing = () => {
                         <td>{shift.scheduled_end ? formatTime(shift.scheduled_end) : '--'}</td>
                         <td>
                           {shift.actual_start
-                            ? new Date(shift.actual_start).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                            ? formatAgencyDateTime(shift.actual_start, { hour: '2-digit', minute: '2-digit' })
                             : <span style={{ color: '#EF4444' }}>--</span>}
                         </td>
                         <td>
                           {shift.actual_end
-                            ? new Date(shift.actual_end).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                            ? formatAgencyDateTime(shift.actual_end, { hour: '2-digit', minute: '2-digit' })
                             : <span style={{ color: '#EF4444' }}>--</span>}
                         </td>
                         <td>{shift.scheduled_minutes != null ? formatMinutes(shift.scheduled_minutes) : '--'}</td>

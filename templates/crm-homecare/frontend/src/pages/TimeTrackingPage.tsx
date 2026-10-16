@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { MapPin, CheckCircle, XCircle } from 'lucide-react';
 import { toLocalYMD } from '../utils/date';
+import { formatAgencyDateTime } from '../utils/agencyClock';
 
 export default function TimeTrackingPage() {
   const [entries, setEntries] = useState([]);
@@ -19,7 +20,7 @@ export default function TimeTrackingPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const fmt = (dt) => dt ? new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+  const fmt = (dt) => dt ? formatAgencyDateTime(dt, { hour: '2-digit', minute: '2-digit' }) : '—';
   const dur = (start, end) => {
     if (!end) return 'Active';
     const m = Math.round((new Date(end) - new Date(start)) / 60000);

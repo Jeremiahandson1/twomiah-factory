@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { toLocalYMD } from '../../utils/date';
+import { formatDateTime } from '../../utils/datetime';
 
 const AuditLogs = () => {
   const { token } = useAuth();
@@ -403,7 +404,7 @@ const AuditLogs = () => {
                           {' '} (ID: {log.entity_id})
                         </p>
                         <p style={{ margin: '0.25rem 0' }}>
-                          {new Date(log.timestamp).toLocaleString()}
+                          {formatDateTime(log.timestamp)}
                         </p>
                         {log.ip_address && (
                           <p style={{ margin: '0.25rem 0' }}>
@@ -434,7 +435,7 @@ const AuditLogs = () => {
                           <p><strong>Entity Type:</strong> {log.entity_type}</p>
                           <p><strong>Entity ID:</strong> {log.entity_id}</p>
                           <p><strong>Action:</strong> {log.action}</p>
-                          <p><strong>Timestamp:</strong> {new Date(log.timestamp).toLocaleString()}</p>
+                          <p><strong>Timestamp:</strong> {formatDateTime(log.timestamp)}</p>
                         </div>
 
                         <div>

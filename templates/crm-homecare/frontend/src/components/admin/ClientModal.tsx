@@ -3,6 +3,7 @@ import { createClient } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { X } from 'lucide-react';
+import { serviceLabel } from '../../utils/serviceTypes';
 
 const SERVICE_TYPES = ['personal_care', 'companionship', 'respite_care', 'skilled_nursing', 'homemaker'];
 
@@ -66,7 +67,7 @@ export default function ClientModal({ onClose, onSaved }) {
               <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Service Type</label>
               <select value={form.serviceType} onChange={e => setForm(p => ({ ...p, serviceType: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none dark:border-slate-700">
-                {SERVICE_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                {SERVICE_TYPES.map(t => <option key={t} value={t}>{serviceLabel(t)}</option>)}
               </select>
             </div>
             {field('insuranceProvider', 'Insurance Provider')}

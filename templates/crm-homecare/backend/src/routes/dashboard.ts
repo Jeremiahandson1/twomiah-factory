@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and, gte, lt, lte, isNull, inArray, count, sql, desc, asc, type SQL } from 'drizzle-orm'
+import { eq, and, gte, lte, isNull, inArray, count, sql, desc, asc, type SQL } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import {
   clients,
@@ -15,7 +15,7 @@ import {
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { invoiceBalanceSql, releasedInvoiceSql } from '../services/invoiceMoney.ts'
-import { agencyTimezone, agencyToday, localDate, localTs, nowUtc } from '../services/agencyTime.ts'
+import { addDays, agencyTimezone, agencyToday, dayEndUtc, dayStartUtc, localDate, localTs, nowUtc } from '../services/agencyTime.ts'
 import { ON_TIME_GRACE_MINUTES } from '../helpers/punchRules.ts'
 
 // "Late" is the one punctuality rule (helpers/punchRules.ts): more than the 7-minute grace after the start.
@@ -28,11 +28,11 @@ app.use('*', authenticate, requireAdmin)
 
 // GET /api/dashboard/stats
 app.get('/stats', async (c) => {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today)
-  tomorrow.setDate(today.getDate() + 1)
-  const thirtyDaysFromNow = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
+  // "Today" is the agency's day, not the server's (UTC): from 7 PM Central the server is already on
+  // tomorrow, so tonight's open shifts and the caregivers clocked in this afternoon dropped off the tiles.
+  const tz = await agencyTimezone()
+  const today = await agencyToday(tz)
+  const startedToday = sql`${timeEntries.startTime} >= ${dayStartUtc(today, tz)} AND ${timeEntries.startTime} < ${dayEndUtc(today, tz)}`
 
   const [
     activeClientsResult,
@@ -46,19 +46,19 @@ app.get('/stats', async (c) => {
   ] = await Promise.all([
     db.select({ count: count() }).from(clients).where(eq(clients.isActive, true)),
     db.select({ count: count() }).from(users).where(and(eq(users.role, 'caregiver'), eq(users.isActive, true))),
-    db.select({ count: count() }).from(openShifts).where(and(eq(openShifts.status, 'open'), gte(openShifts.date, today.toISOString().split('T')[0]))),
+    db.select({ count: count() }).from(openShifts).where(and(eq(openShifts.status, 'open'), gte(openShifts.date, today))),
     db.select({ count: count() }).from(noshowAlerts).where(eq(noshowAlerts.status, 'open')),
     db.select({ count: count() }).from(clientOnboarding).where(eq(clientOnboarding.allCompleted, false)),
     // Outstanding = released invoices' open balance (services/invoiceMoney.ts) — drafts are not owed yet.
     db.execute(sql`SELECT COALESCE(SUM(${invoiceBalanceSql()}), 0) AS sum FROM invoices i WHERE ${releasedInvoiceSql()} AND ${invoiceBalanceSql()} > 0.005`).then((r: any) => r.rows ?? r),
-    db.select({ count: count() }).from(authorizations).where(and(eq(authorizations.status, 'active'), lte(authorizations.endDate, thirtyDaysFromNow.toISOString().split('T')[0]))),
-    db.select({ count: count() }).from(timeEntries).where(and(gte(timeEntries.startTime, today), lt(timeEntries.startTime, tomorrow), eq(timeEntries.isComplete, false))),
+    db.select({ count: count() }).from(authorizations).where(and(eq(authorizations.status, 'active'), lte(authorizations.endDate, addDays(today, 30)))),
+    db.select({ count: count() }).from(timeEntries).where(and(startedToday, eq(timeEntries.isComplete, false))),
   ])
 
   // Caregivers currently on shift
   const caregiversClockedIn = await db.selectDistinct({ caregiverId: timeEntries.caregiverId })
     .from(timeEntries)
-    .where(and(gte(timeEntries.startTime, today), isNull(timeEntries.endTime), eq(timeEntries.isComplete, false)))
+    .where(and(startedToday, isNull(timeEntries.endTime), eq(timeEntries.isComplete, false)))
 
   return c.json({
     activeClients: activeClientsResult[0].count,
@@ -159,9 +159,7 @@ app.get('/recent-activity', async (c) => {
 
 // GET /api/dashboard/alerts
 app.get('/alerts', async (c) => {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const fourteenDaysFromNow = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000)
+  const today = await agencyToday() // the agency's day, not the server's UTC one
 
   const [noshowAlertsRaw, expiringAuthsRaw, expiringCerts] = await Promise.all([
     db.select({
@@ -194,7 +192,7 @@ app.get('/alerts', async (c) => {
       endDate: authorizations.endDate,
       status: authorizations.status,
     }).from(authorizations)
-      .where(and(eq(authorizations.status, 'active'), lte(authorizations.endDate, fourteenDaysFromNow.toISOString().split('T')[0])))
+      .where(and(eq(authorizations.status, 'active'), lte(authorizations.endDate, addDays(today, 14))))
       .orderBy(asc(authorizations.endDate))
       .limit(10),
 

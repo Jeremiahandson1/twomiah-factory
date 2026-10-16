@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { toast } from '../Toast';
 import { formatDate } from '../../utils/date';
 import EligibilityCard, { isWisconsinAgency } from './EligibilityCard';
+import { formatDateTime } from '../../utils/datetime';
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   sent:        { label: 'Invite Sent', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
@@ -19,7 +20,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 };
 
 const fmtDate = (d: any) => (d ? formatDate(d) : '—');
-const fmtDT = (d: any) => (d ? new Date(d).toLocaleString() : '—');
+const fmtDT = (d: any) => (d ? formatDateTime(d) : '—');
 const btnOutline = 'px-3 py-1.5 rounded-lg border-2 text-sm font-bold bg-white dark:bg-slate-800';
 const fieldLabel = 'block text-xs font-bold uppercase tracking-wide text-gray-600 dark:text-slate-300 mb-0.5';
 const fieldValue = 'text-sm text-gray-900 dark:text-slate-100 mb-3';

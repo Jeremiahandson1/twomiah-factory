@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatAgencyDate, formatAgencyDateTime } from '../../utils/agencyClock';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -136,9 +137,8 @@ export default function CommunicationLog({ entityType, entityId, entityName, com
   const typeInfo = (t) => LOG_TYPES.find(l => l.value === t) || LOG_TYPES[0];
 
   const fmt = (dt) => {
-    const d = new Date(dt);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return formatAgencyDate(dt, { month: 'short', day: 'numeric', year: 'numeric' })
+      + ' ' + formatAgencyDateTime(dt, { hour: 'numeric', minute: '2-digit' });
   };
 
   return (

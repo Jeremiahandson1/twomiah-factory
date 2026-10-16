@@ -14,6 +14,13 @@ import { clientDocuments, clientDocumentTemplates, clients, agencies, auditLogs 
 import { eq, desc, and, asc } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import emailService from '../services/email.ts'
+import { agencyToday } from '../services/agencyTime.ts'
+
+// A calendar day ('2026-10-21') as 10/21/2026 — read as text, so no zone can move it a day.
+const usDate = (ymd: unknown): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd instanceof Date ? ymd.toISOString() : String(ymd ?? ''))
+  return m ? `${Number(m[2])}/${Number(m[3])}/${m[1]}` : ''
+}
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -260,8 +267,8 @@ app.post('/', requireAdmin, async (c) => {
     const filled = fillPlaceholders(template.body, {
       CLIENT_NAME: `${client.firstName || ''} ${client.lastName || ''}`.trim(),
       AGENCY_NAME: agency?.name || 'our agency',
-      START_DATE: client.startDate ? new Date(client.startDate as any).toLocaleDateString() : 'the agreed start date',
-      DATE: new Date().toLocaleDateString(),
+      START_DATE: usDate(client.startDate) || 'the agreed start date',
+      DATE: usDate(await agencyToday()), // the agency's today — the server's UTC day is tomorrow after 7 PM Central
       RATE: client.privatePayRate ? String(client.privatePayRate) : 'the agreed rate',
     })
 
