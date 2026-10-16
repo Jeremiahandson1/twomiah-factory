@@ -3,7 +3,7 @@
 // What these prove, against the real routes on a real SQL engine:
 //   · SCHEDULED hours come off the shared schedule engine: weekly, bi-weekly on its anchor fortnight,
 //     a one-time overnight shift, a cancelled occurrence gone, a suspended schedule stopped.
-//   · DELIVERED hours = payroll-reviewed minutes (verified/approved/manual_entry) + clock entries no
+//   · PAYABLE (delivered) hours = payroll-reviewed minutes (verified/approved/manual_entry) + clock entries no
 //     approved review covers — CVHC's rule, the same minutes counted once.
 //   · The P&L numbers CVHC's formulas give on this data: invoices prorated by days, payroll ×1.0765,
 //     earned revenue at each client's rate (private pay rate, or the payer's 15-minute rate × 4).
@@ -89,6 +89,8 @@ await mkRev({ caregiverId: cg1.id, clientId: A.id, scheduleId: S1.id, shiftDate:
 const DELIVERED_MIN = 235 + 120 + 225 + 60 + 240 + 60 + 60
 const CG1_MIN = 235 + 225 + 240, CG2_MIN = 120 + 60 + 60 + 60
 const A_MIN = 235 + 60 + 240 + 60, B_MIN = 120 + 225 + 60
+// CLOCKED (worked) minutes: the September punches at their real length — te1..te5.
+const CLOCKED_MIN = 235 + 120 + 240 + 60 + 60, CG1_CLOCKED = 235 + 240
 
 // Money.
 await db.insert(invoices).values({ invoiceNumber: 'INV-1', clientId: A.id, billingPeriodStart: '2026-09-01', billingPeriodEnd: '2026-09-14', subtotal: '280', total: '280', amountPaid: '100', paymentStatus: 'pending' } as any)
@@ -150,7 +152,8 @@ const SEPT = { startDate: '2026-09-01', endDate: '2026-09-30' }
   check('overview answers', r.status === 200, r)
   check(`scheduled hours = ${SCHEDULED_SEPT} (engine occurrences)`, near(s.totalHours, SCHEDULED_SEPT), s)
   check('scheduled visits = 9', s.totalShifts === 9, s)
-  check(`worked hours = delivered ${DELIVERED_MIN} min (reviews + unreviewed punches, each once)`, near(s.workedHours, DELIVERED_MIN / 60), s)
+  check(`payable hours = delivered ${DELIVERED_MIN} min (reviews + unreviewed punches, each once)`, near(s.payableHours, DELIVERED_MIN / 60), s)
+  check(`worked hours = the CLOCKED ${CLOCKED_MIN} min, not the payable`, near(s.workedHours, CLOCKED_MIN / 60), s)
   check('delivered vs scheduled % is CVHC\'s rounding', s.deliveredPct === Math.round((DELIVERED_MIN / 60 / SCHEDULED_SEPT) * 100), s)
   check('revenue billed = invoices + non-voided claims (280 + 50)', near(s.totalRevenue, 330), s)
   check('satisfaction counts both ratings on the agency\'s calendar (5 and 3)', near(s.avgSatisfaction, 4), s)
@@ -158,7 +161,7 @@ const SEPT = { startDate: '2026-09-01', endDate: '2026-09-30' }
   check('top caregivers show labour COST (scheduled 16h × $20)', near(top?.est_labor_cost, 320), top)
   const f = await office('POST', '/api/reports/overview', { ...SEPT, caregiverId: cg1.id })
   check('the caregiver filter narrows scheduled hours to that caregiver (12 + 4)', near(f.json?.summary?.totalHours, 16), f.json?.summary)
-  check('…and worked hours too', near(f.json?.summary?.workedHours, CG1_MIN / 60), f.json?.summary)
+  check('…and worked (clocked) and payable hours too', near(f.json?.summary?.workedHours, CG1_CLOCKED / 60) && near(f.json?.summary?.payableHours, CG1_MIN / 60), f.json?.summary)
   const bad = await office('POST', '/api/reports/overview', { startDate: 'yesterday', endDate: '2026-09-30' })
   check('a malformed date is refused, not a 500', bad.status === 400, bad)
 }
@@ -167,7 +170,7 @@ const SEPT = { startDate: '2026-09-01', endDate: '2026-09-30' }
 {
   const h = await office('POST', '/api/reports/hours', SEPT)
   const row = (h.json?.caregiverBreakdown || []).find((x: any) => x.id === cg1.id)
-  check('hours: caregiver scheduled 16h, worked = delivered', near(row?.total_hours, 16) && near(row?.worked_hours, CG1_MIN / 60), row)
+  check('hours: caregiver scheduled 16h, worked = clocked, payable = delivered', near(row?.total_hours, 16) && near(row?.worked_hours, CG1_CLOCKED / 60) && near(row?.payable_hours, CG1_MIN / 60), row)
   check('hours: total across service types = scheduled', near(h.json?.totalHours, SCHEDULED_SEPT), h.json?.totalHours)
 
   const p = await office('POST', '/api/reports/performance', SEPT)

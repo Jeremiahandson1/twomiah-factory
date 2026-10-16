@@ -26,6 +26,7 @@ const PayrollProcessing = () => {
   const [activeTab, setActiveTab] = useState('shifts');
   const [discrepancies, setDiscrepancies] = useState(null);
   const [discrepancyLoading, setDiscrepancyLoading] = useState(false);
+  const [unresolvedReviews, setUnresolvedReviews] = useState(0);
 
   // Shift review state
   const [shiftData, setShiftData] = useState({ shifts: [], stats: {} });
@@ -151,10 +152,10 @@ const PayrollProcessing = () => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ startDate: payPeriod.startDate, endDate: payPeriod.endDate })
       });
-      if (!genResponse.ok) throw new Error('Failed to generate shifts');
+      if (!genResponse.ok) { const e = await genResponse.json().catch(() => ({})); throw new Error(e.error || 'Failed to generate shifts'); }
       const genResult = await genResponse.json();
       await loadShifts();
-      setMessage(`Generated ${genResult.generated} shifts (${genResult.matched} matched, ${genResult.missingPunch} missing punch)`);
+      setMessage(`Generated ${genResult.generated} shift${genResult.generated === 1 ? '' : 's'} (${genResult.matched} matched, ${genResult.missingPunch} missing punch${genResult.kept ? `, ${genResult.kept} earlier decision${genResult.kept === 1 ? '' : 's'} kept` : ''})`);
       setTimeout(() => setMessage(''), 5000);
     } catch (error) {
       setMessage('Error: ' + error.message);
@@ -183,7 +184,7 @@ const PayrollProcessing = () => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ status, ...extras })
       });
-      if (!r.ok) throw new Error('Failed to update shift');
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Failed to update shift'); }
       await loadShifts();
     } catch (error) {
       toast('Failed: ' + error.message, 'error');
@@ -201,8 +202,8 @@ const PayrollProcessing = () => {
       const result = await r.json();
       await loadShifts();
       const msg = mode === 'all'
-        ? `Approved ${result.approvedCount || 0} shifts`
-        : `Approved ${result.approvedCount || 0} clocked shifts`;
+        ? `Approved ${result.approved || 0} shift${result.approved === 1 ? '' : 's'}`
+        : `Approved ${result.approved || 0} clocked shift${result.approved === 1 ? '' : 's'}`;
       setMessage(msg);
       setTimeout(() => setMessage(''), 5000);
     } catch (error) {
@@ -253,56 +254,53 @@ const PayrollProcessing = () => {
         body: JSON.stringify({
           startDate: payPeriod.startDate,
           endDate: payPeriod.endDate,
-          settings
+          otThreshold: settings.overtimeThreshold,
+          otMultiplier: settings.overtimeRate,
         })
       });
-      const data = await response.json();
-      
-      // Enhance payroll data with calculations
-      const enhanced = (data.payrollData || []).map(p => {
-        const regularHours = Math.min(p.total_hours || 0, settings.overtimeThreshold);
-        const overtimeHours = Math.max((p.total_hours || 0) - settings.overtimeThreshold, 0);
-        const hourlyRate = parseFloat(p.hourly_rate || 15);
-        
-        const regularPay = regularHours * hourlyRate;
-        const overtimePay = overtimeHours * hourlyRate * settings.overtimeRate;
-        const mileageReimbursement = parseFloat(p.total_miles || 0) * settings.mileageRate;
-        const weekendPay = parseFloat(p.weekend_hours || 0) * settings.weekendDifferential;
-        const nightPay = parseFloat(p.night_hours || 0) * settings.nightDifferential;
-        const ptoPay = parseFloat(p.pto_hours || 0) * hourlyRate;
-        
-        const grossPay = regularPay + overtimePay + mileageReimbursement + weekendPay + nightPay + ptoPay;
-        
-        const federalTax = grossPay * settings.federalTaxRate;
-        const stateTax = grossPay * settings.stateTaxRate;
-        const socialSecurity = grossPay * settings.socialSecurityRate;
-        const medicare = grossPay * settings.medicareRate;
-        const totalDeductions = federalTax + stateTax + socialSecurity + medicare;
-        
-        const netPay = grossPay - totalDeductions + mileageReimbursement; // Mileage is reimbursement, not taxed
-        
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+
+      // Hours, overtime (over 40 in each Sun–Sat week), rates and wages are the server's
+      // (services/payrollPay.ts) — the same numbers the Gusto CSV and the payroll approval carry.
+      // Only the withholding below is an on-screen ESTIMATE from the rates in Settings.
+      const enhanced = (data.payroll || []).map(p => {
+        const wages = Number(p.wagesPay) || 0;
+        const mileageReimbursement = Number(p.mileageReimbursement) || 0;
+        const federalTax = wages * settings.federalTaxRate;
+        const stateTax = wages * settings.stateTaxRate;
+        const socialSecurity = wages * settings.socialSecurityRate;
+        const medicare = wages * settings.medicareRate;
+        const totalDeductions = Math.round((federalTax + stateTax + socialSecurity + medicare) * 100) / 100;
+        const grossPay = Number(p.grossPay) || 0; // wages + mileage
         return {
           ...p,
-          regular_hours: regularHours,
-          overtime_hours: overtimeHours,
-          regular_pay: regularPay,
-          overtime_pay: overtimePay,
+          caregiver_id: p.caregiverId,
+          first_name: p.firstName,
+          last_name: p.lastName,
+          total_hours: Number(p.totalHours) || 0,
+          regular_hours: Number(p.regularHours) || 0,
+          overtime_hours: Number(p.overtimeHours) || 0,
+          hourly_rate: Number(p.baseRate) || 0,
+          ot_rate: Number(p.otRate) || 0,
+          total_miles: Number(p.totalMiles) || 0,
+          regular_pay: Number(p.regularPay) || 0,
+          overtime_pay: Number(p.overtimePay) || 0,
           mileage_reimbursement: mileageReimbursement,
-          weekend_pay: weekendPay,
-          night_pay: nightPay,
-          pto_pay: ptoPay,
           gross_pay: grossPay,
           federal_tax: federalTax,
           state_tax: stateTax,
           social_security: socialSecurity,
           medicare: medicare,
           total_deductions: totalDeductions,
-          net_pay: netPay,
+          // Taxes come off wages only; mileage is a reimbursement and is already in gross.
+          net_pay: Math.round((grossPay - totalDeductions) * 100) / 100,
           status: p.status || 'draft'
         };
       });
-      
+
       setPayrollData(enhanced);
+      setUnresolvedReviews(Number(data.unresolvedReviews) || 0);
     } catch (error) {
       setMessage('Error: Failed to calculate payroll');
       console.error('Failed to calculate payroll:', error);
@@ -311,13 +309,23 @@ const PayrollProcessing = () => {
     }
   };
 
+  // PUT /api/payroll/:caregiverId/approve { startDate, endDate } — the server refuses while the
+  // caregiver has unresolved shift reviews and says so; that message is shown, not swallowed.
+  const approveOne = async (caregiverId) => {
+    const r = await fetch(`${API_BASE_URL}/api/payroll/${caregiverId}/approve`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ startDate: payPeriod.startDate, endDate: payPeriod.endDate })
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || `Approval failed (${r.status})`);
+    return d;
+  };
+
   const handleApprovePayroll = async (caregiverId) => {
     try {
-      await fetch(`${API_BASE_URL}/api/payroll/${caregiverId}/approve`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      setPayrollData(payrollData.map(p => p.caregiver_id === caregiverId ? { ...p, status: 'approved' } : p));
+      const rec = await approveOne(caregiverId);
+      setPayrollData(prev => prev.map(p => p.caregiver_id === caregiverId ? { ...p, status: 'approved', recordId: rec.id } : p));
       setMessage('✓ Payroll approved');
       setTimeout(() => setMessage(''), 2000);
     } catch (error) {
@@ -327,22 +335,33 @@ const PayrollProcessing = () => {
 
   const handleApproveAll = async () => {
     const drafts = payrollData.filter(p => p.status === 'draft');
+    const failed = [];
+    let ok = 0;
     for (const p of drafts) {
-      await handleApprovePayroll(p.caregiver_id);
+      try {
+        const rec = await approveOne(p.caregiver_id);
+        ok++;
+        setPayrollData(prev => prev.map(x => x.caregiver_id === p.caregiver_id ? { ...x, status: 'approved', recordId: rec.id } : x));
+      } catch (e) { failed.push(`${p.first_name} ${p.last_name}: ${e.message}`); }
     }
-    setMessage(`✓ Approved ${drafts.length} payroll records`);
-    setTimeout(() => setMessage(''), 3000);
+    setMessage(failed.length
+      ? `Error: approved ${ok} of ${drafts.length}. ${failed.join(' · ')}`
+      : `✓ Approved ${ok} payroll record${ok === 1 ? '' : 's'}`);
+    setTimeout(() => setMessage(''), failed.length ? 8000 : 3000);
   };
 
-  const handleProcessPaycheck = async (caregiverId) => {
+  // POST /api/payroll/:recordId/process — the record made by the approval.
+  const handleProcessPaycheck = async (payroll) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/payroll/${caregiverId}/process`, {
+      if (!payroll.recordId) throw new Error('Approve this payroll first');
+      const response = await fetch(`${API_BASE_URL}/api/payroll/${payroll.recordId}/process`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const result = await response.json();
-      setPayrollData(payrollData.map(p => p.caregiver_id === caregiverId ? { ...p, status: 'processed', check_number: result.checkNumber } : p));
-      setMessage(`✓ Check #${result.checkNumber} processed`);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `Processing failed (${response.status})`);
+      setPayrollData(prev => prev.map(p => p.caregiver_id === payroll.caregiver_id ? { ...p, status: 'processed' } : p));
+      setMessage(`✓ Payroll processed for ${payroll.first_name} ${payroll.last_name}`);
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       setMessage('Error: ' + error.message);
@@ -392,6 +411,7 @@ const PayrollProcessing = () => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ startDate: payPeriod.startDate, endDate: payPeriod.endDate, format })
       });
+      if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error || `HTTP ${response.status}`); }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -405,16 +425,16 @@ const PayrollProcessing = () => {
 
   const handleExportQuickBooks = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/payroll/export/quickbooks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ startDate: payPeriod.startDate, endDate: payPeriod.endDate, payrollData })
+      const qs = new URLSearchParams({ startDate: payPeriod.startDate, endDate: payPeriod.endDate });
+      const response = await fetch(`${API_BASE_URL}/api/payroll/export/quickbooks?${qs}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error || `HTTP ${response.status}`); }
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `quickbooks-payroll-${payPeriod.startDate}.iif`;
+      a.download = `quickbooks-payroll-${payPeriod.startDate}-to-${payPeriod.endDate}.csv`;
       a.click();
       setMessage('✓ QuickBooks export downloaded');
       setTimeout(() => setMessage(''), 3000);
@@ -432,9 +452,14 @@ const PayrollProcessing = () => {
     window.print();
   };
 
+  // The API names people caregiver_first_name / client_first_name (camelCase + its snake alias).
+  const personName = (first, last) => [first, last].filter(Boolean).join(' ') || '—';
+  const cgName = (s) => personName(s.caregiver_first_name ?? s.caregiverFirstName, s.caregiver_last_name ?? s.caregiverLastName);
+  const clName = (s) => personName(s.client_first_name ?? s.clientFirstName, s.client_last_name ?? s.clientLastName);
+
   // Shift computed values
   const shiftCaregivers = [...new Map(
-    shiftData.shifts.map(s => [s.caregiver_id, { id: s.caregiver_id, name: `${s.caregiver_first} ${s.caregiver_last}` }])
+    shiftData.shifts.map(s => [s.caregiver_id, { id: s.caregiver_id, name: cgName(s) }])
   ).values()].sort((a, b) => a.name.localeCompare(b.name));
 
   const filteredShifts = shiftData.shifts.filter(s => {
@@ -639,8 +664,8 @@ const PayrollProcessing = () => {
                           : shift.status === 'approved' || shift.status === 'verified' ? '#F0FDF4'
                           : undefined
                       }}>
-                        <td style={{ fontWeight: 600 }}>{shift.caregiver_first} {shift.caregiver_last}</td>
-                        <td>{shift.client_first} {shift.client_last}</td>
+                        <td style={{ fontWeight: 600 }}>{cgName(shift)}</td>
+                        <td>{clName(shift)}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {new Date(String(shift.shift_date).split('T')[0] + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                         </td>
@@ -711,7 +736,7 @@ const PayrollProcessing = () => {
           <div style={{ background:'#FEF3C7', border:'1px solid #FCD34D', borderRadius:12, padding:'1rem 1.25rem', marginBottom:'1rem', fontSize:'0.875rem', color:'#92400E' }}>
             <strong>📋 How payroll hours work:</strong> Caregivers are paid for <strong>allotted hours only</strong> — the hours authorized per client per shift. 
             If a caregiver clocks in late, their shift end adjusts forward by the late amount so they still get their full allotted time. 
-            If they work over their allotted hours, only the allotted hours are billable. Discrepancies of 5+ minutes are flagged here.
+            If they work over their allotted hours, only the allotted hours are billable. Punches more than 7 minutes off their allotted time (the same grace as the clock-out rule) are listed here.
           </div>
           <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1rem', flexWrap:'wrap', alignItems:'flex-end' }}>
             <div>
@@ -768,8 +793,8 @@ const PayrollProcessing = () => {
                         const under = parseFloat(d.discrepancy_hours) < 0;
                         return (
                           <tr key={d.id} style={{ borderBottom:'1px solid #F3F4F6', background: over ? '#FFF5F5' : under ? '#FFFBEB' : '#fff' }}>
-                            <td style={{ padding:'0.5rem 0.75rem', fontWeight:600 }}>{d.caregiver_first} {d.caregiver_last}</td>
-                            <td style={{ padding:'0.5rem 0.75rem' }}>{d.client_first} {d.client_last}</td>
+                            <td style={{ padding:'0.5rem 0.75rem', fontWeight:600 }}>{cgName(d)}</td>
+                            <td style={{ padding:'0.5rem 0.75rem' }}>{clName(d)}</td>
                             <td style={{ padding:'0.5rem 0.75rem', color:'#6B7280' }}>{new Date(d.start_time).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</td>
                             <td style={{ padding:'0.5rem 0.75rem' }}>{d.allotted_hours}h</td>
                             <td style={{ padding:'0.5rem 0.75rem' }}>{d.actual_hours}h</td>
@@ -839,6 +864,12 @@ const PayrollProcessing = () => {
         </div>
       </div>
 
+      {unresolvedReviews > 0 && (
+        <div className="alert alert-error" role="status">
+          {unresolvedReviews} shift review{unresolvedReviews === 1 ? '' : 's'} in this period still need a decision (pending, flagged or missing punch) and {unresolvedReviews === 1 ? 'is' : 'are'} not paid yet. Resolve {unresolvedReviews === 1 ? 'it' : 'them'} on the Shift Reviews tab.
+        </div>
+      )}
+
       {/* Status Filters */}
       <div className="card">
         <div className="filter-tabs">
@@ -855,7 +886,7 @@ const PayrollProcessing = () => {
       {loading ? (
         <div className="loading"><div className="spinner"></div></div>
       ) : filteredPayroll.length === 0 ? (
-        <div className="card card-centered"><p>No payroll data for this period.</p></div>
+        <div className="card card-centered"><p>No approved shift hours in this period. Generate and approve shifts on the Shift Reviews tab (same dates), then Calculate.</p></div>
       ) : (
         <table className="table">
           <thead>
@@ -890,7 +921,7 @@ const PayrollProcessing = () => {
                   <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                     <button className="btn btn-sm btn-primary" onClick={() => generatePayStub(payroll)}>Stub</button>
                     {payroll.status === 'draft' && <button className="btn btn-sm btn-warning" onClick={() => handleApprovePayroll(payroll.caregiver_id)}>Approve</button>}
-                    {payroll.status === 'approved' && <button className="btn btn-sm btn-success" onClick={() => handleProcessPaycheck(payroll.caregiver_id)}>Process</button>}
+                    {payroll.status === 'approved' && <button className="btn btn-sm btn-success" onClick={() => handleProcessPaycheck(payroll)}>Process</button>}
                   </div>
                 </td>
               </tr>
@@ -912,6 +943,12 @@ const PayrollProcessing = () => {
         </div>
       )}
 
+      </div>
+      )}
+
+      {/* The pop-ups sit OUTSIDE the tabs: Settings, Add Mileage and Add PTO are header buttons and
+          Flag / Resolve are Shift Reviews actions, so a pop-up inside the Payroll tab never opened from
+          the Shift Reviews tab the page lands on (the report's "Payroll Settings does nothing"). */}
       {/* PAY STUB MODAL */}
       {showPayStubModal && selectedPayroll && (
         <div className="modal active">
@@ -964,7 +1001,7 @@ const PayrollProcessing = () => {
                       <tr>
                         <td style={{ padding: '0.5rem', border: '1px solid #ddd' }}>Overtime (1.5x)</td>
                         <td style={{ padding: '0.5rem', textAlign: 'right', border: '1px solid #ddd' }}>{selectedPayroll.overtime_hours?.toFixed(2)}</td>
-                        <td style={{ padding: '0.5rem', textAlign: 'right', border: '1px solid #ddd' }}>${(selectedPayroll.hourly_rate * settings.overtimeRate).toFixed(2)}</td>
+                        <td style={{ padding: '0.5rem', textAlign: 'right', border: '1px solid #ddd' }}>${Number(selectedPayroll.ot_rate || 0).toFixed(2)}</td>
                         <td style={{ padding: '0.5rem', textAlign: 'right', border: '1px solid #ddd' }}>{formatCurrency(selectedPayroll.overtime_pay)}</td>
                       </tr>
                     )}
@@ -1201,7 +1238,7 @@ const PayrollProcessing = () => {
             </div>
             <form onSubmit={handleFlagShift}>
               <p style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#374151' }}>
-                <strong>{flagShift.caregiver_first} {flagShift.caregiver_last}</strong> — {flagShift.client_first} {flagShift.client_last}
+                <strong>{cgName(flagShift)}</strong> — {clName(flagShift)}
               </p>
               <div className="form-group">
                 <label>Flag Reason *</label>
@@ -1227,7 +1264,7 @@ const PayrollProcessing = () => {
             </div>
             <form onSubmit={handleResolveShift}>
               <p style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#374151' }}>
-                <strong>{resolveShift.caregiver_first} {resolveShift.caregiver_last}</strong> — {resolveShift.client_first} {resolveShift.client_last}
+                <strong>{cgName(resolveShift)}</strong> — {clName(resolveShift)}
                 <br />
                 <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>
                   Scheduled: {resolveShift.scheduled_minutes != null ? formatMinutes(resolveShift.scheduled_minutes) : 'N/A'}
@@ -1261,8 +1298,6 @@ const PayrollProcessing = () => {
             </form>
           </div>
         </div>
-      )}
-      </div>
       )}
     </div>
 

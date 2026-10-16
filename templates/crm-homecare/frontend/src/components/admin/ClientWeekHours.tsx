@@ -2,7 +2,7 @@
 // Who was at each client, and when — one Sunday–Saturday week at a time, every scheduled visit beside
 // its actual clock-in/out. Built for entering hours into an insurer's portal. Read-only: corrections
 // are made in Payroll → Shift Review and shown here.
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { cancelReasonLabel } from '../../utils/cancelReasons';
@@ -30,19 +30,26 @@ const FLAG_LABELS: Record<string, string> = { offline_punch: 'saved offline', ad
 
 const ClientWeekHours = () => {
   const { token } = useAuth();
-  const [weekStart, setWeekStart] = useState(sundayOf(new Date(Date.now() - 7 * 86400000))); // last full week
+  // Opens on THIS week on the agency's clock: the first load sends no weekStart and the server answers
+  // with the Sunday of the agency's today (not the laptop's, not last week).
+  const [weekStart, setWeekStart] = useState('');
+  const adopted = useRef('');
   const [clientId, setClientId] = useState('');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
+    if (weekStart && weekStart === adopted.current) return; // the week the first load just adopted
+    adopted.current = '';
     setLoading(true); setError('');
     try {
-      const r = await fetch(`${API_BASE_URL}/api/reports/client-week?weekStart=${weekStart}`, { headers: { Authorization: `Bearer ${token}` } });
+      const qs = weekStart ? `?weekStart=${weekStart}` : '';
+      const r = await fetch(`${API_BASE_URL}/api/reports/client-week${qs}`, { headers: { Authorization: `Bearer ${token}` } });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
       setData(body);
+      if (!weekStart && body.weekStart) { adopted.current = body.weekStart; setWeekStart(body.weekStart); }
     } catch (e: any) { setError(e.message); setData(null); }
     setLoading(false);
   }, [weekStart, token]);
@@ -61,9 +68,9 @@ const ClientWeekHours = () => {
       <p className="text-muted" style={{ marginTop: 0 }}>Who was at each client and when — scheduled visits beside the actual clock-in and clock-out, Sunday to Saturday.</p>
 
       <div className="card cwh-controls" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => setWeekStart(addDays(weekStart, -7))}>← Prev week</button>
-        <strong>{dayLabel(weekStart)} – {dayLabel(addDays(weekStart, 6))}</strong>
-        <button type="button" className="btn btn-sm btn-secondary" onClick={() => setWeekStart(addDays(weekStart, 7))}>Next week →</button>
+        <button type="button" className="btn btn-sm btn-secondary" disabled={!weekStart} onClick={() => setWeekStart(addDays(weekStart, -7))}>← Prev week</button>
+        <strong>{weekStart ? `${dayLabel(weekStart)} – ${dayLabel(addDays(weekStart, 6))}` : 'This week'}</strong>
+        <button type="button" className="btn btn-sm btn-secondary" disabled={!weekStart} onClick={() => setWeekStart(addDays(weekStart, 7))}>Next week →</button>
         <input type="date" value={weekStart} onChange={e => e.target.value && setWeekStart(sundayOf(new Date(`${e.target.value}T12:00:00`)))}
           title="Pick any day — the page shows that day's Sunday–Saturday week" />
         <select value={clientId} onChange={e => setClientId(e.target.value)} style={{ minWidth: 200 }}>

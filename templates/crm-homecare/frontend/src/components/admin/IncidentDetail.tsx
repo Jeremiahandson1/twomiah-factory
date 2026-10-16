@@ -121,7 +121,7 @@ const SignatureDialog = ({ open, documentName, onClose, onSign }: {
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label={`Sign: ${documentName}`}>
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label={`Sign: ${documentName}`}>
       <div className="w-full max-w-lg rounded-xl bg-white p-5 shadow-2xl dark:bg-slate-900">
         <h3 className={H3}>{documentName}</h3>
         <p className={`${MUTED} mb-3`}>Sign in the box below. Your IP address and timestamp will be recorded.</p>

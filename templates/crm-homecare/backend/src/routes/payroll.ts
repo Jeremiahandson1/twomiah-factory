@@ -1,9 +1,12 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { timeEntries, users, gustoSyncLog, expenses, mileageEntries, clients, payrollShiftReviews, payrollRecords, payrollLineItems, caregiverRates } from '../../db/schema.ts'
-import { eq, and, gte, lte, desc, sql, inArray, isNull, or, max } from 'drizzle-orm'
+import { timeEntries, users, gustoSyncLog, expenses, mileageEntries, clients, payrollShiftReviews, payrollRecords } from '../../db/schema.ts'
+import { eq, and, gte, lte, desc, sql, inArray } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { agencyMileageRate, parseMileageRate } from '../services/mileageRate.ts'
+import { payrollForRange, unresolvedReviewCount, payCents, PAYABLE_REVIEW_STATUSES, FALLBACK_PAY_RATE } from '../services/payrollPay.ts'
+import { isYmd, agencyTimezone, dayStartUtc, dayEndUtc } from '../services/agencyTime.ts'
+import { VARIANCE_GRACE_MINUTES } from '../helpers/punchRules.ts'
 
 // Escape a string for safe CSV output (prevent formula injection + handle quotes)
 function csvEscape(val: string | null | undefined): string {
@@ -149,20 +152,12 @@ app.post('/calculate', async (c) => {
   const mileageRate = parseMileageRate(askedRate) ?? await agencyMileageRate()
   if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
 
-  // Get approved/verified shift reviews for the period
-  const shifts = await db.select({
-    review: payrollShiftReviews,
-    caregiverFirstName: users.firstName,
-    caregiverLastName: users.lastName,
-    defaultPayRate: users.defaultPayRate,
-  })
-    .from(payrollShiftReviews)
-    .leftJoin(users, eq(payrollShiftReviews.caregiverId, users.id))
-    .where(and(
-      eq(payrollShiftReviews.payPeriodStart, startDate),
-      eq(payrollShiftReviews.payPeriodEnd, endDate),
-      inArray(payrollShiftReviews.status, ['approved', 'verified']),
-    ))
+  if (!isYmd(startDate) || !isYmd(endDate) || endDate < startDate) return c.json({ error: 'startDate and endDate must be YYYY-MM-DD, start first' }, 400)
+
+  // The pay itself is services/payrollPay.ts — the same rule as the Gusto preview and CSV: payable
+  // minutes of verified / approved / manual-entry reviews dated in the range, overtime over 40 in
+  // each Sunday–Saturday week.
+  const lines = await payrollForRange(startDate, endDate, { otThresholdHours: Number(otThreshold), otMultiplier: Number(otMultiplier) })
 
   // Get mileage for the period
   const mileageRows = await db.select({
@@ -175,84 +170,37 @@ app.post('/calculate', async (c) => {
       lte(mileageEntries.date, endDate),
     ))
 
-  // Get caregiver-specific rates
-  const caregiverIds = [...new Set(shifts.map(s => s.review.caregiverId))]
-  let ratesMap: Record<string, any> = {}
-  if (caregiverIds.length > 0) {
-    const today = new Date().toISOString().split('T')[0]
-    const rates = await db.select()
-      .from(caregiverRates)
-      .where(and(
-        inArray(caregiverRates.caregiverId, caregiverIds),
-        lte(caregiverRates.effectiveDate, today),
-        or(isNull(caregiverRates.endDate), gte(caregiverRates.endDate, today)),
-      ))
-    for (const r of rates) {
-      if (!ratesMap[r.caregiverId]) ratesMap[r.caregiverId] = {}
-      if (!ratesMap[r.caregiverId][r.rateType]) ratesMap[r.caregiverId][r.rateType] = r
-    }
-  }
-
   // Aggregate mileage by caregiver
   const mileageByCaregiver: Record<string, number> = {}
   mileageRows.forEach(m => {
     mileageByCaregiver[m.caregiverId] = (mileageByCaregiver[m.caregiverId] || 0) + Number(m.miles || 0)
   })
 
-  // Group shifts by caregiver and calculate
-  const byCaregiver: Record<string, any> = {}
-  shifts.forEach(s => {
-    const id = s.review.caregiverId
-    if (!byCaregiver[id]) {
-      const baseRate = ratesMap[id]?.base?.hourlyRate || s.defaultPayRate || '15'
-      const otRate = ratesMap[id]?.overtime?.hourlyRate || String(Number(baseRate) * otMultiplier)
-      byCaregiver[id] = {
-        caregiverId: id,
-        firstName: s.caregiverFirstName,
-        lastName: s.caregiverLastName,
-        baseRate: Number(baseRate),
-        otRate: Number(otRate),
-        totalMinutes: 0,
-        scheduledShifts: 0,
-        approvedShifts: 0,
-      }
-    }
-    byCaregiver[id].totalMinutes += s.review.payableMinutes || 0
-    byCaregiver[id].scheduledShifts++
-    byCaregiver[id].approvedShifts++
-  })
+  // Where each caregiver's payroll for this period stands (approved / processed), if it has a record.
+  const records = await db.select({ id: payrollRecords.id, caregiverId: payrollRecords.caregiverId, status: payrollRecords.status })
+    .from(payrollRecords)
+    .where(and(eq(payrollRecords.periodStart, startDate), eq(payrollRecords.periodEnd, endDate)))
+  const recordBy = new Map(records.map((r) => [r.caregiverId, r]))
 
-  // Calculate OT split and pay for each caregiver
-  const payroll = Object.values(byCaregiver).map((cg: any) => {
-    const totalHours = Number((cg.totalMinutes / 60).toFixed(2))
-    const regularHours = Math.min(totalHours, otThreshold)
-    const overtimeHours = Math.max(totalHours - otThreshold, 0)
-    const regularPay = Number((regularHours * cg.baseRate).toFixed(2))
-    const overtimePay = Number((overtimeHours * cg.otRate).toFixed(2))
-    const totalMiles = mileageByCaregiver[cg.caregiverId] || 0
-    const mileageReimbursement = Number((totalMiles * mileageRate).toFixed(2))
-    const grossPay = regularPay + overtimePay + mileageReimbursement
-
+  const payroll = lines.map((l) => {
+    const totalMiles = Math.round((mileageByCaregiver[l.caregiverId] || 0) * 100) / 100
+    const mileageCents = Math.round(totalMiles * mileageRate * 100)
+    const rec = recordBy.get(l.caregiverId)
     return {
-      caregiverId: cg.caregiverId,
-      firstName: cg.firstName,
-      lastName: cg.lastName,
-      baseRate: cg.baseRate,
-      otRate: cg.otRate,
-      totalHours,
-      regularHours,
-      overtimeHours,
-      regularPay,
-      overtimePay,
+      ...l,
       totalMiles,
-      mileageReimbursement,
-      grossPay,
-      scheduledShifts: cg.scheduledShifts,
-      approvedShifts: cg.approvedShifts,
+      mileageReimbursement: mileageCents / 100,
+      // Wages + mileage. Mileage is a reimbursement, not wages: wagesPay is what payroll taxes apply to.
+      wagesPay: l.grossPay,
+      grossPay: Math.round(l.grossPay * 100 + mileageCents) / 100,
+      approvedShifts: l.shifts,
+      recordId: rec?.id ?? null,
+      status: rec?.status ?? 'draft',
     }
   })
+  const unresolved = await unresolvedReviewCount(startDate, endDate)
 
-  return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, otThreshold, otMultiplier, mileageRate, payroll })
+  return c.json({ payPeriodStart: startDate, payPeriodEnd: endDate, otThreshold, otMultiplier, mileageRate, payroll, unresolvedReviews: unresolved })
 })
 
 // PUT /payroll/:caregiverId/approve — approve payroll for a caregiver
@@ -261,39 +209,22 @@ app.put('/:caregiverId/approve', async (c) => {
   const user = c.get('user') as any
   const { startDate, endDate } = await c.req.json()
   if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
+  if (!isYmd(startDate) || !isYmd(endDate) || endDate < startDate) return c.json({ error: 'startDate and endDate must be YYYY-MM-DD, start first' }, 400)
 
   // Check for unresolved shifts
-  const unresolvedShifts = await db.select({ id: payrollShiftReviews.id })
-    .from(payrollShiftReviews)
-    .where(and(
-      eq(payrollShiftReviews.caregiverId, caregiverId),
-      eq(payrollShiftReviews.payPeriodStart, startDate),
-      eq(payrollShiftReviews.payPeriodEnd, endDate),
-      inArray(payrollShiftReviews.status, ['pending', 'flagged', 'missing_punch']),
-    ))
-
-  if (unresolvedShifts.length > 0) {
-    return c.json({ error: `${unresolvedShifts.length} unresolved shifts must be addressed first` }, 400)
+  const unresolved = await unresolvedReviewCount(startDate, endDate, caregiverId)
+  if (unresolved > 0) {
+    return c.json({ error: `${unresolved} unresolved shift${unresolved === 1 ? '' : 's'} must be addressed first (Payroll → Shift Reviews)` }, 400)
   }
 
-  // Calculate totals from approved shifts
-  const approvedShifts = await db.select()
-    .from(payrollShiftReviews)
-    .where(and(
-      eq(payrollShiftReviews.caregiverId, caregiverId),
-      eq(payrollShiftReviews.payPeriodStart, startDate),
-      eq(payrollShiftReviews.payPeriodEnd, endDate),
-      inArray(payrollShiftReviews.status, ['approved', 'verified']),
-    ))
-
-  const totalMinutes = approvedShifts.reduce((sum, s) => sum + (s.payableMinutes || 0), 0)
-  const totalHours = totalMinutes / 60
-  const regularHours = Math.min(totalHours, 40)
-  const overtimeHours = Math.max(totalHours - 40, 0)
-
-  // Get caregiver's pay rate
-  const [cg] = await db.select({ defaultPayRate: users.defaultPayRate }).from(users).where(eq(users.id, caregiverId)).limit(1)
-  const rate = Number(cg?.defaultPayRate || 15)
+  // The same numbers Calculate shows (services/payrollPay.ts): weekly overtime, the caregiver's rates, cents.
+  const [line] = await payrollForRange(startDate, endDate, { caregiverId })
+  if (!line) return c.json({ error: 'No approved hours for this caregiver in this period' }, 400)
+  const regularHours = line.regularHours
+  const overtimeHours = line.overtimeHours
+  const rate = line.baseRate
+  const otRate = line.otRate
+  const gross = line.grossPay
 
   // Upsert payroll record
   const existing = await db.select().from(payrollRecords)
@@ -304,15 +235,22 @@ app.put('/:caregiverId/approve', async (c) => {
     ))
     .limit(1)
 
+  if (existing[0] && existing[0].status !== 'approved' && existing[0].status !== 'draft') {
+    return c.json({ error: `This caregiver's payroll for the period is already ${existing[0].status}` }, 409)
+  }
+  const money = {
+    regularHours: regularHours.toFixed(2),
+    overtimeHours: overtimeHours.toFixed(2),
+    regularRate: rate.toFixed(2),
+    overtimeRate: otRate.toFixed(2),
+    grossPay: gross.toFixed(2),
+  }
+
   let record
   if (existing.length > 0) {
     [record] = await db.update(payrollRecords)
       .set({
-        regularHours: String(regularHours.toFixed(2)),
-        overtimeHours: String(overtimeHours.toFixed(2)),
-        regularRate: String(rate),
-        overtimeRate: String((rate * 1.5).toFixed(2)),
-        grossPay: String(((regularHours * rate) + (overtimeHours * rate * 1.5)).toFixed(2)),
+        ...money,
         status: 'approved',
         approvedAt: new Date(),
         approvedById: user.userId,
@@ -325,11 +263,7 @@ app.put('/:caregiverId/approve', async (c) => {
       caregiverId,
       periodStart: startDate,
       periodEnd: endDate,
-      regularHours: String(regularHours.toFixed(2)),
-      overtimeHours: String(overtimeHours.toFixed(2)),
-      regularRate: String(rate),
-      overtimeRate: String((rate * 1.5).toFixed(2)),
-      grossPay: String(((regularHours * rate) + (overtimeHours * rate * 1.5)).toFixed(2)),
+      ...money,
       status: 'approved',
       approvedAt: new Date(),
       approvedById: user.userId,
@@ -359,57 +293,24 @@ app.post('/:id/process', async (c) => {
   return c.json(updated)
 })
 
-// GET /payroll/discrepancies — time entry discrepancies
+// GET /payroll/discrepancies — punches whose clocked time differs from the visit's allotted
+// (scheduled) minutes by more than the 7-minute grace (helpers/punchRules.ts), on the agency's
+// calendar days. Shaped for Payroll → Hour Discrepancies: hours, and pay at the caregiver's rate.
 app.get('/discrepancies', async (c) => {
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
-
-  const conditions = [eq(timeEntries.isComplete, true)]
-  if (startDate) conditions.push(gte(timeEntries.startTime, new Date(startDate)))
-  if (endDate) conditions.push(lte(timeEntries.startTime, new Date(endDate)))
+  if (!isYmd(startDate) || !isYmd(endDate) || endDate < startDate) return c.json({ error: 'startDate and endDate must be YYYY-MM-DD, start first' }, 400)
+  const tz = await agencyTimezone()
 
   const entries = await db.select({
     id: timeEntries.id,
-    caregiverId: timeEntries.caregiverId,
-    clientId: timeEntries.clientId,
     startTime: timeEntries.startTime,
-    endTime: timeEntries.endTime,
     durationMinutes: timeEntries.durationMinutes,
     allottedMinutes: timeEntries.allottedMinutes,
     billableMinutes: timeEntries.billableMinutes,
-    discrepancyMinutes: timeEntries.discrepancyMinutes,
-    caregiverFirstName: users.firstName,
-    caregiverLastName: users.lastName,
-  })
-    .from(timeEntries)
-    .leftJoin(users, eq(timeEntries.caregiverId, users.id))
-    .where(and(...conditions))
-    .orderBy(desc(timeEntries.startTime))
-
-  // Only return entries with discrepancies
-  const discrepancies = entries.filter(e =>
-    (e.discrepancyMinutes && e.discrepancyMinutes !== 0) ||
-    (e.allottedMinutes && e.durationMinutes && Math.abs(e.durationMinutes - e.allottedMinutes) > 15)
-  )
-
-  return c.json(discrepancies)
-})
-
-// POST /payroll/export — export payroll data as CSV
-app.post('/export', async (c) => {
-  const { startDate, endDate, format = 'csv' } = await c.req.json()
-  if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
-
-  const entries = await db.select({
-    caregiverId: timeEntries.caregiverId,
     caregiverFirstName: users.firstName,
     caregiverLastName: users.lastName,
     defaultPayRate: users.defaultPayRate,
-    startTime: timeEntries.startTime,
-    endTime: timeEntries.endTime,
-    durationMinutes: timeEntries.durationMinutes,
-    billableMinutes: timeEntries.billableMinutes,
-    clientId: timeEntries.clientId,
     clientFirstName: clients.firstName,
     clientLastName: clients.lastName,
   })
@@ -417,85 +318,111 @@ app.post('/export', async (c) => {
     .leftJoin(users, eq(timeEntries.caregiverId, users.id))
     .leftJoin(clients, eq(timeEntries.clientId, clients.id))
     .where(and(
-      gte(timeEntries.startTime, new Date(startDate)),
-      lte(timeEntries.startTime, new Date(endDate)),
       eq(timeEntries.isComplete, true),
+      sql`${timeEntries.startTime} >= ${dayStartUtc(startDate, tz)} AND ${timeEntries.startTime} < ${dayEndUtc(endDate, tz)}`,
+      sql`${timeEntries.allottedMinutes} IS NOT NULL`,
     ))
-    .orderBy(users.lastName, timeEntries.startTime)
+    .orderBy(desc(timeEntries.startTime))
+
+  const h = (m: number) => (m / 60).toFixed(2)
+  const discrepancies = entries
+    .filter((e) => e.durationMinutes != null && Math.abs(e.durationMinutes - (e.allottedMinutes as number)) > VARIANCE_GRACE_MINUTES)
+    .map((e) => {
+      const actual = e.durationMinutes as number, allotted = e.allottedMinutes as number
+      const billable = e.billableMinutes ?? allotted
+      const rateCents = Math.round(Number(e.defaultPayRate || FALLBACK_PAY_RATE) * 100)
+      const overMin = Math.max(actual - billable, 0)
+      return {
+        id: e.id, start_time: e.startTime,
+        caregiver_first_name: e.caregiverFirstName, caregiver_last_name: e.caregiverLastName,
+        client_first_name: e.clientFirstName, client_last_name: e.clientLastName,
+        allotted_hours: h(allotted), actual_hours: h(actual), billable_hours: h(billable),
+        discrepancy_hours: h(actual - allotted),
+        billable_pay: (payCents(billable, rateCents) / 100).toFixed(2),
+        actual_pay: (payCents(actual, rateCents) / 100).toFixed(2),
+        overage_cost: (payCents(overMin, rateCents) / 100).toFixed(2),
+      }
+    })
+  const over = discrepancies.filter((d) => Number(d.discrepancy_hours) > 0)
+  return c.json({
+    discrepancies,
+    totals: {
+      totalShifts: discrepancies.length,
+      overageCount: over.length,
+      underageCount: discrepancies.filter((d) => Number(d.discrepancy_hours) < 0).length,
+      totalOverageCost: (over.reduce((s, d) => s + Math.round(Number(d.overage_cost) * 100), 0) / 100).toFixed(2),
+    },
+  })
+})
+
+// POST /payroll/export — the period's paid shifts as CSV, one line per shift review payroll pays
+// (verified / approved / manual entry, by shift date), at the caregiver's base rate. Overtime is a
+// weekly total, so it is its own line per caregiver (services/payrollPay.ts) — the lines add up to
+// Calculate's wages.
+app.post('/export', async (c) => {
+  const { startDate, endDate, format = 'csv' } = await c.req.json().catch(() => ({})) as any
+  if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
+  if (!isYmd(startDate) || !isYmd(endDate) || endDate < startDate) return c.json({ error: 'startDate and endDate must be YYYY-MM-DD, start first' }, 400)
+
+  const lines = await payrollForRange(startDate, endDate)
+  const shifts = await db.select({
+    caregiverId: payrollShiftReviews.caregiverId,
+    shiftDate: payrollShiftReviews.shiftDate,
+    payableMinutes: payrollShiftReviews.payableMinutes,
+    clientFirstName: clients.firstName,
+    clientLastName: clients.lastName,
+  })
+    .from(payrollShiftReviews)
+    .leftJoin(clients, eq(payrollShiftReviews.clientId, clients.id))
+    .where(and(
+      gte(payrollShiftReviews.shiftDate, startDate),
+      lte(payrollShiftReviews.shiftDate, endDate),
+      inArray(payrollShiftReviews.status, [...PAYABLE_REVIEW_STATUSES]),
+      sql`${payrollShiftReviews.payableMinutes} > 0`,
+    ))
+    .orderBy(payrollShiftReviews.shiftDate)
 
   if (format === 'csv') {
     const header = 'Caregiver,Client,Date,Hours,Rate,Amount'
-    const rows = entries.map(e => {
-      const hours = ((e.billableMinutes || e.durationMinutes || 0) / 60).toFixed(2)
-      const rate = Number(e.defaultPayRate || 15)
-      const amount = (Number(hours) * rate).toFixed(2)
-      const date = new Date(e.startTime).toISOString().split('T')[0]
-      return `"${csvEscape(e.caregiverLastName)}, ${csvEscape(e.caregiverFirstName)}","${csvEscape(e.clientFirstName)} ${csvEscape(e.clientLastName)}",${date},${hours},${rate},${amount}`
-    })
+    const rows: string[] = []
+    for (const l of lines) {
+      const name = `"${csvEscape(l.lastName)}, ${csvEscape(l.firstName)}"`
+      const rateCents = Math.round(l.baseRate * 100)
+      for (const s of shifts.filter((x) => x.caregiverId === l.caregiverId)) {
+        const mins = Number(s.payableMinutes) || 0
+        rows.push(`${name},"${csvEscape(s.clientFirstName)} ${csvEscape(s.clientLastName)}",${s.shiftDate},${(mins / 60).toFixed(2)},${l.baseRate.toFixed(2)},${(payCents(mins, rateCents) / 100).toFixed(2)}`)
+      }
+      if (l.overtimeHours > 0) {
+        // The overtime premium on top of the base already paid for those hours: (OT rate − base) × OT hours.
+        const premiumCents = Math.round(l.overtimePay * 100) - payCents(Math.round(l.overtimeHours * 60), rateCents)
+        rows.push(`${name},"Overtime premium",${endDate},${l.overtimeHours.toFixed(2)},${(l.otRate - l.baseRate).toFixed(2)},${(premiumCents / 100).toFixed(2)}`)
+      }
+    }
     const csvContent = [header, ...rows].join('\n')
     c.header('Content-Type', 'text/csv')
     c.header('Content-Disposition', `attachment; filename="payroll_${startDate}_${endDate}.csv"`)
     return c.body(csvContent)
   }
 
-  return c.json({ entries, startDate, endDate })
+  return c.json({ payroll: lines, startDate, endDate })
 })
 
-// GET /payroll/export/quickbooks — QuickBooks-formatted export
+// GET /payroll/export/quickbooks — QuickBooks-formatted export: Regular and Overtime rows per
+// caregiver, the same hours and pay as Calculate (services/payrollPay.ts).
 app.get('/export/quickbooks', async (c) => {
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
   if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
+  if (!isYmd(startDate) || !isYmd(endDate) || endDate < startDate) return c.json({ error: 'startDate and endDate must be YYYY-MM-DD, start first' }, 400)
 
-  const entries = await db.select({
-    caregiverId: timeEntries.caregiverId,
-    caregiverFirstName: users.firstName,
-    caregiverLastName: users.lastName,
-    defaultPayRate: users.defaultPayRate,
-    durationMinutes: timeEntries.durationMinutes,
-    billableMinutes: timeEntries.billableMinutes,
-  })
-    .from(timeEntries)
-    .leftJoin(users, eq(timeEntries.caregiverId, users.id))
-    .where(and(
-      gte(timeEntries.startTime, new Date(startDate)),
-      lte(timeEntries.startTime, new Date(endDate)),
-      eq(timeEntries.isComplete, true),
-    ))
-
-  // Aggregate by caregiver for QuickBooks with OT split
-  const OT_THRESHOLD = 40
-  const OT_MULTIPLIER = 1.5
-  const byCaregiver: Record<string, any> = {}
-  entries.forEach(e => {
-    const id = e.caregiverId
-    if (!byCaregiver[id]) {
-      byCaregiver[id] = {
-        employeeName: `${e.caregiverLastName}, ${e.caregiverFirstName}`,
-        totalHours: 0,
-        payRate: Number(e.defaultPayRate || 15),
-      }
-    }
-    byCaregiver[id].totalHours += (e.billableMinutes || e.durationMinutes || 0) / 60
-  })
-
-  // Generate QuickBooks CSV with separate regular and overtime rows
+  const lines = await payrollForRange(startDate, endDate)
   const header = 'Employee,PayType,Hours,PayRate,Amount'
   const csvRows: string[] = []
-  Object.values(byCaregiver).forEach((cg: any) => {
-    const totalHours = Number(cg.totalHours.toFixed(2))
-    const regularHours = Math.min(totalHours, OT_THRESHOLD)
-    const overtimeHours = Number(Math.max(totalHours - OT_THRESHOLD, 0).toFixed(2))
-    const regularPay = Number((regularHours * cg.payRate).toFixed(2))
-    const name = csvEscape(cg.employeeName)
-
-    csvRows.push(`"${name}",Regular,${regularHours.toFixed(2)},${cg.payRate},${regularPay}`)
-    if (overtimeHours > 0) {
-      const otRate = Number((cg.payRate * OT_MULTIPLIER).toFixed(2))
-      const otPay = Number((overtimeHours * otRate).toFixed(2))
-      csvRows.push(`"${name}",Overtime,${overtimeHours.toFixed(2)},${otRate},${otPay}`)
-    }
-  })
+  for (const l of lines) {
+    const name = csvEscape(`${l.lastName}, ${l.firstName}`)
+    csvRows.push(`"${name}",Regular,${l.regularHours.toFixed(2)},${l.baseRate.toFixed(2)},${l.regularPay.toFixed(2)}`)
+    if (l.overtimeHours > 0) csvRows.push(`"${name}",Overtime,${l.overtimeHours.toFixed(2)},${l.otRate.toFixed(2)},${l.overtimePay.toFixed(2)}`)
+  }
   const csvContent = [header, ...csvRows].join('\n')
   c.header('Content-Type', 'text/csv')
   c.header('Content-Disposition', `attachment; filename="quickbooks_payroll_${startDate}_${endDate}.csv"`)

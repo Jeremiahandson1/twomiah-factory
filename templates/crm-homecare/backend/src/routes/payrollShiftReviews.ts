@@ -53,8 +53,21 @@ app.post('/generate-shifts', async (c) => {
       entryMap.get(key)!.push(e)
     }
 
+    // A review the office already decided (approved, flagged, excused, manual entry) survives a
+    // regeneration when it is the same visit answered by the same punch — Generate again must not
+    // silently undo approvals. Anything else is rebuilt from the schedule and the clock.
+    const DECIDED = ['approved', 'flagged', 'excused', 'manual_entry']
+    const prior = await db.select().from(payrollShiftReviews).where(and(
+      sql`${payrollShiftReviews.shiftDate} BETWEEN ${startDate}::date AND ${endDate}::date`,
+      inArray(payrollShiftReviews.status, DECIDED),
+    ))
+    const hm = (t: unknown) => (t == null ? '' : String(t).slice(0, 5))
+    const decidedKey = (scheduleId: unknown, shiftDate: unknown, caregiverId: unknown, start: unknown) =>
+      `${scheduleId}|${String(shiftDate).slice(0, 10)}|${caregiverId}|${hm(start)}`
+    const decided = new Map(prior.map((p) => [decidedKey(p.scheduleId, p.shiftDate, p.caregiverId, p.scheduledStart), p]))
+
     const reviews: any[] = []
-    let matched = 0, missingPunch = 0
+    let matched = 0, missingPunch = 0, kept = 0
 
     for (const o of occ) {
       const candidates = entryMap.get(`${o.caregiver_id}|${o.shift_date}|${o.client_id}`)
@@ -76,6 +89,13 @@ app.post('/generate-shifts', async (c) => {
         missingPunch++
       }
 
+      // billable_minutes is what the punch rule pays (0 for an accidental tap) — kept as is, never
+      // replaced by the clock when it is 0.
+      const payable = matchedEntry ? (matchedEntry.billableMinutes ?? actualMinutes) : null
+      const was = decided.get(decidedKey(o.schedule_id, o.shift_date, o.caregiver_id, o.start_hhmm))
+      const keep = was && (was.timeEntryId || null) === (matchedEntry?.id || null)
+      if (keep) kept++
+
       reviews.push({
         id: createId(),
         payPeriodStart: startDate,
@@ -91,20 +111,19 @@ app.post('/generate-shifts', async (c) => {
         actualStart: matchedEntry?.startTime || null,
         actualEnd: matchedEntry?.endTime || null,
         actualMinutes,
-        payableMinutes: matchedEntry ? (matchedEntry.billableMinutes || actualMinutes) : null,
-        status,
+        payableMinutes: keep ? was.payableMinutes : payable,
+        status: keep ? was.status : status,
+        ...(keep ? { flagReason: was.flagReason, resolutionNotes: was.resolutionNotes, reviewedBy: was.reviewedBy, reviewedAt: was.reviewedAt } : {}),
       })
     }
 
     // Batch insert reviews in a transaction (atomic delete + insert)
     if (reviews.length > 0) {
       await db.transaction(async (tx) => {
-        // Delete existing reviews for this period first (regeneration)
+        // Replace every review dated in the range, whatever period generated it: one visit has one
+        // review, so overlapping periods can never pay a shift twice (payroll reads reviews by date).
         await tx.delete(payrollShiftReviews)
-          .where(and(
-            eq(payrollShiftReviews.payPeriodStart, startDate),
-            eq(payrollShiftReviews.payPeriodEnd, endDate),
-          ))
+          .where(sql`${payrollShiftReviews.shiftDate} BETWEEN ${startDate}::date AND ${endDate}::date`)
 
         // Insert in batches of 100
         for (let i = 0; i < reviews.length; i += 100) {
@@ -118,6 +137,7 @@ app.post('/generate-shifts', async (c) => {
       generated: reviews.length,
       matched,
       missingPunch,
+      kept,
       payPeriodStart: startDate,
       payPeriodEnd: endDate,
     })
@@ -137,8 +157,7 @@ app.get('/shifts', async (c) => {
     if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
 
     const conditions = [
-      eq(payrollShiftReviews.payPeriodStart, startDate),
-      eq(payrollShiftReviews.payPeriodEnd, endDate),
+      sql`${payrollShiftReviews.shiftDate} BETWEEN ${startDate}::date AND ${endDate}::date`,
     ]
     if (status) conditions.push(eq(payrollShiftReviews.status, status))
     if (caregiverId) conditions.push(eq(payrollShiftReviews.caregiverId, caregiverId))
@@ -228,8 +247,7 @@ app.post('/shifts/approve-all', async (c) => {
     if (!startDate || !endDate) return c.json({ error: 'startDate and endDate required' }, 400)
 
     const conditions = [
-      eq(payrollShiftReviews.payPeriodStart, startDate),
-      eq(payrollShiftReviews.payPeriodEnd, endDate),
+      sql`${payrollShiftReviews.shiftDate} BETWEEN ${startDate}::date AND ${endDate}::date`,
     ]
 
     if (mode === 'clocked') {

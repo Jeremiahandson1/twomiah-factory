@@ -79,7 +79,7 @@ export default function VisitPhotoGallery({ clientId, limit = 60 }: { clientId?:
       {openPhoto && (
         <div onClick={() => setOpenPhoto(null)} style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 20,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20,
         }}>
           <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: '95vw', maxHeight: '95vh', background: '#fff', color: '#111827', borderRadius: 8, padding: 12, overflow: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>

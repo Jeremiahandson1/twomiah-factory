@@ -18,11 +18,12 @@ import { db } from '../../db/index.ts'
 import { agencies, clients, notifications, payrollPeriodVerifications, payrollShiftReviews, users } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { getAgencyProfile } from '../services/agencyProfile.ts'
+import { PAYABLE_REVIEW_STATUSES } from '../services/payrollPay.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-const PAYABLE = ['verified', 'approved', 'manual_entry']
+const PAYABLE = [...PAYABLE_REVIEW_STATUSES]
 const DEFAULT_RATE = () => parseFloat(process.env.DEFAULT_HOURLY_RATE || '') || 15
 
 /** Today's calendar date in a time zone, as YYYY-MM-DD. */
@@ -105,8 +106,9 @@ export async function pendingVerificationFor(caregiverId: string, today: string)
     .leftJoin(clients, eq(clients.id, payrollShiftReviews.clientId))
     .where(and(
       eq(payrollShiftReviews.caregiverId, caregiverId),
-      eq(payrollShiftReviews.payPeriodStart, period.start),
-      eq(payrollShiftReviews.payPeriodEnd, period.end),
+      // By shift date, like every payroll reader (services/payrollPay.ts): a review generated for a
+      // two-week run still belongs to the week it was worked.
+      sql`${payrollShiftReviews.shiftDate} BETWEEN ${period.start}::date AND ${period.end}::date`,
       inArray(payrollShiftReviews.status, PAYABLE),
       isNotNull(payrollShiftReviews.scheduleId),
     ))

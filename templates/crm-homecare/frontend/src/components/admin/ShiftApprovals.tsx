@@ -40,6 +40,8 @@ export default function ShiftApprovals() {
   const [editBillable, setEditBillable] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [busy, setBusy] = useState(false);
+  // An optional note typed beside Approve, per row; it is saved with the approval (approval_notes).
+  const [approveNotes, setApproveNotes] = useState<Record<string, string>>({});
 
   const hdr = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
@@ -85,6 +87,7 @@ export default function ShiftApprovals() {
         throw new Error(err.error || `Approval failed (${r.status})`);
       }
       cancelEdit();
+      setApproveNotes((n) => { const x = { ...n }; delete x[id]; return x; });
       await load();
     } catch (e) {
       toast(e.message, 'error');
@@ -93,7 +96,10 @@ export default function ShiftApprovals() {
     }
   };
 
-  const approveAsIs = (row) => submit(row.id, { notes: 'Approved as clocked' });
+  const approveAsIs = (row) => {
+    const note = (approveNotes[row.id] || '').trim();
+    submit(row.id, { notes: note || 'Approved as clocked' });
+  };
   const reject = (row) => {
     const reason = window.prompt('Why are you rejecting this shift? (This becomes part of the audit trail.)', '');
     if (reason === null) return; // cancelled
@@ -206,6 +212,16 @@ export default function ShiftApprovals() {
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <input
+                            type="text"
+                            placeholder="Note (optional)"
+                            aria-label={`Approval note for ${r.caregiver_first_name || ''} ${r.caregiver_last_name || ''}`}
+                            value={approveNotes[r.id] || ''}
+                            maxLength={500}
+                            onChange={e => setApproveNotes((n) => ({ ...n, [r.id]: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter' && !busy) approveAsIs(r); }}
+                            style={{ width: 180, padding: '0.25rem', border: '1px solid #D1D5DB', borderRadius: 4, fontSize: '0.78rem', background: '#fff', color: '#111827' }}
+                          />
                           <button disabled={busy} style={btn('{{PRIMARY_COLOR}}')} onClick={() => approveAsIs(r)}>Approve</button>
                           <button disabled={busy} style={btn('#4F46E5')} onClick={() => startEdit(r)}>Edit</button>
                           <button disabled={busy} style={btn('#C62828')} onClick={() => reject(r)}>Reject</button>

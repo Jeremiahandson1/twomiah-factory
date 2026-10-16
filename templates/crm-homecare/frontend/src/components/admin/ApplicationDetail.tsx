@@ -158,7 +158,7 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
         {/* Experience */}
         <div className="card">
           <h3>Experience</h3>
-          {app.years_experience && <p><strong>Years:</strong> {app.years_experience} years</p>}
+          {Number(app.years_experience) > 0 && <p><strong>Years:</strong> {app.years_experience} years</p>}
           {app.cna_license && <p><strong>CNA License:</strong> {app.cna_license}</p>}
           {app.previous_employer && (
             <div className="experience-item">

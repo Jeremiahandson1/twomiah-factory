@@ -260,9 +260,10 @@ const ApplicationsDashboard = () => {
                   <div style={{ padding: '0.75rem', background: '#F0FDF4', borderRadius: '8px', border: '1px solid #BBF7D0', fontSize: '0.82rem', marginBottom: '1rem' }}>
                     <div style={{ fontWeight: '700', marginBottom: '0.4rem', color: '#065F46' }}>Applicant Info</div>
                     <div>📞 {hireModal.phone || 'No phone'}</div>
-                    <div>📍 {hireModal.city ? `${hireModal.city}, ${hireModal.state}` : 'No location'}</div>
-                    {hireModal.years_experience && <div>🏥 {hireModal.years_experience} yrs experience</div>}
-                    {hireModal.cna_license && <div>📋 CNA Licensed</div>}
+                    <div>📍 {[hireModal.city, hireModal.state].filter(Boolean).join(', ') || 'No city given'}</div>
+                    {/* A number in `{n && …}` prints a bare "0" when it is 0 — compare instead. */}
+                    {Number(hireModal.years_experience) > 0 && <div>🏥 {hireModal.years_experience} yrs experience</div>}
+                    {hireModal.has_cna === true && <div>📋 CNA</div>}
                   </div>
                 </div>
                 <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid #e5e7eb', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>

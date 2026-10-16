@@ -15,6 +15,10 @@ import {
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { agencyTimezone, agencyToday, localDate, localTs, nowUtc } from '../services/agencyTime.ts'
+import { ON_TIME_GRACE_MINUTES } from '../helpers/punchRules.ts'
+
+// "Late" is the one punctuality rule (helpers/punchRules.ts): more than the 7-minute grace after the start.
+const LATE_AFTER_SQL = sql.raw(String(ON_TIME_GRACE_MINUTES))
 
 const app = new Hono()
 
@@ -242,6 +246,14 @@ app.get('/alerts', async (c) => {
 // late. Shift counts come off the shared schedule engine, so a cancelled visit or an ended pattern is
 // never shown as "not clocked in yet".
 const rows = async (q: SQL): Promise<any[]> => ((await db.execute(q)) as any).rows || []
+
+// The punch (`te`) that belongs to today's visit (`occ`): same caregiver and client, clocked in on
+// the visit's agency day, and linked to that visit's schedule when the punch names one. One rule for
+// the live board's status and the dashboard's "Shifts Remaining".
+const punchForOcc = (tz: string): SQL => sql`te.caregiver_id = occ.caregiver_id
+      AND te.client_id = occ.client_id
+      AND ${localDate(sql`te.start_time`, tz)} = occ.occ_date
+      AND (te.schedule_id IS NULL OR te.schedule_id = occ.schedule_id)`
 const one = async (q: SQL): Promise<any> => (await rows(q))[0] || {}
 
 // GET /api/dashboard/summary — the admin dashboard's tiles and "Today" panel
@@ -261,14 +273,12 @@ app.get('/summary', async (c) => {
     one(sql`SELECT COUNT(DISTINCT caregiver_id)::int AS count FROM time_entries
              WHERE end_time IS NULL AND ${localDate(sql`start_time`, tz)} = (${today})::date`),
     one(sql`WITH ${occurrencesCte(today, today)} SELECT COUNT(*)::int AS count FROM occ`),
-    // Today's shifts with nobody clocked in on them yet.
+    // Today's shifts not started yet: no punch at all for that visit. A visit in progress or
+    // already done is not "remaining" (it used to be: only an OPEN punch counted, so a finished
+    // visit came back as remaining). The punch↔visit match is the live board's (punchForOcc).
     one(sql`WITH ${occurrencesCte(today, today)}
       SELECT COUNT(*)::int AS count FROM occ
-      WHERE NOT EXISTS (
-        SELECT 1 FROM time_entries te
-        WHERE te.caregiver_id = occ.caregiver_id
-          AND ${localDate(sql`te.start_time`, tz)} = occ.occ_date
-          AND te.end_time IS NULL)`),
+      WHERE NOT EXISTS (SELECT 1 FROM time_entries te WHERE ${punchForOcc(tz)})`),
   ])
   return c.json({
     totalClients: parseInt(totalClients.count) || 0,
@@ -394,10 +404,7 @@ app.get('/live-board', async (c) => {
     FROM occ
     JOIN users u   ON u.id = occ.caregiver_id
     JOIN clients c ON c.id = occ.client_id
-    LEFT JOIN time_entries te
-      ON te.caregiver_id = occ.caregiver_id
-      AND te.client_id = occ.client_id
-      AND ${localDate(sql`te.start_time`, tz)} = occ.occ_date
+    LEFT JOIN time_entries te ON ${punchForOcc(tz)}
     WHERE u.is_active = true
     ORDER BY occ.start_time ASC`)
 
@@ -413,7 +420,7 @@ app.get('/live-board', async (c) => {
 })
 
 // GET /api/dashboard/caregiver-patterns/:caregiverId — reliability by day of week (predictive
-// scheduling): absences, no-shows and late clock-ins (>15 min after the scheduled start).
+// scheduling): absences, no-shows and late clock-ins (more than the 7-minute grace after the scheduled start).
 app.get('/caregiver-patterns/:caregiverId', async (c) => {
   const caregiverId = c.req.param('caregiverId')
   const months = Math.max(1, Math.min(36, parseInt(c.req.query('months') || '6') || 6))
@@ -434,7 +441,7 @@ app.get('/caregiver-patterns/:caregiverId', async (c) => {
                EXTRACT(EPOCH FROM ((${localTs(sql`te.start_time`, tz)})::time - s.start_time::time)) / 60 AS mins_late
         FROM time_entries te JOIN schedules s ON te.schedule_id = s.id
         WHERE te.caregiver_id = ${caregiverId} AND te.is_complete = true AND ${teDay} >= (${since})::date
-      ) t WHERE mins_late > 15
+      ) t WHERE mins_late > ${LATE_AFTER_SQL}
       GROUP BY 1 ORDER BY 1`),
     rows(sql`SELECT dow AS day_of_week, COUNT(*)::int AS count FROM (
         SELECT EXTRACT(DOW FROM ${teDay})::int AS dow

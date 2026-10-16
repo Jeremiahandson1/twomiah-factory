@@ -157,7 +157,7 @@ const ReportsAnalytics = () => {
             <div className="value" style={{ color: (summary.deliveredPct ?? 100) >= 90 ? '#059669' : '#D97706' }}>
               {summary.deliveredPct != null ? `${summary.deliveredPct}%` : 'N/A'}
             </div>
-            <p className="stat-subtext">{Number(parseFloat(summary.workedHours || 0)).toFixed(1)}h worked</p>
+            <p className="stat-subtext">{Number(parseFloat(summary.payableHours || 0)).toFixed(2)}h payable · {Number(parseFloat(summary.workedHours || 0)).toFixed(2)}h clocked</p>
           </div>
         </div>
 
@@ -169,7 +169,7 @@ const ReportsAnalytics = () => {
               <thead>
                 <tr>
                   <th>Caregiver</th>
-                  <th>Hours</th>
+                  <th>Scheduled Hours</th>
                   <th>Est. Labor Cost</th>
                   <th>Avg Rating</th>
                   <th>Clients</th>
@@ -311,22 +311,25 @@ const ReportsAnalytics = () => {
                 <tr>
                   <th>Caregiver</th>
                   <th>Scheduled</th>
-                  <th>Worked</th>
-                  <th>Variance</th>
+                  <th title="Clock-in to clock-out of completed punches">Worked (clocked)</th>
+                  <th title="What payroll pays: approved shift reviews, else the punch's billable minutes">Payable</th>
+                  <th title="Payable minus scheduled">Payable vs Sched</th>
                   <th>Clients</th>
-                  <th>Avg Shift</th>
+                  <th>Avg Shift (sched)</th>
                 </tr>
               </thead>
               <tbody>
                 {caregiverBreakdown.map(cg => {
                   const sched = parseFloat(cg.total_hours) || 0;
                   const worked = parseFloat(cg.worked_hours) || 0;
-                  const variance = worked - sched;
+                  const payable = parseFloat(cg.payable_hours) || 0;
+                  const variance = payable - sched;
                   return (
                     <tr key={cg.id}>
                       <td><strong>{cg.first_name} {cg.last_name}</strong></td>
                       <td>{sched.toFixed(2)}</td>
                       <td><strong>{worked.toFixed(2)}</strong></td>
+                      <td>{payable.toFixed(2)}</td>
                       <td style={{ color: Math.abs(variance) < 1 ? '#6B7280' : variance < 0 ? '#DC2626' : '#D97706' }}>
                         {variance >= 0 ? '+' : ''}{variance.toFixed(1)}h
                       </td>
@@ -364,9 +367,10 @@ const ReportsAnalytics = () => {
                   <th>Caregiver</th>
                   <th>Avg Rating</th>
                   <th>Scheduled</th>
-                  <th>Worked</th>
+                  <th title="Clock-in to clock-out of completed punches">Worked (clocked)</th>
+                  <th title="What payroll pays">Payable</th>
                   <th>Clients</th>
-                  <th>On-Time %</th>
+                  <th title={`Clock-in within ${reportData?.onTimeRule?.graceMinutes ?? 7} minutes of the scheduled start, either side. Early or late beyond that is off schedule.`}>On-Time %</th>
                   <th>GPS Capture</th>
                 </tr>
               </thead>
@@ -387,14 +391,20 @@ const ReportsAnalytics = () => {
                         )}
                       </td>
                       <td>{Number(parseFloat(perf.total_hours || 0)).toFixed(1)}</td>
-                      <td><strong>{Number(parseFloat(perf.worked_hours || 0)).toFixed(1)}</strong></td>
+                      <td><strong>{Number(parseFloat(perf.worked_hours || 0)).toFixed(2)}</strong></td>
+                      <td>{Number(parseFloat(perf.payable_hours || 0)).toFixed(2)}</td>
                       <td>{perf.clients_served || 0}</td>
                       <td>
-                        {punct && punct.total_shifts > 0 ? (
+                        {punct && punct.total_shifts > 0 ? (<>
                           <span className={parseFloat(punct.on_time_percentage) >= 90 ? 'value-success' : 'value-warning'}>
-                            {punct.on_time_percentage}% ({punct.total_shifts} shifts)
+                            {punct.on_time_percentage}% ({punct.on_time_count} of {punct.total_shifts} on time)
                           </span>
-                        ) : (
+                          {(punct.early_count > 0 || punct.late_count > 0 || punct.unscheduled_count > 0) && (
+                            <div style={{ fontSize: '0.78rem', color: '#4B5563' }}>
+                              {[punct.early_count > 0 && `${punct.early_count} early`, punct.late_count > 0 && `${punct.late_count} late`, punct.unscheduled_count > 0 && `${punct.unscheduled_count} unscheduled`].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
+                        </>) : (
                           '—'
                         )}
                       </td>
@@ -415,6 +425,9 @@ const ReportsAnalytics = () => {
           ) : (
             <p>No performance data available</p>
           )}
+          <p className="text-muted" style={{ fontSize: '0.8rem', marginBottom: 0 }}>
+            On time = clocked in within {reportData?.onTimeRule?.graceMinutes ?? 7} minutes of the visit's scheduled start, either side. More than that early or late is off schedule; a punch with no scheduled visit is unscheduled. Worked = clocked time; payable = what payroll pays.
+          </p>
         </div>
       </div>
     );
@@ -747,6 +760,9 @@ const ReportsAnalytics = () => {
 
   // Generic table renderer for the new GET-style drill-down reports.
   // Pass column defs; reads from reportData.rows.
+  // One Name column for a person (not First and Last split across two).
+  const NAME_COL = { key: 'name', label: 'Name', bold: true, value: (r) => [r.first_name, r.last_name].filter(Boolean).join(' ') || '—' };
+
   const renderTable = (columns) => {
     const rows = reportData?.rows || [];
     if (rows.length === 0) return <p className="text-muted text-center">No data for this period.</p>;
@@ -758,7 +774,7 @@ const ReportsAnalytics = () => {
             {rows.map((r, i) => (
               <tr key={i}>
                 {columns.map(c => {
-                  let v = r[c.key];
+                  let v = c.value ? c.value(r) : r[c.key];
                   if (c.format === 'num') v = fmtNum(v);
                   else if (c.format === 'pct') v = fmtPct(v);
                   else if (c.format === 'hr') v = v != null ? `${parseFloat(v).toFixed(2)}h` : '—';
@@ -778,26 +794,24 @@ const ReportsAnalytics = () => {
     { key: 'payer_type', label: 'Type' },
     { key: 'active_clients', label: 'Clients', right: true, format: 'num' },
     { key: 'visits', label: 'Visits', right: true, format: 'num' },
-    { key: 'total_hours', label: 'Total Hrs', right: true, format: 'hr' },
+    { key: 'total_hours', label: 'Clocked Hrs', right: true, format: 'hr' },
     { key: 'billable_hours', label: 'Billable Hrs', right: true, format: 'hr' },
-    { key: 'avg_visit_hours', label: 'Avg Visit', right: true, format: 'hr' },
+    { key: 'avg_visit_hours', label: 'Avg Visit (clocked)', right: true, format: 'hr' },
     { key: 'first_visit', label: 'First', format: 'date' },
     { key: 'last_visit', label: 'Last', format: 'date' },
   ]);
 
   const renderCaregiverUtilization = () => renderTable([
-    { key: 'first_name', label: 'First', bold: true },
-    { key: 'last_name',  label: 'Last',  bold: true },
+    NAME_COL,
     { key: 'max_hours_per_week', label: 'Max/wk', right: true, format: 'num' },
     { key: 'capacity_hours',     label: 'Capacity (hrs)', right: true, format: 'num' },
-    { key: 'actual_hours',       label: 'Actual (hrs)', right: true, format: 'hr' },
+    { key: 'actual_hours',       label: 'Billable (hrs)', right: true, format: 'hr' },
     { key: 'visits',             label: 'Visits', right: true, format: 'num' },
     { key: 'utilization_pct',    label: 'Util %', right: true, format: 'pct' },
   ]);
 
   const renderClientIncidents = () => renderTable([
-    { key: 'first_name',     label: 'First', bold: true },
-    { key: 'last_name',      label: 'Last',  bold: true },
+    NAME_COL,
     { key: 'incident_count', label: 'Total',     right: true, format: 'num' },
     { key: 'critical_count', label: 'Critical',  right: true, format: 'num' },
     { key: 'severe_count',   label: 'Severe',    right: true, format: 'num' },
@@ -810,8 +824,7 @@ const ReportsAnalytics = () => {
 
   const renderClientRevenueByMonth = () => renderTable([
     { key: 'month',         label: 'Month', bold: true },
-    { key: 'first_name',    label: 'First', bold: true },
-    { key: 'last_name',     label: 'Last',  bold: true },
+    { ...NAME_COL, label: 'Client' },
     { key: 'invoice_count', label: 'Invoices',    right: true, format: 'num' },
     { key: 'total_billed',  label: 'Billed ($)',  right: true, format: 'num' },
     { key: 'total_paid',    label: 'Paid ($)',    right: true, format: 'num' },
@@ -821,13 +834,12 @@ const ReportsAnalytics = () => {
   ]);
 
   const renderClientVisitsSummary = () => renderTable([
-    { key: 'first_name', label: 'First', bold: true },
-    { key: 'last_name',  label: 'Last',  bold: true },
+    { ...NAME_COL, label: 'Client' },
     { key: 'payer_name', label: 'Payer' },
     { key: 'care_type_name', label: 'Care Type' },
     { key: 'visits',           label: 'Visits',     right: true, format: 'num' },
     { key: 'distinct_caregivers', label: 'Caregivers', right: true, format: 'num' },
-    { key: 'total_hours',      label: 'Total Hrs',  right: true, format: 'hr' },
+    { key: 'total_hours',      label: 'Clocked Hrs', right: true, format: 'hr' },
     { key: 'billable_hours',   label: 'Billable',   right: true, format: 'hr' },
     { key: 'first_visit',      label: 'First',      format: 'date' },
     { key: 'last_visit',       label: 'Last',       format: 'date' },

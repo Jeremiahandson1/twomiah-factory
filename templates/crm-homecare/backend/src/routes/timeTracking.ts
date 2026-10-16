@@ -323,7 +323,7 @@ app.patch('/:id/approve', requireAdmin, async (c) => {
   } else billable = existing.billableMinutes
   const [updated] = await db.update(timeEntries).set({
     billableMinutes: billable, approvedBillableMinutes: billable, approvedById: userIdOf(user), approvedAt: new Date(),
-    approvalNotes: b.notes || null, needsApproval: false, updatedAt: new Date(),
+    approvalNotes: typeof b.notes === 'string' && b.notes.trim() ? b.notes.trim().slice(0, 1000) : null, needsApproval: false, updatedAt: new Date(),
   }).where(eq(timeEntries.id, id)).returning()
   await recordAudit(userIdOf(user), 'APPROVE', 'time_entries', id, existing, updated)
   return c.json(updated)
