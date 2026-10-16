@@ -1,5 +1,5 @@
 import { confirm } from '../ConfirmModal';
-import { formatDate } from '../../utils/date';
+import { formatDate, toLocalYMD } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/MedicationsManagement.jsx
 import React, { useState, useEffect, useCallback } from 'react';
@@ -81,8 +81,8 @@ const MedicationsManagement = () => {
     const start = new Date();
     start.setDate(start.getDate() - 30);
     return {
-      start: start.toISOString().split('T')[0],
-      end: end.toISOString().split('T')[0]
+      start: toLocalYMD(start),
+      end: toLocalYMD(end)
     };
   };
 

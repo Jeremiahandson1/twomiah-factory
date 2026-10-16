@@ -7,15 +7,37 @@ import { getTodayCT } from '../../utils/timezone';
 import { isBiweeklyOn } from '../../utils/biweekly';
 import { CLIENT_UNAVAILABLE_REASONS } from '../../utils/cancelReasons';
 import MakeShiftAvailableModal from './MakeShiftAvailableModal';
+import { endsBeforeStart, shiftTimesError } from '../../utils/shiftTimes';
+import { toLocalYMD, parseLocalDate } from '../../utils/date';
 
 const PALETTE = [
   '#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6',
   '#06B6D4','#F97316','#EC4899','#14B8A6','#6366F1',
 ];
 
+// THE colour of a client, for the shift chips AND the legend. The legend once coloured by list
+// position while the chips coloured by sorted id, so Pat's legend swatch was Sam's chip colour.
 function clientColor(clientId, clientMap) {
   const ids = Object.keys(clientMap).sort();
   return PALETTE[ids.indexOf(clientId) % PALETTE.length];
+}
+
+// The week on screen survives a save, a reload and a trip to another tab: the grid used to drop
+// back to the current week (and, while it reloaded, to the left-hand Sunday column) after every
+// save. Per-viewer convenience only, so a failed storage read just means "this week".
+const WEEK_KEY = 'hc.scheduleGrid.weekOf';
+function initialWeekOf() {
+  try {
+    const saved = sessionStorage.getItem(WEEK_KEY);
+    if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) {
+      const [y, m, d] = saved.split('-').map(Number);
+      return getWeekStart(new Date(y, m - 1, d));
+    }
+  } catch { /* storage blocked — fall through */ }
+  return getWeekStart(new Date());
+}
+function localYmd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function timeToMinutes(t) {
@@ -39,7 +61,7 @@ function formatTime(t) {
 }
 
 function getWeekStart(date) {
-  const d = new Date(date);
+  const d = parseLocalDate(date);
   d.setDate(d.getDate() - d.getDay());
   d.setHours(0,0,0,0);
   return d;
@@ -47,7 +69,7 @@ function getWeekStart(date) {
 
 function getWeekDates(weekStart) {
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStart);
+    const d = parseLocalDate(weekStart);
     d.setDate(d.getDate() + i);
     return d;
   });
@@ -58,11 +80,15 @@ const DAY_FULL  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','
 
 export default function SchedulerGrid({ onScheduleChange }: any) {
   const { token } = useAuth();
-  const [weekOf, setWeekOf]             = useState(getWeekStart(new Date()));
+  const [weekOf, setWeekOfState]        = useState(initialWeekOf);
+  const setWeekOf = (d) => { setWeekOfState(d); try { sessionStorage.setItem(WEEK_KEY, localYmd(d)); } catch { /* convenience only */ } };
   const [caregivers, setCaregivers]     = useState([]);
   const [clients, setClients]           = useState([]);
   const [schedules, setSchedules]       = useState([]);
   const [loading, setLoading]           = useState(true);
+  // Only the FIRST load replaces the grid with "Loading…". A reload after a save keeps the grid
+  // (and its scroll position) on screen; unmounting it is what scrolled the view back to Sunday.
+  const [hasLoaded, setHasLoaded]       = useState(false);
   const [saving, setSaving]             = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [mobileDay, setMobileDay] = useState(new Date().getDay());
@@ -79,6 +105,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
     startDate:'',            // when recurring pattern begins
     endDate:'',              // optional: when recurring pattern ends
     isTraining: false,       // training shadow shift — paid but not billed
+    overnight: false,        // the end time is the next day (utils/shiftTimes.ts)
   });
   const [splitError, setSplitError]     = useState('');
 
@@ -130,6 +157,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
       showToast('Failed to load schedule data', 'error');
     } finally {
       setLoading(false);
+      setHasLoaded(true);
     }
   }, [token]);
 
@@ -143,7 +171,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
   }, []);
 
   const weekDates    = getWeekDates(weekOf);
-  const weekDateStrs = weekDates.map(d => d.toISOString().split('T')[0]);
+  const weekDateStrs = weekDates.map(localYmd);
   const todayStr     = getTodayCT();
   const todayIdx     = weekDateStrs.indexOf(todayStr);
 
@@ -153,7 +181,6 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
 
   function getShiftsForCell(caregiverId, dayIndex) {
     const dateStr  = weekDateStrs[dayIndex];
-    const cellDate = new Date(dateStr + 'T00:00:00');
 
     const results = [];
 
@@ -177,12 +204,9 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
         if (Number(s.day_of_week) !== dayIndex) return;
 
         // Respect effective_date / start boundary
-        const effectiveFrom = s.effective_date || s.anchor_date || s.created_at;
-        if (effectiveFrom) {
-          const from = new Date(effectiveFrom);
-          from.setHours(0,0,0,0);
-          if (cellDate < from) return;
-        }
+        // Compared as calendar days: new Date('2026-10-21') is UTC midnight, the evening before here.
+        const startsOn = toLocalYMD(s.effective_date || s.anchor_date || s.created_at);
+        if (startsOn && dateStr < startsOn) return;
 
         // Respect end_date. end_date arrives as a full ISO timestamp
         // (e.g. 2026-07-04T05:00:00Z), so the old `end_date + 'T23:59:59'`
@@ -239,8 +263,8 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
     return total;
   }
 
-  function prevWeek() { const d = new Date(weekOf); d.setDate(d.getDate()-7); setWeekOf(d); }
-  function nextWeek() { const d = new Date(weekOf); d.setDate(d.getDate()+7); setWeekOf(d); }
+  function prevWeek() { const d = parseLocalDate(weekOf); d.setDate(d.getDate()-7); setWeekOf(d); }
+  function nextWeek() { const d = parseLocalDate(weekOf); d.setDate(d.getDate()+7); setWeekOf(d); }
   function goToday()  { setWeekOf(getWeekStart(new Date())); }
 
   // ═══════════════════════════════════════════════
@@ -259,6 +283,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
       startDate: clickedDate,
       endDate:'',
       isTraining: false,
+      overnight: false,
     });
     setSplitError('');
   }
@@ -288,8 +313,10 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
 
   async function handleCreateShift() {
     if (!newShiftForm.clientId) return showToast('Select a client', 'error');
-    if (newShiftForm.startTime === newShiftForm.endTime) return showToast('Start and end time cannot be the same', 'error');
+    const timesError = shiftTimesError(newShiftForm.startTime, newShiftForm.endTime, newShiftForm.overnight);
+    if (timesError) return showToast(timesError, 'error');
     if (!validateSplitTimes(newShiftForm)) return;
+    const overnight = endsBeforeStart(newShiftForm.startTime, newShiftForm.endTime) && newShiftForm.overnight;
 
     setSaving(true);
     try {
@@ -319,6 +346,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
               effectiveDate: newShiftForm.startDate || todayStr,
               anchorDate: newShiftForm.frequency === 'biweekly' ? anchorStr : null,
               isTraining: newShiftForm.isTraining,
+              overnight,
             };
             if (newShiftForm.isSplit) {
               payload.splitShift = { startTime: newShiftForm.split2Start, endTime: newShiftForm.split2End };
@@ -371,6 +399,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
           endTime: newShiftForm.endTime,
           notes: newShiftForm.notes,
           isTraining: newShiftForm.isTraining,
+          overnight,
         };
         if (newShiftForm.isSplit) {
           payload.splitShift = { startTime: newShiftForm.split2Start, endTime: newShiftForm.split2End };
@@ -446,36 +475,34 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
 
     setSaving(true);
     try {
-      if (isRecurring && scope === 'this') {
-        // Cancel just this occurrence via exception
-        await fetch(`${API_BASE_URL}/api/schedules/${shift.id}?scope=this&date=${date}`, {
+      // Every branch checks the answer. These fetches used to be unchecked, so a refused delete
+      // (an expired session's 401, a 400) still toasted "Shift deleted" and the reload showed the
+      // shift right where it was: the bin "did nothing" (Run 3).
+      const del = async (query) => {
+        const res = await fetch(`${API_BASE_URL}/api/schedules/${shift.id}?${query}`, {
           method: 'DELETE', headers: { Authorization:`Bearer ${token}` },
         });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.error || errBody.message || `Delete failed (${res.status})`);
+        }
+      };
+      if (isRecurring && scope === 'this') {
+        // Cancel just this occurrence via exception
+        await del(`scope=this&date=${date}`);
         showToast('This occurrence cancelled');
       } else if (isRecurring && scope === 'following') {
         // End the recurring pattern from this date forward
-        await fetch(`${API_BASE_URL}/api/schedules/${shift.id}?scope=following&date=${date}`, {
-          method: 'DELETE', headers: { Authorization:`Bearer ${token}` },
-        });
+        await del(`scope=following&date=${date}`);
         showToast('Future occurrences removed');
       } else if (scope === 'purge') {
         // Explicit full erase — removes past + future. Deliberate, confirmed action.
-        const url = isSplit
-          ? `${API_BASE_URL}/api/schedules/${shift.id}?scope=purge&deletePair=true`
-          : `${API_BASE_URL}/api/schedules/${shift.id}?scope=purge`;
-        await fetch(url, {
-          method: 'DELETE', headers: { Authorization:`Bearer ${token}` },
-        });
+        await del(isSplit ? 'scope=purge&deletePair=true' : 'scope=purge');
         showToast('Schedule and its history removed');
       } else {
         // scope=all — for a recurring pattern the backend ends it as of today
         // and KEEPS every past occurrence; for a one-time shift it just deletes.
-        const url = isSplit
-          ? `${API_BASE_URL}/api/schedules/${shift.id}?scope=all&deletePair=true`
-          : `${API_BASE_URL}/api/schedules/${shift.id}?scope=all`;
-        await fetch(url, {
-          method: 'DELETE', headers: { Authorization:`Bearer ${token}` },
-        });
+        await del(isSplit ? 'scope=all&deletePair=true' : 'scope=all');
         showToast(isSplit ? 'Split shift pair deleted'
           : (isRecurring ? 'Ended going forward — past occurrences kept' : 'Shift deleted'));
       }
@@ -484,8 +511,8 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
       setEditShift(null);
       await loadAll();
       onScheduleChange && onScheduleChange();
-    } catch {
-      showToast('Delete failed', 'error');
+    } catch (err) {
+      showToast(err?.message || 'Delete failed', 'error');
     } finally {
       setSaving(false);
     }
@@ -498,11 +525,12 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
   function openEditShift(s, cellDate) {
     setEditShift(s);
     setEditDate(cellDate || '');
-    // Default to "this & following": it never touches past weeks (payroll/billing history
-    // stays put), and it's what the office means far more often than a one-day change —
-    // the old 'this' default left a Tue edit applied to one day when every week was meant.
-    // (It once opened on 'all', which rewrote every week the shift had ever run.)
-    setEditScope('following');
+    // Default to "This date only": the narrowest change, the same default as the drag-and-drop
+    // move and the Schedule Hub's own edit box. "This & all following" silently rewrote every
+    // future week when only one visit was meant (Run 3); a wider change is chosen by name, and the
+    // Save button spells out which weeks it will touch. (It once opened on 'all', which rewrote
+    // every week the shift had ever run.)
+    setEditScope('this');
     // Clear any date typed for a previously-opened shift so it can't leak into this one.
     setSuspendFrom('');
     setEditShiftForm({
@@ -512,12 +540,15 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
       endTime:   s.end_time   ? s.end_time.slice(0,5)   : '13:00',
       notes:     s.notes || '',
       isTraining: !!s.is_training,
+      // A shift already saved as running past midnight opens as overnight.
+      overnight: endsBeforeStart(s.start_time, s.end_time),
     });
   }
 
   async function handleSaveShift() {
     if (!editShiftForm.clientId) return showToast('Select a client', 'error');
-    if (editShiftForm.startTime === editShiftForm.endTime) return showToast('Start and end time cannot be the same', 'error');
+    const timesError = shiftTimesError(editShiftForm.startTime, editShiftForm.endTime, editShiftForm.overnight);
+    if (timesError) return showToast(timesError, 'error');
     setSaving(true);
     try {
       const isRecurring = editShift.day_of_week !== null && editShift.day_of_week !== undefined;
@@ -540,6 +571,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
           endTime:    editShiftForm.endTime,
           notes:      editShiftForm.notes,
           isTraining: editShiftForm.isTraining,
+          overnight:  endsBeforeStart(editShiftForm.startTime, editShiftForm.endTime) && !!editShiftForm.overnight,
           dayOfWeek:  editShift.day_of_week,
           date:       editShift.date ? editShift.date.slice(0, 10) : null,
           frequency:  editShift.frequency || 'weekly',
@@ -630,6 +662,8 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
   // DRAG & DROP — confirm move
   // ═══════════════════════════════════════════════
 
+  // A move keeps the shift's own times, so a shift that already runs past midnight is sent as
+  // overnight (the server refuses an end before the start otherwise).
   async function handleConfirmDrop() {
     if (!dropTarget) return;
     const { shift, fromDate, toCaregiverId, toDate, toDayIndex } = dropTarget;
@@ -665,7 +699,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
             scheduleType: 'one-time',
             date: toDate,
             startTime: shift.start_time,
-            endTime: shift.end_time,
+            endTime: shift.end_time, overnight: endsBeforeStart(shift.start_time, shift.end_time),
             notes: shift.notes,
           }),
         });
@@ -697,7 +731,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
             dayOfWeek: toDayIndex,
             date: null,
             startTime: shift.start_time,
-            endTime: shift.end_time,
+            endTime: shift.end_time, overnight: endsBeforeStart(shift.start_time, shift.end_time),
             notes: shift.notes,
             frequency: shift.frequency || 'weekly',
             effectiveDate: toDate,
@@ -723,7 +757,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
             caregiverId: caregiverChanged ? toCaregiverId : undefined,
             clientId: shift.client_id,
             startTime: shift.start_time,
-            endTime: shift.end_time,
+            endTime: shift.end_time, overnight: endsBeforeStart(shift.start_time, shift.end_time),
             notes: shift.notes,
             dayOfWeek: toDayIndex,
             date: null,
@@ -746,7 +780,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
               caregiverId: caregiverChanged ? toCaregiverId : undefined,
               clientId: shift.client_id,
               startTime: shift.start_time,
-              endTime: shift.end_time,
+              endTime: shift.end_time, overnight: endsBeforeStart(shift.start_time, shift.end_time),
               notes: shift.notes,
               dayOfWeek: null,
               date: toDate,
@@ -870,7 +904,7 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
   // LOADING STATE
   // ═══════════════════════════════════════════════
 
-  if (loading) return (
+  if (loading && !hasLoaded) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:300, color:'#6B7280' }}>
       <div style={{ textAlign:'center' }}>
         <div style={{ fontSize:32, marginBottom:12 }}>&#128197;</div>
@@ -1100,9 +1134,9 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
       {clients.length > 0 && (
         <div style={{ padding:'12px 20px', background:'#fff', borderTop:'1px solid #E5E7EB', display:'flex', flexWrap:'wrap', gap:10, alignItems:'center' }}>
           <span style={{ fontSize:11, fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:1 }}>Clients:</span>
-          {clients.map((c, i) => (
+          {clients.map(c => (
             <div key={c.id} style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'#374151' }}>
-              <div style={{ width:10, height:10, borderRadius:2, background:PALETTE[i % PALETTE.length] }} />
+              <div style={{ width:10, height:10, borderRadius:2, background:clientColor(c.id, clientMap) }} />
               {c.first_name} {c.last_name}
             </div>
           ))}
@@ -1200,6 +1234,9 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
               </Field>
             </div>
           </div>
+
+          <OvernightCheck start={newShiftForm.startTime} end={newShiftForm.endTime} checked={newShiftForm.overnight}
+            onChange={v => setNewShiftForm(f => ({ ...f, overnight: v }))} />
 
           {/* Split Shift Toggle */}
           <div style={{ marginTop:14 }}>
@@ -1346,6 +1383,8 @@ export default function SchedulerGrid({ onScheduleChange }: any) {
                 {formatTime(editShiftForm.startTime)} &ndash; {formatTime(editShiftForm.endTime)} &middot; <strong>{durH}h</strong>
               </div>
             )}
+            <OvernightCheck start={editShiftForm.startTime} end={editShiftForm.endTime} checked={editShiftForm.overnight}
+              onChange={v => setEditShiftForm(f => ({ ...f, overnight: v }))} />
             <Field label="Notes (optional)" style={{ marginTop:10 }}>
               <input type="text" value={editShiftForm.notes} onChange={e => setEditShiftForm(f => ({ ...f, notes: e.target.value }))} style={inputStyle} placeholder="Any notes..." />
             </Field>
@@ -1651,6 +1690,19 @@ function Modal({ title, onClose, children }) {
         <div style={{ padding:20 }}>{children}</div>
       </div>
     </div>
+  );
+}
+
+// Shown only when the end time is earlier than the start: the office says, by ticking it, that
+// the shift really ends the next day. Unticked, the save is refused (utils/shiftTimes.ts).
+function OvernightCheck({ start, end, checked, onChange }) {
+  if (!endsBeforeStart(start, end)) return null;
+  return (
+    <label style={{ display:'flex', alignItems:'flex-start', gap:8, marginTop:10, padding:'8px 10px', borderRadius:6,
+      background:'#FFFBEB', border:'1px solid #FCD34D', color:'#92400E', fontSize:12, cursor:'pointer' }}>
+      <input type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} style={{ marginTop:2 }} />
+      <span><strong>Overnight shift</strong> &mdash; it ends the next day at {formatTime(end)}. Leave this unticked if the end time is a mistake.</span>
+    </label>
   );
 }
 

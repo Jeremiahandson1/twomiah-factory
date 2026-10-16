@@ -8,7 +8,7 @@ import { eq, and, gte, lte, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { one, scheduleById, userIdOf } from '../helpers/scheduleRows.ts'
-import { schedTs, hms, shiftHours, DATE_RE } from '../services/scheduleOccurrences.ts'
+import { schedTs, hms, shiftHours, shiftTimesError, DATE_RE } from '../services/scheduleOccurrences.ts'
 import { alignBiweeklyAnchor } from '../helpers/biweekly.ts'
 import { checkAuthorizationBalance } from '../helpers/authorizationCheck.ts'
 import { agencyNow } from '../services/agencyTime.ts'
@@ -65,7 +65,8 @@ app.post('/', requireAdmin, async (c) => {
   const { caregiverId, clientId, scheduleType, date, notes, frequency, splitShift, isTraining } = b
   const startTime = hms(b.startTime), endTime = hms(b.endTime)
   if (!caregiverId || !clientId || !startTime || !endTime) return c.json({ error: 'Missing required fields' }, 400)
-  if (startTime === endTime) return c.json({ error: 'Start and end time cannot be the same' }, 400)
+  const timesError = shiftTimesError(startTime, endTime, b.overnight)
+  if (timesError) return c.json({ error: timesError }, 400)
 
   const dayOfWeek = b.dayOfWeek === '' || b.dayOfWeek === null || b.dayOfWeek === undefined ? null : Number(b.dayOfWeek)
   const isRecurring = dayOfWeek !== null
@@ -115,6 +116,7 @@ app.post('/', requireAdmin, async (c) => {
       const s2 = hms(splitShift.startTime), e2 = hms(splitShift.endTime)
       if (!s2 || !e2) return c.json({ error: 'Split shift requires startTime and endTime' }, 400)
       if (s2 <= endTime) return c.json({ error: 'Split shift segment 2 must start after segment 1 ends' }, 400)
+      if (e2 <= s2) return c.json({ error: 'Split shift segment 2 must end after it starts' }, 400)
       if (await oneTimeConflict(startTime, endTime)) return c.json({ error: 'Caregiver has a conflicting schedule during segment 1' }, 400)
       if (await oneTimeConflict(s2, e2)) return c.json({ error: 'Caregiver has a conflicting schedule during segment 2' }, 400)
       const group = createId()

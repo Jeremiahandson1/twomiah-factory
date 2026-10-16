@@ -505,14 +505,16 @@ const closeOpen = async (who: any) => q(sql`UPDATE time_entries SET end_time = N
   check('…and the visit is gone from the family\'s list', !after.json.some((x: any) => x.schedule_id === pat && x.scheduled_date === d1))
 
   const otherPat = await insSched({ caregiver_id: cg2.id, client_id: clX.id, day_of_week: dow(d1), start: '11:00', end: '12:00', effective_date: today })
-  const notMine = await asPortal('POST', '/api/portal/visits/cancel-request', { source: 'schedule', scheduleId: otherPat, visitDate: d1, caregiverId: cg2.id, startTime: '11:00', endTime: '12:00' })
+  const notMine = await asPortal('POST', '/api/portal/visits/cancel-request', { source: 'schedule', scheduleId: otherPat, visitDate: d1, caregiverId: cg2.id, startTime: '11:00', endTime: '12:00', reason: 'Not mine' })
   check("a family cannot cancel another client's visit", notMine.status === 404)
 
-  // a visit that was worked today is not moved — it goes to the office instead
+  // a visit that was worked today is not the portal's to cancel any more (Run 3 HIGH 6: it used to file
+  // a pending request; it happened, so the family is told to call the office) — the full rule is pinned
+  // in portal-visit-changes.test.ts
   const todayPat = await insSched({ caregiver_id: cg3.id, client_id: clA.id, date: today, start: '00:05', end: '00:10' })
   await insEntry({ caregiver_id: cg3.id, client_id: clA.id, start: new Date(`${today}T00:06:00Z`), end: new Date(`${today}T00:09:00Z`) })
-  const worked = await asPortal('POST', '/api/portal/visits/cancel-request', { source: 'schedule', scheduleId: todayPat, visitDate: today, caregiverId: cg3.id, startTime: '00:05', endTime: '00:10' })
-  check('a visit already worked is NOT auto-cancelled; it waits for the office', worked.status === 201 && worked.json?.auto_applied === false && worked.json?.status === 'pending', worked.json)
+  const worked = await asPortal('POST', '/api/portal/visits/cancel-request', { source: 'schedule', scheduleId: todayPat, visitDate: today, caregiverId: cg3.id, startTime: '00:05', endTime: '00:10', reason: 'Too late' })
+  check('a visit already worked cannot be cancelled from the portal (409, nothing filed)', worked.status === 409 && /call the office/i.test(worked.json?.error || ''), worked.json)
 
   // client reschedule → caregiver counter → client accepts → the schedule moves
   const d2 = addDays(today, 5)

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import AgencyTimezone from './AgencyTimezone';
+import { toLocalYMD } from '../../utils/date';
 
 // Report dates arrive as YYYY-MM-DD (the agency's calendar day). Parsed at LOCAL midnight so a viewer
 // west of UTC does not see the day before. (Local, not utils/date: importing that here makes the
@@ -19,8 +20,8 @@ const ReportsAnalytics = () => {
   const { token } = useAuth();
   const [reportType, setReportType] = useState('overview');
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+    startDate: toLocalYMD(new Date(new Date().setMonth(new Date().getMonth() - 1))),
+    endDate: toLocalYMD(new Date())
   });
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);

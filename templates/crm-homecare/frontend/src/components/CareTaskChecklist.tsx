@@ -29,6 +29,10 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
   const [error, setError] = useState('');
   const [notesFor, setNotesFor] = useState<Item | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
+  // 'refuse': the same dialog, asking WHY the client refused; the reason is required (server too).
+  const [notesMode, setNotesMode] = useState<'note' | 'refuse'>('note');
+  const [notesError, setNotesError] = useState('');
+  const [notesSaving, setNotesSaving] = useState(false);
 
   const load = async () => {
     try {
@@ -41,7 +45,8 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
 
   useEffect(() => { if (timeEntryId) load(); }, [timeEntryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const setStatus = async (taskId: string, status: string, notes?: string | null) => {
+  // Returns the server's refusal (or '' when saved), so a dialog can keep itself open and say why.
+  const setStatus = async (taskId: string, status: string, notes?: string | null): Promise<string> => {
     setError('');
     try {
       const r = await fetch(`${API_BASE_URL}/api/care-tasks/time-entry/${timeEntryId}/${taskId}`, {
@@ -49,17 +54,28 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status, notes: notes ?? null }),
       });
-      if (!r.ok) { setError((await r.json().catch(() => ({}))).error || 'Not saved — try again'); return; }
+      if (!r.ok) { const msg = (await r.json().catch(() => ({}))).error || 'Not saved — try again'; setError(msg); return msg; }
       setItems(prev => prev.map(it => it.task_id === taskId ? { ...it, status, notes: notes ?? it.notes } : it));
       onChange?.();
-    } catch { setError('Not saved — check your connection and try again'); }
+      return '';
+    } catch { const msg = 'Not saved — check your connection and try again'; setError(msg); return msg; }
+  };
+
+  const openNotes = (t: Item, mode: 'note' | 'refuse') => {
+    setNotesFor(t); setNotesMode(mode); setNotesDraft(t.notes || ''); setNotesError('');
   };
 
   const saveNotes = async () => {
     if (!notesFor) return;
-    await setStatus(notesFor.task_id, notesFor.status, notesDraft);
+    const refusing = notesMode === 'refuse';
+    if (refusing && !notesDraft.trim()) { setNotesError('Say why the client refused — the office needs the reason.'); return; }
+    setNotesSaving(true);
+    const msg = await setStatus(notesFor.task_id, refusing ? 'refused' : notesFor.status, notesDraft);
+    setNotesSaving(false);
+    if (msg) { setNotesError(msg); return; }
     setNotesFor(null);
     setNotesDraft('');
+    setNotesError('');
   };
 
   if (loading) return <div className="p-3 text-center text-sm text-gray-500 dark:text-slate-400">Loading tasks…</div>;
@@ -105,14 +121,14 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
               className={`${btn} border-amber-500 bg-white text-amber-800 dark:border-amber-500 dark:bg-slate-900 dark:text-amber-200`}>Skip</button>
           )}
           {t.status !== 'refused' && (
-            <button type="button" onClick={() => setStatus(t.task_id, 'refused', t.notes)}
+            <button type="button" onClick={() => openNotes(t, 'refuse')}
               className={`${btn} border-red-500 bg-white text-red-800 dark:border-red-500 dark:bg-slate-900 dark:text-red-200`}>Refused</button>
           )}
           {t.status !== 'pending' && (
             <button type="button" onClick={() => setStatus(t.task_id, 'pending', t.notes)}
               className={`${btn} border-gray-300 bg-white text-gray-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-300`}>Reset</button>
           )}
-          <button type="button" onClick={() => { setNotesFor(t); setNotesDraft(t.notes || ''); }}
+          <button type="button" onClick={() => openNotes(t, 'note')}
             className={`${btn} ml-auto border-gray-300 bg-white text-gray-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200`}>
             {t.notes ? '📝 Edit Note' : '📝 Add Note'}
           </button>
@@ -148,13 +164,21 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
       {notesFor && (
         <div className="fixed inset-0 z-[2400] flex items-center justify-center p-4 bg-black/50" onClick={(e) => { if (e.target === e.currentTarget) setNotesFor(null); }}>
           <div className="w-full max-w-md rounded-xl p-5 bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100">
-            <h4 className="m-0 mb-2 text-base font-semibold">Note for: {notesFor.task_name}</h4>
-            <textarea value={notesDraft} onChange={(e) => setNotesDraft(e.target.value)} rows={4}
+            <h4 className="m-0 mb-2 text-base font-semibold">
+              {notesMode === 'refuse' ? `Refused: ${notesFor.task_name}` : `Note for: ${notesFor.task_name}`}
+            </h4>
+            {notesMode === 'refuse' && (
+              <label htmlFor="task-refusal-reason" className="block mb-1 text-sm font-semibold text-gray-700 dark:text-slate-300">Why did the client refuse? (required)</label>
+            )}
+            <textarea id="task-refusal-reason" value={notesDraft} onChange={(e) => { setNotesDraft(e.target.value); setNotesError(''); }} rows={4}
               placeholder="e.g. Client refused — said she'd shower tomorrow"
               className="w-full p-2 mb-3 rounded-md border text-sm border-gray-300 bg-white text-gray-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            {notesError && <div role="alert" className="mb-3 px-3 py-2 rounded-md text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200">{notesError}</div>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setNotesFor(null)} className="btn btn-secondary btn-sm">Cancel</button>
-              <button type="button" onClick={saveNotes} className="btn btn-primary btn-sm">Save Note</button>
+              <button type="button" onClick={saveNotes} disabled={notesSaving} className="btn btn-primary btn-sm">
+                {notesSaving ? 'Saving…' : notesMode === 'refuse' ? 'Mark Refused' : 'Save Note'}
+              </button>
             </div>
           </div>
         </div>

@@ -13,9 +13,11 @@ import ScheduleOptimizer from './ScheduleOptimizer';
 import RosterOptimizer from './RosterOptimizer';
 import MakeShiftAvailableModal from './MakeShiftAvailableModal';
 import { confirm } from '../ConfirmModal';
+import { endsBeforeStart, shiftTimesError } from '../../utils/shiftTimes';
+import { toLocalYMD, parseLocalDate } from '../../utils/date';
 
 function getWeekStart(date) {
-  const d = new Date(date);
+  const d = parseLocalDate(date);
   d.setDate(d.getDate() - d.getDay());
   d.setHours(0, 0, 0, 0);
   return d;
@@ -53,8 +55,8 @@ const SchedulingHub = () => {
   const [saving, setSaving]                           = useState(false);
   const [formData, setFormData] = useState({
     caregiverId: '', clientId: '', scheduleType: 'one-time',
-    dayOfWeek: '', date: new Date().toISOString().split('T')[0],
-    startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false
+    dayOfWeek: '', date: getTodayCT(),
+    startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false
   });
   const [selectedDays, setSelectedDays]             = useState([]);
   const [conflicts, setConflicts]                   = useState([]);
@@ -75,7 +77,7 @@ const SchedulingHub = () => {
   const [suspendBusy, setSuspendBusy] = useState(false);
 
   // ── Week View state ──
-  const [weekOf, setWeekOf]               = useState(getWeekStart(new Date()).toISOString().split('T')[0]);
+  const [weekOf, setWeekOf]               = useState(toLocalYMD(getWeekStart(new Date())));
   const [weekData, setWeekData]           = useState(null);
   const [reassignModal, setReassignModal] = useState(null);
   const [reassignReason, setReassignReason] = useState('admin_decision');
@@ -99,7 +101,7 @@ const SchedulingHub = () => {
   // ── Coverage state ──
   const [coverageData, setCoverageData]       = useState(null);
   const [coverageLoading, setCoverageLoading] = useState(false);
-  const [coverageWeekOf, setCoverageWeekOf]   = useState(getWeekStart(new Date()).toISOString().split('T')[0]);
+  const [coverageWeekOf, setCoverageWeekOf]   = useState(toLocalYMD(getWeekStart(new Date())));
 
   // ── Caregiver suggestion state (for the create-shift form) ──
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -109,7 +111,7 @@ const SchedulingHub = () => {
   // ── Conflict heatmap state ──
   const [heatmap, setHeatmap] = useState(null);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
-  const [heatmapWeekOf, setHeatmapWeekOf] = useState(getWeekStart(new Date()).toISOString().split('T')[0]);
+  const [heatmapWeekOf, setHeatmapWeekOf] = useState(toLocalYMD(getWeekStart(new Date())));
   const loadHeatmap = async () => {
     setHeatmapLoading(true);
     try { setHeatmap(await api(`/api/scheduling/conflict-heatmap?weekOf=${heatmapWeekOf}`)); }
@@ -375,7 +377,7 @@ const SchedulingHub = () => {
   };
   const navigateWeek = (dir) => {
     const d = new Date(weekOf + 'T12:00:00'); d.setDate(d.getDate() + dir * 7);
-    setWeekOf(getWeekStart(d).toISOString().split('T')[0]);
+    setWeekOf(toLocalYMD(getWeekStart(d)));
   };
   const shiftPresets = [
     { label: 'Morning (8–12)', start: '08:00', end: '12:00' },
@@ -387,8 +389,19 @@ const SchedulingHub = () => {
   ];
   const calculateHours = (start, end) => {
     if (!start || !end) return 0;
-    return Number(parseFloat((new Date(`2000-01-01T${end}`) - new Date(`2000-01-01T${start}`)) / 3600000 || 0)).toFixed(2);
+    const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + (m || 0); };
+    let mins = toMin(end) - toMin(start);
+    if (mins <= 0) mins += 24 * 60;
+    return Number(mins / 60 || 0).toFixed(2);
   };
+  // Shown only when the end time is earlier than the start: ticking it says the shift really ends
+  // the next day. Unticked, the save is refused (utils/shiftTimes.ts, and the server's same rule).
+  const overnightCheck = (start, end, checked, onChange) => endsBeforeStart(start, end) ? (
+    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', margin: '-0.5rem 0 1rem', padding: '0.6rem 0.75rem', borderRadius: '8px', background: '#FFFBEB', border: '1px solid #FCD34D', color: '#92400E', fontSize: '0.82rem', cursor: 'pointer' }}>
+      <input type='checkbox' checked={!!checked} onChange={(e) => onChange(e.target.checked)} style={{ marginTop: 3 }} />
+      <span><strong>Overnight shift</strong> — it ends the next day at {formatTime(end)}. Leave this unticked if the end time is a mistake.</span>
+    </label>
+  ) : null;
   const getDayName = (dow) => ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dow] || 'Unknown';
   const calculateTotalHours = (list) => {
     const total = list.reduce((t, s) => {
@@ -438,7 +451,7 @@ const SchedulingHub = () => {
       ...prev,
       caregiverId: caregiverId || '',
       clientId: clientId || '',
-      date: date || new Date().toISOString().split('T')[0],
+      date: date || getTodayCT(),
       dayOfWeek: dayOfWeek !== '' ? dayOfWeek.toString() : '',
       // Clicking a specific date cell means "add a shift on THAT date" — a
       // one-time shift. Only default to recurring when a weekday was chosen
@@ -500,8 +513,10 @@ const SchedulingHub = () => {
     if (formData.scheduleType === 'recurring' && formData.dayOfWeek === '') { showMsg('Select a day of week', 'error'); return; }
     if (formData.scheduleType === 'one-time' && !formData.date) { showMsg('Select a date', 'error'); return; }
     if ((formData.scheduleType === 'multi-day' || formData.scheduleType === 'bi-weekly') && selectedDays.length === 0) { showMsg('Select at least one day', 'error'); return; }
-    if (formData.startTime === formData.endTime) { showMsg('Start and end time cannot be the same', 'error'); return; }
-    const today = new Date().toISOString().split('T')[0];
+    const timesError = shiftTimesError(formData.startTime, formData.endTime, formData.overnight);
+    if (timesError) { showMsg(timesError, 'error'); return; }
+    const overnight = endsBeforeStart(formData.startTime, formData.endTime) && !!formData.overnight;
+    const today = getTodayCT();
     // Sent as typed; the server aligns it per weekday so Sat+Sun starting 9/12 anchor to
     // 9/12 and 9/13 — the same weekend. (Normalizing to Sunday here used to split them.)
     const anchorStr = biWeeklyAnchorDate || formData.date || today;
@@ -517,7 +532,7 @@ const SchedulingHub = () => {
               caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'recurring',
               dayOfWeek, date: null, startTime: formData.startTime, endTime: formData.endTime, notes: formData.notes,
               frequency: freq, effectiveDate: formData.date || today, anchorDate: anchorStr,
-              isTraining: formData.isTraining
+              isTraining: formData.isTraining, overnight
             })});
             if (body?.authWarnings?.length) lastWarnings = body.authWarnings;
             created++;
@@ -540,7 +555,7 @@ const SchedulingHub = () => {
           caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'recurring',
           dayOfWeek: parseInt(formData.dayOfWeek), date: null, startTime: formData.startTime, endTime: formData.endTime,
           notes: formData.notes, frequency: 'weekly', effectiveDate: formData.date || today, anchorDate: null,
-          isTraining: formData.isTraining
+          isTraining: formData.isTraining, overnight
         })});
         showMsg('Schedule created!');
         showAuthWarnings(body);
@@ -548,12 +563,12 @@ const SchedulingHub = () => {
         const body = await api('/api/schedules', { method: 'POST', body: JSON.stringify({
           caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'one-time',
           dayOfWeek: null, date: formData.date, startTime: formData.startTime, endTime: formData.endTime, notes: formData.notes,
-          isTraining: formData.isTraining
+          isTraining: formData.isTraining, overnight
         })});
         showMsg('Schedule created!');
         showAuthWarnings(body);
       }
-      setFormData(prev => ({ ...prev, clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false }));
+      setFormData(prev => ({ ...prev, clientId: '', scheduleType: 'one-time', dayOfWeek: '', date: getTodayCT(), startTime: '09:00', endTime: '13:00', notes: '', endDate: '', isTraining: false, overnight: false }));
       setSelectedDays([]);
       loadCaregiverSchedules(selectedCaregiverId);
       if (scheduleView === 'week') loadWeekView();
@@ -565,17 +580,27 @@ const SchedulingHub = () => {
     finally { setSaving(false); }
   };
 
+  // The 🗑 on a "Current Schedule" row. Its callers passed only the id, so every row — recurring
+  // included — got the one-time wording, and nothing said WHICH shift was going.
   const handleDeleteSchedule = async (scheduleId, schedule) => {
-    const isRecurring = schedule && schedule.day_of_week !== null && schedule.day_of_week !== undefined;
+    const isRecurring = !!schedule && schedule.day_of_week !== null && schedule.day_of_week !== undefined;
+    const what = schedule
+      ? `${getClientName(schedule.client_id)}, ${isRecurring ? `${getDayName(Number(schedule.day_of_week))}s` : formatDate(schedule.date, { weekday: 'short', month: 'short', day: 'numeric' })} ${formatTime(schedule.start_time)} – ${formatTime(schedule.end_time)}`
+      : 'this schedule';
     if (isRecurring) {
       // scope=all on a recurring pattern now ENDS it as of today and keeps every
       // past (already-worked) occurrence. Full history erase lives in the
       // DragDropScheduler's scope UI (scope=purge), behind its own confirm.
-      const _cok = await confirm('Stop this recurring schedule going forward? Past (already-worked) occurrences are kept.', {danger: true}); if (!_cok) return;
+      const _cok = await confirm(`Stop ${what} going forward? Past (already-worked) occurrences are kept.`, { danger: true, title: 'Stop recurring schedule', confirmLabel: 'Stop it' }); if (!_cok) return;
     } else {
-      const _cok = await confirm('Delete this schedule?', {danger: true}); if (!_cok) return;
+      const _cok = await confirm(`Delete ${what}?`, { danger: true, title: 'Delete schedule', confirmLabel: 'Delete' }); if (!_cok) return;
     }
-    try { await api(`/api/schedules/${scheduleId}?scope=all`, { method: 'DELETE' }); showMsg('Schedule deleted'); loadCaregiverSchedules(selectedCaregiverId); }
+    try {
+      await api(`/api/schedules/${scheduleId}?scope=all`, { method: 'DELETE' });
+      showMsg(isRecurring ? 'Schedule stopped going forward' : 'Schedule deleted');
+      loadCaregiverSchedules(selectedCaregiverId);
+      if (scheduleView === 'month') loadCalendarData();
+    }
     catch (e) { showMsg('Error: ' + e.message, 'error'); }
   };
 
@@ -606,6 +631,8 @@ const SchedulingHub = () => {
       scope: isRecurring ? 'this' : undefined,
       editDate: isRecurring ? lastOccurrenceOnOrBefore(schedule.day_of_week) : '',
       suspendedFrom: schedule.suspended_from ? schedule.suspended_from.split('T')[0] : null,
+      // A shift already saved as running past midnight opens as overnight.
+      overnight: endsBeforeStart(schedule.start_time, schedule.end_time),
     });
   };
 
@@ -642,7 +669,8 @@ const SchedulingHub = () => {
 
   const handleSaveEdit = async () => {
     if (!editModal) return;
-    if (editModal.startTime === editModal.endTime) { showMsg('Start and end time cannot be the same', 'error'); return; }
+    const timesError = shiftTimesError(editModal.startTime, editModal.endTime, editModal.overnight);
+    if (timesError) { showMsg(timesError, 'error'); return; }
     const isRecurring = editModal.scheduleType === 'recurring';
     if (isRecurring && editModal.scope !== 'all' && !editModal.editDate) {
       showMsg('Pick which date this change applies to', 'error'); return;
@@ -656,7 +684,8 @@ const SchedulingHub = () => {
         dayOfWeek: isRecurring ? parseInt(editModal.dayOfWeek) : null,
         date: !isRecurring ? editModal.date : null,
         startTime: editModal.startTime, endTime: editModal.endTime, notes: editModal.notes,
-        frequency: editModal.frequency || 'weekly', anchorDate: editModal.anchorDate || null
+        frequency: editModal.frequency || 'weekly', anchorDate: editModal.anchorDate || null,
+        overnight: endsBeforeStart(editModal.startTime, editModal.endTime) && !!editModal.overnight
       })});
       const pretty = editModal.editDate
         ? new Date(editModal.editDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
@@ -1011,7 +1040,7 @@ const SchedulingHub = () => {
                       // 'YYYY-MM-DD' parses as UTC, so getDate() below read one day behind in
                       // US timezones, making the header numbers off by one vs the cell data.
                       const date = new Date(weekData.weekStart + 'T00:00:00'); date.setDate(date.getDate() + idx);
-                      const isToday = date.toISOString().split('T')[0] === getTodayCT();
+                      const isToday = toLocalYMD(date) === getTodayCT();
                       return (<th key={day} style={{ textAlign: 'center', minWidth: '95px', background: isToday ? '#EFF6FF' : undefined }}><div>{day}</div><div style={{ fontSize: '0.72rem', color: isToday ? '#2563EB' : '#6B7280', fontWeight: isToday ? '700' : '400' }}>{date.getDate()}</div></th>);
                     })}
                   </tr>
@@ -1027,8 +1056,8 @@ const SchedulingHub = () => {
                       </td>
                       {[0,1,2,3,4,5,6].map(di => {
                         const date = new Date(weekData.weekStart + 'T00:00:00'); date.setDate(date.getDate() + di);
-                        const isToday = date.toISOString().split('T')[0] === getTodayCT();
-                        const dateStr = date.toISOString().split('T')[0];
+                        const isToday = toLocalYMD(date) === getTodayCT();
+                        const dateStr = toLocalYMD(date);
                         const hasShifts = dayData[di] && dayData[di].length > 0;
                         return (
                           <td key={di}
@@ -1125,11 +1154,17 @@ const SchedulingHub = () => {
                   <div key={day} onClick={() => { setCalDaySchedules(dayScheds); setCalSelectedDay(day); }}
                     style={{ background: isToday ? '#EFF6FF' : '#fff', minHeight: isMobile ? '50px' : '80px', padding: '0.25rem', cursor: 'pointer' }}>
                     <div style={{ fontSize: '0.78rem', fontWeight: isToday ? '700' : '400', color: isToday ? '#2563EB' : '#374151', marginBottom: '0.2rem' }}>{day}</div>
-                    {dayScheds.slice(0, isMobile ? 1 : 2).map((sc, idx) => (
-                      <div key={idx} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: cgColor(sc.caregiver_id) + '20', borderLeft: `2px solid ${cgColor(sc.caregiver_id)}`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {isMobile ? formatTime(sc.start_time) : `${getCaregiverName(sc.caregiver_id).split(' ')[0]} ${formatTime(sc.start_time)}`}
-                      </div>
-                    ))}
+                    {dayScheds.slice(0, isMobile ? 1 : 2).map((sc, idx) => {
+                      // Time, client and caregiver: the label used to be the caregiver's FIRST name
+                      // and the time, which read "Caregiver 9:00am" for "Caregiver A" and never
+                      // said who the visit was for.
+                      const label = `${formatTime(sc.start_time)} ${getClientName(sc.client_id)} · ${getCaregiverName(sc.caregiver_id)}`;
+                      return (
+                        <div key={idx} title={label} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: cgColor(sc.caregiver_id) + '20', borderLeft: `2px solid ${cgColor(sc.caregiver_id)}`, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {isMobile ? formatTime(sc.start_time) : label}
+                        </div>
+                      );
+                    })}
                     {dayProspectAppts.map((pa, idx) => <div key={`pa${idx}`} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: '#FFF7ED', borderLeft: '2px solid #F97316', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#9A3412' }}>{isMobile ? '🟠' : `🟠 ${pa.prospect_first_name}`}</div>)}
                     {(dayScheds.length + dayProspectAppts.length) > (isMobile ? 1 : 3) && <div style={{ fontSize: '0.6rem', color: '#6B7280', textAlign: 'center' }}>+{(dayScheds.length + dayProspectAppts.length) - (isMobile ? 1 : 3)} more</div>}
                   </div>
@@ -1172,13 +1207,13 @@ const SchedulingHub = () => {
           <div className='card' style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem', padding: '1rem' }}>
             <h3 style={{ margin: 0 }}>📈 Coverage Overview</h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
-              <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(coverageWeekOf + 'T12:00:00'); d.setDate(d.getDate() - 7); setCoverageWeekOf(getWeekStart(d).toISOString().split('T')[0]); }}>◀ Prev</button>
-              <input type='date' value={coverageWeekOf} onChange={(e) => setCoverageWeekOf(getWeekStart(new Date(e.target.value + 'T12:00:00')).toISOString().split('T')[0])} style={{ padding: '0.3rem 0.5rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '0.85rem' }} />
-              <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(coverageWeekOf + 'T12:00:00'); d.setDate(d.getDate() + 7); setCoverageWeekOf(getWeekStart(d).toISOString().split('T')[0]); }}>Next ▶</button>
+              <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(coverageWeekOf + 'T12:00:00'); d.setDate(d.getDate() - 7); setCoverageWeekOf(toLocalYMD(getWeekStart(d))); }}>◀ Prev</button>
+              <input type='date' value={coverageWeekOf} onChange={(e) => setCoverageWeekOf(toLocalYMD(getWeekStart(new Date(e.target.value + 'T12:00:00'))))} style={{ padding: '0.3rem 0.5rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '0.85rem' }} />
+              <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(coverageWeekOf + 'T12:00:00'); d.setDate(d.getDate() + 7); setCoverageWeekOf(toLocalYMD(getWeekStart(d))); }}>Next ▶</button>
               <button className='btn btn-sm btn-primary'
-                disabled={coverageWeekOf === getWeekStart(new Date()).toISOString().split('T')[0]}
-                onClick={() => setCoverageWeekOf(getWeekStart(new Date()).toISOString().split('T')[0])}>📍 Today</button>
-              <button className='btn btn-sm btn-primary' onClick={() => setCoverageWeekOf(getWeekStart(new Date()).toISOString().split('T')[0])}>Today</button>
+                disabled={coverageWeekOf === toLocalYMD(getWeekStart(new Date()))}
+                onClick={() => setCoverageWeekOf(toLocalYMD(getWeekStart(new Date())))}>📍 Today</button>
+              <button className='btn btn-sm btn-primary' onClick={() => setCoverageWeekOf(toLocalYMD(getWeekStart(new Date())))}>Today</button>
             </div>
           </div>
           {coverageLoading ? <div className='card' style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div> : coverageData ? (
@@ -1241,10 +1276,10 @@ const SchedulingHub = () => {
           <div className='card' style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem', padding: '1rem' }}>
             <h3 style={{ margin: 0 }}>🔥 Conflict Heatmap</h3>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
-              <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(heatmapWeekOf + 'T12:00:00'); d.setDate(d.getDate() - 7); setHeatmapWeekOf(getWeekStart(d).toISOString().split('T')[0]); }}>◀ Prev</button>
-              <input type='date' value={heatmapWeekOf} onChange={(e) => setHeatmapWeekOf(getWeekStart(new Date(e.target.value + 'T12:00:00')).toISOString().split('T')[0])} style={{ padding: '0.3rem 0.5rem', border: '1px solid #ddd', borderRadius: 6, fontSize: '0.85rem' }} />
-              <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(heatmapWeekOf + 'T12:00:00'); d.setDate(d.getDate() + 7); setHeatmapWeekOf(getWeekStart(d).toISOString().split('T')[0]); }}>Next ▶</button>
-              <button className='btn btn-sm btn-primary' disabled={heatmapWeekOf === getWeekStart(new Date()).toISOString().split('T')[0]} onClick={() => setHeatmapWeekOf(getWeekStart(new Date()).toISOString().split('T')[0])}>📍 Today</button>
+              <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(heatmapWeekOf + 'T12:00:00'); d.setDate(d.getDate() - 7); setHeatmapWeekOf(toLocalYMD(getWeekStart(d))); }}>◀ Prev</button>
+              <input type='date' value={heatmapWeekOf} onChange={(e) => setHeatmapWeekOf(toLocalYMD(getWeekStart(new Date(e.target.value + 'T12:00:00'))))} style={{ padding: '0.3rem 0.5rem', border: '1px solid #ddd', borderRadius: 6, fontSize: '0.85rem' }} />
+              <button className='btn btn-sm btn-secondary' onClick={() => { const d = new Date(heatmapWeekOf + 'T12:00:00'); d.setDate(d.getDate() + 7); setHeatmapWeekOf(toLocalYMD(getWeekStart(d))); }}>Next ▶</button>
+              <button className='btn btn-sm btn-primary' disabled={heatmapWeekOf === toLocalYMD(getWeekStart(new Date()))} onClick={() => setHeatmapWeekOf(toLocalYMD(getWeekStart(new Date())))}>📍 Today</button>
             </div>
           </div>
 
@@ -1362,13 +1397,16 @@ const SchedulingHub = () => {
                       <td>
                         <div style={{ display: 'flex', gap: '0.25rem' }}>
                           <button className='btn btn-sm btn-success' disabled={reschedBusy === cr.id}
-                            onClick={() => resolveReschedule(cr.id, 'approve')}>✓</button>
+                            onClick={() => resolveReschedule(cr.id, 'approve')}>✓ Approve</button>
                           <button className='btn btn-sm btn-danger' disabled={reschedBusy === cr.id}
                             onClick={async () => {
-                              const note = window.prompt('Reason for denying (the caregiver sees this):', '');
+                              // The deny note goes to whoever asked (visitChangeRequests.ts resolve): the
+                              // client's portal for a client request, the caregiver's phone otherwise.
+                              const who = cr.requested_by === 'client' ? 'the client sees this in their portal' : 'the caregiver sees this';
+                              const note = window.prompt(`Reason for denying (${who}):`, '');
                               if (note === null) return;
                               resolveReschedule(cr.id, 'deny', note);
-                            }}>✗</button>
+                            }}>✗ Deny</button>
                         </div>
                       </td>
                     </tr>
@@ -1583,7 +1621,7 @@ const SchedulingHub = () => {
                 )}
                 {blackoutDates.length === 0 ? <p style={{ color: '#999', textAlign: 'center', padding: '0.75rem' }}>No blackout dates</p> : (
                   <div style={{ display: 'grid', gap: '0.5rem' }}>
-                    {blackoutDates.sort((a, b) => new Date(a.start_date) - new Date(b.start_date)).map(bd => (
+                    {blackoutDates.sort((a, b) => parseLocalDate(a.start_date) - parseLocalDate(b.start_date)).map(bd => (
                       <div key={bd.id} style={{ padding: '0.6rem 0.75rem', background: '#FEF2F2', borderLeft: '3px solid #DC2626', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div><strong style={{ fontSize: '0.88rem' }}>{formatDate(bd.start_date)} – {formatDate(bd.end_date)}</strong>{bd.reason && <div style={{ fontSize: '0.82rem', color: '#666' }}>{bd.reason}</div>}</div>
                         <button className='btn btn-sm btn-danger' onClick={() => deleteBlackout(bd.id)}>Delete</button>
@@ -1597,6 +1635,213 @@ const SchedulingHub = () => {
         </div>
       )}
     </div>
+  );
+
+  // The Edit Schedule and Move-to-Available pop-ups, rendered by BOTH returns below: the create
+  // panel returns early, and without them there a click on a "Current Schedule" row did nothing.
+  const renderScheduleModals = () => (
+    <>
+      {/* EDIT SCHEDULE MODAL */}
+      {editModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setEditModal(null)}>
+          <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', maxWidth: '480px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ margin: 0, color: '#1E40AF' }}>✏️ Edit Schedule</h3>
+              <button onClick={() => setEditModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#6B7280' }}>✕</button>
+            </div>
+            <div style={{ marginBottom: '1.25rem', padding: '0.5rem 0.75rem', background: '#EFF6FF', borderRadius: '6px', fontSize: '0.85rem', color: '#1E40AF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>{editModal.scheduleType === 'recurring' ? '🔄 Recurring' : '📅 One-Time'} Schedule</span>
+              {editModal.scheduleType === 'recurring' && (
+                <div>
+                  <div style={{ display: 'flex', gap: '0.3rem', marginBottom: editModal.frequency === 'biweekly' ? '0.4rem' : 0 }}>
+                    <button type='button' onClick={() => setEditModal(prev => ({ ...prev, frequency: 'weekly', anchorDate: null }))} style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', border: 'none', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', background: editModal.frequency === 'weekly' ? '#3B82F6' : '#E5E7EB', color: editModal.frequency === 'weekly' ? '#fff' : '#374151' }}>Weekly</button>
+                    <button type='button' onClick={() => setEditModal(prev => ({ ...prev, frequency: 'biweekly', anchorDate: prev.anchorDate || prev.editDate || getTodayCT() }))} style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', border: 'none', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', background: editModal.frequency === 'biweekly' ? '#F97316' : '#E5E7EB', color: editModal.frequency === 'biweekly' ? '#fff' : '#374151' }}>Bi-Weekly</button>
+                  </div>
+                  {editModal.frequency === 'biweekly' && (
+                    <div style={{ padding: '0.5rem', background: '#FFF7ED', borderRadius: '6px', border: '1px solid #FED7AA' }}>
+                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#9A3412', marginBottom: '0.25rem' }}>📅 First "on" date (this weekday, then every 2 weeks)</label>
+                      <input type='date' value={editModal.anchorDate || ''} onChange={e => setEditModal(prev => ({ ...prev, anchorDate: e.target.value }))} style={{ width: '100%', padding: '0.3rem', border: '1px solid #D1D5DB', borderRadius: '4px', fontSize: '0.82rem' }} />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* A repeating shift is ONE row that every week is re-derived from, so an edit
+                has to say which weeks it means. Without this picker every edit here was
+                silently an "every occurrence" edit — the reason changing one shift changed
+                weeks that had already been worked. */}
+            {editModal.scheduleType === 'recurring' && (() => {
+              const dayName = getDayName(parseInt(editModal.dayOfWeek));
+              const opts = [
+                { key: 'this',      label: 'Just this day',                       hint: 'Only the date below changes. Every other week stays as it is.' },
+                { key: 'following', label: `This day and all future ${dayName}s`, hint: 'Use when the shift changed for good. Weeks before the date below are left alone.' },
+                { key: 'all',       label: `Every ${dayName} — past and future`,  hint: 'Also changes weeks already worked, including ones payroll has been run on.', warn: true },
+              ];
+              return (
+                <div style={{ marginBottom: '1.25rem', padding: '0.85rem', background: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+                  <label style={{ display: 'block', marginBottom: '0.6rem', fontWeight: '700', fontSize: '0.9rem', color: '#111827' }}>Apply this change to</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {opts.map(o => {
+                      const on = editModal.scope === o.key;
+                      return (
+                        <button key={o.key} type='button'
+                          onClick={() => setEditModal(prev => ({ ...prev, scope: o.key }))}
+                          style={{
+                            textAlign: 'left', padding: '0.6rem 0.7rem', borderRadius: '6px', cursor: 'pointer',
+                            border: on ? `2px solid ${o.warn ? '#DC2626' : '#3B82F6'}` : '2px solid #E5E7EB',
+                            background: on ? (o.warn ? '#FEF2F2' : '#EFF6FF') : '#fff',
+                          }}>
+                          <div style={{ fontWeight: '600', fontSize: '0.88rem', color: on && o.warn ? '#991B1B' : '#111827' }}>
+                            {on ? '● ' : '○ '}{o.label}{o.warn ? '  ⚠️' : ''}
+                          </div>
+                          <div style={{ fontSize: '0.76rem', color: on && o.warn ? '#B91C1C' : '#6B7280', marginTop: '0.15rem', paddingLeft: '1rem' }}>{o.hint}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {editModal.scope !== 'all' && (
+                    <div style={{ marginTop: '0.7rem' }}>
+                      <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: '600', fontSize: '0.8rem', color: '#374151' }}>
+                        {editModal.scope === 'this' ? 'Which day?' : 'Changed as of'}
+                      </label>
+                      <input type='date' value={editModal.editDate || ''}
+                        onChange={e => setEditModal(prev => ({ ...prev, editDate: e.target.value }))}
+                        style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.88rem' }} />
+                      <div style={{ fontSize: '0.74rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                        A past date is fine — that is how you correct a week before running payroll.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Client</label>
+              <select value={editModal.clientId} onChange={(e) => setEditModal(prev => ({ ...prev, clientId: e.target.value }))} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }}>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+              </select>
+            </div>
+            {editModal.scheduleType === 'recurring' ? (
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Day of Week</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem' }}>
+                  {['Su','Mo','Tu','We','Th','Fr','Sa'].map((day, idx) => (
+                    <button key={day} type='button' onClick={() => setEditModal(prev => ({ ...prev, dayOfWeek: idx.toString() }))}
+                      style={{ padding: '0.5rem 0.2rem', borderRadius: '6px', border: editModal.dayOfWeek === idx.toString() ? '2px solid #3B82F6' : '2px solid #E5E7EB', background: editModal.dayOfWeek === idx.toString() ? '#3B82F6' : '#fff', color: editModal.dayOfWeek === idx.toString() ? '#fff' : '#374151', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem' }}>{day}</button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Date</label>
+                <input type='date' value={editModal.date} onChange={(e) => setEditModal(prev => ({ ...prev, date: e.target.value }))} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }} />
+              </div>
+            )}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Quick Presets</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                {shiftPresets.map((p, i) => <button key={i} type='button' onClick={() => setEditModal(prev => ({ ...prev, startTime: p.start, endTime: p.end }))} style={{ padding: '0.35rem 0.6rem', borderRadius: '16px', border: '1px solid #E5E7EB', background: editModal.startTime === p.start && editModal.endTime === p.end ? '#DBEAFE' : '#fff', color: '#374151', cursor: 'pointer', fontSize: '0.78rem' }}>{p.label}</button>)}
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div><label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Start Time</label><input type='time' value={editModal.startTime} onChange={(e) => setEditModal(prev => ({ ...prev, startTime: e.target.value }))} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }} /></div>
+              <div><label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>End Time</label><input type='time' value={editModal.endTime} onChange={(e) => setEditModal(prev => ({ ...prev, endTime: e.target.value }))} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }} /></div>
+            </div>
+            <div style={{ marginBottom: '1rem', padding: '0.5rem', background: '#F3F4F6', borderRadius: '6px', textAlign: 'center', fontSize: '0.9rem' }}>
+              <span style={{ fontWeight: '600' }}>{formatTime(editModal.startTime)} – {formatTime(editModal.endTime)}</span>
+              <span style={{ color: '#6B7280', marginLeft: '0.75rem' }}>({calculateHours(editModal.startTime, editModal.endTime)} hours)</span>
+            </div>
+            {overnightCheck(editModal.startTime, editModal.endTime, editModal.overnight, (v) => setEditModal(prev => ({ ...prev, overnight: v })))}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Notes</label>
+              <textarea value={editModal.notes} onChange={(e) => setEditModal(prev => ({ ...prev, notes: e.target.value }))} placeholder='Optional notes...' rows={2} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem', resize: 'vertical' }} />
+            </div>
+            {/* Suspend / resume service — pause visits without deleting the schedule */}
+            {editModal.scheduleType === 'recurring' && (
+              <div style={{ marginBottom: '1.25rem', padding: '0.85rem', borderRadius: '8px',
+                background: editModal.suspendedFrom ? '#FEF3C7' : '#F9FAFB',
+                border: `1px solid ${editModal.suspendedFrom ? '#FCD34D' : '#E5E7EB'}` }}>
+                {editModal.suspendedFrom ? (
+                  <>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#92400E', marginBottom: '0.5rem' }}>
+                      ⏸ Service suspended from {new Date(editModal.suspendedFrom + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button type='button' disabled={suspendBusy} onClick={() => handleResume('this')}
+                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px' }}>
+                        ▶ Resume {getDayName(parseInt(editModal.dayOfWeek))}s
+                      </button>
+                      <button type='button' disabled={suspendBusy} onClick={() => handleResume('client')}
+                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px' }}>
+                        ▶ Resume all {getClientName(editModal.clientId)}’s days
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', color: '#111827', marginBottom: '0.5rem' }}>Suspend service</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#374151' }}>Starting</span>
+                      <input type='date'
+                        value={editModal.suspendFromDate || toLocalYMD(new Date())}
+                        onChange={(e) => setEditModal(prev => ({ ...prev, suspendFromDate: e.target.value }))}
+                        style={{ padding: '0.4rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.85rem' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <button type='button' disabled={suspendBusy} onClick={() => handleSuspend('this')}
+                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px' }}>
+                        ⏸ Just {getDayName(parseInt(editModal.dayOfWeek))}s
+                      </button>
+                      <button type='button' disabled={suspendBusy} onClick={() => handleSuspend('client')}
+                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px', borderColor: '#F59E0B', color: '#92400E' }}>
+                        ⏸ All {getClientName(editModal.clientId)}’s days
+                      </button>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#6B7280', marginTop: '0.4rem' }}>
+                      Pauses visits from that date on. Nothing is deleted — past visits stay, and you can resume anytime.
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button onClick={handleSaveEdit} disabled={editSaving} className='btn btn-primary' style={{ flex: 1, minWidth: '160px' }}>{editSaving ? 'Saving...' : '✓ Save Changes'}</button>
+              <button
+                type='button'
+                onClick={() => {
+                  setMakeAvailableModal({
+                    schedule: editModal,
+                    clientName: getClientName(editModal.clientId),
+                    caregiverName: getCaregiverName(editModal.caregiverId || selectedCaregiverId)
+                  });
+                  setEditModal(null);
+                }}
+                className='btn'
+                style={{ background: '#F59E0B', color: '#fff', border: 'none' }}
+                title='Mark this shift as available for another caregiver to pick up'
+              >📋 Move to Available Shifts</button>
+              <button onClick={() => setEditModal(null)} className='btn btn-secondary'>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MAKE SHIFT AVAILABLE MODAL */}
+      {makeAvailableModal && (
+        <MakeShiftAvailableModal
+          schedule={makeAvailableModal.schedule}
+          date={makeAvailableModal.schedule.date || makeAvailableModal.schedule.editDate}
+          clientName={makeAvailableModal.clientName}
+          caregiverName={makeAvailableModal.caregiverName}
+          onClose={() => setMakeAvailableModal(null)}
+          onDone={({ notified, texted, warning }) => {
+            showMsg(warning || `Posted to Available Shifts — ${notified} caregiver${notified === 1 ? '' : 's'} can accept it${texted ? `, ${texted} texted` : ''}`, warning ? 'error' : undefined);
+            loadCaregiverSchedules(selectedCaregiverId);
+            if (mainTab === 'staffing' && staffingTab === 'open-shifts') loadOpenShifts();
+          }}
+        />
+      )}
+    </>
   );
 
   // ═══════════════════════════════════════════════
@@ -1848,6 +2093,7 @@ const SchedulingHub = () => {
                   <span style={{ fontWeight: '600' }}>{formatTime(formData.startTime)} – {formatTime(formData.endTime)}</span>
                   <span style={{ color: '#6B7280', marginLeft: '0.75rem' }}>({calculateHours(formData.startTime, formData.endTime)}h)</span>
                 </div>
+                {overnightCheck(formData.startTime, formData.endTime, formData.overnight, (v) => setFormData(prev => ({ ...prev, overnight: v })))}
 
                 <div style={{ marginBottom: '1.25rem' }}>
                   <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Notes</label>
@@ -1886,7 +2132,7 @@ const SchedulingHub = () => {
                           {s.frequency === 'biweekly' && <span style={{ marginLeft: '0.5rem', padding: '0.15rem 0.4rem', background: '#FFEDD5', color: '#C2410C', borderRadius: '4px', fontSize: '0.72rem' }}>Bi-Wk</span>}
                           {s.suspended_from && <span title={`Suspended from ${s.suspended_from.slice(0,10)}`} style={{ marginLeft: '0.5rem', padding: '0.15rem 0.4rem', background: '#FEF3C7', color: '#92400E', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700 }}>⏸ Suspended</span>}
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(s.id); }} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '1rem' }}>🗑</button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(s.id, s); }} aria-label={`Delete ${getClientName(s.client_id)} ${formatTime(s.start_time)} – ${formatTime(s.end_time)}`} title='Delete this schedule' style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '1rem' }}>🗑</button>
                       </div>
                     ))}
                   </div>
@@ -1898,7 +2144,7 @@ const SchedulingHub = () => {
                       <div key={s.id} onClick={() => openEditModal(s)}
                         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.85rem', background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: '8px', marginBottom: '0.4rem', fontSize: '0.88rem', cursor: 'pointer' }}>
                         <div><span style={{ fontWeight: '600' }}>{getClientName(s.client_id)}</span><span style={{ color: '#6B7280', marginLeft: '0.75rem' }}>{formatTime(s.start_time)} – {formatTime(s.end_time)}</span></div>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(s.id); }} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '1rem' }}>🗑</button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(s.id, s); }} aria-label={`Delete ${getClientName(s.client_id)} ${formatTime(s.start_time)} – ${formatTime(s.end_time)}`} title='Delete this schedule' style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '1rem' }}>🗑</button>
                       </div>
                     ))}
                   </div>
@@ -1913,6 +2159,7 @@ const SchedulingHub = () => {
             )}
           </div>
         </div>
+        {renderScheduleModals()}
       </>
     );
   }
@@ -1993,205 +2240,7 @@ const SchedulingHub = () => {
         </div>
       )}
 
-      {/* EDIT SCHEDULE MODAL */}
-      {editModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setEditModal(null)}>
-          <div style={{ background: '#fff', borderRadius: '12px', padding: '1.5rem', maxWidth: '480px', width: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h3 style={{ margin: 0, color: '#1E40AF' }}>✏️ Edit Schedule</h3>
-              <button onClick={() => setEditModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#6B7280' }}>✕</button>
-            </div>
-            <div style={{ marginBottom: '1.25rem', padding: '0.5rem 0.75rem', background: '#EFF6FF', borderRadius: '6px', fontSize: '0.85rem', color: '#1E40AF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>{editModal.scheduleType === 'recurring' ? '🔄 Recurring' : '📅 One-Time'} Schedule</span>
-              {editModal.scheduleType === 'recurring' && (
-                <div>
-                  <div style={{ display: 'flex', gap: '0.3rem', marginBottom: editModal.frequency === 'biweekly' ? '0.4rem' : 0 }}>
-                    <button type='button' onClick={() => setEditModal(prev => ({ ...prev, frequency: 'weekly', anchorDate: null }))} style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', border: 'none', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', background: editModal.frequency === 'weekly' ? '#3B82F6' : '#E5E7EB', color: editModal.frequency === 'weekly' ? '#fff' : '#374151' }}>Weekly</button>
-                    <button type='button' onClick={() => setEditModal(prev => ({ ...prev, frequency: 'biweekly', anchorDate: prev.anchorDate || prev.editDate || getTodayCT() }))} style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', border: 'none', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer', background: editModal.frequency === 'biweekly' ? '#F97316' : '#E5E7EB', color: editModal.frequency === 'biweekly' ? '#fff' : '#374151' }}>Bi-Weekly</button>
-                  </div>
-                  {editModal.frequency === 'biweekly' && (
-                    <div style={{ padding: '0.5rem', background: '#FFF7ED', borderRadius: '6px', border: '1px solid #FED7AA' }}>
-                      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: '#9A3412', marginBottom: '0.25rem' }}>📅 First "on" date (this weekday, then every 2 weeks)</label>
-                      <input type='date' value={editModal.anchorDate || ''} onChange={e => setEditModal(prev => ({ ...prev, anchorDate: e.target.value }))} style={{ width: '100%', padding: '0.3rem', border: '1px solid #D1D5DB', borderRadius: '4px', fontSize: '0.82rem' }} />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            {/* A repeating shift is ONE row that every week is re-derived from, so an edit
-                has to say which weeks it means. Without this picker every edit here was
-                silently an "every occurrence" edit — the reason changing one shift changed
-                weeks that had already been worked. */}
-            {editModal.scheduleType === 'recurring' && (() => {
-              const dayName = getDayName(parseInt(editModal.dayOfWeek));
-              const opts = [
-                { key: 'this',      label: 'Just this day',                       hint: 'Only the date below changes. Every other week stays as it is.' },
-                { key: 'following', label: `This day and all future ${dayName}s`, hint: 'Use when the shift changed for good. Weeks before the date below are left alone.' },
-                { key: 'all',       label: `Every ${dayName} — past and future`,  hint: 'Also changes weeks already worked, including ones payroll has been run on.', warn: true },
-              ];
-              return (
-                <div style={{ marginBottom: '1.25rem', padding: '0.85rem', background: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
-                  <label style={{ display: 'block', marginBottom: '0.6rem', fontWeight: '700', fontSize: '0.9rem', color: '#111827' }}>Apply this change to</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    {opts.map(o => {
-                      const on = editModal.scope === o.key;
-                      return (
-                        <button key={o.key} type='button'
-                          onClick={() => setEditModal(prev => ({ ...prev, scope: o.key }))}
-                          style={{
-                            textAlign: 'left', padding: '0.6rem 0.7rem', borderRadius: '6px', cursor: 'pointer',
-                            border: on ? `2px solid ${o.warn ? '#DC2626' : '#3B82F6'}` : '2px solid #E5E7EB',
-                            background: on ? (o.warn ? '#FEF2F2' : '#EFF6FF') : '#fff',
-                          }}>
-                          <div style={{ fontWeight: '600', fontSize: '0.88rem', color: on && o.warn ? '#991B1B' : '#111827' }}>
-                            {on ? '● ' : '○ '}{o.label}{o.warn ? '  ⚠️' : ''}
-                          </div>
-                          <div style={{ fontSize: '0.76rem', color: on && o.warn ? '#B91C1C' : '#6B7280', marginTop: '0.15rem', paddingLeft: '1rem' }}>{o.hint}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {editModal.scope !== 'all' && (
-                    <div style={{ marginTop: '0.7rem' }}>
-                      <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: '600', fontSize: '0.8rem', color: '#374151' }}>
-                        {editModal.scope === 'this' ? 'Which day?' : 'Changed as of'}
-                      </label>
-                      <input type='date' value={editModal.editDate || ''}
-                        onChange={e => setEditModal(prev => ({ ...prev, editDate: e.target.value }))}
-                        style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.88rem' }} />
-                      <div style={{ fontSize: '0.74rem', color: '#6B7280', marginTop: '0.25rem' }}>
-                        A past date is fine — that is how you correct a week before running payroll.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Client</label>
-              <select value={editModal.clientId} onChange={(e) => setEditModal(prev => ({ ...prev, clientId: e.target.value }))} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }}>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
-              </select>
-            </div>
-            {editModal.scheduleType === 'recurring' ? (
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Day of Week</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem' }}>
-                  {['Su','Mo','Tu','We','Th','Fr','Sa'].map((day, idx) => (
-                    <button key={day} type='button' onClick={() => setEditModal(prev => ({ ...prev, dayOfWeek: idx.toString() }))}
-                      style={{ padding: '0.5rem 0.2rem', borderRadius: '6px', border: editModal.dayOfWeek === idx.toString() ? '2px solid #3B82F6' : '2px solid #E5E7EB', background: editModal.dayOfWeek === idx.toString() ? '#3B82F6' : '#fff', color: editModal.dayOfWeek === idx.toString() ? '#fff' : '#374151', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem' }}>{day}</button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Date</label>
-                <input type='date' value={editModal.date} onChange={(e) => setEditModal(prev => ({ ...prev, date: e.target.value }))} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }} />
-              </div>
-            )}
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Quick Presets</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                {shiftPresets.map((p, i) => <button key={i} type='button' onClick={() => setEditModal(prev => ({ ...prev, startTime: p.start, endTime: p.end }))} style={{ padding: '0.35rem 0.6rem', borderRadius: '16px', border: '1px solid #E5E7EB', background: editModal.startTime === p.start && editModal.endTime === p.end ? '#DBEAFE' : '#fff', color: '#374151', cursor: 'pointer', fontSize: '0.78rem' }}>{p.label}</button>)}
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
-              <div><label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Start Time</label><input type='time' value={editModal.startTime} onChange={(e) => setEditModal(prev => ({ ...prev, startTime: e.target.value }))} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }} /></div>
-              <div><label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>End Time</label><input type='time' value={editModal.endTime} onChange={(e) => setEditModal(prev => ({ ...prev, endTime: e.target.value }))} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem' }} /></div>
-            </div>
-            <div style={{ marginBottom: '1rem', padding: '0.5rem', background: '#F3F4F6', borderRadius: '6px', textAlign: 'center', fontSize: '0.9rem' }}>
-              <span style={{ fontWeight: '600' }}>{formatTime(editModal.startTime)} – {formatTime(editModal.endTime)}</span>
-              <span style={{ color: '#6B7280', marginLeft: '0.75rem' }}>({calculateHours(editModal.startTime, editModal.endTime)} hours)</span>
-            </div>
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: '600', fontSize: '0.9rem' }}>Notes</label>
-              <textarea value={editModal.notes} onChange={(e) => setEditModal(prev => ({ ...prev, notes: e.target.value }))} placeholder='Optional notes...' rows={2} style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '2px solid #E5E7EB', fontSize: '0.95rem', resize: 'vertical' }} />
-            </div>
-            {/* Suspend / resume service — pause visits without deleting the schedule */}
-            {editModal.scheduleType === 'recurring' && (
-              <div style={{ marginBottom: '1.25rem', padding: '0.85rem', borderRadius: '8px',
-                background: editModal.suspendedFrom ? '#FEF3C7' : '#F9FAFB',
-                border: `1px solid ${editModal.suspendedFrom ? '#FCD34D' : '#E5E7EB'}` }}>
-                {editModal.suspendedFrom ? (
-                  <>
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#92400E', marginBottom: '0.5rem' }}>
-                      ⏸ Service suspended from {new Date(editModal.suspendedFrom + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <button type='button' disabled={suspendBusy} onClick={() => handleResume('this')}
-                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px' }}>
-                        ▶ Resume {getDayName(parseInt(editModal.dayOfWeek))}s
-                      </button>
-                      <button type='button' disabled={suspendBusy} onClick={() => handleResume('client')}
-                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px' }}>
-                        ▶ Resume all {getClientName(editModal.clientId)}’s days
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <label style={{ display: 'block', fontWeight: 700, fontSize: '0.9rem', color: '#111827', marginBottom: '0.5rem' }}>Suspend service</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <span style={{ fontSize: '0.8rem', color: '#374151' }}>Starting</span>
-                      <input type='date'
-                        value={editModal.suspendFromDate || new Date().toISOString().split('T')[0]}
-                        onChange={(e) => setEditModal(prev => ({ ...prev, suspendFromDate: e.target.value }))}
-                        style={{ padding: '0.4rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.85rem' }} />
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <button type='button' disabled={suspendBusy} onClick={() => handleSuspend('this')}
-                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px' }}>
-                        ⏸ Just {getDayName(parseInt(editModal.dayOfWeek))}s
-                      </button>
-                      <button type='button' disabled={suspendBusy} onClick={() => handleSuspend('client')}
-                        className='btn btn-secondary' style={{ flex: 1, minWidth: '140px', borderColor: '#F59E0B', color: '#92400E' }}>
-                        ⏸ All {getClientName(editModal.clientId)}’s days
-                      </button>
-                    </div>
-                    <div style={{ fontSize: '0.74rem', color: '#6B7280', marginTop: '0.4rem' }}>
-                      Pauses visits from that date on. Nothing is deleted — past visits stay, and you can resume anytime.
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <button onClick={handleSaveEdit} disabled={editSaving} className='btn btn-primary' style={{ flex: 1, minWidth: '160px' }}>{editSaving ? 'Saving...' : '✓ Save Changes'}</button>
-              <button
-                type='button'
-                onClick={() => {
-                  setMakeAvailableModal({
-                    schedule: editModal,
-                    clientName: getClientName(editModal.clientId),
-                    caregiverName: getCaregiverName(editModal.caregiverId || selectedCaregiverId)
-                  });
-                  setEditModal(null);
-                }}
-                className='btn'
-                style={{ background: '#F59E0B', color: '#fff', border: 'none' }}
-                title='Mark this shift as available for another caregiver to pick up'
-              >📋 Move to Available Shifts</button>
-              <button onClick={() => setEditModal(null)} className='btn btn-secondary'>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MAKE SHIFT AVAILABLE MODAL */}
-      {makeAvailableModal && (
-        <MakeShiftAvailableModal
-          schedule={makeAvailableModal.schedule}
-          date={makeAvailableModal.schedule.date || makeAvailableModal.schedule.editDate}
-          clientName={makeAvailableModal.clientName}
-          caregiverName={makeAvailableModal.caregiverName}
-          onClose={() => setMakeAvailableModal(null)}
-          onDone={({ notified, texted, warning }) => {
-            showMsg(warning || `Posted to Available Shifts — ${notified} caregiver${notified === 1 ? '' : 's'} can accept it${texted ? `, ${texted} texted` : ''}`, warning ? 'error' : undefined);
-            loadCaregiverSchedules(selectedCaregiverId);
-            if (mainTab === 'staffing' && staffingTab === 'open-shifts') loadOpenShifts();
-          }}
-        />
-      )}
+      {renderScheduleModals()}
 
       {/* CALENDAR DAY DETAIL MODAL */}
       {calSelectedDay && (

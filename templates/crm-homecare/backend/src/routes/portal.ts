@@ -1019,22 +1019,40 @@ app.get('/invoices', portalAuth, async (c) => {
   return c.json(results)
 })
 
-// Caregivers: everyone with an active assignment OR an active schedule for this
-// client, so a client sees who comes even where no assignment row was ever made.
-const servesClient = (caregiverId: string, clientId: string) => db.execute(sql`
-  SELECT 1 FROM client_assignments
-   WHERE caregiver_id = ${caregiverId} AND client_id = ${clientId} AND status = 'active'
-  UNION
-  SELECT 1 FROM schedules
-   WHERE caregiver_id = ${caregiverId} AND client_id = ${clientId} AND is_active = true
-     AND (status IS NULL OR status = 'active')
-  LIMIT 1
-`).then((r: any) => (r.rows ?? r).length > 0)
+// Who serves this client NOW — the one definition behind My Caregivers (client and family portal),
+// the background-check summary gate and the reschedule picker:
+//   · an active client_assignments row, or
+//   · a visit from today through four weeks out, expanded through the schedule engine, so a day
+//     another caregiver covers (a per-day override caregiver, e.g. an open shift they filled) counts
+//     for THAT caregiver and a pattern that has ended counts for nobody, or
+//   · an upcoming portal visit row (scheduled_visits) that is not cancelled.
+// Run 3: reading only schedules.caregiver_id listed Caregiver A while Caregiver B was coming on the
+// client's Oct 21 and Oct 26 visits (open-shift fills of A's recurring pattern).
+export const SERVING_WINDOW_DAYS = 28
+const servingCaregiverIdsSql = async (clientId: string) => {
+  const today = await agencyToday()
+  return sql`
+    WITH ${occurrencesCte(today, addDays(today, SERVING_WINDOW_DAYS))}
+    SELECT ca.caregiver_id FROM client_assignments ca WHERE ca.client_id = ${clientId} AND ca.status = 'active'
+    UNION
+    SELECT occ.caregiver_id FROM occ JOIN schedules s ON s.id = occ.schedule_id
+     WHERE occ.client_id = ${clientId} AND (s.status IS NULL OR s.status = 'active') AND occ.caregiver_id IS NOT NULL
+    UNION
+    SELECT sv.caregiver_id FROM scheduled_visits sv
+     WHERE sv.client_id = ${clientId} AND sv.scheduled_date >= ${today}::date AND sv.status <> 'cancelled'
+       AND sv.caregiver_id IS NOT NULL`
+}
+
+export const servesClient = async (caregiverId: string, clientId: string) => {
+  const r: any = await db.execute(sql`SELECT 1 FROM (${await servingCaregiverIdsSql(clientId)}) AS serving
+    WHERE serving.caregiver_id = ${caregiverId} LIMIT 1`)
+  return (r.rows ?? r).length > 0
+}
 
 export const caregiversServingClient = async (clientId: string, withPhone: boolean) => {
   const r: any = await db.execute(sql`
     SELECT DISTINCT ON (u.id)
-      COALESCE(ca.id, s.id)          AS assignment_id,
+      COALESCE(ca.id, u.id)          AS assignment_id,
       ca.assignment_date,
       ca.hours_per_week,
       COALESCE(ca.status, 'active')  AS status,
@@ -1045,10 +1063,7 @@ export const caregiversServingClient = async (clientId: string, withPhone: boole
     FROM users u
     LEFT JOIN client_assignments ca
       ON ca.caregiver_id = u.id AND ca.client_id = ${clientId} AND ca.status = 'active'
-    LEFT JOIN schedules s
-      ON s.caregiver_id = u.id AND s.client_id = ${clientId} AND s.is_active = true
-     AND (s.status IS NULL OR s.status = 'active')
-    WHERE (ca.id IS NOT NULL OR s.id IS NOT NULL)
+    WHERE u.id IN (SELECT serving.caregiver_id FROM (${await servingCaregiverIdsSql(clientId)}) AS serving)
     ORDER BY u.id, ca.assignment_date DESC NULLS LAST
   `)
   return r.rows ?? r
@@ -1192,17 +1207,14 @@ app.get('/care-plan', portalAuth, async (c) => {
     .from(clientEmergencyContacts)
     .where(eq(clientEmergencyContacts.clientId, clientId))
 
-  // Get assigned caregivers
-  const assignedCaregivers = await db.select({
-    id: clientAssignments.id,
-    firstName: users.firstName,
-    lastName: users.lastName,
-    phone: users.phone,
-    hoursPerWeek: clientAssignments.hoursPerWeek,
-  })
-    .from(clientAssignments)
-    .innerJoin(users, eq(clientAssignments.caregiverId, users.id))
-    .where(and(eq(clientAssignments.clientId, clientId), eq(clientAssignments.status, 'active')))
+  // The caregivers serving this client now — the same list as My Caregivers (caregiversServingClient).
+  const assignedCaregivers = (await caregiversServingClient(clientId, true)).map((cg: any) => ({
+    id: cg.caregiver_id,
+    firstName: cg.first_name,
+    lastName: cg.last_name,
+    phone: cg.phone,
+    hoursPerWeek: cg.hours_per_week,
+  }))
 
   return c.json({
     client: {

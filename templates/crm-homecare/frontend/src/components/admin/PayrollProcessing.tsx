@@ -1,5 +1,5 @@
 import { toast } from '../Toast';
-import { formatDate } from '../../utils/date';
+import { formatDate, toLocalYMD } from '../../utils/date';
 // src/components/admin/PayrollProcessing.jsx
 // Complete payroll: Overtime, Mileage, PTO, Shift Differentials, Pay Stubs, Exports
 import React, { useState, useEffect } from 'react';
@@ -10,8 +10,8 @@ import PaydayVerificationSetting from './PaydayVerificationSetting';
 const PayrollProcessing = () => {
   const { token } = useAuth();
   const [payPeriod, setPayPeriod] = useState({
-    startDate: new Date(new Date().setDate(new Date().getDate() - 14)).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0]
+    startDate: toLocalYMD(new Date(new Date().setDate(new Date().getDate() - 14))),
+    endDate: toLocalYMD(new Date())
   });
   const [payrollData, setPayrollData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +61,7 @@ const PayrollProcessing = () => {
   // Mileage form
   const [mileageForm, setMileageForm] = useState({
     caregiverId: '',
-    date: new Date().toISOString().split('T')[0],
+    date: toLocalYMD(new Date()),
     miles: '',
     fromLocation: '',
     toLocation: '',
@@ -357,7 +357,7 @@ const PayrollProcessing = () => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(mileageForm)
       });
-      setMileageForm({ caregiverId: '', date: new Date().toISOString().split('T')[0], miles: '', fromLocation: '', toLocation: '', notes: '' });
+      setMileageForm({ caregiverId: '', date: toLocalYMD(new Date()), miles: '', fromLocation: '', toLocation: '', notes: '' });
       setShowMileageModal(false);
       setMessage('✓ Mileage recorded');
       setTimeout(() => setMessage(''), 2000);

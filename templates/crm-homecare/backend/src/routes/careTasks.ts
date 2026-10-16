@@ -28,6 +28,7 @@ app.use('*', authenticate)
 
 export const CATEGORIES = ['adl', 'iadl', 'medication', 'companion', 'safety', 'other']
 export const STATUSES = ['pending', 'completed', 'skipped', 'refused']
+export const REFUSAL_NEEDS_REASON = 'Say why the client refused this task: add a note with the reason (the Note button), then mark it Refused.'
 
 // Frequency is a positive whole number; anything else is 1 (the source CRM's rule).
 export const normFreq = (v: unknown) => {
@@ -250,7 +251,10 @@ app.put('/time-entry/:timeEntryId/:taskId', async (c) => {
   if (!task || task.clientId !== entry.clientId) return c.json({ error: 'Task not found for this client' }, 404)
 
   const completedAt = b.status === 'completed' ? new Date() : null
-  const notes = b.notes ? String(b.notes) : null
+  const notes = b.notes && String(b.notes).trim() ? String(b.notes).trim() : null
+  // A refusal is a care event the office and the visit record must be able to explain, so it
+  // carries the client's reason (Run 3: refusing asked for nothing; a note had to be added later).
+  if (b.status === 'refused' && !notes) return c.json({ error: REFUSAL_NEEDS_REASON }, 400)
   const [row] = await db.insert(shiftTaskCompletions)
     .values({ timeEntryId: entry.id, taskTemplateId: task.id, status: b.status, notes, completedAt })
     .onConflictDoUpdate({

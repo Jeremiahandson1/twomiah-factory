@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatDateForInput } from '../../utils/date';
+import { formatDateForInput, toLocalYMD, parseLocalDate } from '../../utils/date';
 import InsuranceCardUploader from './InsuranceCardUploader';
 
 // A JSON list column shown in a textarea, one entry per line, and back.
@@ -460,7 +460,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                   <label>Date of Birth</label>
                   <input
                     type="date"
-                    max={new Date().toISOString().split('T')[0]}
+                    max={toLocalYMD(new Date())}
                     value={formData.dateOfBirth}
                     onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
                   />
@@ -930,7 +930,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                           </div>
                           <div style={{ fontSize: '0.8rem', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {acct.display_name ? acct.email : ''}
-                            {acct.last_login ? `${acct.display_name ? ' · ' : ''}last login ${new Date(acct.last_login).toLocaleDateString()}` : ''}
+                            {acct.last_login ? `${acct.display_name ? ' · ' : ''}last login ${parseLocalDate(acct.last_login).toLocaleDateString()}` : ''}
                             {locked ? ' · locked after failed sign-ins (15 min)' : ''}
                           </div>
                         </div>

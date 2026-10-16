@@ -16,10 +16,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { SandataPrompt, SandataIdBox, SandataHelp, SandataNotice, useSandataContext } from './caregiver/SandataEvv';
 import { needsSandata, visitNeedsSandata, evvWeekMet, openSandata } from '../utils/sandata';
 import CareTaskChecklist from './CareTaskChecklist';
+import VisitCarePanel from './caregiver/VisitCarePanel';
+import { compressPhoto } from '../utils/visitPhoto';
 import SignaturePad from './SignaturePad';
 import { savePunch, newLocalId, offlineSession, flushPunches, isUnreachable, pendingPunches } from '../offlinePunches';
 import { isBiweeklyOn, toYMD } from '../utils/biweekly';
 import { CLIENT_UNAVAILABLE_REASONS } from '../utils/cancelReasons';
+import { toLocalYMD, parseLocalDate } from '../utils/date';
 
 // A punch must never hang on a dead connection: give up after 20s and treat it as "no signal",
 // so the tap is saved on the phone instead of lost.
@@ -104,6 +107,8 @@ const CaregiverDashboard = ({ onLogout }) => {
 
   // Self-service state
   const [openShifts, setOpenShifts] = useState([]);
+  const [claimingShiftId, setClaimingShiftId] = useState(null); // the claim in flight
+  const [claimedShifts, setClaimedShifts] = useState({}); // id -> { assigned, message }, this visit to the page
   const [myHoursThisWeek, setMyHoursThisWeek] = useState(0);
   const [availability, setAvailability] = useState({
     status: 'available',
@@ -150,6 +155,7 @@ const CaregiverDashboard = ({ onLogout }) => {
   const [swapRequests, setSwapRequests] = useState([]);
   const [swapModal, setSwapModal] = useState(null);
   const [swapForm, setSwapForm] = useState({ targetCaregiverId: '', reason: '' });
+  const [swapSending, setSwapSending] = useState(false);
   // "Client refused / not available": the visit comes off the books (not billed, not paid);
   // nobody needs covering, so no open shift.
   const [unavailModal, setUnavailModal] = useState(null);
@@ -203,6 +209,8 @@ const CaregiverDashboard = ({ onLogout }) => {
 
   const submitSwapRequest = async () => {
     if (!swapModal || !swapForm.targetCaregiverId) { toast('Pick a coworker to swap with', 'error'); return; }
+    if (swapSending) return;
+    setSwapSending(true);
     try {
       const r = await fetch(`${API_BASE_URL}/api/shift-swaps`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -217,8 +225,9 @@ const CaregiverDashboard = ({ onLogout }) => {
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Failed');
       toast('Swap request sent');
       setSwapModal(null); setSwapForm({ targetCaregiverId: '', reason: '' });
-      loadSwapRequests();
+      await loadSwapRequests(); // the Swap button becomes "Swap sent"
     } catch (e) { toast(e.message, 'error'); }
+    finally { setSwapSending(false); }
   };
 
   // Ask the office to move a shift to another day/time. Nothing changes until the office approves
@@ -234,6 +243,14 @@ const CaregiverDashboard = ({ onLogout }) => {
   const movePendingFor = (shift) => {
     const onDate = shift.resolvedDate || (shift.date && shift.date.split('T')[0]);
     return myReschedules.some(cr => cr.schedule_id === shift.id && String(cr.visit_date).slice(0, 10) === onDate);
+  };
+
+  // The same for a swap: one open swap per visit day (the server refuses a second with 409).
+  // Open = waiting on the coworker (pending) or on the office (accepted).
+  const swapPendingFor = (shift) => {
+    const onDate = shift.resolvedDate || (shift.date && shift.date.split('T')[0]);
+    return swapRequests.some(r => r.requester_id === user?.id && r.schedule_id === shift.id
+      && String(r.shift_date).slice(0, 10) === onDate && (r.status === 'pending' || r.status === 'accepted'));
   };
 
   const submitMoveRequest = async () => {
@@ -328,28 +345,13 @@ const CaregiverDashboard = ({ onLogout }) => {
     };
   }, [user?.id, token]);
 
-  // A photo is downscaled to a JPEG data URI (max 1600px, ~80%) to keep uploads small.
+  // A photo is downscaled to a JPEG data URI (utils/visitPhoto — the same as a mid-visit photo).
   const handlePhotoFile = async (file, category = 'other') => {
     if (!file) return;
-    if (!file.type.startsWith('image/')) { toast('Pick an image file', 'error'); return; }
-    if (file.size > 15_000_000) { toast('Photo too large (15MB max)', 'error'); return; }
-    const img = new Image();
-    const reader = new FileReader();
-    const dataUrl: any = await new Promise((resolve, reject) => {
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = dataUrl; });
-    const MAX = 1600;
-    const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
-    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-    const compressed = canvas.toDataURL('image/jpeg', 0.82);
-    const sizeBytes = Math.floor(compressed.length * 0.75);
-    if (sizeBytes > 5_000_000) { toast('Photo too large after compression', 'error'); return; }
-    setPendingPhotos(prev => [...prev, { dataUri: compressed, caption: '', category, sizeBytes }]);
+    try {
+      const { dataUri, sizeBytes } = await compressPhoto(file);
+      setPendingPhotos(prev => [...prev, { dataUri, caption: '', category, sizeBytes }]);
+    } catch (e) { toast(e.message, 'error'); }
   };
 
   useEffect(() => {
@@ -873,7 +875,12 @@ const CaregiverDashboard = ({ onLogout }) => {
     }
   };
 
+  // A claim answers ON the card: the button turns into "Sending…" (every Claim is disabled while
+  // one is in flight) and then into the claim's state, and the card stays where it was. Run 3: the
+  // card vanished on a list reload, the next shift slid under the finger, and a second tap claimed it.
   const handlePickupShift = async (shiftId) => {
+    if (claimingShiftId) return;
+    setClaimingShiftId(shiftId);
     try {
       const res = await fetch(`${API_BASE_URL}/api/open-shifts/${shiftId}/claim`, {
         method: 'POST',
@@ -882,11 +889,13 @@ const CaregiverDashboard = ({ onLogout }) => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed');
       // "It's yours — …" when the office offered it first-come, otherwise pending approval.
+      setClaimedShifts(prev => ({ ...prev, [shiftId]: { assigned: !!data.assigned, message: data.message || 'Shift claimed — pending approval' } }));
       showMsg(data.message || 'Shift claimed!');
-      loadOpenShifts();
       loadData();
     } catch (error) {
       showMsg(error.message, 'error');
+    } finally {
+      setClaimingShiftId(null);
     }
   };
 
@@ -959,7 +968,7 @@ const CaregiverDashboard = ({ onLogout }) => {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+  const formatDate = (d) => d ? parseLocalDate(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
   const getDayName = (n) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][n] || '';
 
   // A suspended schedule (service paused) generates nothing on/after suspended_from.
@@ -969,7 +978,7 @@ const CaregiverDashboard = ({ onLogout }) => {
   // Does a recurring pattern happen on this date? Effective / end dates, bi-weekly parity (the one
   // shared rule, utils/biweekly) and suspension — the same answer the server's engine gives.
   const isScheduleActiveForDate = (schedule, targetDate) => {
-    const ymd = toYMD(new Date(targetDate));
+    const ymd = toYMD(parseLocalDate(targetDate));
     if (schedule.effective_date && ymd < String(schedule.effective_date).slice(0, 10)) return false;
     if (schedule.end_date && ymd > String(schedule.end_date).slice(0, 10)) return false;
     if (schedule.frequency === 'biweekly' && schedule.anchor_date && !isBiweeklyOn(ymd, schedule.anchor_date)) return false;
@@ -1314,6 +1323,13 @@ const CaregiverDashboard = ({ onLogout }) => {
                 <CareTaskChecklist timeEntryId={activeSession.id} />
               </div>
             )}
+            {/* During the visit: the MAR (a dose given / refused / held), vitals, and a photo now —
+                not only on the clock-out sheet (Run 3 HIGH 7). */}
+            {activeSession.id && !String(activeSession.id).startsWith('offline-') && activeSession.client_id && (
+              <div className="mt-3 rounded-xl p-1 text-left bg-white dark:bg-slate-800">
+                <VisitCarePanel timeEntryId={activeSession.id} clientId={activeSession.client_id} />
+              </div>
+            )}
           </div>
         ) : (
           // CLOCK IN — prominent select + button
@@ -1410,8 +1426,24 @@ const CaregiverDashboard = ({ onLogout }) => {
                   <div style={{ fontSize: '0.9rem', color: '#666' }}>📅 {formatDate(shift.date)}</div>
                   <div style={{ fontSize: '0.9rem', color: '#666' }}>🕐 {formatTime(shift.start_time)} - {formatTime(shift.end_time)}</div>
                 </div>
-                <button className="btn btn-sm btn-primary" onClick={() => handlePickupShift(shift.id)}>Claim</button>
+                {claimedShifts[shift.id] ? (
+                  <span role="status"
+                    className={claimedShifts[shift.id].assigned
+                      ? 'shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-bold border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-200'
+                      : 'shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-bold border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200'}>
+                    {claimedShifts[shift.id].assigned ? '✅ Yours' : '⏳ Claimed — waiting for the office'}
+                  </span>
+                ) : (
+                  <button className="btn btn-sm btn-primary" disabled={!!claimingShiftId}
+                    aria-busy={claimingShiftId === shift.id}
+                    onClick={() => handlePickupShift(shift.id)}>
+                    {claimingShiftId === shift.id ? 'Sending…' : 'Claim'}
+                  </button>
+                )}
               </div>
+              {claimedShifts[shift.id] && (
+                <div className="mt-2 rounded-md px-2 py-1 text-sm bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-200">{claimedShifts[shift.id].message}</div>
+              )}
             </div>
           ))}
         </div>
@@ -1484,11 +1516,11 @@ const CaregiverDashboard = ({ onLogout }) => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label>Start</label>
-              <input type="date" value={newTimeOff.startDate} onChange={(e) => setNewTimeOff({ ...newTimeOff, startDate: e.target.value })} min={new Date().toISOString().split('T')[0]} required />
+              <input type="date" value={newTimeOff.startDate} onChange={(e) => setNewTimeOff({ ...newTimeOff, startDate: e.target.value })} min={toLocalYMD(new Date())} required />
             </div>
             <div className="form-group" style={{ margin: 0 }}>
               <label>End</label>
-              <input type="date" value={newTimeOff.endDate} onChange={(e) => setNewTimeOff({ ...newTimeOff, endDate: e.target.value })} min={newTimeOff.startDate || new Date().toISOString().split('T')[0]} required />
+              <input type="date" value={newTimeOff.endDate} onChange={(e) => setNewTimeOff({ ...newTimeOff, endDate: e.target.value })} min={newTimeOff.startDate || toLocalYMD(new Date())} required />
             </div>
           </div>
           <div className="form-group">
@@ -1526,9 +1558,14 @@ const CaregiverDashboard = ({ onLogout }) => {
       <button onClick={() => { setUnavailModal(s); setUnavailForm({ reason: '', note: '' }); }}
         style={{ background: '#fff', border: '1px solid #FECACA', color: '#B91C1C', padding: '0.3rem 0.6rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}
         title="Client refused care, wasn't home, or cancelled — the visit won't be billed">🚫 Client N/A</button>
-      <button onClick={() => { setSwapModal(s); setSwapForm({ targetCaregiverId: '', reason: '' }); }}
-        style={{ background: '#fff', border: '1px solid #C7D2FE', color: '#4338CA', padding: '0.3rem 0.6rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}
-        title="Ask a coworker to take this shift">🔄 Swap</button>
+      {swapPendingFor(s) ? (
+        <span style={{ border: '1px solid #FCD34D', background: '#FFFBEB', color: '#92400E', padding: '0.3rem 0.6rem', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600 }}
+          title="Waiting on your coworker and the office">⏳ Swap sent</span>
+      ) : (
+        <button onClick={() => { setSwapModal(s); setSwapForm({ targetCaregiverId: '', reason: '' }); }}
+          style={{ background: '#fff', border: '1px solid #C7D2FE', color: '#4338CA', padding: '0.3rem 0.6rem', borderRadius: 6, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}
+          title="Ask a coworker to take this shift">🔄 Swap</button>
+      )}
       {movePendingFor(s) ? (
         <span style={{ border: '1px solid #FCD34D', background: '#FFFBEB', color: '#92400E', padding: '0.3rem 0.6rem', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600 }}
           title="Waiting on the office">⏳ Move sent</span>
@@ -1879,7 +1916,7 @@ const CaregiverDashboard = ({ onLogout }) => {
             </div>
             <div className="form-actions">
               <button className="btn btn-secondary" onClick={() => setSwapModal(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={submitSwapRequest}>Send Request</button>
+              <button className="btn btn-primary" onClick={submitSwapRequest} disabled={swapSending}>{swapSending ? 'Sending…' : 'Send Request'}</button>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { parseLocalDate } from '../../utils/date';
 
 // Parses a user-agent string into a human-readable device/browser summary
 function parseUserAgent(ua) {
@@ -25,7 +26,7 @@ function parseUserAgent(ua) {
 }
 
 function timeAgo(dateStr) {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const diff = Date.now() - parseLocalDate(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;

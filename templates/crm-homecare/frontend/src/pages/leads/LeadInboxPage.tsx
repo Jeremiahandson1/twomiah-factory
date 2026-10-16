@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { parseLocalDate } from '../../utils/date';
 import {
   Inbox, Phone, MessageSquare, UserPlus, XCircle, Filter,
   Search, RefreshCw, ExternalLink, Clock, TrendingUp, ChevronDown
@@ -110,7 +111,7 @@ export default function LeadInboxPage() {
   };
 
   const timeAgo = (date: string) => {
-    const mins = Math.floor((Date.now() - new Date(date).getTime()) / 60000);
+    const mins = Math.floor((Date.now() - parseLocalDate(date).getTime()) / 60000);
     if (mins < 60) return `${mins}m ago`;
     if (mins < 1440) return `${Math.floor(mins / 60)}h ago`;
     return `${Math.floor(mins / 1440)}d ago`;

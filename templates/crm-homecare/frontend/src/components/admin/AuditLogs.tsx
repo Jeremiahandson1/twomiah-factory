@@ -3,6 +3,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { toLocalYMD } from '../../utils/date';
 
 const AuditLogs = () => {
   const { token } = useAuth();
@@ -11,8 +12,8 @@ const AuditLogs = () => {
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState(null);
   const [filters, setFilters] = useState({
-    startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
+    startDate: toLocalYMD(new Date(new Date().setDate(new Date().getDate() - 30))),
+    endDate: toLocalYMD(new Date()),
     userId: '',
     action: '',
     entityType: '',
@@ -188,7 +189,7 @@ const AuditLogs = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.${format}`;
+      a.download = `audit-logs-${toLocalYMD(new Date())}.${format}`;
       a.click();
     } catch (error) {
       toast('Failed to export: ' + error.message, 'error');
@@ -215,7 +216,7 @@ const AuditLogs = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `hipaa-compliance-report-${new Date().toISOString().split('T')[0]}.pdf`;
+      a.download = `hipaa-compliance-report-${toLocalYMD(new Date())}.pdf`;
       a.click();
     } catch (error) {
       toast('Failed to generate report: ' + error.message, 'error');

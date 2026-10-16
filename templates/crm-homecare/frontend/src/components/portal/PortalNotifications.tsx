@@ -2,6 +2,7 @@
 // Client notifications — alerts about visits, caregivers, billing
 import React, { useState, useEffect } from 'react';
 import { apiCall } from '../../config';
+import { parseLocalDate } from '../../utils/date';
 
 const typeIcon = (type) => {
   const map = {
@@ -28,7 +29,7 @@ const formatRelativeTime = (isoStr) => {
   if (mins < 60)  return `${mins}m ago`;
   if (hours < 24) return `${hours}h ago`;
   if (days < 7)   return `${days}d ago`;
-  return new Date(isoStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return parseLocalDate(isoStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
 const PortalNotifications = ({ token, onRead }) => {

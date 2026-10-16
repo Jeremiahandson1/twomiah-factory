@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from '../Toast';
 import { apiCall } from '../../config';
+import { toLocalYMD } from '../../utils/date';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,8 +65,8 @@ const formatTime = (timeStr) => {
   return `${h12}:${m} ${ampm}`;
 };
 
-const isToday = (dateStr) => new Date().toISOString().split('T')[0] === dateStr;
-const isTomorrow = (dateStr) => new Date(Date.now() + 86400000).toISOString().split('T')[0] === dateStr;
+const isToday = (dateStr) => toLocalYMD(new Date()) === dateStr;
+const isTomorrow = (dateStr) => toLocalYMD(new Date(Date.now() + 86400000)) === dateStr;
 const dayLabel = (dateStr) => {
   if (isToday(dateStr))    return 'Today';
   if (isTomorrow(dateStr)) return 'Tomorrow';
@@ -208,7 +209,7 @@ const PortalVisits = ({ token }) => {
     setSelectedSlot(null);
     setAvailSlots([]);
     setModal('reschedule');
-    loadAvailability(visit.caregiver_id);
+    loadAvailability(visit.caregiver_id, visit);
   };
 
   const closeModal = () => {
@@ -238,30 +239,43 @@ const PortalVisits = ({ token }) => {
     }
   };
 
+  // The server's rule (visitChangeRequests.ts, CANCEL_NOTICE_HOURS): a reason is required; with 24+
+  // hours' notice the visit comes off the schedule at once, with less the office confirms it. A
+  // refusal (no reason, visit already started) is shown here and the pop-up stays open.
   const submitCancel = async () => {
+    if (!cancelReason.trim()) { toast('Please tell us why you are cancelling.', 'error'); return; }
     setSubmitting(true);
     try {
       const resp = await apiCall('/api/portal/visits/cancel-request', {
         method: 'POST',
-        body: JSON.stringify({ ...visitPayload(selectedVisit), reason: cancelReason.trim() || null }),
+        body: JSON.stringify({ ...visitPayload(selectedVisit), reason: cancelReason.trim() }),
       }, token);
-      // Auto-applied cancels take effect immediately — reload the visit list so
+      // Applied cancels take effect immediately — reload the visit list so
       // the cancelled visit disappears right away, not just the requests list.
       if (resp?.auto_applied) await loadVisits();
       await loadChangeRequests();
       closeModal();
-      if (resp?.auto_applied) toast('Your visit has been cancelled and removed from the schedule.', 'success');
+      toast(resp?.auto_applied
+        ? 'Your visit has been cancelled and removed from the schedule. Your caregiver and the office have been told.'
+        : 'Your cancellation request was sent. With less than 24 hours\' notice the office confirms it; until then the visit stays on your schedule.', 'success');
     } catch (err) {
-      setError(err.message);
+      toast(err.message || 'The cancellation could not be sent.', 'error');
       setSubmitting(false);
     }
   };
 
-  const loadAvailability = async (caregiverId) => {
+  const visitMinutes = (v) => {
+    const toMin = (t) => { const [h, m] = String(t || '0:0').split(':').map(Number); return h * 60 + m; };
+    let n = toMin(v?.end_time) - toMin(v?.start_time);
+    if (n <= 0) n += 1440;
+    return Math.min(Math.max(n, 15), 720);
+  };
+
+  const loadAvailability = async (caregiverId, visit) => {
     setSlotsLoading(true);
     try {
       const data = await apiCall(
-        `/api/portal/caregivers/${caregiverId}/availability`,
+        `/api/portal/caregivers/${caregiverId}/availability?durationMinutes=${visitMinutes(visit)}`,
         { method: 'GET' },
         token
       );
@@ -288,8 +302,9 @@ const PortalVisits = ({ token }) => {
       }, token);
       await loadChangeRequests();
       closeModal();
+      toast('Your reschedule request was sent. The office will confirm it or suggest another time.', 'success');
     } catch (err) {
-      setError(err.message);
+      toast(err.message || 'The reschedule request could not be sent.', 'error');
       setSubmitting(false);
     }
   };
@@ -442,7 +457,9 @@ const PortalVisits = ({ token }) => {
                   </div>
                 )}
 
-                {/* Action buttons — only on future scheduled visits without pending requests */}
+                {/* Action buttons — a note on any scheduled visit; reschedule and cancel only while the
+                    server says the visit can still change (can_change: not started, not worked) and no
+                    request is already waiting. */}
                 {visit.status === 'scheduled' && !hasPending && (
                   <div style={{
                     marginTop: '14px', paddingTop: '14px',
@@ -452,12 +469,16 @@ const PortalVisits = ({ token }) => {
                     <button style={actionBtn('#2980b9')} onClick={() => openNote(visit)}>
                       Add Note
                     </button>
-                    <button style={actionBtn('#e67e22')} onClick={() => openReschedule(visit)}>
-                      Reschedule
-                    </button>
-                    <button style={actionBtn('#c0392b')} onClick={() => openCancel(visit)}>
-                      Request Cancel
-                    </button>
+                    {visit.can_change && (
+                      <>
+                        <button style={actionBtn('#e67e22')} onClick={() => openReschedule(visit)}>
+                          Reschedule
+                        </button>
+                        <button style={actionBtn('#c0392b')} onClick={() => openCancel(visit)}>
+                          Request Cancel
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -502,12 +523,17 @@ const PortalVisits = ({ token }) => {
             <br />with {selectedVisit.caregiver_first_name} {selectedVisit.caregiver_last_name}
           </p>
           <p style={{ margin: '0 0 12px', color: '#888', fontSize: '0.82rem' }}>
-            Your caregiver will be notified and will need to approve. The visit stays on your schedule until then.
+            With at least 24 hours' notice the visit is cancelled straight away. With less notice the office
+            confirms it, and the visit stays on your schedule until then. Your caregiver and the office are told either way.
           </p>
+          <label htmlFor="portal-cancel-reason" style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: '#555', marginBottom: '4px' }}>
+            Reason (required)
+          </label>
           <textarea
+            id="portal-cancel-reason"
             value={cancelReason}
             onChange={e => setCancelReason(e.target.value)}
-            placeholder="Reason for cancellation (optional)"
+            placeholder="Why are you cancelling?"
             rows={3}
             style={{
               width: '100%', padding: '12px', borderRadius: '8px',
@@ -517,7 +543,7 @@ const PortalVisits = ({ token }) => {
           />
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
             <button style={secondaryBtn} onClick={closeModal}>Go Back</button>
-            <button style={dangerBtn} disabled={submitting} onClick={submitCancel}>
+            <button style={dangerBtn} disabled={submitting || !cancelReason.trim()} onClick={submitCancel}>
               {submitting ? 'Submitting...' : 'Request Cancellation'}
             </button>
           </div>
@@ -532,7 +558,7 @@ const PortalVisits = ({ token }) => {
             Currently: {dayLabel(selectedVisit.scheduled_date)} &middot; {formatTime(selectedVisit.start_time)} – {formatTime(selectedVisit.end_time)}
           </p>
           <p style={{ margin: '0 0 16px', color: '#888', fontSize: '0.82rem' }}>
-            Pick an available time below. Your caregiver can approve, deny, or suggest a different time.
+            Pick an available time below. The office will confirm it or suggest a different time.
           </p>
 
           {slotsLoading ? (

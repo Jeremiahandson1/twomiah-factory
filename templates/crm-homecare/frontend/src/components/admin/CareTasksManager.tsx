@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import { confirm } from '../ConfirmModal';
+import { parseLocalDate } from '../../utils/date';
 
 const CATEGORIES = [
   { value: 'adl', label: 'ADL (bathing, dressing…)' },
@@ -233,7 +234,7 @@ export default function CareTasksManager({ client, onClose }: { client: any; onC
                               <td className="text-right">{skipped}</td>
                               <td className="text-right">{refused}</td>
                               <td className="text-right font-bold">{notAddressed == null ? '—' : notAddressed}</td>
-                              <td className="pl-2">{t.last_completed ? new Date(t.last_completed).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'never'}</td>
+                              <td className="pl-2">{t.last_completed ? parseLocalDate(t.last_completed).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'never'}</td>
                             </tr>
                           );
                         })}

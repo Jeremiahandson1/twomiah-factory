@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { parseLocalDate } from '../../utils/date';
 
 const pickBool = (s, camel, snake) => (s?.[camel] ?? s?.[snake]);
 
@@ -192,7 +193,7 @@ const NotificationCenter = () => {
   }[type] || type || 'General');
 
   const timeAgo = (dateStr) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const diff = Date.now() - parseLocalDate(dateStr).getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return 'Just now';
     if (mins < 60) return `${mins}m ago`;
@@ -200,7 +201,7 @@ const NotificationCenter = () => {
     if (hrs < 24) return `${hrs}h ago`;
     const days = Math.floor(hrs / 24);
     if (days < 7) return `${days}d ago`;
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return parseLocalDate(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const tabs = [

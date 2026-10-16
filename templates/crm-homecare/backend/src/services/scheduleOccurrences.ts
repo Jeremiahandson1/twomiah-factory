@@ -135,4 +135,22 @@ export function shiftHours(start: unknown, end: unknown): number {
   return h <= 0 ? h + 24 : h
 }
 
+/**
+ * THE rule for a shift's start and end, shared by every schedule writer (POST /schedules,
+ * POST /schedules-enhanced, PUT /schedules-all/:id, POST /open-shifts) and mirrored by the forms.
+ * The engine above supports a shift that runs past midnight (an end earlier than the start wraps,
+ * WRAP), but an end typed before the start is far more often a slip ("9:00am – 8:00am", Run 3)
+ * than a 23-hour shift. So an end before the start is refused unless the writer says the shift is
+ * OVERNIGHT, and equal times are refused always. Returns the message to show, or null when fine.
+ */
+export function shiftTimesError(start: unknown, end: unknown, overnight?: unknown): string | null {
+  const a = hms(start), b = hms(end)
+  if (!a || !b) return 'A valid start and end time are required.'
+  if (a === b) return 'Start and end time cannot be the same'
+  if (b < a && overnight !== true) {
+    return 'The end time is before the start time. If the shift runs past midnight, mark it as overnight.'
+  }
+  return null
+}
+
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/

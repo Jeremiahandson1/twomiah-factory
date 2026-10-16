@@ -5,10 +5,11 @@ import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
 import { useAuth } from '../../contexts/AuthContext';
 import EligibilityCard, { isWisconsinAgency } from './EligibilityCard';
+import { toLocalYMD, parseLocalDate } from '../../utils/date';
 
 const fmt$ = (n) => n != null ? `$${parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')}` : '—';
 const fmtHrs = (n) => n != null ? `${parseFloat(n||0).toFixed(2)}h` : '—';
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+const fmtDate = (d) => d ? parseLocalDate(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -251,7 +252,7 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
         base: caregiverRates.base ? parseFloat(caregiverRates.base) : null,
         overtime: caregiverRates.overtime ? parseFloat(caregiverRates.overtime) : null,
         premium: caregiverRates.premium ? parseFloat(caregiverRates.premium) : null,
-        effectiveDate: new Date().toISOString().split('T')[0],
+        effectiveDate: toLocalYMD(new Date()),
       };
       const r = await fetch(`${API_BASE_URL}/api/caregiver-rates/${caregiverId}`, {
         method: 'PUT', headers: hdr, body: JSON.stringify(body)
@@ -363,7 +364,7 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
               if (a.day_of_week != null && b.day_of_week != null) return a.day_of_week - b.day_of_week;
               if (a.day_of_week != null) return -1;
               if (b.day_of_week != null) return 1;
-              return new Date(a.date) - new Date(b.date);
+              return parseLocalDate(a.date) - parseLocalDate(b.date);
             }).map(sc => (
               <div key={sc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem', background: sc.day_of_week != null ? '#EFF6FF' : '#F0FDFB', borderRadius: 8, border: `1px solid ${sc.day_of_week != null ? '#BFDBFE' : '#A7F3D0'}` }}>
                 <div style={{ fontWeight: 700, fontSize: '0.82rem', minWidth: 80, color: sc.day_of_week != null ? '#1D4ED8' : '#065F46' }}>
@@ -941,8 +942,8 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
             <thead><tr style={{background:'#F9FAFB'}}>{['Type','Provider','Date','Status','Expires','Notes'].map(h=><th key={h} style={{padding:'0.5rem 0.75rem',textAlign:'left',fontWeight:700,borderBottom:'1px solid #E5E7EB'}}>{h}</th>)}</tr></thead>
             <tbody>
               {bgChecks.map(bg=>{
-                const expired = bg.expiration_date && new Date(bg.expiration_date) < new Date();
-                const expiring = bg.expiration_date && new Date(bg.expiration_date) < new Date(Date.now()+30*86400000) && !expired;
+                const expired = bg.expiration_date && parseLocalDate(bg.expiration_date) < new Date();
+                const expiring = bg.expiration_date && parseLocalDate(bg.expiration_date) < new Date(Date.now()+30*86400000) && !expired;
                 return (
                   <tr key={bg.id} style={{borderBottom:'1px solid #F3F4F6'}}>
                     <td style={{padding:'0.5rem 0.75rem',fontWeight:600,textTransform:'capitalize'}}>{(bg.check_type||'').replace(/_/g,' ')}</td>

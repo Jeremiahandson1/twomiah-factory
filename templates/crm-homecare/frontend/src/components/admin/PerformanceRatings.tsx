@@ -1,5 +1,5 @@
 import { confirm } from '../ConfirmModal';
-import { formatDate } from '../../utils/date';
+import { formatDate, toLocalYMD, parseLocalDate } from '../../utils/date';
 // src/components/admin/PerformanceRatings.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
@@ -18,7 +18,7 @@ const PerformanceRatings = () => {
   const [formData, setFormData] = useState({
     caregiverId: '',
     clientId: '',
-    reviewDate: new Date().toISOString().split('T')[0],
+    reviewDate: toLocalYMD(new Date()),
     performanceNotes: '',
     strengths: '',
     areasForImprovement: '',
@@ -121,7 +121,7 @@ const PerformanceRatings = () => {
       setFormData({
         caregiverId: '',
         clientId: '',
-        reviewDate: new Date().toISOString().split('T')[0],
+        reviewDate: toLocalYMD(new Date()),
         performanceNotes: '',
         strengths: '',
         areasForImprovement: '',
@@ -356,7 +356,7 @@ const PerformanceRatings = () => {
                     ) : (
                       <div style={{ display: 'grid', gap: '1rem' }}>
                         {caregiversReviews
-                          .sort((a, b) => new Date(b.review_date) - new Date(a.review_date))
+                          .sort((a, b) => parseLocalDate(b.review_date) - parseLocalDate(a.review_date))
                           .map(review => (
                             <div
                               key={review.id}

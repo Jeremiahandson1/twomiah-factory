@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../contexts/AuthContext';
+import { toLocalYMD, parseLocalDate } from '../../utils/date';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
@@ -18,9 +19,9 @@ const AutoFillButton = ({ weekOf, onComplete }) => {
   const [error, setError] = useState(null);
 
   const getWeekEnd = useCallback((startDate) => {
-    const d = new Date(startDate);
+    const d = parseLocalDate(startDate);
     d.setDate(d.getDate() + 6);
-    return d.toISOString().split('T')[0];
+    return toLocalYMD(d);
   }, []);
 
   const handleAutoFill = useCallback(async (dryRun = true) => {

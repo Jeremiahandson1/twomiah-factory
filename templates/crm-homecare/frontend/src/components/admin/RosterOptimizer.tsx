@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDate } from '../../utils/date';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_COLORS = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4'];
@@ -332,8 +333,9 @@ export default function RosterOptimizer() {
                         <div style={{ fontWeight: '600', fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {cg.first_name} {cg.last_name}
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: '#6B7280' }}>
-                          {cg.current_weekly_hours}h existing · {cg.active_client_count} clients
+                        {/* Hours in the grid's week (Sun–Sat), through the schedule engine — the same number the Schedule grid shows. */}
+                        <div style={{ fontSize: '0.72rem', color: '#6B7280' }} title={roster?.week ? `Scheduled ${formatDate(roster.week.start, { month: 'short', day: 'numeric' })} – ${formatDate(roster.week.end, { month: 'short', day: 'numeric' })}` : undefined}>
+                          {Number(cg.current_weekly_hours || 0).toFixed(2)}h this week · {cg.active_client_count} clients
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
@@ -568,7 +570,7 @@ export default function RosterOptimizer() {
                 <div key={cg.id} style={{ flex: '1 1 200px', padding: '0.75rem', background: '#F9FAFB', borderRadius: '8px', borderLeft: `4px solid ${cgColorFor(cg.id)}` }}>
                   <div style={{ fontWeight: '700', fontSize: '0.88rem', marginBottom: '0.3rem' }}>{cg.name}</div>
                   <div style={{ fontSize: '0.75rem', color: '#6B7280', marginBottom: '0.35rem' }}>
-                    {cg.existingHours}h existing + {cg.proposedNewHours}h new = <strong style={{ color: '#111' }}>{cg.totalHours}h</strong> / {cg.targetHours}h target
+                    {Number(cg.existingHours || 0).toFixed(2)}h this week + {cg.proposedNewHours}h new = <strong style={{ color: '#111' }}>{cg.totalHours}h</strong> / {cg.targetHours}h target
                   </div>
                   <div style={{ height: '7px', background: '#E5E7EB', borderRadius: '4px', overflow: 'hidden' }}>
                     <div style={{

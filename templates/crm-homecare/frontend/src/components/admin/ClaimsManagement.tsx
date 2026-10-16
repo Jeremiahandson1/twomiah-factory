@@ -1,5 +1,5 @@
 import { toast } from '../Toast';
-import { formatDate } from '../../utils/date';
+import { formatDate, toLocalYMD } from '../../utils/date';
 // src/components/admin/ClaimsManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
@@ -140,7 +140,7 @@ const ClaimsManagement = () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `claims-837p-${new Date().toISOString().split('T')[0]}.edi`;
+        a.download = `claims-837p-${toLocalYMD(new Date())}.edi`;
         a.click();
         loadClaims();
         setSelectedClaims([]);

@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
-import { wallClock } from '../services/scheduleOccurrences.ts'
+import { wallClock, occurrencesCte } from '../services/scheduleOccurrences.ts'
 import { agencyToday } from '../services/agencyTime.ts'
 
 const app = new Hono()
@@ -27,6 +27,32 @@ function toHours(t: string | null | undefined): number {
   if (!t) return 0
   const [h, m] = t.split(':').map(Number)
   return h + m / 60
+}
+
+// ── "Existing hours": the caregiver's scheduled hours in ONE week, through the schedule engine ──
+// This used to SUM the caregiver's recurring pattern rows, so one-time visits, a filled open shift
+// (a one-time row or a per-day override onto them), a cancelled or suspended day and an ended
+// pattern were all invisible or wrongly counted: Run 3's Caregiver B read "0h existing" beside a
+// grid showing 4.00h. The week is the grid's (Sunday to Saturday); default the agency's current one.
+const YMD = /^\d{4}-\d{2}-\d{2}$/
+export function sundayOf(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const t = new Date(Date.UTC(y, m - 1, d))
+  t.setUTCDate(t.getUTCDate() - t.getUTCDay())
+  return t.toISOString().slice(0, 10)
+}
+async function rosterWeek(weekOf: unknown): Promise<{ start: string; end: string }> {
+  const start = sundayOf(typeof weekOf === 'string' && YMD.test(weekOf) ? weekOf : await agencyToday())
+  const [y, m, d] = start.split('-').map(Number)
+  const end = new Date(Date.UTC(y, m - 1, d + 6)).toISOString().slice(0, 10)
+  return { start, end }
+}
+async function weekHoursByCaregiver(week: { start: string; end: string }): Promise<Record<string, number>> {
+  const r: any = await db.execute(sql`WITH ${occurrencesCte(week.start, week.end)}
+    SELECT caregiver_id, ROUND(SUM(hours)::numeric, 2) AS hours FROM occ GROUP BY caregiver_id`)
+  const out: Record<string, number> = {}
+  for (const row of (r?.rows ?? r ?? [])) if (row.caregiver_id) out[row.caregiver_id] = Number(row.hours) || 0
+  return out
 }
 
 function addMins(t: string, mins: number): string {
@@ -105,10 +131,6 @@ app.get('/roster', async (c) => {
       SELECT
         u.id, u.first_name, u.last_name, u.phone, u.hire_date,
         COALESCE(cs.max_hours_per_week, 40) AS max_hours_per_week,
-        COALESCE((
-          SELECT ROUND(SUM(EXTRACT(EPOCH FROM (end_time::time - start_time::time)) / 3600 + CASE WHEN end_time::time < start_time::time THEN 24 ELSE 0 END)::numeric, 2)
-          FROM schedules WHERE caregiver_id = u.id AND is_active = true AND schedule_type = 'recurring' AND day_of_week IS NOT NULL
-        ), 0) AS current_weekly_hours,
         COALESCE((SELECT COUNT(DISTINCT client_id) FROM schedules WHERE caregiver_id = u.id AND is_active = true), 0) AS active_client_count
       FROM users u
       LEFT JOIN caregiver_availability cs ON cs.caregiver_id = u.id
@@ -130,7 +152,10 @@ app.get('/roster', async (c) => {
       FROM clients c WHERE c.is_active = true ORDER BY c.last_name, c.first_name
     `)
 
-    return c.json({ caregivers: cgRes.rows, clients: clRes.rows })
+    const week = await rosterWeek(c.req.query('weekOf'))
+    const hours = await weekHoursByCaregiver(week)
+    const caregivers = (cgRes.rows as any[]).map((cg) => ({ ...cg, current_weekly_hours: hours[cg.id] || 0 }))
+    return c.json({ caregivers, clients: clRes.rows, week })
   } catch (err: any) {
     console.error('Roster fetch error:', err)
     return c.json({ error: err.message }, 500)
@@ -214,11 +239,12 @@ app.post('/run', async (c) => {
       }
     })
 
+    // Existing hours: the same engine week the roster shows (see weekHoursByCaregiver).
+    const week = await rosterWeek(body.weekOf)
+    const weekHours = await weekHoursByCaregiver(week)
     const cgRemaining: Record<string, number> = {}
     inputCaregivers.forEach((cg: any) => {
-      const existingHrs = existingSchedules
-        .filter((s: any) => s.caregiver_id === cg.id)
-        .reduce((sum: number, s: any) => sum + shiftSpan(s.start_time, s.end_time), 0)
+      const existingHrs = weekHours[cg.id] || 0
       cgRemaining[cg.id] = Math.max(0, parseFloat(cg.targetHours) - existingHrs)
     })
 
@@ -325,8 +351,7 @@ app.post('/run', async (c) => {
     // Build summary
     const cgSummary = inputCaregivers.map((cg: any) => {
       const info = cgMap[cg.id] || {}
-      const existingHrs = existingSchedules.filter((s: any) => s.caregiver_id === cg.id)
-        .reduce((sum: number, s: any) => sum + shiftSpan(s.start_time, s.end_time), 0)
+      const existingHrs = weekHours[cg.id] || 0
       const proposedHrs = proposals.filter(p => p.caregiverId === cg.id).reduce((sum: number, p: any) => sum + p.hoursPerVisit, 0)
       return {
         id: cg.id, name: `${info.first_name || ''} ${info.last_name || ''}`.trim(),
@@ -351,6 +376,7 @@ app.post('/run', async (c) => {
     })
 
     return c.json({
+      week,
       proposals,
       existingSchedules: existingSchedules.map((s: any) => ({
         id: s.id, caregiverId: s.caregiver_id, caregiverName: `${s.cg_first} ${s.cg_last}`,

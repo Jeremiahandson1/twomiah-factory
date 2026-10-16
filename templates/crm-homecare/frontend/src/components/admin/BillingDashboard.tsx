@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../../config';
 // Why a cancelled visit was not billed (schedule_exceptions.cancel_reason) — the one label list.
 import { cancelReasonLabel } from '../../utils/cancelReasons';
 import { useAuth } from '../../contexts/AuthContext';
+import { toLocalYMD, parseLocalDate } from '../../utils/date';
 
 // Helper to parse date without timezone shift
 const parseDate = (dateStr) => {
@@ -22,7 +23,7 @@ const parseDate = (dateStr) => {
     const [year, month, day] = datePart.split('-').map(Number);
     return new Date(year, month - 1, day);
   }
-  return new Date(dateStr);
+  return parseLocalDate(dateStr);
 };
 
 // Format date for display
@@ -153,7 +154,7 @@ const BillingDashboard = () => {
   const [paymentFormData, setPaymentFormData] = useState({
     invoiceId: '',
     amount: '',
-    paymentDate: new Date().toISOString().split('T')[0],
+    paymentDate: toLocalYMD(new Date()),
     paymentMethod: 'check',
     referenceNumber: '',
     notes: ''
@@ -918,7 +919,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
         body: JSON.stringify(paymentFormData)
       });
       if (!response.ok) throw new Error('Failed to record payment');
-      setPaymentFormData({ invoiceId: '', amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'check', referenceNumber: '', notes: '' });
+      setPaymentFormData({ invoiceId: '', amount: '', paymentDate: toLocalYMD(new Date()), paymentMethod: 'check', referenceNumber: '', notes: '' });
       setShowPaymentModal(false);
       loadData();
       setMessage('✓ Payment recorded');
@@ -1021,7 +1022,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `evv-export-${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `evv-export-${toLocalYMD(new Date())}.csv`;
       a.click();
     } catch (error) {
       toast('Failed to export EVV: ' + error.message, 'error');

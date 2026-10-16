@@ -1,5 +1,5 @@
 import { confirm } from '../ConfirmModal';
-import { formatDate } from '../../utils/date';
+import { formatDate, toLocalYMD } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/ADLTracking.jsx
 import React, { useState, useEffect, useCallback } from 'react';
@@ -19,8 +19,8 @@ const ADLTracking = () => {
   const [showAddReqModal, setShowAddReqModal] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
   const [dateRange, setDateRange] = useState({
-    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0]
+    start: toLocalYMD(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+    end: toLocalYMD(new Date())
   });
 
   const adlCategories = [

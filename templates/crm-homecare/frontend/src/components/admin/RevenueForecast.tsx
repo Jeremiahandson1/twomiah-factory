@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { parseLocalDate } from '../../utils/date';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -141,8 +142,8 @@ export default function RevenueForecast() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
               {weekly.map((w, i) => {
-                const weekStart = new Date(w.week_start);
-                const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 6);
+                const weekStart = parseLocalDate(w.week_start);
+                const weekEnd = parseLocalDate(weekStart); weekEnd.setDate(weekEnd.getDate() + 6);
                 const label = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' – ' + weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 return (
                   <div key={i} style={{ background: i === 0 ? '#EFF6FF' : '#fff', border: `1px solid ${i === 0 ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: '10px', padding: '1rem', textAlign: 'center' }}>

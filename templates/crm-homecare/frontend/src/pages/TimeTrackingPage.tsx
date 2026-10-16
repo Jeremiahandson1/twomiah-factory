@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { MapPin, CheckCircle, XCircle } from 'lucide-react';
+import { toLocalYMD } from '../utils/date';
 
 export default function TimeTrackingPage() {
   const [entries, setEntries] = useState([]);
@@ -8,7 +9,7 @@ export default function TimeTrackingPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalYMD(new Date());
     Promise.all([
       api.get(`/time-tracking?startDate=${today}&limit=100`),
       api.get('/time-tracking/active'),

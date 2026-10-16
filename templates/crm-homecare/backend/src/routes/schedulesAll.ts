@@ -6,7 +6,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { db } from '../../db/index.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { SCHED_COLS, attachExceptions, rows, one, scheduleById, userIdOf } from '../helpers/scheduleRows.ts'
-import { schedTs, hms, DATE_RE } from '../services/scheduleOccurrences.ts'
+import { schedTs, hms, shiftTimesError, DATE_RE } from '../services/scheduleOccurrences.ts'
 import { alignBiweeklyAnchor } from '../helpers/biweekly.ts'
 import { agencyNow, addDays } from '../services/agencyTime.ts'
 import { recordAudit } from '../services/visitNotify.ts'
@@ -56,6 +56,11 @@ app.put('/:id', requireAdmin, async (c) => {
 
   const before = await scheduleById(scheduleId, true)
   if (!before) return c.json({ error: 'Schedule not found' }, 404)
+  // The times the row ends up with (a field left out keeps its value) must pass the one rule.
+  if (startTime || endTime) {
+    const timesError = shiftTimesError(startTime || before.start_time, endTime || before.end_time, b.overnight)
+    if (timesError) return c.json({ error: timesError }, 400)
+  }
   const isRecurring = before.day_of_week !== null && before.day_of_week !== undefined
   const { date: today } = await agencyNow()
 

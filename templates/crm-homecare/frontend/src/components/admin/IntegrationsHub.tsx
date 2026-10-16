@@ -8,10 +8,11 @@ import SandataPanel from './SandataPanel';
 // The CallRail signing key (shared panel): home care has no Call Tracking page, and this hub is where the agency's
 // integration credentials live. Admin + owner only — PUT /api/calltracking/settings is behind requireAdmin.
 import { CallTrackingSettings } from '../../shared';
+import { parseLocalDate } from '../../utils/date';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt$ = (n) => n != null ? `$${parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')}` : '—';
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+const fmtDate = (d) => d ? parseLocalDate(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
 const fmtNum = (n) => n != null ? parseFloat(n||0).toFixed(2) : '—';
 
 const STATUS_COLORS = {
@@ -471,7 +472,7 @@ const IntegrationsHub = () => {
                       </div>
                     </td>
                     <td style={{padding:'0.5rem 0.75rem',fontWeight:'700',color:parseFloat(a.remaining_units||0)<20?'#DC2626':'#374151'}}>{fmtNum(a.remaining_units)}</td>
-                    <td style={{padding:'0.5rem 0.75rem',color:new Date(a.end_date)<new Date(Date.now()+30*86400000)?'#DC2626':'#374151'}}>{fmtDate(a.end_date)}</td>
+                    <td style={{padding:'0.5rem 0.75rem',color:parseLocalDate(a.end_date)<new Date(Date.now()+30*86400000)?'#DC2626':'#374151'}}>{fmtDate(a.end_date)}</td>
                     <td style={{padding:'0.5rem 0.75rem'}}><Badge status={a.health_status} label={a.health_status==='ok'?'Good':a.health_status==='low'?'⚠ Low':a.health_status==='expiring_soon'?'Expiring':a.health_status}/></td>
                   </tr>
                 );
