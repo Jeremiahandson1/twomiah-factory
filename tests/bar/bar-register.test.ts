@@ -53,6 +53,7 @@ app.use('*', (c, next) => requestScope.run({ c }, next))
 const R = await import('./src/routes/barRegister.ts')
 app.route('/api/register', R.registerRoutes)
 app.route('/api/grill', R.kitchenRoutes)
+app.route('/api/bar', (await import('./src/routes/bar.ts')).default)
 app.onError((err: any, c: any) => c.json({ error: err?.message || 'Internal error' }, err?.status || 500))
 
 const call = (who: any, cid = co.id) => async (method: string, path: string, body?: unknown) => {
@@ -321,6 +322,25 @@ console.log('\n══════════ 10. the night ══════�
   check('a 1:30 AM check counts toward the night before', fri.checksPaid === 1 && fri.totalCents === bal && sat.checksPaid === 0, { fri: fri.checksPaid, sat: sat.checksPaid })
   const rows = await db.select().from(barCloseout).where(eq(barCloseout.companyId, co.id))
   check('one close-out row, for this company', rows.length === 1)
+}
+
+console.log('\n══════════ 12. the grill settings on a menu item ══════════')
+{
+  const put = await M('PUT', `/api/bar/menu/items/${fries.id}`, { prepMinutes: '7.5' })
+  check('minutes on the grill are saved as seconds', put.status === 200 && put.json.prepSeconds === 450, put.json)
+  const bad = await M('PUT', `/api/bar/menu/items/${fries.id}`, { prepMinutes: '200' })
+  check('a silly cook time is refused', bad.status === 400 && /between half a minute and 90/.test(bad.json.error), bad.json)
+  const clear = await M('PUT', `/api/bar/menu/items/${fries.id}`, { prepMinutes: '' })
+  check('blank goes back to the house default', clear.status === 200 && clear.json.prepSeconds === null, clear.json)
+  const bart = await B('PUT', `/api/bar/menu/items/${fries.id}`, { prepMinutes: '5' })
+  check('a bartender may not change it (bar:update)', bart.status === 403, bart.json)
+  await M('PUT', `/api/bar/menu/items/${fries.id}`, { toKitchen: false })
+  const c = (await B('POST', '/api/register/check', { kind: 'tab', label: 'Chips only' })).json.check.id
+  await B('POST', `/api/register/check/${c}/items`, { menuItemId: fries.id })
+  const sent = await B('POST', `/api/register/check/${c}/send`)
+  const tickets = await db.select().from(barKitchenTicket).where(eq(barKitchenTicket.checkId, c))
+  check('a food item marked "not to the grill" is sent without a ticket', sent.status === 200 && tickets.length === 0 && sent.json.check.items[0].state === 'sent', { tickets: tickets.length })
+  await M('PUT', `/api/bar/menu/items/${fries.id}`, { toKitchen: null })
 }
 
 console.log(`\nbar-register: ${passed} passed, ${failed} failed`)

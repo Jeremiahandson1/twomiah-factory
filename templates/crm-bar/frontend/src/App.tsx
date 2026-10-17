@@ -24,6 +24,10 @@ import MenuPage from './pages/bar/MenuPage';
 import TapsPage from './pages/bar/TapsPage';
 import HappeningsPage from './pages/bar/HappeningsPage';
 import BarSettingsPage from './pages/bar/BarSettingsPage';
+// The register, the grill screen and the night's close-out (routes/barRegister.ts).
+import RegisterPage from './pages/bar/RegisterPage';
+import GrillPage from './pages/bar/GrillPage';
+import CloseoutPage from './pages/bar/CloseoutPage';
 // Private parties — crm-restaurant's events screens, unchanged.
 import EventsPage from './pages/events/EventsPage';
 import EventDetailPage from './pages/events/EventDetailPage';
@@ -152,6 +156,9 @@ function App() {
                     <Route path="taps" element={<TapsPage />} />
                     <Route path="whats-on" element={<HappeningsPage />} />
                     <Route path="bar-settings" element={<BarSettingsPage />} />
+                    <Route path="register" element={<RegisterPage />} />
+                    <Route path="grill" element={<GrillPage />} />
+                    <Route path="closeout" element={<CloseoutPage />} />
                     <Route path="events" element={<EventsPage />} />
                     <Route path="events/:id" element={<EventDetailPage />} />
                     <Route path="spaces" element={<SpacesPage />} />

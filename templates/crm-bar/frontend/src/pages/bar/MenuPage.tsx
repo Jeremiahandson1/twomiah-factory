@@ -15,6 +15,7 @@ interface Item {
   id: string; sectionId: string | null; name: string; slug: string; description: string | null; priceCents: number | null;
   priceLabel: string | null; isSignature: boolean; is86ed: boolean; isActive: boolean; dietary: string[]; story: string | null;
   variations: Array<{ name: string; priceCents: number }>;
+  toKitchen: boolean | null; prepSeconds: number | null;
 }
 interface Section { id: string; name: string; slug: string; description: string | null; kind: 'food' | 'drink'; isActive: boolean; items: Item[] }
 
@@ -30,7 +31,7 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [sectionForm, setSectionForm] = useState<Partial<Section> | null>(null);
-  const [itemForm, setItemForm] = useState<(Partial<Item> & { price?: string }) | null>(null);
+  const [itemForm, setItemForm] = useState<(Partial<Item> & { price?: string; prepMin?: string }) | null>(null);
   const [formErr, setFormErr] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string>('');
@@ -61,6 +62,7 @@ export default function MenuPage() {
         name: itemForm.name, sectionId: itemForm.sectionId || null, description: itemForm.description ?? null,
         priceLabel: itemForm.priceLabel ?? null, isSignature: !!itemForm.isSignature, isActive: itemForm.isActive !== false,
         story: itemForm.story ?? null,
+        toKitchen: itemForm.toKitchen ?? null, prepMinutes: itemForm.prepMin ?? '',
       };
       // The price box is dollars ("9.50"); blank means no single price (the label says it).
       if (itemForm.price !== undefined) body.price = itemForm.price.trim() === '' ? null : itemForm.price;
@@ -136,7 +138,7 @@ export default function MenuPage() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {may86 && <button onClick={() => toggle86(i)} aria-pressed={i.is86ed} className={`px-3 py-1.5 rounded-lg text-sm font-semibold border ${i.is86ed ? 'bg-orange-600 text-white border-orange-600 dark:bg-orange-600 dark:text-white dark:border-orange-500' : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800'}`}>{i.is86ed ? 'Back on' : '86'}</button>}
-                      {mayEdit && <button onClick={() => { setFormErr(''); setItemForm({ ...i, price: i.priceCents === null ? '' : (i.priceCents / 100).toFixed(2) }) }} className="p-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100" aria-label={`Edit ${i.name}`}><Edit2 className="w-4 h-4" /></button>}
+                      {mayEdit && <button onClick={() => { setFormErr(''); setItemForm({ ...i, price: i.priceCents === null ? '' : (i.priceCents / 100).toFixed(2), prepMin: i.prepSeconds ? String(Math.round(i.prepSeconds / 6) / 10) : '' }) }} className="p-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100" aria-label={`Edit ${i.name}`}><Edit2 className="w-4 h-4" /></button>}
                       {mayEdit && (confirmDelete === i.id
                         ? <><button onClick={() => remove('items', i.id)} className="px-2 py-1 text-sm font-semibold text-red-700 dark:text-red-300">Delete</button><button onClick={() => setConfirmDelete('')} className="px-2 py-1 text-sm text-gray-600 dark:text-slate-300">Keep</button></>
                         : <button onClick={() => setConfirmDelete(i.id)} className="p-2 text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300" aria-label={`Delete ${i.name}`}><Trash2 className="w-4 h-4" /></button>)}
@@ -178,6 +180,11 @@ export default function MenuPage() {
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200"><input type="checkbox" checked={!!itemForm.isSignature} onChange={(e) => setItemForm({ ...itemForm, isSignature: e.target.checked })} /> Signature item — gets its own page on the website</label>
             {itemForm.isSignature && <div><label htmlFor="item-story" className={LBL}>Its story (for its own page)</label><textarea id="item-story" className={INPUT} rows={4} value={itemForm.story || ''} onChange={(e) => setItemForm({ ...itemForm, story: e.target.value })} /></div>}
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200"><input type="checkbox" checked={itemForm.isActive !== false} onChange={(e) => setItemForm({ ...itemForm, isActive: e.target.checked })} /> Show on the website</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label htmlFor="item-grill" className={LBL}>Goes to the grill</label><select id="item-grill" className={INPUT} value={itemForm.toKitchen === true ? 'yes' : itemForm.toKitchen === false ? 'no' : ''} onChange={(e) => setItemForm({ ...itemForm, toKitchen: e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null })}><option value="">By its section (food yes, drinks no)</option><option value="yes">Yes</option><option value="no">No</option></select></div>
+              <div><label htmlFor="item-prep" className={LBL}>Minutes on the grill</label><input id="item-prep" className={INPUT} inputMode="decimal" placeholder="8" value={itemForm.prepMin || ''} onChange={(e) => setItemForm({ ...itemForm, prepMin: e.target.value })} /></div>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-slate-400">The grill screen starts the longest item first so a ticket comes up together. Blank uses the house default; the screen learns real times as tickets are bumped.</p>
             <div className="flex justify-end gap-2 pt-2"><button onClick={() => setItemForm(null)} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-800 dark:border-slate-700 dark:text-slate-100">Cancel</button><button onClick={saveItem} disabled={saving} className="px-4 py-2 rounded-lg bg-orange-600 text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button></div>
           </div>
         </div>

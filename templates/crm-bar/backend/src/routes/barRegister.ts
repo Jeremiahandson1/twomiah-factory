@@ -154,9 +154,9 @@ registerRoutes.get('/day', ...ring, async (c) => {
   const actor = await actorOf(c)
   const q = c.req.query('day') || ''
   const day = /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : businessDayOf(new Date(), await barTimezone(actor.companyId))
-  const { summary, open } = await loadDay(actor.companyId, day)
+  const { summary, open, tz } = await loadDay(actor.companyId, day)
   c.header('Cache-Control', 'no-store')
-  return c.json({ day, summary, open, closes: await closeoutsFor(actor.companyId, day), me: { mayManage: await mayManage(actor) } })
+  return c.json({ day, timezone: tz, summary, open, closes: await closeoutsFor(actor.companyId, day), me: { mayManage: await mayManage(actor) } })
 })
 registerRoutes.post('/closeout', ...ring, async (c) => {
   const actor = await actorOf(c); const b = await body(c)

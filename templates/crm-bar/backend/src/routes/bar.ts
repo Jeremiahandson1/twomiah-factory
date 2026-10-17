@@ -227,6 +227,17 @@ async function itemInput(body: any, companyId: string, creating: boolean): Promi
   }
   for (const k of ['isSignature', 'is86ed', 'isActive'] as const) if (body[k] !== undefined) v[k] = bool(body[k], false)
   if (body.sortOrder !== undefined) v.sortOrder = Math.max(0, Math.min(10000, Number(body.sortOrder) || 0))
+  // The grill (services/barKitchen.ts): null = by its section (food goes, drinks don't); true/false = this item says.
+  if (body.toKitchen !== undefined) v.toKitchen = body.toKitchen === null || body.toKitchen === '' ? null : bool(body.toKitchen, true)
+  // Minutes on the grill, as the owner sets it (pacing learns the real time from bumps). Blank = the house default.
+  if (body.prepMinutes !== undefined) {
+    if (body.prepMinutes === null || String(body.prepMinutes).trim() === '') v.prepSeconds = null
+    else {
+      const m = Number(String(body.prepMinutes).trim())
+      if (!Number.isFinite(m) || m < 0.5 || m > 90) return { ok: false, error: 'Minutes on the grill is between half a minute and 90' }
+      v.prepSeconds = Math.round(m * 60)
+    }
+  }
   return { ok: true, value: v }
 }
 
