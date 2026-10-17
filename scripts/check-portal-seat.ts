@@ -39,9 +39,14 @@ const bar = read('templates/crm-bar/frontend/src/pages/CustomerPortal.tsx').repl
 const dash = read('templates/crm-bar/backend/src/routes/dashboard.ts')
 if (!bar || !dash) fail('the bar portal or its dashboard route is missing')
 for (const k of ['recentJobs', 'recentQuotes', 'recentInvoices']) if (new RegExp(`\\b${k}\\b`).test(bar)) fail(`the bar portal reads ${k}, a key its recent-activity route never sends`)
+// Every object the route can answer with (it has two: with and without the money), as a shorthand key.
+const route = dash.slice(dash.indexOf("app.get('/recent-activity'"))
+const reply = (route.match(/return c\.json\(([^\n]*)\)\n/) || [])[1] || ''
+const shapes = reply.match(/\{[^{}]*\}/g) || []
+if (shapes.length < 2) fail(`the bar's /recent-activity reply has changed shape (found ${shapes.length} object(s)) — re-read it`)
 for (const k of ['upcomingEvents', 'newEnquiries']) {
   if (!new RegExp(`activity\\?\\.${k}\\b`).test(bar)) fail(`the bar portal must read activity?.${k}`)
-  if (!new RegExp(`\\{ newEnquiries, upcomingEvents`).test(dash)) fail(`…and the bar's /recent-activity must still send ${k}`)
+  for (const s of shapes) if (!new RegExp(`[{,]\\s*${k}\\s*[,}]`).test(s)) fail(`…and every reply of the bar's /recent-activity must send ${k}: ${s}`)
 }
 if (/contacts and jobs/.test(bar)) fail('the bar portal still says "contacts and jobs"')
 if (!/SHELL\.nav\.some\(/.test(bar) || !/\{crmCardText\}/.test(bar)) fail("the bar's CRM card must be built from the seat's own menu (SHELL.nav), not a fixed sentence")
