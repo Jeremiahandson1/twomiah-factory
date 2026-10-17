@@ -15,7 +15,7 @@
 //  - payment_config holds the merchant's OWN provider credentials, ENCRYPTED at
 //    rest (never returned to the storefront/client).
 import {
-  pgTable, pgEnum, uuid, text, integer, boolean, timestamp, jsonb,
+  pgTable, pgEnum, uuid, text, integer, boolean, timestamp, jsonb, json,
   index, uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
@@ -472,3 +472,44 @@ export const auditLog = pgTable('audit_log', {
   index('audit_log_entity_entity_id_idx').on(t.entity, t.entityId),
   index('audit_log_user_id_idx').on(t.userId),
 ])
+
+// -- Two-factor sign-in. These two tables ARE the switch: shared auth/mfa.ts asks information_schema for them and answers
+// "no second factor" when they are absent. Column names are the fleet's (the shared statements name them); user_id is
+// uuid because users.id is, and company_id holds one fixed value (lib/mfaScope.ts) since this database is one
+// business. The ids are text so a malformed id from the browser finds nothing instead of failing a uuid cast.
+export const mfaDevice = pgTable('mfa_devices', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull(),
+  /** totp | backup_codes */
+  type: text('type').notNull(),
+  name: text('name'),
+  /** The base32 TOTP seed. Read only by the verifier; never returned by a route after enrolment. */
+  secret: text('secret'),
+  phoneNumber: text('phone_number'),
+  /** Recovery codes, SHA-256 hashed and removed as they are spent. */
+  backupCodes: json('backup_codes'),
+  /** An enrolment nobody finished is not a second factor: the gate counts only verified rows. */
+  isVerified: boolean('is_verified').default(false),
+  isPrimary: boolean('is_primary').default(false),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('mfa_device_user_idx').on(t.userId)])
+
+export const mfaChallenge = pgTable('mfa_challenges', {
+  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // SET NULL: a challenge records a sign-in that happened; the device it used may be removed later.
+  deviceId: text('device_id').references(() => mfaDevice.id, { onDelete: 'set null' }),
+  code: text('code'),
+  /** 'login' for the sign-in challenge */
+  type: text('type').notNull(),
+  status: text('status').default('pending'), // pending | verified | expired | failed
+  /** Wrong codes spent against this challenge; five and it is done. */
+  attempts: integer('attempts').default(0).notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('mfa_challenge_user_idx').on(t.userId)])

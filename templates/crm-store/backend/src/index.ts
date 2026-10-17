@@ -13,6 +13,7 @@ import { and, eq, lt } from 'drizzle-orm'
 import logger from './services/logger.ts'
 
 import authRoutes from './routes/auth.ts'
+import mfaRoutes from './routes/mfa.ts'
 import platformSupportRoutes from './routes/platformSupport.ts'
 import publicRoutes from './routes/public.ts'
 import productAdminRoutes from './routes/products.ts'
@@ -143,6 +144,9 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 app.route('/api/public', publicRoutes)
 // Auth + tenant admin API.
 app.route('/api/auth', authRoutes)
+// Two-factor enrolment, under /api/auth so it reads as one feature with the sign-in challenge (POST /api/auth/mfa in
+// routes/auth.ts). Its screen is My account (/account), which every seat can open.
+app.route('/api/auth/mfa-devices', mfaRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/admin/products', productAdminRoutes)
 app.route('/api/admin/orders', orderAdminRoutes)

@@ -10,6 +10,7 @@ import ImpersonationModal from './ImpersonationModal';
 import MessageBoard from './admin/MessageBoard';
 import IntegrationsHub from './admin/IntegrationsHub';
 import FeaturesPage from './admin/FeaturesPage';
+import TwoFactorSettings from './TwoFactorSettings';
 
 // Admin pages
 import AiReceptionistPage from '../pages/AiReceptionistPage';
@@ -169,6 +170,8 @@ const NAV_SECTIONS = [
     id: 'settings', label: 'Settings', icon: '⚙️',
     items: [
       { id: 'user-management', label: 'Users & Access', icon: '👤' },
+      // This person's own two-factor sign-in — every office seat's, not a setting of the agency's.
+      { id: 'security', label: 'Sign-in & Security', icon: '🔐' },
       { id: 'plan-billing', label: 'Plan & Billing', icon: '💳' },
     ]
   },
@@ -409,6 +412,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'authorizations': return <AuthorizationsManagement />;
       case 'evv': return <EVVDashboard />;
       case 'user-management': return <UserManagement />;
+      case 'security': return <div style={{ maxWidth: 720 }}><TwoFactorSettings /></div>;
       default: return <DashboardOverview summary={summary} onNavigate={handlePageClick} />;
     }
   };

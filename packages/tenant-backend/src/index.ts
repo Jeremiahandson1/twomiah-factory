@@ -138,7 +138,7 @@ export { createAuthRoutes, passwordSchema, PASSWORD_RULE_TEXT, generateTokens } 
  * rather than an error, so shared auth can ask the question everywhere.
  */
 export { mfaGateFor, openLoginChallenge, verifyLoginChallenge, MAX_CODE_ATTEMPTS } from './auth/mfa'
-export type { MfaGate, MfaCodeOutcome } from './auth/mfa'
+export type { MfaGate, MfaCodeOutcome, MfaScope } from './auth/mfa'
 export { verifyTOTP, generateTOTPCode, base32Encode, base32Decode } from './auth/totp'
 export { createMfaRoutes } from './auth/mfaRoutes'
 export type { MfaRoutesDeps } from './auth/mfaRoutes'

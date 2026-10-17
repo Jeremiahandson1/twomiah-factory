@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import api, { User } from '../services/api'
+import api, { User, type MfaChallenge, type Session } from '../services/api'
 
 /**
  * `permissions` — what this person may do, as the server answered it on /login and /me.
@@ -16,7 +16,10 @@ type AuthValue = {
   storeName: string | null
   loading: boolean
   isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<void>
+  /** Resolves with the challenge when the account has two-factor on — the login page then asks for the code. */
+  login: (email: string, password: string) => Promise<MfaChallenge | void>
+  /** Finish that sign-in with the code; signs in exactly as a password login does. */
+  completeMfa: (challengeId: string, code: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -44,10 +47,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false))
   }, [])
 
-  const login = async (email: string, password: string) => {
-    const s = await api.login(email, password)
+  const adopt = (s: Session) => {
     setUser(s.user)
     setPermissions(s.permissions)
+  }
+  const login = async (email: string, password: string) => {
+    const s = await api.login(email, password)
+    if ('mfaRequired' in s) return s
+    adopt(s)
+  }
+  const completeMfa = async (challengeId: string, code: string) => {
+    adopt(await api.completeMfa(challengeId, code))
   }
   // Signing out always signs out here, even when the server call fails (a session already ended elsewhere): a refused
   // logout used to throw before the state was cleared, and the Sign out button did nothing. (E2E Run 2, 10/15)
@@ -61,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, permissions, accountLock, storeName, loading, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, permissions, accountLock, storeName, loading, isAuthenticated: !!user, login, completeMfa, logout }}>
       {children}
     </AuthContext.Provider>
   )

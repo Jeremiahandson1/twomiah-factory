@@ -72,20 +72,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // An expired session (M-05, Run 3 HIGH 10) is handled under fetch itself — refreshed and replayed, or sent to sign in —
   // for every screen at once: services/sessionFetch.ts, installed by services/api.ts.
 
+  // One signed-in session, whether it took a password alone or a code as well.
+  const adoptSession = async (data: any) => {
+    adoptClock(data.company); // sign-in's summary names the zone before any screen mounts
+    setUser(data.user);
+    // Fetch company after login. A cancelled agency answers 402 here: sign-in's own company summary carries the lock.
+    const companyData = adoptClock(await agencyOrLock(data.company));
+    setCompany(companyData);
+    return data;
+  };
+
+  // Resolves with { mfaRequired, challengeId, … } when the account has two-factor on: nobody is signed in yet, and the
+  // login form asks for the code and calls completeMfa.
   const login = async (email: string, password: string) => {
     setError(null);
     try {
       const data = await api.login(email, password);
-      adoptClock(data.company); // sign-in's summary names the zone before any screen mounts
-      setUser(data.user);
-      // Fetch company after login. A cancelled agency answers 402 here: sign-in's own company summary carries the lock.
-      const companyData = adoptClock(await agencyOrLock(data.company));
-      setCompany(companyData);
-      return data;
+      if (data?.mfaRequired) return data;
+      return await adoptSession(data);
     } catch (err: any) {
       setError(err.message || 'Login failed');
       throw err;
     }
+  };
+
+  const completeMfa = async (challengeId: string, code: string) => {
+    setError(null);
+    return adoptSession(await api.completeMfa(challengeId, code));
   };
 
   const logout = async () => {
@@ -129,6 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isCaregiver,
       token,
       login,
+      completeMfa,
       logout,
       checkAuth,
       updateCompany,

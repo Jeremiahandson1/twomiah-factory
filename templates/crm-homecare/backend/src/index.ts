@@ -25,6 +25,7 @@ const __dirname = path.dirname(__filename)
 const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
 
 import authRoutes from './routes/auth.ts'
+import mfaRoutes from './routes/mfa.ts'
 import platformSupportRoutes from './routes/platformSupport.ts'
 import messagingBillingRoutes from './routes/messagingBilling.ts'
 import dashboardRoutes from './routes/dashboard.ts'
@@ -243,6 +244,9 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 // API routes
 app.route('/api/webhooks', webhooksRoutes)
 app.route('/api/auth', authRoutes)
+// Two-factor enrolment, under /api/auth so it reads as one feature with the sign-in challenge (POST /api/auth/mfa in
+// routes/auth.ts). Its screens: Settings › Sign-in & Security (office) and Settings (caregivers).
+app.route('/api/auth/mfa-devices', mfaRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/dashboard', dashboardRoutes)

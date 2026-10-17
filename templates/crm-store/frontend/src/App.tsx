@@ -18,6 +18,7 @@ import ShippingPage from './pages/ShippingPage'
 import DiscountsPage from './pages/DiscountsPage'
 import LoyaltyPage from './pages/LoyaltyPage'
 import SettingsPage from './pages/SettingsPage'
+import AccountPage from './pages/AccountPage'
 import DomainPage from './pages/DomainPage'
 import AuditLog from './pages/AuditLog'
 import OnboardingWizard from './pages/OnboardingWizard'
@@ -115,6 +116,8 @@ export default function App() {
               <Route path="discounts" element={<DiscountsPage />} />
               <Route path="loyalty" element={<LoyaltyPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              {/* Every seat's own password and two-factor — no permission, as the link in the sidebar has none. */}
+              <Route path="account" element={<AccountPage />} />
               <Route path="audit" element={<AuditLog />} />
               <Route path="contact-support" element={<ContactSupportPage />} />
               <Route path="settings/email" element={<EmailAliasesPage />} />

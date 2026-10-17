@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) => {
-  const { login } = useAuth();
+  const { login, completeMfa } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -14,6 +14,12 @@ const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) =>
   // why they are signing in again rather than seeing a page of empty lists.
   const [expired] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('expired') === '1');
 
+  // The code step. Sign-in answers a session, or { mfaRequired, challengeId } — the same sign-in waiting for six digits,
+  // so it replaces the form rather than sitting beside it, and the password is never asked for twice. The same step as
+  // the fleet's shared LoginPage (packages/tenant-ui/src/auth/LoginPage.tsx).
+  const [challenge, setChallenge] = useState<{ id: string; recovery: boolean } | null>(null);
+  const [code, setCode] = useState('');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -21,6 +27,11 @@ const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) =>
 
     try {
       const data = await login(email.trim().toLowerCase(), password);
+      if (data?.mfaRequired) {
+        setChallenge({ id: String(data.challengeId), recovery: data.recoveryCodesAvailable === true });
+        setCode('');
+        return;
+      }
       // Legacy callback for backward compat (App.tsx MainApp)
       if (onLogin) onLogin(data.accessToken, data.user);
     } catch (err: any) {
@@ -29,6 +40,77 @@ const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) =>
       setLoading(false);
     }
   };
+
+  const handleCode = async (e) => {
+    e.preventDefault();
+    if (!challenge) return;
+    setError('');
+    setLoading(true);
+    try {
+      const data = await completeMfa(challenge.id, code.trim());
+      if (onLogin) onLogin(data.accessToken, data.user);
+    } catch (err: any) {
+      // 401 is a wrong code: try again here. Anything else (spent, expired, five tries) means the request is over —
+      // back to the password, with the server's own sentence saying why.
+      if (err?.status !== 401) { setChallenge(null); setPassword(''); }
+      setError(err?.message || 'That code was not accepted');
+      setCode('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startAgain = () => { setChallenge(null); setCode(''); setPassword(''); setError(''); };
+
+  if (challenge) {
+    return (
+      <div className="login-container">
+        <div className="login-card">
+          <h1>{"{{COMPANY_NAME}}"}</h1>
+          <p>One more step: enter the six-digit code from your authenticator app{challenge.recovery ? ', or one of your recovery codes' : ''}.</p>
+
+          {error && <div className="alert alert-error" role="alert">{error}</div>}
+
+          <form onSubmit={handleCode}>
+            <div className="form-group">
+              <label htmlFor="login-code">Code</label>
+              <input
+                id="login-code"
+                type="text"
+                name="one-time-code"
+                inputMode="text"
+                autoComplete="one-time-code"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                spellCheck={false}
+                autoFocus
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="123456"
+                style={{ fontFamily: 'monospace', letterSpacing: '0.2em' }}
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary btn-block" disabled={loading || !code.trim()}>
+              {loading ? 'Checking...' : 'Finish signing in'}
+            </button>
+          </form>
+
+          {/* A way back, because a wrong account is the other reason somebody is stuck here. */}
+          <p style={{ textAlign: 'center', marginTop: '0.75rem', fontSize: '0.85rem' }}>
+            <button
+              type="button"
+              onClick={startAgain}
+              style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline', padding: 0 }}
+            >
+              Start again
+            </button>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-container">

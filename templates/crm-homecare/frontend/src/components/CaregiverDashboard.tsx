@@ -16,6 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { SandataPrompt, SandataIdBox, SandataHelp, SandataNotice, useSandataContext } from './caregiver/SandataEvv';
 import { needsSandata, visitNeedsSandata, evvWeekMet, openSandata } from '../utils/sandata';
 import CareTaskChecklist from './CareTaskChecklist';
+import TwoFactorSettings from './TwoFactorSettings';
 import VisitCarePanel from './caregiver/VisitCarePanel';
 import { compressPhoto } from '../utils/visitPhoto';
 import SignaturePad from './SignaturePad';
@@ -1755,6 +1756,8 @@ const CaregiverDashboard = ({ onLogout }) => {
           {location ? <>GPS Active (±{location.accuracy?.toFixed(0)}m)</> : <>{locationError || 'Location unavailable'} - Clock in still works</>}
         </div>
       </div>
+      {/* Their own two-factor sign-in: a caregiver's account opens clients' care plans and medications too. */}
+      <div style={{ marginBottom: '1rem' }}><TwoFactorSettings /></div>
       <button className="btn btn-danger btn-block" onClick={onLogout}>Log Out</button>
     </>
   );

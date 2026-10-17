@@ -29,7 +29,8 @@ for (const t of readdirSync(join(ROOT, 'templates')).filter((d) => d.startsWith(
   const app = read(appPath)
   const m = /<Route path="account" element=\{<(\w+) \/>\} \/>/.exec(app)
   if (!m) { fail(`${t}: serves two-factor (/api/auth/mfa-devices) but mounts no /crm/account — nobody below admin can reach it`); continue }
-  const imp = new RegExp(`import ${m[1]} from '(\\./pages/[^']+)';`).exec(app)
+  // The semicolon is optional: crm-store writes its imports without one, and a style difference is not a missing page.
+  const imp = new RegExp(`import ${m[1]} from '(\\./pages/[^']+)';?`).exec(app)
   const pagePath = imp ? `templates/${t}/frontend/src/${imp[1].replace('./', '')}.tsx` : ''
   if (!pagePath || !existsSync(join(ROOT, pagePath))) { fail(`${t}: /crm/account renders ${m[1]}, whose file was not found`); continue }
   const page = read(pagePath)

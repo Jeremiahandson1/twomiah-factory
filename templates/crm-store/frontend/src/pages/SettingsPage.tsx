@@ -5,7 +5,7 @@ import api, { StoreSettings, StoreUser, type AssignableRole } from '../services/
 import { useToast } from '../contexts/ToastContext'
 import { useAuth } from '../contexts/AuthContext'
 import { centsToDollars, dollarsToCents } from '../lib/format'
-import { useMayWrite, useKnownPermission } from '../shared'
+import { useMayWrite, useKnownPermission, TwoFactorCard } from '../shared'
 
 // What each seat is for, said where the owner picks it. The rules themselves are the backend's
 // middleware/permissions.ts; this is the one-line version a shopkeeper reads.
@@ -272,6 +272,11 @@ export default function SettingsPage() {
         <div><label className="label">New password</label><input className="input" type="password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} placeholder="At least 8 characters" /></div>
         <button onClick={changePassword} className="btn-secondary" disabled={pwSaving || !pw.current || pw.next.length < 8}>{pwSaving ? 'Saving…' : 'Update password'}</button>
       </div>
+
+      {/* Two-factor sign-in, for whoever is signed in — outside every fieldset, because it is their own account and not
+          the shop's settings: a seat that cannot change the store can still protect how it signs in. The fleet's shared
+          card over this store's client (services/api.ts mfa → /api/auth/mfa-devices). Also on My account (/account). */}
+      <TwoFactorCard api={api as any} toast={{ success: (m: string) => toast(m), error: (m: string) => toast(m, 'error') }} />
 
       {/* Team logins. Owner-only (users:read / team:create / team:update): the backend refuses a manager
           or staff, so the card is hidden rather than showing buttons that 403. */}

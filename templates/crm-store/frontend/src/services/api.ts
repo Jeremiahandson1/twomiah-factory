@@ -156,6 +156,11 @@ export type AssignableRole = 'manager' | 'staff'
  */
 /** accountLock: why the store is locked ('subscription_ended' | 'trial_ended'), or null — every seat is told (10/14). */
 export type Session = { user: User; permissions: string[]; accountLock?: string | null; storeName?: string | null }
+/**
+ * Sign-in stopped for a code: the password was right and this login has an authenticator. No tokens come with it —
+ * the code goes to completeMfa() with the challenge id, and THAT answers with the session.
+ */
+export type MfaChallenge = { mfaRequired: true; challengeId: string; expiresAt: string; methods: string[]; recoveryCodesAvailable: boolean; message?: string }
 
 export type Review = {
   id: string; productId: string; productName?: string | null; productSlug?: string | null
@@ -252,11 +257,37 @@ class ApiClient {
   }
 
   // ── Auth ──
-  async login(email: string, password: string) {
-    const data = await this.request<{ accessToken: string; refreshToken: string; user: User; permissions?: string[] }>(
+  /**
+   * Sign in — which may stop and ask for a code. A two-factor reply carries no tokens, so setTokens must NOT run on it:
+   * storing undefined as a bearer token would send the string "undefined" on every later request.
+   */
+  async login(email: string, password: string): Promise<Session | MfaChallenge> {
+    const data = await this.request<{ accessToken: string; refreshToken: string; user: User; permissions?: string[] } | MfaChallenge>(
       '/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, false)
+    if ((data as MfaChallenge).mfaRequired) return data as MfaChallenge
+    return this.session(data as { accessToken: string; refreshToken: string; user: User; permissions?: string[] })
+  }
+  /** Finish a sign-in that stopped for a code — the authenticator's six digits, or a recovery code. */
+  async completeMfa(challengeId: string, code: string): Promise<Session> {
+    // retry=false, as for /login: a wrong code is a 401 the code form shows, not a session to refresh.
+    const data = await this.request<{ accessToken: string; refreshToken: string; user: User; permissions?: string[] }>(
+      '/api/auth/mfa', { method: 'POST', body: JSON.stringify({ challengeId, code }) }, false)
+    return this.session(data)
+  }
+  private session(data: { accessToken: string; refreshToken: string; user: User; permissions?: string[] }): Session {
     this.setTokens(data.accessToken, data.refreshToken)
-    return { user: data.user, permissions: Array.isArray(data.permissions) ? data.permissions : [] } as Session
+    return { user: data.user, permissions: Array.isArray(data.permissions) ? data.permissions : [] }
+  }
+  /** Two-factor enrolment for the signed-in person — the shape the shared TwoFactorCard calls. */
+  mfa = {
+    devices: () => this.request('/api/auth/mfa-devices/devices'),
+    setup: () => this.request('/api/auth/mfa-devices/setup', { method: 'POST', body: '{}' }),
+    verify: (deviceId: string, code: string) =>
+      this.request('/api/auth/mfa-devices/verify', { method: 'POST', body: JSON.stringify({ deviceId, code }) }),
+    newRecoveryCodes: (code: string) =>
+      this.request('/api/auth/mfa-devices/recovery-codes', { method: 'POST', body: JSON.stringify({ code }) }),
+    remove: (deviceId: string, code: string) =>
+      this.request(`/api/auth/mfa-devices/devices/${encodeURIComponent(deviceId)}`, { method: 'DELETE', body: JSON.stringify({ code }) }),
   }
   // Send THIS device's refresh token: the server ends only that session. Sent bare, it ends every session the person
   // has — signing out of one window signed them out everywhere, 15 minutes later. (E2E Run 2, 10/15)

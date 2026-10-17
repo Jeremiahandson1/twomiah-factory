@@ -6,7 +6,8 @@ import { db } from '../../db/index.ts'
 import { users, caregiverProfiles, agencies, auditLogs } from '../../db/schema.ts'
 import { authenticate, requireAdmin, logAuthEvent } from '../middleware/auth.ts'
 import { markUserLoggedOut } from '../services/tokenRevocation.ts'
-import { accountLockOf } from '../shared/index.ts'
+import { accountLockOf, mfaGateFor, openLoginChallenge, verifyLoginChallenge } from '../shared/index.ts'
+import { MFA_SCOPE } from '../helpers/mfaScope.ts'
 import { resolveTimezone } from '../services/agencyTime.ts'
 
 const app = new Hono()
@@ -59,19 +60,73 @@ app.post('/login', async (c) => {
     return c.json({ error: 'Invalid credentials' }, 401)
   }
 
+  /**
+   * THE PASSWORD WAS RIGHT; IS THERE A SECOND FACTOR TO ASK FOR?
+   *
+   * The same question shared auth asks on every other CRM (packages/tenant-backend/src/auth/auth.ts), asked here because
+   * this sign-in is forked: home care's people are in `users` and the database is one agency, which MFA_SCOPE says. A
+   * verified authenticator means a challenge and NO tokens — POST /mfa below finishes the sign-in with a code.
+   */
+  const gate = await mfaGateFor(db, MFA_SCOPE.singleCompanyId!, user.id, MFA_SCOPE)
+  if (gate.required) {
+    const { challengeId, expiresAt } = await openLoginChallenge(db, MFA_SCOPE.singleCompanyId!, user.id)
+    return c.json({
+      mfaRequired: true,
+      challengeId,
+      expiresAt,
+      methods: gate.methods,
+      recoveryCodesAvailable: gate.hasRecoveryCodes,
+      message: 'Enter the code from your authenticator app to finish signing in.',
+    }, 200)
+  }
+
+  await logAuthEvent({ email, userId: user.id, success: true, ipAddress: ip, userAgent: ua })
+  return c.json(await signedIn(user))
+})
+
+/** The tokens and the reply — one sign-in, whether it took a password alone or a code as well. */
+async function signedIn(user: typeof users.$inferSelect) {
   // Fetch agency for company info + include in JWT for companyId-scoped queries
   const [agency] = await db.select().from(agencies).limit(1)
 
   const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role, agency?.id)
 
   await db.update(users).set({ lastLogin: new Date(), refreshToken, updatedAt: new Date() }).where(eq(users.id, user.id))
-  await logAuthEvent({ email, userId: user.id, success: true, ipAddress: ip, userAgent: ua })
 
-  return c.json({
+  return {
     accessToken,
     refreshToken,
     user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role },
     company: companySummary(agency),
+  }
+}
+
+/**
+ * POST /api/auth/mfa — finish a sign-in that stopped for a code. The same door as shared auth's, with the same answers:
+ * 401 for a wrong code (the screen keeps the code field), 400 for a request that can no longer be completed (the
+ * screen sends the person back to the password). PUBLIC on purpose: the caller has no token yet. What stands in for one
+ * is the challenge id — single-use, ten minutes, five wrong codes, and made only after a correct password.
+ */
+app.post('/mfa', async (c) => {
+  const ip = c.req.header('x-forwarded-for') || 'unknown'
+  const ua = c.req.header('user-agent')
+  const body = await c.req.json().catch(() => ({} as any))
+  const challengeId = typeof body?.challengeId === 'string' ? body.challengeId : ''
+  const code = typeof body?.code === 'string' ? body.code : ''
+  if (!challengeId || !code) {
+    return c.json({ error: 'Send the challenge id and the code from your authenticator or a recovery code.', code: 'code_required' }, 400)
+  }
+  const outcome = await verifyLoginChallenge(db, challengeId, code, MFA_SCOPE)
+  if (!outcome.ok) return c.json({ error: outcome.error, code: outcome.code }, outcome.code === 'bad_code' ? 401 : 400)
+
+  // Read again: an account deactivated between the password and the code does not get in on the code.
+  const [user] = await db.select().from(users).where(eq(users.id, outcome.userId)).limit(1)
+  if (!user || !user.isActive) return c.json({ error: 'Account is inactive' }, 401)
+  await logAuthEvent({ email: user.email, userId: user.id, success: true, ipAddress: ip, userAgent: ua })
+  return c.json({
+    ...(await signedIn(user)),
+    // So the screen can say a recovery code was spent.
+    ...(outcome.usedRecoveryCode ? { usedRecoveryCode: true } : {}),
   })
 })
 

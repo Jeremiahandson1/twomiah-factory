@@ -3095,3 +3095,49 @@ export const billingInvoice = pgTable('billing_invoice', {
 }, (t) => [
   index('billing_invoice_company_id_idx').on(t.companyId),
 ])
+
+// ==================== TWO-FACTOR SIGN-IN ====================
+// These two tables ARE the switch: shared auth/mfa.ts asks information_schema for them and answers "no second factor"
+// when they are absent. Created by migration 0026_mfa (this schema is migrations-owned, db/NO_DRIZZLE_PUSH); declared
+// here so reconcile and the code agree. Column names are the fleet's because the shared statements name them; company_id
+// holds one fixed value (src/helpers/mfaScope.ts) since this database is one agency and users carry none.
+export const mfaDevice = pgTable('mfa_devices', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull(),
+  /** totp | backup_codes */
+  type: text('type').notNull(),
+  name: text('name'),
+  /** The base32 TOTP seed. Read only by the verifier; never returned by a route after enrolment. */
+  secret: text('secret'),
+  phoneNumber: text('phone_number'),
+  /** Recovery codes, SHA-256 hashed and removed as they are spent. */
+  backupCodes: json('backup_codes'),
+  /** An enrolment nobody finished is not a second factor: the gate counts only verified rows. */
+  isVerified: boolean('is_verified').default(false),
+  isPrimary: boolean('is_primary').default(false),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('mfa_device_user_idx').on(t.userId),
+])
+
+export const mfaChallenge = pgTable('mfa_challenges', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // SET NULL: a challenge records a sign-in that happened; the device it used may be removed later.
+  deviceId: text('device_id').references(() => mfaDevice.id, { onDelete: 'set null' }),
+  code: text('code'),
+  /** 'login' for the sign-in challenge */
+  type: text('type').notNull(),
+  status: text('status').default('pending'), // pending | verified | expired | failed
+  /** Wrong codes spent against this challenge; five and it is done. */
+  attempts: integer('attempts').default(0).notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('mfa_challenge_user_idx').on(t.userId),
+])

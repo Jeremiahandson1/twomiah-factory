@@ -20,8 +20,9 @@
 //                       without them the mount exists and enrolment still cannot work
 //
 // A template that does NOT show the card is not required to have any of it: crm-dispensary ships its
-// own 1,210-line SettingsPage and crm-store its own, neither carrying the card, and crm-roof has no
-// SettingsPage at all. Those are consistent, and the guard says so rather than silently passing them.
+// own 1,210-line SettingsPage without the card, and crm-roof has no SettingsPage at all. Those are
+// consistent, and the guard says so rather than silently passing them. (crm-store's own SettingsPage
+// renders the card directly since it gained two-factor, so it is held to all three checks.)
 //
 //   bun scripts/check-mfa-screen-has-api.ts
 import { readdirSync, readFileSync, existsSync } from 'node:fs'

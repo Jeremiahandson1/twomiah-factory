@@ -6,7 +6,8 @@ import { db } from '../../db/index.ts'
 import { users, storeSettings } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { accountLockOf } from '../shared/index.ts'
+import { accountLockOf, mfaGateFor, openLoginChallenge, verifyLoginChallenge } from '../shared/index.ts'
+import { MFA_SCOPE } from '../lib/mfaScope.ts'
 import { getPermissions, getExtraPermissions } from '../middleware/permissions.ts'
 import { sendPasswordReset } from '../services/email.ts'
 import audit from '../services/audit.ts'
@@ -87,14 +88,62 @@ auth.post('/login', async (c) => {
   const valid = await Bun.password.verify(password, u.passwordHash)
   if (!valid) { await failed('Wrong password'); return c.json({ error: 'Invalid email or password' }, 401) }
 
+  /**
+   * THE PASSWORD WAS RIGHT; IS THERE A SECOND FACTOR TO ASK FOR?
+   *
+   * The same question shared auth asks on every other CRM (packages/tenant-backend/src/auth/auth.ts), asked here because
+   * this sign-in is forked: the store's people are in `users` and the database is one business, which MFA_SCOPE says.
+   * A verified authenticator means a challenge and NO tokens — POST /mfa below finishes the sign-in with a code.
+   */
+  const gate = await mfaGateFor(db, MFA_SCOPE.singleCompanyId!, u.id, MFA_SCOPE)
+  if (gate.required) {
+    const { challengeId, expiresAt } = await openLoginChallenge(db, MFA_SCOPE.singleCompanyId!, u.id)
+    return c.json({
+      mfaRequired: true,
+      challengeId,
+      expiresAt,
+      methods: gate.methods,
+      recoveryCodesAvailable: gate.hasRecoveryCodes,
+      message: 'Enter the code from your authenticator app to finish signing in.',
+    }, 200)
+  }
+
+  return c.json(await signedIn(c, u, `Signed in (${u.role})`))
+})
+
+/** The tokens, the audit line and the reply — one sign-in, whether it took a password alone or a code as well. */
+async function signedIn(c: any, u: typeof users.$inferSelect, description: string, extra: Record<string, unknown> = {}) {
   const tokens = generateTokens(u.id, u.email, u.role)
   await storeRefreshToken(u.id, tokens.refreshToken)
-  await audit.log({ action: 'login', entity: 'user', entityId: u.id, entityName: u.email, metadata: { description: `Signed in (${u.role})` }, actor: { userId: u.id, email: u.email }, req: c })
-
-  return c.json({
+  await audit.log({ action: 'login', entity: 'user', entityId: u.id, entityName: u.email, metadata: { description, ...extra }, actor: { userId: u.id, email: u.email }, req: c })
+  return {
     ...tokens,
     user: { id: u.id, email: u.email, name: u.name, role: u.role },
     permissions: await effectivePermissions(u.id, u.role),
+  }
+}
+
+/**
+ * Finish a sign-in that stopped for a code — the same door as shared auth's POST /api/auth/mfa, and the same answers:
+ * 401 for a wrong code (the screen keeps the code field), 400 for a request that can no longer be completed (the
+ * screen sends the person back to the password). PUBLIC on purpose: the caller has no token yet. What stands in for one
+ * is the challenge id — single-use, ten minutes, five wrong codes, and made only after a correct password.
+ */
+auth.post('/mfa', async (c) => {
+  const parsed = z.object({ challengeId: z.string().min(1), code: z.string().min(1) }).safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) {
+    return c.json({ error: 'Send the challenge id and the code from your authenticator or a recovery code.', code: 'code_required' }, 400)
+  }
+  const outcome = await verifyLoginChallenge(db, parsed.data.challengeId, parsed.data.code, MFA_SCOPE)
+  if (!outcome.ok) return c.json({ error: outcome.error, code: outcome.code }, outcome.code === 'bad_code' ? 401 : 400)
+
+  // Read again: a login revoked between the password and the code does not get in on the code.
+  const [u] = await db.select().from(users).where(eq(users.id, outcome.userId)).limit(1)
+  if (!u || !u.isActive) return c.json({ error: 'Invalid email or password' }, 401)
+  return c.json({
+    ...(await signedIn(c, u, `Signed in with two-factor (${u.role})`, { secondFactor: true })),
+    // So the screen can say a recovery code was spent.
+    ...(outcome.usedRecoveryCode ? { usedRecoveryCode: true } : {}),
   })
 })
 

@@ -22,8 +22,10 @@
 //      (a family or client portal token, or the client's x-portal-token link) is the portal's: it is told the agency is
 //      paused (portalPaused) and stays where it is. The staff lock page means nothing to a relative (Run 4, blocker 3);
 //   5. 403 view_as_read_only → the server's own sentence, shown once as a toast.
-// Sign-in, refresh and sign-out (/api/auth/login|refresh|logout) pass through untouched: a wrong password is a 401 the
-// login form must show, not a session to refresh.
+// Sign-in, its two-factor step, refresh and sign-out (/api/auth/login|mfa|refresh|logout) pass through untouched: a wrong
+// password or a wrong code is a 401 the login form must show, not a session to refresh. (The code step goes out with
+// whatever token an expired session left behind; treated as ours, its 401 ended a session that was already over and
+// left the form waiting on a request that never settles.)
 
 export interface SessionPort {
   /** The access token the session holds now, or null when signed out. */
@@ -44,7 +46,7 @@ export interface SessionPort {
   onLockPage(): boolean
 }
 
-const PASS_THROUGH = /\/api\/auth\/(login|refresh|logout)(\?|$)/
+const PASS_THROUGH = /\/api\/auth\/(login|mfa|refresh|logout)(\?|$)/
 
 function urlOf(input: any): string {
   if (typeof input === 'string') return input

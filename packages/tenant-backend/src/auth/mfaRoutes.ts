@@ -44,6 +44,7 @@ import { sql } from 'drizzle-orm'
 import crypto from 'crypto'
 import { base32Encode, verifyTOTP } from './totp.ts'
 import { asInstant } from '../instants.ts'
+import type { MfaScope } from './mfa.ts'
 
 export interface MfaRoutesDeps {
   db: any
@@ -63,6 +64,14 @@ export interface MfaRoutesDeps {
    * who, and from where.
    */
   audit?: { log: (entry: any) => any; ACTIONS?: Record<string, string>; ENTITIES?: Record<string, string> }
+  /**
+   * For a one-business database with no company_id on its people (crm-store, crm-homecare): the fixed
+   * company id the rows carry, and where the require-MFA policy lives. Optional — absent, every
+   * statement is scoped by the session's companyId and the policy is read from `company`, exactly as
+   * before. See MfaScope in ./mfa.ts; sign-in must be given the SAME scope, or enrolment writes rows
+   * the gate never reads.
+   */
+  scope?: MfaScope
 }
 
 const sha256 = (s: string) => crypto.createHash('sha256').update(s).digest('hex')
@@ -77,6 +86,9 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
   const { db, authenticate, issuer } = deps
   const app = new Hono()
   app.use('*', authenticate)
+
+  /** The company every statement is scoped by: the session's, unless the scope fixes one. */
+  const companyOf = (u: any): string => deps.scope?.singleCompanyId ?? u.companyId
 
   /**
    * A security event on the person's own account. Never throws: a credential change that succeeded
@@ -105,7 +117,7 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
                 THEN COALESCE(json_array_length(backup_codes::json), 0)
                 ELSE NULL END AS codes_left
       FROM mfa_devices
-     WHERE user_id = ${u.userId} AND company_id = ${u.companyId}
+     WHERE user_id = ${u.userId} AND company_id = ${companyOf(u)}
      ORDER BY created_at
   `))
 
@@ -145,12 +157,12 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
     const secret = base32Encode(crypto.randomBytes(20))
     await db.execute(sql`
       DELETE FROM mfa_devices
-       WHERE user_id = ${u.userId} AND company_id = ${u.companyId}
+       WHERE user_id = ${u.userId} AND company_id = ${companyOf(u)}
          AND type = 'totp' AND COALESCE(is_verified, false) = false
     `)
     const [row] = rowsOf(await db.execute(sql`
       INSERT INTO mfa_devices (id, user_id, company_id, type, name, secret, is_verified, created_at)
-      VALUES (gen_random_uuid(), ${u.userId}, ${u.companyId}, 'totp', 'Authenticator app', ${secret}, false, NOW())
+      VALUES (gen_random_uuid(), ${u.userId}, ${companyOf(u)}, 'totp', 'Authenticator app', ${secret}, false, NOW())
       RETURNING id
     `))
     /**
@@ -196,7 +208,7 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
 
     const [device] = rowsOf(await db.execute(sql`
       SELECT id, type, secret, is_verified FROM mfa_devices
-       WHERE id = ${body.data.deviceId} AND user_id = ${u.userId} AND company_id = ${u.companyId} LIMIT 1
+       WHERE id = ${body.data.deviceId} AND user_id = ${u.userId} AND company_id = ${companyOf(u)} LIMIT 1
     `))
     if (!device) return c.json({ error: 'That enrolment is not on your account.' }, 404)
     if (device.type !== 'totp' || !device.secret) return c.json({ error: 'That device cannot be verified with a code.' }, 400)
@@ -206,18 +218,18 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
 
     await db.execute(sql`
       UPDATE mfa_devices SET is_verified = true, is_primary = true, last_used_at = NOW()
-       WHERE id = ${device.id} AND user_id = ${u.userId} AND company_id = ${u.companyId}
+       WHERE id = ${device.id} AND user_id = ${u.userId} AND company_id = ${companyOf(u)}
     `)
 
     // Recovery codes, once. Replaces any previous set: a new authenticator means the old paper is void.
     const codes = makeRecoveryCodes()
     await db.execute(sql`
       DELETE FROM mfa_devices
-       WHERE user_id = ${u.userId} AND company_id = ${u.companyId} AND type = 'backup_codes'
+       WHERE user_id = ${u.userId} AND company_id = ${companyOf(u)} AND type = 'backup_codes'
     `)
     await db.execute(sql`
       INSERT INTO mfa_devices (id, user_id, company_id, type, name, backup_codes, is_verified, created_at)
-      VALUES (gen_random_uuid(), ${u.userId}, ${u.companyId}, 'backup_codes', 'Recovery codes',
+      VALUES (gen_random_uuid(), ${u.userId}, ${companyOf(u)}, 'backup_codes', 'Recovery codes',
               ${JSON.stringify(codes.map(sha256))}::json, true, NOW())
     `)
 
@@ -242,11 +254,11 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
     const codes = makeRecoveryCodes()
     await db.execute(sql`
       DELETE FROM mfa_devices
-       WHERE user_id = ${u.userId} AND company_id = ${u.companyId} AND type = 'backup_codes'
+       WHERE user_id = ${u.userId} AND company_id = ${companyOf(u)} AND type = 'backup_codes'
     `)
     await db.execute(sql`
       INSERT INTO mfa_devices (id, user_id, company_id, type, name, backup_codes, is_verified, created_at)
-      VALUES (gen_random_uuid(), ${u.userId}, ${u.companyId}, 'backup_codes', 'Recovery codes',
+      VALUES (gen_random_uuid(), ${u.userId}, ${companyOf(u)}, 'backup_codes', 'Recovery codes',
               ${JSON.stringify(codes.map(sha256))}::json, true, NOW())
     `)
     // A fresh set voids the old paper, so somebody holding the previous codes has just lost access.
@@ -270,7 +282,7 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
     // Read the device FIRST: whether a code is required depends on what it is. (T41)
     const [device] = rowsOf(await db.execute(sql`
       SELECT id, type, COALESCE(is_verified, false) AS is_verified FROM mfa_devices
-       WHERE id = ${c.req.param('id')} AND user_id = ${u.userId} AND company_id = ${u.companyId} LIMIT 1
+       WHERE id = ${c.req.param('id')} AND user_id = ${u.userId} AND company_id = ${companyOf(u)} LIMIT 1
     `))
     if (!device) return c.json({ error: 'That device is not on your account.' }, 404)
 
@@ -297,16 +309,21 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
     }
 
     // A policy that demands a second factor must not be left demanding one nobody has.
-    const [co] = rowsOf(await db.execute(sql`SELECT settings FROM company WHERE id = ${u.companyId} LIMIT 1`))
     let requires = false
-    try {
-      const raw = typeof co?.settings === 'string' ? JSON.parse(co.settings) : (co?.settings || {})
-      requires = raw?.requireMfa === true || raw?.security?.requireMfa === true
-    } catch { /* unreadable policy is not enforced */ }
+    if (deps.scope?.policyRequiresMfa || deps.scope?.singleCompanyId) {
+      // The scope's own reader; a one-business database with none has no policy (mfa.ts policyRequires).
+      try { requires = (await deps.scope?.policyRequiresMfa?.(db, companyOf(u))) === true } catch { /* unreadable policy is not enforced */ }
+    } else {
+      const [co] = rowsOf(await db.execute(sql`SELECT settings FROM company WHERE id = ${u.companyId} LIMIT 1`))
+      try {
+        const raw = typeof co?.settings === 'string' ? JSON.parse(co.settings) : (co?.settings || {})
+        requires = raw?.requireMfa === true || raw?.security?.requireMfa === true
+      } catch { /* unreadable policy is not enforced */ }
+    }
     if (requires && device.type === 'totp') {
       const others = rowsOf(await db.execute(sql`
         SELECT id FROM mfa_devices
-         WHERE user_id = ${u.userId} AND company_id = ${u.companyId}
+         WHERE user_id = ${u.userId} AND company_id = ${companyOf(u)}
            AND type = 'totp' AND id <> ${device.id} AND COALESCE(is_verified, false) = true
       `))
       if (!others.length) {
@@ -319,18 +336,18 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
 
     await db.execute(sql`
       DELETE FROM mfa_devices
-       WHERE id = ${device.id} AND user_id = ${u.userId} AND company_id = ${u.companyId}
+       WHERE id = ${device.id} AND user_id = ${u.userId} AND company_id = ${companyOf(u)}
     `)
     if (device.type === 'totp') {
       const left = rowsOf(await db.execute(sql`
         SELECT id FROM mfa_devices
-         WHERE user_id = ${u.userId} AND company_id = ${u.companyId}
+         WHERE user_id = ${u.userId} AND company_id = ${companyOf(u)}
            AND type = 'totp' AND COALESCE(is_verified, false) = true
       `))
       if (!left.length) {
         await db.execute(sql`
           DELETE FROM mfa_devices
-           WHERE user_id = ${u.userId} AND company_id = ${u.companyId} AND type = 'backup_codes'
+           WHERE user_id = ${u.userId} AND company_id = ${companyOf(u)} AND type = 'backup_codes'
         `)
       }
     }
@@ -348,7 +365,7 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
     const code = String(given).trim().toUpperCase().replace(/\s+/g, '')
     const devices = rowsOf(await db.execute(sql`
       SELECT id, type, secret, backup_codes FROM mfa_devices
-       WHERE user_id = ${u.userId} AND company_id = ${u.companyId} AND COALESCE(is_verified, false) = true
+       WHERE user_id = ${u.userId} AND company_id = ${companyOf(u)} AND COALESCE(is_verified, false) = true
     `))
     for (const d of devices) {
       if (d.type === 'totp' && d.secret && verifyTOTP(String(d.secret), code)) return true
@@ -363,7 +380,7 @@ export function createMfaRoutes(deps: MfaRoutesDeps) {
       await db.execute(sql`
         UPDATE mfa_devices
            SET backup_codes = ${JSON.stringify(stored.filter((h) => h !== hash))}::json, last_used_at = NOW()
-         WHERE id = ${d.id} AND user_id = ${u.userId} AND company_id = ${u.companyId}
+         WHERE id = ${d.id} AND user_id = ${u.userId} AND company_id = ${companyOf(u)}
       `)
       return true
     }

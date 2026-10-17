@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Home, Package, ShoppingBag, Users, CreditCard, Tag, Settings, LogOut, Menu, X, Store , Mail , Truck , Star, LifeBuoy, Gift, Shield, Sun, Moon, Globe } from 'lucide-react'
+import { Home, Package, ShoppingBag, Users, CreditCard, Tag, Settings, LogOut, Menu, X, Store , Mail , Truck , Star, LifeBuoy, Gift, Shield, Sun, Moon, Globe, KeyRound } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { usePermissions, useTheme } from '../../shared'
 
@@ -82,6 +82,12 @@ export default function AppLayout() {
           </nav>
           <div className="p-3 border-t mt-auto dark:border-slate-700">
             <div className="px-3 py-2 text-xs text-gray-500 truncate dark:text-slate-400">{user?.email}</div>
+            {/* This person's own password and two-factor: offered to every seat, with no permission, like Sign out. */}
+            <NavLink to="/account" onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium ${isActive ? 'bg-primary-50 text-primary-700 dark:bg-slate-800 dark:text-white' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}>
+              <KeyRound className="h-4 w-4" /> My account
+            </NavLink>
             <button onClick={doLogout} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300">
               <LogOut className="h-4 w-4" /> Sign out
             </button>

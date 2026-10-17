@@ -62,6 +62,51 @@ export interface MfaGate {
 const NO_FACTOR: MfaGate = { required: false, methods: [], enrolmentRequired: false, hasRecoveryCodes: false }
 
 /**
+ * WHERE THE PEOPLE AND THE BUSINESS ARE, for a schema that is not the contractor's. (store, home care)
+ *
+ * Everything above assumes the contractor lineage: people in `"user"`, each carrying a company_id, and
+ * the require-MFA policy on `company.settings`. crm-store and crm-homecare are one business per
+ * database with forked auth — their people are in `users`, nobody carries a company_id, and there is
+ * no `company` table (home care has `agencies`; the store has `store_settings`). Querying the default
+ * shapes there is a 500 on the sign-in route, so those two pass a scope instead.
+ *
+ * EVERY FIELD IS OPTIONAL AND THE DEFAULT IS EXACTLY THE OLD BEHAVIOUR: with no scope, the same SQL
+ * runs against the same tables. Nine verticals call this without one and must not notice it exists.
+ *
+ * The mfa_* tables keep their company_id column in single-company mode, filled with the fixed value
+ * below. One set of statements, not a second dialect with the company filter missing — a statement
+ * that forgot its scope is how two implementations of the same rule begin to disagree.
+ */
+export interface MfaScope {
+  /** The table signed-in people live in. Default `user`. */
+  usersTable?: string
+  /**
+   * One business per database: the company_id every mfa_* row is written and read with, instead of
+   * the user row's. Unset (the default), the company is the user's own company_id.
+   */
+  singleCompanyId?: string
+  /**
+   * Does this business's policy demand two-factor? Default: `company.settings.requireMfa`. In
+   * single-company mode with no reader given, there is no policy — off, never a lockout.
+   */
+  policyRequiresMfa?: (db: any, companyId: string) => Promise<boolean>
+}
+
+/** The policy, read the way the scope says — a policy we cannot read is a policy we do not enforce. */
+async function policyRequires(db: any, companyId: string, scope?: MfaScope): Promise<boolean> {
+  if (scope?.policyRequiresMfa) {
+    try { return (await scope.policyRequiresMfa(db, companyId)) === true } catch { return false }
+  }
+  if (scope?.singleCompanyId) return false
+  try {
+    const co: any = await db.execute(sql`SELECT settings FROM company WHERE id = ${companyId} LIMIT 1`)
+    const settings = (((co as any).rows || co)[0] || {}).settings || {}
+    const raw = typeof settings === 'string' ? JSON.parse(settings) : settings
+    return raw?.requireMfa === true || raw?.security?.requireMfa === true
+  } catch { return false }
+}
+
+/**
  * Is two-factor even possible in this schema?
  *
  * Asked of the database rather than configured per template, so adding the tables is the only thing
@@ -79,8 +124,9 @@ async function tablesPresent(db: any): Promise<boolean> {
 }
 
 /** What sign-in should do about two-factor for this user. */
-export async function mfaGateFor(db: any, companyId: string, userId: string): Promise<MfaGate> {
+export async function mfaGateFor(db: any, companyId: string, userId: string, scope?: MfaScope): Promise<MfaGate> {
   if (!(await tablesPresent(db))) return NO_FACTOR
+  if (scope?.singleCompanyId) companyId = scope.singleCompanyId
   let devices: Array<{ type: string; is_verified: boolean }> = []
   try {
     const rows: any = await db.execute(sql`
@@ -95,19 +141,13 @@ export async function mfaGateFor(db: any, companyId: string, userId: string): Pr
     .map((d) => String(d.type))
   const hasRecoveryCodes = devices.some((d) => String(d.type) === 'backup_codes' && d.is_verified !== false)
 
-  let policyRequires = false
-  try {
-    const co: any = await db.execute(sql`SELECT settings FROM company WHERE id = ${companyId} LIMIT 1`)
-    const settings = (((co as any).rows || co)[0] || {}).settings || {}
-    const raw = typeof settings === 'string' ? JSON.parse(settings) : settings
-    policyRequires = raw?.requireMfa === true || raw?.security?.requireMfa === true
-  } catch { /* a policy we cannot read is a policy we do not enforce */ }
+  const policy = await policyRequires(db, companyId, scope)
 
   return {
     required: presentable.length > 0,
     methods: [...new Set(presentable)],
     // Only meaningful when there is nothing to present: the policy is owed an enrolment, not a lockout.
-    enrolmentRequired: policyRequires && presentable.length === 0,
+    enrolmentRequired: policy && presentable.length === 0,
     hasRecoveryCodes,
   }
 }
@@ -145,6 +185,7 @@ export async function verifyLoginChallenge(
   db: any,
   challengeId: string,
   code: string,
+  scope?: MfaScope,
 ): Promise<MfaCodeOutcome> {
   const given = String(code || '').trim().toUpperCase().replace(/\s+/g, '')
   if (!given) return { ok: false, error: 'Enter the code from your authenticator, or one of your recovery codes.', code: 'code_required' }
@@ -166,10 +207,18 @@ export async function verifyLoginChallenge(
   }
 
   const userId = String(challenge.user_id)
-  const userRows: any = await db.execute(sql`SELECT company_id FROM "user" WHERE id = ${userId} LIMIT 1`)
+  //
+  // A scope that names another table is quoted with sql.identifier, never spliced: `user` is a reserved
+  // word and an unquoted FROM user reads the function, not the table. A single-company scope has no
+  // company_id to read, so only the person's existence is asked and the fixed id stands in.
+  const userRows: any = scope?.singleCompanyId
+    ? await db.execute(sql`SELECT id FROM ${sql.identifier(scope.usersTable || 'user')} WHERE id = ${userId} LIMIT 1`)
+    : scope?.usersTable
+      ? await db.execute(sql`SELECT company_id FROM ${sql.identifier(scope.usersTable)} WHERE id = ${userId} LIMIT 1`)
+      : await db.execute(sql`SELECT company_id FROM "user" WHERE id = ${userId} LIMIT 1`)
   const userRow = ((userRows as any).rows || userRows)[0]
   if (!userRow) return { ok: false, error: 'That sign-in request is no longer valid. Start again.', code: 'challenge_not_found' }
-  const companyId = String(userRow.company_id)
+  const companyId = scope?.singleCompanyId ?? String(userRow.company_id)
 
   const devRows: any = await db.execute(sql`
     SELECT id, type, secret, backup_codes FROM mfa_devices
