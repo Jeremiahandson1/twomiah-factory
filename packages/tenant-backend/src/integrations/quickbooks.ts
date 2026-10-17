@@ -5,14 +5,13 @@
 // quickbooks_connection table that its own boot prune drops every start, and hid ids in customFields and
 // invoice notes), customer / invoice / payment sync and customer import.
 import { Hono } from 'hono'
-import crypto from 'crypto'
 import { eq, and, gte, lte, sql, asc } from 'drizzle-orm'
+import { signQboState, verifyQboState } from './quickbooksState'
 
 const QBO_AUTH_URL = 'https://appcenter.intuit.com/connect/oauth2'
 const QBO_TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
 const QBO_API_BASE = 'https://quickbooks.api.intuit.com/v3/company'
 const QBO_SANDBOX_API_BASE = 'https://sandbox-quickbooks.api.intuit.com/v3/company'
-const STATE_TTL_MS = 15 * 60 * 1000
 
 export interface QuickBooksTables { contact: any; invoice: any; invoiceLineItem: any; payment: any; company: any; qbIntegration: any }
 export interface QuickBooksOptions {
@@ -21,6 +20,11 @@ export interface QuickBooksOptions {
   clientId?: string
   clientSecret?: string
   redirectUri?: string
+  /**
+   * This tenant's own callback, carried (signed) in the state when redirectUri is the Factory's relay.
+   * Default QBO_RETURN_URL. Unset: no return URL in the state and Intuit redirects straight to redirectUri.
+   */
+  returnUrl?: string
   sandbox?: boolean
   /** Secret for the OAuth state HMAC; default QBO_STATE_SECRET || JWT_SECRET. */
   stateSecret?: string
@@ -30,32 +34,29 @@ export interface QuickBooksServiceDeps { db: any; tables: QuickBooksTables; opti
 export function createQuickBooksService(deps: QuickBooksServiceDeps) {
   const { db, tables: t } = deps
   const o = deps.options || {}
-  // The Factory injects both spellings (QBO_* and QUICKBOOKS_*); QBO_REDIRECT_URI points at /api/quickbooks/callback.
+  // The Factory injects both spellings (QBO_* and QUICKBOOKS_*). QBO_REDIRECT_URI is the ONE URI registered with Intuit —
+  // the Factory's QuickBooks callback, which relays to QBO_RETURN_URL (this tenant's /api/quickbooks/callback) named in
+  // the signed state. A tenant whose env predates the relay has QBO_REDIRECT_URI = its own callback and no
+  // QBO_RETURN_URL, and works exactly as before. Authorize and token exchange both send REDIRECT_URI: Intuit requires
+  // the two to match, and the relay is what Intuit redirected to.
   const CLIENT_ID = () => o.clientId ?? process.env.QBO_CLIENT_ID ?? process.env.QUICKBOOKS_CLIENT_ID
   const CLIENT_SECRET = () => o.clientSecret ?? process.env.QBO_CLIENT_SECRET ?? process.env.QUICKBOOKS_CLIENT_SECRET
   const REDIRECT_URI = () => o.redirectUri ?? process.env.QBO_REDIRECT_URI ?? process.env.QUICKBOOKS_REDIRECT_URI ?? (process.env.API_URL || process.env.API_BASE_URL ? `${process.env.API_URL || process.env.API_BASE_URL}/api/quickbooks/callback` : undefined)
   const USE_SANDBOX = () => o.sandbox ?? (process.env.QBO_SANDBOX !== undefined ? process.env.QBO_SANDBOX === 'true' : (process.env.QUICKBOOKS_ENVIRONMENT || 'production') !== 'production')
+  const RETURN_URL = () => o.returnUrl ?? process.env.QBO_RETURN_URL ?? undefined
   const stateSecret = () => o.stateSecret || process.env.QBO_STATE_SECRET || process.env.JWT_SECRET || ''
   const customerType = o.customerType || 'client'
   const configured = () => !!(CLIENT_ID() && CLIENT_SECRET() && REDIRECT_URI())
 
-  // ── OAuth state: base64url({ companyId, ts, sig }) with sig = HMAC-SHA256(secret, companyId.ts); 15-minute window.
-  const sign = (companyId: string, ts: number) => crypto.createHmac('sha256', stateSecret()).update(`${companyId}.${ts}`).digest('hex')
+  // ── OAuth state: signed base64url JSON, 15-minute window (./quickbooksState.ts). With a return URL it is signed too,
+  // so the relay cannot be steered to another tenant; without one the state is byte-for-byte the pre-relay shape.
   function signState(companyId: string): string {
-    const ts = Date.now()
-    return Buffer.from(JSON.stringify({ companyId, ts, sig: sign(companyId, ts) })).toString('base64url')
+    const returnUrl = RETURN_URL()
+    return signQboState(returnUrl ? { companyId, returnUrl } : { companyId }, stateSecret())
   }
-  /** companyId when the state is ours, unexpired and untampered; null otherwise. */
+  /** companyId when the state is ours, unexpired and untampered; null otherwise. Accepts both state shapes. */
   function verifyState(state: string | undefined | null): string | null {
-    if (!state || !stateSecret()) return null
-    let parsed: any
-    try { parsed = JSON.parse(Buffer.from(String(state), 'base64url').toString('utf8')) } catch { return null }
-    const { companyId, ts, sig } = parsed || {}
-    if (!companyId || typeof ts !== 'number' || typeof sig !== 'string') return null
-    if (Math.abs(Date.now() - ts) > STATE_TTL_MS) return null
-    const expected = Buffer.from(sign(companyId, ts))
-    const given = Buffer.from(sig)
-    return expected.length === given.length && crypto.timingSafeEqual(expected, given) ? String(companyId) : null
+    return verifyQboState(state, stateSecret())?.companyId ?? null
   }
 
   function getAuthUrl(companyId: string): string {

@@ -2411,6 +2411,8 @@ jobs:
         run: bun run tests/shared/generator-free-text.test.ts
       - name: "Every vertical's CRM backend is found on Render — a bought domain reaches the admin"
         run: bun run tests/shared/render-service-lookup.test.ts
+      - name: "Connect QuickBooks: one redirect URI for every tenant; the relay goes only to a known tenant's callback"
+        run: bun run tests/shared/qbo-relay.test.ts
 
   store-suite:
     name: "Store behaviour suite (real PGlite)"

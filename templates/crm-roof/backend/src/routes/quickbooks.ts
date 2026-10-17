@@ -8,8 +8,18 @@ import * as qb from '../services/quickbooks.ts'
 
 const app = new Hono()
 
-// GET /connect — redirect to QuickBooks OAuth
-app.get('/connect', authenticate, async (c) => {
+// GET /auth-url — where to send the browser to connect QuickBooks. Settings fetches it with the session and then
+// navigates. (It used to navigate to /connect directly: a page load carries no Authorization header, so authenticate
+// answered 401 to every click.) Connecting the books is integrations:create, like disconnect and sync below.
+app.get('/auth-url', authenticate, requirePermission('integrations:create'), async (c) => {
+  if (!qb.isConfigured()) return c.json({ error: 'QuickBooks is not set up on this server yet.' }, 503)
+  const { companyId } = c.get('user')
+  return c.json({ url: qb.getAuthUrl(companyId) })
+})
+
+// GET /connect — redirect to QuickBooks OAuth (kept for API callers that send the bearer token themselves)
+app.get('/connect', authenticate, requirePermission('integrations:create'), async (c) => {
+  if (!qb.isConfigured()) return c.json({ error: 'QuickBooks is not set up on this server yet.' }, 503)
   const { companyId } = c.get('user')
   const url = qb.getAuthUrl(companyId)
   return c.redirect(url)
@@ -23,13 +33,9 @@ app.get('/callback', async (c) => {
 
   if (!code || !state) return c.json({ error: 'Missing code or state' }, 400)
 
-  let companyId: string
-  try {
-    const decoded = JSON.parse(Buffer.from(state, 'base64url').toString())
-    companyId = decoded.companyId
-  } catch {
-    return c.json({ error: 'Invalid state parameter' }, 400)
-  }
+  // Signed by getAuthUrl; arrives either straight from Intuit or through the Factory's relay — the same bytes either way.
+  const companyId = qb.verifyState(state)
+  if (!companyId) return c.json({ error: 'Invalid state parameter' }, 400)
 
   try {
     await qb.handleCallback(code, companyId)

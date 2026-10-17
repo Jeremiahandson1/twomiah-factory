@@ -23,10 +23,17 @@ function getClientSecret(): string {
   return secret
 }
 
-function getRedirectUri(): string {
-  const apiUrl = process.env.API_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-api.onrender.com' : 'http://localhost:3001')
-  return process.env.QBO_REDIRECT_URI || `${apiUrl}/api/v1/factory/integrations/qbo/callback`
+/**
+ * The ONE redirect URI registered in the Intuit developer app — the Factory's QuickBooks callback. The Factory's own
+ * connection uses it, and so does every tenant CRM: quickbooksEnv.ts hands it to each tenant as QBO_REDIRECT_URI and
+ * the callback relays a tenant's browser on to that tenant (services/qboRelay.ts). One function, so the URI a tenant
+ * sends Intuit is byte-for-byte the one the Factory sends — Intuit compares them exactly.
+ */
+export function qboRedirectUri(env: NodeJS.ProcessEnv = process.env): string {
+  const apiUrl = env.API_URL || (env.NODE_ENV === 'production' ? 'https://twomiah-factory-api.onrender.com' : 'http://localhost:3001')
+  return env.QBO_REDIRECT_URI || `${apiUrl}/api/v1/factory/integrations/qbo/callback`
 }
+const getRedirectUri = () => qboRedirectUri()
 
 function basicAuthHeader(): string {
   const credentials = `${getClientId()}:${getClientSecret()}`
