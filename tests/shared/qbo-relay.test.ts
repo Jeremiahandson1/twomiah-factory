@@ -60,10 +60,13 @@ const relayState = (returnUrl: unknown) => b64({ companyId: 'co_1', ts: Date.now
   await refused('a known host on a path that is not the callback → refused', TENANT + '/api/auth/login')
   await refused('…including the callback path with a suffix', TENANT + '/api/quickbooks/callback/extra')
   await refused('…and a dot-segment walk out of the callback', TENANT + '/api/quickbooks/callback/../../../evil')
-  await refused('http instead of https → refused', 'http://fstest-abc1-wrench-api.onrender.com/api/quickbooks/callback')
-  await refused('credentials in the URL → refused', 'https://user:pw@fstest-abc1-wrench-api.onrender.com/api/quickbooks/callback')
-  await refused('a query on the return URL → refused', RETURN + '?next=https://evil.example.com')
-  await refused('a fragment on the return URL → refused', RETURN + '#x')
+  // Each URL rule on its own: these run against a lookup that knows EVERY origin, so only the rule can refuse them.
+  const anyHost = async () => true
+  await refused('http instead of https → refused (even for a host the lookup knows)', 'http://fstest-abc1-wrench-api.onrender.com/api/quickbooks/callback', anyHost)
+  await refused('credentials in the URL → refused', 'https://user:pw@fstest-abc1-wrench-api.onrender.com/api/quickbooks/callback', anyHost)
+  await refused('a query on the return URL → refused', RETURN + '?next=https://evil.example.com', anyHost)
+  await refused('a fragment on the return URL → refused', RETURN + '#x', anyHost)
+  await refused('a non-callback path → refused even when the host is known', TENANT + '/api/auth/login', anyHost)
   await refused('a non-string return URL → refused', { href: RETURN })
   await refused('an empty return URL → refused', '')
   await refused('not a URL → refused', 'javascript:alert(1)')
@@ -86,6 +89,10 @@ const relayState = (returnUrl: unknown) => b64({ companyId: 'co_1', ts: Date.now
   check('a host no tenant has is unknown', await lookup('https://nobody-api.onrender.com') === false)
   const broken = tenantOriginLookup({ from: () => ({ select: () => ({ in: () => ({ limit: async () => ({ data: null, error: { message: 'x' } }) }) }) }) })
   check('a database error is "unknown", never "allow"', await broken(TENANT) === false)
+  // The lookup decides on the row's own origin, not on "a row came back": a filter that matched loosely (a prefix, a
+  // look-alike domain) must still not make an origin known.
+  const loose = tenantOriginLookup({ from: () => ({ select: () => ({ in: () => ({ limit: async () => ({ data: [{ render_backend_url: TENANT + '.evil.com' }, { render_backend_url: TENANT + 'x' }], error: null }) }) }) }) })
+  check('rows whose origin is not exactly the asked one do not make it known', await loose(TENANT) === false)
 }
 
 // ── the signed state ───────────────────────────────────────────────────────────────────────────────────────────────
