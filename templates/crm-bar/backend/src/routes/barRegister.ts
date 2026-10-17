@@ -12,6 +12,9 @@
 //   POST   /register/check/:id/split        { itemIds, label }
 //   POST   /register/check/:id/split-seats
 //   POST   /register/check/:id/guest        { contactId | null }
+//   POST   /register/check/:id/reward       { rewardId }   a Regulars reward (loyalty:redeem)
+//   GET    /register/guests?q=              find a guest by phone, name or email (with their points)
+//   POST   /register/guests                 { name, phone, email? }  add a regular (loyalty:enroll)
 //   POST   /register/check/:id/void         { reason, managerPin? }   a manager's when anything was sent
 //   PATCH  /register/item/:id               { qty, note, seat }       held items only
 //   POST   /register/item/:id/void          { reason, managerPin? }   a manager's when it was sent
@@ -30,12 +33,13 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { isFeatureEnabled, requireEnabledFeature } from '../middleware/enabledFeature.ts'
 import audit from '../services/audit.ts'
 import {
-  addGiftCardLine, addItem, addPayment, attachGuest, CheckError, checkNeedsManager, getCheck, itemNeedsManager, listOpen, listRecentClosed,
+  addGiftCardLine, addItem, addPayment, attachGuest, redeemReward, CheckError, checkNeedsManager, getCheck, itemNeedsManager, listOpen, listRecentClosed,
   menuForRegister, openCheck, renameCheck, sendCheck, splitBySeat, splitItems, taxRateBps, updateItem, voidCheck, voidItem, voidPayment,
 } from '../services/barRegister.ts'
 import { actorOf, clearOwnPin, hasOwnPin, managerApproval, mayManage, PinError, setOwnPin, type Actor } from '../services/barManagers.ts'
 import { bumpTicket, kitchenState, recallTicket } from '../services/barKitchen.ts'
 import { barTimezone, closeDay, closeoutsFor, loadDay } from '../services/barReports.ts'
+import { addRegular, listRewards, loyaltyRunning, LoyaltyError, searchGuests } from '../services/barLoyalty.ts'
 import { businessDayOf, businessDayWindow } from '../services/barLive.ts'
 
 type Ctx = any
@@ -73,7 +77,12 @@ registerRoutes.get('/state', ...ring, async (c) => {
     taxRateBps(actor.companyId), mayManage(actor), hasOwnPin(actor),
   ])
   c.header('Cache-Control', 'no-store')
-  return c.json({ serverNow: Date.now(), businessDay: night, open, recent, menu, taxRateBps: rate, giftCards: await giftCardsOn(actor), me: { name: actor.name, mayManage: manage, hasPin: pin } })
+  const regulars = await loyaltyRunning(actor.companyId)
+  return c.json({
+    serverNow: Date.now(), businessDay: night, open, recent, menu, taxRateBps: rate, giftCards: await giftCardsOn(actor),
+    regulars: regulars ? { rewards: (await listRewards(actor.companyId, true)).map((x) => ({ id: x.id, name: x.name, pointsCost: x.pointsCost, type: x.type })) } : null,
+    me: { name: actor.name, mayManage: manage, hasPin: pin },
+  })
 })
 
 registerRoutes.get('/check/:id', ...ring, async (c) => {
@@ -125,6 +134,29 @@ registerRoutes.post('/check/:id/guest', ...ring, async (c) => {
   if (g === undefined) return c.json({ error: 'Which guest?' }, 400)
   return act(c, async () => ({ check: await attachGuest(actor, c.req.param('id'), g) }))
 })
+registerRoutes.post('/check/:id/reward', ...ring, requirePermission('loyalty:redeem'), async (c) => {
+  const actor = await actorOf(c); const b = await body(c)
+  if (!b.rewardId) return c.json({ error: 'Which reward?' }, 400)
+  return act(c, async () => ({ check: await redeemReward(actor, c.req.param('id'), String(b.rewardId)) }))
+})
+
+// ── Guests at the register ──
+registerRoutes.get('/guests', ...ring, requirePermission('contacts:read'), async (c) => {
+  const actor = await actorOf(c)
+  c.header('Cache-Control', 'no-store')
+  return c.json({ guests: await searchGuests(actor.companyId, c.req.query('q') || '') })
+})
+registerRoutes.post('/guests', ...ring, requireEnabledFeature('loyalty_rewards'), requirePermission('loyalty:enroll'), async (c) => {
+  const actor = await actorOf(c); const b = await body(c)
+  try {
+    return c.json({ ok: true, guest: await addRegular(actor.companyId, b, actor.name) })
+  } catch (e: any) {
+    if (e instanceof LoyaltyError) return c.json({ error: e.message }, e.status)
+    console.error('[register] add regular', e?.message || e)
+    return c.json({ error: 'That did not save. Try again.' }, 500)
+  }
+})
+
 registerRoutes.post('/check/:id/void', ...ring, async (c) => {
   const actor = await actorOf(c); const b = await body(c); const id = c.req.param('id')
   let byName = actor.name

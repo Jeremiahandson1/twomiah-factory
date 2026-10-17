@@ -12,12 +12,14 @@
 // login users (actor id + name), the guest is a CRM contact, and the tax rate is Settings › Company's.
 import { and, asc, desc, eq, gte, inArray, or, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { barCheck, barCheckItem, barCheckPayment, barKitchenTicket, barMenuItem, barMenuSection, barSettings, barTap, company, contact } from '../../db/schema.ts'
+import { barCheck, barCheckItem, barCheckPayment, barKitchenTicket, barMenuItem, barMenuSection, barSettings, barTap, company, contact, loyaltyMember, loyaltyReward, loyaltyTransaction } from '../../db/schema.ts'
 import { emitToCompany } from './socket.ts'
 import { fireTicket, noteVoidOnTicket, notifyKitchen } from './barKitchen.ts'
 import { sizesOf } from './barMenuSizes.ts'
 import { changeDue, checkTotals, quickCash, taxRateBpsFrom, type CheckTotals } from './barCheckMoney.ts'
 import type { Actor } from './barManagers.ts'
+import { BAR_WORDS, earnForPaidCheck, ensureMember, loyaltyRunning, LoyaltyError } from './barLoyalty.ts'
+import { canRedeem, rewardDiscountCents, type BasketLine, type Reward } from '../shared/index.ts'
 import { findCard, GiftCardError, issueCard, normalizeCode, cardPrefix, refundTo, spend, validAmount, MIN_CARD_CENTS, MAX_CARD_CENTS } from './barGiftCards.ts'
 
 type Tx = any
@@ -242,6 +244,7 @@ export async function updateItem(actor: Actor, itemId: string, patch: { qty?: nu
 export async function itemNeedsManager(companyId: string, itemId: string): Promise<boolean> {
   const [it] = await db.select({ state: barCheckItem.state, kind: barCheckItem.kind, giftCardId: barCheckItem.giftCardId }).from(barCheckItem).where(and(eq(barCheckItem.id, itemId), eq(barCheckItem.companyId, companyId))).limit(1)
   if (it?.kind === 'giftcard' && !it.giftCardId) return false   // not a real card yet: nothing to protect
+  if (it?.kind === 'reward') return false                        // taking a reward off only raises what is owed
   return it?.state === 'sent'
 }
 
@@ -254,6 +257,7 @@ export async function voidItem(actor: Actor, itemId: string, reason: string, byN
     if (!it) throw new CheckError('That item is gone.', 404)
     await lockOpen(tx, companyId, it.checkId)
     if (it.state === 'void') throw new CheckError('Already voided.', 409)
+    if (it.kind === 'reward') { await unredeemInTx(tx, companyId, it, byName); return it.checkId }
     if (it.state === 'held' || (it.kind === 'giftcard' && !it.giftCardId)) { await tx.delete(barCheckItem).where(eq(barCheckItem.id, itemId)); return it.checkId }
     const why = clean(reason, 80)
     if (!why) throw new CheckError('Give a reason for the void.')
@@ -304,8 +308,12 @@ async function sendInTx(tx: Tx, companyId: string, checkId: string, byName: stri
   return !!ticketId
 }
 
-/** Close the check when it is paid in full: send anything still held, then freeze the totals at today's rate. */
-async function closeIfPaid(tx: Tx, companyId: string, checkId: string, actor: Actor): Promise<boolean> {
+/**
+ * Close the check when it is paid in full: send anything still held, freeze the totals at today's rate, issue the
+ * gift cards sold on it, and earn its guest their points. `earn` is decided by the caller BEFORE the transaction
+ * (loyaltyRunning reads outside it, and an outside read inside a transaction deadlocks a one-connection database).
+ */
+async function closeIfPaid(tx: Tx, companyId: string, checkId: string, actor: Actor, earn: boolean): Promise<boolean> {
   const view = await getCheck(companyId, checkId, tx)
   if (view.status !== 'open' || view.totals.balanceCents > 0 || view.totals.totalCents === 0) return false
   // Food still held on a paid check is food someone is waiting for: send it.
@@ -321,6 +329,8 @@ async function closeIfPaid(tx: Tx, companyId: string, checkId: string, actor: Ac
     const card = await issueCard(tx, companyId, { cents: line.unitPriceCents, soldVia: 'register', soldByName: actor.name, checkId, code: line.note || null })
     await tx.update(barCheckItem).set({ giftCardId: card.id, note: card.code }).where(eq(barCheckItem.id, line.id))
   }
+  // A regular's points, once per check.
+  if (earn && view.contactId) await earnForPaidCheck(tx, companyId, { id: view.id, number: view.number, contactId: view.contactId, items: view.items }, actor.name)
   return fired
 }
 
@@ -332,6 +342,7 @@ export async function addPayment(actor: Actor, checkId: string, input: { tender?
   const tender = (TENDERS as readonly string[]).includes(String(input.tender)) ? String(input.tender) : null
   if (!tender) throw new CheckError('Cash or card?')
   let change: number | null = null
+  const earn = await loyaltyRunning(companyId)
   const fired = await db.transaction(async (tx: Tx) => {
     await lockOpen(tx, companyId, checkId)
     const before = await getCheck(companyId, checkId, tx)
@@ -348,7 +359,7 @@ export async function addPayment(actor: Actor, checkId: string, input: { tender?
       if (change === null) throw new CheckError('Not enough cash for that amount.')
     }
     await tx.insert(barCheckPayment).values({ checkId, tender, amountCents: amount, tipCents: tip, cashTenderedCents: tendered, changeCents: change, takenById: actor.id, takenByName: actor.name, companyId })
-    return closeIfPaid(tx, companyId, checkId, actor)
+    return closeIfPaid(tx, companyId, checkId, actor, earn)
   })
   if (fired) notifyKitchen(companyId)
   notifyRegister(companyId)
@@ -361,6 +372,7 @@ async function payWithGiftCard(actor: Actor, checkId: string, input: { amountCen
   if (Math.round(Number(input.tipCents || 0)) > 0) throw new CheckError('Take the tip in cash or on a card; a gift card pays for the check.')
   let after: { code: string; balanceCents: number } | null = null
   let fired = false
+  const earn = await loyaltyRunning(companyId)
   try {
     fired = await db.transaction(async (tx: Tx) => {
       await lockOpen(tx, companyId, checkId)
@@ -376,7 +388,7 @@ async function payWithGiftCard(actor: Actor, checkId: string, input: { amountCen
       const taken = await spend(tx, companyId, card.id, want, { checkId, paymentId: p.id, byName: actor.name })
       if (taken !== want) await tx.update(barCheckPayment).set({ amountCents: taken }).where(eq(barCheckPayment.id, p.id))
       after = { code: card.code, balanceCents: card.balanceCents - taken }
-      return closeIfPaid(tx, companyId, checkId, actor)
+      return closeIfPaid(tx, companyId, checkId, actor, earn)
     })
   } catch (e) {
     if (e instanceof GiftCardError) throw new CheckError(e.message, e.status)
@@ -514,8 +526,68 @@ export async function attachGuest(actor: Actor, checkId: string, contactId: stri
       const [g] = await tx.select({ id: contact.id }).from(contact).where(and(eq(contact.id, contactId), eq(contact.companyId, companyId))).limit(1)
       if (!g) throw new CheckError('That guest is gone.', 404)
     }
+    // A reward on the check is the guest's: take it off before taking them (or swapping them) off.
+    const [reward] = await tx.select({ id: barCheckItem.id }).from(barCheckItem).where(and(eq(barCheckItem.checkId, checkId), eq(barCheckItem.companyId, companyId), eq(barCheckItem.kind, 'reward'))).limit(1)
+    if (reward) throw new CheckError('Take the reward off first.', 409)
     await tx.update(barCheck).set({ contactId, updatedAt: new Date() }).where(eq(barCheck.id, checkId))
   })
   notifyRegister(companyId)
   return getCheck(companyId, checkId)
+}
+
+// ─── The Regulars at the register ────────────────────────────────────────────
+/** What the shared engine prices a reward against: the check's food and drink, one entry per line. */
+function basketFor(items: Array<typeof barCheckItem.$inferSelect>, reward: { type: string }): BasketLine[] {
+  const live = items.filter(i => i.state !== 'void' && i.kind === 'item')
+  // A free item is ONE of it, at what it costs on this check — not the whole line of three.
+  return live.map(i => ({ itemId: i.menuItemId || i.id, lineTotalCents: reward.type === 'free_item' ? i.unitPriceCents : i.qty * i.unitPriceCents }))
+}
+
+/** Spend a reward on this check: a negative line worth what the engine says, and the points off the guest. One per check. */
+export async function redeemReward(actor: Actor, checkId: string, rewardId: string): Promise<CheckView> {
+  const companyId = actor.companyId
+  if (!(await loyaltyRunning(companyId))) throw new CheckError('The Regulars programme is switched off.', 403)
+  try {
+    await db.transaction(async (tx: Tx) => {
+      const c = await lockOpen(tx, companyId, checkId)
+      if (!c.contactId) throw new CheckError('Put a regular on the check first.')
+      const items = await tx.select().from(barCheckItem).where(and(eq(barCheckItem.checkId, checkId), eq(barCheckItem.companyId, companyId)))
+      if (items.some((i: any) => i.kind === 'reward' && i.state !== 'void')) throw new CheckError('One reward per check.', 409)
+      const [r] = await tx.select().from(loyaltyReward).where(and(eq(loyaltyReward.id, rewardId), eq(loyaltyReward.companyId, companyId))).limit(1)
+      if (!r) throw new CheckError('That reward is gone.', 404)
+      const m = await ensureMember(tx, companyId, c.contactId, actor.name)
+      const [locked] = await tx.select().from(loyaltyMember).where(eq(loyaltyMember.id, m.id)).limit(1).for('update')
+      const reward: Reward = { id: r.id, name: r.name, pointsCost: r.pointsCost, type: r.type as Reward['type'], value: r.valueCents, itemId: r.menuItemId, active: r.active }
+      const basket = basketFor(items, r)
+      const ok = canRedeem(reward, locked.pointsBalance, basket, BAR_WORDS)
+      if (!ok.ok) throw new CheckError(ok.reason || 'That reward cannot be used on this check.')
+      const off = rewardDiscountCents(reward, basket)
+      const after = locked.pointsBalance - r.pointsCost
+      await tx.insert(barCheckItem).values({ checkId, name: r.name, qty: 1, unitPriceCents: -off, kind: 'reward', toKitchen: false, state: 'sent', sentAt: new Date(), note: 'Regulars reward', addedById: actor.id, addedByName: actor.name, companyId })
+      await tx.update(loyaltyMember).set({ pointsBalance: after, lastActivityAt: new Date(), updatedAt: new Date() }).where(eq(loyaltyMember.id, m.id))
+      await tx.insert(loyaltyTransaction).values({ companyId, memberId: m.id, type: 'redeem', points: -r.pointsCost, balanceAfter: after, description: `${r.name} · check #${c.number}`, checkId, rewardId: r.id, createdBy: actor.name })
+      await tx.update(loyaltyReward).set({ usageCount: sql`${loyaltyReward.usageCount} + 1`, updatedAt: new Date() }).where(eq(loyaltyReward.id, r.id))
+      await tx.update(barCheck).set({ updatedAt: new Date() }).where(eq(barCheck.id, checkId))
+    })
+  } catch (e) {
+    if (e instanceof LoyaltyError) throw new CheckError(e.message, e.status)
+    throw e
+  }
+  notifyRegister(companyId)
+  return getCheck(companyId, checkId)
+}
+
+/** Take a reward off an open check: the line goes, the points come back (a reversal on the ledger). */
+async function unredeemInTx(tx: Tx, companyId: string, line: typeof barCheckItem.$inferSelect, byName: string): Promise<void> {
+  await tx.delete(barCheckItem).where(eq(barCheckItem.id, line.id))
+  const txs = await tx.select().from(loyaltyTransaction).where(and(eq(loyaltyTransaction.companyId, companyId), eq(loyaltyTransaction.checkId, line.checkId))).orderBy(desc(loyaltyTransaction.createdAt))
+  const spent = txs.find((t: any) => t.type === 'redeem')
+  // Redeemed, then taken off, then redeemed again: only an un-reversed redeem is put back.
+  const net = txs.filter((t: any) => t.type === 'redeem' || t.type === 'reversal').reduce((s: number, t: any) => s + t.points, 0)
+  if (!spent || net >= 0) return
+  const [locked] = await tx.select().from(loyaltyMember).where(eq(loyaltyMember.id, spent.memberId)).limit(1).for('update')
+  const back = -spent.points
+  await tx.update(loyaltyMember).set({ pointsBalance: locked.pointsBalance + back, updatedAt: new Date() }).where(eq(loyaltyMember.id, spent.memberId))
+  await tx.insert(loyaltyTransaction).values({ companyId, memberId: spent.memberId, type: 'reversal', points: back, balanceAfter: locked.pointsBalance + back, description: 'Reward taken off the check', checkId: line.checkId, rewardId: spent.rewardId, createdBy: byName })
+  if (spent.rewardId) await tx.update(loyaltyReward).set({ usageCount: sql`greatest(${loyaltyReward.usageCount} - 1, 0)` }).where(eq(loyaltyReward.id, spent.rewardId))
 }

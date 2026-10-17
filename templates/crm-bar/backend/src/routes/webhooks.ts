@@ -8,6 +8,7 @@ import logger from '../services/logger.ts'
 import { insertLead } from '../shared/index.ts'
 import { isFeatureEnabled } from '../middleware/enabledFeature.ts'
 import { createEvent, validateEventInput, DATE_RE, MAX_EVENT_NAME } from '../services/eventBooking.ts'
+import { phoneKey } from '../services/barLoyalty.ts'
 
 const app = new Hono()
 
@@ -30,13 +31,13 @@ const OCCASION_TYPES: Array<[RegExp, string]> = [
 ]
 const occasionType = (o: string | null) => (o ? OCCASION_TYPES.find(([re]) => re.test(o))?.[1] : null) || 'other'
 const clip = (v: unknown, n: number) => { const s = v == null ? '' : String(v).trim(); return s ? s.slice(0, n) : null }
-const digits = (v: unknown) => String(v ?? '').replace(/\D/g, '')
 
 /** The guest this form is from: the existing contact (same email, or same phone) or a new one. Never edits a guest. */
 async function guestFor(tx: any, companyId: string, name: string, email: string | null, phone: string | null, type: string) {
   const rows = await tx.select().from(contact).where(eq(contact.companyId, companyId))
-  const e = (email || '').toLowerCase(), p = digits(phone)
-  const hit = rows.find((r: any) => (e && String(r.email || '').toLowerCase() === e) || (p.length >= 7 && (digits(r.phone) === p || digits(r.mobile) === p)))
+  // One phone key with the register's (services/barLoyalty.ts): '+1 715 555 0142' and '(715) 555-0142' are one guest.
+  const e = (email || '').toLowerCase(), p = phoneKey(phone)
+  const hit = rows.find((r: any) => (e && String(r.email || '').toLowerCase() === e) || (p.length >= 7 && (phoneKey(r.phone) === p || phoneKey(r.mobile) === p)))
   if (hit) return { guest: hit, created: false }
   const [row] = await tx.insert(contact).values({ name, type, email: email || undefined, phone: phone || undefined, source: 'website', companyId }).returning()
   return { guest: row, created: true }

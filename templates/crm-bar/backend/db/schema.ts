@@ -3429,6 +3429,65 @@ export const barGiftCardLedger = pgTable('bar_gift_card_ledger', {
   index('bar_gift_card_ledger_card_idx').on(t.cardId, t.at),
 ])
 
+// THE REGULARS — the bar's loyalty programme (services/barLoyalty.ts), on the shared engine
+// (packages/tenant-backend/src/loyalty: the rules; the storage is the vertical's). The same three tables and names
+// as crm-salon's, keyed to the register's checks instead of appointments: a paid check with a guest on it earns
+// once (unique per check), and a reward goes on an open check as money off.
+export const loyaltyMember = pgTable('loyalty_members', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  pointsBalance: integer('points_balance').default(0).notNull(),   // the spendable wallet
+  lifetimePoints: integer('lifetime_points').default(0).notNull(), // everything ever earned; never spent down
+  joinedAt: timestamp('joined_at').defaultNow(),
+  lastActivityAt: timestamp('last_activity_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('loyalty_member_company_id_idx').on(t.companyId),
+  uniqueIndex('loyalty_member_company_contact_uniq').on(t.companyId, t.contactId),
+])
+
+export const loyaltyTransaction = pgTable('loyalty_transactions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  memberId: text('member_id').notNull().references(() => loyaltyMember.id, { onDelete: 'cascade' }),
+  // earn | redeem | bonus | adjustment_add | adjustment_subtract | reversal
+  type: text('type').notNull(),
+  points: integer('points').notNull(),
+  balanceAfter: integer('balance_after'),
+  description: text('description'),
+  checkId: text('check_id'),            // the check it was earned or spent on
+  // Set on an EARN row only (= checkId): a paid check earns once, whatever retries happen, while a reward may be
+  // redeemed, taken off and redeemed again on the same check. NULLs never collide, so only earns are unique.
+  earnCheckId: text('earn_check_id'),
+  rewardId: text('reward_id'),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('loyalty_tx_member_idx').on(t.memberId, t.createdAt),
+  uniqueIndex('loyalty_tx_earn_per_check').on(t.memberId, t.earnCheckId),
+])
+
+export const loyaltyReward = pgTable('loyalty_rewards', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  pointsCost: integer('points_cost').default(0).notNull(),
+  type: text('type').default('fixed').notNull(), // fixed | percent | free_item
+  // CENTS for 'fixed', whole percent for 'percent', unused for 'free_item'.
+  valueCents: integer('value_cents').default(0).notNull(),
+  // The menu item this reward pays for (one of it), when type is free_item.
+  menuItemId: text('menu_item_id').references(() => barMenuItem.id, { onDelete: 'set null' }),
+  active: boolean('active').default(true).notNull(),
+  usageCount: integer('usage_count').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('loyalty_reward_company_id_idx').on(t.companyId),
+])
+
 // One row per night closed. The summary is frozen as it was at close, so a report never changes afterwards.
 export const barCloseout = pgTable('bar_closeout', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
