@@ -185,7 +185,8 @@ export async function addItem(actor: Actor, checkId: string, input: { menuItemId
       const [t] = await tx.select().from(barTap).where(and(eq(barTap.id, ref.slice(4)), eq(barTap.companyId, companyId))).limit(1)
       if (!t || !t.isActive || t.status === 'blown') throw new CheckError('That keg is blown.')
       const price = t.priceCents ?? typedPrice(input.priceCents, t.beerName)
-      await tx.insert(barCheckItem).values({ checkId, tapId: t.id, name: t.beerName, size: null, qty: qtyOf(input.qty), unitPriceCents: price, note: clean(input.note, 140), seat: seatOf(input.seat), toKitchen: false, addedById: actor.id, addedByName: actor.name, companyId })
+      // The keg and the ounces this pour took, as they are NOW: stock costing reads them, not the tap as it is later.
+      await tx.insert(barCheckItem).values({ checkId, tapId: t.id, stockItemId: t.stockItemId, stockQty: t.stockItemId ? String(t.pourOz) : null, name: t.beerName, size: null, qty: qtyOf(input.qty), unitPriceCents: price, note: clean(input.note, 140), seat: seatOf(input.seat), toKitchen: false, addedById: actor.id, addedByName: actor.name, companyId })
     } else {
       const [row] = await tx.select({ item: barMenuItem, section: barMenuSection }).from(barMenuItem)
         .leftJoin(barMenuSection, eq(barMenuSection.id, barMenuItem.sectionId))

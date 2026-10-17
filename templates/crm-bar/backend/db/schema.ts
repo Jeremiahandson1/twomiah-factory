@@ -3117,6 +3117,8 @@ export const barSettings = pgTable('bar_settings', {
   /** The first part of every gift card code ("AMBE-7K2Q-9XMP"), set from the bar's name the first time a card is
    *  issued and kept, so renaming the bar never changes the codes people hold (services/barGiftCards.ts). */
   giftCardPrefix: text('gift_card_prefix'),
+  /** The last purchase order number handed out (services/barStock.ts): only goes forwards. */
+  poSeq: integer('po_seq').default(0).notNull(),
   /** The room as the floor screen draws it: { tables: [{ id, name, kind: booth|table|bar, seats }] } (services/barFloor.ts). */
   floor: json('floor'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -3156,6 +3158,9 @@ export const barTap = pgTable('bar_tap', {
   priceCents: integer('price_cents'),
   /** pouring | just_tapped | last_keg | blown. The website shows the first three, never a keg level. */
   status: text('status').default('pouring').notNull(),
+  /** The keg on this line (a stock item) and one pour, in fl oz: each pour on the register records what it took. */
+  stockItemId: text('stock_item_id').references(() => barStockItem.id, { onDelete: 'set null' }),
+  pourOz: decimal('pour_oz', { precision: 6, scale: 2 }).default('16').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   tappedAt: timestamp('tapped_at'),
   blownAt: timestamp('blown_at'),
@@ -3311,6 +3316,9 @@ export const barCheckItem = pgTable('bar_check_item', {
   checkId: text('check_id').notNull().references(() => barCheck.id, { onDelete: 'cascade' }),
   menuItemId: text('menu_item_id').references(() => barMenuItem.id, { onDelete: 'set null' }),
   tapId: text('tap_id').references(() => barTap.id, { onDelete: 'set null' }),
+  // A pour: the keg and the ounces it took at the time (a line's beer changes; this pour's cost must not).
+  stockItemId: text('stock_item_id'),
+  stockQty: decimal('stock_qty', { precision: 10, scale: 3 }),
   name: text('name').notNull(),                   // a snapshot: renaming the item later never rewrites the check
   size: text('size'),                             // "Platter"; null for a single-size item
   qty: integer('qty').default(1).notNull(),
@@ -3429,6 +3437,112 @@ export const barGiftCardLedger = pgTable('bar_gift_card_ledger', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('bar_gift_card_ledger_card_idx').on(t.cardId, t.at),
+])
+
+// STOCK AND COSTING (services/barStock.ts, the pure arithmetic in barCosting.ts). Stock is bought by the pack (a
+// case, a ½ bbl keg, a 750 ml bottle) and used by the unit (each, oz, lb, fl oz): cost per unit = pack cost / pack
+// size. On hand is never typed in except by counting; between counts it is estimated — the last count + what was
+// received since − what the register says was used since (recipes × items sold, and each tap pour's snapshot).
+// Named bar_* because crm-basic's job-costing inventory (inventory_item, purchase_order) is still in this schema,
+// unused by a bar. Ported from website-premium-bar's stock tables (Amber Inn, 9/28), scoped to a company.
+export const barVendor = pgTable('bar_vendor', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  contactName: text('contact_name'),
+  phone: text('phone'),
+  email: text('email'),
+  orderDays: text('order_days'),                 // "Tue, Fri" — what the rep said
+  note: text('note'),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_vendor_company_idx').on(t.companyId),
+])
+
+export const barStockItem = pgTable('bar_stock_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  category: text('category').default('food').notNull(),   // food | beer | liquor | wine | na | supplies
+  unit: text('unit').default('each').notNull(),           // each | oz | lb | floz
+  packName: text('pack_name').default('each').notNull(),  // "case of 24", "½ bbl keg"
+  packSize: decimal('pack_size', { precision: 12, scale: 3 }).default('1').notNull(),   // units in a pack
+  packCostCents: integer('pack_cost_cents'),              // last price paid (set when an order is received)
+  vendorId: text('vendor_id').references(() => barVendor.id, { onDelete: 'set null' }),
+  parPacks: decimal('par_packs', { precision: 10, scale: 2 }),   // keep at least this many packs
+  isActive: boolean('is_active').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_stock_item_company_idx').on(t.companyId, t.category),
+])
+
+// What goes into one of a menu item, per size (null = every size). qty is in the stock item's unit.
+export const barRecipeLine = pgTable('bar_recipe_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  menuItemId: text('menu_item_id').notNull().references(() => barMenuItem.id, { onDelete: 'cascade' }),
+  sizeId: text('size_id'),
+  stockItemId: text('stock_item_id').notNull().references(() => barStockItem.id, { onDelete: 'cascade' }),
+  qty: decimal('qty', { precision: 10, scale: 3 }).notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_recipe_line_item_idx').on(t.menuItemId),
+])
+
+export const barStockCount = pgTable('bar_stock_count', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  status: text('status').default('open').notNull(), // open (being counted) | done
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  startedByName: text('started_by_name'),
+  finishedAt: timestamp('finished_at'),
+  finishedByName: text('finished_by_name'),
+  note: text('note'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_stock_count_company_idx').on(t.companyId, t.status, t.finishedAt),
+])
+
+export const barStockCountLine = pgTable('bar_stock_count_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  countId: text('count_id').notNull().references(() => barStockCount.id, { onDelete: 'cascade' }),
+  stockItemId: text('stock_item_id').notNull().references(() => barStockItem.id, { onDelete: 'cascade' }),
+  qty: decimal('qty', { precision: 12, scale: 3 }).notNull(),     // units on hand
+  countedByName: text('counted_by_name'),
+  countedAt: timestamp('counted_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_stock_count_line_key').on(t.countId, t.stockItemId),
+])
+
+export const barPurchaseOrder = pgTable('bar_purchase_order', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: integer('number').notNull(),            // bar_settings.po_seq: only goes forwards
+  vendorId: text('vendor_id').references(() => barVendor.id, { onDelete: 'set null' }),
+  status: text('status').default('draft').notNull(), // draft | sent | received | cancelled
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  createdByName: text('created_by_name'),
+  sentAt: timestamp('sent_at'),
+  receivedAt: timestamp('received_at'),
+  receivedByName: text('received_by_name'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_purchase_order_company_number_key').on(t.companyId, t.number),
+])
+
+export const barPurchaseOrderLine = pgTable('bar_purchase_order_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orderId: text('order_id').notNull().references(() => barPurchaseOrder.id, { onDelete: 'cascade' }),
+  stockItemId: text('stock_item_id').notNull().references(() => barStockItem.id, { onDelete: 'cascade' }),
+  packs: decimal('packs', { precision: 10, scale: 2 }).notNull(),
+  packCostCents: integer('pack_cost_cents'),      // expected
+  receivedPacks: decimal('received_packs', { precision: 10, scale: 2 }),
+  receivedCostCents: integer('received_cost_cents'), // what the invoice said, per pack
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_purchase_order_line_order_idx').on(t.orderId),
 ])
 
 // THE REGULARS — the bar's loyalty programme (services/barLoyalty.ts), on the shared engine
