@@ -341,6 +341,7 @@ const ALLOW: Record<string, [Kind, string]> = {
   // ── anonymous by design ──
   'routes/auth.ts POST /login': ['public', 'signing in'],
   'routes/auth.ts POST /refresh': ['public', 'refreshing a session — the refresh token is the credential'],
+  'routes/auth.ts POST /mfa': ['public', 'the code step of signing in — the challenge id is the credential: single-use, ten minutes, five tries, made only after a correct password'],
   'routes/portal.ts POST /login': ['public', 'client portal sign-in'],
   'routes/portal.ts POST /exchange': ['public', 'client portal invite / magic-link exchange — the token is the credential'],
   'routes/portal.ts POST /set-password': ['public', 'client portal password set — the reset token is the credential'],
