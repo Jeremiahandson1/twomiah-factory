@@ -114,6 +114,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'bar_menu', name: 'Menu & Taps', description: 'The menu with real prices and one-tap 86, and the tap list — shown live on your website', category: 'Bar', core: true, templates: ['crm-bar'] },
   { id: 'bar_register', name: 'Register & Grill', description: "Tabs, tables and walk-ups; send food to the grill screen, which paces it; take cash or card; split; voids a manager OKs; the night's close-out with the drawer count", category: 'Bar', core: true, templates: ['crm-bar'] },
   { id: 'bar_stock', name: 'Stock & Costing', description: 'Stock by the case and the keg, recipes, the count, what each plate and pour costs, what to reorder and the order to the rep', category: 'Bar', core: true, templates: ['crm-bar'] },
+  { id: 'bar_schedule', name: 'Schedule', description: 'Build the week, see the gaps and the labor cost before you publish it, time off asked for and decided — and clock in on the bar tablet by PIN', category: 'Bar', core: true, templates: ['crm-bar'] },
   { id: 'gift_cards', name: 'Gift Cards', description: 'Your own gift cards: sold on the register, spent like cash, balance looked up by number — no expiry, no fees, every change on a ledger', category: 'Bar', core: true, templates: ['crm-bar'] },
   { id: 'bar_tonight', name: 'Tonight', description: "Kitchen and bar open or closed, how busy, the note, tonight's special, the game and events — from a phone, live on your website", category: 'Bar', core: true, templates: ['crm-bar'] },
 

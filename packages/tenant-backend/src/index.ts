@@ -174,8 +174,8 @@ export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, 
 export { createTeamRoutes, teamMemberSchema } from './team/team'
 export type { TeamDeps, TeamTables } from './team/team'
 export { companyTimeZone, companyRowTimeZone, storeDayRange, storeDayStart, storeDateString, dayMarker, markerDay, isValidTimeZone, jobLocalDay, DEFAULT_BUSINESS_ZONE } from './time/businessDay'
-export { createTimeRoutes, getWeekStart } from './time/time'
-export type { TimeDeps, TimeTables } from './time/time'
+export { createTimeRoutes, createTimeClock, getWeekStart } from './time/time'
+export type { TimeDeps, TimeTables, ClockResult } from './time/time'
 export { createExpenseRoutes, DEFAULT_EXPENSE_CATEGORIES } from './expenses/expenses'
 export type { ExpenseDeps, ExpenseTables } from './expenses/expenses'
 

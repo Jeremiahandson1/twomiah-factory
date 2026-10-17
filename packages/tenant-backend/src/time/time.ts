@@ -57,8 +57,92 @@ export function getWeekStart(date: Date): string {
 // running UTC stores the shop's wall time as if it were UTC — every clock_in in the table out by the
 // offset. deriveHours resolves the instant through the company's zone instead. (T32 M5)
 
+/**
+ * The clock itself: clocking one person in and out. POST /clock-in and /clock-out below are its own screen; a
+ * vertical with a shared till (crm-bar: a bartender types their PIN on the bar tablet) clocks the person the PIN
+ * names through the SAME two functions, so there is one rule for what a clock-in is, never two.
+ */
+export type ClockResult =
+  | { ok: true; entry: any; discarded?: false }
+  | { ok: true; discarded: true; message: string }
+  | { ok: false; status: 400 | 409; error: string; entry?: any }
+
+export function createTimeClock(deps: Pick<TimeDeps, 'db' | 'tables' | 'audit'>) {
+  const { db, tables: t, audit } = deps
+  const activeEntry = async (userId: string, companyId: string) => {
+    const [row] = await db.select().from(t.timeEntry)
+      .where(and(eq(t.timeEntry.userId, userId), eq(t.timeEntry.companyId, companyId), isNotNull(t.timeEntry.clockIn), isNull(t.timeEntry.clockOut))).limit(1)
+    return row || null
+  }
+  async function clockIn(person: { userId: string; companyId: string }, data: { jobId?: string | null; projectId?: string | null; description?: string | null } = {}): Promise<ClockResult> {
+    const open = await activeEntry(person.userId, person.companyId)
+    if (open) return { ok: false, status: 409, error: 'Already clocked in — clock out first', entry: open }
+    const now = new Date()
+    // `date` is the DAY worked, not the moment. Storing the instant put a 20:00 Friday clock-in on
+    // Saturday's sheet for anyone behind UTC, because the weekly view buckets this column by day — and
+    // if that Friday ended a pay week, the hours moved into the next one. clockIn keeps the instant;
+    // date gets the crew's calendar day. (T24 N1, timesheets)
+    const tz = await companyTimeZone(db, person.companyId)
+    const [row] = await db.insert(t.timeEntry).values({
+      userId: person.userId, companyId: person.companyId, jobId: data.jobId ?? null, projectId: data.projectId ?? null,
+      clockIn: now, date: dayMarker(storeDateString(now, tz)), hours: '0', isAutoClocked: true, description: data.description || null,
+    }).returning()
+    return { ok: true, entry: row }
+  }
+  async function clockOut(person: { userId: string; companyId: string; role?: string }, data: { breakMinutes?: number; description?: string | null } = {}): Promise<ClockResult> {
+    const open = await activeEntry(person.userId, person.companyId)
+    if (!open) return { ok: false, status: 400, error: 'No open clock-in to clock out of' }
+    const end = new Date()
+    // Clocking straight back out is a mis-click, not a shift: it used to save a 0.00-hour row on the timesheet for
+    // someone to wonder about later. Under a minute, the clock-in is discarded instead. (Landscaping T21 L7)
+    const elapsedMinutes = (end.getTime() - new Date(open.clockIn).getTime()) / 60000
+    if (elapsedMinutes < MIN_CLOCK_MINUTES) {
+      await db.delete(t.timeEntry).where(and(eq(t.timeEntry.id, open.id), eq(t.timeEntry.companyId, person.companyId)))
+      audit?.log({ action: 'delete', entity: 'time_entry', entityId: open.id, metadata: { discarded: 'under a minute', userId: open.userId }, req: { user: person } })
+      return { ok: true, discarded: true, message: 'That clock-in lasted less than a minute, so no time was recorded. Clock in again when you start work.' }
+    }
+    const worked = Math.round(elapsedMinutes) - (data.breakMinutes || 0)
+    // Same answer a manual entry gives, instead of silently saving nothing worked.
+    if (worked <= 0) return { ok: false, status: 400, error: 'Break is longer than the time worked' }
+    const [row] = await db.update(t.timeEntry).set({ clockOut: end, hours: String(round2(worked / 60)), description: data.description || open.description, updatedAt: new Date() })
+      .where(and(eq(t.timeEntry.id, open.id), eq(t.timeEntry.companyId, person.companyId))).returning()
+    return { ok: true, entry: row }
+  }
+  /**
+   * What each of these people is paid, from their roster card. The roster has no user_id — it is matched to a
+   * login by EMAIL, the same way the Team page decides who already has one — so this joins on a lowercased
+   * email. A person with no roster card, no email, or no rate on their card simply is not in the map.
+   *
+   * Used twice: to stamp a rate onto a new entry, and to value older entries that were stored before anything
+   * filled that column in. Returns {} when the template did not wire the roster. (T26 L12)
+   */
+  const ratesByUserId = async (companyId: string, userIds: string[]): Promise<Record<string, number>> => {
+    if (!t.teamMember || userIds.length === 0) return {}
+    const ids = [...new Set(userIds.filter(Boolean))]
+    if (!ids.length) return {}
+    const [users, roster] = await Promise.all([
+      db.select({ id: t.user.id, email: t.user.email }).from(t.user).where(and(eq(t.user.companyId, companyId), inArray(t.user.id, ids))),
+      db.select({ email: t.teamMember.email, rate: t.teamMember.hourlyRate }).from(t.teamMember).where(eq(t.teamMember.companyId, companyId)),
+    ])
+    const byEmail = new Map<string, number>()
+    for (const m of roster) {
+      const e = String(m.email || '').toLowerCase()
+      const n = Number(m.rate)
+      if (e && Number.isFinite(n) && n > 0) byEmail.set(e, n)
+    }
+    const out: Record<string, number> = {}
+    for (const u of users) {
+      const rate = byEmail.get(String(u.email || '').toLowerCase())
+      if (rate != null) out[String(u.id)] = rate
+    }
+    return out
+  }
+  return { activeEntry, clockIn, clockOut, ratesByUserId }
+}
+
 export function createTimeRoutes(deps: TimeDeps) {
   const { db, tables: t, authenticate, requirePermission, audit } = deps
+  const clock = createTimeClock(deps)
   const maxLimit = deps.options?.maxLimit || 200
   const maxHours = deps.options?.maxHoursPerEntry || 24
   const app = new Hono()
@@ -233,35 +317,7 @@ export function createTimeRoutes(deps: TimeDeps) {
   /** Which user's entries this caller may look at: managers any (or all), everyone else only their own. */
   const scopeUser = (u: any, requested?: string) => (isManager(u) ? requested || undefined : u.userId)
 
-  /**
-   * What each of these people is paid, from their roster card. The roster has no user_id — it is matched to a
-   * login by EMAIL, the same way the Team page decides who already has one — so this joins on a lowercased
-   * email. A person with no roster card, no email, or no rate on their card simply is not in the map.
-   *
-   * Used twice: to stamp a rate onto a new entry, and to value older entries that were stored before anything
-   * filled that column in. Returns {} when the template did not wire the roster. (T26 L12)
-   */
-  const ratesByUserId = async (companyId: string, userIds: string[]): Promise<Record<string, number>> => {
-    if (!t.teamMember || userIds.length === 0) return {}
-    const ids = [...new Set(userIds.filter(Boolean))]
-    if (!ids.length) return {}
-    const [users, roster] = await Promise.all([
-      db.select({ id: t.user.id, email: t.user.email }).from(t.user).where(and(eq(t.user.companyId, companyId), inArray(t.user.id, ids))),
-      db.select({ email: t.teamMember.email, rate: t.teamMember.hourlyRate }).from(t.teamMember).where(eq(t.teamMember.companyId, companyId)),
-    ])
-    const byEmail = new Map<string, number>()
-    for (const m of roster) {
-      const e = String(m.email || '').toLowerCase()
-      const n = Number(m.rate)
-      if (e && Number.isFinite(n) && n > 0) byEmail.set(e, n)
-    }
-    const out: Record<string, number> = {}
-    for (const u of users) {
-      const rate = byEmail.get(String(u.email || '').toLowerCase())
-      if (rate != null) out[String(u.id)] = rate
-    }
-    return out
-  }
+  const ratesByUserId = clock.ratesByUserId
 
   app.get('/', requirePermission('time:read'), async (c) => {
     const currentUser = (c as any).get('user')
@@ -363,11 +419,7 @@ export function createTimeRoutes(deps: TimeDeps) {
     return c.json({ weekStart: start, weekEnd: end, days, totalHours: round2(days.reduce((s, d) => s + d.totalHours, 0)) })
   })
 
-  const activeEntry = async (userId: string, companyId: string) => {
-    const [row] = await db.select().from(t.timeEntry)
-      .where(and(eq(t.timeEntry.userId, userId), eq(t.timeEntry.companyId, companyId), isNotNull(t.timeEntry.clockIn), isNull(t.timeEntry.clockOut))).limit(1)
-    return row || null
-  }
+  const activeEntry = clock.activeEntry
   /**
    * Put the entries written before the column meant a DAY onto the day they were actually worked.
    *
@@ -410,42 +462,19 @@ export function createTimeRoutes(deps: TimeDeps) {
     const data = parsed.data
     const refErr = await checkRefs(currentUser.companyId, data)
     if (refErr) return c.json({ error: refErr }, 400)
-    const open = await activeEntry(currentUser.userId, currentUser.companyId)
-    if (open) return c.json({ error: 'Already clocked in — clock out first', entry: open }, 409)
-    const now = new Date()
-    // `date` is the DAY worked, not the moment. Storing the instant put a 20:00 Friday clock-in on
-    // Saturday's sheet for anyone behind UTC, because the weekly view buckets this column by day — and
-    // if that Friday ended a pay week, the hours moved into the next one. clockIn keeps the instant;
-    // date gets the crew's calendar day. (T24 N1, timesheets)
-    const tz = await companyTimeZone(db, currentUser.companyId)
-    const [row] = await db.insert(t.timeEntry).values({
-      userId: currentUser.userId, companyId: currentUser.companyId, jobId: data.jobId, projectId: data.projectId,
-      clockIn: now, date: dayMarker(storeDateString(now, tz)), hours: '0', isAutoClocked: true, description: data.description || data.notes || null,
-    }).returning()
-    return c.json(row, 201)
+    const r = await clock.clockIn(currentUser, { jobId: data.jobId, projectId: data.projectId, description: data.description || data.notes || null })
+    if (!r.ok) return c.json({ error: r.error, ...(r.entry ? { entry: r.entry } : {}) }, r.status)
+    return c.json((r as any).entry, 201)
   })
 
   app.post('/clock-out', requirePermission('time:create'), async (c) => {
     const currentUser = (c as any).get('user')
     const parsed = entrySchema.pick({ breakMinutes: true, description: true, notes: true }).safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return invalid(c, parsed.error)
-    const open = await activeEntry(currentUser.userId, currentUser.companyId)
-    if (!open) return c.json({ error: 'No open clock-in to clock out of' }, 400)
-    const end = new Date()
-    // Clocking straight back out is a mis-click, not a shift: it used to save a 0.00-hour row on the timesheet for
-    // someone to wonder about later. Under a minute, the clock-in is discarded instead. (Landscaping T21 L7)
-    const elapsedMinutes = (end.getTime() - new Date(open.clockIn).getTime()) / 60000
-    if (elapsedMinutes < MIN_CLOCK_MINUTES) {
-      await db.delete(t.timeEntry).where(and(eq(t.timeEntry.id, open.id), eq(t.timeEntry.companyId, currentUser.companyId)))
-      audit?.log({ action: 'delete', entity: 'time_entry', entityId: open.id, metadata: { discarded: 'under a minute', userId: open.userId }, req: { user: currentUser } })
-      return c.json({ discarded: true, message: 'That clock-in lasted less than a minute, so no time was recorded. Clock in again when you start work.' })
-    }
-    const worked = Math.round(elapsedMinutes) - (parsed.data.breakMinutes || 0)
-    // Same answer a manual entry gives, instead of silently saving nothing worked.
-    if (worked <= 0) return c.json({ error: 'Break is longer than the time worked' }, 400)
-    const [row] = await db.update(t.timeEntry).set({ clockOut: end, hours: String(round2(worked / 60)), description: parsed.data.description || parsed.data.notes || open.description, updatedAt: new Date() })
-      .where(and(eq(t.timeEntry.id, open.id), eq(t.timeEntry.companyId, currentUser.companyId))).returning()
-    return c.json(row)
+    const r = await clock.clockOut(currentUser, { breakMinutes: parsed.data.breakMinutes, description: parsed.data.description || parsed.data.notes || null })
+    if (!r.ok) return c.json({ error: r.error }, r.status)
+    if (r.discarded) return c.json({ discarded: true, message: r.message })
+    return c.json(r.entry)
   })
 
   app.post('/', requirePermission('time:create'), async (c) => {

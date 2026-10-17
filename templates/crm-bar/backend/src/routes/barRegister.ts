@@ -23,6 +23,7 @@
 //   POST   /register/closeout               { day, floatCents, countedCents, note, force, managerPin? }
 //   PUT    /register/pin  { pin }  ·  DELETE /register/pin     my own till PIN
 //   GET    /register/floor              the room, and each table's open check (bar:register)
+//   GET    /register/clock  ·  POST /register/clock { pin }   who is on; clock in or out by your own till PIN (time_tracking)
 //   PUT    /register/floor  { tables }  set the room (bar:update — the same as the menu and the hours)
 //   GET    /grill/state  ·  POST /grill/bump { id }  ·  POST /grill/recall { id }
 //
@@ -42,6 +43,7 @@ import { actorOf, clearOwnPin, hasOwnPin, managerApproval, mayManage, PinError, 
 import { bumpTicket, kitchenState, recallTicket } from '../services/barKitchen.ts'
 import { barTimezone, closeDay, closeoutsFor, loadDay } from '../services/barReports.ts'
 import { floorFor, saveFloor } from '../services/barFloor.ts'
+import { onTheClock, punchByPin, RotaError } from '../services/barSchedule.ts'
 import { addRegular, listRewards, loyaltyRunning, LoyaltyError, searchGuests } from '../services/barLoyalty.ts'
 import { businessDayOf, businessDayWindow } from '../services/barLive.ts'
 
@@ -230,6 +232,24 @@ registerRoutes.put('/floor', requireEnabledFeature(FEATURE), requirePermission('
     audit.log({ req: c, action: 'update', entity: 'bar_settings', entityName: 'Floor', changes: { tables: floor.tables.length } })
     return c.json({ ok: true, floor })
   } catch (e: any) { return c.json({ error: e?.message || 'That did not save.' }, 400) }
+})
+
+// ── The time clock on the bar tablet: each person types their own PIN; the CRM's own clock records it ──
+registerRoutes.get('/clock', ...ring, requireEnabledFeature('time_tracking'), async (c) => {
+  const actor = await actorOf(c)
+  c.header('Cache-Control', 'no-store')
+  return c.json({ on: await onTheClock(actor.companyId) })
+})
+registerRoutes.post('/clock', ...ring, requireEnabledFeature('time_tracking'), async (c) => {
+  const actor = await actorOf(c); const b = await body(c)
+  try {
+    const r = await punchByPin(actor, b.pin)
+    return c.json({ ok: true, ...r, on: await onTheClock(actor.companyId) })
+  } catch (e: any) {
+    if (e instanceof RotaError) return c.json({ error: e.message }, e.status)
+    console.error('[register] clock', e?.message || e)
+    return c.json({ error: 'That did not save. Try again.' }, 500)
+  }
 })
 
 // ── My till PIN ──

@@ -87,6 +87,7 @@ import { registerRoutes as barRegisterRoutes, kitchenRoutes as barKitchenRoutes 
 import barGiftCardRoutes from './routes/barGiftCards.ts'
 import barLoyaltyRoutes from './routes/barLoyalty.ts'
 import barStockRoutes from './routes/barStock.ts'
+import barScheduleRoutes from './routes/barSchedule.ts'
 import eventsRoutes from './routes/events.ts'
 import eventSpacesRoutes from './routes/eventSpaces.ts'
 import menuPackagesRoutes from './routes/menuPackages.ts'
@@ -383,6 +384,7 @@ app.route('/api/grill', barKitchenRoutes)
 app.route('/api/gift-cards', barGiftCardRoutes)
 app.route('/api/loyalty', barLoyaltyRoutes)
 app.route('/api/stock', barStockRoutes)
+app.route('/api/schedule', barScheduleRoutes)
 // Private parties — enquiry, booking, deposit, the run of show (crm-restaurant's module, unchanged).
 app.route('/api/events', eventsRoutes)
 app.route('/api/event-spaces', eventSpacesRoutes)

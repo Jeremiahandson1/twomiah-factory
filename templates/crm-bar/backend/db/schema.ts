@@ -3545,6 +3545,51 @@ export const barPurchaseOrderLine = pgTable('bar_purchase_order_line', {
   index('bar_purchase_order_line_order_idx').on(t.orderId),
 ])
 
+// THE SCHEDULE (services/barSchedule.ts, the arithmetic in barSchedulePlan.ts). A manager builds a workweek
+// (Monday-start, the timesheet's week); staff see the copy frozen when it was published — edits after that wait
+// for the next Publish. Hours actually worked are the CRM's own time_entry (the time clock); this is the plan.
+export const barScheduleShift = pgTable('bar_schedule_shift', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(),                     // local date YYYY-MM-DD
+  start: text('start').notNull(),                 // HH:MM
+  end: text('end').notNull(),                     // HH:MM; at or before start = past midnight
+  position: text('position'),                     // "Bar", "Grill", "Floor"
+  note: text('note'),
+  createdByName: text('created_by_name'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_schedule_shift_company_day_idx').on(t.companyId, t.day),
+])
+
+export const barScheduleWeek = pgTable('bar_schedule_week', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  weekStart: text('week_start').notNull(),        // the Monday
+  publishedAt: timestamp('published_at'),
+  publishedByName: text('published_by_name'),
+  snapshot: json('snapshot'),                     // [{ userId, name, day, start, end, position, note }] as published
+  changedAt: timestamp('changed_at'),             // the last edit to this week's shifts
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_schedule_week_company_week_key').on(t.companyId, t.weekStart),
+])
+
+export const barTimeOff = pgTable('bar_time_off', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(),
+  note: text('note'),
+  status: text('status').default('pending').notNull(), // pending | approved | denied
+  decidedByName: text('decided_by_name'),
+  decidedAt: timestamp('decided_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_time_off_company_day_idx').on(t.companyId, t.day),
+])
+
 // THE REGULARS — the bar's loyalty programme (services/barLoyalty.ts), on the shared engine
 // (packages/tenant-backend/src/loyalty: the rules; the storage is the vertical's). The same three tables and names
 // as crm-salon's, keyed to the register's checks instead of appointments: a paid check with a guest on it earns
