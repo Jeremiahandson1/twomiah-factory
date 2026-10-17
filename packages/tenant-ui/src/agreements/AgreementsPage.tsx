@@ -322,7 +322,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px whitespace-nowrap flex-shrink-0 ${
               tab === t.id
-                ? 'border-orange-500 text-orange-600 dark:text-orange-300'
+                ? 'border-orange-500 text-orange-600 dark:text-orange-200'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
@@ -464,7 +464,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
 function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-200',
-    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-200',
     green: 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300',
     blue: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
   };
@@ -585,9 +585,9 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
       <td className="px-4 py-3">
         <div className="flex items-center gap-1">
           {isExpiringSoon && agreement.status === 'active' && (
-            <AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-300" />
+            <AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-200" />
           )}
-          <span className={`text-sm ${isExpiringSoon ? 'text-orange-600 dark:text-orange-300' : 'text-gray-500 dark:text-slate-400'}`}>
+          <span className={`text-sm ${isExpiringSoon ? 'text-orange-600 dark:text-orange-200' : 'text-gray-500 dark:text-slate-400'}`}>
             {formatDate(agreement.endDate)}
           </span>
           {renewsSoon && <span className="text-xs text-blue-600 dark:text-blue-400">Renews</span>}
@@ -910,7 +910,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                   type="checkbox"
                   checked={form.priorityService}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, priorityService: e.target.checked }))}
-                  className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
+                  className="w-4 h-4 rounded text-orange-500 dark:text-orange-200"
                 />
                 <span className="text-sm text-gray-700 dark:text-slate-200">Priority Service</span>
               </label>
@@ -919,7 +919,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                   type="checkbox"
                   checked={form.autoRenew}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, autoRenew: e.target.checked }))}
-                  className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
+                  className="w-4 h-4 rounded text-orange-500 dark:text-orange-200"
                 />
                 <span className="text-sm text-gray-700 dark:text-slate-200">Auto-Renew</span>
               </label>
@@ -1096,7 +1096,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 type="checkbox"
                 checked={form.autoRenew}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, autoRenew: e.target.checked }))}
-                className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
+                className="w-4 h-4 rounded text-orange-500 dark:text-orange-200"
               />
               <span className="text-sm text-gray-700 dark:text-slate-200">Auto-renew when term ends</span>
             </label>
@@ -1109,7 +1109,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                   type="checkbox"
                   checked={form.autoSchedule}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, autoSchedule: e.target.checked }))}
-                  className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
+                  className="w-4 h-4 rounded text-orange-500 dark:text-orange-200"
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Auto-schedule recurring visits</span>
               </label>

@@ -160,7 +160,7 @@ export default function TonightPage() {
     <div className="space-y-4 max-w-3xl mx-auto">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Flame className="w-6 h-6 text-orange-600 dark:text-orange-300" /> Tonight</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Flame className="w-6 h-6 text-orange-600 dark:text-orange-200" /> Tonight</h1>
           <p className="text-gray-500 dark:text-slate-400 text-sm">What your website says right now{live?.updatedBy ? ` · last change by ${live.updatedBy}` : ''}</p>
         </div>
         <button className={`${BTN} ${OFF} flex items-center gap-2`} onClick={() => load()} aria-label="Refresh"><RefreshCw className="w-4 h-4" /> Refresh</button>

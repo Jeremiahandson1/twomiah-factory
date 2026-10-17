@@ -84,9 +84,9 @@ export default function OnboardingWizard() {
               <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Welcome{storeName ? `, ${storeName}` : ''} 👋</h1>
               <p className="text-gray-600 mb-6 dark:text-slate-300">Your storefront and back-office are live. Three quick steps and you're ready to take orders.</p>
               <ul className="space-y-3 mb-6 text-sm text-gray-700 dark:text-slate-200">
-                <li className="flex items-start gap-3"><CreditCard className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0 dark:text-primary-300" /> Connect your payment account — Stripe, Square, or PayPal. You get paid directly; we never touch the money.</li>
-                <li className="flex items-start gap-3"><Package className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0 dark:text-primary-300" /> Add your first product so the storefront has something to sell.</li>
-                <li className="flex items-start gap-3"><Mail className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0 dark:text-primary-300" /> Set up branded email — <span className="font-mono">support@</span> and <span className="font-mono">orders@</span> on your domain, forwarding wherever you read mail.</li>
+                <li className="flex items-start gap-3"><CreditCard className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0 dark:text-primary-200" /> Connect your payment account — Stripe, Square, or PayPal. You get paid directly; we never touch the money.</li>
+                <li className="flex items-start gap-3"><Package className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0 dark:text-primary-200" /> Add your first product so the storefront has something to sell.</li>
+                <li className="flex items-start gap-3"><Mail className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0 dark:text-primary-200" /> Set up branded email — <span className="font-mono">support@</span> and <span className="font-mono">orders@</span> on your domain, forwarding wherever you read mail.</li>
               </ul>
               <Nav backTo={null} nextLabel="Let's go" onNext={() => setCurrentStep(1)} />
             </div>
@@ -106,7 +106,7 @@ export default function OnboardingWizard() {
             <div className="bg-white rounded-xl shadow-sm p-8 max-w-2xl mx-auto dark:bg-slate-900">
               <h2 className="text-xl font-bold text-gray-900 mb-2 dark:text-slate-100">Add your first product</h2>
               <p className="text-gray-600 mb-6 dark:text-slate-300">The product editor opens in a new tab so you don't lose your place here. Name, price, photos, inventory — one product is enough to go live.</p>
-              <button onClick={() => window.open('/products/new', '_blank', 'noopener')} className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg mb-2 dark:text-primary-300">
+              <button onClick={() => window.open('/products/new', '_blank', 'noopener')} className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-primary-700 bg-primary-50 hover:bg-primary-100 border border-primary-200 rounded-lg mb-2 dark:text-primary-200">
                 Open the product editor <ExternalLink className="w-4 h-4" />
               </button>
               <Nav backTo={1} nextLabel="Continue" onNext={() => setCurrentStep(3)} />

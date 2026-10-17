@@ -565,7 +565,7 @@ export function LineItemsEditor({ items, onChange, pricebook }: {
       </table>
       {lineError && <p role="alert" className="px-3 py-1 text-xs text-red-600 dark:text-red-300 border-t border-gray-200 dark:border-slate-700">{lineError}</p>}
       <div className="p-2 border-t border-gray-200 dark:border-slate-700 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => onChange([...items, { description: '', quantity: 1, unitPrice: 0 }])} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">+ Add line</button>
+        <button type="button" onClick={() => onChange([...items, { description: '', quantity: 1, unitPrice: 0 }])} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add line</button>
         {withPricebook && (
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
             <span>or from the pricebook</span>

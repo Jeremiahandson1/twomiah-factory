@@ -237,7 +237,7 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold flex items-center gap-2"><Wrench className="w-5 h-5 text-orange-500 dark:text-orange-300" /> New Repair Order</h2>
+            <h2 className="text-lg font-bold flex items-center gap-2"><Wrench className="w-5 h-5 text-orange-500 dark:text-orange-200" /> New Repair Order</h2>
             <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">

@@ -54,7 +54,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 dark:bg-slate-800 dark:text-slate-100">
       <div className="w-full max-w-sm">
         <div className="flex items-center justify-center gap-2 mb-6 text-xl font-bold text-gray-900 dark:text-slate-100">
-          <Store className="h-6 w-6 text-primary-500 dark:text-primary-300" /> {companyName}
+          <Store className="h-6 w-6 text-primary-500 dark:text-primary-200" /> {companyName}
         </div>
         {challenge ? (
           <form onSubmit={submitCode} className="card p-6 space-y-4">

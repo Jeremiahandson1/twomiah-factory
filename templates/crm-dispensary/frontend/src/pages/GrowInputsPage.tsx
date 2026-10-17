@@ -1353,7 +1353,7 @@ function PoliciesTab() {
                 </span>
               </div>
               <div className="flex gap-2">
-                {isManager && <button onClick={() => openEdit(policy)} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium dark:text-orange-300">Edit</button>}
+                {isManager && <button onClick={() => openEdit(policy)} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium dark:text-orange-200">Edit</button>}
               </div>
             </div>
           ))}
@@ -1455,7 +1455,7 @@ function PoliciesTab() {
                         setFormData({ ...formData, requiredCertifications: formData.requiredCertifications.filter((c) => c !== cert) });
                       }
                     }}
-                    className="w-4 h-4 rounded border-slate-600 text-orange-500 focus:ring-orange-500 bg-slate-800 dark:text-orange-300"
+                    className="w-4 h-4 rounded border-slate-600 text-orange-500 focus:ring-orange-500 bg-slate-800 dark:text-orange-200"
                   />
                   <span className="text-sm text-slate-300">{cert}</span>
                 </label>

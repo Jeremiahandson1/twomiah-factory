@@ -379,7 +379,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
               )}
               {(contact.address || contact.city) && (
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><MapPin className="w-5 h-5 text-orange-500 dark:text-orange-300" /></div>
+                  <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><MapPin className="w-5 h-5 text-orange-500 dark:text-orange-200" /></div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Address</p>
                     <p className="text-gray-900 dark:text-slate-100">
@@ -428,7 +428,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   {contact.patients.map((p) => (
                     <NavLink key={p.id} to={`/crm/patients/${p.id}`} className={rowLink}>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><PawPrint className="w-5 h-5 text-orange-500 dark:text-orange-300" /></div>
+                        <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><PawPrint className="w-5 h-5 text-orange-500 dark:text-orange-200" /></div>
                         <div>
                           <p className="font-medium text-gray-900 dark:text-slate-100">{p.name}</p>
                           <p className="text-sm text-gray-500 dark:text-slate-400 capitalize">{[p.species, p.breed].filter(Boolean).join(' · ') || 'No species on file'}</p>
@@ -509,7 +509,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                     return (
                       <NavLink key={eq.id} to="/crm/equipment" className={rowLink}>
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><Wrench className="w-5 h-5 text-orange-500 dark:text-orange-300" /></div>
+                          <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><Wrench className="w-5 h-5 text-orange-500 dark:text-orange-200" /></div>
                           <div>
                             <p className="font-medium text-gray-900 dark:text-slate-100">{eq.name}</p>
                             <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -741,13 +741,13 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 <div className="divide-y dark:divide-slate-800 border dark:border-slate-800 rounded-lg">
                   {siteDetail.equipment.map((eq) => (
                     <div key={eq.id} className="p-3 flex items-center gap-3">
-                      <Wrench className="w-4 h-4 text-orange-500 dark:text-orange-300" />
+                      <Wrench className="w-4 h-4 text-orange-500 dark:text-orange-200" />
                       <div><p className="font-medium text-gray-900 text-sm dark:text-slate-100">{eq.name}</p><p className="text-xs text-gray-500 dark:text-slate-400">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</p></div>
                     </div>
                   ))}
                 </div>
               ) : <p className="text-sm text-gray-500 dark:text-slate-400">No equipment at this location</p>}
-              {mayAddEquipment && <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"><Plus className="w-3 h-3" /> Add Equipment to This Location</NavLink>}
+              {mayAddEquipment && <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200"><Plus className="w-3 h-3" /> Add Equipment to This Location</NavLink>}
             </div>
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Service History ({siteDetail.jobs?.length || 0})</h3>

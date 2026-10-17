@@ -152,7 +152,7 @@ export default function OnboardingPacketsAdmin() {
         {TABS.map(([id, name]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-4 py-2 -mb-px text-sm border-b-2 ${tab === id
-              ? 'border-primary-600 text-primary-700 dark:text-primary-300 font-extrabold'
+              ? 'border-primary-600 text-primary-700 dark:text-primary-200 font-extrabold'
               : 'border-transparent text-gray-600 dark:text-slate-300 font-medium'}`}>
             {name} ({counts[id]})
           </button>
@@ -186,7 +186,7 @@ export default function OnboardingPacketsAdmin() {
                 </div>
               </div>
               <div className="flex flex-col gap-1.5 min-w-[150px]">
-                <button className={`${btnOutline} border-primary-600 text-primary-700 dark:text-primary-300`} onClick={() => openDetail(p)}>View Detail</button>
+                <button className={`${btnOutline} border-primary-600 text-primary-700 dark:text-primary-200`} onClick={() => openDetail(p)}>View Detail</button>
                 {['sent', 'opened', 'in_progress', 'expired'].includes(p.status) && (
                   <button className={`${btnOutline} border-gray-500 text-gray-700 dark:text-slate-200`} onClick={() => resend(p)}>Resend Link</button>
                 )}

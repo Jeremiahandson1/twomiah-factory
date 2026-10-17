@@ -191,7 +191,7 @@ export default function TasksPage({ api }: TasksPageProps) {
             onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-lg text-sm font-medium capitalize ${
               filter === f
-                ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'
+                ? 'bg-orange-100 text-orange-700 dark:text-orange-200 dark:bg-orange-950/40'
                 : 'text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-300'
             }`}
           >
@@ -580,7 +580,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                 <button aria-label="Add checklist item"
                   type="button"
                   onClick={addChecklistItem}
-                  className="px-3 py-2 text-orange-600 hover:bg-orange-50 rounded-lg dark:text-orange-300"
+                  className="px-3 py-2 text-orange-600 hover:bg-orange-50 rounded-lg dark:text-orange-200"
                 >
                   <Plus className="w-4 h-4" />
                 </button>

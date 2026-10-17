@@ -134,7 +134,7 @@ export default function JobPostingsAdmin() {
               : `${publishedCount} opening${publishedCount === 1 ? '' : 's'} live on the careers page.`}
           </p>
           <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-            Careers page: <a className="underline text-primary-700 dark:text-primary-300" href={careersUrl} target="_blank" rel="noreferrer">{careersUrl}</a>
+            Careers page: <a className="underline text-primary-700 dark:text-primary-200" href={careersUrl} target="_blank" rel="noreferrer">{careersUrl}</a>
           </p>
         </div>
         <button className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold" onClick={openNew}>+ New Posting</button>
@@ -144,7 +144,7 @@ export default function JobPostingsAdmin() {
         {['all', 'published', 'draft', 'closed'].map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 -mb-px text-sm border-b-2 ${tab === t
-              ? 'border-primary-600 text-primary-700 dark:text-primary-300 font-extrabold'
+              ? 'border-primary-600 text-primary-700 dark:text-primary-200 font-extrabold'
               : 'border-transparent text-gray-600 dark:text-slate-300 font-medium'}`}>
             {t[0].toUpperCase() + t.slice(1)}
           </button>
@@ -184,7 +184,7 @@ export default function JobPostingsAdmin() {
                 </div>
               </div>
               <div className="flex flex-col gap-1.5 min-w-[120px]">
-                <button className={`${btnOutline} border-primary-600 text-primary-700 dark:text-primary-300`} onClick={() => openEdit(p)}>Edit</button>
+                <button className={`${btnOutline} border-primary-600 text-primary-700 dark:text-primary-200`} onClick={() => openEdit(p)}>Edit</button>
                 {p.is_published && !closed && <button className={`${btnOutline} border-gray-500 text-gray-700 dark:text-slate-200`} onClick={() => setStatus(p, 'unpublish')}>Unpublish</button>}
                 {!p.is_published && !closed && <button className={`${btnOutline} border-green-600 text-green-700 dark:text-green-300`} onClick={() => setStatus(p, 'publish')}>Publish</button>}
                 {!closed && <button className={`${btnOutline} border-red-600 text-red-700 dark:text-red-300`} onClick={() => setStatus(p, 'close')}>Close</button>}

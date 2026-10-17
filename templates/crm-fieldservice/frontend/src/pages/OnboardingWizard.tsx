@@ -396,7 +396,7 @@ function StepVerifyInfo({ profile, onChange, companyName }: { profile: any; onCh
     <div>
       <div className="text-center mb-8">
         <div className="w-16 h-16 bg-orange-100 dark:bg-orange-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <Sparkles className="w-8 h-8 text-orange-500 dark:text-orange-300" />
+          <Sparkles className="w-8 h-8 text-orange-500 dark:text-orange-200" />
         </div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           Welcome, {companyName || 'there'}!
@@ -567,7 +567,7 @@ function StepIntegrations({
                           <ol className="space-y-2">
                             {integration.guideSteps.map((step, idx) => (
                               <li key={idx} className="flex items-start gap-3 text-sm text-gray-600 dark:text-slate-400">
-                                <span className="w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center flex-shrink-0 text-xs font-semibold mt-0.5">
+                                <span className="w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-200 flex items-center justify-center flex-shrink-0 text-xs font-semibold mt-0.5">
                                   {idx + 1}
                                 </span>
                                 {step}
@@ -635,7 +635,7 @@ function StepSetupHelp({ choice, onChoose }: { choice: string | null; onChoose: 
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className={`font-semibold ${selected ? 'text-orange-700 dark:text-orange-400' : 'text-gray-900 dark:text-white'}`}>
+                  <span className={`font-semibold ${selected ? 'text-orange-700 dark:text-orange-200' : 'text-gray-900 dark:text-white'}`}>
                     {option.label}
                   </span>
                   {option.price && (

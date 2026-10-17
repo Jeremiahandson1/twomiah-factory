@@ -131,7 +131,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
         <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <BookOpen className="w-12 h-12 mx-auto text-gray-400 mb-3" />
           <p className="text-gray-500 dark:text-slate-400">No {itemWord.toLowerCase()}s found</p>
-          {mayCreate && <button onClick={() => setEditing({ open: true, item: null })} className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">Add your first {itemWord.toLowerCase()}</button>}
+          {mayCreate && <button onClick={() => setEditing({ open: true, item: null })} className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">Add your first {itemWord.toLowerCase()}</button>}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -153,7 +153,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
                 {showCost && <div><p className="text-gray-500 dark:text-slate-400">Cost</p><p className="font-medium text-gray-700 dark:text-slate-200">{usd(item.totalCost ?? item.cost)}</p></div>}
                 {/* "—", never 100%, when the cost is 0: the server withholds the margin there and
                     this renders what it sent. `{item.margin}%` would print "null%". (T58) */}
-                {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${marginOf(item) === null ? 'text-gray-500 dark:text-slate-400' : (marginOf(item) as number) > 30 ? 'text-green-700 dark:text-green-300' : 'text-orange-600 dark:text-orange-300'}`}>{marginOf(item) === null ? '—' : `${item.margin}%`}</p></div>}
+                {showCost && <div><p className="text-gray-500 dark:text-slate-400">Margin</p><p className={`font-medium ${marginOf(item) === null ? 'text-gray-500 dark:text-slate-400' : (marginOf(item) as number) > 30 ? 'text-green-700 dark:text-green-300' : 'text-orange-600 dark:text-orange-200'}`}>{marginOf(item) === null ? '—' : `${item.margin}%`}</p></div>}
               </div>
               {Number(item.laborHours) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400"><Clock className="w-4 h-4" />{Number(item.laborHours)} hours</div>}
               {Number(item._count?.goodBetterBest) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-blue-600 dark:text-blue-300"><Star className="w-4 h-4" />{item._count.goodBetterBest} {config?.tiersTitle || 'pricing tier'}{item._count.goodBetterBest === 1 ? '' : 's'}</div>}

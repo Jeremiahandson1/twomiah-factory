@@ -48,14 +48,14 @@ export default function CareersPage() {
           notFound ? (
             <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6">
               <p className="text-gray-800 dark:text-slate-100">This opening is no longer available.</p>
-              <Link to="/careers" className="inline-block mt-2 underline text-primary-700 dark:text-primary-300">See current openings</Link>
+              <Link to="/careers" className="inline-block mt-2 underline text-primary-700 dark:text-primary-200">See current openings</Link>
             </div>
           ) : !posting ? (
             <div className="p-8 text-center text-gray-600 dark:text-slate-300">Loading…</div>
           ) : (
             <>
               <div className="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 mb-6">
-                <Link to="/careers" className="text-sm underline text-primary-700 dark:text-primary-300">← All openings</Link>
+                <Link to="/careers" className="text-sm underline text-primary-700 dark:text-primary-200">← All openings</Link>
                 <h2 className="mt-2 text-2xl font-extrabold text-gray-900 dark:text-slate-100">{posting.title}</h2>
                 <div className="text-sm text-gray-600 dark:text-slate-300 mt-1">
                   {String(posting.employment_type || '').replace('_', ' ')}{posting.location ? ` · ${posting.location}` : ''}{pay(posting) ? ` · ${pay(posting)}` : ''}
@@ -95,13 +95,13 @@ export default function CareersPage() {
                       {String(p.employment_type || '').replace('_', ' ')}{p.location ? ` · ${p.location}` : ''}{pay(p) ? ` · ${pay(p)}` : ''}
                     </div>
                     {p.summary && <div className="text-sm text-gray-700 dark:text-slate-200 mt-1.5">{p.summary}</div>}
-                    <div className="text-sm font-bold text-primary-700 dark:text-primary-300 mt-2">View &amp; apply →</div>
+                    <div className="text-sm font-bold text-primary-700 dark:text-primary-200 mt-2">View &amp; apply →</div>
                   </Link>
                 ))}
               </div>
             )}
             {postings.length > 0 && !general ? (
-              <button onClick={() => setGeneral(true)} className="underline text-primary-700 dark:text-primary-300">Don't see the right opening? Send a general application</button>
+              <button onClick={() => setGeneral(true)} className="underline text-primary-700 dark:text-primary-200">Don't see the right opening? Send a general application</button>
             ) : (
               <ApplicationForm posting={null} />
             )}

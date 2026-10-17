@@ -49,7 +49,7 @@ export default function FinancingPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><CreditCard className="w-6 h-6 text-orange-500 dark:text-orange-300" />Consumer Financing</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Track financing applications across Wisetack, GreenSky, and other lenders</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><CreditCard className="w-6 h-6 text-orange-500 dark:text-orange-200" />Consumer Financing</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Track financing applications across Wisetack, GreenSky, and other lenders</p></div>
         {mayApplyFinancing && (<button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Application</button>)}
       </div>
 

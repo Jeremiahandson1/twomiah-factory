@@ -49,7 +49,7 @@ function AdsContent() {
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === t.id
-                ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+                ? 'border-orange-500 text-orange-600 dark:text-orange-200'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
             }`}
           >
@@ -283,7 +283,7 @@ function PerformanceTab() {
     blue: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400',
     purple: 'bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400',
     green: 'bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400',
-    orange: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400',
+    orange: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200',
     emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400',
     red: 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400',
   };

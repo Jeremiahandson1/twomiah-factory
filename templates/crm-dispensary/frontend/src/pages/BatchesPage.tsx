@@ -516,17 +516,17 @@ export default function BatchesPage() {
       {expiringBatches.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6 text-gray-900 dark:text-slate-100 dark:bg-orange-950/40">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-300" />
-            <h3 className="font-semibold text-orange-800 dark:text-orange-300">Expiring Batches</h3>
+            <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-200" />
+            <h3 className="font-semibold text-orange-800 dark:text-orange-200">Expiring Batches</h3>
           </div>
           <div className="space-y-1">
             {expiringBatches.slice(0, 5).map(b => (
-              <p key={b.id} className="text-sm text-orange-700 dark:text-orange-300">
+              <p key={b.id} className="text-sm text-orange-700 dark:text-orange-200">
                 <span className="font-mono">{b.batchNumber}</span> ({b.productName}) expires {b.expirationDate ? formatDate(b.expirationDate) : 'soon'}
               </p>
             ))}
             {expiringBatches.length > 5 && (
-              <p className="text-sm text-orange-600 dark:text-orange-300">+{expiringBatches.length - 5} more</p>
+              <p className="text-sm text-orange-600 dark:text-orange-200">+{expiringBatches.length - 5} more</p>
             )}
           </div>
         </div>

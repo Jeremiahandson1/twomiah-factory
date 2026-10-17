@@ -45,7 +45,7 @@ export function PortalChangeOrders() {
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {rows.length === 0 ? <Empty icon={ClipboardList} text="No change orders." /> : (
         <div className="space-y-6">
-          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" /> Awaiting Your Approval ({pending.length})</>}>{pending.map((co) => <ChangeOrderCard key={co.id} co={co} token={token} highlight />)}</Section>}
+          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-200" /> Awaiting Your Approval ({pending.length})</>}>{pending.map((co) => <ChangeOrderCard key={co.id} co={co} token={token} highlight />)}</Section>}
           {others.length > 0 && <Section title="All Change Orders">{others.map((co) => <ChangeOrderCard key={co.id} co={co} token={token} />)}</Section>}
         </div>
       )}
@@ -99,7 +99,7 @@ export function PortalChangeOrderDetail() {
 
   return (
     <div>
-      <PLink to={`/portal/${token}/change-orders`} className="text-orange-600 hover:underline text-sm mb-4 inline-block dark:text-orange-300">{'<-'} Back to Change Orders</PLink>
+      <PLink to={`/portal/${token}/change-orders`} className="text-orange-600 hover:underline text-sm mb-4 inline-block dark:text-orange-200">{'<-'} Back to Change Orders</PLink>
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className={`${card} overflow-hidden`}>
         <div className="p-6 border-b dark:border-slate-700">

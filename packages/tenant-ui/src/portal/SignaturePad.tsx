@@ -103,7 +103,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
             <input id="sig-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your full name" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100 dark:bg-slate-800" />
           </div>
           <label className="mb-4 flex items-start gap-2 cursor-pointer">
-            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700 dark:text-orange-300" />
+            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700 dark:text-orange-200" />
             <span className="text-xs text-gray-600 dark:text-slate-400">I agree that my electronic signature is the legal equivalent of my handwritten signature. <span className="text-red-500 dark:text-red-400">*</span></span>
           </label>
           {warning && <p className="mb-3 text-sm text-red-600 dark:text-red-400" role="alert">{warning}</p>}

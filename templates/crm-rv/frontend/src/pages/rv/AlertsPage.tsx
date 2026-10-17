@@ -83,7 +83,7 @@ export default function AlertsPage() {
           <p className="text-gray-500 dark:text-slate-400">Service-to-sales opportunities</p>
         </div>
         <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600 dark:text-slate-400">
-          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="w-4 h-4 rounded text-orange-500 dark:text-orange-300" />
+          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="w-4 h-4 rounded text-orange-500 dark:text-orange-200" />
           Show dismissed
         </label>
       </div>

@@ -680,7 +680,7 @@ function AnalyticsTab() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">Today</p>
-          <p className="text-2xl font-bold text-orange-600 dark:text-orange-300">{stats?.today || 0}</p>
+          <p className="text-2xl font-bold text-orange-600 dark:text-orange-200">{stats?.today || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">scans</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">

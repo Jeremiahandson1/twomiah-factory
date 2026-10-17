@@ -182,7 +182,7 @@ export default function EventDetailPage() {
   if (!ev) {
     return (
       <div className="text-center py-12 text-gray-500 dark:text-slate-400">
-        Event not found. <Link to="/crm/events" className="text-orange-600 dark:text-orange-300">Back to events</Link>
+        Event not found. <Link to="/crm/events" className="text-orange-600 dark:text-orange-200">Back to events</Link>
       </div>
     );
   }
@@ -385,7 +385,7 @@ export default function EventDetailPage() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === t.id ? 'border-orange-600 text-orange-700 dark:text-orange-300' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+              tab === t.id ? 'border-orange-600 text-orange-700 dark:text-orange-200' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             {t.icon} {t.label}
@@ -500,7 +500,7 @@ export default function EventDetailPage() {
                   {Number(totals.refunded || 0) > 0 ? ` · ${money2(totals.refunded)} refunded` : ''} · {money2(totals.outstanding)} outstanding
                 </p>
               </div>
-              <Link to={`/crm/invoices/${detail.invoice.id}`} className="inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">
+              <Link to={`/crm/invoices/${detail.invoice.id}`} className="inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">
                 Send, refund or view invoice <ExternalLink className="w-4 h-4" />
               </Link>
             </div>
@@ -542,7 +542,7 @@ export default function EventDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         {mayTakeMoney && detail.invoice && (p.state === 'unpaid' || p.state === 'part_paid') && (
-                          <button onClick={() => setRecordFor(p)} className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 mr-3 dark:text-orange-300">
+                          <button onClick={() => setRecordFor(p)} className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 mr-3 dark:text-orange-200">
                             <Check className="w-3 h-3" /> Record payment
                           </button>
                         )}

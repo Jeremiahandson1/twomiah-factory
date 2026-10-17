@@ -348,8 +348,8 @@ function ImagesSection({ product, onChange }: { product: Product; onChange: () =
         className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed py-6 text-center transition ${dragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'} ${uploading ? 'pointer-events-none opacity-60' : ''}`}
       >
         {uploading
-          ? <><Loader2 className="h-5 w-5 animate-spin text-primary-500 dark:text-primary-300" /><span className="text-sm text-gray-500 dark:text-slate-400">Uploading…</span></>
-          : <><Upload className="h-5 w-5 text-gray-500 dark:text-slate-400" /><span className="text-sm text-gray-600 dark:text-slate-300">Drop images here or <span className="font-medium text-primary-600 dark:text-primary-300">browse</span></span><span className="text-xs text-gray-500 dark:text-slate-400">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</span></>}
+          ? <><Loader2 className="h-5 w-5 animate-spin text-primary-500 dark:text-primary-200" /><span className="text-sm text-gray-500 dark:text-slate-400">Uploading…</span></>
+          : <><Upload className="h-5 w-5 text-gray-500 dark:text-slate-400" /><span className="text-sm text-gray-600 dark:text-slate-300">Drop images here or <span className="font-medium text-primary-600 dark:text-primary-200">browse</span></span><span className="text-xs text-gray-500 dark:text-slate-400">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</span></>}
       </div>
       <input
         ref={fileInput} type="file" accept="image/*" multiple className="hidden"

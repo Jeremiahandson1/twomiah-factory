@@ -708,7 +708,7 @@ export default function InsuranceClaimPage() {
           <ArrowLeft className="w-4 h-4" /> Back to Job
         </button>
         <div className="flex items-center gap-3">
-          <Shield className="w-5 h-5 text-orange-500 dark:text-orange-300" />
+          <Shield className="w-5 h-5 text-orange-500 dark:text-orange-200" />
           <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Insurance Claim — {claim.claimNumber}</h1>
           {claim.claimStatus === 'denied' && (
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40">DENIED</span>
@@ -756,7 +756,7 @@ export default function InsuranceClaimPage() {
                           {iconType === 'mail' && <Mail className="w-3.5 h-3.5 text-purple-500 dark:text-purple-300" />}
                           {iconType === 'check' && <CheckCircle className="w-3.5 h-3.5 text-green-500 dark:text-green-300" />}
                           {iconType === 'x' && <XCircle className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />}
-                          {iconType === 'doc' && <FileText className="w-3.5 h-3.5 text-orange-500 dark:text-orange-300" />}
+                          {iconType === 'doc' && <FileText className="w-3.5 h-3.5 text-orange-500 dark:text-orange-200" />}
                           {iconType === 'upload' && <Upload className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />}
                           {iconType === 'clock' && <Clock className="w-3.5 h-3.5 text-gray-400" />}
                           {iconType === 'msg' && <MessageSquare className="w-3.5 h-3.5 text-blue-400" />}
@@ -1045,7 +1045,7 @@ export default function InsuranceClaimPage() {
                     Generated Line Items ({exportResult.lineItems?.length || 0})
                     {exportResult.basis === 'approved'
                       ? <span className="ml-2 font-normal text-green-700 dark:text-green-300">— as approved by the carrier</span>
-                      : <span className="ml-2 font-normal text-orange-700 dark:text-orange-300">— as requested</span>}
+                      : <span className="ml-2 font-normal text-orange-700 dark:text-orange-200">— as requested</span>}
                   </p>
                   <table className="w-full text-xs">
                     <thead>

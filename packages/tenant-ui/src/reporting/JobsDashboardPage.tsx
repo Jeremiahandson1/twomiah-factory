@@ -26,7 +26,7 @@ const COLORS: Record<string, string> = {
   blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300',
   green: 'bg-green-50 text-green-700 dark:bg-green-900/40 dark:text-green-300',
   purple: 'bg-purple-50 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300',
-  orange: 'bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  orange: 'bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200',
   red: 'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300',
   emerald: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
 }
@@ -166,7 +166,7 @@ function RecentList({ title, link, empty, rows }: { title: string; link: string;
     <div className={`${panel} min-w-0`}>
       <div className="p-4 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between gap-3">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100 min-w-0 truncate">{title}</h2>
-        <NavLink to={link} className="shrink-0 text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200 dark:text-orange-300">View all</NavLink>
+        <NavLink to={link} className="shrink-0 text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200 dark:text-orange-200">View all</NavLink>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-slate-800">
         {rows.length === 0 && <p className={`p-4 text-sm ${muted}`}>{empty}</p>}

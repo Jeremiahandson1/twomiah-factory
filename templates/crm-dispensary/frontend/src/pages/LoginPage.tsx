@@ -229,7 +229,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => { setMode('pin'); setLocalError(''); }}
-              className="w-full py-2 px-4 border border-orange-300 text-orange-700 font-medium rounded-lg hover:bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:hover:bg-orange-900/30"
+              className="w-full py-2 px-4 border border-orange-300 text-orange-700 font-medium rounded-lg hover:bg-orange-50 dark:border-orange-800 dark:text-orange-200 dark:hover:bg-orange-900/30"
             >
               Sign in with a PIN
             </button>

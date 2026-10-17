@@ -212,9 +212,9 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6 text-sm text-gray-900 dark:text-slate-100">
             <h2 className="font-semibold mb-4">Details</h2>
             <div className="space-y-3">
-              {invoice.contact && <div><p className="text-gray-500 dark:text-slate-400">{cfg.clientLabel}</p><NavLink to={cfg.clientPath(invoice.contact.id)} className="text-orange-600 dark:text-orange-300 hover:underline">{invoice.contact.name}</NavLink></div>}
-              {cfg.projects && invoice.project && <div><p className="text-gray-500 dark:text-slate-400">Project</p><NavLink to={`/crm/projects/${invoice.project.id}`} className="text-orange-600 dark:text-orange-300 hover:underline">{invoice.project.name}</NavLink></div>}
-              {invoice.quote && <div><p className="text-gray-500 dark:text-slate-400">From quote</p><NavLink to={`/crm/quotes/${invoice.quote.id}`} className="text-orange-600 dark:text-orange-300 hover:underline">{invoice.quote.number}</NavLink></div>}
+              {invoice.contact && <div><p className="text-gray-500 dark:text-slate-400">{cfg.clientLabel}</p><NavLink to={cfg.clientPath(invoice.contact.id)} className="text-orange-600 dark:text-orange-200 hover:underline">{invoice.contact.name}</NavLink></div>}
+              {cfg.projects && invoice.project && <div><p className="text-gray-500 dark:text-slate-400">Project</p><NavLink to={`/crm/projects/${invoice.project.id}`} className="text-orange-600 dark:text-orange-200 hover:underline">{invoice.project.name}</NavLink></div>}
+              {invoice.quote && <div><p className="text-gray-500 dark:text-slate-400">From quote</p><NavLink to={`/crm/quotes/${invoice.quote.id}`} className="text-orange-600 dark:text-orange-200 hover:underline">{invoice.quote.number}</NavLink></div>}
               <div><p className="text-gray-500 dark:text-slate-400">Due Date</p><p className={overdue ? 'text-red-600 dark:text-red-300 font-medium' : ''}>{dueDateLabel(invoice.dueDate)}{overdue ? ' · overdue' : ''}</p></div>
               {invoice.sentAt && <div><p className="text-gray-500 dark:text-slate-400">Sent</p><p>{dateTime(invoice.sentAt)}</p></div>}
               {invoice.paidAt && <div><p className="text-gray-500 dark:text-slate-400">Paid</p><p>{dateTime(invoice.paidAt)}</p></div>}

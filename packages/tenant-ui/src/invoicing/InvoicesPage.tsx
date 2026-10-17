@@ -176,7 +176,7 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
       // "Refunded" over the top of it, so $206 across three invoices read as nothing owed. "Refunded" is only
       // the answer when there is genuinely nothing left to collect. (T29 M1)
       const bal = balanceOf(r)
-      if (bal > 0.005) return <span className="text-orange-600 dark:text-orange-300 font-medium">{money(bal)}</span>
+      if (bal > 0.005) return <span className="text-orange-600 dark:text-orange-200 font-medium">{money(bal)}</span>
       if (r.status === 'refunded') return <span className="text-amber-700 dark:text-amber-300">Refunded</span>
       // green-700, not green-600: on white, green-600 measures 3.30:1 and misses AA for normal text.
       // This is the column that tells someone whether an invoice has been paid, in every vertical —

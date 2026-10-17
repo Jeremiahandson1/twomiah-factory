@@ -202,7 +202,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
                     {team.length === 0 ? <p className={`text-sm ${muted}`}>Nothing recorded in this period.</p> : team.slice(0, 5).map((m, i) => (
                       <div key={i} className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center"><Users className="w-4 h-4 text-orange-600 dark:text-orange-300" /></div>
+                          <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center"><Users className="w-4 h-4 text-orange-600 dark:text-orange-200" /></div>
                           <div>
                             <p className="font-medium text-sm text-gray-900 dark:text-slate-100">{[m.user?.firstName, m.user?.lastName].filter(Boolean).join(' ') || 'Team member'}</p>
                             {m.servicesCompleted !== undefined
@@ -243,7 +243,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
               <div className={card}>
                 <h3 className={h3}>Project summary</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {([['Total projects', projects.total, ''], ['Active', projects.active, 'text-green-700 dark:text-green-300'], ['Completed', projects.completed, 'text-blue-600 dark:text-blue-300'], ['Total value', compact(projects.totalValue), 'text-orange-600 dark:text-orange-300']] as Array<[string, string | number, string]>).map(([label, value, cls]) => (
+                  {([['Total projects', projects.total, ''], ['Active', projects.active, 'text-green-700 dark:text-green-300'], ['Completed', projects.completed, 'text-blue-600 dark:text-blue-300'], ['Total value', compact(projects.totalValue), 'text-orange-600 dark:text-orange-200']] as Array<[string, string | number, string]>).map(([label, value, cls]) => (
                     <div key={label} className="text-center p-4 rounded-lg bg-gray-50 dark:bg-slate-800/60">
                       <p className={`text-3xl font-bold ${cls || 'text-gray-900 dark:text-slate-100'}`}>{value}</p>
                       <p className={`text-sm ${muted}`}>{label}</p>
@@ -260,13 +260,13 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
 }
 
 function Metric({ title, value, subtitle, icon: Icon, color, trend, trendLabel, alert }: { title: string; value: string | number; subtitle: string; icon: React.ComponentType<{ className?: string }>; color: 'green' | 'orange' | 'blue' | 'purple'; trend?: number; trendLabel?: string; alert?: boolean }) {
-  const colors = { green: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', orange: 'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-300', blue: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300', purple: 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300' }
+  const colors = { green: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300', orange: 'bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-200', blue: 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300', purple: 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300' }
   return (
     <div className={`bg-white dark:bg-slate-900 rounded-xl border p-5 ${alert ? 'border-orange-300 dark:border-orange-700' : 'border-gray-200 dark:border-slate-800'}`}>
       <div className="flex items-start justify-between">
         <div className={`p-2 rounded-lg ${colors[color]}`}><Icon className="w-5 h-5" /></div>
         {/* A rate for this period, not a change over time — no up/down arrow (T16/T17 L9). */}
-        {trend !== undefined && <div className={`text-sm font-medium ${trend >= 50 ? 'text-green-700 dark:text-green-300' : 'text-orange-600 dark:text-orange-300'}`}>{trend}%</div>}
+        {trend !== undefined && <div className={`text-sm font-medium ${trend >= 50 ? 'text-green-700 dark:text-green-300' : 'text-orange-600 dark:text-orange-200'}`}>{trend}%</div>}
       </div>
       <div className="mt-3">
         <p className={`text-sm font-medium ${muted}`}>{title}</p>

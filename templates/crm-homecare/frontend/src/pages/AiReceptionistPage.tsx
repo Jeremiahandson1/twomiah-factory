@@ -241,7 +241,7 @@ export default function AiReceptionistPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <RefreshCw className="animate-spin text-primary-700 dark:text-primary-300" size={32} />
+        <RefreshCw className="animate-spin text-primary-700 dark:text-primary-200" size={32} />
       </div>
     )
   }
@@ -250,7 +250,7 @@ export default function AiReceptionistPage() {
     <div className="text-gray-900 dark:text-slate-100">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Bot size={28} className="text-primary-700 dark:text-primary-300" />
+          <Bot size={28} className="text-primary-700 dark:text-primary-200" />
           <div>
             <h1 className="text-2xl font-bold">AI Receptionist</h1>
             <p className="text-sm text-gray-600 dark:text-slate-400">Answers clients and families when the office can't pick up.</p>
@@ -276,7 +276,7 @@ export default function AiReceptionistPage() {
         </div>
         <div className={`${cardCls} p-4`}>
           <p className="text-sm text-gray-600 dark:text-slate-400 mb-1">Active Rules</p>
-          <p className="text-lg font-bold text-primary-700 dark:text-primary-300">{activeRulesCount}</p>
+          <p className="text-lg font-bold text-primary-700 dark:text-primary-200">{activeRulesCount}</p>
         </div>
         <div className={`${cardCls} p-4`}>
           <p className="text-sm text-gray-600 dark:text-slate-400 mb-1">Recent Calls</p>

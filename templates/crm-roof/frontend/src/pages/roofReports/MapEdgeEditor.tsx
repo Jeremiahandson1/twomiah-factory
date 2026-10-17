@@ -674,7 +674,7 @@ export default function MapEdgeEditor({
 
           {/* Revert */}
           {onRevert && userEdited && (
-            <button onClick={onRevert} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-orange-700 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 border border-orange-200 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors">
+            <button onClick={onRevert} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-orange-700 dark:text-orange-200 hover:text-orange-800 dark:hover:text-orange-100 border border-orange-200 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors">
               <RotateCcw className="w-3.5 h-3.5" /> Revert
             </button>
           )}

@@ -42,7 +42,7 @@ function JobCard({ job, busy, onComplete }: { job: SubJob; busy: boolean; onComp
     <div className={`${card} p-4`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
-          <div className="p-2 bg-orange-100 rounded-lg shrink-0 dark:bg-orange-950/40"><Hammer className="w-5 h-5 text-orange-600 dark:text-orange-300" /></div>
+          <div className="p-2 bg-orange-100 rounded-lg shrink-0 dark:bg-orange-950/40"><Hammer className="w-5 h-5 text-orange-600 dark:text-orange-200" /></div>
           <div className="min-w-0">
             <p className="font-medium text-gray-900 dark:text-slate-100">{job.number} — {job.title}</p>
             {job.projectName && <p className="text-sm text-gray-500 dark:text-slate-400">Project: {job.projectNumber ? `${job.projectNumber} · ` : ''}{job.projectName}</p>}
@@ -112,7 +112,7 @@ export function PortalLienWaivers() {
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {waivers.length === 0 ? <Empty icon={FileSignature} text="No lien waivers yet." /> : (
         <div className="space-y-6">
-          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" /> Pending ({pending.length})</>}>{pending.map((w) => <WaiverCard key={w.id} w={w} onSign={() => { setSigning(w); setDocumentUrl(w.documentUrl || ''); setNotes('') }} />)}</Section>}
+          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-200" /> Pending ({pending.length})</>}>{pending.map((w) => <WaiverCard key={w.id} w={w} onSign={() => { setSigning(w); setDocumentUrl(w.documentUrl || ''); setNotes('') }} />)}</Section>}
           {done.length > 0 && <Section title={<><CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-300" /> Signed ({done.length})</>}>{done.map((w) => <WaiverCard key={w.id} w={w} onSign={null} />)}</Section>}
         </div>
       )}
@@ -181,7 +181,7 @@ export function PortalSubmittalReview() {
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {subs.length === 0 ? <Empty icon={FileCheck2} text="No submittals yet." /> : (
         <div className="space-y-6">
-          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" /> Pending Review ({pending.length})</>}>{pending.map((s) => <SubCard key={s.id} s={s} actions />)}</Section>}
+          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-200" /> Pending Review ({pending.length})</>}>{pending.map((s) => <SubCard key={s.id} s={s} actions />)}</Section>}
           {reviewed.length > 0 && <Section title={<><CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-300" /> Reviewed ({reviewed.length})</>}>{reviewed.map((s) => <SubCard key={s.id} s={s} actions={false} />)}</Section>}
         </div>
       )}
@@ -241,7 +241,7 @@ export function PortalAssignedRfis() {
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {rfis.length === 0 ? <Empty icon={HelpCircle} text="No RFIs assigned to you yet." /> : (
         <div className="space-y-6">
-          {open.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" /> Awaiting Response ({open.length})</>}>{open.map((r) => <RfiCard key={r.id} r={r} onRespond={() => { setResponding(r); setResponse('') }} />)}</Section>}
+          {open.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-200" /> Awaiting Response ({open.length})</>}>{open.map((r) => <RfiCard key={r.id} r={r} onRespond={() => { setResponding(r); setResponse('') }} />)}</Section>}
           {answered.length > 0 && <Section title={<><CheckCircle2 className="w-5 h-5 text-green-500 dark:text-green-300" /> Answered ({answered.length})</>}>{answered.map((r) => <RfiCard key={r.id} r={r} onRespond={null} />)}</Section>}
         </div>
       )}

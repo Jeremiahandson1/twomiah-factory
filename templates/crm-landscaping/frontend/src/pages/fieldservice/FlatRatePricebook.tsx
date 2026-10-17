@@ -139,7 +139,7 @@ export default function FlatRatePricebook() {
           <p className="text-gray-500 dark:text-slate-400">No rates found</p>
           {mayAdd && <button
             onClick={() => setShowForm(true)}
-            className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"
+            className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200"
           >
             Add your first service rate
           </button>}
@@ -459,7 +459,7 @@ function RateFormModal({ item, categories, onSave, onClose }) {
                 type="checkbox"
                 checked={form.taxable}
                 onChange={(e) => setForm({ ...form, taxable: e.target.checked })}
-                className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
+                className="w-4 h-4 rounded text-orange-500 dark:text-orange-200"
               />
               <span className="text-sm text-gray-700 dark:text-slate-300">Taxable</span>
             </label>

@@ -136,7 +136,7 @@ export default function PartsInventory() {
             type="checkbox"
             checked={showLowStock}
             onChange={(e) => setShowLowStock(e.target.checked)}
-            className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
+            className="w-4 h-4 rounded text-orange-500 dark:text-orange-200"
           />
           <span className="text-sm text-gray-600 dark:text-slate-400">Low Stock Only</span>
         </label>
@@ -230,7 +230,7 @@ export default function PartsInventory() {
               <p className="text-gray-500 dark:text-slate-400">No parts found</p>
               {mayAdd && <button
                 onClick={() => setShowForm(true)}
-                className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"
+                className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200"
               >
                 Add your first part
               </button>}

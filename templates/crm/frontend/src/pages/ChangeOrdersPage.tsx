@@ -375,7 +375,7 @@ export default function ChangeOrdersPage() {
                     <td>{!readOnly && <button aria-label="Remove line item" onClick={() => removeLineItem(idx)} className="p-1 text-red-500 dark:text-red-400"><Trash2 className="w-4 h-4" /></button>}</td></tr>
                 ))}</tbody>
               </table>
-              <div className="p-2 border-t flex justify-between items-center">{readOnly ? <span /> : <button onClick={addLineItem} className="text-sm text-orange-500 dark:text-orange-300">+ Add Line</button>}<span className="font-bold">Total: {asMoney(calcTotal())}</span></div>
+              <div className="p-2 border-t flex justify-between items-center">{readOnly ? <span /> : <button onClick={addLineItem} className="text-sm text-orange-500 dark:text-orange-200">+ Add Line</button>}<span className="font-bold">Total: {asMoney(calcTotal())}</span></div>
             </div>
           </div>
           {/*

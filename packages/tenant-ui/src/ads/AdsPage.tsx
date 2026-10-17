@@ -79,7 +79,7 @@ export function AdsPage({ api, toast, config }: { api: AdsApi; toast: AdsToast; 
           )}
           <div className="flex gap-1 border-b border-gray-200 dark:border-slate-800 overflow-x-auto">
             {tabs.map((t) => (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}>
+              <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-200' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}>
                 <t.icon className="w-4 h-4" />{t.label}
               </button>
             ))}
@@ -376,7 +376,7 @@ function ExperimentsTab({ api, toast, can }: { api: AdsApi; toast: AdsToast; can
                     const lift = i > 0 && cvr(base) > 0 ? ((cvr(v) - cvr(base)) / cvr(base)) * 100 : null
                     return (
                       <div key={v.key} className={`p-3 rounded-lg border ${e.winnerKey === v.key ? 'border-orange-500 bg-orange-50/40 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-800'}`}>
-                        <div className="flex items-center justify-between mb-1"><span className="text-xs font-medium text-gray-600 dark:text-slate-400">{v.label} <span className="font-mono">({v.key}, {v.trafficPercent}%)</span></span>{e.winnerKey === v.key && <Trophy className="w-3.5 h-3.5 text-orange-500 dark:text-orange-300" />}</div>
+                        <div className="flex items-center justify-between mb-1"><span className="text-xs font-medium text-gray-600 dark:text-slate-400">{v.label} <span className="font-mono">({v.key}, {v.trafficPercent}%)</span></span>{e.winnerKey === v.key && <Trophy className="w-3.5 h-3.5 text-orange-500 dark:text-orange-200" />}</div>
                         <div className="text-xl font-bold text-gray-900 dark:text-slate-100">{cvr(v).toFixed(1)}%</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">{v.conversions} conversions / {v.assignments} visitors</div>
                         {lift != null && <div className={`text-xs font-medium mt-1 ${lift >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>{lift >= 0 ? '+' : ''}{lift.toFixed(1)}% vs {base.label}</div>}
@@ -476,7 +476,7 @@ function SettingsTab({ api, toast, can, overview, config, onChanged }: { api: Ad
         <div className="grid md:grid-cols-2 gap-3 mt-3">
           {([['managed', 'Managed by Twomiah', 'Ads run in accounts Twomiah creates for you. No Google Ads experience needed.'], ['connected', 'Your own ad accounts', 'Link your existing Meta, TikTok or Local Services account and keep its history.']] as const).map(([id, title, text]) => (
             <button key={id} disabled={!can.admin || modeBusy || overview.mode === id} onClick={() => setMode(id)} className={`p-4 rounded-lg border-2 text-left ${overview.mode === id ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10' : 'border-gray-200 dark:border-slate-700'} ${can.admin && overview.mode !== id ? 'hover:border-gray-300' : 'cursor-default'}`}>
-              <div className="font-semibold">{title}{overview.mode === id && <span className="ml-2 text-xs text-orange-600 dark:text-orange-300">CURRENT</span>}</div>
+              <div className="font-semibold">{title}{overview.mode === id && <span className="ml-2 text-xs text-orange-600 dark:text-orange-200">CURRENT</span>}</div>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">{text}</p>
             </button>
           ))}

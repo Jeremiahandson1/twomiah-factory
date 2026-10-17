@@ -188,7 +188,7 @@ export default function WarrantiesPage({ api }: WarrantiesPageProps) {
               onClick={() => setTab(t.id)}
               className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${
                 tab === t.id
-                  ? 'border-orange-500 text-orange-600 dark:text-orange-300'
+                  ? 'border-orange-500 text-orange-600 dark:text-orange-200'
                   : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
               }`}
             >
@@ -204,7 +204,7 @@ export default function WarrantiesPage({ api }: WarrantiesPageProps) {
               type="checkbox"
               checked={showExpiring}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowExpiring(e.target.checked)}
-              className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 dark:border-slate-700 dark:text-orange-300"
+              className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 dark:border-slate-700 dark:text-orange-200"
             />
             Show expiring soon only
           </label>
@@ -251,7 +251,7 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
     blue: 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
-    orange: 'bg-orange-50 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+    orange: 'bg-orange-50 text-orange-700 dark:text-orange-200 dark:bg-orange-950/40',
   };
 
   return (
@@ -301,7 +301,7 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
                     warranty.isExpired ? 'bg-red-100 dark:bg-red-950/40 dark:text-slate-100' : 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100'
                   }`}>
                     <Shield className={`w-5 h-5 ${
-                      warranty.isExpiringSoon ? 'text-orange-600 dark:text-orange-300' :
+                      warranty.isExpiringSoon ? 'text-orange-600 dark:text-orange-200' :
                       warranty.isExpired ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-300'
                     }`} />
                   </div>
@@ -322,7 +322,7 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
                   <span className="text-red-600 dark:text-red-400">Expired</span>
                 ) : (
                   <div>
-                    <p className={warranty.isExpiringSoon ? 'text-orange-600 dark:text-orange-300 font-medium' : 'text-gray-900 dark:text-slate-100'}>
+                    <p className={warranty.isExpiringSoon ? 'text-orange-600 dark:text-orange-200 font-medium' : 'text-gray-900 dark:text-slate-100'}>
                       {formatDate(warranty.expiresAt)}
                     </p>
                     <p className="text-sm text-gray-500 dark:text-slate-400">{warranty.daysRemaining} days left</p>

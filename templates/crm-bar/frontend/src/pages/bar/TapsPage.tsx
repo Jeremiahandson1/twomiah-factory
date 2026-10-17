@@ -78,7 +78,7 @@ export default function TapsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Beer className="w-6 h-6 text-orange-600 dark:text-orange-300" /> Taps</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Beer className="w-6 h-6 text-orange-600 dark:text-orange-200" /> Taps</h1>
           <p className="text-gray-500 dark:text-slate-400">What's on each line — the website's tap wall reads it live</p>
         </div>
         {mayEdit && <button onClick={() => { setFormErr(''); setForm({ lineNumber: nextLine, isActive: true, price: '' }) }} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"><Plus className="w-4 h-4" /> Tap</button>}
@@ -96,7 +96,7 @@ export default function TapsPage() {
                   <p className="font-medium text-gray-900 dark:text-slate-100">{t.lineNumber}. {t.beerName} <span className="ml-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200">{STATUS_LABEL[t.status] || t.status}</span></p>
                   <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{pourLine(t)}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">{[t.brewery, t.style, t.abv ? `${t.abv}%` : null, t.originCountry].filter(Boolean).join(' · ')}</p>
-                  {t.badge && <p className="text-xs text-orange-700 dark:text-orange-300">{t.badge}</p>}
+                  {t.badge && <p className="text-xs text-orange-700 dark:text-orange-200">{t.badge}</p>}
                 </div>
                 {mayEdit && (
                   <div className="flex items-center gap-1 shrink-0">
@@ -144,7 +144,7 @@ export default function TapsPage() {
                 </div>
               ))}
               {(form.sizeRows || []).length < 6 && (
-                <button type="button" className="text-sm font-semibold text-orange-700 dark:text-orange-300 underline"
+                <button type="button" className="text-sm font-semibold text-orange-700 dark:text-orange-200 underline"
                   onClick={() => setForm({ ...form, sizeRows: (form.sizeRows && form.sizeRows.length) ? [...form.sizeRows, { name: '', oz: '', price: '' }] : [{ name: 'Pint', oz: String(Number(form.pourOz) || 16), price: form.price || '' }, { name: '', oz: '', price: '' }] })}>
                   + Add a size
                 </button>

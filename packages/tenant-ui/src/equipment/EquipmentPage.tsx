@@ -424,7 +424,7 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
 function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-200',
-    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-200',
     yellow: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-200',
     red: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
   };
@@ -942,7 +942,7 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
             <p className="mt-2 text-gray-600 dark:text-slate-400">{record.description}</p>
           )}
           {record.recommendations && (
-            <p className="mt-2 text-sm text-orange-600 dark:text-orange-300">
+            <p className="mt-2 text-sm text-orange-600 dark:text-orange-200">
               Recommendation: {record.recommendations}
             </p>
           )}

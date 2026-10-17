@@ -68,7 +68,7 @@ export default function DashboardPage() {
       <div className="card">
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <h2 className="font-semibold text-gray-900 dark:text-slate-100">Recent orders</h2>
-          <Link to="/orders" className="text-sm text-primary-600 flex items-center gap-1 dark:text-primary-300">View all <ArrowRight className="h-3 w-3" /></Link>
+          <Link to="/orders" className="text-sm text-primary-600 flex items-center gap-1 dark:text-primary-200">View all <ArrowRight className="h-3 w-3" /></Link>
         </div>
         {orders.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-gray-500 dark:text-slate-400">No orders yet.</p>
@@ -109,7 +109,7 @@ function StatCard({ icon: Icon, label, value, highlight }: { icon: any; label: s
   return (
     <div className="card p-5">
       <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400"><Icon className="h-4 w-4" /> {label}</div>
-      <div className={`mt-2 text-2xl font-bold ${highlight ? 'text-primary-600 dark:text-primary-300' : 'text-gray-900 dark:text-slate-200'} dark:text-slate-100`}>{value}</div>
+      <div className={`mt-2 text-2xl font-bold ${highlight ? 'text-primary-600 dark:text-primary-200' : 'text-gray-900 dark:text-slate-200'} dark:text-slate-100`}>{value}</div>
     </div>
   )
 }

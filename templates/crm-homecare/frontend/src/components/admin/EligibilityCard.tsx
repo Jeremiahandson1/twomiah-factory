@@ -59,7 +59,7 @@ export default function EligibilityCard({ caregiverId, token }: { caregiverId: s
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="font-extrabold text-gray-900 dark:text-slate-100">🛡️ Wisconsin Caregiver Eligibility Analysis</div>
         <button onClick={pollNow} disabled={polling}
-          className="px-3 py-1.5 rounded-lg border-2 border-primary-600 bg-white dark:bg-slate-800 text-primary-700 dark:text-primary-300 text-sm font-bold disabled:opacity-60">
+          className="px-3 py-1.5 rounded-lg border-2 border-primary-600 bg-white dark:bg-slate-800 text-primary-700 dark:text-primary-200 text-sm font-bold disabled:opacity-60">
           {polling ? 'Checking…' : 'Poll WORCS Now'}
         </button>
       </div>

@@ -58,7 +58,7 @@ export function TeamInvitesStep({ onBack, onNext }: { onBack: () => void; onNext
         ))}
       </div>
 
-      <button onClick={addRow} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 mb-6 dark:text-orange-300">+ Add another</button>
+      <button onClick={addRow} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 mb-6 dark:text-orange-200">+ Add another</button>
 
       <div className="flex justify-between">
         <button onClick={onBack} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 rounded-md text-sm dark:text-slate-200 dark:bg-slate-800">Back</button>

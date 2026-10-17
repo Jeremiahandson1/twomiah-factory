@@ -119,7 +119,7 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
       <span className="inline-flex items-center gap-2">
         {/* 24px tall at least: the JOB link is one line of small text, which measured under the smallest
             target WCAG 2.2 asks for on a phone. (Field Service T30 L-MOB3) */}
-        {path ? <NavLink to={path} className="inline-flex items-center min-h-6 text-orange-600 hover:underline dark:text-orange-300">{label}</NavLink> : <span>{label}</span>}
+        {path ? <NavLink to={path} className="inline-flex items-center min-h-6 text-orange-600 hover:underline dark:text-orange-200">{label}</NavLink> : <span>{label}</span>}
         {cal.status && cal.status !== row.status && <span className="text-xs text-gray-500 dark:text-slate-400">({cal.status.replace(/_/g, ' ')})</span>}
       </span>
     )
@@ -171,7 +171,7 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
 
       <div className="flex gap-1 border-b border-gray-200 dark:border-slate-800 mb-6">
         {(([['bookings', 'Bookings'], ...(configures ? [['services', 'Bookable Services'], ['settings', 'Settings'], ['embed', 'Embed Code']] : [])] as Array<[Tab, string]>)).map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === id ? 'border-orange-500 text-orange-600 dark:text-orange-300' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>{label}</button>
+          <button key={id} onClick={() => setTab(id)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === id ? 'border-orange-500 text-orange-600 dark:text-orange-200' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>{label}</button>
         ))}
       </div>
 
@@ -254,7 +254,7 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
                 <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-slate-400 flex-wrap">
                   <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{s.durationMinutes} min</span>
                   <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />{money(s.price)}</span>
-                  <span className={s.depositRequired ? 'text-orange-600 dark:text-orange-300' : ''}>{s.depositRequired ? `Deposit ${money(s.depositAmount)}` : 'No deposit'}</span>
+                  <span className={s.depositRequired ? 'text-orange-600 dark:text-orange-200' : ''}>{s.depositRequired ? `Deposit ${money(s.depositAmount)}` : 'No deposit'}</span>
                   {s.active === false && <span className="text-red-500 dark:text-red-400">Not bookable</span>}
                 </div>
               </div>

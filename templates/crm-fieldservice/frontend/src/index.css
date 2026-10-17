@@ -138,8 +138,8 @@
   }
 
   .sidebar-link.active {
-    @apply bg-brand-50 text-brand-600 border-l-2 border-brand-500;
-    @apply dark:bg-brand-500/10 dark:text-brand-400;
+    @apply bg-brand-50 text-brand-700 border-l-2 border-brand-500;
+    @apply dark:bg-brand-500/10 dark:text-brand-200;
   }
 
   .stat-card {

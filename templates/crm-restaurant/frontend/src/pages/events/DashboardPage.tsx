@@ -164,7 +164,7 @@ export default function DashboardPage() {
         <Link to="/crm/spaces" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Confirmed</p>
-            <DoorOpen className="w-5 h-5 text-orange-500 dark:text-orange-300" />
+            <DoorOpen className="w-5 h-5 text-orange-500 dark:text-orange-200" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{pipeline.confirmed || 0}</p>
           <p className="text-xs text-gray-500 dark:text-slate-400">{pipeline.tentative || 0} tentative</p>
@@ -193,7 +193,7 @@ export default function DashboardPage() {
       {bySpace.length > 0 && (
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <DoorOpen className="w-4 h-4 text-orange-500 dark:text-orange-300" /> Space Utilisation
+            <DoorOpen className="w-4 h-4 text-orange-500 dark:text-orange-200" /> Space Utilisation
             <span className="text-xs text-gray-500 dark:text-slate-400 font-normal">upcoming held events</span>
           </h2>
           <ul className="space-y-3">

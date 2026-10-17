@@ -55,7 +55,7 @@ export default function AppLayout() {
       {/* Mobile top bar */}
       <div className="lg:hidden flex items-center justify-between bg-white border-b px-4 py-3 dark:bg-slate-900 dark:border-slate-700">
         <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-slate-100">
-          <Store className="h-5 w-5 text-primary-500 dark:text-primary-300" /> {companyName}
+          <Store className="h-5 w-5 text-primary-500 dark:text-primary-200" /> {companyName}
         </div>
         <div className="flex items-center gap-1">
         {themeButton}
@@ -69,7 +69,7 @@ export default function AppLayout() {
         {/* Sidebar */}
         <aside className={`${open ? 'block' : 'hidden'} lg:block fixed lg:static inset-0 top-[57px] lg:top-0 z-20 w-full lg:w-64 bg-white border-r lg:min-h-screen dark:bg-slate-900 dark:border-slate-700`}>
           <div className="hidden lg:flex items-center gap-2 px-6 py-5 font-semibold text-gray-900 border-b dark:text-slate-100 dark:border-slate-700">
-            <Store className="h-5 w-5 text-primary-500 dark:text-primary-300" /> <span className="flex-1 truncate">{companyName}</span> {themeButton}
+            <Store className="h-5 w-5 text-primary-500 dark:text-primary-200" /> <span className="flex-1 truncate">{companyName}</span> {themeButton}
           </div>
           <nav className="p-3 space-y-1">
             {nav.map(({ to, label, icon: Icon, end }) => (

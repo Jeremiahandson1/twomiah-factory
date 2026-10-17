@@ -70,7 +70,7 @@ export default function OnboardingWizard() {
                 Two quick things and you're in.
               </p>
               <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg mb-6 text-gray-900 dark:text-slate-100 dark:bg-orange-950/40">
-                <Mail className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0 dark:text-orange-300" />
+                <Mail className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0 dark:text-orange-200" />
                 <p className="text-sm text-gray-700 dark:text-slate-200">
                   Next, we'll set up branded email addresses on your domain — <span className="font-mono">sales@</span>,{' '}
                   <span className="font-mono">estimates@</span>, <span className="font-mono">support@</span> — forwarding

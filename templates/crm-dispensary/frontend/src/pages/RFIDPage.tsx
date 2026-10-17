@@ -342,7 +342,7 @@ function ScanTab() {
       <div className="bg-white rounded-xl shadow-sm p-6 dark:bg-slate-900">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center dark:bg-orange-950/40">
-            <Radio className="w-6 h-6 text-orange-600 dark:text-orange-300" />
+            <Radio className="w-6 h-6 text-orange-600 dark:text-orange-200" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">RFID Scanner</h2>

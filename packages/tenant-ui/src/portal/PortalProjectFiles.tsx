@@ -42,7 +42,7 @@ export function PortalProjectFiles() {
 
   return (
     <div>
-      <div className="mb-4"><PLink to={`/portal/${token}/projects/${projectId}`} className="text-orange-600 hover:underline text-sm dark:text-orange-300">{'<-'} Back to Project</PLink></div>
+      <div className="mb-4"><PLink to={`/portal/${token}/projects/${projectId}`} className="text-orange-600 hover:underline text-sm dark:text-orange-200">{'<-'} Back to Project</PLink></div>
       <PageTitle title="Project Files" subtitle="Shared files for this project — organized by category." />
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className={`${card} p-4 mb-6`}>

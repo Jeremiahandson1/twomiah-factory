@@ -50,15 +50,15 @@ export default function ReviewsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Star className="w-6 h-6 text-orange-500 dark:text-orange-300" />Reviews</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Star className="w-6 h-6 text-orange-500 dark:text-orange-200" />Reviews</h1>
           {summary && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{Number(summary.averageRating || 0).toFixed(1)} ★ average · {summary.totalReviews} reviews</p>}
         </div>
         {tab === 'requests' && mayAskForReview && (<button onClick={() => setShowRequest(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Request Review</button>)}
       </div>
 
       <div className="flex gap-2 mb-4 border-b">
-        <button onClick={() => setTab('received')} className={`px-4 py-2 border-b-2 ${tab === 'received' ? 'border-orange-500 text-orange-600 font-semibold dark:text-orange-300' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Received ({reviews.length})</button>
-        <button onClick={() => setTab('requests')} className={`px-4 py-2 border-b-2 ${tab === 'requests' ? 'border-orange-500 text-orange-600 font-semibold dark:text-orange-300' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Requests ({requests.length})</button>
+        <button onClick={() => setTab('received')} className={`px-4 py-2 border-b-2 ${tab === 'received' ? 'border-orange-500 text-orange-600 font-semibold dark:text-orange-200' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Received ({reviews.length})</button>
+        <button onClick={() => setTab('requests')} className={`px-4 py-2 border-b-2 ${tab === 'requests' ? 'border-orange-500 text-orange-600 font-semibold dark:text-orange-200' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Requests ({requests.length})</button>
       </div>
 
       {tab === 'received' ? (

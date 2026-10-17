@@ -472,7 +472,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center dark:bg-orange-950/40">
-                      <Shield className="w-5 h-5 text-orange-600 dark:text-orange-300" />
+                      <Shield className="w-5 h-5 text-orange-600 dark:text-orange-200" />
                     </div>
                     <div>
                       <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Insurance Claim</h2>

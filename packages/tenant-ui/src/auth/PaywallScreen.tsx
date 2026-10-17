@@ -144,9 +144,9 @@ export function PaywallScreen({ company, onSignOut, request, homePath = '/crm' }
           <div className="pt-4 border-t border-gray-100 text-center dark:border-slate-700">
             <p className="text-xs text-gray-500 dark:text-slate-400">
               Questions?{' '}
-              <a href="mailto:support@twomiah.com" className="text-orange-700 hover:underline dark:text-orange-300">Contact support</a>
+              <a href="mailto:support@twomiah.com" className="text-orange-700 hover:underline dark:text-orange-200">Contact support</a>
               {' '}or{' '}
-              <button type="button" onClick={onSignOut} className="text-orange-700 hover:underline dark:text-orange-300">sign out</button>
+              <button type="button" onClick={onSignOut} className="text-orange-700 hover:underline dark:text-orange-200">sign out</button>
               .
             </p>
           </div>

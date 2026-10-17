@@ -341,7 +341,7 @@ function SummaryCard({ label, value, icon: Icon, color = 'gray', subtitle }: Sum
     gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-200',
     blue: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
     green: 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300',
-    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-200',
   };
 
   return (
@@ -438,7 +438,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
           ) : (
             <button
               onClick={onSelect}
-              className="mt-2 text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200"
+              className="mt-2 text-sm text-orange-700 hover:text-orange-800 dark:text-orange-200 dark:hover:text-orange-200"
             >
               + Select an option
             </button>
@@ -450,7 +450,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
               Allowance: ${selection.allowance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 0}
             </span>
             {selection.priceDifference !== 0 && selection.priceDifference !== undefined && (
-              <span className={(selection.priceDifference ?? 0) > 0 ? 'text-orange-700 dark:text-orange-300' : 'text-green-700 dark:text-green-400'}>
+              <span className={(selection.priceDifference ?? 0) > 0 ? 'text-orange-700 dark:text-orange-200' : 'text-green-700 dark:text-green-400'}>
                 {(selection.priceDifference ?? 0) > 0 ? '+' : ''}${(selection.priceDifference ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 {(selection.priceDifference ?? 0) > 0 ? ' upgrade' : ' credit'}
               </span>
@@ -605,7 +605,7 @@ function OptionPickerModal({ selection, onSelect, onClose }: OptionPickerModalPr
                       <div className="mt-2 flex items-center justify-between">
                         <span className="font-bold">${totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         {diff !== 0 && (
-                          <span className={`text-sm ${diff > 0 ? 'text-orange-700 dark:text-orange-300' : 'text-green-700 dark:text-green-400'}`}>
+                          <span className={`text-sm ${diff > 0 ? 'text-orange-700 dark:text-orange-200' : 'text-green-700 dark:text-green-400'}`}>
                             {diff > 0 ? '+' : ''}${diff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         )}

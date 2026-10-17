@@ -315,7 +315,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
                   <p className="text-gray-500 dark:text-slate-400">No measurements yet</p>
                   <button
                     onClick={() => setShowAddItem(true)}
-                    className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300"
+                    className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200"
                   >
                     Add your first measurement
                   </button>
@@ -516,7 +516,7 @@ function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
                   <tr key={i}>
                     <td className="px-3 py-2">{mat.materialName}</td>
                     <td className="px-3 py-2 text-right">{Number(mat.baseQuantity).toFixed(2)} {mat.unit}</td>
-                    <td className="px-3 py-2 text-right text-orange-600 dark:text-orange-300">+{Number(mat.wasteQuantity).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right text-orange-600 dark:text-orange-200">+{Number(mat.wasteQuantity).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right font-medium">{Number(mat.totalQuantity).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right">${Number(mat.unitCost).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right font-medium">${Number(mat.totalCost).toFixed(2)}</td>

@@ -171,7 +171,7 @@ export default function DispatchBoard() {
           {!isToday && (
             <button
               onClick={() => setSelectedDate(todayKey())}
-              className="px-3 py-2 text-sm text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg"
+              className="px-3 py-2 text-sm text-orange-700 dark:text-orange-200 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg"
             >
               Today
             </button>
@@ -312,7 +312,7 @@ export default function DispatchBoard() {
 function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   const colors = {
     gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-300',
-    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-200',
     blue: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
     green: 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400',
     // Added with the Scheduled tile (T48). A colour missing from this map resolves to `undefined`

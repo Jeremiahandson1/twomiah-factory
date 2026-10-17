@@ -40,7 +40,7 @@ export function MyAccountPage({ api, toast }: { api: any; toast: { success: (m: 
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
-          <User className="w-6 h-6 text-orange-600 dark:text-orange-300" aria-hidden="true" />My account
+          <User className="w-6 h-6 text-orange-600 dark:text-orange-200" aria-hidden="true" />My account
         </h1>
         <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">
           How you sign in. These settings are yours alone — changing them affects nobody else and nothing about the business.

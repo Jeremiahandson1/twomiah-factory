@@ -304,7 +304,7 @@ export default function InventoryPage() {
               )}
               <div className="p-4 flex-1 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full dark:text-orange-300 dark:bg-orange-950/40">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full dark:text-orange-200 dark:bg-orange-950/40">
                     <Tag className="w-3 h-3" /> {categoryLabel(u.category)}
                   </span>
                   {u.status && (
@@ -444,7 +444,7 @@ function FeedUrlModal({ onClose }: { onClose: () => void }) {
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
-              <Link2 className="w-5 h-5 text-orange-500 dark:text-orange-300" />
+              <Link2 className="w-5 h-5 text-orange-500 dark:text-orange-200" />
               Syndication Feed URLs
             </h2>
             <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>

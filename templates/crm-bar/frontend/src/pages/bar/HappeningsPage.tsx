@@ -76,7 +76,7 @@ export default function HappeningsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><CalendarDays className="w-6 h-6 text-orange-600 dark:text-orange-300" /> What's on</h1>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><CalendarDays className="w-6 h-6 text-orange-600 dark:text-orange-200" /> What's on</h1>
         <p className="text-gray-500 dark:text-slate-400">Events and weekly specials on your website; the game on the Tonight board</p>
       </div>
       <FormError message={err} onDismiss={() => setErr('')} />

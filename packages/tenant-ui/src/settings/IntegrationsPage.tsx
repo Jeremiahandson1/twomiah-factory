@@ -84,7 +84,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
   const testSms = () => { if (!testPhone.trim()) { fail('Enter a phone number'); return } run('testsms', async () => { await api.post('/api/sms/test', { to: testPhone }); setTestPhone(''); flash('Test text sent') }, 'Failed to send the test text') }
   const copyWebhookUrl = async () => { try { await navigator.clipboard.writeText(`${window.location.origin}/api/sms/webhook/incoming`); flash('Webhook URL copied') } catch { fail('Could not copy — the URL is shown below the button') } }
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-orange-500 animate-spin dark:text-orange-300" /></div>
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-orange-500 animate-spin dark:text-orange-200" /></div>
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -175,7 +175,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
         </div>
 
         <ToggleCard icon={<MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />} iconBg="bg-blue-100 dark:bg-blue-500/20" title="SMS Notifications" description={copy.sms} enabled={status.sms.enabled} usage={`${status.sms.usage} messages`} busy={saving === 'sms'} onToggle={() => toggle('sms')} onColor="text-blue-500" />
-        <ToggleCard icon={<Mail className="w-6 h-6 text-orange-600 dark:text-orange-400" />} iconBg="bg-orange-100 dark:bg-orange-500/20" title="Email" description={copy.email} enabled={status.email.enabled} usage={`${status.email.usage} emails`} busy={saving === 'email'} onToggle={() => toggle('email')} onColor="text-orange-500" />
+        <ToggleCard icon={<Mail className="w-6 h-6 text-orange-600 dark:text-orange-200" />} iconBg="bg-orange-100 dark:bg-orange-500/20" title="Email" description={copy.email} enabled={status.email.enabled} usage={`${status.email.usage} emails`} busy={saving === 'email'} onToggle={() => toggle('email')} onColor="text-orange-500" />
 
         {/* The CallRail key, for a template whose call tracking has no page of its own (config.callTracking). The
             section decides for itself whether the API would answer: Call Tracking on + integrations:update. */}
@@ -234,7 +234,7 @@ function GuideCard({ icon, iconBg, title, description, expanded, onToggle, steps
         <div className="px-6 pb-6 border-t dark:border-slate-700">
           <h4 className="text-sm font-semibold text-gray-700 dark:text-slate-300 mt-4 mb-3">How to set up:</h4>
           <ol className="space-y-2">{steps.map((step, idx) => (
-            <li key={idx} className="flex items-start gap-3 text-sm text-gray-600 dark:text-slate-400"><span className="w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 flex items-center justify-center flex-shrink-0 text-xs font-semibold mt-0.5">{idx + 1}</span>{step}</li>
+            <li key={idx} className="flex items-start gap-3 text-sm text-gray-600 dark:text-slate-400"><span className="w-5 h-5 rounded-full bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-200 flex items-center justify-center flex-shrink-0 text-xs font-semibold mt-0.5">{idx + 1}</span>{step}</li>
           ))}</ol>
         </div>
       )}

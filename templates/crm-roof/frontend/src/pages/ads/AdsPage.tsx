@@ -49,7 +49,7 @@ function AdsContent() {
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
               tab === t.id
-                ? 'border-orange-500 text-orange-600 dark:text-orange-400'
+                ? 'border-orange-500 text-orange-600 dark:text-orange-200'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
             }`}
           >
@@ -156,7 +156,7 @@ function ExperimentsTab() {
                       <div key={v.key} className={`p-3 rounded border ${isWinner ? 'border-orange-500 bg-orange-50/40 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-800'}`}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs font-medium text-gray-600 dark:text-slate-400">{v.label}</span>
-                          {isWinner && <Trophy className="w-3.5 h-3.5 text-orange-500 dark:text-orange-300" />}
+                          {isWinner && <Trophy className="w-3.5 h-3.5 text-orange-500 dark:text-orange-200" />}
                         </div>
                         <div className="text-xl font-bold text-gray-900 dark:text-white">{c.toFixed(1)}%</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">{v.conversions}/{v.assignments}</div>
@@ -283,7 +283,7 @@ function PerformanceTab() {
     blue: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400',
     purple: 'bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400',
     green: 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400',
-    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-200',
     emerald: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400',
     red: 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400',
   };
@@ -467,7 +467,7 @@ function CampaignsTab() {
                 <div className="flex items-center justify-between mt-3">
                   <button
                     onClick={() => setSelectedAd(ad)}
-                    className="text-xs font-medium text-orange-500 hover:text-orange-600 dark:hover:text-orange-200 flex items-center gap-1 dark:text-orange-300"
+                    className="text-xs font-medium text-orange-500 hover:text-orange-600 dark:hover:text-orange-200 flex items-center gap-1 dark:text-orange-200"
                   >
                     View Details <ExternalLink className="w-3 h-3" />
                   </button>

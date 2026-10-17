@@ -100,7 +100,7 @@ export default function BarSettingsPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Clock className="w-6 h-6 text-orange-600 dark:text-orange-300" /> Bar settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Clock className="w-6 h-6 text-orange-600 dark:text-orange-200" /> Bar settings</h1>
         <p className="text-gray-500 dark:text-slate-400">Hours, holidays and the speakeasy door — your website reads them live</p>
       </div>
       <FormError message={err} onDismiss={() => setErr('')} />
@@ -125,7 +125,7 @@ export default function BarSettingsPage() {
               </div>
             ))}
           </div>
-          {mayEdit && <button onClick={() => setHours((x) => ({ ...x, holidays: [...(x.holidays || []), { date: '', label: '', bar: null, kitchen: null }] }))} className="mt-2 flex items-center gap-1 text-sm font-semibold text-orange-700 dark:text-orange-300"><Plus className="w-4 h-4" /> Add a day</button>}
+          {mayEdit && <button onClick={() => setHours((x) => ({ ...x, holidays: [...(x.holidays || []), { date: '', label: '', bar: null, kitchen: null }] }))} className="mt-2 flex items-center gap-1 text-sm font-semibold text-orange-700 dark:text-orange-200"><Plus className="w-4 h-4" /> Add a day</button>}
         </div>
         {mayEdit && <button disabled={saving === 'hours'} onClick={() => put('hours', { hours: { ...hours, holidays: (hours.holidays || []).filter((h) => h.date) } }, 'Hours saved.')} className="px-4 py-2 rounded-lg bg-orange-600 text-white disabled:opacity-50">{saving === 'hours' ? 'Saving…' : 'Save hours'}</button>}
       </section>

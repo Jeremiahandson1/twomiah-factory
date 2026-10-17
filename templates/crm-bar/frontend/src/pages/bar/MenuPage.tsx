@@ -88,7 +88,7 @@ export default function MenuPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Utensils className="w-6 h-6 text-orange-600 dark:text-orange-300" /> Menu</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><Utensils className="w-6 h-6 text-orange-600 dark:text-orange-200" /> Menu</h1>
           <p className="text-gray-500 dark:text-slate-400">Real prices, on your website the moment you save</p>
         </div>
         {mayEdit && (
@@ -129,7 +129,7 @@ export default function MenuPage() {
                     <div className="min-w-0">
                       <p className={`font-medium ${i.is86ed ? 'line-through text-gray-500 dark:text-slate-400' : 'text-gray-900 dark:text-slate-100'}`}>
                         {i.name}
-                        {i.isSignature && <span className="ml-2 text-xs font-semibold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full dark:text-orange-300 dark:bg-orange-950/40">Signature</span>}
+                        {i.isSignature && <span className="ml-2 text-xs font-semibold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full dark:text-orange-200 dark:bg-orange-950/40">Signature</span>}
                         {i.is86ed && <span className="ml-2 text-xs font-semibold text-red-800 bg-red-50 px-2 py-0.5 rounded-full dark:text-red-200 dark:bg-red-950/40">86</span>}
                         {!i.isActive && <span className="ml-2 text-xs text-gray-600 dark:text-slate-300">hidden</span>}
                       </p>

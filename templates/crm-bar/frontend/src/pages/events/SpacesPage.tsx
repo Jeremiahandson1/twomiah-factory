@@ -73,7 +73,7 @@ export default function SpacesPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <DoorOpen className="w-6 h-6 text-orange-600 dark:text-orange-300" /> Spaces
+            <DoorOpen className="w-6 h-6 text-orange-600 dark:text-orange-200" /> Spaces
           </h1>
           <p className="text-gray-500 dark:text-slate-400">What you can sell, who it holds, what it has to spend</p>
         </div>
@@ -117,7 +117,7 @@ export default function SpacesPage() {
               {('minimumSpend' in s || 'hireFee' in s) && (
               <div className="mt-3 space-y-1 text-sm">
                 <p className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
-                  <Wallet className="w-4 h-4 text-orange-500 dark:text-orange-300" />
+                  <Wallet className="w-4 h-4 text-orange-500 dark:text-orange-200" />
                   <span className="font-semibold">{money(s.minimumSpend)}</span>
                   <span className="text-gray-500 dark:text-slate-400">minimum spend</span>
                 </p>
@@ -128,7 +128,7 @@ export default function SpacesPage() {
               {(s.amenities || []).length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3">
                   {(s.amenities || []).map((a, i) => (
-                    <span key={i} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full dark:text-orange-300 dark:bg-orange-950/40">{a}</span>
+                    <span key={i} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full dark:text-orange-200 dark:bg-orange-950/40">{a}</span>
                   ))}
                 </div>
               )}

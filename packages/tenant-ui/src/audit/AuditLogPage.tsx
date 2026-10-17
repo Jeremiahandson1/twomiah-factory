@@ -225,7 +225,7 @@ export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: Aud
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-          <Shield className="w-6 h-6 text-orange-600 dark:text-orange-300" />
+          <Shield className="w-6 h-6 text-orange-600 dark:text-orange-200" />
           Audit Log
         </h1>
         <p className="text-gray-600 dark:text-slate-400">Who changed what, and when — every create, edit, deletion and payment.</p>

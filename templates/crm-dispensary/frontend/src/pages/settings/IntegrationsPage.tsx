@@ -174,7 +174,7 @@ export default function IntegrationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-orange-500 animate-spin dark:text-orange-300" />
+        <Loader2 className="w-8 h-8 text-orange-500 animate-spin dark:text-orange-200" />
       </div>
     );
   }
@@ -204,7 +204,7 @@ export default function IntegrationsPage() {
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center dark:bg-orange-950/40">
-                <KeyRound className="w-6 h-6 text-orange-600 dark:text-orange-300" />
+                <KeyRound className="w-6 h-6 text-orange-600 dark:text-orange-200" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">POS API key</h3>
@@ -408,7 +408,7 @@ export default function IntegrationsPage() {
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center dark:bg-orange-950/40">
-                <Mail className="w-6 h-6 text-orange-600 dark:text-orange-300" />
+                <Mail className="w-6 h-6 text-orange-600 dark:text-orange-200" />
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">Email</h3>
@@ -430,7 +430,7 @@ export default function IntegrationsPage() {
               {saving === 'email' ? (
                 <Loader2 className="w-10 h-10 text-gray-400 animate-spin" />
               ) : integrations.email.enabled ? (
-                <ToggleRight className="w-10 h-10 text-orange-500 dark:text-orange-300" />
+                <ToggleRight className="w-10 h-10 text-orange-500 dark:text-orange-200" />
               ) : (
                 <ToggleLeft className="w-10 h-10 text-gray-300" />
               )}

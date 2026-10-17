@@ -78,13 +78,13 @@ export default function StormRadarPage() {
     load();
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-300" /></div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-200" /></div>;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Radio className="w-6 h-6 text-orange-500 dark:text-orange-300" />Storm Radar</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Radio className="w-6 h-6 text-orange-500 dark:text-orange-200" />Storm Radar</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Weather events overlaid on your customer base — drive storm-season lead generation</p>
         </div>
         {mayWorkStorms && (<button onClick={sync} disabled={syncing || !status?.configured} className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center gap-2">
@@ -125,7 +125,7 @@ export default function StormRadarPage() {
                   <td className="px-4 py-3 text-sm">{e.hailSizeInches ? `${e.hailSizeInches}"` : '—'}</td>
                   <td className="px-4 py-3 text-sm">{e.windSpeedMph ? `${e.windSpeedMph} mph` : '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{e.startedAt ? formatDate(e.startedAt) : '—'}</td>
-                  <td className="px-4 py-3">{mayWorkStorms && (<button onClick={() => matchEvent(e.id)} className="text-xs text-orange-600 hover:underline dark:text-orange-300">Match Contacts</button>)}</td>
+                  <td className="px-4 py-3">{mayWorkStorms && (<button onClick={() => matchEvent(e.id)} className="text-xs text-orange-600 hover:underline dark:text-orange-200">Match Contacts</button>)}</td>
                 </tr>
               ))}
           </tbody>

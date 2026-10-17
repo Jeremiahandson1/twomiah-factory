@@ -100,13 +100,13 @@ export default function SubmittalsPage() {
     loadData();
   };
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-300" /></div>;
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-200" /></div>;
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><FileText className="w-6 h-6 text-orange-500 dark:text-orange-300" />Submittals</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><FileText className="w-6 h-6 text-orange-500 dark:text-orange-200" />Submittals</h1>
           <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Shop drawings, product data, samples, mockups</p>
         </div>
         {can('submittals:create') && <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"><Plus className="w-4 h-4" />New Submittal</button>}

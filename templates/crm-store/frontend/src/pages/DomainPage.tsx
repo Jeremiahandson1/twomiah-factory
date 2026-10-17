@@ -117,9 +117,9 @@ export default function DomainPage() {
             <div className="space-y-2 text-sm text-gray-700 dark:text-slate-200">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{status.domain} is live</h2>
               <p>Your store is at{' '}
-                <a href={'https://' + status.domain} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary-700 underline dark:text-primary-300">https://{status.domain} <ExternalLink className="h-3 w-3" /></a>
+                <a href={'https://' + status.domain} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary-700 underline dark:text-primary-200">https://{status.domain} <ExternalLink className="h-3 w-3" /></a>
                 {' '}and this admin at{' '}
-                <a href={'https://app.' + status.domain} className="text-primary-700 underline dark:text-primary-300">https://app.{status.domain}</a>.
+                <a href={'https://app.' + status.domain} className="text-primary-700 underline dark:text-primary-200">https://app.{status.domain}</a>.
               </p>
               <p className="text-xs text-gray-600 dark:text-slate-400">SSL certificates are auto-renewed. To change your domain, contact support so we don't accidentally take your store offline mid-DNS-flip.</p>
             </div>
@@ -155,7 +155,7 @@ export default function DomainPage() {
                     </div>
                   )}
                   <details>
-                    <summary className="cursor-pointer font-medium text-primary-700 dark:text-primary-300">Step-by-step instructions</summary>
+                    <summary className="cursor-pointer font-medium text-primary-700 dark:text-primary-200">Step-by-step instructions</summary>
                     <ol className="mt-3 list-decimal space-y-1 pl-5">
                       <li>Sign in to your domain registrar (where you bought {status.domain}).</li>
                       <li>Find DNS settings or Nameservers for {status.domain}.</li>
@@ -166,7 +166,7 @@ export default function DomainPage() {
                   </details>
                 </>
               )}
-              <div className="text-xs text-gray-600 dark:text-slate-400">Checking again automatically every 30 seconds. <button onClick={fetchStatus} className="text-primary-700 underline dark:text-primary-300">Check now</button></div>
+              <div className="text-xs text-gray-600 dark:text-slate-400">Checking again automatically every 30 seconds. <button onClick={fetchStatus} className="text-primary-700 underline dark:text-primary-200">Check now</button></div>
             </div>
           </div>
         </section>

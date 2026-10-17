@@ -87,7 +87,7 @@ export default function CallTrackingPage() {
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${
               tab === t.id
-                ? 'border-orange-500 text-orange-600 dark:text-orange-300'
+                ? 'border-orange-500 text-orange-600 dark:text-orange-200'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
@@ -132,7 +132,7 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
     gray: 'bg-gray-50 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
     blue: 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
     green: 'bg-green-50 text-green-700 dark:text-green-300 dark:bg-green-950/40',
-    orange: 'bg-orange-50 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+    orange: 'bg-orange-50 text-orange-700 dark:text-orange-200 dark:bg-orange-950/40',
     purple: 'bg-purple-50 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
   };
 
@@ -328,8 +328,8 @@ function AttributionTab({ report }) {
             <span className="font-bold text-green-700 dark:text-green-300">{report.totals?.leads || 0}</span>
           </div>
           <div className="flex justify-between p-3 bg-orange-50 rounded-lg dark:bg-orange-950/40">
-            <span className="text-orange-700 dark:text-orange-300">Lead Value</span>
-            <span className="font-bold text-orange-700 dark:text-orange-300">${report.totals?.leadValue || 0}</span>
+            <span className="text-orange-700 dark:text-orange-200">Lead Value</span>
+            <span className="font-bold text-orange-700 dark:text-orange-200">${report.totals?.leadValue || 0}</span>
           </div>
         </div>
       </div>

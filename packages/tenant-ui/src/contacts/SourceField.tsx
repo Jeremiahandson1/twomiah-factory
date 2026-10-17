@@ -90,7 +90,7 @@ export function SourceField({ api, value, onChange, toast }: SourceFieldProps) {
           placeholder="Where did this one come from?" aria-label="Other source" maxLength={120} />
       )}
       {canManage && !editing && (
-        <button type="button" onClick={startEdit} className="mt-1 text-xs text-orange-700 hover:underline dark:text-orange-300">Edit choices</button>
+        <button type="button" onClick={startEdit} className="mt-1 text-xs text-orange-700 hover:underline dark:text-orange-200">Edit choices</button>
       )}
       {canManage && editing && (
         <div className="mt-2 rounded-lg border border-gray-200 p-3 dark:border-slate-700">

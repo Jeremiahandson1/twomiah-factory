@@ -46,7 +46,7 @@ export default function OrdersPage() {
               {orders.map((o) => (
                 <tr key={o.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-3 sm:px-4 py-3">
-                    <Link to={`/orders/${o.id}`} className="font-medium text-primary-600 dark:text-primary-300">{o.orderNumber || 'Pending'}</Link>
+                    <Link to={`/orders/${o.id}`} className="font-medium text-primary-600 dark:text-primary-200">{o.orderNumber || 'Pending'}</Link>
                     <span className="block sm:hidden text-xs text-gray-500 dark:text-slate-400">{formatDate(o.createdAt)}</span>
                   </td>
                   <td className="px-3 sm:px-4 py-3 text-gray-600 dark:text-slate-300 max-w-[8rem] sm:max-w-none truncate">{o.customerName || o.customerEmail}</td>

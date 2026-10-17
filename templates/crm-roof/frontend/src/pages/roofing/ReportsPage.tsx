@@ -287,7 +287,7 @@ export default function ReportsPage() {
           <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center dark:bg-orange-950/40">
-                <BarChart3 className="w-5 h-5 text-orange-600 dark:text-orange-300" />
+                <BarChart3 className="w-5 h-5 text-orange-600 dark:text-orange-200" />
               </div>
               {/* H3: this tile was labelled "Total Revenue" but is summed from job estimates — it is
                   what the pipeline is thought to be worth, not money that exists. Named for what it

@@ -62,7 +62,7 @@ export function PortalEquipmentDetail() {
   const eq = data.equipment, w = warranty(eq.warrantyExpiry)
   return (
     <div className="space-y-5">
-      <PLink to={`/portal/${token}/equipment`} className="text-orange-600 hover:underline text-sm inline-block dark:text-orange-300">{'<-'} Back to Equipment</PLink>
+      <PLink to={`/portal/${token}/equipment`} className="text-orange-600 hover:underline text-sm inline-block dark:text-orange-200">{'<-'} Back to Equipment</PLink>
       <div className={`${card} p-5`}>
         <h1 className="text-xl font-bold text-gray-900 mb-4 dark:text-slate-100">{eq.name}</h1>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">

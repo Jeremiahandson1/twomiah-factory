@@ -244,9 +244,9 @@ export default function MaintenanceContracts() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         {isExpiringSoon && (
-                          <AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-300" />
+                          <AlertTriangle className="w-4 h-4 text-orange-500 dark:text-orange-200" />
                         )}
-                        <span className={`text-sm ${isExpiringSoon ? 'text-orange-600 dark:text-orange-300' : 'text-gray-500 dark:text-slate-400'}`}>
+                        <span className={`text-sm ${isExpiringSoon ? 'text-orange-600 dark:text-orange-200' : 'text-gray-500 dark:text-slate-400'}`}>
                           {contract.endDate
                             ? formatDate(contract.endDate)
                             : '-'}
@@ -311,7 +311,7 @@ export default function MaintenanceContracts() {
 function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   const colors = {
     gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-300',
-    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-200',
     green: 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400',
     blue: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
   };
@@ -516,7 +516,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
                       type="checkbox"
                       checked={form.includedServices.includes(service)}
                       onChange={() => toggleService(service)}
-                      className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
+                      className="w-4 h-4 rounded text-orange-500 dark:text-orange-200"
                     />
                     <span className="text-sm text-gray-700 dark:text-slate-300">{service}</span>
                   </label>
@@ -530,7 +530,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
                 type="checkbox"
                 checked={form.autoRenew}
                 onChange={(e) => setForm({ ...form, autoRenew: e.target.checked })}
-                className="w-4 h-4 rounded text-orange-500 dark:text-orange-300"
+                className="w-4 h-4 rounded text-orange-500 dark:text-orange-200"
               />
               <span className="text-sm text-gray-700 dark:text-slate-300">Auto-renew when term ends</span>
             </label>

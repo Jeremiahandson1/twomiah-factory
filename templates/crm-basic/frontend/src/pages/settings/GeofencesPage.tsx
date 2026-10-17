@@ -101,7 +101,7 @@ export default function GeofencesPage() {
             onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-lg text-sm ${
               filter === f
-                ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'
+                ? 'bg-orange-100 text-orange-700 dark:text-orange-200 dark:bg-orange-950/40'
                 : 'text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-300'
             }`}
           >

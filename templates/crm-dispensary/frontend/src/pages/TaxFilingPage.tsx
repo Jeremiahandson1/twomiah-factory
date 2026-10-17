@@ -323,7 +323,7 @@ export default function TaxFilingPage() {
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                         isOverdue ? 'bg-red-100 dark:bg-red-950/40 dark:text-slate-100' : isUrgent ? 'bg-orange-100 dark:bg-orange-950/40 dark:text-slate-100' : 'bg-green-100 dark:bg-green-950/40 dark:text-slate-100'
                       }`}>
-                        <Calendar className={`w-5 h-5 ${isOverdue ? 'text-red-600 dark:text-red-400' : isUrgent ? 'text-orange-600 dark:text-orange-300' : 'text-green-700 dark:text-green-300'}`} />
+                        <Calendar className={`w-5 h-5 ${isOverdue ? 'text-red-600 dark:text-red-400' : isUrgent ? 'text-orange-600 dark:text-orange-200' : 'text-green-700 dark:text-green-300'}`} />
                       </div>
                       <div>
                         <p className="font-medium text-gray-900 dark:text-slate-100">
@@ -334,7 +334,7 @@ export default function TaxFilingPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-medium text-gray-900 dark:text-slate-100">{dueDate.toLocaleDateString()}</p>
-                      <p className={`text-sm ${isOverdue ? 'text-red-600 font-medium dark:text-red-400' : isUrgent ? 'text-orange-600 dark:text-orange-300' : 'text-gray-500 dark:text-slate-400'}`}>
+                      <p className={`text-sm ${isOverdue ? 'text-red-600 font-medium dark:text-red-400' : isUrgent ? 'text-orange-600 dark:text-orange-200' : 'text-gray-500 dark:text-slate-400'}`}>
                         {isOverdue ? `${Math.abs(daysUntil)} days overdue` : daysUntil === 0 ? 'Due today' : `${daysUntil} days left`}
                       </p>
                     </div>
@@ -388,7 +388,7 @@ export default function TaxFilingPage() {
                 <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center dark:bg-orange-950/40">
-                      <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-300" />
+                      <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-200" />
                     </div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Outstanding</p>
                   </div>
@@ -430,7 +430,7 @@ export default function TaxFilingPage() {
                           <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{row.type || '—'}</td>
                           <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">${Number(row.collected || 0).toFixed(2)}</td>
                           <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">${Number(row.filed || 0).toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right font-medium text-orange-600 dark:text-orange-300">${Number(row.outstanding || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right font-medium text-orange-600 dark:text-orange-200">${Number(row.outstanding || 0).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>

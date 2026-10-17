@@ -132,7 +132,7 @@ export default function OnboardingPacketPage() {
   const agencyName = packet?.agencyName || 'the agency';
   const phone = packet?.agencyPhone;
   const callOffice = phone
-    ? <>call the office at <a className="underline text-primary-700 dark:text-primary-300" href={`tel:${String(phone).replace(/[^\d+]/g, '')}`}>{phone}</a></>
+    ? <>call the office at <a className="underline text-primary-700 dark:text-primary-200" href={`tel:${String(phone).replace(/[^\d+]/g, '')}`}>{phone}</a></>
     : <>contact the office</>;
 
   const page = 'min-h-screen w-full bg-gray-50 dark:bg-slate-900 px-4 py-8';

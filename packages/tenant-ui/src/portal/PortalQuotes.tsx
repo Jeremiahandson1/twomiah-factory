@@ -37,7 +37,7 @@ export function PortalQuotes() {
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {quotes.length === 0 ? <Empty icon={FileText} text="No quotes yet." /> : (
         <div className="space-y-6">
-          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-300" /> Awaiting Your Response ({pending.length})</>}>{pending.map((q) => <QuoteCard key={q.id} quote={q} token={token} highlight />)}</Section>}
+          {pending.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500 dark:text-orange-200" /> Awaiting Your Response ({pending.length})</>}>{pending.map((q) => <QuoteCard key={q.id} quote={q} token={token} highlight />)}</Section>}
           {others.length > 0 && <Section title="All Quotes">{others.map((q) => <QuoteCard key={q.id} quote={q} token={token} />)}</Section>}
         </div>
       )}
@@ -95,7 +95,7 @@ export function PortalQuoteDetail() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <PLink to={`/portal/${token}/quotes`} className="text-orange-600 hover:underline text-sm dark:text-orange-300">{'<-'} Back to Quotes</PLink>
+        <PLink to={`/portal/${token}/quotes`} className="text-orange-600 hover:underline text-sm dark:text-orange-200">{'<-'} Back to Quotes</PLink>
         <a href={url(`/quotes/${quoteId}/pdf`)} target="_blank" rel="noreferrer" className={btnSecondary}><Download className="w-4 h-4" /> Download PDF</a>
       </div>
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}

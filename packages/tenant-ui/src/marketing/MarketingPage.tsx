@@ -347,7 +347,7 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
         </div>
         <p className="text-xs text-gray-500 dark:text-slate-400">Contacts are enrolled by hand from the sequence card. Step 1 goes out within 15 minutes of enrolling; each later step waits its delay after the previous one.</p>
         <div className="space-y-3">
-          <div className="flex items-center justify-between"><h3 className="font-medium text-gray-900 dark:text-slate-100">Steps</h3><button type="button" onClick={() => setForm((f) => ({ ...f, steps: [...form.steps, { delayDays: 1, delayHours: 0, subject: '', body: '' }] }))} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">+ Add step</button></div>
+          <div className="flex items-center justify-between"><h3 className="font-medium text-gray-900 dark:text-slate-100">Steps</h3><button type="button" onClick={() => setForm((f) => ({ ...f, steps: [...form.steps, { delayDays: 1, delayHours: 0, subject: '', body: '' }] }))} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">+ Add step</button></div>
           {form.steps.map((s, i) => (
             <div key={i} className="p-4 border rounded-lg space-y-3 dark:border-slate-700">
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -387,7 +387,7 @@ function EnrollModal({ api, toast, sequence, onDone, onClose }: { api: Marketing
           {results.map((c) => (
             <button key={c.id} type="button" disabled={!c.email || busy === c.id} onClick={() => go(c.id)} className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-50 dark:hover:bg-slate-800">
               <span><span className="font-medium text-gray-900 dark:text-slate-100">{c.name}</span><span className="block text-xs text-gray-500 dark:text-slate-400">{c.email || 'no email address'}{c.emailOptOut ? ' · unsubscribed' : ''}</span></span>
-              <span className="text-xs text-orange-600 dark:text-orange-300">{busy === c.id ? 'Enrolling…' : 'Enroll'}</span>
+              <span className="text-xs text-orange-600 dark:text-orange-200">{busy === c.id ? 'Enrolling…' : 'Enroll'}</span>
             </button>
           ))}
         </div>

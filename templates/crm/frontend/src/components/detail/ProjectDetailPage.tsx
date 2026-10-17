@@ -201,7 +201,7 @@ export default function ProjectDetailPage() {
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Progress</span>
-          <span className="text-sm font-medium text-orange-700 dark:text-orange-300">{project.progress || 0}%</span>
+          <span className="text-sm font-medium text-orange-700 dark:text-orange-200">{project.progress || 0}%</span>
         </div>
         <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden dark:bg-slate-700 dark:text-slate-100">
           <div
@@ -222,7 +222,7 @@ export default function ProjectDetailPage() {
               {(project.address || project.city) && (
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-orange-950/40">
-                    <MapPin className="w-5 h-5 text-orange-500 dark:text-orange-300" />
+                    <MapPin className="w-5 h-5 text-orange-500 dark:text-orange-200" />
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Location</p>
@@ -284,7 +284,7 @@ export default function ProjectDetailPage() {
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">Jobs</h2>
-                <Link to={`/crm/jobs?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200">
+                <Link to={`/crm/jobs?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-200 dark:hover:text-orange-200">
                   View All
                 </Link>
               </div>
@@ -314,7 +314,7 @@ export default function ProjectDetailPage() {
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">RFIs</h2>
-                <Link to={`/crm/rfis?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200">
+                <Link to={`/crm/rfis?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-200 dark:hover:text-orange-200">
                   View All
                 </Link>
               </div>
@@ -364,7 +364,7 @@ export default function ProjectDetailPage() {
                   * refusal page is the same fault as a button the server rejects.
                   */}
                 {can('change-orders:read') && (
-                  <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-300 dark:hover:text-orange-200 shrink-0">
+                  <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-700 hover:text-orange-800 dark:text-orange-200 dark:hover:text-orange-200 shrink-0">
                     View All
                   </Link>
                 )}
@@ -500,7 +500,7 @@ export default function ProjectDetailPage() {
                       <span className="text-gray-500 dark:text-slate-400">
                         Approved change orders{project.financials.approvedCount ? ` (${project.financials.approvedCount})` : ''}
                       </span>
-                      <span className={`font-medium tabular-nums ${project.financials.approvedChangeOrders < 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-orange-700 dark:text-orange-400'}`}>
+                      <span className={`font-medium tabular-nums ${project.financials.approvedChangeOrders < 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-orange-700 dark:text-orange-200'}`}>
                         {project.financials.approvedChangeOrders < 0 ? '−' : '+'}${Math.abs(project.financials.approvedChangeOrders).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>

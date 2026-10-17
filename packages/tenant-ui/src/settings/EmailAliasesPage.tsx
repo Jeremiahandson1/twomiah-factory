@@ -267,7 +267,7 @@ function AliasRow({ alias, domain, state, onResend, onUpdate, onDelete }: {
           <div className="text-xs mt-0.5 text-gray-600 dark:text-slate-300">
             {state.detail}
             {state.state === 'confirm_destination' && alias.routingMode === 'forward' && state.destination && (
-              <>{' '}<button onClick={() => onResend(state.destination!)} className="underline font-semibold text-orange-700 dark:text-orange-300">Send it again</button></>
+              <>{' '}<button onClick={() => onResend(state.destination!)} className="underline font-semibold text-orange-700 dark:text-orange-200">Send it again</button></>
             )}
           </div>
         )}
@@ -276,7 +276,7 @@ function AliasRow({ alias, domain, state, onResend, onUpdate, onDelete }: {
             ? (editingForward
                 ? <span className="inline-flex items-center gap-2">
                     <input type="email" value={forwardDraft} onChange={e => setForwardDraft(e.target.value)} className="px-2 py-0.5 border border-gray-300 rounded text-xs" />
-                    <button onClick={() => { onUpdate({ forwardTo: forwardDraft }); setEditingForward(false) }} className="text-xs text-orange-600 dark:text-orange-300">Save</button>
+                    <button onClick={() => { onUpdate({ forwardTo: forwardDraft }); setEditingForward(false) }} className="text-xs text-orange-600 dark:text-orange-200">Save</button>
                     <button onClick={() => { setForwardDraft(alias.forwardTo || ''); setEditingForward(false) }} className="text-xs text-gray-500 dark:text-slate-400">Cancel</button>
                   </span>
                 : <>Forwards to <strong>{alias.forwardTo || '—'}</strong>{' '}<button onClick={() => setEditingForward(true)} className="underline text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">change</button></>)

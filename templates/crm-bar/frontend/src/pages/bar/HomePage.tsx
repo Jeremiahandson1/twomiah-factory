@@ -30,7 +30,7 @@ export default function HomePage() {
       {tonightOn && live && (
         <Link to="/crm/tonight" className="block bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 hover:border-orange-300 dark:hover:border-orange-700">
           <div className="flex items-center justify-between gap-2 mb-2">
-            <p className="font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2"><Flame className="w-5 h-5 text-orange-600 dark:text-orange-300" /> Tonight</p>
+            <p className="font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2"><Flame className="w-5 h-5 text-orange-600 dark:text-orange-200" /> Tonight</p>
             <ChevronRight className="w-5 h-5 text-gray-400 dark:text-slate-500" />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
