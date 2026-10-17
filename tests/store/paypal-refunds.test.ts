@@ -56,11 +56,16 @@ const itemNow = async (id: string) => (await db.select().from(orderItems).where(
 const CAPTURE_CENTS = 5519
 type PpCall = { capture: string; requestId: string | null; body: any; auth: string | null; prefer: string | null }
 const pp: PpCall[] = []
-const byRequestId = new Map<string, { id: string; cents: number; status: string }>()
+const byRequestId = new Map<string, { id: string; cents: number; status: string; capture: string }>()
 const refundedOn = new Map<string, number>()
 let tokens = 0, refundSeq = 0
 let mode: 'completed' | 'pending' | 'error500' | 'drop' | 'refuse' | 'failed' | 'badauth' = 'completed'
 const mails: any[] = []
+const lookups: string[] = []
+let lookupMode: 'ok' | 'drop' = 'ok'
+const verifies: any[] = []
+let hookEvents: string[] = ['PAYMENT.CAPTURE.COMPLETED']
+const hookPatches: any[] = []
 const toCents = (v: string) => { const [a, b = ''] = v.split('.'); return Number(a) * 100 + Number(b.padEnd(2, '0')) }
 const fmt = (c: number) => `${Math.floor(c / 100)}.${String(c % 100).padStart(2, '0')}`
 const realFetch = globalThis.fetch
@@ -95,17 +100,41 @@ globalThis.fetch = (async (input: any, init?: any) => {
     const want = body.amount ? toCents(body.amount.value) : left
     if (want > left) return json({ name: 'UNPROCESSABLE_ENTITY', message: 'The requested action could not be performed.', details: [{ issue: 'REFUND_AMOUNT_EXCEEDED', description: 'The refund amount must be less than or equal to the capture amount that has not yet been refunded.' }] }, 422)
     if (mode === 'failed') {
-      const r = { id: `PP-REF-${++refundSeq}`, cents: want, status: 'FAILED' }
+      const r = { id: `PP-REF-${++refundSeq}`, cents: want, status: 'FAILED', capture }
       if (requestId) byRequestId.set(requestId, r)
       return json({ id: r.id, status: 'FAILED', status_details: { reason: 'ECHECK' }, amount: { value: fmt(want), currency_code: 'USD' } }, 201)
     }
-    const r = { id: `PP-REF-${++refundSeq}`, cents: want, status: mode === 'pending' ? 'PENDING' : 'COMPLETED' }
+    const r = { id: `PP-REF-${++refundSeq}`, cents: want, status: mode === 'pending' ? 'PENDING' : 'COMPLETED', capture }
     if (requestId) byRequestId.set(requestId, r)
     refundedOn.set(capture, (refundedOn.get(capture) || 0) + want)
     // The refund WENT THROUGH at PayPal, but the answer never made it back.
     if (mode === 'error500') return json({ name: 'INTERNAL_SERVER_ERROR', message: 'An internal server error occurred.' }, 500)
     return json({ id: r.id, status: r.status, amount: { value: fmt(want), currency_code: 'USD' } }, 201)
   }
+  // GET a refund by id — where a held refund stands now.
+  const rg = url.match(/\/v2\/payments\/refunds\/([^/?]+)$/)
+  if (rg && method === 'GET') {
+    lookups.push(decodeURIComponent(rg[1]))
+    if (lookupMode === 'drop') throw new TypeError('fetch failed')
+    const found = [...byRequestId.values()].find((x) => x.id === decodeURIComponent(rg[1]))
+    if (!found) return json({ name: 'RESOURCE_NOT_FOUND' }, 404)
+    return json({ id: found.id, status: found.status, amount: { value: fmt(found.cents), currency_code: 'USD' } })
+  }
+  // GET a capture — its amount, and REFUNDED once nothing is left.
+  const cg = url.match(/\/v2\/payments\/captures\/([^/?]+)$/)
+  if (cg && method === 'GET') {
+    const id = decodeURIComponent(cg[1]); const back = refundedOn.get(id) || 0
+    return json({ id, status: back >= CAPTURE_CENTS ? 'REFUNDED' : back > 0 ? 'PARTIALLY_REFUNDED' : 'COMPLETED', amount: { value: fmt(CAPTURE_CENTS), currency_code: 'USD' } })
+  }
+  // Webhook signature check: PayPal vouches only for a transmission it signed (here: paypal-transmission-sig good-sig).
+  if (url.endsWith('/v1/notifications/verify-webhook-signature') && method === 'POST') {
+    const b = JSON.parse(init.body)
+    verifies.push(b)
+    return json({ verification_status: b.transmission_sig === 'good-sig' && b.webhook_id === 'WH-TEST' ? 'SUCCESS' : 'FAILURE' })
+  }
+  // The store's webhook on PayPal: read, and its event types replaced.
+  if (url.endsWith('/v1/notifications/webhooks/WH-TEST') && method === 'GET') return json({ id: 'WH-TEST', url: 'https://shop-api.test/api/public/webhooks/payment', event_types: hookEvents.map((name) => ({ name })) })
+  if (url.endsWith('/v1/notifications/webhooks/WH-TEST') && method === 'PATCH') { hookPatches.push(JSON.parse(init.body)); return json({ id: 'WH-TEST' }) }
   return json({ name: 'RESOURCE_NOT_FOUND' }, 404)
 }) as any
 
@@ -248,16 +277,55 @@ const settle = () => new Promise((r) => setTimeout(r, 50))
   check(`bad credentials: refund_failed, no refund call made, nothing reserved (${r.status} ${r.json?.code})`, r.status === 502 && r.json?.code === 'refund_failed' && /PayPal auth failed/.test(r.json?.error) && pp.length === c0 && (await orderNow(o.id)).refundedCents === 0, r.json)
 }
 
-// 6. PENDING: PayPal accepted it and is still settling — taken as sent, the way Square's PENDING is.
+// 6. PENDING — an eCheck refund PayPal is HOLDING: the money has not gone back and may never. The store keeps it
+//    reserved, restocks nothing, tells nobody, and asks after it by its own id — never by sending another refund.
+const pal = (id: string) => [...byRequestId.values()].find((x) => x.id === id)!
+// PayPal finishes a held refund: COMPLETED, or FAILED (the money never left, so its running total goes back down).
+const paypalDecides = (id: string, status: 'COMPLETED' | 'FAILED') => { const r = pal(id); r.status = status; if (status === 'FAILED') refundedOn.set(r.capture, (refundedOn.get(r.capture) || 0) - r.cents) }
+const backdate = (rowId: string) => db.update(orderRefunds).set({ createdAt: new Date(Date.now() - 10 * 60_000) }).where(eq(orderRefunds.id, rowId))
 {
-  await setStock(); const { o, mug } = await mkOrder()
+  await setStock(); const { o, mug } = await mkOrder(); const m0 = mails.length
   mode = 'pending'
   const a = await part(o.id, { items: [{ orderItemId: mug.id, quantity: 1 }], restock: true })
-  const w = await MA('PATCH', `/${o.id}/status`, { status: 'refunded' })
   mode = 'completed'
-  const rows = await rowsOf(o.id)
-  check(`PENDING part: settled as sent, status pending (${a.json?.refund?.status})`, a.status === 200 && a.json?.refund?.kind === 'refunded' && a.json.refund.status === 'pending' && rows.some((x) => x.amountCents === 1448 && x.status === 'refunded'), a.json)
-  check(`PENDING whole: the order is refunded, status pending passed through (${w.json?.refund?.status})`, w.status === 200 && w.json?.refund?.status === 'pending' && (await orderNow(o.id)).status === 'refunded' && refundedOn.get('PP-CAP-' + n) === 5519)
+  const [row] = await rowsOf(o.id)
+  check(`held part: answered 200, the refund awaiting PayPal (${a.json?.refund?.status}, awaiting ${a.json?.refund?.awaiting})`, a.status === 200 && a.json?.refund?.kind === 'refunded' && a.json.refund.status === 'pending' && a.json.refund.awaiting === true && a.json.restocked === 0, a.json)
+  check(`held part: the row stays pending with PayPal's refund id; $14.48 and one Mug stay reserved; nothing restocked`, row?.status === 'pending' && row.providerRefundId === 'PP-REF-' + refundSeq && !row.error && (await orderNow(o.id)).refundedCents === 1448 && (await itemNow(mug.id)).refundedQuantity === 1 && (await stock()) === 10, row)
+  await settle()
+  check('held part: the shopper is not told money came back — it has not', mails.slice(m0).filter((x) => x.to === o.customerEmail).length === 0)
+  const another = await part(o.id, { items: [{ orderItemId: mug.id, quantity: 1 }] })
+  const whole = await MA('PATCH', `/${o.id}/status`, { status: 'refunded' })
+  check(`held part: another refund waits for it (${another.json?.code}, ${whole.json?.code})`, another.status === 409 && whole.status === 409 && (await orderNow(o.id)).status === 'paid')
+  // The resume asks where it stands: still PENDING → still held, and nothing is sent again.
+  await backdate(row.id)
+  const p0 = pp.length, l0 = lookups.length
+  await ordersModule.resumePendingRefunds()
+  check(`held part, resume: PayPal is asked by the refund's id (GET …/refunds/${lookups[l0]}), no second refund sent`, lookups.length === l0 + 1 && lookups[l0] === row.providerRefundId && pp.length === p0 && (await rowsOf(o.id))[0].status === 'pending', { lookups: lookups.slice(l0), sent: pp.length - p0 })
+  lookupMode = 'drop'; await ordersModule.resumePendingRefunds(); lookupMode = 'ok'
+  check('held part, resume: PayPal not answering the lookup leaves it held (not released, not settled)', (await rowsOf(o.id))[0].status === 'pending' && (await orderNow(o.id)).refundedCents === 1448 && pp.length === p0)
+  const retry = await MA('POST', `/${o.id}/refunds/${row.id}/retry`)
+  check(`held part, Try again: asks after it, sends nothing (${retry.status}, awaiting ${retry.json?.refund?.awaiting})`, retry.status === 200 && retry.json?.refund?.awaiting === true && pp.length === p0)
+  // PayPal completes it: the resume settles it — once.
+  paypalDecides(row.providerRefundId!, 'COMPLETED')
+  await ordersModule.resumePendingRefunds()
+  await ordersModule.resumePendingRefunds()
+  const [after] = await rowsOf(o.id)
+  await settle()
+  check(`held part → COMPLETED (resume): settled once — row refunded, one Mug back (10 → ${await stock()}), $14.48 counted once`, after.status === 'refunded' && after.providerRefundId === row.providerRefundId && (await stock()) === 11 && (await orderNow(o.id)).refundedCents === 1448 && pp.length === p0, after)
+  check('held part → COMPLETED: now the shopper is emailed, once', mails.slice(m0).filter((x) => x.to === o.customerEmail).length === 1)
+}
+// 6b. The resume finds PayPal FAILED it: released exactly as a refusal is — money and units back, nothing restocked.
+{
+  await setStock(); const { o, mug } = await mkOrder()
+  mode = 'pending'; await part(o.id, { items: [{ orderItemId: mug.id, quantity: 2 }], restock: true }); mode = 'completed'
+  const [row] = await rowsOf(o.id)
+  paypalDecides(row.providerRefundId!, 'FAILED')
+  await backdate(row.id)
+  await ordersModule.resumePendingRefunds()
+  const [after] = await rowsOf(o.id); const now = await orderNow(o.id)
+  check(`held part → FAILED (resume): row failed, the order has nothing back, both Mugs refundable again, nothing restocked`, after.status === 'failed' && /did not complete the refund \(failed/.test(after.error || '') && now.refundedCents === 0 && now.status === 'paid' && (await itemNow(mug.id)).refundedQuantity === 0 && (await stock()) === 10, { after, now })
+  const again = await part(o.id, { items: [{ orderItemId: mug.id, quantity: 1 }], restock: true })
+  check('held part → FAILED: a new refund can be made, under a new request id', again.status === 200 && pp.at(-1)!.requestId !== `refund-${row.id}` && (await orderNow(o.id)).refundedCents === 1448)
 }
 
 // 7. Already refunded in PayPal's dashboard: a whole refund finds nothing left (CAPTURE_FULLY_REFUNDED) — the money is
@@ -306,6 +374,146 @@ const settle = () => new Promise((r) => setTimeout(r, 50))
   check(`format: the adapter sends {"value":"10.05","currency_code":"USD"} and reads 1005 back (${JSON.stringify(pp[c0]?.body?.amount)})`, pp[c0]?.body?.amount?.value === '10.05' && pp[c0].body.amount.currency_code === 'USD' && res.amountCents === 1005 && res.status === 'succeeded')
   let zero: any = null; try { await p.refund({ providerPaymentId: 'PP-CAP-FMT', idempotencyKey: 'fmt-2', amountCents: 0, currency: 'usd' }) } catch (e) { zero = e }
   check('format: a zero refund is refused before PayPal is asked', !!zero && pp.length === c0 + 1)
+}
+
+// ── PayPal's webhook: refund events, verified, then applied once ───────────────────────────────────
+const pub = new Hono(); pub.route('/api/public', (await import('./src/routes/public.ts')).default)
+let evt = 0
+const hook = async (event_type: string, resource: unknown, sig = 'good-sig') => {
+  const res = await pub.request('/api/public/webhooks/payment', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'paypal-transmission-id': `t-${++evt}`, 'paypal-transmission-time': '2026-10-17T12:00:00Z', 'paypal-cert-url': 'https://api.sandbox.paypal.com/v1/notifications/certs/CERT', 'paypal-auth-algo': 'SHA256withRSA', 'paypal-transmission-sig': sig },
+    body: JSON.stringify({ id: `WH-EVT-${evt}`, event_version: '1.0', resource_type: 'refund', event_type, resource }),
+  })
+  return { status: res.status, json: await res.json().catch(() => null) }
+}
+// A Payments v2 refund resource, as PayPal documents it: id, status, amount, the running total, rel:"up" → its capture.
+const refundRes = (id: string, capture: string, cents: number, totalRefunded: number | null, status = 'COMPLETED') => ({
+  id, status, amount: { value: fmt(cents), currency_code: 'USD' },
+  ...(totalRefunded == null ? {} : { seller_payable_breakdown: { gross_amount: { value: fmt(cents), currency_code: 'USD' }, total_refunded_amount: { value: fmt(totalRefunded), currency_code: 'USD' } } }),
+  links: [{ rel: 'self', method: 'GET', href: `https://api.sandbox.paypal.com/v2/payments/refunds/${id}` }, { rel: 'up', method: 'GET', href: `https://api.sandbox.paypal.com/v2/payments/captures/${capture}` }],
+})
+
+// 11. A held part refund, then PayPal's PAYMENT.CAPTURE.REFUNDED for it: settled once — and the same notice again is nothing.
+{
+  await setStock(); const { o, mug } = await mkOrder(); const m0 = mails.length
+  mode = 'pending'; await part(o.id, { items: [{ orderItemId: mug.id, quantity: 1 }], restock: true }); mode = 'completed'
+  const [row] = await rowsOf(o.id)
+  paypalDecides(row.providerRefundId!, 'COMPLETED')
+  const v0 = verifies.length
+  const h = await hook('PAYMENT.CAPTURE.REFUNDED', refundRes(row.providerRefundId!, o.providerPaymentId!, 1448, 1448))
+  check(`webhook completed: the notice was verified with PayPal first (webhook_id WH-TEST) and accepted (${h.status})`, h.status === 200 && verifies.length === v0 + 1 && verifies[v0].webhook_id === 'WH-TEST' && verifies[v0].webhook_event?.event_type === 'PAYMENT.CAPTURE.REFUNDED')
+  const rows = await rowsOf(o.id)
+  check(`webhook completed: the held part settles — refunded, one Mug back (${await stock()}), $14.48 counted once, no dashboard row`, rows.length === 1 && rows[0].status === 'refunded' && (await stock()) === 11 && (await orderNow(o.id)).refundedCents === 1448, rows)
+  await hook('PAYMENT.CAPTURE.REFUNDED', refundRes(row.providerRefundId!, o.providerPaymentId!, 1448, 1448))
+  await settle()
+  check('webhook completed: the same notice again changes nothing (one row, one restock, one email)', (await rowsOf(o.id)).length === 1 && (await stock()) === 11 && (await orderNow(o.id)).refundedCents === 1448 && mails.slice(m0).filter((x) => x.to === o.customerEmail).length === 1)
+}
+// 12. A held part refund, then PAYMENT.REFUND.FAILED: the reservation goes back exactly as a refusal's does.
+{
+  await setStock(); const { o, mug } = await mkOrder()
+  mode = 'pending'; await part(o.id, { items: [{ orderItemId: mug.id, quantity: 2 }], restock: true }); mode = 'completed'
+  const [row] = await rowsOf(o.id)
+  paypalDecides(row.providerRefundId!, 'FAILED')
+  const h = await hook('PAYMENT.REFUND.FAILED', { ...refundRes(row.providerRefundId!, o.providerPaymentId!, 2896, null, 'FAILED'), status_details: { reason: 'ECHECK' } })
+  const [after] = await rowsOf(o.id); const now = await orderNow(o.id)
+  check(`webhook failed: the row reads failed (${after.error}); nothing back, both Mugs refundable, nothing restocked, still paid`, h.status === 200 && after.status === 'failed' && /did not complete the refund \(failed: ECHECK\)/.test(after.error || '') && now.refundedCents === 0 && now.status === 'paid' && (await itemNow(mug.id)).refundedQuantity === 0 && (await stock()) === 10, { after, now })
+  await hook('PAYMENT.REFUND.FAILED', { ...refundRes(row.providerRefundId!, o.providerPaymentId!, 2896, null, 'FAILED'), status_details: { reason: 'ECHECK' } })
+  check('webhook failed: the same notice again gives nothing back twice', (await orderNow(o.id)).refundedCents === 0 && (await itemNow(mug.id)).refundedQuantity === 0)
+  const pend = await hook('PAYMENT.REFUND.PENDING', refundRes('PP-REF-X', o.providerPaymentId!, 500, null, 'PENDING'))
+  check('webhook pending: PAYMENT.REFUND.PENDING is accepted and changes nothing', pend.status === 200 && (await rowsOf(o.id)).length === 1 && (await orderNow(o.id)).refundedCents === 0)
+}
+// 13. A held WHOLE refund: the order stays stamped (refunded, nothing restocked) until PayPal confirms it.
+{
+  await setStock(); const { o } = await mkOrder(); const m0 = mails.length
+  mode = 'pending'
+  const r = await MA('PATCH', `/${o.id}/status`, { status: 'refunded' })
+  mode = 'completed'
+  const held = await orderNow(o.id)
+  check(`held whole: answered 200 awaiting; the order reads refunded with the refund still under way, nothing restocked (${r.status})`, r.status === 200 && r.json?.refund?.awaiting === true && held.status === 'refunded' && !!held.refundPendingAt && held.refundId === 'PP-REF-' + refundSeq && !held.refundError && held.refundedCents === 0 && (await stock()) === 10, held)
+  paypalDecides(held.refundId!, 'COMPLETED')
+  const h = await hook('PAYMENT.CAPTURE.REFUNDED', refundRes(held.refundId!, o.providerPaymentId!, 5519, 5519))
+  const now = await orderNow(o.id)
+  await settle()
+  check(`held whole → webhook completed: settled — stamp off, $55.19 back, everything restocked (mug ${await stock()})`, h.status === 200 && !now.refundPendingAt && now.refundedCents === 5519 && !!now.refundedAt && (await stock()) === 12 && (await stock(shirtV.id)) === 11, now)
+  check('held whole → completed: the shopper is emailed once', mails.slice(m0).filter((x) => x.to === o.customerEmail).length === 1)
+  await hook('PAYMENT.CAPTURE.REFUNDED', refundRes(held.refundId!, o.providerPaymentId!, 5519, 5519))
+  check('held whole: the notice again restocks nothing more', (await stock()) === 12 && (await rowsOf(o.id)).length === 1)
+}
+// 13b. A held whole refund PayPal FAILS: kept on the order as refused (refundError), nothing restocked; Try again is a NEW
+//      request — the old request id would only hand back the failed refund.
+{
+  await setStock(); const { o } = await mkOrder()
+  mode = 'pending'; await MA('PATCH', `/${o.id}/status`, { status: 'refunded' }); mode = 'completed'
+  const held = await orderNow(o.id)
+  paypalDecides(held.refundId!, 'FAILED')
+  await hook('PAYMENT.REFUND.FAILED', { ...refundRes(held.refundId!, o.providerPaymentId!, 5519, null, 'FAILED'), status_details: { reason: 'ECHECK' } })
+  const failedNow = await orderNow(o.id)
+  check(`held whole → failed: the refusal is on the order with Try again; still stamped; nothing back or restocked (${failedNow.refundError})`, !!failedNow.refundPendingAt && /did not complete the refund/.test(failedNow.refundError || '') && failedNow.refundedCents === 0 && (await stock()) === 10, failedNow)
+  const p0 = pp.length
+  const retry = await MA('POST', `/${o.id}/refund/retry`)
+  check(`held whole → Try again: a new request id order-refund-<id>-after-<failed refund> (${pp[p0]?.requestId}), settled`, retry.status === 200 && pp.length === p0 + 1 && pp[p0].requestId === `order-refund-${o.id}-after-${held.refundId}` && !(await orderNow(o.id)).refundPendingAt && (await orderNow(o.id)).refundedCents === 5519 && (await stock()) === 12 && refundedOn.get(o.providerPaymentId!) === 5519, { call: pp[p0], r: retry.json })
+}
+// 14. Our own refund, completed at once, echoes back as PAYMENT.CAPTURE.REFUNDED: matched by its refund id, never counted twice.
+{
+  await setStock(); const { o, mug } = await mkOrder()
+  await part(o.id, { items: [{ orderItemId: mug.id, quantity: 1 }], restock: true })
+  const [row] = await rowsOf(o.id)
+  await hook('PAYMENT.CAPTURE.REFUNDED', refundRes(row.providerRefundId!, o.providerPaymentId!, 1448, 1448))
+  check("echo (part): our own refund's notice adds no row and no money", (await rowsOf(o.id)).length === 1 && (await orderNow(o.id)).refundedCents === 1448 && (await stock()) === 11)
+  const whole = await MA('PATCH', `/${o.id}/status`, { status: 'refunded' })
+  const final = await orderNow(o.id)
+  await hook('PAYMENT.CAPTURE.REFUNDED', refundRes(final.refundId!, o.providerPaymentId!, 4071, 5519))
+  check(`echo (whole): the rest's notice changes nothing — refunded once, two rows (${whole.status})`, whole.status === 200 && (await rowsOf(o.id)).length === 2 && (await orderNow(o.id)).refundedCents === 5519 && (await stock()) === 12)
+}
+// 15. Refunds made in PayPal's own dashboard: a part, then the rest — each applied once, by PayPal's running total.
+{
+  await setStock(); const { o } = await mkOrder()
+  refundedOn.set(o.providerPaymentId!, 1000)
+  const a = await hook('PAYMENT.CAPTURE.REFUNDED', refundRes('DASH-1', o.providerPaymentId!, 1000, 1000))
+  let rows = await rowsOf(o.id)
+  check(`dashboard part: $10.00 recorded as a dashboard refund, no units restocked, still paid (${a.status})`, a.status === 200 && rows.length === 1 && rows[0].amountCents === 1000 && rows[0].moneyBack === 'provider_dashboard' && (await orderNow(o.id)).refundedCents === 1000 && (await orderNow(o.id)).status === 'paid' && (await stock()) === 10, rows)
+  await hook('PAYMENT.CAPTURE.REFUNDED', refundRes('DASH-1', o.providerPaymentId!, 1000, 1000))
+  check('dashboard part: the same notice again records nothing more', (await rowsOf(o.id)).length === 1 && (await orderNow(o.id)).refundedCents === 1000)
+  refundedOn.set(o.providerPaymentId!, 5519)
+  await hook('PAYMENT.CAPTURE.REFUNDED', refundRes('DASH-2', o.providerPaymentId!, 4519, 5519))
+  rows = await rowsOf(o.id)
+  const now = await orderNow(o.id)
+  check(`dashboard rest: the order is refunded in full, everything restocked once (mug ${await stock()})`, now.status === 'refunded' && now.refundedCents === 5519 && !now.refundPendingAt && (await stock()) === 12 && (await stock(shirtV.id)) === 11 && rows.length === 2, { now, rows })
+  await hook('PAYMENT.CAPTURE.REFUNDED', refundRes('DASH-2', o.providerPaymentId!, 4519, 5519))
+  check('dashboard rest: again, nothing more', (await stock()) === 12 && (await rowsOf(o.id)).length === 2)
+}
+// 16. PayPal reverses the capture (PAYMENT.CAPTURE.REVERSED): all of it has gone back — the order is refunded.
+{
+  await setStock(); const { o } = await mkOrder()
+  refundedOn.set(o.providerPaymentId!, 5519)
+  const h = await hook('PAYMENT.CAPTURE.REVERSED', refundRes('REV-1', o.providerPaymentId!, 5519, null))
+  const now = await orderNow(o.id)
+  check(`reversal: the order is refunded in full and restocked (${now.status}, ${now.refundedCents})`, h.status === 200 && now.status === 'refunded' && now.refundedCents === 5519 && (await stock()) === 12, now)
+}
+// 17. A notice PayPal does not vouch for is refused before anything is read from it.
+{
+  await setStock(); const { o } = await mkOrder()
+  const v0 = verifies.length
+  const forged = await hook('PAYMENT.CAPTURE.REFUNDED', refundRes('FORGED-1', o.providerPaymentId!, 5519, 5519), 'forged-sig')
+  const unsigned = await pub.request('/api/public/webhooks/payment', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ event_type: 'PAYMENT.REFUND.FAILED', resource: refundRes('X', o.providerPaymentId!, 1, null, 'FAILED') }) })
+  const now = await orderNow(o.id)
+  check(`forged / unsigned: both refused 400, verification asked each time, the order untouched (${forged.status}, ${unsigned.status})`, forged.status === 400 && unsigned.status === 400 && verifies.length === v0 + 2 && now.status === 'paid' && now.refundedCents === 0 && (await rowsOf(o.id)).length === 0 && (await stock()) === 10)
+}
+// 18. The store's PayPal webhook listens to the refund events — set up on connect, and brought up to date at startup.
+{
+  const { ensurePayPalWebhookEvents, PAYPAL_WEBHOOK_EVENTS } = await import('./src/routes/payments.ts')
+  const want = ['PAYMENT.CAPTURE.COMPLETED', 'PAYMENT.CAPTURE.REFUNDED', 'PAYMENT.CAPTURE.REVERSED', 'PAYMENT.REFUND.PENDING', 'PAYMENT.REFUND.FAILED']
+  check(`webhook events: exactly the documented capture + refund events (${PAYPAL_WEBHOOK_EVENTS.join(', ')})`, want.every((e) => (PAYPAL_WEBHOOK_EVENTS as readonly string[]).includes(e)) && PAYPAL_WEBHOOK_EVENTS.length === want.length)
+  hookEvents = ['PAYMENT.CAPTURE.COMPLETED']
+  const first = await ensurePayPalWebhookEvents()
+  const patch = hookPatches.at(-1)
+  const names = patch?.[0]?.value?.map((v: any) => v.name) || []
+  check(`webhook events: an older store's webhook is updated in place — PATCH replace /event_types (${first})`, first === 'updated' && patch?.[0]?.op === 'replace' && patch[0].path === '/event_types' && want.every((e) => names.includes(e)), patch)
+  hookEvents = [...want]
+  const n0 = hookPatches.length
+  const second = await ensurePayPalWebhookEvents()
+  check(`webhook events: …and left alone once current (${second})`, second === 'current' && hookPatches.length === n0)
 }
 
 // 10. WHAT is stored to refund against: the CAPTURE id, not PayPal's order id — from the success page (capture on return)

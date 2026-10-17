@@ -135,7 +135,9 @@ export class PayPalProvider implements PaymentProvider {
     }, token)
     if (verify.verification_status !== 'SUCCESS') throw new Error('Bad PayPal signature')
 
+    // Everything below is read only from an event PayPal has just vouched for (verification_status SUCCESS above).
     const event = JSON.parse(input.rawBody)
+    if (REFUND_EVENTS.includes(event.event_type)) return this.parseRefundEvent(event, token)
     if (event.event_type !== 'PAYMENT.CAPTURE.COMPLETED') return { type: 'ignored' }
     // Capture resource → correlate to our stored order id (the v2 order id).
     const cap = event.resource || {}
@@ -161,7 +163,9 @@ export class PayPalProvider implements PaymentProvider {
    *     PayPal refunds whatever of the capture is left — the way the Stripe adapter is called, and it allows for anything
    *     already refunded in PayPal's own dashboard. A capture with nothing left (CAPTURE_FULLY_REFUNDED) is reported as
    *     already refunded, not as a failure: the money is back either way.
-   *   - COMPLETED → succeeded; PENDING → pending (accepted, PayPal still settling); FAILED / CANCELLED, or any 4xx
+   *   - COMPLETED → succeeded. PENDING (an eCheck refund, funded from the merchant's bank — it can still FAIL) →
+   *     awaiting: the store holds it, reserved and not restocked, until PayPal says it completed or failed
+   *     (PAYMENT.CAPTURE.REFUNDED / PAYMENT.REFUND.FAILED, or refundStatus). FAILED / CANCELLED, or any 4xx
    *     (REFUND_AMOUNT_EXCEEDED, a bad capture id …) → RefundRefused: PayPal answered, nothing was sent. A 5xx or no
    *     answer at all is thrown as it is — the refund may have gone through, so it is asked again under the same key.
    * NOTE: written to PayPal's documented API and tested against a stand-in for it; not yet run against a PayPal sandbox.
@@ -186,11 +190,70 @@ export class PayPalProvider implements PaymentProvider {
       if (typeof e?.status === 'number' && e.status >= 400 && e.status < 500) throw new RefundRefused(e.message)
       throw e
     }
-    const status = String(refund?.status || '').toUpperCase()
-    if (status === 'FAILED' || status === 'CANCELLED') throw new RefundRefused(`PayPal did not complete the refund (${status.toLowerCase()}${refund?.status_details?.reason ? ': ' + refund.status_details.reason : ''})`)
-    const back = refund?.amount?.value != null ? cents(refund.amount.value) : null
-    return { refundId: refund?.id ?? null, status: status === 'COMPLETED' ? 'succeeded' : 'pending', amountCents: back ?? amountCents ?? null }
+    return readRefund(refund, amountCents)
   }
+
+  /** Where a refund stands now — GET /v2/payments/refunds/{refund_id}. Used for a refund the store is holding (awaiting). */
+  async refundStatus(refundId: string): Promise<RefundResult> {
+    // Only PayPal's explicit word decides it: a lookup that errors (even a 4xx) is "we do not know", asked again later.
+    const refund = await this.api('/v2/payments/refunds/' + encodeURIComponent(refundId), 'GET')
+    return readRefund(refund)
+  }
+
+  /**
+   * A refund event: one made in PayPal's dashboard, a reversal, or PayPal's later word on a refund the store made.
+   * The resource is a refund (Payments v2): its id, status, seller_payable_breakdown.total_refunded_amount (everything
+   * refunded off the capture so far, this one included) and an rel:"up" link to its capture. The capture's own amount is
+   * read from GET /v2/payments/captures/{id}, so the store can tell a part refund from the whole.
+   */
+  private async parseRefundEvent(event: any, token: string): Promise<WebhookResult> {
+    const r = event.resource || {}
+    const captureId = captureIdOf(r)
+    const status = String(r.status || '').toUpperCase()
+    if (event.event_type === 'PAYMENT.REFUND.FAILED' || status === 'FAILED' || status === 'CANCELLED') {
+      if (!r.id) return { type: 'ignored' }
+      return { type: 'refund_failed', providerRefundId: r.id, providerPaymentId: captureId, refundFailureReason: `${(status || 'failed').toLowerCase()}${r.status_details?.reason ? ': ' + r.status_details.reason : ''}` }
+    }
+    // Still pending: nothing has gone back yet. (A refund of the store's own is already held; one from the dashboard is
+    // counted when it completes.)
+    if (event.event_type === 'PAYMENT.REFUND.PENDING' || status === 'PENDING') return { type: 'ignored' }
+    if (!captureId) return { type: 'ignored' }
+    const capture = await this.api('/v2/payments/captures/' + encodeURIComponent(captureId), 'GET', undefined, token)
+    const chargeCents = capture?.amount?.value != null ? cents(capture.amount.value) : null
+    if (chargeCents == null) return { type: 'ignored' }
+    const fully = String(capture.status || '').toUpperCase() === 'REFUNDED'
+    const total = r.seller_payable_breakdown?.total_refunded_amount?.value
+    // A reversal takes the whole capture back. Otherwise PayPal's running total — or all of it once the capture reads REFUNDED.
+    const refundedCents = fully || event.event_type === 'PAYMENT.CAPTURE.REVERSED' ? chargeCents : total != null ? cents(total) : null
+    if (refundedCents == null) return { type: 'ignored' }
+    return {
+      type: 'refunded', providerPaymentId: captureId, providerRefundId: r.id,
+      amountRefundedCents: refundedCents, amountTotalCents: chargeCents, currency: capture.amount?.currency_code,
+    }
+  }
+}
+
+// The refund events the store's webhook subscribes to (routes/payments.ts), as PayPal names them
+// (developer.paypal.com/api/rest/webhooks/event-names, Payments v2). PayPal documents no "refund completed" event: a
+// refund that completes arrives as PAYMENT.CAPTURE.REFUNDED with the refund as its resource. (A held refund is also
+// looked up by refundStatus on the store's 5-minute resume, so it settles even if that notice never comes.)
+export const REFUND_EVENTS = ['PAYMENT.CAPTURE.REFUNDED', 'PAYMENT.CAPTURE.REVERSED', 'PAYMENT.REFUND.PENDING', 'PAYMENT.REFUND.FAILED']
+
+// A PayPal refund resource → our RefundResult. COMPLETED is sent; FAILED/CANCELLED is a no; anything else (PENDING, or
+// no status at all) is held — never settled on a guess.
+function readRefund(refund: any, askedCents?: number): RefundResult {
+  const status = String(refund?.status || '').toUpperCase()
+  if (status === 'FAILED' || status === 'CANCELLED') throw new RefundRefused(`PayPal did not complete the refund (${status.toLowerCase()}${refund?.status_details?.reason ? ': ' + refund.status_details.reason : ''})`)
+  const back = refund?.amount?.value != null ? cents(refund.amount.value) : null
+  const done = status === 'COMPLETED'
+  return { refundId: refund?.id ?? null, status: done ? 'succeeded' : 'pending', amountCents: back ?? askedCents ?? null, ...(done ? {} : { awaiting: true }) }
+}
+
+// The capture a refund belongs to: its rel:"up" link, …/v2/payments/captures/{capture_id}.
+function captureIdOf(refund: any): string | undefined {
+  const up = (refund?.links || []).find((l: any) => l?.rel === 'up')?.href
+  const m = typeof up === 'string' ? up.match(/\/v2\/payments\/captures\/([^/?#]+)/) : null
+  return m ? decodeURIComponent(m[1]) : undefined
 }
 
 // A COMPLETED PayPal order → our normalized result.

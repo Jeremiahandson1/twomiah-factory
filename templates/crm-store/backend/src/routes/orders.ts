@@ -115,7 +115,8 @@ export const noParcelRefusal = (c: any, status: string) => c.json({
  */
 export type MoneyBack =
   | { kind: 'not_paid' }
-  | { kind: 'refunded'; refundId: string | null; status: string; amountCents: number | null; alreadyRefunded?: boolean }
+  // awaiting: the provider holds it and has not sent the money yet (PayPal's PENDING) — see holdsRefund below.
+  | { kind: 'refunded'; refundId: string | null; status: string; amountCents: number | null; alreadyRefunded?: boolean; awaiting?: boolean }
   | { kind: 'manual'; note: string }
   | { kind: 'none_on_file'; note: string }
   | { kind: 'failed'; reason: string; refused: boolean }
@@ -141,10 +142,36 @@ export async function returnPayment(order: typeof orders.$inferSelect, part?: { 
       ? { providerPaymentId: order.providerPaymentId, idempotencyKey: part.idempotencyKey, amountCents: part.amountCents, currency: order.currency, ...(part.reason ? { reason: part.reason } : {}) }
       // After part refunds the key names how much had gone back, so it is a different request from a refund of the whole
       // tried (and refused) earlier — a provider refuses a key reused with a different amount.
+      // A whole refund the provider HELD and then failed (refundId kept beside refundError) is a new request too: the old
+      // key would only hand back the failed refund.
       : order.refundedCents > 0
-        ? { providerPaymentId: order.providerPaymentId, idempotencyKey: `order-refund-${order.id}-${order.refundedCents}`, amountCents: order.totalCents - order.refundedCents, currency: order.currency }
-        : { providerPaymentId: order.providerPaymentId, idempotencyKey: `order-refund-${order.id}`, currency: order.currency })
+        ? { providerPaymentId: order.providerPaymentId, idempotencyKey: `order-refund-${order.id}-${order.refundedCents}${retryAfter(order)}`, amountCents: order.totalCents - order.refundedCents, currency: order.currency }
+        : { providerPaymentId: order.providerPaymentId, idempotencyKey: `order-refund-${order.id}${retryAfter(order)}`, currency: order.currency })
     return { kind: 'refunded', ...r }
+  } catch (e: any) {
+    return { kind: 'failed', reason: `${label} said: ${String(e?.message || 'no reason given').slice(0, 300)}`, refused: e instanceof RefundRefused }
+  }
+}
+const retryAfter = (order: typeof orders.$inferSelect) => order.refundError && order.refundId && order.refundPendingAt ? `-after-${order.refundId}` : ''
+
+/**
+ * A REFUND THE PROVIDER IS HOLDING. PayPal answers PENDING for an eCheck refund — funded from the merchant's bank, and it
+ * can still FAIL — so the money has not gone back yet. The store does not settle it on that word (nothing restocked, the
+ * reservation kept, the order page reads "waiting on the provider") and asks again by the refund's OWN id, never by
+ * sending another: PayPal's webhook (PAYMENT.CAPTURE.REFUNDED / PAYMENT.REFUND.FAILED, applyRefundUpdate) or the
+ * 5-minute resume (refundStanding) settles it, or gives the reservation back exactly as a refusal does.
+ *   part refund   order_refunds row stays 'pending' with providerRefundId set
+ *   whole refund  the order keeps refundPendingAt with refundId set and no refundError
+ */
+export const holdsRefund = (m: MoneyBack): boolean => m.kind === 'refunded' && !!m.awaiting
+
+/** Where a held refund stands, by its own id — refundStatus. Unknown (no answer, wrong provider connected) stays held. */
+async function refundStanding(order: typeof orders.$inferSelect, refundId: string): Promise<MoneyBack> {
+  const label = PROVIDER_LABEL[order.provider] || order.provider
+  const provider = await getActiveProvider().catch(() => null)
+  if (!provider || provider.name !== order.provider || !provider.refundStatus) return { kind: 'failed', reason: `${label} could not be asked where this refund stands.`, refused: false }
+  try {
+    return { kind: 'refunded', ...(await provider.refundStatus(refundId)) }
   } catch (e: any) {
     return { kind: 'failed', reason: `${label} said: ${String(e?.message || 'no reason given').slice(0, 300)}`, refused: e instanceof RefundRefused }
   }
@@ -156,7 +183,7 @@ export async function returnPayment(order: typeof orders.$inferSelect, part?: { 
  */
 async function logStatusChange(c: any, prev: typeof orders.$inferSelect, updated: typeof orders.$inferSelect, restocked: number, back: MoneyBack = { kind: 'not_paid' }) {
   const money = formatCents(updated.totalCents, updated.currency)
-  const sent = back.kind === 'refunded' ? (back.alreadyRefunded ? ', already refunded at the provider' : ', sent back to the card') : back.kind === 'manual' || back.kind === 'none_on_file' ? ', recorded only — no money sent back here' : ''
+  const sent = back.kind === 'refunded' ? (back.alreadyRefunded ? ', already refunded at the provider' : back.awaiting ? ', sent to the provider — it is holding the refund, so nothing is restocked until it confirms' : ', sent back to the card') : back.kind === 'manual' || back.kind === 'none_on_file' ? ', recorded only — no money sent back here' : ''
   const what = updated.status === 'refunded' ? `Refunded — ${money}${sent}` : updated.status === 'cancelled' ? `Cancelled — ${money}${sent}` : `Marked ${updated.status}`
   await audit.log({
     action: 'status_change', entity: 'order', entityId: updated.id, entityName: updated.orderNumber,
@@ -301,9 +328,15 @@ admin.patch('/:id/status', requirePermission('orders:update'), async (c) => {
         code: 'refund_failed',
       }, 502)
     }
-    const once = await settleRefundOnce(prev.id, money, await whoIs(c))
-    restocked = once.restocked
-    if (once.settled && money.kind === 'refunded' && !money.alreadyRefunded) void notifyLastRefund(prev.id, next === 'cancelled')
+    if (holdsRefund(money)) {
+      // Held by the provider: the order stays stamped, nothing is restocked, and the refund's id is kept to ask after it.
+      if (money.kind === 'refunded') await db.update(orders).set({ refundId: money.refundId, refundError: null, updatedAt: new Date() })
+        .where(and(eq(orders.id, prev.id), isNotNull(orders.refundPendingAt)))
+    } else {
+      const once = await settleRefundOnce(prev.id, money, await whoIs(c))
+      restocked = once.restocked
+      if (once.settled && money.kind === 'refunded' && !money.alreadyRefunded) void notifyLastRefund(prev.id, next === 'cancelled')
+    }
   }
 
   const [final] = givesMoneyBack ? await db.select().from(orders).where(eq(orders.id, prev.id)).limit(1) : [updated]
@@ -373,14 +406,29 @@ export async function settleRefundOnce(orderId: string, money: MoneyBack, by?: {
  * settle above never restocks twice. A refusal is kept on the order (refundError) for the order page to show, with a
  * Try again button; the order stays refunded/cancelled and nothing is restocked until the money has gone back.
  */
-export async function finishRefund(order: typeof orders.$inferSelect, why: string): Promise<MoneyBack> {
-  const money = await returnPayment(order)
+export async function finishRefund(order: typeof orders.$inferSelect, why: string, told?: MoneyBack): Promise<MoneyBack> {
+  // A refund the provider is holding is asked after by its own id — never sent again (see holdsRefund). `told` is the
+  // provider's own word on it, from its webhook.
+  const held = !!order.refundPendingAt && !!order.refundId && !order.refundError
+  const money = told ?? (held ? await refundStanding(order, order.refundId!) : await returnPayment(order))
   if (money.kind === 'failed') {
+    // A held refund the provider could not be asked about is still held; only its "no" ends it.
+    if (held && !money.refused) return money
     await db.update(orders).set({ refundError: money.reason, updatedAt: new Date() })
+      .where(and(eq(orders.id, order.id), isNotNull(orders.refundPendingAt)))
+    if (held) await audit.log({
+      action: 'status_change', entity: 'order', entityId: order.id, entityName: order.orderNumber,
+      metadata: { description: `${why} — the provider did not complete the refund it was holding: ${money.reason}. Nothing was sent back and nothing restocked.`, refundId: order.refundId },
+    })
+    return money
+  }
+  if (holdsRefund(money)) {
+    if (money.kind === 'refunded' && money.refundId !== order.refundId) await db.update(orders).set({ refundId: money.refundId, refundError: null, updatedAt: new Date() })
       .where(and(eq(orders.id, order.id), isNotNull(orders.refundPendingAt)))
     return money
   }
   const { restocked, settled } = await settleRefundOnce(order.id, money)
+  if (held && !settled) return money
   const [after] = await db.select().from(orders).where(eq(orders.id, order.id)).limit(1)
   if (settled && after && money.kind === 'refunded' && !money.alreadyRefunded) void notifyLastRefund(order.id, after.status === 'cancelled')
   if (after) {
@@ -461,6 +509,37 @@ export async function applyProviderRefund(provider: string, providerPaymentId: s
     metadata: { description: `Refunded in ${PROVIDER_LABEL[provider] || provider}'s dashboard — ${amount(refundedCents)}${restocked ? `, ${restocked} unit${restocked === 1 ? '' : 's'} back in stock` : ''}`, restocked },
   })
   return 'refunded'
+}
+
+/**
+ * THE PROVIDER'S WORD ON ONE REFUND, by its id — a webhook naming a refund (PayPal's PAYMENT.CAPTURE.REFUNDED /
+ * PAYMENT.REFUND.FAILED). Checked BEFORE applyProviderRefund's running total, so the store's own refund echoing back is
+ * matched to the row (or order) it came from and never counted a second time:
+ *   a part the provider was holding     completed → settled (units restocked, shopper told); failed → reservation given
+ *                                       back, the row reads failed — exactly as a refused part refund
+ *   a whole refund it was holding       completed → settled; failed → refundError, Try again (a new request, see retryAfter)
+ *   one of ours already settled/failed  'ours' — nothing to do
+ *   not ours                            'unknown' — the caller treats it as a dashboard refund
+ */
+export async function applyRefundUpdate(provider: string, refundId: string, outcome: 'completed' | 'failed', reason?: string): Promise<'settled' | 'released' | 'ours' | 'unknown'> {
+  const label = PROVIDER_LABEL[provider] || provider
+  const told: MoneyBack = outcome === 'completed'
+    ? { kind: 'refunded', refundId, status: 'succeeded', amountCents: null }
+    : { kind: 'failed', reason: `${label} did not complete the refund${reason ? ` (${reason})` : ''}`, refused: true }
+  const [row] = await db.select().from(orderRefunds).where(eq(orderRefunds.providerRefundId, refundId)).limit(1)
+  if (row) {
+    const [order] = await db.select().from(orders).where(eq(orders.id, row.orderId)).limit(1)
+    if (!order || order.provider !== provider) return 'unknown'
+    if (row.status !== 'pending') return 'ours'
+    const why = outcome === 'completed' ? `Part refund confirmed by ${label}` : `Part refund failed at ${label}`
+    const { money, settled } = await sendPart(order, row, null, why, told)
+    return money.kind === 'failed' ? 'released' : settled ? 'settled' : 'ours'
+  }
+  const [o] = await db.select().from(orders).where(and(eq(orders.provider, provider as any), eq(orders.refundId, refundId))).limit(1)
+  if (!o) return 'unknown'
+  if (!o.refundPendingAt || o.refundError) return 'ours'
+  const money = await finishRefund(o, outcome === 'completed' ? `Refund confirmed by ${label}` : `Refund failed at ${label}`, told)
+  return money.kind === 'failed' ? 'released' : 'settled'
 }
 
 // ── Part refunds ─────────────────────────────────────────────────────────────
@@ -640,16 +719,30 @@ const partDescription = (row: typeof orderRefunds.$inferSelect, items: { id: str
 }
 
 /** Ask the provider for a reserved part refund, then settle, give back, or leave it pending. The shared tail. */
-async function sendPart(order: typeof orders.$inferSelect, row: typeof orderRefunds.$inferSelect, c: any | null, why: string) {
-  const money = await returnPayment(order, { amountCents: row.amountCents, idempotencyKey: PART_KEY(row.id), reason: row.reason })
+async function sendPart(order: typeof orders.$inferSelect, row: typeof orderRefunds.$inferSelect, c: any | null, why: string, told?: MoneyBack) {
+  // A part the provider is holding (providerRefundId set while pending) is asked after by its own id — never sent again.
+  // `told` is the provider's own word on it, from its webhook.
+  const held = row.status === 'pending' && !!row.providerRefundId
+  const money = told ?? (held ? await refundStanding(order, row.providerRefundId!) : await returnPayment(order, { amountCents: row.amountCents, idempotencyKey: PART_KEY(row.id), reason: row.reason }))
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
   const what = partDescription(row, items, order.currency)
   if (money.kind === 'failed') {
     if (money.refused) {
-      await abandonPart(row.id, money.reason)
-      await audit.log({ action: 'update', entity: 'order', entityId: order.id, entityName: order.orderNumber, metadata: { description: `${why} refused — ${what}: ${money.reason}. Nothing was sent back.`, refundRowId: row.id }, ...(c ? { req: c } : {}) })
-    } else {
+      // Exactly as any refusal: the reservation goes back, the row reads failed. (abandonPart is once-only.)
+      if (await abandonPart(row.id, money.reason)) {
+        await audit.log({ action: 'update', entity: 'order', entityId: order.id, entityName: order.orderNumber, metadata: { description: `${why} refused — ${what}: ${money.reason}. Nothing was sent back.`, refundRowId: row.id }, ...(c ? { req: c } : {}) })
+      }
+    } else if (!held) {
       await db.update(orderRefunds).set({ error: money.reason }).where(and(eq(orderRefunds.id, row.id), eq(orderRefunds.status, 'pending')))
+    }
+    return { money, settled: null }
+  }
+  if (holdsRefund(money)) {
+    // Held by the provider: still reserved, nothing restocked; its id is kept to ask after it.
+    if (!held && money.kind === 'refunded' && money.refundId) {
+      const [kept] = await db.update(orderRefunds).set({ providerRefundId: money.refundId, error: null })
+        .where(and(eq(orderRefunds.id, row.id), eq(orderRefunds.status, 'pending'))).returning({ id: orderRefunds.id })
+      if (kept) await audit.log({ action: 'update', entity: 'order', entityId: order.id, entityName: order.orderNumber, metadata: { description: `${why} — ${what} sent to ${PROVIDER_LABEL[order.provider] || order.provider}, which is holding it: nothing restocked until it confirms`, refundRowId: row.id, refundId: money.refundId, refundStatus: money.status }, ...(c ? { req: c } : {}) })
     }
     return { money, settled: null }
   }
