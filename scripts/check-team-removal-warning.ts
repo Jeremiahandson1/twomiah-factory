@@ -104,10 +104,13 @@ if (!/m\._source === 'user' \? '' : \(m\.role \|\| ''\)/.test(page)) fail("a log
 // vanished the moment someone was given a roster card, on the one page where it is the only sign of who has
 // access, and precisely for the people just set up. (Contractor T30 N3)
 if (!/const loginEmails = new Set<string>\(\)/.test(team)) fail('the roster list must work out who can sign in')
-if (!/db\.select\(\{ email: t\.user\.email \}\)\.from\(t\.user\)\.where\(eq\(t\.user\.companyId, user\.companyId\)\)/.test(team)) fail('…from the login table, inside the company')
-if (!/for \(const u of logins\) \{ const e = String\(u\.email \|\| ''\)\.toLowerCase\(\); if \(e\) loginEmails\.add\(e\) \}/.test(team)) fail('…and actually fill that set — an empty one badges nobody, silently')
+if (!/db\.select\(\{ email: t\.user\.email[^}]*\}\)\.from\(t\.user\)\.where\(eq\(t\.user\.companyId, user\.companyId\)\)/.test(team)) fail('…from the login table, inside the company')
+if (!/for \(const u of logins\) \{\s*const e = String\(u\.email \|\| ''\)\.toLowerCase\(\); if \(!e\) continue\s*loginEmails\.add\(e\)/.test(team)) fail('…and actually fill that set — an empty one badges nobody, silently')
+// …and whether that login has been taken up: "Invite sent", by the SAME rule as Settings › Users (company.ts GET /users)
+// — no sign-in yet and the invite link still live. Team said "Active" for someone who had never signed in (Bar Run 1).
+if (!/if \(!u\.lastLogin && !!u\.resetToken && !!u\.resetTokenExp && new Date\(u\.resetTokenExp as any\)\.getTime\(\) > now\) pendingEmails\.add\(e\)/.test(team)) fail('an invited login not yet taken up must read as pending — the Users page rule')
 if (!/loginEmails\.has\(String\(r\.email \|\| ''\)\.toLowerCase\(\)\)/.test(team)) fail('…matched on email, case-insensitively — the roster and the login are separate records')
-if (!/hasLogin: true \} : \{ \.\.\.r, assignedJobs: counts\[r\.id\] \|\| 0, hasLogin: hasLogin\(r\) \}/.test(team)) fail('every row must carry hasLogin — the borrowed login rows too')
+if (!/hasLogin: true, invitePending: invitePending\(r\) \} : \{ \.\.\.r, assignedJobs: counts\[r\.id\] \|\| 0, hasLogin: hasLogin\(r\), invitePending: invitePending\(r\) \}/.test(team)) fail('every row must carry hasLogin and invitePending — the borrowed login rows too')
 if (!/\(row\.hasLogin \|\| row\._source === 'user'\) && <span/.test(page)) fail('the login badge must follow the login, not the row\'s origin')
 
 if (failed) { console.error(`\nteam removal warning: ${failed} check(s) FAILED`); process.exit(1) }

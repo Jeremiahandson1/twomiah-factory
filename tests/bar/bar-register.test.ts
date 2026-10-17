@@ -322,6 +322,15 @@ console.log('\n══════════ 10. the night ══════�
   check('a 1:30 AM check counts toward the night before', fri.checksPaid === 1 && fri.totalCents === bal && sat.checksPaid === 0, { fri: fri.checksPaid, sat: sat.checksPaid })
   const rows = await db.select().from(barCloseout).where(eq(barCloseout.companyId, co.id))
   check('one close-out row, for this company', rows.length === 1)
+  // Reports (Bar Run 1): a run of nights is the sum of those nights' close-out figures.
+  const rep = await M('GET', '/api/register/report?from=2026-09-25&to=2026-09-26')
+  const r = rep.json.report
+  check('the two nights added up equal Friday + Saturday', rep.status === 200 && r.checksPaid === fri.checksPaid + sat.checksPaid && r.totalCents === fri.totalCents + sat.totalCents && r.tipsCents === fri.tipsCents + sat.tipsCents && r.nights.length === 2, { r, fri: fri.totalCents, sat: sat.totalCents })
+  const nope = await B('GET', '/api/register/report?from=2026-09-25&to=2026-09-26')
+  check('a bartender does not read the takings over a range (reports:read)', nope.status === 403, nope.json)
+  const wide = await M('GET', '/api/register/report?from=2026-01-01&to=2026-12-31')
+  const back = await M('GET', '/api/register/report?from=2026-09-26&to=2026-09-25')
+  check('more than 93 nights, or to before from, is refused in words', wide.status === 400 && /93/.test(wide.json.error) && back.status === 400, [wide.json, back.json])
 }
 
 console.log('\n══════════ 12. the grill settings on a menu item ══════════')

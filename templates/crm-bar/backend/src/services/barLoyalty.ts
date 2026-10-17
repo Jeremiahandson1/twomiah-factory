@@ -148,6 +148,29 @@ export async function adjustPoints(companyId: string, contactId: string, deltaIn
   })
 }
 
+/**
+ * The Regulars page's list: everyone on the programme, with their points, newest activity first. A search is by name,
+ * or by phone digits (3+), the same reading the register's guest search uses. Bar Run 1: the page had the programme
+ * and the rewards but never listed a single regular or what they had.
+ */
+export async function listMembers(companyId: string, q = '') {
+  const term = q.trim().slice(0, 60)
+  const digits = term.replace(/\D/g, '')
+  const byPhone = digits.length >= 3 && digits.length === term.replace(/[\s()+.-]/g, '').length
+  const match = !term ? undefined : byPhone
+    ? or(sql`regexp_replace(coalesce(${contact.phone}, ''), '[^0-9]', '', 'g') like ${'%' + digits + '%'}`, sql`regexp_replace(coalesce(${contact.mobile}, ''), '[^0-9]', '', 'g') like ${'%' + digits + '%'}`)
+    : or(ilike(contact.name, `%${term}%`), ilike(contact.email, `%${term}%`))
+  const rows = await db.select({
+    contactId: contact.id, name: contact.name, phone: contact.phone, mobile: contact.mobile,
+    pointsBalance: loyaltyMember.pointsBalance, lifetimePoints: loyaltyMember.lifetimePoints, joinedAt: loyaltyMember.joinedAt, lastActivityAt: loyaltyMember.lastActivityAt,
+  }).from(loyaltyMember)
+    .innerJoin(contact, and(eq(contact.id, loyaltyMember.contactId), eq(contact.companyId, companyId)))
+    .where(and(eq(loyaltyMember.companyId, companyId), match))
+    .orderBy(sql`${loyaltyMember.lastActivityAt} desc nulls last`, contact.name)
+    .limit(200)
+  return rows.map(({ mobile, ...r }) => ({ ...r, phone: r.phone || mobile }))
+}
+
 export async function memberHistory(companyId: string, contactId: string) {
   const m = await memberFor(companyId, contactId)
   if (!m) return { member: null, history: [] }

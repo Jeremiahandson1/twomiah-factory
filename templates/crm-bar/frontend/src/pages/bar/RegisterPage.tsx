@@ -349,7 +349,7 @@ export default function RegisterPage() {
                 if (r?.check) setCheck(r.check);
                 setDialog(null);
                 await loadState();
-              });
+              }, (e) => { setErr(errorText(e, 'That did not save. Try again.')); setDialog(null); });
             } catch (e) { setErr(errorText(e, 'That did not save. Try again.')); setDialog(null); }
           }} />
       )}
@@ -451,8 +451,12 @@ function PayDialog({ check, result, onClose, onPay, giftCards }: { check: Check;
         <div className="flex flex-wrap gap-2 mt-2">
           <span className={`${LABEL} self-center`}>Split evenly</span>
           {ways.map((n) => {
-            const part = Math.ceil(check.totals.balanceCents / n);
-            return <button key={n} type="button" className={`${BTN} ${OFF} min-h-[40px]`} onClick={() => setAmount((part / 100).toFixed(2))}>{n} ways · {money(part)}</button>;
+            // The parts as they will really be paid: the odd cents go on the first ones ($24.79 two ways is
+            // $12.40 + $12.39). The label used to show the rounded-up part alone, which never added up (Bar Run 1).
+            const bal = check.totals.balanceCents, lo = Math.floor(bal / n), extra = bal - lo * n, hi = lo + (extra ? 1 : 0);
+            const each = (cents: number, k: number) => `${k > 1 ? `${k} × ` : ''}${money(cents)}`;
+            const label = extra ? `${each(hi, extra)} + ${each(lo, n - extra)}` : `${n} × ${money(lo)}`;
+            return <button key={n} type="button" className={`${BTN} ${OFF} min-h-[40px]`} onClick={() => setAmount((hi / 100).toFixed(2))}>{n} ways · {label}</button>;
           })}
         </div>
         {tender !== 'giftcard' && (
@@ -534,7 +538,9 @@ function GuestDialog({ regulars, current, onClose, onPick }: { regulars: boolean
           <label className={LABEL} htmlFor="reg-name">Name</label>
           <input id="reg-name" className={`${INPUT} mt-1`} value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus />
           <label className={`${LABEL} block mt-3`} htmlFor="reg-phone">Phone</label>
-          <input id="reg-phone" className={`${INPUT} mt-1`} inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
+          <input id="reg-phone" className={`${INPUT} mt-1`} inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} aria-describedby="reg-phone-hint" />
+          {/* The button waits for 10 digits (the server's rule, services/barLoyalty.ts addRegular); say so, or a 7-digit number just leaves it grey (Bar Run 1). */}
+          <p id="reg-phone-hint" className={`text-xs mt-1 ${MUTED}`}>{(() => { const n = phone.replace(/\D/g, '').length; return n > 0 && n < 10 ? `With the area code: 10 digits (${n} so far).` : 'With the area code, e.g. 715-555-0142.'; })()}</p>
           <FormError message={err} className="mt-2" />
           <div className="flex justify-end gap-2 mt-4">
             <button type="button" className={`${BTN} ${OFF}`} onClick={() => setAdding(false)}>Back</button>

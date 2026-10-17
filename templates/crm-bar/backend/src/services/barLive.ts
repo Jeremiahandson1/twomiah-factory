@@ -59,6 +59,7 @@ function dept(status: DepartmentStatus, now: Date, tz: string, noun: string): Li
   const countdown = status.msUntilChange !== null ? formatCountdown(status.msUntilChange) : null
   let short: string
   if (status.isOpen && status.closesAt) short = `closes ${formatTime(status.closesAt, tz)}`
+  else if (status.isOpen) short = 'open'
   else if (status.opensAt) {
     const sameDay = localDateString(status.opensAt, tz) === localDateString(now, tz)
     short = sameDay ? `opens ${formatTime(status.opensAt, tz)}` : describe(status, now, tz, noun).replace(/^.*— /, '')
@@ -78,6 +79,7 @@ function dept(status: DepartmentStatus, now: Date, tz: string, noun: string): Li
 function toManual(open: boolean | null, closesAt: Date | null, until: Date | null, note: string | null): ManualOverride | null {
   if (open === null && !closesAt) return null
   if (open === false) return { closed: true, until, note }
+  if (open === true) return { open: true, closesAt, until, note }   // the console's "Open now" (Bar Run 1: it had no such button)
   if (closesAt) return { closesAt, until, note }
   return null
 }

@@ -47,6 +47,12 @@ export interface HoursConfig {
 export interface ManualOverride {
   /** Force closed until `until` (or until the next scheduled open if absent). */
   closed?: boolean
+  /**
+   * Open now although the hours say closed (the kitchen fired up early, or kept going). Runs on into a scheduled
+   * period that starts before the override lapses; otherwise open with no stated close until `closesAt` or the lapse.
+   * Inside the hours it changes nothing.
+   */
+  open?: boolean
   /** Close earlier (or later) than scheduled — ISO instant. */
   closesAt?: string | Date | null
   /** Overrides are ignored once this instant passes. */
@@ -226,6 +232,14 @@ function evaluateDepartment(config: HoursConfig, dept: Department, now: Date, tz
       return { department: dept, isOpen: false, closesAt: null, opensAt, msUntilChange: opensAt ? opensAt.getTime() - t : null, source, label, note, today: todayRanges }
     }
     const closesAt = toDate(manual.closesAt)
+    if (manual.open && !current) {
+      source = 'manual'
+      const runsInto = next && (!until || next.start.getTime() <= until.getTime()) ? next : null
+      if (!runsInto && !closesAt) {
+        return { department: dept, isOpen: true, closesAt: null, opensAt: null, msUntilChange: until ? until.getTime() - t : null, source, label, note, today: todayRanges }
+      }
+      current = { start: now, end: runsInto ? runsInto.end : closesAt!, source, label }
+    }
     if (closesAt && current) {
       source = 'manual'
       if (closesAt.getTime() <= t) {
@@ -297,6 +311,7 @@ export function describe(status: DepartmentStatus, now: Date, tz: string, noun: 
   if (status.isOpen && status.closesAt) {
     return `${cap} open — closes ${formatTime(status.closesAt, tz)} (${formatCountdown(status.closesAt.getTime() - now.getTime())})`
   }
+  if (status.isOpen) return `${cap} open`   // opened from the console with no stated close
   if (status.opensAt) {
     return `${cap} closed — opens ${relativeDayLabel(status.opensAt, now, tz)} at ${formatTime(status.opensAt, tz)}`
   }

@@ -256,6 +256,24 @@ export async function notifyDeployComplete(tenant: ReadyTenant, urls: ReadyUrls,
   return sendEmail(tenant.email, subject, html)
 }
 
+/**
+ * The ready email's "do this first" step, in the vertical's own words. It said "add your first contact and create a
+ * job" to every CRM but home care — a bar, a salon, a vet and a venue have no jobs (Bar Run 1). One line per archetype
+ * (CLAUDE.md › CRM Templates); the recurring-job verticals keep the job.
+ */
+export function firstWorkStep(industry: string | null | undefined): string {
+  switch (verticalFor(industry)) {
+    case 'homecare':   return 'Add your first client and create a care plan'
+    case 'bar':        return 'Build your menu and taps, then ring up a test check on the Register'
+    case 'salon':      return 'Add your service menu and book your first appointment'
+    case 'veterinary': return 'Add your first client and their pet, and book an appointment'
+    case 'events':     return 'Add your spaces and take your first party enquiry'
+    case 'rv':         return 'Add a unit to your inventory and your first lead'
+    case 'dispensary': return 'Add your products and your first customer'
+    default:           return 'Add your first contact and create a job'
+  }
+}
+
 /** The "your CRM is ready" email, built. Pure: the owner's first name is passed in. */
 export function buildDeployCompleteEmail(tenant: ReadyTenant, urls: ReadyUrls, ownerFirst: string | null): { subject: string; html: string } {
   const product = getProductName(tenant.industry, tenant.products)
@@ -307,7 +325,7 @@ export function buildDeployCompleteEmail(tenant: ReadyTenant, urls: ReadyUrls, o
         <li>Add your products — or edit the sample products we added to get you started</li>
         <li>Preview your storefront and place a test order</li>` : `
         <li>Complete the onboarding wizard to set up your company profile</li>
-        <li>Add your first ${product === 'Care' ? 'client' : 'contact'} and create a ${product === 'Care' ? 'care plan' : 'job'}</li>
+        <li>${firstWorkStep(tenant.industry)}</li>
         <li>Invite your team members from Settings</li>`}
       </ol>
     </div>

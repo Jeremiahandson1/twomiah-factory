@@ -56,6 +56,12 @@ function StockTab() {
         <button className={`${BTN} ${ON} inline-flex items-center gap-2`} onClick={() => setEdit({ category: 'food', unit: 'each', packName: 'each', packSize: 1, cost: '', par: '' })}><Plus className="w-4 h-4" />Stock item</button>
         <button className={`${BTN} ${OFF} inline-flex items-center gap-2`} onClick={() => setVendorEdit({})}><Plus className="w-4 h-4" />Vendor</button>
       </div>
+      {data.stock.length === 0 && (
+        <div className={CARD}>
+          <p className="text-sm text-gray-900 dark:text-slate-100">No stock yet.</p>
+          <p className={`text-sm mt-1 ${MUTED}`}>Add what you buy with "Stock item": a keg, a case of buns, a bottle. Set "Keep at least" on each, and the Orders tab will draft what is below it. Then say what each plate and pour uses under Recipes &amp; pours to see what it costs.</p>
+        </div>
+      )}
       {data.categories.map((c) => {
         const rows = data.stock.filter((s) => s.category === c.id);
         if (!rows.length) return null;
@@ -71,7 +77,9 @@ function StockTab() {
                       <span className={`block text-xs ${MUTED}`}>{s.packName} of {s.packSize} {s.unitLabel} · {s.packCostCents === null ? 'no price yet' : money(s.packCostCents)}{s.vendorName ? ` · ${s.vendorName}` : ''}</span>
                     </span>
                     <span className="text-right text-sm text-gray-900 dark:text-slate-100">
-                      {s.onHand === null ? <span className={MUTED}>Not counted yet</span> : <>{s.onHandPacks} {s.packName}{s.parPacks !== null ? ` · par ${s.parPacks}` : ''}</>}
+                      {s.onHand === null ? <span className={MUTED}>Not counted yet</span> : <>{s.onHandPacks} {s.packName}</>}
+                      {/* The par shows whether or not it has been counted (Bar Run 1: it only showed after a count). */}
+                      <span className={`block text-xs ${MUTED}`}>{s.parPacks !== null ? `Keep at least ${s.parPacks} ${s.packName}` : 'No par set'}</span>
                       {s.low && <span className="block text-xs font-semibold text-amber-800 dark:text-amber-200">Order {s.suggestPacks}</span>}
                     </span>
                   </button>

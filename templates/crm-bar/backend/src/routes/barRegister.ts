@@ -21,6 +21,7 @@
 //   POST   /register/payment/:id/void       { reason, managerPin? }   always a manager's
 //   GET    /register/day?day=YYYY-MM-DD     the night's summary, open checks, its close-outs
 //   POST   /register/closeout               { day, floatCents, countedCents, note, force, managerPin? }
+//   GET    /register/report?from=&to=       the nights from…to added up — the Reports page (reports:read)
 //   PUT    /register/pin  { pin }  ·  DELETE /register/pin     my own till PIN
 //   GET    /register/floor              the room, and each table's open check (bar:register)
 //   GET    /register/clock  ·  POST /register/clock { pin }   who is on; clock in or out by your own till PIN (time_tracking)
@@ -41,7 +42,7 @@ import {
 } from '../services/barRegister.ts'
 import { actorOf, clearOwnPin, hasOwnPin, managerApproval, mayManage, PinError, setOwnPin, type Actor } from '../services/barManagers.ts'
 import { bumpTicket, kitchenState, recallTicket } from '../services/barKitchen.ts'
-import { barTimezone, closeDay, closeoutsFor, loadDay } from '../services/barReports.ts'
+import { barTimezone, closeDay, closeoutsFor, loadDay, loadRange } from '../services/barReports.ts'
 import { floorFor, saveFloor } from '../services/barFloor.ts'
 import { onTheClock, punchByPin, RotaError } from '../services/barSchedule.ts'
 import { addRegular, listRewards, loyaltyRunning, LoyaltyError, searchGuests } from '../services/barLoyalty.ts'
@@ -206,6 +207,14 @@ registerRoutes.get('/day', ...ring, async (c) => {
   c.header('Cache-Control', 'no-store')
   return c.json({ day, timezone: tz, summary, open, closes: await closeoutsFor(actor.companyId, day), me: { mayManage: await mayManage(actor) } })
 })
+// The Reports page: sales, tips and voids over a run of nights. reports:read (owner, admin, manager) — a bartender
+// keeps the night's close-out, not the business's takings over months.
+registerRoutes.get('/report', requireEnabledFeature(FEATURE), requirePermission('reports:read'), async (c) => {
+  const actor = await actorOf(c)
+  c.header('Cache-Control', 'no-store')
+  return act(c, async () => ({ report: await loadRange(actor.companyId, c.req.query('from') || '', c.req.query('to') || '') }))
+})
+
 registerRoutes.post('/closeout', ...ring, async (c) => {
   const actor = await actorOf(c); const b = await body(c)
   const m = await managerOr(c, actor, b); if (m instanceof Response) return m

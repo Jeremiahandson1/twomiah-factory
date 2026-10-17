@@ -116,7 +116,7 @@ const CRM_REGISTRY = [
     { id: 'service_to_sales', name: 'Service-to-Sales Bridge', description: 'Alert salespeople when their leads check into service', core: false },
   ]},
   { category: 'Field Operations', features: [
-    { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS', core: false },
+    { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in and out, or log hours by hand; hours by person and day', core: false },
     { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location', core: false },
     { id: 'photo_capture', name: 'Photo Capture', description: 'Job site photo documentation', core: false },
     { id: 'equipment_tracking', name: 'Equipment', description: 'Equipment and tool tracking', core: false },

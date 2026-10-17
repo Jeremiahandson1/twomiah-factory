@@ -6,6 +6,7 @@
 //   PUT    /config                      loyalty:configure  only what is sent changes
 //   GET    /rewards                     loyalty:read
 //   POST   /rewards  ·  PUT /rewards/:id  ·  DELETE /rewards/:id     loyalty:configure
+//   GET    /members?q=                  loyalty:read       the regulars and their points (name or phone search)
 //   GET    /members/:contactId          loyalty:read       the balance and the ledger
 //   POST   /members/:contactId/adjust   loyalty:adjust     { points, reason } — points out of nothing, managers
 import { Hono } from 'hono'
@@ -18,7 +19,7 @@ import { requireEnabledFeature } from '../middleware/enabledFeature.ts'
 import audit from '../services/audit.ts'
 import { loyaltyConfig, loyaltyConfigResponse, LOYALTY_SETTING_KEYS } from '../shared/index.ts'
 import { actorOf } from '../services/barManagers.ts'
-import { adjustPoints, BAR_LOYALTY_DEFAULTS, listRewards, LoyaltyError, memberHistory, rewardInput } from '../services/barLoyalty.ts'
+import { adjustPoints, BAR_LOYALTY_DEFAULTS, listMembers, listRewards, LoyaltyError, memberHistory, rewardInput } from '../services/barLoyalty.ts'
 
 type Ctx = any
 const app = new Hono()
@@ -106,6 +107,11 @@ app.delete('/rewards/:id', on, requirePermission('loyalty:configure'), async (c)
   if (!row) return c.json({ error: 'Reward not found' }, 404)
   audit.log({ action: audit.ACTIONS.DELETE, entity: 'loyalty_reward', entityId: row.id, entityName: row.name, req: c })
   return c.json({ success: true })
+})
+
+app.get('/members', on, requirePermission('loyalty:read'), async (c) => {
+  c.header('Cache-Control', 'no-store')
+  return c.json({ data: await listMembers(me(c).companyId, c.req.query('q') || '') })
 })
 
 app.get('/members/:contactId', on, requirePermission('loyalty:read'), async (c) => {

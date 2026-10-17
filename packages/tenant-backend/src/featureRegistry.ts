@@ -129,7 +129,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'event_deposits', name: 'Deposits & Balances', description: 'Staged payment schedule per event with overdue tracking across the whole book', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
 
   // Field Operations
-  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-salon', 'crm-bar'] },
+  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in and out, or log hours by hand; hours by person and day', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-salon', 'crm-bar'] },
   { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare'] },
   { id: 'photo_capture', name: 'Photo Capture', description: 'Job site photo documentation', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] },
   { id: 'equipment_tracking', name: 'Equipment', description: 'Equipment and tool tracking', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
@@ -342,12 +342,22 @@ export function getFeaturesForTemplate(template: string): FeatureDef[] {
 /** Which templates take their starter tier as the default. Read LAZILY — see below. */
 const DEFAULTS_FROM_STARTER = new Set(['crm-roof'])
 
+/**
+ * The same gap, for a template with no starter tier to borrow from: non-core features its own core screens lean on.
+ * crm-bar (Bar Run 1, 10/17): the register's "Add a regular" is the Regulars (loyalty_rewards); the tablet's PIN
+ * clock writes punches that only Time (time_tracking) shows; and Reports is where its sales over a week or a month
+ * are (pages/bar/SalesReport.tsx). A new Starter bar had all three off, and the owner found them under Features.
+ */
+const DEFAULT_EXTRAS: Record<string, string[]> = {
+  'crm-bar': ['loyalty_rewards', 'time_tracking', 'reports'],
+}
+
 export function getDefaultFeaturesForTemplate(template: string): string[] {
   const core = FEATURE_REGISTRY.filter(f => f.core && f.templates.includes(template)).map(f => f.id)
   // PLAN_TIERS is declared further down this file. `const` is not hoisted, so reading it at module
   // scope here would throw at import time and take the whole tenant down at boot; it is read inside
   // the function, where evaluation order is no longer a question.
-  const extraIds = DEFAULTS_FROM_STARTER.has(template) ? (PLAN_TIERS[template]?.starter ?? []) : []
+  const extraIds = [...(DEFAULTS_FROM_STARTER.has(template) ? (PLAN_TIERS[template]?.starter ?? []) : []), ...(DEFAULT_EXTRAS[template] ?? [])]
   // and an id is only added if the template is actually OFFERED it — a tier listing something the
   // template does not have would otherwise switch on a flag with nothing behind it
   const offered = new Set(FEATURE_REGISTRY.filter(f => f.templates.includes(template)).map(f => f.id))

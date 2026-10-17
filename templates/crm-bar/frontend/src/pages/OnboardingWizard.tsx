@@ -27,7 +27,7 @@ const INTEGRATIONS: Integration[] = [
   {
     id: 'dns',
     label: 'Custom Domain (DNS)',
-    description: 'Point your domain to your CRM so customers see your brand.',
+    description: 'Point your domain to your CRM so guests see your brand.',
     category: 'dns',
     guideSteps: [
       'Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)',
@@ -61,25 +61,25 @@ const INTEGRATIONS: Integration[] = [
   {
     id: 'stripe',
     label: 'Stripe Payments',
-    description: 'Accept credit card payments on invoices and through the customer portal.',
+    description: 'Take party deposits and balances by card online. (The register records cards run on your own reader.)',
     category: 'payments',
     guideSteps: [
       'Go to Settings > Payments in your CRM',
       'Click "Connect Stripe" to create or link your Stripe account',
       'Complete the Stripe onboarding (takes 5-10 minutes)',
-      'Once connected, customers can pay invoices online',
+      'Once connected, a party can pay its deposit and balance online',
     ],
   },
   {
     id: 'twilio',
     label: 'Two-Way Texting (Twilio)',
-    description: 'Send and receive SMS with customers directly from your CRM.',
+    description: 'Send and receive texts with guests directly from your CRM.',
     category: 'communication',
     guideSteps: [
       'Go to Settings > Integrations > Texting',
       'Enter your Twilio Account SID, Auth Token, and phone number',
       'If you don\'t have Twilio, create an account at twilio.com',
-      'Once connected, you can text customers from any contact or job page',
+      'Once connected, you can text a guest from their page or a party',
     ],
   },
 ];

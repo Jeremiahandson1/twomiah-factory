@@ -22,6 +22,11 @@ export interface TimeConfig {
   jobsFeature?: string
   projectsFeature?: string
   subtitle?: string
+  /**
+   * Whether time is billed to a customer. Off for a vertical that pays hours but never bills them — a bar's
+   * shifts showed a "Billable" column and box that meant nothing there (Bar Run 1). Default on.
+   */
+  billable?: boolean
 }
 
 export interface ExpensesConfig {

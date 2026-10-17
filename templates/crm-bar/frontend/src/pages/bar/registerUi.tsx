@@ -75,21 +75,26 @@ export function useLive(event: 'bar:register' | 'bar:kitchen', reload: () => voi
  * A manager-only action (a void of something sent, a payment void, closing the night). The server answers 403
  * with needsManager when the person signed in may not do it; this asks for a manager's till PIN on the spot and
  * sends the same request again with it. Nothing here decides who may — the server does.
+ *
+ * Only the PIN's own refusals (needsManager again: a wrong PIN, not a manager's) stay in the PIN box. Any other
+ * refusal of the OK'd request — "1 check is still open", a 409 — closes the box and goes to `onRefused`, the
+ * caller's own error handling: it answers the action, not the PIN, and the page's next step (Close the night
+ * anyway) hangs off it. Bar Run 1: the 409 was shown inside the PIN box, so the bartender never got that button.
  */
 export function useManagerPin() {
-  const [ask, setAsk] = useState<{ message: string; run: (pin: string) => Promise<void> } | null>(null);
+  const [ask, setAsk] = useState<{ message: string; run: (pin: string) => Promise<void>; onRefused?: (e: unknown) => void } | null>(null);
   const [pin, setPin] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
   /** Run `send(pin?)`; on needsManager, open the PIN dialog and run it again with what the manager types. */
-  const guarded = useCallback(async (send: (managerPin?: string) => Promise<void>) => {
+  const guarded = useCallback(async (send: (managerPin?: string) => Promise<void>, onRefused?: (e: unknown) => void) => {
     try {
       await send();
     } catch (e: any) {
       if (e?.status === 403 && e?.data?.needsManager) {
         setPin(''); setErr('');
-        setAsk({ message: e.data.error || 'A manager needs to OK that.', run: (p) => send(p) });
+        setAsk({ message: e.data.error || 'A manager needs to OK that.', run: (p) => send(p), onRefused });
         return;
       }
       throw e;
@@ -100,7 +105,11 @@ export function useManagerPin() {
     <Dialog title="Manager's OK" onClose={() => setAsk(null)}>
       <form onSubmit={async (ev) => {
         ev.preventDefault(); setBusy(true); setErr('');
-        try { await ask.run(pin); setAsk(null); } catch (e: any) { setErr(errorText(e, 'That did not save. Try again.')); } finally { setBusy(false); }
+        try { await ask.run(pin); setAsk(null); }
+        catch (e: any) {
+          if (e?.data?.needsManager || !ask.onRefused) setErr(errorText(e, 'That did not save. Try again.'));
+          else { setAsk(null); ask.onRefused(e); }
+        } finally { setBusy(false); }
       }}>
         <p className={`text-sm mb-3 ${MUTED}`}>{ask.message}</p>
         <label className={LABEL} htmlFor="manager-pin">Manager's till PIN</label>

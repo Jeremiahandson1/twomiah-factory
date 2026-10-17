@@ -10,12 +10,15 @@ import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dial
  * or gift cards), and the rewards they spend them on at the register. The arithmetic is the shared loyalty engine's
  * (the salon and the store run the same); this page sets the bar's numbers (routes/barLoyalty.ts).
  *
- * Reading it is loyalty:read; changing the programme or the rewards is loyalty:configure (owner and admin).
+ * Reading it is loyalty:read; changing the programme or the rewards is loyalty:configure (owner and admin); a hand
+ * correction to someone's points is loyalty:adjust (managers and up). The list of regulars is GET /api/loyalty/members.
  */
 
 interface Config { loyaltyEnabled: boolean; loyaltyPointsPerDollar: number; loyaltyWelcomePoints: number }
 interface Reward { id: string; name: string; description: string | null; pointsCost: number; type: 'fixed' | 'percent' | 'free_item'; valueCents: number; menuItemId: string | null; active: boolean; usageCount: number }
 interface MenuItem { id: string; name: string }
+interface Member { contactId: string; name: string; phone: string | null; pointsBalance: number; lifetimePoints: number; joinedAt: string | null; lastActivityAt: string | null }
+interface Txn { id: string; type: string; points: number; balanceAfter: number; description: string | null; createdBy: string | null; createdAt: string }
 
 const TYPE_LABEL: Record<Reward['type'], string> = { fixed: 'Money off', percent: 'Percent off', free_item: 'A free item' };
 
@@ -94,8 +97,90 @@ export default function RegularsPage() {
         </ul>
       </div>
 
+      <MemberList />
+
       {editing && <RewardDialog reward={editing} items={items} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </div>
+  );
+}
+
+/** Everyone on the programme and their points; tap one for their ledger (and, for a manager, a correction). */
+function MemberList() {
+  const [q, setQ] = useState('');
+  const [rows, setRows] = useState<Member[] | null>(null);
+  const [err, setErr] = useState('');
+  const [open, setOpen] = useState<Member | null>(null);
+  const load = useCallback(async (term: string) => {
+    try { const r = await api.get(`/api/loyalty/members${term.trim() ? `?q=${encodeURIComponent(term.trim())}` : ''}`); setRows(r.data || []); setErr(''); }
+    catch (e) { setErr(errorText(e, 'Could not load the regulars.')); }
+  }, []);
+  useEffect(() => { const t = setTimeout(() => load(q), 250); return () => clearTimeout(t); }, [q, load]);
+  return (
+    <div className={CARD}>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <p className={LABEL}>The regulars{rows ? ` (${rows.length}${rows.length === 200 ? '+' : ''})` : ''}</p>
+        <input aria-label="Find a regular by name or phone" className={`${INPUT} sm:max-w-xs`} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name or phone" />
+      </div>
+      <FormError message={err} onDismiss={() => setErr('')} />
+      {rows === null && !err && <Loader2 className="w-5 h-5 animate-spin text-gray-500 dark:text-slate-400" />}
+      {rows?.length === 0 && <p className={`text-sm ${MUTED}`}>{q.trim() ? 'Nobody on the programme matches that.' : 'No regulars yet. Add one at the register with "Add a regular": a name and a phone number.'}</p>}
+      <ul className="divide-y divide-gray-200 dark:divide-slate-800">
+        {rows?.map((m) => (
+          <li key={m.contactId}>
+            <button className="w-full text-left py-2 flex items-center justify-between gap-3 min-h-[48px] text-gray-900 dark:text-slate-100" onClick={() => setOpen(m)}>
+              <span className="min-w-0">
+                <span className="font-semibold block truncate">{m.name}</span>
+                <span className={`block text-xs ${MUTED}`}>{[m.phone, m.lastActivityAt ? `last in ${new Date(m.lastActivityAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null].filter(Boolean).join(' · ')}</span>
+              </span>
+              <span className="font-mono text-right shrink-0">{m.pointsBalance} pts<span className={`block text-xs ${MUTED}`}>{m.lifetimePoints} all time</span></span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {open && <MemberDialog member={open} onClose={() => setOpen(null)} onChanged={() => load(q)} />}
+    </div>
+  );
+}
+
+function MemberDialog({ member, onClose, onChanged }: { member: Member; onClose: () => void; onChanged: () => void }) {
+  const mayAdjust = useMayWrite('loyalty:adjust');
+  const [history, setHistory] = useState<Txn[] | null>(null);
+  const [balance, setBalance] = useState(member.pointsBalance);
+  const [points, setPoints] = useState('');
+  const [reason, setReason] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    try { const r = await api.get(`/api/loyalty/members/${member.contactId}`); setHistory(r.history || []); if (r.member) setBalance(r.member.pointsBalance); }
+    catch (e) { setErr(errorText(e, 'Could not load their points.')); }
+  }, [member.contactId]);
+  useEffect(() => { load(); }, [load]);
+  return (
+    <Dialog title={member.name} onClose={onClose}>
+      <p className="text-sm text-gray-900 dark:text-slate-100 mb-3"><span className="font-mono font-semibold">{balance}</span> points to spend{member.phone ? ` · ${member.phone}` : ''}</p>
+      <FormError message={err} className="mb-2" />
+      {history === null && !err && <Loader2 className="w-5 h-5 animate-spin text-gray-500 dark:text-slate-400" />}
+      {history?.length === 0 && <p className={`text-sm ${MUTED}`}>Nothing earned or spent yet.</p>}
+      <ul className="text-sm divide-y divide-gray-200 dark:divide-slate-800 max-h-64 overflow-y-auto">
+        {history?.map((t) => (
+          <li key={t.id} className="py-1.5 flex justify-between gap-3 text-gray-900 dark:text-slate-100">
+            <span className="min-w-0">{t.description || t.type}<span className={`block text-xs ${MUTED}`}>{new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{t.createdBy ? ` · ${t.createdBy}` : ''}</span></span>
+            <span className="font-mono shrink-0">{t.points > 0 ? '+' : ''}{t.points}</span>
+          </li>
+        ))}
+      </ul>
+      {mayAdjust && (
+        <form className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 items-end" onSubmit={async (e) => {
+          e.preventDefault(); setBusy(true); setErr('');
+          try { const r = await api.post(`/api/loyalty/members/${member.contactId}/adjust`, { points: Number(points), reason }); setBalance(r.pointsBalance); setPoints(''); setReason(''); await load(); onChanged(); }
+          catch (ex) { setErr(errorText(ex, 'That did not save.')); } finally { setBusy(false); }
+        }}>
+          <div><label className={LABEL} htmlFor="adj-pts">Points (+ or −)</label><input id="adj-pts" className={`${INPUT} mt-1`} inputMode="numeric" value={points} onChange={(e) => setPoints(e.target.value.replace(/[^0-9-]/g, ''))} placeholder="-20" /></div>
+          <div><label className={LABEL} htmlFor="adj-why">Why</label><input id="adj-why" className={`${INPUT} mt-1`} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={200} /></div>
+          <button type="submit" className={`${BTN} ${OFF}`} disabled={busy || !points || points === '-' || !reason.trim()}>Correct it</button>
+        </form>
+      )}
+    </Dialog>
   );
 }
 

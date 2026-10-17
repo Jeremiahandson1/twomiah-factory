@@ -44,6 +44,7 @@ function WeekBuilder() {
   useEffect(() => { load(); }, [load]);
   const act = async (key: string, fn: () => Promise<unknown>) => { setBusy(key); setErr(''); try { await fn(); await load(); } catch (e) { setErr(errorText(e, 'That did not save.')); } finally { setBusy(''); } };
   if (!w) return <div className="flex justify-center py-10">{err ? <FormError message={err} /> : <Loader2 className="w-6 h-6 animate-spin text-gray-500 dark:text-slate-400" />}</div>;
+  const offShifts = (w.shifts || []).filter((s: any) => s.onTimeOff);
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
@@ -59,10 +60,12 @@ function WeekBuilder() {
         <div className={CARD}><p className={LABEL}>Labor</p><p className="text-xl font-bold text-gray-900 dark:text-slate-100">{w.laborPct === null ? '—' : `${w.laborPct}%`}</p></div>
         <div className={CARD}><p className={LABEL}>Gaps</p><p className="text-xl font-bold text-gray-900 dark:text-slate-100">{w.gaps.length}</p></div>
       </div>
-      {(w.gaps.length > 0 || w.overlaps.length > 0) && (
+      {(w.gaps.length > 0 || w.overlaps.length > 0 || offShifts.length > 0) && (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100 p-4 text-sm space-y-1">
           {w.gaps.map((g: any, i: number) => <p key={'g' + i}>Nobody on {dayLabel(g.day)} {clock12(g.from)}–{clock12(g.to)}</p>)}
           {w.overlaps.map((o: any, i: number) => <p key={'o' + i}>{o.name} is booked twice on {dayLabel(o.day)}</p>)}
+          {/* A shift on a day off that was approved: the cell went red, but the list read before publishing said nothing (Bar Run 1). Its hours and wages still count until it is moved. */}
+          {offShifts.map((s: any) => <p key={'t' + s.id}>{s.name} has the day off on {dayLabel(s.day)} but is on {clock12(s.start)}–{clock12(s.end)}. Their hours and wages count until you move it.</p>)}
         </div>
       )}
       <div className={`${CARD} overflow-x-auto`}>

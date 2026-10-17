@@ -25,6 +25,7 @@ const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '
 const VERTICALS: Array<[string, string]> = [
   ['home_care', 'Care'], ['hvac', 'Wrench'], ['roofing', 'Build'], ['landscaping', 'Build'], ['dispensary', 'Build'],
   ['rv_dealer', 'Roam'], ['veterinary', 'Vet'], ['salon', 'Salon'], ['restaurant', 'Events'], ['general_contractor', 'Build'],
+  ['bar_and_grill', 'Bar'],
 ]
 
 // ── the plan's name, never its id
@@ -56,6 +57,18 @@ for (const [industry] of VERTICALS) {
   const evil = E.buildWelcomeEmail({ name: 'Co', email: 'a@b', plan: 'starter10', industry: 'home_care' }, '<img>')
   check('the name is escaped — signup text never becomes markup', /Welcome aboard, &lt;img&gt;!/.test(evil.html) && !/<img>/.test(evil.html))
   check('greeting(): "Hi Jamie," and "Hi there," — the helper every other email uses', /Hi Jamie,/.test(E.greeting('Jamie')) && /Hi there,/.test(E.greeting(null)))
+}
+
+// ── the first step is the vertical's own work: only the recurring-job verticals are told to create a job (Bar Run 1)
+{
+  const NO_JOBS = ['home_care', 'rv_dealer', 'veterinary', 'salon', 'restaurant', 'bar_and_grill', 'dispensary']
+  for (const [industry] of VERTICALS) {
+    const tenant = { id: null, name: 'Test Co', email: 'owner@test.local', slug: 'test-co', plan: 'starter10', industry, products: ['crm'] }
+    const r = text(E.buildDeployCompleteEmail(tenant, { deployedUrl: 'https://test-co-api.onrender.com' }, 'Jamie').html)
+    const saysJob = /create a job/i.test(r)
+    check(`${industry}: the ready email ${NO_JOBS.includes(industry) ? 'never says "create a job"' : 'keeps "create a job"'}`, saysJob === !NO_JOBS.includes(industry), r.slice(r.indexOf('3 things'), r.indexOf('3 things') + 260))
+  }
+  check('a bar is pointed at its menu, taps and the Register', /menu and taps.*Register/.test(E.firstWorkStep('bar_and_grill')), E.firstWorkStep('bar_and_grill'))
 }
 
 // ── the rule across the file: no greeting addressed to a company; the signup hands the welcome the owner's name

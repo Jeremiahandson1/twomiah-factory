@@ -16,7 +16,7 @@ const same = (name: string, got: unknown, want: unknown) => check(name, JSON.str
 
 const { ageState, allDay, cueFor, effectivePrep, learn, lessonFromBump, paceTicket, startNow } = await import('./src/services/barPacing.ts')
 const { changeDue, checkTotals, formatMoney, quickCash, splitEvenly, taxRateBpsFrom } = await import('./src/services/barCheckMoney.ts')
-const { summarizeDay } = await import('./src/services/barReports.ts')
+const { combineDays, summarizeDay } = await import('./src/services/barReports.ts')
 const { businessDayOf, businessDayWindow, endOfBusinessDay } = await import('./src/services/barLive.ts')
 
 console.log('\n══════════ pacing ══════════')
@@ -35,6 +35,9 @@ const fish = { key: 'c', name: 'Fish Fry', qty: 2, prepSeconds: 420, menuItemId:
   same('ready: plate it', cueFor(p, t0 + 10 * MIN).state, 'plate')
   const q = paceTicket(t0, [burger, { ...fries, qty: 3 }, { ...fries, key: 'd', name: 'Onion Rings', qty: 1 }])
   same('quantities and same-time starts group', cueFor(q, t0).text, 'Cheddarburger on now · 3 Fries + Onion Rings in 6')
+  // Bar Run 1: wings 12, burger 10, fries 4 — the cue named the burger and dropped the fries.
+  const wings = { key: 'w', name: 'Wings', qty: 1, prepSeconds: 720, menuItemId: 'wings' }
+  same('every batch still to start is on the line, soonest first', cueFor(paceTicket(t0, [burger, fries, wings]), t0).text, 'Wings on now · Cheddarburger in 2 · Fries in 8')
   const a = paceTicket(t0, [burger, fries])
   const b = paceTicket(t0 + 6 * MIN, [{ ...fries, key: 'x', qty: 2 }])
   same('fries from two tickets come due together → one batch', startNow([a, b], t0 + 6 * MIN), [{ name: 'Fries', qty: 3 }])
@@ -134,6 +137,12 @@ const chk = (o: any) => ({ id: 'c', number: 1, kind: 'tab', label: 'x', status: 
   const g = summarizeDay('2026-09-25', TZ, gcChecks, gcItems, gcPays)
   check('a gift card sold is not food and drink', g.subtotalCents === 2000 && g.giftCardsSold.count === 1 && g.giftCardsSold.cents === 5000 && g.totalCents === 7110 && !g.items.find(i => i.name === 'Gift card'), g)
   check('paying with a card is its own tender and not cash', g.byTender.find(t => t.tender === 'giftcard')?.amountCents === 1055 && g.cash.salesCents === 6055, g.byTender)
+  // Reports (Bar Run 1): a run of nights is the sum of its close-outs, figure by figure, rows merged by name.
+  const n2 = summarizeDay('2026-09-26', TZ, gcChecks.map(c => ({ ...c, id: c.id + '2' })), gcItems.map(i => ({ ...i, checkId: i.checkId + '2' })), gcPays.map(p => ({ ...p, checkId: p.checkId + '2' })))
+  const r = combineDays('2026-09-25', '2026-09-26', [g, n2])
+  check('the range adds the nights: sales, tax, total, checks, average', r.subtotalCents === 4000 && r.taxCents === 220 && r.totalCents === 14220 && r.checksPaid === 4 && r.averageCheckCents === 3555, r)
+  check('tenders, items and gift cards merge by name across nights', r.byTender.find(t => t.tender === 'cash')?.amountCents === 12110 && r.byTender.find(t => t.tender === 'giftcard')?.count === 2 && r.items.find(i => i.name === 'Hamburger')?.qty === 4 && r.giftCardsSold.cents === 10000, { t: r.byTender, i: r.items })
+  check('a night is listed even when nothing sold', combineDays('2026-09-25', '2026-09-27', [g, n2, summarizeDay('2026-09-27', TZ, [], [], [])]).nights.map(x => x.totalCents).join() === '7110,7110,0')
 }
 
 console.log('\n══════════ the business day: 4 AM to 4 AM ══════════')

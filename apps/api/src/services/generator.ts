@@ -529,6 +529,9 @@ function crmTokenMap(config: GenerateConfig, tokens: Record<string, string>): Re
   const c = config.company || ({} as GenerateConfig['company'])
   return {
     ...tokens,
+    // The phone was the one stand-in left: a bar that left it blank found "(555) 000-0000" saved as its number (Bar Run 1).
+    '{{COMPANY_PHONE}}': c.phone || '',
+    '{{COMPANY_PHONE_RAW}}': (c.phone || '').replace(/\D/g, ''),
     '{{COMPANY_ADDRESS}}': c.address || '',
     '{{CITY}}': c.city || '',
     '{{STATE}}': c.state || '',

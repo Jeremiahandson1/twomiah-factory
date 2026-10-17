@@ -100,7 +100,8 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     { key: 'phone', label: 'Phone', render: (v: any) => v || '-' },
     // a rate is money: 28.5 is $28.50 an hour (T14 L2)
     { key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' && Number.isFinite(Number(v)) ? `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/hr` : '-') },
-    { key: 'active', label: 'Status', render: (v: any) => (v ? <span className="text-green-700 dark:text-green-400">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>) },
+    // "Invite sent" until their login is taken up — the server's word (team.ts), the same as Settings › Users.
+    { key: 'active', label: 'Status', render: (v: any, row: Member) => (!v ? <span className="text-gray-500 dark:text-slate-400">Inactive</span> : (row as any).invitePending ? <span className="text-amber-700 dark:text-amber-300">Invite sent</span> : <span className="text-green-700 dark:text-green-400">Active</span>) },
   ]
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
 

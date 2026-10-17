@@ -117,8 +117,9 @@ export default function TonightPage() {
     const openKey = dept === 'kitchen' ? 'kitchenOpen' : 'barOpen';
     const closesKey = dept === 'kitchen' ? 'kitchenClosesAt' : 'barClosesAt';
     const forced = status?.[openKey as keyof Status] === false;
+    const forcedOpen = status?.[openKey as keyof Status] === true;
     const early = !!status?.[closesKey as keyof Status];
-    const following = !forced && !early;
+    const following = !forced && !forcedOpen && !early;
     const d = live?.[dept];
     return (
       <div className={CARD}>
@@ -130,9 +131,11 @@ export default function TonightPage() {
         </div>
         <p className="text-base font-semibold text-gray-900 dark:text-slate-100 mb-3">{d?.line}</p>
         {mayConsole && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <button className={`${BTN} ${following ? ON : OFF}`} disabled={!!busy} aria-pressed={following}
               onClick={() => tonight({ [openKey]: null, [closesKey]: null }, `${dept}-follow`)}>Follow the hours</button>
+            <button className={`${BTN} ${forcedOpen ? ON : OFF}`} disabled={!!busy} aria-pressed={forcedOpen}
+              onClick={() => tonight({ [openKey]: true, [closesKey]: null }, `${dept}-open`)}>Open now</button>
             <button className={`${BTN} ${forced ? ON : OFF}`} disabled={!!busy} aria-pressed={forced}
               onClick={() => tonight({ [openKey]: false, [closesKey]: null }, `${dept}-closed`)}>Closed now</button>
             <div className="flex gap-2">
@@ -143,7 +146,8 @@ export default function TonightPage() {
                 onClick={() => {
                   const at = live ? localTimeToday(closeAt[dept], live.timezone) : null;
                   if (!at) { setErr('Pick a closing time'); return; }
-                  tonight({ [openKey]: null, [closesKey]: at }, `${dept}-early`);
+                  // An "Open now" stays open until this time; otherwise it is an early close of tonight's hours.
+                  tonight({ [openKey]: forcedOpen ? true : null, [closesKey]: at }, `${dept}-early`);
                 }}>Close at</button>
             </div>
           </div>

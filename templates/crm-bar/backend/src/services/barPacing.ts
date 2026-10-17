@@ -38,10 +38,10 @@ export function cueFor(t: PacedTicket, now: number): Cue {
   const upcoming = t.items.filter(i => i.startAt > now + DUE_AHEAD_MS).sort((a, b) => a.startAt - b.startAt)
   const parts: string[] = []
   if (due.length) parts.push(due.map(label).join(' + ') + ' on now')
-  if (upcoming.length) {
-    const first = upcoming[0].startAt
-    const batch = upcoming.filter(i => i.startAt === first)
-    parts.push(batch.map(label).join(' + ') + ' in ' + minutes(first - now))
+  // Every batch still to start, soonest first — not just the next one. A three-item ticket printed
+  // "Wings on now · Cheeseburger in 2" and left Fries (in 8) off the line the cook paces by (Bar Run 1).
+  for (const at of [...new Set(upcoming.map(i => i.startAt))]) {
+    parts.push(upcoming.filter(i => i.startAt === at).map(label).join(' + ') + ' in ' + minutes(at - now))
   }
   if (!parts.length) return { text: 'Up in ' + minutes(t.readyAt - now), state: 'wait' }
   return { text: parts.join(' · '), state: due.length ? 'start' : 'wait' }

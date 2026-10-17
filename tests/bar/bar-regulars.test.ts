@@ -207,5 +207,28 @@ console.log('\n══════════ 7. another company ═════
   check("…nor this bar's guests in a search", find.json.guests.length === 0, find.json)
 }
 
+console.log('\n══════════ 8. the Regulars page lists the regulars (Bar Run 1) ══════════')
+{
+  const all = await O('GET', '/api/loyalty/members')
+  const rows = all.json.data || []
+  const balances = await db.select().from(loyaltyMember).where(eq(loyaltyMember.companyId, co.id))
+  check(`everyone on the programme is listed, with their points (${rows.length})`, all.status === 200 && rows.length === balances.length && rows.length > 0 && rows.every((m: any) => balances.some((b) => b.contactId === m.contactId && b.pointsBalance === m.pointsBalance)), rows)
+  const someone = rows[0]
+  const byName = await O('GET', `/api/loyalty/members?q=${encodeURIComponent(someone.name.slice(0, 4))}`)
+  check('a name search finds them', byName.json.data.some((m: any) => m.contactId === someone.contactId), byName.json)
+  const withPhone = rows.find((m: any) => m.phone)
+  if (withPhone) {
+    const digits = String(withPhone.phone).replace(/\D/g, '').slice(-4)
+    const byPhone = await O('GET', `/api/loyalty/members?q=${digits}`)
+    check('a phone search by the last digits finds them', byPhone.json.data.some((m: any) => m.contactId === withPhone.contactId), byPhone.json)
+  }
+  const bt = await B('GET', '/api/loyalty/members')
+  check('a bartender reads the list too (loyalty:read)', bt.status === 200, bt.status)
+  const [other] = await db.insert(company).values({ name: 'Elsewhere', slug: 'loy-elsewhere', email: 'e@test.local', settings: {}, enabledFeatures: ALL } as any).returning()
+  const eo = await mk(other.id, 'owner', 'Eve', 'loy-else')
+  const theirs = await call(eo, other.id)('GET', '/api/loyalty/members')
+  check("another company's list holds none of this bar's regulars", theirs.status === 200 && theirs.json.data.length === 0, theirs.json)
+}
+
 console.log(`\nbar-regulars: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

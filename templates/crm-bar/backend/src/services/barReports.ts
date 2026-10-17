@@ -11,7 +11,8 @@
 import { and, desc, eq, gte, inArray, lt, or } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { barCheck, barCheckItem, barCheckPayment, barCloseout, company } from '../../db/schema.ts'
-import { BUSINESS_DAY_STARTS, businessDayWindow, hoursFor } from './barLive.ts'
+import { BUSINESS_DAY_STARTS, businessDayOf, businessDayWindow, hoursFor } from './barLive.ts'
+import { addDays } from './barHours.ts'
 import { listOpen, CheckError, type OpenCheckRow } from './barRegister.ts'
 import { formatMoney } from './barCheckMoney.ts'
 import { sendRaw } from './email.ts'
@@ -127,6 +128,74 @@ export function summarizeDay(day: string, tz: string, dayChecks: DayCheck[], ite
     cash: { salesCents: cash.amountCents, tipsCents: cash.tipsCents, inCents: cash.amountCents + cash.tipsCents },
     giftCardsSold: { count: soldCards.reduce((n, i) => n + i.qty, 0), cents: giftCardCents },
   }
+}
+
+// ─── A run of nights: the Reports page ─────────────────────────────────────
+// Bar Run 1: Reports was the contractor's page ("Jobs completed", "Quote conversion") with no bar sales, tips or
+// voids. This is the close-out's arithmetic over a range of nights — each night summarised exactly as the
+// close-out does it (summarizeDay), then added up, so a week's report always equals the sum of its close-outs.
+export const MAX_RANGE_DAYS = 93
+
+export interface RangeSummary {
+  from: string; to: string
+  nights: Array<{ day: string; checksPaid: number; subtotalCents: number; taxCents: number; totalCents: number; tipsCents: number }>
+  checksPaid: number; checksVoided: number
+  subtotalCents: number; taxCents: number; totalCents: number; tipsCents: number; averageCheckCents: number
+  byTender: DaySummary['byTender']
+  tipsByStaff: DaySummary['tipsByStaff']
+  items: DaySummary['items']
+  voids: { count: number; amountCents: number }
+  giftCardsSold: { count: number; cents: number }
+}
+
+/** Add nights up. Pure: every figure is the sum of the nights' own figures. */
+export function combineDays(from: string, to: string, days: DaySummary[]): RangeSummary {
+  const sum = (f: (d: DaySummary) => number) => days.reduce((n, d) => n + f(d), 0)
+  const merge = <T extends Record<string, any>>(rows: T[], key: keyof T, add: Array<keyof T>): T[] => {
+    const m = new Map<string, T>()
+    for (const r of rows) {
+      const k = String(r[key]); const cur = m.get(k)
+      if (!cur) { m.set(k, { ...r }); continue }
+      for (const a of add) (cur as any)[a] = (cur as any)[a] + (r as any)[a]
+    }
+    return [...m.values()]
+  }
+  const checksPaid = sum(d => d.checksPaid), totalCents = sum(d => d.totalCents)
+  return {
+    from, to,
+    nights: days.map(d => ({ day: d.day, checksPaid: d.checksPaid, subtotalCents: d.subtotalCents, taxCents: d.taxCents, totalCents: d.totalCents, tipsCents: d.tipsCents })),
+    checksPaid, checksVoided: sum(d => d.checksVoided),
+    subtotalCents: sum(d => d.subtotalCents), taxCents: sum(d => d.taxCents), totalCents, tipsCents: sum(d => d.tipsCents),
+    averageCheckCents: checksPaid ? Math.round(totalCents / checksPaid) : 0,
+    byTender: merge(days.flatMap(d => d.byTender), 'tender', ['count', 'amountCents', 'tipsCents']).sort((a, b) => b.amountCents - a.amountCents),
+    tipsByStaff: merge(days.flatMap(d => d.tipsByStaff), 'who', ['count', 'tipsCents', 'cashTipsCents', 'cardTipsCents']).sort((a, b) => b.tipsCents - a.tipsCents),
+    items: merge(days.flatMap(d => d.items), 'name', ['qty', 'salesCents']).sort((a, b) => b.qty - a.qty || b.salesCents - a.salesCents),
+    voids: { count: sum(d => d.voids.length), amountCents: sum(d => d.voids.reduce((n, v) => n + v.amountCents, 0)) },
+    giftCardsSold: { count: sum(d => d.giftCardsSold.count), cents: sum(d => d.giftCardsSold.cents) },
+  }
+}
+
+/** The nights `from`…`to` (YYYY-MM-DD, inclusive), read in one pass and summarised night by night. */
+export async function loadRange(companyId: string, from: string, to: string): Promise<RangeSummary & { timezone: string }> {
+  const DAY = /^\d{4}-\d{2}-\d{2}$/
+  if (!DAY.test(from) || !DAY.test(to) || from > to) throw new CheckError('Pick a from and a to date.')
+  const days: string[] = []
+  for (let d = from; d <= to; d = addDays(d, 1)) { days.push(d); if (days.length > MAX_RANGE_DAYS) throw new CheckError(`Up to ${MAX_RANGE_DAYS} nights at a time.`) }
+  const tz = await barTimezone(companyId)
+  const start = businessDayWindow(from, tz).from, end = businessDayWindow(to, tz).to
+  const checks = await db.select().from(barCheck).where(and(eq(barCheck.companyId, companyId), or(eq(barCheck.status, 'paid'), eq(barCheck.status, 'void')), gte(barCheck.closedAt, start), lt(barCheck.closedAt, end)))
+  const ids = checks.map(c => c.id)
+  const [items, payments] = await Promise.all([
+    ids.length ? db.select().from(barCheckItem).where(and(eq(barCheckItem.companyId, companyId), inArray(barCheckItem.checkId, ids))) : Promise.resolve([]),
+    ids.length ? db.select().from(barCheckPayment).where(and(eq(barCheckPayment.companyId, companyId), inArray(barCheckPayment.checkId, ids))) : Promise.resolve([]),
+  ])
+  const nightOf = new Map(checks.map(c => [c.id, businessDayOf(c.closedAt as Date, tz)]))
+  const summaries = days.map(day => {
+    const dc = checks.filter(c => nightOf.get(c.id) === day)
+    const inDay = new Set(dc.map(c => c.id))
+    return summarizeDay(day, tz, dc as DayCheck[], (items as DayItem[]).filter(i => inDay.has(i.checkId)), (payments as DayPayment[]).filter(p => inDay.has(p.checkId)))
+  })
+  return { ...combineDays(from, to, summaries), timezone: tz }
 }
 
 // ─── Loading ──────────────────────────────────────────────────────────────

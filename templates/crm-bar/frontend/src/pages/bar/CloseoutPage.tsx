@@ -51,6 +51,12 @@ export default function CloseoutPage() {
   }, [day]);
   useEffect(() => { load(); }, [load]);
 
+  // One handler for a refused close, whether it came straight back or after a manager's PIN (useManagerPin hands
+  // it here then): a night with an open check is a 409 that switches on "Close the night anyway".
+  const refused = (e: any) => {
+    if (e?.status === 409 && /still open/.test(e?.data?.error || '')) setAskForce(true);
+    setErr(errorText(e, 'That did not save. Try again.'));
+  };
   const close = async (force: boolean) => {
     if (!data) return;
     setBusy(true); setErr('');
@@ -59,10 +65,9 @@ export default function CloseoutPage() {
         await api.post('/api/register/closeout', { day: data.day, floatCents: centsFrom(floatIn) ?? 0, countedCents: counted.trim() ? centsFrom(counted) : null, note, force, managerPin });
         setAskForce(false); setCounted(''); setNote('');
         await load();
-      });
+      }, refused);
     } catch (e: any) {
-      if (e?.status === 409 && /still open/.test(e?.data?.error || '')) setAskForce(true);
-      setErr(errorText(e, 'That did not save. Try again.'));
+      refused(e);
     } finally { setBusy(false); }
   };
 

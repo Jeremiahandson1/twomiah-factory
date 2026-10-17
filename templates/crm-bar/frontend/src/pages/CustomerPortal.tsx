@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 import {
-  Briefcase, Globe, Palette, Inbox, FileText,
+  Briefcase, Globe, Palette, Inbox, Users,
   DollarSign, ArrowRight, ExternalLink, Settings,
   Clock, LogOut, Camera
 } from 'lucide-react';
@@ -150,18 +150,17 @@ export default function CustomerPortal() {
 
         {/* Quick Stats */}
         {stats && (
-          <div className={`grid grid-cols-2 ${typeof (stats as any).newLeads === 'number' ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 mb-8`}>
+          <div className={`grid grid-cols-2 ${(stats as any).payments?.outstanding !== undefined ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4 mb-8`}>
             {[
-              // /api/dashboard/stats returns { contacts, jobs:{total}, quotes:{pending}, invoices:{totalValue} };
-              // the old keys (contactCount/openJobCount/…) never existed, so every tile read 0.
-              // New leads, not a count of contacts — the owner acts on enquiries still waiting, not the
-              // size of the address book. Absent key (no Lead Inbox) → no tile, and three columns.
-              ...(typeof (stats as any).newLeads === 'number' ? [{ label: 'New Leads', value: (stats as any).newLeads, icon: Inbox, color: 'blue' }] : []),
-              { label: 'Open Jobs', value: (stats as any).jobs?.open ?? 0, icon: Briefcase, color: 'emerald' },
-              { label: 'Pending Quotes', value: (stats as any).quotes?.pending ?? 0, icon: FileText, color: 'amber' },
+              // The bar's /api/dashboard/stats (routes/dashboard.ts) is the events shape — { contacts, pipeline,
+              // events, payments }. These tiles were the contractor's "Open Jobs" and "Pending Quotes", read from
+              // keys this endpoint never sends, so they always said 0 on a bar's front page (Bar Run 1).
+              { label: 'Guests', value: (stats as any).contacts ?? 0, icon: Users, color: 'blue' },
+              { label: 'Parties in the next 30 days', value: (stats as any).events?.upcoming30 ?? 0, icon: Briefcase, color: 'emerald' },
+              { label: 'Party enquiries', value: (stats as any).pipeline?.enquiry ?? 0, icon: Inbox, color: 'amber' },
               // A money tile only when the figure was SENT — the server leaves it off for a seat that may not see money,
               // and `?? 0` drew that absence as "$0.00". (T62: "Salon portal home shows '$0.00 Outstanding'")
-              ...((stats as any).invoices?.totalValue !== undefined ? [{ label: 'Total Invoiced', value: money((stats as any).invoices?.totalValue ?? 0), icon: DollarSign, color: 'green' }] : []),
+              ...((stats as any).payments?.outstanding !== undefined ? [{ label: 'Owed on parties', value: money((stats as any).payments?.outstanding ?? 0), icon: DollarSign, color: 'green' }] : []),
             ].map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg ${tileTone(stat.color).chip} flex items-center justify-center mb-2`}>
@@ -196,7 +195,7 @@ export default function CustomerPortal() {
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Business CRM</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Contacts, jobs, quotes, invoices, scheduling, and more
+              The register, the grill, the menu and taps, stock, the schedule, parties and more
             </p>
           </div>
 

@@ -171,16 +171,26 @@ export function createTeamRoutes(deps: TeamDeps) {
     // branch above to the roster branch, and their "login" badge vanished with them — on the one page where
     // that badge is the only at-a-glance sign of who has access, and precisely for the people you had just
     // taken the trouble to set up. (Contractor T30 N3)
-    const loginEmails = new Set<string>()
-    if (data.length) {
-      const logins = await db.select({ email: t.user.email }).from(t.user).where(eq(t.user.companyId, user.companyId))
-      for (const u of logins) { const e = String(u.email || '').toLowerCase(); if (e) loginEmails.add(e) }
+    //
+    // …and whether that login has been taken up yet: invited, no sign-in, the invite link still live reads
+    // "Invite sent" — the same rule as Settings › Users (company.ts GET /users). The Status column said
+    // "Active" for someone who had never signed in, beside a Users page that said "Invite sent" (Bar Run 1).
+    const loginEmails = new Set<string>(), pendingEmails = new Set<string>()
+    if (rows.length) {
+      const now = Date.now()
+      const logins = await db.select({ email: t.user.email, lastLogin: t.user.lastLogin, resetToken: t.user.resetToken, resetTokenExp: t.user.resetTokenExp }).from(t.user).where(eq(t.user.companyId, user.companyId))
+      for (const u of logins) {
+        const e = String(u.email || '').toLowerCase(); if (!e) continue
+        loginEmails.add(e)
+        if (!u.lastLogin && !!u.resetToken && !!u.resetTokenExp && new Date(u.resetTokenExp as any).getTime() > now) pendingEmails.add(e)
+      }
     }
     const hasLogin = (r: any) => r._source === 'user' || loginEmails.has(String(r.email || '').toLowerCase())
+    const invitePending = (r: any) => pendingEmails.has(String(r.email || '').toLowerCase())
     // The pay decision is made ONCE for the request, not per row — and applied inside this map so the
     // response below stays `data: withCounts` on one line, which check-team-removal-warning.ts reads.
     const payVisible = await maySeePay(c)
-    const withCounts = rows.map((r: any) => pay(payVisible, r._source === 'user' ? { ...r, hasLogin: true } : { ...r, assignedJobs: counts[r.id] || 0, hasLogin: hasLogin(r) }))
+    const withCounts = rows.map((r: any) => pay(payVisible, r._source === 'user' ? { ...r, hasLogin: true, invitePending: invitePending(r) } : { ...r, assignedJobs: counts[r.id] || 0, hasLogin: hasLogin(r), invitePending: invitePending(r) }))
     // …and what that work is CALLED here, so the confirm dialog warns a salon about appointments rather
     // than about jobs it does not have. (Salon T27 N14)
     return c.json({ data: withCounts, workLabel, pagination: { page, limit, total: totalN, pages } })

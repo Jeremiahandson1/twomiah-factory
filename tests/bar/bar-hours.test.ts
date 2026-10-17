@@ -182,6 +182,33 @@ describe('manual overrides from the console', () => {
     expect(formatTime(s.bar.closesAt!, TZ)).toBe('11 PM')
     expect(evaluate(config, { now: at('2026-09-11', '23:30'), manual: { bar: { closesAt: at('2026-09-11', '23:00'), until: at('2026-09-12', '06:00') } } }).bar.isOpen).toBe(false)
   })
+  // Bar Run 1: Tonight had "Closed now" and "Close at" but no way to open the kitchen outside its hours.
+  test('kitchen open now after its hours — open, no stated close, the console says so', () => {
+    const now = at('2026-09-11', '21:30')   // Friday: kitchen hours end at 9 PM
+    const s = evaluate(config, { now, manual: { kitchen: { open: true, until: at('2026-09-12', '04:00') } } })
+    expect(s.kitchen.isOpen).toBe(true)
+    expect(s.kitchen.source).toBe('manual')
+    expect(s.kitchen.closesAt).toBeNull()
+    expect(describeStatus(s.kitchen, now, TZ)).toBe('Kitchen open')
+    expect(evaluate(config, { now: at('2026-09-12', '04:30'), manual: { kitchen: { open: true, until: at('2026-09-12', '04:00') } } }).kitchen.isOpen).toBe(false)
+  })
+  test('kitchen open early runs on into its hours and closes when they do', () => {
+    const now = at('2026-09-11', '10:00')   // Friday: kitchen opens 11 AM, closes 9 PM
+    const s = evaluate(config, { now, manual: { kitchen: { open: true, until: at('2026-09-12', '04:00') } } })
+    expect(s.kitchen.isOpen).toBe(true)
+    expect(formatTime(s.kitchen.closesAt!, TZ)).toBe('9 PM')
+  })
+  test('kitchen open now with a close time — open till then, closed after', () => {
+    const m = { kitchen: { open: true, closesAt: at('2026-09-11', '23:00'), until: at('2026-09-12', '04:00') } }
+    const s = evaluate(config, { now: at('2026-09-11', '21:30'), manual: m })
+    expect(s.kitchen.isOpen).toBe(true)
+    expect(formatTime(s.kitchen.closesAt!, TZ)).toBe('11 PM')
+    expect(evaluate(config, { now: at('2026-09-11', '23:30'), manual: m }).kitchen.isOpen).toBe(false)
+  })
+  test('open now inside the hours changes nothing', () => {
+    const now = at('2026-09-11', '13:00')
+    expect(evaluate(config, { now, manual: { kitchen: { open: true, until: at('2026-09-12', '04:00') } } }).kitchen).toMatchObject({ isOpen: true, source: 'regular' })
+  })
   test('a stale override (until in the past) is ignored', () => {
     const s = evaluate(config, { now: at('2026-09-12', '13:00'), manual: { kitchen: { closed: true, until: at('2026-09-12', '06:00') } } })
     expect(s.kitchen.isOpen).toBe(true)

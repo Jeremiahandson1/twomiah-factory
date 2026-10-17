@@ -3,6 +3,7 @@ import { Plus, Loader2, X, Beer, Edit2, Trash2 } from 'lucide-react';
 import api from '../../services/api';
 import { useMayWrite } from '../../shared';
 import FormError, { errorText } from '../../components/ui/FormError';
+import { money } from './registerUi';
 
 /**
  * TAPS — the beer on each line, shown live on the website's tap wall (GET /api/public/bar/taps). A blown keg
@@ -12,8 +13,11 @@ import FormError, { errorText } from '../../components/ui/FormError';
 
 interface Tap {
   id: string; lineNumber: number; beerName: string; brewery: string | null; style: string | null; abv: string | null;
-  originCountry: string | null; description: string | null; badge: string | null; priceCents: number | null; status: string; isActive: boolean;
+  originCountry: string | null; description: string | null; badge: string | null; priceCents: number | null; status: string; isActive: boolean; pourOz: string | number;
 }
+
+/** "$5.50 · 16 oz pour" — what one pour rings up at on the register, and how big it is (set on Stock › Recipes & pours). */
+const pourLine = (t: Tap) => [t.priceCents === null ? 'No price yet' : money(t.priceCents), `${Number(t.pourOz) || 16} oz pour`].join(' · ');
 
 const STATUS_LABEL: Record<string, string> = { pouring: 'Pouring', just_tapped: 'Just tapped', last_keg: 'Last keg', blown: 'Blown' };
 const INPUT = 'w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100';
@@ -79,6 +83,7 @@ export default function TapsPage() {
               <li key={t.id} className={`flex items-start justify-between gap-3 p-4 ${t.isActive ? '' : 'opacity-60'}`}>
                 <div className="min-w-0">
                   <p className="font-medium text-gray-900 dark:text-slate-100">{t.lineNumber}. {t.beerName} <span className="ml-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200">{STATUS_LABEL[t.status] || t.status}</span></p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-slate-100">{pourLine(t)}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">{[t.brewery, t.style, t.abv ? `${t.abv}%` : null, t.originCountry].filter(Boolean).join(' · ')}</p>
                   {t.badge && <p className="text-xs text-orange-700 dark:text-orange-300">{t.badge}</p>}
                 </div>
@@ -109,7 +114,8 @@ export default function TapsPage() {
               <div><label htmlFor="tap-style" className={LBL}>Style</label><input id="tap-style" className={INPUT} value={form.style || ''} onChange={(e) => setForm({ ...form, style: e.target.value })} /></div>
               <div><label htmlFor="tap-abv" className={LBL}>ABV %</label><input id="tap-abv" className={INPUT} inputMode="decimal" value={form.abv || ''} onChange={(e) => setForm({ ...form, abv: e.target.value })} /></div>
               <div><label htmlFor="tap-origin" className={LBL}>From</label><input id="tap-origin" className={INPUT} placeholder="Germany" value={form.originCountry || ''} onChange={(e) => setForm({ ...form, originCountry: e.target.value })} /></div>
-              <div><label htmlFor="tap-price" className={LBL}>Price</label><input id="tap-price" className={INPUT} inputMode="decimal" placeholder="5.50" value={form.price || ''} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
+              <div><label htmlFor="tap-price" className={LBL}>Price of a pour</label><input id="tap-price" className={INPUT} inputMode="decimal" placeholder="5.50" aria-describedby="tap-price-hint" value={form.price || ''} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+                <p id="tap-price-hint" className="text-xs text-gray-500 dark:text-slate-400 mt-1">What one pour rings up at. Its size ({Number(form.pourOz) || 16} oz) is set on Stock, under Recipes &amp; pours.</p></div>
             </div>
             <div><label htmlFor="tap-badge" className={LBL}>Badge (optional)</label><input id="tap-badge" className={INPUT} placeholder="House root beer, since 1920" value={form.badge || ''} onChange={(e) => setForm({ ...form, badge: e.target.value })} /></div>
             <div><label htmlFor="tap-desc" className={LBL}>Description</label><textarea id="tap-desc" className={INPUT} rows={2} value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
