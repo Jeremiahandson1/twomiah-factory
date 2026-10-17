@@ -2,6 +2,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { applyStoredBrand } from './shared';
+
+// The company's own colour before the first render, not the signup colour for a moment first (shared/shell/hooks.ts).
+applyStoredBrand();
 
 const rootEl = document.getElementById('root')!;
 ReactDOM.createRoot(rootEl).render(

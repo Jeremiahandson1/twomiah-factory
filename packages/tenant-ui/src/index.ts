@@ -86,7 +86,7 @@ export { GlobalSearch } from './shell/GlobalSearch'
 export { TrialBanner } from './shell/TrialBanner'
 export { ErrorBoundary } from './shell/ErrorBoundary'
 export { SkipLink, FocusTrap, RouteAnnouncer } from './shell/Accessibility'
-export { applyStoredTheme, useTheme, useBrandPalette, useIsDark, useMediaQuery, useIsMobile, useIsTablet, useIsDesktop, usePrefersDarkMode, usePrefersReducedMotion } from './shell/hooks'
+export { applyStoredTheme, applyStoredBrand, useTheme, useBrandPalette, useIsDark, useMediaQuery, useIsMobile, useIsTablet, useIsDesktop, usePrefersDarkMode, usePrefersReducedMotion } from './shell/hooks'
 export type { NavItem, ShellConfig, ShellAuth, AppShellProps, SettingsConfig, SettingsPageProps, FeaturesSettingsPageProps, RoleOption } from './shell/types'
 export { DEFAULT_ROLES, ROLE_LABELS } from './shell/types'
 // The shell's own route rules, so a link drawn OUTSIDE the shell (the portal home's Account Settings

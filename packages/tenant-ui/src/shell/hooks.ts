@@ -37,6 +37,19 @@ function applyTheme(theme: Theme) {
  */
 export function applyStoredTheme(): void {
   try { applyTheme((localStorage.getItem('theme') as Theme) || 'light') } catch { /* private mode */ }
+  applyStoredBrand()
+}
+
+/**
+ * The company's colour, before the first render. (10/17)
+ *
+ * useBrandPalette sets it once the company has loaded, so every page load painted the SIGNUP colour first and
+ * switched a moment later — for any company whose colour had been changed since. The last colour the company
+ * reported is remembered (BRAND_KEY) and applied here, at startup, through the same generator.
+ */
+const BRAND_KEY = 'brandColor'
+export function applyStoredBrand(): void {
+  try { const hex = localStorage.getItem(BRAND_KEY); if (hex) applyBrandPalette(hex) } catch { /* private mode */ }
 }
 
 export function useTheme() {
@@ -112,5 +125,11 @@ export function usePrefersReducedMotion() { return useMediaQuery('(prefers-reduc
  * Blank or not a hex → the overrides come off and the build's palette shows again.
  */
 export function useBrandPalette(primaryColor?: string | null): void {
-  useEffect(() => { applyBrandPalette(primaryColor) }, [primaryColor])
+  useEffect(() => {
+    // undefined: the company has not loaded yet — leave the colour applied at startup alone. null or '' is the
+    // company saying it has none, which clears both the overrides and the remembered colour.
+    if (primaryColor === undefined) return
+    const applied = applyBrandPalette(primaryColor)
+    try { if (applied && primaryColor) localStorage.setItem(BRAND_KEY, primaryColor); else localStorage.removeItem(BRAND_KEY) } catch { /* private mode */ }
+  }, [primaryColor])
 }

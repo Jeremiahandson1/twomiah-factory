@@ -3,6 +3,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { applyStoredBrand } from './shared';
+
+// The company's own colour before the first render, not the signup colour for a moment first (shared/shell/hooks.ts).
+applyStoredBrand();
 // Offline POS is a feature this product sells. Nothing registered the service worker, so a
 // reload with no internet could not open the register and a sale rung up offline was lost.
 // (T45 H17)

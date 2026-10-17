@@ -156,7 +156,17 @@ check('brandPalette.js carries no {{TOKEN}} the vendoring would rewrite', !/\{\{
 const hooks = strip(read('packages/tenant-ui/src/shell/hooks.ts'))
 check('useBrandPalette runs applyBrandPalette from brandPalette.js — the same module the config imports',
   /import \{ applyBrandPalette \} from '\.\.\/brandPalette\.js'/.test(hooks)
-  && /export function useBrandPalette\(primaryColor\?: string \| null\): void \{\s*useEffect\(\(\) => \{ applyBrandPalette\(primaryColor\) \}, \[primaryColor\]\)/.test(hooks))
+  && /export function useBrandPalette\(primaryColor\?: string \| null\): void \{\s*useEffect\(\(\) => \{[\s\S]*?const applied = applyBrandPalette\(primaryColor\)[\s\S]*?\}, \[primaryColor\]\)/.test(hooks))
+// The company's colour before the first render (10/17): a company not loaded yet (undefined) must not wipe the colour
+// applied at startup, the applied colour is remembered, and startup applies the remembered one in every CRM.
+const useBP = hooks.slice(hooks.indexOf('export function useBrandPalette'))
+check('…a company not loaded yet leaves the startup colour alone', /if \(primaryColor === undefined\) return/.test(useBP) && useBP.indexOf('if (primaryColor === undefined) return') < useBP.indexOf('applyBrandPalette(primaryColor)'))
+check('…the colour it applied is remembered, and a company with none forgets it', /if \(applied && primaryColor\) localStorage\.setItem\(BRAND_KEY, primaryColor\); else localStorage\.removeItem\(BRAND_KEY\)/.test(useBP))
+check('applyStoredTheme applies the remembered colour at startup, through the same generator', /export function applyStoredTheme\(\): void \{[\s\S]*?applyStoredBrand\(\)\s*\}/.test(hooks) && /export function applyStoredBrand\(\): void \{[\s\S]*?localStorage\.getItem\(BRAND_KEY\)[\s\S]*?applyBrandPalette\(hex\)/.test(hooks))
+for (const t of ['crm', 'crm-bar', 'crm-basic', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-roof', 'crm-rv', 'crm-salon', 'crm-vet', 'crm-store', 'crm-homecare', 'crm-dispensary']) {
+  const main = strip(read(`templates/${t}/frontend/src/main.tsx`))
+  check(`${t}: startup applies the remembered colour`, /^\s*applyStoredTheme\(\);?$/m.test(main) || /^\s*applyStoredBrand\(\);?$/m.test(main))
+}
 check('…and is exported for the forked layouts', /export \{[^}]*\buseBrandPalette\b[^}]*\} from '\.\/shell\/hooks'/.test(read('packages/tenant-ui/src/index.ts')))
 
 // Every shell that draws the CRM: the shared one and each fork. A hook placed after an early return would
