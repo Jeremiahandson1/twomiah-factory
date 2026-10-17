@@ -25,8 +25,11 @@ if (!/row\._source === 'user' \? ROLE_LABELS\[String\(v\)\] \|\| v \|\| '-' : v 
 // A dialog echoes the button that opened it: "Add Contact" opened something headed "New Contact", and
 // "Add Job" opened "New Job", while Quotes, Invoices, Expenses and Team already agreed with themselves. (T14 L3)
 const contactsPage = read('packages/tenant-ui/src/contacts/ContactsPage.tsx')
-if (!/title=\{editing \? 'Edit Contact' : 'Add Contact'\}/.test(contactsPage)) fail('the contact dialog must say Add Contact — that is the button that opens it')
-if (/'New Contact'/.test(contactsPage)) fail('…and must not still say New Contact')
+// Since Bar Run 2 the noun is the vertical's (a bar's Guests page says "Add Guest"), so the rule is that the
+// dialog and BOTH buttons read the same cfg.addLabel — never a literal that one of them could keep.
+if (!/title=\{editing \? `Edit \$\{cfg\.addLabel\}` : `Add \$\{cfg\.addLabel\}`\}/.test(contactsPage)) fail('the contact dialog must say Add <noun> — the button that opens it')
+if ((contactsPage.match(/\/>Add \{cfg\.addLabel\}<\/Button>/g) || []).length !== 2) fail('…and both Add buttons (header and empty list) must read cfg.addLabel')
+if (/'(New|Add|Edit) Contact'|>Add Contact</.test(contactsPage)) fail('…and must not still hard-code the word Contact')
 const jobsPage = read('packages/tenant-ui/src/jobs/JobsPage.tsx')
 if (!/title=\{editing \? `Edit \$\{cfg\.labels\.singular\}` : cfg\.labels\.add\}/.test(jobsPage)) fail('the job dialog must reuse the button label, so a vertical that renames the button renames both')
 if (/`New \$\{cfg\.labels\.singular\}`/.test(jobsPage)) fail('…and must not build its own "New X" title')

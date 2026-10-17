@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function CustomerPortal() {
-  const { user, company, logout, loading: authLoading, checkAuth } = useAuth();
+  const { user, company, logout, loading: authLoading, checkAuth, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [configReady, setConfigReady] = useState(false);
 
@@ -147,7 +147,9 @@ export default function CustomerPortal() {
           )}
 
           {/* CMS - if cms product was included */}
-          {(products.includes('cms') || cmsUrl) && (
+          {/* Website Manager only for a seat that runs the company: the site's admin is its own sign-in, the owner's. A manager
+              or a member of staff was offered a door they cannot open (Bar Run 2, every portal). */}
+          {isAdmin && (products.includes('cms') || cmsUrl) && (
             <a
               href={cmsUrl || (siteUrl ? `${siteUrl}/admin` : '#')}
               target="_blank"

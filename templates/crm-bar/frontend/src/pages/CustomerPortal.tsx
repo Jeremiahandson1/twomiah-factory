@@ -9,7 +9,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 // One definition of what money looks like. Building the string here dropped the cents: bare
 // toLocaleString() renders $824.60 as "$824.6" — the defect T12 L1 named, on a screen its fix missed.
-import { money, maySeeRoute, useMayWrite } from '../shared';
+import { money, maySeeRoute, meetsRole, useMayWrite, usePermissions } from '../shared';
 import { SHELL } from '../shellConfig';
 import { brandSurfaceUnderWhite } from '../shared';
 import client from '../services/api';
@@ -43,6 +43,23 @@ export default function CustomerPortal() {
   // behind it. Same question the sidebar's Settings link asks, from the same declaration, so the two
   // cannot drift. Verticals that declare no rule are unaffected: maySeeRoute says yes. (T41)
   const maySeeSettings = maySeeRoute(SHELL, '/crm/settings', user?.role);
+  // The CRM card named stock to a bartender, who has no Stock page (Bar Run 2). It now names only what this
+  // seat's sidebar shows — the same three tests AppShell runs on SHELL.nav, so the card and the menu agree.
+  const { can } = usePermissions();
+  const inMenu = (to: string) => SHELL.nav.some((i) => i.to === to
+    && meetsRole(user?.role, i.minRole)
+    && (!i.permission || can(i.permission))
+    && (!i.features || i.features.some((f) => hasFeature(f))));
+  const crmCardParts = ([
+    ['/crm/register', 'the register, the grill'],
+    ['/crm/menu', 'the menu and taps'],
+    ['/crm/stock', 'stock'],
+    ['/crm/shifts', 'the schedule'],
+    ['/crm/events', 'parties'],
+  ] as const).filter(([to]) => inMenu(to)).map(([, words]) => words);
+  const crmCardText = crmCardParts.length
+    ? `${crmCardParts.join(', ').replace(/^t/, 'T')} and more`
+    : 'Guests, the night and more';
   const [stats, setStats] = useState(null);
   // The recent-activity feed is its OWN endpoint. The panel below used to read stats.recentActivity —
   // a key /api/dashboard/stats has never returned — so it showed "No recent activity" permanently, over
@@ -195,7 +212,7 @@ export default function CustomerPortal() {
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Business CRM</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              The register, the grill, the menu and taps, stock, the schedule, parties and more
+              {crmCardText}
             </p>
           </div>
 
@@ -221,8 +238,9 @@ export default function CustomerPortal() {
             </a>
           )}
 
-          {/* CMS - if cms product was included */}
-          {(products.includes('cms') || cmsUrl) && (
+          {/* CMS - if cms product was included. Only for a seat that runs the company: the site's admin is its own
+              sign-in, the owner's, and a manager or bartender was offered a door they cannot open (Bar Run 2). */}
+          {runsTheCompany && (products.includes('cms') || cmsUrl) && (
             <a
               href={cmsUrl || (siteUrl ? `${siteUrl}/admin` : '#')}
               target="_blank"
@@ -273,34 +291,29 @@ export default function CustomerPortal() {
           </div>
           <div className="divide-y divide-slate-100">
             {(() => {
-              // /api/dashboard/recent-activity answers with recentJobs / recentQuotes / recentInvoices —
-              // the three lists this panel is for. It read stats.recentActivity, which no endpoint on this
-              // CRM produces, so the empty state was the only thing it could ever render. (T26 M1)
-              const jobs = activity?.recentJobs || [];
-              const quotes = activity?.recentQuotes || [];
-              const invoices = activity?.recentInvoices || [];
-              const when = (v: any) => (v ? formatDate(v) : '');
-              return (jobs.length || quotes.length || invoices.length) ? (
+              // The bar's /api/dashboard/recent-activity (routes/dashboard.ts) is the parties feed:
+              // { newEnquiries, upcomingEvents, duePayments? }. This panel read crm-basic's recentJobs /
+              // recentQuotes / recentInvoices, keys that endpoint never sends, so a bar with a booked party
+              // still read "Get started by adding contacts and jobs" (Bar Run 2). Same reading as
+              // crm-restaurant's portal, whose endpoint this is.
+              const upcoming = activity?.upcomingEvents || [];
+              const enquiries = activity?.newEnquiries || [];
+              // An event date is a calendar day; noon keeps it on that day in every zone.
+              const onDay = (d: any) => (d ? formatDate(`${d}T12:00:00`) : '');
+              return (upcoming.length || enquiries.length) ? (
                 <>
-                  {jobs.slice(0, 2).map((item: any) => (
-                    <div key={`j-${item.id}`} className="px-6 py-3 flex items-center gap-3">
+                  {upcoming.slice(0, 3).map((item: any) => (
+                    <div key={`e-${item.id}`} className="px-6 py-3 flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                      <span className="text-sm text-slate-700 dark:text-slate-300">Job: {item.title || item.number || item.id} — {(item.status || 'scheduled').replace(/_/g, ' ')}</span>
-                      <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt || item.createdAt)}</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-300">Party: {item.name || 'Untitled'}{item.clientName ? ` — ${item.clientName}` : ''}</span>
+                      <span className="text-xs text-slate-400 ml-auto">{onDay(item.eventDate)}</span>
                     </div>
                   ))}
-                  {quotes.slice(0, 2).map((item: any) => (
+                  {enquiries.slice(0, 2).map((item: any) => (
                     <div key={`q-${item.id}`} className="px-6 py-3 flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-amber-400" />
-                      <span className="text-sm text-slate-700 dark:text-slate-300">Quote {item.number || item.id} — {(item.status || 'draft').replace(/_/g, ' ')}</span>
-                      <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt || item.createdAt)}</span>
-                    </div>
-                  ))}
-                  {invoices.slice(0, 2).map((item: any) => (
-                    <div key={`i-${item.id}`} className="px-6 py-3 flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-blue-400" />
-                      <span className="text-sm text-slate-700 dark:text-slate-300">Invoice {item.number || item.id} — {(item.status || 'draft').replace(/_/g, ' ')}</span>
-                      <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt || item.createdAt)}</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-300">Enquiry: {item.name || 'Untitled'}{item.clientName ? ` — ${item.clientName}` : ''}</span>
+                      <span className="text-xs text-slate-400 ml-auto">{onDay(item.eventDate)}</span>
                     </div>
                   ))}
                 </>
@@ -308,7 +321,7 @@ export default function CustomerPortal() {
                 <div className="px-6 py-8 text-center">
                   <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                   <p className="text-sm text-slate-500 dark:text-slate-400">No recent activity</p>
-                  <p className="text-xs text-slate-400 mt-1">Get started by adding contacts and jobs</p>
+                  <p className="text-xs text-slate-400 mt-1">Party enquiries and booked parties show here</p>
                 </div>
               );
             })()}

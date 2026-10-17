@@ -247,7 +247,9 @@ export default function CustomerPortal() {
           )}
 
           {/* CMS - if cms product was included */}
-          {(products.includes('cms') || cmsUrl) && (
+          {/* Website Manager only for a seat that runs the company: the site's admin is its own sign-in, the owner's. A manager
+              or a member of staff was offered a door they cannot open (Bar Run 2, every portal). */}
+          {runsTheCompany && (products.includes('cms') || cmsUrl) && (
             <a
               href={cmsUrl || (siteUrl ? `${siteUrl}/admin` : '#')}
               target="_blank"

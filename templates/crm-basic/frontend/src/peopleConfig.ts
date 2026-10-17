@@ -4,6 +4,7 @@ import type { TeamConfig, TimeConfig, ExpensesConfig } from './shared'
 
 // "Lead Technician" was crm-fieldservice's example in a template shared by showcase, foodtruck and
 // basic — a gym, a venue and a food truck. The same substitution as the Commissions plan. (T51)
-export const teamConfig: TeamConfig = { rolePlaceholder: 'e.g. Shift lead' }
+// A gym, a venue, a food truck: "Trade" is the contractor's word (found beside Bar Run 2's).
+export const teamConfig: TeamConfig = { roleLabel: 'Job title', rolePlaceholder: 'e.g. Shift lead' }
 export const timeConfig: TimeConfig = { jobLabel: 'Job' }
 export const expensesConfig: ExpensesConfig = { jobLabel: 'Job' }

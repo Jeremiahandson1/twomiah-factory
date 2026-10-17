@@ -2,6 +2,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { applyStoredTheme } from './shared';
+
+// Put the saved theme on <html> BEFORE the first render. useTheme() only runs inside the shell, so the sign-in
+// page — the first thing a dark-mode user sees — loaded light whatever they had chosen (Bar Run 2; salon, roof
+// and store already did this since Salon T20 L5). Every page outside the shell carries its dark: pairs.
+applyStoredTheme();
 
 // Error boundary for the entire app
 class GlobalErrorBoundary extends React.Component<any, any> {

@@ -6,11 +6,12 @@ import {
   Sparkles, BookOpen, Ruler,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { brandSurfaceUnderWhite } from '../shared';
+import { brandSurfaceUnderWhite, useMayWrite } from '../shared';
 import api from '../services/api';
 
 export default function CustomerPortal() {
   const { user, company, logout, hasFeature } = useAuth();
+  const runsTheCompany = useMayWrite('company:update');
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
@@ -137,7 +138,9 @@ export default function CustomerPortal() {
           )}
 
           {/* CMS */}
-          {(products.includes('cms') || cmsUrl) && (
+          {/* Website Manager only for a seat that runs the company: the site's admin is its own sign-in, the owner's. A manager
+              or a member of staff was offered a door they cannot open (Bar Run 2, every portal). */}
+          {runsTheCompany && (products.includes('cms') || cmsUrl) && (
             <a
               href={cmsUrl || (siteUrl ? `${siteUrl}/admin` : '#')}
               target="_blank"

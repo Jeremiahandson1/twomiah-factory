@@ -4,6 +4,8 @@ import type { ContactsConfig } from './shared'
 export const CONTACTS: ContactsConfig = {
   // The sidebar calls this page Guests; its own heading said "Contacts" (Bar Run 1).
   title: 'Guests',
+  // …and its button said "Add Contact" under that heading (Bar Run 2). A supplier is still added here, by its type.
+  addLabel: 'Guest',
   // A bar's contacts: guests (regulars, party hosts), leads (a party enquiry not yet booked), and the
   // suppliers it buys from (distributors, the brewery reps). A supplier is stored as `vendor`, so nothing
   // saved under crm-basic's set changes; a type outside this list still gets its own card while any contact

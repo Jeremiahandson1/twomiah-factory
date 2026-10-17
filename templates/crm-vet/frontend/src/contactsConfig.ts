@@ -12,6 +12,8 @@ export const CONTACTS: ContactsConfig = {
     { value: 'vendor', label: 'Supplier' },
   ],
   convertLabel: 'Owner',
+  // The page is Owners; its button said "Add Contact" (found beside Bar Run 2's "Guests" / "Add Contact").
+  addLabel: 'Owner',
   // owners: their patients, no projects / quotes in the clinic CRM
   sections: { patients: true, projects: false, quotes: false, portal: true },
   quickActions: [

@@ -44,6 +44,8 @@ export interface ContactsConfig {
   types?: ContactType[]
   /** Noun on the convert button: "Convert to <Client>". Default "Client". */
   convertLabel?: string
+  /** Noun on the add button and its dialog: "Add <Guest>", "Edit <Guest>". Default "Contact". */
+  addLabel?: string
   /** Row action that invites a vendor to the vendor portal (construction only). */
   vendorPortalInvite?: boolean
   sections?: ContactSections
@@ -93,6 +95,7 @@ export function resolveContactsConfig(c?: ContactsConfig) {
     title: cfg.title || 'Contacts',
     types: cfg.types && cfg.types.length ? cfg.types : DEFAULT_CONTACT_TYPES,
     convertLabel: cfg.convertLabel || 'Client',
+    addLabel: cfg.addLabel || 'Contact',
     vendorPortalInvite: !!cfg.vendorPortalInvite,
     sections: { ...DEFAULT_SECTIONS, ...(cfg.sections || {}) },
     portalGate: cfg.portalGate === undefined ? 'client_portal' : cfg.portalGate,

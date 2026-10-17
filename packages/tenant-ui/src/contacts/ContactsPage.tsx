@@ -242,7 +242,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
       <PageHeader
         title={cfg.title}
         subtitle={stats ? `${stats.total} total` : undefined}
-        action={mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Contact</Button> : undefined}
+        action={mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add {cfg.addLabel}</Button> : undefined}
       />
 
       {stats && (
@@ -284,11 +284,11 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
         // second is told how to start. (E2E run 1)
         emptyMessage={search || typeFilter ? 'No contacts match' : 'No contacts yet'}
         emptyHint={search || typeFilter ? 'Try a different search or clear the filter.' : 'Add your customers and leads here — every job, quote and invoice starts from a contact.'}
-        emptyAction={!search && !typeFilter && mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Contact</Button> : undefined}
+        emptyAction={!search && !typeFilter && mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add {cfg.addLabel}</Button> : undefined}
       />
 
       {/* The dialog echoes the button that opened it: "Add Contact" opened something headed "New Contact". (T14 L3) */}
-      <Modal isOpen={modalOpen} onClose={leaveModal} title={editing ? 'Edit Contact' : 'Add Contact'} size="lg">
+      <Modal isOpen={modalOpen} onClose={leaveModal} title={editing ? `Edit ${cfg.addLabel}` : `Add ${cfg.addLabel}`} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <Field label="Type">
