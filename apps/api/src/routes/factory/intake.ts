@@ -22,6 +22,7 @@ import { getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
 import { crmTemplateFor, deployProductsForVertical, verticalFor } from '../../config/industryRouting'
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
 import { stateTimezone, notesWithTimezone } from '../../config/stateTimezone'
+import { allocateSlug, signupSlugCandidates, liveSlugLookups } from '../../services/resourceOwnership'
 
 // What a signup asked for beyond the plan. Everything free is already on for every plan; these
 // are the answers that change setup: goals ("bookings" → booking on the website once premium
@@ -281,13 +282,23 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       return c.json({ error: 'Valid email is required' }, 400)
     }
 
-    const slug = body.slug || body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+    const baseSlug = body.slug || body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
     // Check for duplicate slug
-    const { data: existing } = await supabase.from('tenants').select('id').eq('slug', slug).maybeSingle()
+    const { data: existing } = await supabase.from('tenants').select('id').eq('slug', baseSlug).maybeSingle()
     if (existing) {
       return c.json({ error: 'A company with a similar name already exists. Please contact support or use a different name.' }, 409)
     }
+
+    // The slug names the tenant's GitHub repo, Render services and database, so it is free only when none of THOSE
+    // exist either — Amber Inn (10/17) was handed "amber-inn" while a hand-built repo, site and database held the
+    // name, and the deploy deleted them. Taken → the next suffix (-2, -3 …). A lookup that fails counts as taken.
+    const allocated = await allocateSlug(signupSlugCandidates(baseSlug), liveSlugLookups(supabase))
+    if (allocated.skipped.length) console.log('[Signup] Slug candidates skipped:', JSON.stringify(allocated.skipped))
+    if (!allocated.slug) {
+      return c.json({ error: 'We could not reserve a name for your account just now. Please try again in a few minutes.' }, 503)
+    }
+    const slug = allocated.slug
 
     // ─── Domain mode handling ─────────────────────────────────────────────────
     // domainMode: 'skip' (default, no domain) | 'byod' (customer owns domain).
@@ -685,11 +696,15 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     // from real tenants and won't collide with a future tenant of the same
     // business name (when an intake converts, the team renames cleanly).
     const baseSlug = businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'lead'
-    let slug = baseSlug + '-intake'
-    const { data: collide } = await supabase.from('tenants').select('id').eq('slug', slug).maybeSingle()
-    if (collide) {
-      slug = baseSlug + '-intake-' + Math.floor(Date.now() / 1000)
+    // Free means no tenant AND no GitHub repo / Render service / Render database with the names it would deploy as
+    // (services/resourceOwnership.ts) — the same rule as the signup. A lookup that fails counts as taken.
+    const stamp = Math.floor(Date.now() / 1000)
+    const intakeSlug = await allocateSlug([baseSlug + '-intake', baseSlug + '-intake-' + stamp, baseSlug + '-intake-' + stamp + '-2'], liveSlugLookups(supabase))
+    if (intakeSlug.skipped.length) console.log('[Intake] Slug candidates skipped:', JSON.stringify(intakeSlug.skipped))
+    if (!intakeSlug.slug) {
+      return c.json({ error: 'We could not save your request just now. Please try again in a few minutes.' }, 503)
     }
+    const slug = intakeSlug.slug
 
     // ─── File validation ──────────────────────────────────────────────────
     const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'image/gif']

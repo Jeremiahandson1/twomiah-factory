@@ -2415,6 +2415,8 @@ jobs:
         run: bun run tests/shared/generator-free-text.test.ts
       - name: "Every vertical's CRM backend is found on Render — a bought domain reaches the admin"
         run: bun run tests/shared/render-service-lookup.test.ts
+      - name: "A deploy never deletes, reuses or writes to a repo, service or database that is not the tenant's; a signup never gets a name in use"
+        run: bun run tests/shared/deploy-ownership.test.ts
       # after the install above: it imports brand.ts, whose theme import reaches react
       - name: "A colour changed in Settings reaches the CRM's own screens, through the same palette and clamps as the build"
         run: bun run tests/shared/brand-palette-runtime.test.ts

@@ -20,7 +20,7 @@
 import { sendEmail, greeting } from './email'
 import { ownerFirstName } from './tenantOwner'
 import { ourPremiumSiteOrigin } from './premiumSiteUrl'
-import { waitUntilServing, readinessUrls } from './deployReadiness'
+import { waitUntilServing, readinessUrls, deployOutcome } from './deployReadiness'
 
 const RENDER_API = 'https://api.render.com/v1'
 
@@ -263,16 +263,23 @@ async function doProvision(tenantId: string): Promise<{ success: boolean; crmUrl
 
   // 7. Tell the customer — once Render has finished every deploy above and the link really opens
   // (services/deployReadiness.ts; the one /health check in step 3 can pass before a later deploy rolls over).
+  // The email follows ONLY a wait that passed (deployOutcome) — a CRM Render did not bring up is a failure staff hear about.
   const crmServiceIds = [result.services?.backend?.id, result.services?.frontend?.id].filter(Boolean) as string[]
+  let readiness: Awaited<ReturnType<typeof waitUntilServing>> | null = null
   if (crmServiceIds.length) {
     const { latestRenderDeployStatus } = await import('./deploy')
-    const readiness = await waitUntilServing(crmServiceIds, readinessUrls({ apiUrl: result.apiUrl, deployedUrl: result.apiUrl + '/crm' }), {
+    readiness = await waitUntilServing(crmServiceIds, readinessUrls({ apiUrl: result.apiUrl, deployedUrl: result.apiUrl + '/crm' }), {
       latestDeployStatus: latestRenderDeployStatus,
       probe: async (url) => { try { return (await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(15_000) })).status } catch { return 0 } },
       sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
       now: () => Date.now(),
     })
     console.log(`[CrmAddon] Readiness: ${readiness.ready ? 'READY' : 'NOT READY'} after ${Math.round(readiness.waitedMs / 1000)}s — ${readiness.reason}`)
+  }
+  const outcome = deployOutcome(readiness)
+  if (!outcome.sendReadyEmail) {
+    await alertStaff('CRM add-on deployed but NOT serving', 'The CRM for ' + tenant.slug + ' (' + result.apiUrl + ') is not serving: ' + outcome.reason + '. The owner was not told it is ready.', tenantId)
+    return { success: false, crmUrl: result.apiUrl, error: 'CRM not serving: ' + outcome.reason }
   }
   const to = tenant.admin_email || tenant.email
   if (to) {

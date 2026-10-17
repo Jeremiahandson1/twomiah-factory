@@ -1,7 +1,7 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { generate, cleanOldBuilds, type GenerateConfig } from '../../services/generator'
-import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure, latestRenderDeployStatus } from '../../services/deploy'
-import { waitUntilServing, readinessUrls, type ReadinessResult } from '../../services/deployReadiness'
+import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, updateRenderServiceSettings, findRenderServicesBySlug, filterOwnedServiceIds, wireDomainInfrastructure, latestRenderDeployStatus } from '../../services/deploy'
+import { waitUntilServing, readinessUrls, deployOutcome, type ReadinessResult } from '../../services/deployReadiness'
 import factoryStripe from '../../services/factoryStripe'
 import { pushSubscriptionToTenant } from '../../services/tenantSubscription'
 import { getZipDownloadUrl } from '../../services/factoryStorage'
@@ -172,7 +172,12 @@ factory.post('/customers/:id/redeploy', requireRole('owner', 'admin'), async (c)
   // Fallback: look up services on Render by tenant slug if IDs weren't saved
   if ((!serviceIds || Object.keys(serviceIds).length === 0) && tenant?.slug) {
     console.log('[Redeploy] No stored service IDs, looking up by slug:', tenant.slug)
-    serviceIds = await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
+    const byName = await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
+    // A name match is not ownership (services/resourceOwnership.ts): only the tenant's own services are redeployed —
+    // and only they are saved to the job, which is the record later deploys trust.
+    const { owned, refused } = await filterOwnedServiceIds(String(id), byName)
+    if (refused.length) console.warn('[Redeploy] Not this tenant\'s, left alone:', refused.join(', '))
+    serviceIds = owned
     // Save discovered IDs back to the job for next time
     if (Object.keys(serviceIds).length > 0) {
       await supabase.from('factory_jobs').update({ render_service_ids: serviceIds }).eq('id', job.id)
@@ -301,10 +306,14 @@ factory.post('/cleanup', async (c) => {
   // Clean up orphaned DB records whose zip files no longer exist
   const jobMaxAge = maxAge || 24 * 60 * 60 * 1000
   const jobThreshold = new Date(Date.now() - jobMaxAge).toISOString()
+  // A job that recorded a deploy (repo, Render service ids) is the Factory's record of what the tenant OWNS
+  // (services/resourceOwnership.ts) — the deploy will not replace a repo or service it has no record of — so it is kept.
   const { data: oldJobs } = await supabase.from('factory_jobs')
     .select('id')
     .in('status', ['complete', 'failed'])
     .lt('created_at', jobThreshold)
+    .is('github_repo', null)
+    .is('render_service_ids', null)
   let deletedJobs = 0
   if (oldJobs?.length) {
     const ids = oldJobs.map((j: any) => j.id)
@@ -504,6 +513,7 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
     console.log('[Deploy] Using freshly generated zip:', zipPath)
 
     let readiness: ReadinessResult | null = null
+    let outcome = deployOutcome(null)
     const result = await deployCustomer(
       { id: tenant.id, slug: tenant.slug, name: tenant.name, industry: tenant.industry, products: job.template?.split('+') || ['crm'], config: config, planId: tenant.plan },
       zipPath, options
@@ -521,11 +531,12 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
     if (result.services.vision?.id) renderServiceIds.vision = result.services.vision.id
     if (result.services.pricing?.id) renderServiceIds.pricing = result.services.pricing.id
 
-    const jobUpdate: Record<string, any> = {
-      status: result.success ? 'complete' : 'failed',
-      github_repo: result.repoUrl || null,
-      render_url: result.deployedUrl || result.siteUrl || result.visionUrl || null,
-    }
+    // The job is the Factory's record of what this tenant owns (services/resourceOwnership.ts): a run that made nothing
+    // (stopped by the preflight) must not wipe the repo/URL a previous run recorded on it.
+    const jobUpdate: Record<string, any> = { status: result.success ? 'complete' : 'failed' }
+    if (result.repoUrl) jobUpdate.github_repo = result.repoUrl
+    const renderUrl = result.deployedUrl || result.siteUrl || result.visionUrl
+    if (renderUrl) jobUpdate.render_url = renderUrl
     if (Object.keys(renderServiceIds).length > 0) jobUpdate.render_service_ids = renderServiceIds
 
     const { error: updateErr } = await supabase.from('factory_jobs').update(jobUpdate).eq('id', job.id)
@@ -618,17 +629,20 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
           JSON.stringify({ services: readiness.services, probes: readiness.probes }))
       }
 
-      // Active now — on the readiness result, at the moment the ready email is sent (below). A wait that timed out
-      // or saw a Render deploy fail still ends here, as the email does: staff see the reason in the log above.
-      const { error: activeErr } = await supabase.from('tenants').update({ status: 'active' }).eq('id', tenant.id)
-      if (activeErr) console.error('[Deploy] Failed to mark tenant active:', activeErr.message)
-      else await logTenantAudit(tenant.id, 'deploy', { status: { old: tenant.status, new: 'active' } }, 'system',
-        `Serving: ${readiness ? (readiness.ready ? 'ready' : 'NOT ready — ' + readiness.reason) : 'no web service to wait for'}`)
+      // Active ONLY on a readiness wait that passed (services/deployReadiness.ts deployOutcome), at the moment the ready
+      // email is sent (below). A wait that timed out or saw a Render deploy fail is a failed deploy: it is marked
+      // deploy_failed and staff are alerted below — on 10/17 Amber Inn went Active with its CRM at update_failed.
+      outcome = deployOutcome(readiness)
+      if (outcome.active) {
+        const { error: activeErr } = await supabase.from('tenants').update({ status: 'active' }).eq('id', tenant.id)
+        if (activeErr) console.error('[Deploy] Failed to mark tenant active:', activeErr.message)
+        else await logTenantAudit(tenant.id, 'deploy', { status: { old: tenant.status, new: 'active' } }, 'system', 'Serving: ready — ' + outcome.reason)
+      }
 
-      // Sync features to the running CRM via HTTP API
+      // Sync features to the running CRM via HTTP API — only one that is serving.
       const syncKey = result.factorySyncKey || tenant.factory_sync_key
       const backendUrl = result.apiUrl || tenant.render_backend_url
-      if (syncKey && backendUrl && deployedFeatures.length > 0) {
+      if (outcome.active && syncKey && backendUrl && deployedFeatures.length > 0) {
         try {
           const syncUrl = backendUrl.replace(/\/$/, '') + '/api/internal/sync-features'
           const syncRes = await fetch(syncUrl, {
@@ -736,9 +750,10 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
       }
     }
 
-    // Send email notification — send credentials email even on partial success if CRM is reachable
+    // Send email notification — the ready email only when the readiness wait passed (deployOutcome); a partial success
+    // whose services are all serving still gets it. Anything else is a failed deploy.
     clearTimeout(stillWorkingTimer)
-    if (result.success || result.deployedUrl || result.apiUrl) {
+    if (outcome.sendReadyEmail) {
       // Merge in the premium-site admin password (generated by deploy.ts
       // when isPremiumSite). For CRM-only deploys this stays undefined
       // and notifyDeployComplete uses the existing tenant.admin_password.
@@ -764,9 +779,18 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
     } else {
       // Without this the tenant row stays 'deploying' forever — runDeploy never
       // rethrows, so callers' rejection handlers can't do it for us.
+      // The reason: the deploy's own errors (a preflight stop names the collision), else why it was not serving.
+      const reason = [...result.errors, ...(result.repoUrl ? [outcome.reason] : [])].join('; ') || 'Unknown error'
       const { error: statusErr } = await supabase.from('tenants').update({ status: 'deploy_failed' }).eq('id', tenant.id)
       if (statusErr) console.error('[Deploy] Failed to mark tenant deploy_failed:', statusErr.message)
-      notifyDeployFailed(tenant, result.errors.join('; ') || 'Unknown error').catch(e => console.warn('[Email] Deploy failed notification failed:', e.message))
+      else await logTenantAudit(tenant.id, 'deploy', { status: { old: tenant.status, new: 'deploy_failed' } }, 'system', 'Deploy failed: ' + reason)
+      // A deploy Render did not bring up is a failed job too (it was marked complete when Render accepted the services).
+      if (result.success) {
+        const { error: jobFailErr } = await supabase.from('factory_jobs').update({ status: 'failed' }).eq('id', job.id)
+        if (jobFailErr) console.error('[Deploy] Failed to mark job failed:', jobFailErr.message)
+      }
+      // notifyDeployFailed alerts staff first (notifyProvisionFailure), then the owner.
+      notifyDeployFailed(tenant, reason).catch(e => console.warn('[Email] Deploy failed notification failed:', e.message))
     }
   } catch (err: any) {
     clearTimeout(stillWorkingTimer)

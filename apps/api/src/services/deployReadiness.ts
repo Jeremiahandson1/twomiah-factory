@@ -9,7 +9,7 @@
 // URL the email links answers 2xx — twice, CONFIRM_GAP_MS apart, because Render reports `live` while the previous
 // instance can still be the one answering (and a new service answers 502 until its instance binds the port).
 // A deploy that FAILS stops the wait at once (it will not fix itself; the caller's normal paths take over).
-// After `timeoutMs` the caller gets ready:false and decides — runDeploy sends the email anyway rather than never.
+// After `timeoutMs` the caller gets ready:false — and deployOutcome (below) treats that as a failed deploy, not Active.
 
 export type DeployState = { serviceId: string; status: string }
 export type ReadinessDeps = {
@@ -65,6 +65,19 @@ export async function waitUntilServing(
     await deps.sleep(pollMs)
   }
   return { ready: false, reason: `not serving after ${Math.round(timeoutMs / 60_000)} min`, waitedMs: waited(), services, probes }
+}
+
+/**
+ * What a finished deploy may claim. Active, the "ready" email and the feature sync follow ONLY a readiness wait that
+ * passed — every service's newest deploy live and every emailed URL answering. (Amber Inn, 10/17: the wait logged
+ * "NOT READY after 321s — a deploy failed: srv-…=update_failed" and the tenant was still set Active, because the
+ * caller sent on regardless "rather than never".) Not ready, or nothing waited on: the deploy failed — staff are
+ * alerted with the reason, and the owner is not told something works that does not.
+ */
+export function deployOutcome(readiness: ReadinessResult | null | undefined): { active: boolean; sendReadyEmail: boolean; reason: string } {
+  if (!readiness) return { active: false, sendReadyEmail: false, reason: 'nothing was confirmed serving' }
+  if (readiness.ready) return { active: true, sendReadyEmail: true, reason: readiness.reason }
+  return { active: false, sendReadyEmail: false, reason: 'NOT READY — ' + readiness.reason }
 }
 
 // The URLs the ready email links, as their probe targets: the API by its /health, every page by itself.

@@ -17,6 +17,10 @@ import { quickbooksTenantEnv, QBO_ENVIRONMENT_KEYS } from './quickbooksEnv'
 import * as cloudflare from './cloudflare'
 import * as sendgrid from './sendgrid'
 import * as resend from './resend'
+import {
+  CRM_API_SUFFIXES, emptyOwnership, loadOwnedResources, ownsService, ownsRepo, ownsDatabase, databaseUsable,
+  type OwnedResources,
+} from './resourceOwnership'
 
 const RENDER_API = 'https://api.render.com/v1'
 const GITHUB_API = 'https://api.github.com'
@@ -26,6 +30,17 @@ const FETCH_TIMEOUT = 30_000 // 30s timeout for API calls
 
 function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETCH_TIMEOUT): Promise<Response> {
   return fetch(url, { ...options, signal: AbortSignal.timeout(timeout) })
+}
+
+/**
+ * The two side effects that do not go through fetch — git pushes (spawned git) and waiting. Production uses these
+ * defaults; tests/shared/deploy-ownership.test.ts swaps them so it can run deployCustomer against a fake GitHub/Render
+ * without pushing anywhere or sleeping through Render's polls.
+ */
+export const deployIo = {
+  sleep: (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms)),
+  pushToGitHub: (repoFullName: string, extractDir: string): Promise<unknown> => pushToGitHub(repoFullName, extractDir),
+  pushAdditiveCrmToGitHub: (repoFullName: string, extractDir: string): Promise<unknown> => pushAdditiveCrmToGitHub(repoFullName, extractDir),
 }
 
 // Generation-level guard against schema drift. Every CRM/pricing tenant DB is reconciled to its
@@ -235,7 +250,8 @@ export async function deleteGitHubRepo(repoFullName: string): Promise<boolean> {
   }
 }
 
-async function createGitHubRepo(slug: string, description: string): Promise<{ full_name: string; clone_url: string }> {
+/** `created: false` — the name already existed and nothing was made: the caller decides whether that repo is the tenant's. */
+async function createGitHubRepo(slug: string, description: string): Promise<{ full_name: string; clone_url: string; created: boolean }> {
   const org = process.env.GITHUB_ORG
 
   let res = await fetchWithTimeout(GITHUB_API + '/orgs/' + org + '/repos', {
@@ -253,12 +269,20 @@ async function createGitHubRepo(slug: string, description: string): Promise<{ fu
   if (!res.ok) {
     const err = await res.json() as any
     if (err.errors?.[0]?.message?.includes('already exists')) {
-      return { full_name: org + '/' + slug, clone_url: 'https://github.com/' + org + '/' + slug + '.git' }
+      return { full_name: org + '/' + slug, clone_url: 'https://github.com/' + org + '/' + slug + '.git', created: false }
     }
     throw new Error('GitHub repo creation failed: ' + JSON.stringify(err))
   }
 
-  return await res.json() as any
+  return { ...(await res.json() as any), created: true }
+}
+
+/** The repo, or null when GitHub says it does not exist. Any other answer THROWS — "could not tell" is never "free". */
+async function getGitHubRepo(repoFullName: string): Promise<any | null> {
+  const res = await fetchWithTimeout(GITHUB_API + '/repos/' + repoFullName, { headers: githubHeaders() })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error('GitHub answered ' + res.status + ' for ' + repoFullName)
+  return await res.json()
 }
 
 export async function pushToGitHub(repoFullName: string, extractDir: string) {
@@ -496,6 +520,11 @@ async function deleteSupabaseProject(ref: string): Promise<void> {
 // account with Edit permission. Using S3 here means one credential (the R2
 // access-key/secret) covers both bucket creation AND the tenant's object reads.
 async function createR2Bucket(slug: string): Promise<string> {
+  return (await createR2BucketReport(slug)).bucketName
+}
+
+/** `created: false` when the bucket already existed — a deploy's rollback must not delete a bucket it did not make. */
+async function createR2BucketReport(slug: string): Promise<{ bucketName: string; created: boolean }> {
   const accountId = process.env.R2_ACCOUNT_ID!
   const bucketName = slug + '-media'
 
@@ -511,16 +540,16 @@ async function createR2Bucket(slug: string): Promise<string> {
   try {
     await s3.send(new CreateBucketCommand({ Bucket: bucketName }))
     console.log('[Deploy] Created R2 bucket:', bucketName)
+    return { bucketName, created: true }
   } catch (e: any) {
     // Already exists (ours) — idempotent, not an error.
     if (e?.name === 'BucketAlreadyOwnedByYou' || e?.name === 'BucketAlreadyExists' || e?.$metadata?.httpStatusCode === 409) {
       console.log('[Deploy] R2 bucket already exists:', bucketName)
+      return { bucketName, created: false }
     } else {
       throw new Error('R2 bucket creation failed: ' + (e?.name || '') + ' ' + (e?.message || ''))
     }
   }
-
-  return bucketName
 }
 
 async function deleteR2Bucket(bucketName: string): Promise<void> {
@@ -553,35 +582,117 @@ function getR2EnvVars(bucketName: string): Array<{ key: string; value: string }>
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 
-async function findAndDeleteRenderService(name: string): Promise<void> {
-  try {
-    // Paginate through all services to find by name
-    let cursor = ''
-    for (let page = 0; page < 10; page++) {
-      const url = RENDER_API + '/services?type=web_service,static_site&limit=100' + (cursor ? '&cursor=' + cursor : '')
-      const res = await fetchWithTimeout(url, { headers: renderHeaders() })
-      if (!res.ok) return
-      const list = await res.json() as any[]
-      if (!list.length) return
-      for (const item of list) {
-        const svc = item.service || item
-        if (svc.name === name) {
-          console.log('[Deploy] Deleting existing Render service:', name, svc.id)
-          await fetchWithTimeout(RENDER_API + '/services/' + svc.id, { method: 'DELETE', headers: renderHeaders() })
-          // Wait for deletion to propagate so the name is freed
-          await sleep(5000)
-          return
-        }
-      }
-      // Use last item's cursor for next page
-      const lastItem = list[list.length - 1]
-      const lastSvc = lastItem.service || lastItem
-      cursor = lastSvc.cursor || lastSvc.id || ''
-      if (list.length < 100) return // last page
+// Render lookups by exact name. They used to be "find and delete whatever has this name", which is how a signup deleted
+// a hand-built site that happened to share its slug (Amber Inn, 10/17). Now a lookup only FINDS — preflightDeploy decides,
+// from the tenant's records (services/resourceOwnership.ts), whether the thing found is the tenant's to replace. A lookup
+// that cannot get an answer THROWS: "could not tell" must never read as "nothing there".
+async function findRenderByName(kind: 'services' | 'postgres', name: string): Promise<any | null> {
+  let cursor = ''
+  for (let page = 0; page < 50; page++) {
+    // ?name= narrows the list; the exact-name match below is what decides, so a filter Render ignored only costs pages.
+    const url = RENDER_API + '/' + kind + '?name=' + encodeURIComponent(name) + '&limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '')
+    const res = await fetchWithTimeout(url, { headers: renderHeaders() })
+    if (!res.ok) throw new Error('Render ' + kind + ' lookup answered ' + res.status + ' for ' + name)
+    const list = await res.json() as any[]
+    if (!Array.isArray(list)) throw new Error('Render ' + kind + ' lookup answered no list for ' + name)
+    for (const item of list) {
+      const row = (kind === 'services' ? item.service : item.postgres) || item
+      if (row?.name === name) return row
     }
-  } catch (e: any) {
-    console.warn('[Deploy] Could not clean up existing service:', name, e.message)
+    cursor = list[list.length - 1]?.cursor || ''
+    if (!cursor || list.length < 100) return null
   }
+  throw new Error('Render ' + kind + ' lookup for ' + name + ' did not end')
+}
+
+/** Deletes a service the preflight established is the tenant's own, and waits for the name to free. */
+async function deleteOwnedRenderService(svc: { id: string; name?: string } | null | undefined): Promise<void> {
+  if (!svc?.id) return
+  try {
+    console.log('[Deploy] Replacing this tenant\'s own Render service:', svc.name, svc.id)
+    await fetchWithTimeout(RENDER_API + '/services/' + svc.id, { method: 'DELETE', headers: renderHeaders() })
+    // Wait for deletion to propagate so the name is freed
+    await sleep(5000)
+  } catch (e: any) {
+    console.warn('[Deploy] Could not delete the tenant\'s own service:', svc.name, e.message)
+  }
+}
+
+/**
+ * Before a deploy deletes, reuses or creates ANYTHING: every name it will use, looked up, and judged against the
+ * tenant's records. A name that exists and is not the tenant's, a database of the tenant's that cannot be booted on,
+ * or a lookup that failed is a PROBLEM — the deploy stops with all of them listed, having touched nothing.
+ * Names it only cleans up (legacy frontends, a previous vertical's backend) are deleted when they are the tenant's and
+ * left alone when they are not — they do not block, because the deploy does not need them.
+ */
+export type DeployPlan = {
+  problems: string[]
+  repoOwned: boolean                    // a repo with the name exists and is the tenant's (redeploy: it is replaced)
+  replace: Record<string, any>          // name → the tenant's own existing service, deleted before its replacement is created
+  cleanup: any[]                        // the tenant's own legacy-named services, deleted
+  leftAlone: string[]                   // legacy names held by someone else — untouched
+  site?: any                            // additive (flip / CRM add-on): the tenant's own website service
+  databases: Record<string, any | null> // name → the tenant's own AVAILABLE database to reuse, or null to create one
+}
+
+export async function preflightDeploy(input: {
+  repoFullName: string
+  additiveCrm: boolean
+  createServices: string[]
+  cleanupServices: string[]
+  databases: string[]
+  siteName?: string
+}, owned: OwnedResources): Promise<DeployPlan> {
+  const plan: DeployPlan = { problems: [], repoOwned: false, replace: {}, cleanup: [], leftAlone: [], databases: {} }
+  const found: Record<string, any | null> = {}
+  const serviceNames = [...new Set([...input.createServices, ...input.cleanupServices, ...(input.siteName ? [input.siteName] : [])])]
+  for (const name of serviceNames) {
+    try { found[name] = await findRenderByName('services', name) }
+    catch (e: any) { plan.problems.push('could not check whether Render service ' + name + ' exists (' + e.message + ')') }
+  }
+  const known = Object.values(found).filter(Boolean)
+
+  let repo: any | null = null
+  let repoChecked = false
+  try { repo = await getGitHubRepo(input.repoFullName); repoChecked = true }
+  catch (e: any) { plan.problems.push('could not check whether GitHub repo ' + input.repoFullName + ' exists (' + e.message + ')') }
+  if (repoChecked) {
+    if (repo) {
+      if (ownsRepo(owned, input.repoFullName, known)) plan.repoOwned = true
+      else plan.problems.push('name collision: GitHub repo ' + input.repoFullName + ' exists and is not this tenant\'s')
+    } else if (input.additiveCrm) {
+      plan.problems.push('GitHub repo ' + input.repoFullName + ' does not exist — a CRM add-on needs the tenant\'s website repo')
+    }
+  }
+
+  for (const name of input.createServices) {
+    const svc = found[name]
+    if (!svc) continue
+    if (ownsService(owned, svc, known)) plan.replace[name] = svc
+    else plan.problems.push('name collision: Render service ' + name + ' exists and is not this tenant\'s (' + svc.id + ')')
+  }
+  for (const name of input.cleanupServices) {
+    const svc = found[name]
+    if (!svc || input.createServices.includes(name)) continue
+    if (ownsService(owned, svc, known)) plan.cleanup.push(svc)
+    else plan.leftAlone.push(name)
+  }
+  if (input.siteName) {
+    const svc = found[input.siteName]
+    if (svc && ownsService(owned, svc, known)) plan.site = svc
+    else if (svc) plan.problems.push('name collision: Render service ' + input.siteName + ' exists and is not this tenant\'s (' + svc.id + ') — its settings will not be changed')
+  }
+
+  for (const name of input.databases) {
+    let db: any | null = null
+    try { db = await findRenderByName('postgres', name) }
+    catch (e: any) { plan.problems.push('could not check whether Render Postgres ' + name + ' exists (' + e.message + ')'); continue }
+    if (!db) { plan.databases[name] = null; continue }
+    if (!ownsDatabase(owned, db)) plan.problems.push('name collision: Render Postgres ' + name + ' exists and is not this tenant\'s (' + db.id + ')')
+    else if (!databaseUsable(db)) plan.problems.push('Render Postgres ' + name + ' is this tenant\'s but cannot be used (status ' + (db.status || 'unknown') + (db.suspended === 'suspended' ? ', suspended' : '') + ') — a backend cannot boot on it')
+    else plan.databases[name] = db
+  }
+  return plan
 }
 
 async function createRenderProject(name: string): Promise<string | null> {
@@ -621,27 +732,6 @@ async function addResourcesToEnvironment(environmentId: string, resourceIds: str
   return res.ok
 }
 
-async function findExistingDatabase(name: string): Promise<any> {
-  const res = await fetchWithTimeout(RENDER_API + '/postgres?limit=100', { headers: renderHeaders() })
-  if (!res.ok) return null
-  const list = await res.json() as any[]
-  const match = list.find((item: any) => (item.postgres || item).name === name)
-  return match ? (match.postgres || match) : null
-}
-
-async function findAndDeleteRenderDatabase(name: string): Promise<void> {
-  try {
-    const existing = await findExistingDatabase(name)
-    if (existing && existing.id) {
-      console.log('[Deploy] Deleting existing Render database:', name, existing.id)
-      await fetchWithTimeout(RENDER_API + '/postgres/' + existing.id, { method: 'DELETE', headers: renderHeaders() })
-      await sleep(5000)
-    }
-  } catch (e: any) {
-    console.warn('[Deploy] Could not clean up existing database:', name, e.message)
-  }
-}
-
 async function createRenderDatabase(slug: string, region = 'ohio', dbPlan = 'basic_256mb', projectId?: string | null): Promise<any> {
   const dbName = slug + '-db'
   const body: any = {
@@ -662,11 +752,10 @@ async function createRenderDatabase(slug: string, region = 'ohio', dbPlan = 'bas
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    const err = await res.json() as any
-    if (res.status === 400 || res.status === 409 || JSON.stringify(err).includes('already')) {
-      const existing = await findExistingDatabase(dbName)
-      if (existing) return existing
-    }
+    // No "it already exists, use that one" fallback: the preflight already reused the tenant's own database where there
+    // was one, so a name taken now is someone else's (or unusable) — the old fallback is how a suspended database from
+    // another site was handed to a new CRM (Amber Inn, 10/17).
+    const err = await res.json().catch(() => ({})) as any
     throw new Error('Render DB creation failed (' + res.status + '): ' + JSON.stringify(err))
   }
   return await res.json()
@@ -980,6 +1069,8 @@ export interface DeployResult {
   r2BucketName?: string
   dbConnectionString?: string
   factorySyncKey?: string
+  /** Set when the preflight stopped the deploy before it touched anything (name collision, unusable database, failed lookup). */
+  blocked?: string[]
 }
 
 export async function deployCustomer(
@@ -988,7 +1079,8 @@ export async function deployCustomer(
     products?: string[]; config?: any; planId?: string
   },
   zipPath: string,
-  options: { region?: string; plan?: string; dbPlan?: string; products?: string[]; additiveCrm?: boolean } = {}
+  // ownership: the tenant's records (services/resourceOwnership.ts) — read from the Factory DB when not given.
+  options: { region?: string; plan?: string; dbPlan?: string; products?: string[]; additiveCrm?: boolean; ownership?: OwnedResources } = {}
 ): Promise<DeployResult> {
   const { region = 'ohio', plan = 'starter', dbPlan = 'basic_256mb', products = factoryCustomer.products || ['crm'], additiveCrm = false } = options
   const slug = factoryCustomer.slug
@@ -1021,6 +1113,17 @@ export async function deployCustomer(
   const isBasic = vertical === 'basic' || vertical === 'showcase' || vertical === 'foodtruck'
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
+  // Every name this deploy uses, known up front so the preflight can judge them all before anything is touched.
+  const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : isVet ? slug + '-vet-api' : isSalon ? slug + '-salon-api' : isBar ? slug + '-bar-api' : isEvents ? slug + '-events-api' : isStore ? slug + '-shop-api' : isBasic ? slug + '-basic-api' : slug + '-api'
+  const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : isSalon ? slug + '-salon' : isBar ? slug + '-bar' : isEvents ? slug + '-events' : isStore ? slug + '-shop' : isBasic ? slug + '-basic' : slug + '-crm'
+  const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : isSalon ? 'crm-salon' : isBar ? 'crm-bar' : isEvents ? 'crm-restaurant' : isStore ? 'crm-store' : isBasic ? 'crm-basic' : 'crm'
+  const dbSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isStore ? slug + '-shop' : slug
+  const wantsCrm = products.some(p => p === 'crm' || p.startsWith('crm-'))
+  const pricingApiName = slug + '-pricing-api'
+  const pricingDbSlug = slug + '-pricing'
+  const visionName = slug + '-vision'
+  const siteName = slug + '-site'
+
   const jwtSecret = crypto.randomBytes(48).toString('base64')
   const jwtRefreshSecret = crypto.randomBytes(48).toString('base64')
   const encryptionKey = crypto.randomBytes(32).toString('hex')
@@ -1031,6 +1134,48 @@ export async function deployCustomer(
 
   let extractDir = ''
   try {
+    // Step 0: Preflight — before anything is deleted, reused or created. The Factory used to free every name by deleting
+    // whatever held it: on 10/17 a signup deleted a customer's hand-built repo and Render site and booted its CRM on a
+    // suspended database from that old site. Now each name is judged against the tenant's own records
+    // (services/resourceOwnership.ts); anything that is not the tenant's stops the deploy here, untouched.
+    const org = process.env.GITHUB_ORG || process.env.GITHUB_USER
+    if (!org) throw new Error('GITHUB_ORG or GITHUB_USER must be set')
+    let owned: OwnedResources
+    if (options.ownership) owned = options.ownership
+    else {
+      try { owned = await loadOwnedResources(factoryCustomer.id) }
+      catch (e: any) {
+        // Records unreadable: own nothing. Anything already holding a name then stops the deploy — never the reverse.
+        console.warn('[Deploy] Tenant records unreadable — treating nothing as this tenant\'s:', e?.message)
+        owned = emptyOwnership()
+      }
+    }
+    const onRenderPostgres = !isSupabaseManagementConfigured()
+    const createServices = [
+      ...(wantsCrm ? [crmApiName] : []),
+      ...(products.includes('pricing') ? [pricingApiName] : []),
+      ...(products.includes('website') ? [siteName] : []),
+      ...(products.includes('vision') && !products.includes('website') ? [visionName] : []),
+    ]
+    const cleanupServices = wantsCrm ? [...new Set([crmFrontName, slug + '-api', slug + '-crm'])].filter((n) => n !== crmApiName) : []
+    const databases = onRenderPostgres
+      ? [...(wantsCrm ? [dbSlug + '-db'] : []), ...(products.includes('pricing') && !wantsCrm ? [pricingDbSlug + '-db'] : [])]
+      : []
+    const resourcePlan = await preflightDeploy({
+      repoFullName: org + '/' + slug, additiveCrm, createServices, cleanupServices, databases,
+      siteName: additiveCrm && wantsCrm ? siteName : undefined,
+    }, owned)
+    if (resourcePlan.leftAlone.length) console.log('[Deploy] Left alone (not this tenant\'s):', resourcePlan.leftAlone.join(', '))
+    if (resourcePlan.problems.length) {
+      console.error('[Deploy] STOPPED before touching anything for', slug + ':', resourcePlan.problems.join(' | '))
+      results.steps.push({ step: 'preflight', status: 'error', problems: resourcePlan.problems })
+      results.errors.push(...resourcePlan.problems)
+      results.blocked = resourcePlan.problems
+      results.success = false; results.status = 'blocked'
+      return results
+    }
+    results.steps.push({ step: 'preflight', status: 'ok', replacing: Object.keys(resourcePlan.replace), reusing: Object.keys(resourcePlan.databases).filter((n) => resourcePlan.databases[n]) })
+
     // Step 1: Extract zip
     const tmpBase = process.env.TEMP || process.env.TMP || (process.platform === 'win32' ? 'C:\\Windows\\Temp' : '/tmp')
     extractDir = path.join(tmpBase, 'deploy-' + slug + '-' + Date.now())
@@ -1040,26 +1185,32 @@ export async function deployCustomer(
     results.steps.push({ step: 'extract', status: 'ok' })
 
     // Step 2: GitHub repo
-    const org = process.env.GITHUB_ORG || process.env.GITHUB_USER
-    if (!org) throw new Error('GITHUB_ORG or GITHUB_USER must be set')
     let repo: { full_name: string }
     if (additiveCrm) {
       // Flip / CRM add-on: the repo already exists and is SHARED with the live
       // website service. Don't delete/recreate it (would wipe website/) and
       // don't register it for rollback (a failed deploy must never delete the
       // shared repo). Just add the generated crm-* dir next to website/.
+      // The preflight has established it is the tenant's own.
       repo = { full_name: org + '/' + slug }
       results.repoUrl = 'https://github.com/' + repo.full_name
       results.steps.push({ step: 'github_repo', status: 'ok', repo: repo.full_name })
-      await pushAdditiveCrmToGitHub(repo.full_name, extractDir)
+      await deployIo.pushAdditiveCrmToGitHub(repo.full_name, extractDir)
       results.steps.push({ step: 'github_push', status: 'ok' })
     } else {
-      await deleteGitHubRepo(org + '/' + slug)
-      repo = await createGitHubRepo(slug, 'Twomiah Factory: ' + (factoryCustomer.name || slug))
-      createdResources.push({ type: 'repo', id: org + '/' + slug, name: repo.full_name })
-      results.steps.push({ step: 'github_repo', status: 'ok', repo: repo.full_name })
+      // Only the tenant's OWN repo is ever deleted (a redeploy replaces it); a repo with the name that is not the
+      // tenant's stopped the deploy in the preflight.
+      if (resourcePlan.repoOwned) await deleteGitHubRepo(org + '/' + slug)
+      const made = await createGitHubRepo(slug, 'Twomiah Factory: ' + (factoryCustomer.name || slug))
+      if (!made.created && !resourcePlan.repoOwned) {
+        throw new Error('name collision: GitHub repo ' + org + '/' + slug + ' appeared during the deploy and is not this tenant\'s — nothing was pushed to it')
+      }
+      repo = made
+      // Rollback deletes only what THIS run created — the tenant's own repo that could not be deleted and is reused is not.
+      if (made.created) createdResources.push({ type: 'repo', id: made.full_name, name: made.full_name })
+      results.steps.push({ step: 'github_repo', status: 'ok', repo: repo.full_name, created: made.created })
       results.repoUrl = 'https://github.com/' + repo.full_name
-      await pushToGitHub(repo.full_name, extractDir)
+      await deployIo.pushToGitHub(repo.full_name, extractDir)
       results.steps.push({ step: 'github_push', status: 'ok' })
     }
 
@@ -1072,10 +1223,8 @@ export async function deployCustomer(
     // Prefer dedicated Supabase project per customer; fall back to Render Postgres
     let dbConnectionString: string | null = null
     let supabaseProject: SupabaseProjectResult | null = null
-    if (products.some(p => p === 'crm' || p.startsWith('crm-'))) {
-      const dbSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isStore ? slug + '-shop' : slug
-
-      if (isSupabaseManagementConfigured()) {
+    if (wantsCrm) {
+      if (!onRenderPostgres) {
         // ── Dedicated Supabase project per customer ──
         try {
           console.log('[Deploy] Creating dedicated Supabase project:', dbSlug)
@@ -1095,11 +1244,12 @@ export async function deployCustomer(
       } else {
         // ── Fallback: Render Postgres ──
         try {
-          // Reuse existing database if it exists (preserves data across redeploys)
-          const existingDb = await findExistingDatabase(dbSlug + '-db')
+          // Reuse existing database if it exists (preserves data across redeploys) — only the tenant's OWN, and only one
+          // Render reports available: the preflight stopped the deploy for any other database holding the name.
+          // A reused database is never added to createdResources: a rollback deletes only what this run created.
+          const existingDb = resourcePlan.databases[dbSlug + '-db'] || null
           if (existingDb) {
-            console.log('[Deploy] Reusing existing Render DB:', dbSlug + '-db', existingDb.id)
-            createdResources.push({ type: 'database', id: existingDb.id, name: dbSlug + '-db' })
+            console.log('[Deploy] Reusing this tenant\'s Render DB:', dbSlug + '-db', existingDb.id)
             results.steps.push({ step: 'render_db', status: 'ok', dbId: existingDb.id, reused: true })
             results.services.database = existingDb
             if (existingDb.id) deployedResourceIds.push(existingDb.id)
@@ -1108,10 +1258,11 @@ export async function deployCustomer(
             if (connInfo?.internalConnectionString) {
               dbConnectionString = connInfo.internalConnectionString
             } else {
-              console.warn('[Deploy] Could not get connection string for existing DB — will create new')
+              // Creating "a new one" would only collide with this name; stop rather than boot a CRM with no database.
+              throw new Error('Could not read the connection string of this tenant\'s database ' + dbSlug + '-db (' + existingDb.id + ')')
             }
           }
-          if (!existingDb || !dbConnectionString) {
+          if (!existingDb) {
             console.log('[Deploy] Creating Render DB:', dbSlug + '-db')
             const db = await createRenderDatabase(dbSlug, region, dbPlan)
             createdResources.push({ type: 'database', id: db.id, name: dbSlug + '-db' })
@@ -1164,8 +1315,10 @@ export async function deployCustomer(
     } else {
       try {
         const bucketSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isStore ? slug + '-shop' : slug
-        r2BucketName = await createR2Bucket(bucketSlug)
-        createdResources.push({ type: 'r2_bucket', id: r2BucketName })
+        const bucket = await createR2BucketReport(bucketSlug)
+        r2BucketName = bucket.bucketName
+        // A bucket that was already there is not this run's to delete on a rollback.
+        if (bucket.created) createdResources.push({ type: 'r2_bucket', id: r2BucketName })
         r2EnvVars = getR2EnvVars(r2BucketName)
         results.steps.push({ step: 'r2_bucket', status: 'ok', bucket: r2BucketName })
         results.r2BucketName = r2BucketName
@@ -1291,10 +1444,6 @@ export async function deployCustomer(
           backendEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: supabaseProject.serviceRoleKey })
         }
 
-        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : isVet ? slug + '-vet-api' : isSalon ? slug + '-salon-api' : isBar ? slug + '-bar-api' : isEvents ? slug + '-events-api' : isStore ? slug + '-shop-api' : isBasic ? slug + '-basic-api' : slug + '-api'
-        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : isSalon ? slug + '-salon' : isBar ? slug + '-bar' : isEvents ? slug + '-events' : isStore ? slug + '-shop' : isBasic ? slug + '-basic' : slug + '-crm'
-        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : isSalon ? 'crm-salon' : isBar ? 'crm-bar' : isEvents ? 'crm-restaurant' : isStore ? 'crm-store' : isBasic ? 'crm-basic' : 'crm'
-
         // crm-store needs its own back-office URL for the merchant-facing webhook
         // setup screen. STOREFRONT_ORIGIN/URL are set later (Step 7) once the
         // storefront service exists.
@@ -1327,12 +1476,11 @@ export async function deployCustomer(
         // callback (QBO_RETURN_URL) rides in the signed OAuth state.
         backendEnvVars.push(...quickbooksTenantEnv(`https://${crmApiName}.onrender.com`))
 
-        // Delete existing services so names are available (avoids random suffixes)
-        await findAndDeleteRenderService(crmApiName)
-        await findAndDeleteRenderService(crmFrontName) // clean up legacy static sites
-        // Also clean up the generic service name in case a previous deploy used the default
-        if (crmApiName !== slug + '-api') await findAndDeleteRenderService(slug + '-api')
-        if (crmFrontName !== slug + '-crm') await findAndDeleteRenderService(slug + '-crm')
+        // Delete the tenant's OWN existing services so names are available (avoids random suffixes) — and its own legacy
+        // static sites / generic-named backend from a previous deploy. Same-named services that are not the tenant's
+        // stopped the deploy (a name it needs) or are left alone (a name it only cleans up) — preflightDeploy.
+        await deleteOwnedRenderService(resourcePlan.replace[crmApiName])
+        for (const svc of resourcePlan.cleanup) await deleteOwnedRenderService(svc)
 
         // Single service: backend builds frontend and serves it (no CDN cache issues)
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
@@ -1370,9 +1518,8 @@ export async function deployCustomer(
         // Without this the site never forwarded a lead to the CRM it was paired with.
         if (additiveCrm) {
           try {
-            const lookup = await fetchWithTimeout(RENDER_API + '/services?name=' + encodeURIComponent(slug + '-site') + '&limit=5', { headers: renderHeaders() })
-            const list = lookup.ok ? await lookup.json() as any[] : []
-            const siteId = (list.map((x: any) => x.service || x).find((sv: any) => sv && sv.name === slug + '-site') || {}).id
+            // The tenant's own website, as the preflight found it — a same-named site that is not the tenant's stopped the deploy.
+            const siteId = resourcePlan.site?.id
             if (siteId) {
               const ok = await updateRenderEnvVars(siteId, [
                 { key: 'CRM_API_URL', value: backendUrl }, { key: 'WEBHOOK_SECRET', value: jwtSecret },
@@ -1439,12 +1586,19 @@ export async function deployCustomer(
       // Pricing requires its own database — create one if CRM didn't already
       if (!dbConnectionString) {
         try {
-          const pricingDbSlug = slug + '-pricing'
-          if (isSupabaseManagementConfigured()) {
+          const reusedPricingDb = resourcePlan.databases[pricingDbSlug + '-db'] || null
+          if (!onRenderPostgres) {
             supabaseProject = await createSupabaseProject(pricingDbSlug, region)
             createdResources.push({ type: 'supabase_project', id: supabaseProject.ref, name: pricingDbSlug })
             results.steps.push({ step: 'pricing_supabase', status: 'ok', ref: supabaseProject.ref })
             dbConnectionString = supabaseProject.connectionString
+          } else if (reusedPricingDb) {
+            // The tenant's own, available pricing database (preflight) — reused, and never in the rollback list.
+            const connInfo = await getDatabaseConnectionInfo(reusedPricingDb.id)
+            if (!connInfo?.internalConnectionString) throw new Error('Could not read the connection string of this tenant\'s database ' + pricingDbSlug + '-db')
+            dbConnectionString = connInfo.internalConnectionString
+            results.steps.push({ step: 'pricing_render_db', status: 'ok', dbId: reusedPricingDb.id, reused: true })
+            deployedResourceIds.push(reusedPricingDb.id)
           } else {
             const pdb = await createRenderDatabase(pricingDbSlug, region, dbPlan)
             createdResources.push({ type: 'database', id: pdb.id, name: pricingDbSlug + '-db' })
@@ -1467,8 +1621,7 @@ export async function deployCustomer(
       }
 
       try {
-        const pricingApiName = slug + '-pricing-api'
-        await findAndDeleteRenderService(pricingApiName)
+        await deleteOwnedRenderService(resourcePlan.replace[pricingApiName])
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
         const pricingBuild = bunSetup + ' && cd ../frontend && bun install --no-verify && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install --no-verify'
         const pricingStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && ' + dbReconcileStep() + ' && bun db/seed.ts && bun src/index.ts'
@@ -1514,7 +1667,7 @@ export async function deployCustomer(
     // storefront is a normal EJS site that reads its catalog from crm-store).
     if (products.includes('website')) {
       try {
-        await findAndDeleteRenderService(slug + '-site')
+        await deleteOwnedRenderService(resourcePlan.replace[siteName])
         const siteBunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
 
         // Premium sites keep their data in a SQLite file on the service's own disk (website/persistent,
@@ -1671,8 +1824,7 @@ export async function deployCustomer(
     if (products.includes('vision') && !products.includes('website')) {
       // Standalone Vision — separate Render service
       try {
-        const visionName = slug + '-vision'
-        await findAndDeleteRenderService(visionName)
+        await deleteOwnedRenderService(resourcePlan.replace[visionName])
         const visionBuildCmd = 'npm install --include=dev && npm run build'
         const visionStartCmd = 'npm start'
         const visionEnvVars: Array<{ key: string; value: string }> = [
@@ -1719,8 +1871,9 @@ export async function deployCustomer(
     // VISION_URL is already included in the website service's initial env vars above.
     if (hasVisualizerFeature) {
       try {
-        const visionApiKey = await registerVisualizerTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
-        createdResources.push({ type: 'vision_tenant', id: slug })
+        const { apiKey: visionApiKey, created: visionTenantCreated } = await registerVisualizerTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
+        // A Vision tenant that was already registered is not this run's to delete on a rollback.
+        if (visionTenantCreated) createdResources.push({ type: 'vision_tenant', id: slug })
         results.steps.push({ step: 'visualizer_tenant', status: 'ok' })
 
         results.visionUrl = sharedVisionUrl
@@ -1898,6 +2051,58 @@ export async function carryCommittedEnvToRender(repoFullName: string, serviceId:
   return { added: wanted.map((w) => w.key), source }
 }
 
+/**
+ * The subset of `serviceIds` (e.g. a by-NAME findRenderServicesBySlug result) that is the tenant's own. Used where the
+ * job recorded no ids: a name match alone is not the tenant's, and saving it to the job would make it "recorded" —
+ * the ownership record would then vouch for a stranger's service.
+ */
+export async function filterOwnedServiceIds(tenantId: string, serviceIds: Record<string, string>, ownership?: OwnedResources): Promise<{ owned: Record<string, string>; refused: string[] }> {
+  const out: Record<string, string> = {}
+  const refused: string[] = []
+  let records: OwnedResources
+  try { records = ownership || await loadOwnedResources(tenantId) }
+  catch { return { owned: out, refused: Object.values(serviceIds) } }
+  const fetched: Array<{ role: string; svc: any }> = []
+  for (const [role, id] of Object.entries(serviceIds)) {
+    try {
+      const res = await fetchWithTimeout(RENDER_API + '/services/' + id, { headers: renderHeaders() })
+      if (!res.ok) { refused.push(id); continue }
+      const body: any = await res.json()
+      fetched.push({ role, svc: body?.service || body })
+    } catch { refused.push(id) }
+  }
+  const known = fetched.map((f) => f.svc)
+  for (const { role, svc } of fetched) {
+    if (ownsService(records, svc, known)) out[role] = svc.id
+    else refused.push(svc?.name || svc?.id)
+  }
+  return { owned: out, refused }
+}
+
+/** Problems that stop a code update: a repo or service that is not the tenant's, or one that could not be checked. */
+export async function checkUpdateOwnership(tenantId: string, repoFullName: string, serviceIds: Record<string, string>, ownership?: OwnedResources): Promise<string[]> {
+  let owned: OwnedResources
+  try { owned = ownership || await loadOwnedResources(tenantId) }
+  catch (e: any) { return ['could not read this tenant\'s records to confirm what it owns (' + e?.message + ') — nothing was changed'] }
+  const problems: string[] = []
+  const services: any[] = []
+  for (const [role, id] of Object.entries(serviceIds)) {
+    if (role === 'database' || !id) continue // a Postgres id is not pushed to or redeployed
+    try {
+      const res = await fetchWithTimeout(RENDER_API + '/services/' + id, { headers: renderHeaders() })
+      if (!res.ok) { problems.push('could not check Render service ' + id + ' (' + role + '): Render answered ' + res.status); continue }
+      const body: any = await res.json()
+      services.push({ role, svc: body?.service || body })
+    } catch (e: any) { problems.push('could not check Render service ' + id + ' (' + role + '): ' + e.message) }
+  }
+  const known = services.map((s) => s.svc)
+  if (!ownsRepo(owned, repoFullName, known)) problems.push('GitHub repo ' + repoFullName + ' is not this tenant\'s — no code was pushed to it')
+  for (const { role, svc } of services) {
+    if (!ownsService(owned, svc, known)) problems.push('Render service ' + (svc?.name || svc?.id) + ' (' + role + ') is not this tenant\'s — it was not changed or redeployed')
+  }
+  return problems
+}
+
 export async function updateCustomerCode(
   factoryCustomer: {
     id: string
@@ -1906,6 +2111,7 @@ export async function updateCustomerCode(
     renderServiceIds?: Record<string, string>
   },
   zipPath: string,
+  opts: { ownership?: OwnedResources } = {},
 ): Promise<{ success: boolean; steps: Array<{ step: string; status: string; detail?: string }>; errors: string[] }> {
   const slug = factoryCustomer.slug
   const steps: Array<{ step: string; status: string; detail?: string }> = []
@@ -1924,6 +2130,16 @@ export async function updateCustomerCode(
       return { success: false, steps, errors: [`GitHub repo ${repoFullName} not found. Use deployCustomer() for first-time deploys.`] }
     }
     steps.push({ step: 'verify_repo', status: 'ok', detail: repoFullName })
+
+    // Step 1b: the repo and every service this update force-pushes to / redeploys / re-configures must be the tenant's
+    // own (services/resourceOwnership.ts). Service ids can come from a by-NAME lookup (findRenderServicesBySlug) when the
+    // job recorded none, and a force-push replaces whatever code a same-named repo held. Stops before anything changes.
+    const gate = await checkUpdateOwnership(factoryCustomer.id, repoFullName, factoryCustomer.renderServiceIds || {}, opts.ownership)
+    if (gate.length) {
+      steps.push({ step: 'ownership', status: 'error', detail: gate.join(' | ') })
+      return { success: false, steps, errors: gate }
+    }
+    steps.push({ step: 'ownership', status: 'ok' })
 
     // Step 2: Extract zip to temp directory
     const tmpBase = process.env.TEMP || process.env.TMP || (process.platform === 'win32' ? 'C:\\Windows\\Temp' : '/tmp')
@@ -2037,7 +2253,8 @@ export async function updateCustomerCode(
  * it found NO backend: a domain bought for a store or a roofer never had app.<domain> attached to its admin on Render,
  * and a redeploy/visualizer lookup by slug came back empty. (10/14, found writing the store E2E script)
  */
-export const CRM_API_SUFFIXES = ['-api', '-care-api', '-wrench-api', '-drive-api', '-roof-api', '-landscape-api', '-leaf-api', '-rv-api', '-vet-api', '-salon-api', '-bar-api', '-events-api', '-shop-api', '-basic-api'] as const
+// Defined in services/resourceOwnership.ts (the slug allocator needs every backend name too); re-exported here.
+export { CRM_API_SUFFIXES }
 
 /**
  * The tenant's Render services, by role. `backendUrl` (tenants.render_backend_url) names the backend exactly — preferred,
@@ -2154,7 +2371,7 @@ export async function attachTwomiahSubdomain(opts: {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return deployIo.sleep(ms)
 }
 
 
@@ -2509,12 +2726,13 @@ async function deleteVisionTenant(slug: string) {
 // each client can choose which products show in their own visualizer.
 // Idempotent: if the tenant already exists but has no api_key (e.g. it was
 // registered before this wiring existed), it backfills the key in place.
-async function registerVisualizerTenant(slug: string, companyName: string, company?: any): Promise<string | null> {
+// `created` — whether THIS call registered the tenant (a rollback deletes only that, never a registration that was already there).
+async function registerVisualizerTenant(slug: string, companyName: string, company?: any): Promise<{ apiKey: string | null; created: boolean }> {
   const supabaseUrl = process.env.VISION_SUPABASE_URL
   const supabaseKey = process.env.VISION_SUPABASE_SERVICE_KEY
   if (!supabaseUrl || !supabaseKey) {
     console.log('[Deploy] Skipping visualizer tenant registration — VISION_SUPABASE_URL/SERVICE_KEY not set')
-    return null
+    return { apiKey: null, created: false }
   }
 
   const sbHeaders = {
@@ -2553,7 +2771,7 @@ async function registerVisualizerTenant(slug: string, companyName: string, compa
       )
       const rows = existingRes.ok ? await existingRes.json() : []
       const existing = Array.isArray(rows) ? rows[0] : null
-      if (existing?.api_key) return existing.api_key as string
+      if (existing?.api_key) return { apiKey: existing.api_key as string, created: false }
       if (existing?.id) {
         const patchRes = await fetchWithTimeout(
           supabaseUrl + '/rest/v1/tenants?id=eq.' + existing.id,
@@ -2561,13 +2779,13 @@ async function registerVisualizerTenant(slug: string, companyName: string, compa
         )
         if (patchRes.ok) {
           console.log('[Deploy] Backfilled visualizer api_key for existing tenant:', slug)
-          return apiKey
+          return { apiKey, created: false }
         }
       }
     } catch (err: any) {
       console.warn('[Deploy] Could not backfill visualizer api_key:', err.message)
     }
-    return null
+    return { apiKey: null, created: false }
   }
 
   if (!res.ok) {
@@ -2575,7 +2793,7 @@ async function registerVisualizerTenant(slug: string, companyName: string, compa
   }
 
   console.log('[Deploy] Registered visualizer tenant:', slug)
-  return apiKey
+  return { apiKey, created: true }
 }
 
 /**

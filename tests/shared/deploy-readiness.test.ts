@@ -68,7 +68,7 @@ const API = 'https://acme-api.onrender.com/health', APP = 'https://acme-api.onre
 {
   const w = world({ be: [[0, 'live']] }, { [API]: [[0, 503]] })
   const r = await waitUntilServing(['be'], [API], w.deps)
-  check('never answering: gives up after the ceiling with ready:false (the caller still sends rather than never)', !r.ready && w.time() >= DEFAULT_TIMEOUT_MS && w.time() < DEFAULT_TIMEOUT_MS + 2 * MIN && /not serving/.test(r.reason), { r, t: w.time() })
+  check('never answering: gives up after the ceiling with ready:false (the caller treats it as a failed deploy — deployOutcome)', !r.ready && w.time() >= DEFAULT_TIMEOUT_MS && w.time() < DEFAULT_TIMEOUT_MS + 2 * MIN && /not serving/.test(r.reason), { r, t: w.time() })
 }
 {
   const w = world({ be: [[0, 'live']] }, { [API]: [[0, 200]] })
@@ -86,9 +86,11 @@ const route = read('apps/api/src/routes/factory/deploy.ts')
 const runDeploy = route.slice(route.indexOf('export async function runDeploy'), route.indexOf('\n}\n', route.indexOf('export async function runDeploy')))
 const iWait = runDeploy.indexOf('await waitUntilServing('), iSync = runDeploy.indexOf("'/api/internal/sync-features'"), iMail = runDeploy.indexOf('notifyDeployComplete(')
 check('runDeploy waits before the feature sync and before the ready email', iWait > 0 && iSync > iWait && iMail > iWait, { iWait, iSync, iMail })
-check('…on the same condition the email is sent on, so the email is never sent unwaited',
+// 10/17 (Amber Inn): the email used to follow the deploy's URLs "rather than never" — it now follows ONLY a wait that
+// passed (deployOutcome); tests/shared/deploy-ownership.test.ts checks the not-ready side.
+check('…and the email is sent only on the wait result, so it is never sent unwaited',
   /if \(\(result\.success \|\| result\.deployedUrl \|\| result\.apiUrl\) && webServiceIds\.length\) \{\s*readiness = await waitUntilServing\(/.test(runDeploy)
-    && /if \(result\.success \|\| result\.deployedUrl \|\| result\.apiUrl\) \{[\s\S]{0,900}notifyDeployComplete\(/.test(runDeploy))
+    && /outcome = deployOutcome\(readiness\)/.test(runDeploy) && /if \(outcome\.sendReadyEmail\) \{[\s\S]{0,1200}notifyDeployComplete\(/.test(runDeploy))
 check('…and not on the database, which has no deploys to wait for', /filter\(\(\[role\]\) => role !== 'database'\)/.test(runDeploy))
 // Run 4: "The CRM returned 502 for ~2–3 minutes after the Factory showed the tenant Active; the Factory showed no
 // website address." Active was written with the URLs, before the wait; the website's address only after it.

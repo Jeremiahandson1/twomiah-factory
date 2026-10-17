@@ -30,6 +30,11 @@ export async function flipWebsiteToCrm(tenantId: string): Promise<{ success: boo
     return await doFlip(tenantId)
   } catch (err: any) {
     console.error('[Flip] Failed for', tenantId, ':', err?.message || err)
+    // Runs in the background — the only other trace is this log. A deploy stopped by a name collision says so here.
+    try {
+      const { notifyProvisionFailure } = await import('./email')
+      await notifyProvisionFailure({ id: tenantId }, 'Flip to CRM', err?.message || String(err))
+    } catch {}
     return { success: false, error: err?.message || String(err) }
   } finally {
     inFlight.delete(tenantId)
