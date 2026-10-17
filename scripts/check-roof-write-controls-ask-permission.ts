@@ -49,6 +49,9 @@ const EXEMPT = [
   /^pages\/OnboardingWizard\.tsx$/,
   /^pages\/\w*TrialPage\.tsx$/,
   /^pages\/support\/ContactSupportPage\.tsx$/,
+  // The signed-in person's OWN password and two-factor (PUT /api/auth/password, /api/auth/mfa-devices): every seat
+  // may protect its own account, and gating it on a right an owner grants would let somebody be refused that.
+  /^pages\/AccountPage\.tsx$/,
 ]
 
 /**
