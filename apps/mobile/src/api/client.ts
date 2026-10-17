@@ -84,6 +84,7 @@ export interface ApiResponse<T = any> {
 export async function api<T = any>(
   path: string,
   opts: RequestInit = {},
+  { refreshOn401 = true }: { refreshOn401?: boolean } = {},
 ): Promise<ApiResponse<T>> {
   if (!apiUrl) return { ok: false, status: 0, data: null as any, error: 'No API URL configured' }
 
@@ -96,8 +97,10 @@ export async function api<T = any>(
 
   let res = await fetch(url, { ...opts, headers })
 
-  // Auto-refresh on 401
-  if (res.status === 401 && refreshToken) {
+  // Auto-refresh on 401 — except on the sign-in doors, where a 401 is the ANSWER (wrong password,
+  // wrong code), not an expired token. Retrying POST /api/auth/mfa with a left-over refresh token sent
+  // the same wrong code twice and spent two of the challenge's five tries.
+  if (res.status === 401 && refreshToken && refreshOn401) {
     const refreshed = await refreshIfNeeded()
     if (refreshed) {
       headers['Authorization'] = `Bearer ${accessToken}`
@@ -167,6 +170,9 @@ export function uploadPhotos(entityId: string, entityType: 'jobId' | 'leadId' | 
 export const get = <T = any>(path: string) => api<T>(path)
 export const post = <T = any>(path: string, body?: any) =>
   api<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined })
+/** POST to a sign-in door (/api/auth/login, /api/auth/mfa): its 401 is an answer, so no token refresh and retry. */
+export const postSignIn = <T = any>(path: string, body: any) =>
+  api<T>(path, { method: 'POST', body: JSON.stringify(body) }, { refreshOn401: false })
 export const put = <T = any>(path: string, body?: any) =>
   api<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined })
 export const del = <T = any>(path: string) => api<T>(path, { method: 'DELETE' })

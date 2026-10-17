@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import Constants from 'expo-constants'
 import { useAuth } from '../../src/auth/AuthContext'
+import type { MfaChallenge } from '../../src/auth/signIn'
 import { getApiUrl } from '../../src/api/client'
 
 const APP_NAME: string = (Constants.expoConfig?.extra as any)?.appName || 'Twomiah'
@@ -33,13 +34,21 @@ function normalizeServerUrl(input: string): string {
 }
 
 export default function LoginScreen() {
-  const { login } = useAuth()
+  const { login, completeMfa } = useAuth()
   const [serverUrl, setServerUrl] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  /**
+   * The code step. Sign-in answers a session OR `mfaRequired` with a challenge — the same sign-in,
+   * waiting for a code — so the challenge replaces the form and the password is not asked for twice.
+   * Six digits get the number pad; a recovery code (letters) gets the full keyboard.
+   */
+  const [challenge, setChallenge] = useState<MfaChallenge | null>(null)
+  const [code, setCode] = useState('')
+  const [useRecovery, setUseRecovery] = useState(false)
 
   // Pre-fill server URL from last successful login (stored in SecureStore).
   useEffect(() => {
@@ -59,9 +68,38 @@ export default function LoginScreen() {
     const result = await login(url, email.trim(), password)
     setLoading(false)
 
+    if (result.mfa) {
+      setChallenge(result.mfa)
+      setCode('')
+      setUseRecovery(false)
+      return
+    }
     if (!result.ok) {
       setError(result.error || 'Login failed')
     }
+  }
+
+  /** Back to the password — on "Start again", and when the challenge can no longer be completed. */
+  const backToPassword = (message = '') => {
+    setChallenge(null)
+    setCode('')
+    setUseRecovery(false)
+    setPassword('')
+    setError(message)
+  }
+
+  const handleCode = async () => {
+    if (!challenge) return
+    setError('')
+    if (!code.trim()) { setError('Enter the code from your authenticator app'); return }
+    setLoading(true)
+    const result = await completeMfa(challenge.challengeId, code)
+    setLoading(false)
+    if (result.ok) return
+    if (result.restart) { backToPassword(result.error || 'That sign-in request has expired. Sign in again.'); return }
+    // A wrong code (or no signal): stay here, clear the field for the next try.
+    setError(result.error || 'That code was not accepted')
+    setCode('')
   }
 
   return (
@@ -77,7 +115,63 @@ export default function LoginScreen() {
             <Text style={styles.brandSub}>{TAGLINE}</Text>
           </View>
 
-          {/* Form */}
+          {challenge ? (
+          <View style={styles.form}>
+            <Text style={styles.stepTitle}>One more step</Text>
+            <Text style={styles.stepText}>
+              {useRecovery
+                ? 'Enter one of your recovery codes. Each one works once.'
+                : `Enter the six-digit code from your authenticator app${challenge.recoveryCodesAvailable ? ', or one of your recovery codes' : ''}.`}
+            </Text>
+
+            <Text style={styles.label}>{useRecovery ? 'Recovery code' : 'Code'}</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="key-outline" size={18} color="#94a3b8" style={styles.inputIcon} />
+              <TextInput
+                key={useRecovery ? 'recovery' : 'totp'}
+                style={[styles.input, styles.codeInput]}
+                value={code}
+                onChangeText={setCode}
+                placeholder={useRecovery ? 'XXXXX-XXXXX' : '123456'}
+                placeholderTextColor="#64748b"
+                autoFocus
+                autoCapitalize={useRecovery ? 'characters' : 'none'}
+                autoCorrect={false}
+                spellCheck={false}
+                // The authenticator's six digits: the number pad, and the OS's code autofill.
+                keyboardType={useRecovery ? 'default' : 'number-pad'}
+                autoComplete={useRecovery ? 'off' : 'one-time-code'}
+                textContentType={useRecovery ? 'none' : 'oneTimeCode'}
+                maxLength={useRecovery ? 32 : 8}
+                returnKeyType="done"
+                onSubmitEditing={handleCode}
+              />
+            </View>
+
+            {challenge.recoveryCodesAvailable ? (
+              <TouchableOpacity onPress={() => { setUseRecovery(!useRecovery); setCode(''); setError('') }} style={styles.linkBtn}>
+                <Text style={styles.linkText}>
+                  {useRecovery ? 'Use the code from my authenticator app' : 'Lost your phone? Use a recovery code'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <TouchableOpacity style={[styles.button, { backgroundColor: PRIMARY }]} onPress={handleCode} disabled={loading || !code.trim()} activeOpacity={0.8}>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Finish signing in</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* A way back, because a wrong account is the other reason somebody is stuck here. */}
+            <TouchableOpacity onPress={() => backToPassword()} style={styles.linkBtn} disabled={loading}>
+              <Text style={[styles.linkText, styles.centerText]}>Start again</Text>
+            </TouchableOpacity>
+          </View>
+          ) : (
           <View style={styles.form}>
             <Text style={styles.label}>Server URL</Text>
             <View style={styles.inputWrap}>
@@ -137,6 +231,7 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
           </View>
+          )}
 
           <Text style={styles.footer}>
             {VARIANT === 'care'
@@ -169,6 +264,12 @@ const styles = StyleSheet.create({
   input: { flex: 1, paddingVertical: 14, paddingHorizontal: 10, color: '#f1f5f9', fontSize: 15 },
   eyeBtn: { padding: 12 },
   error: { color: '#ef4444', fontSize: 13, marginTop: 8 },
+  stepTitle: { fontSize: 18, fontWeight: '700', color: '#f1f5f9' },
+  stepText: { fontSize: 14, color: '#94a3b8', marginTop: 4, lineHeight: 20 },
+  codeInput: { fontSize: 20, letterSpacing: 4, fontVariant: ['tabular-nums'] },
+  linkBtn: { paddingVertical: 10 },
+  linkText: { color: '#93c5fd', fontSize: 14 },
+  centerText: { textAlign: 'center', color: '#94a3b8' },
   button: {
     backgroundColor: '#1e40af', borderRadius: 10, paddingVertical: 16,
     alignItems: 'center', marginTop: 20,

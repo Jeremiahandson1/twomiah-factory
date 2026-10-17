@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { loadTokens, saveTokens, saveApiUrl, clearTokens, getApiUrl, post, get } from '../api/client'
+import { loadTokens, clearTokens, getApiUrl, post, get } from '../api/client'
+import { signInWithPassword, completeMfaSignIn, type MfaChallenge } from './signIn'
 
 /** The last signed-in profile, so the app opens without a connection (tokens stay in SecureStore). */
 const PROFILE_KEY = 'twomiah_session_profile_v1'
@@ -47,7 +48,16 @@ interface AuthState {
   company: Company | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (serverUrl: string, email: string, password: string) => Promise<{ ok: boolean; error?: string }>
+  /**
+   * The password step. `mfa` set (ok false, no error) means the sign-in is waiting for a code: no
+   * tokens were stored, and completeMfa() finishes it.
+   */
+  login: (serverUrl: string, email: string, password: string) => Promise<{ ok: boolean; error?: string; mfa?: MfaChallenge }>
+  /**
+   * The code step. `restart` means the challenge is gone (expired, spent, too many tries): go back to
+   * the password. Otherwise a failure stays on the code step.
+   */
+  completeMfa: (challengeId: string, code: string) => Promise<{ ok: boolean; error?: string; restart?: boolean; usedRecoveryCode?: boolean }>
   logout: () => Promise<void>
   refresh: () => Promise<void>
 }
@@ -93,14 +103,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [apply])
 
   const login = useCallback(async (serverUrl: string, email: string, password: string) => {
-    await saveApiUrl(serverUrl)
-    const res = await post('/api/auth/login', { email, password }).catch(() => ({ ok: false, error: 'No connection — check your signal and the server address.' } as any))
-    if (!res.ok) {
-      return { ok: false, error: res.error || 'Login failed' }
-    }
-    await saveTokens(res.data.accessToken, res.data.refreshToken)
-    await apply(res.data)
+    const step = await signInWithPassword(serverUrl, email, password)
+    if (step.kind === 'mfa') return { ok: false, mfa: step.challenge }
+    if (step.kind === 'error') return { ok: false, error: step.error }
+    await apply(step.data)
     return { ok: true }
+  }, [apply])
+
+  const completeMfa = useCallback(async (challengeId: string, code: string) => {
+    const step = await completeMfaSignIn(challengeId, code)
+    if (step.kind === 'signedIn') {
+      await apply(step.data)
+      return { ok: true, usedRecoveryCode: step.usedRecoveryCode }
+    }
+    return { ok: false, error: step.error, restart: step.kind === 'restart' }
   }, [apply])
 
   const logout = useCallback(async () => {
@@ -117,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [apply])
 
   return (
-    <AuthContext.Provider value={{ user, company, isAuthenticated: !!user, isLoading, login, logout, refresh }}>
+    <AuthContext.Provider value={{ user, company, isAuthenticated: !!user, isLoading, login, completeMfa, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   )
