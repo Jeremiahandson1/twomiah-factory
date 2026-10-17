@@ -34,6 +34,7 @@
 //
 //   bun scripts/check-light-mode-ink.ts
 import { existsSync, readFileSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 
 let failed = 0
@@ -80,6 +81,24 @@ const HEX: Record<string, string> = {
   'purple-300': '#d8b4fe', 'purple-400': '#c084fc', 'purple-500': '#a855f7', 'purple-600': '#9333ea', 'purple-700': '#7e22ce', 'purple-800': '#6b21a8',
   'teal-400': '#2dd4bf', 'teal-500': '#14b8a6', 'teal-600': '#0d9488', 'teal-700': '#0f766e',
 }
+/**
+ * THE BRAND IS NOT STOCK ORANGE. Every template maps `orange`, `primary` and `brand` to the company's own
+ * palette (packages/tenant-ui/src/brandPalette.js), so `bg-orange-600` is whatever the owner picked, clamped.
+ * Measuring it as Tailwind's #ea580c called every brand button 3.56:1 — true of no tenant, since the clamp
+ * keeps white on 500/600/700 at 4.5:1 for every hue. A brand class is measured on the palette the CRM really
+ * paints, for each awkward owner colour, and the worst one is what counts.
+ */
+const { generatePalette } = await import(pathToFileURL(ROOT + 'packages/tenant-ui/src/brandPalette.js').href)
+const BRAND_FAMILIES = new Set(['orange', 'primary', 'brand'])
+const OWNER_COLOURS = ['#f97316', '#fff59d', '#ffffff', '#111111', '#ff0000', '#808080', '#ffff00', '#00ffff', '#2563eb', '#0000ff']
+const PALETTES: Array<Record<string, string>> = OWNER_COLOURS.map((c) => generatePalette(c))
+const isBrand = (name: string) => BRAND_FAMILIES.has(name.split('-')[0])
+const colourOf = (name: string, palette: Record<string, string>): string | undefined => {
+  const m = /^([a-z]+)-(\d{2,3})$/.exec(name)
+  if (m && BRAND_FAMILIES.has(m[1])) return palette[m[2]]
+  return HEX[name]
+}
+
 const lum = (hex: string) => {
   const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
     .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
@@ -174,21 +193,27 @@ for (const rel of FILES) {
       const textual = /\btext-(?:xs|sm|base|lg|[0-9]?xl)\b|\bfont-(?:medium|semibold|bold|normal|light)\b|\bleading-|\buppercase\b/.test(cls)
       if (sized && !textual) continue
 
-      let bg = PAGE, bgName = 'the page'
+      let bgName = 'the page'
       const own = [...cls.matchAll(/(?:^|\s)bg-([a-z]+-\d{2,3}|white|black)(?:\/(\d{1,3}))?(?![\w-])/g)].pop()
-      if (own && HEX[own[1]]) {
-        bg = own[2] ? over(HEX[own[1]], Number(own[2]) / 100) : HEX[own[1]]
+      if (own && colourOf(own[1], PALETTES[0])) {
         bgName = `bg-${own[1]}${own[2] ? '/' + own[2] : ''}`
       } else if (/(?:^|\s)bg-/.test(cls)) {
-        continue // a ground this check does not know (a gradient, a brand token) — not judged
+        continue // a ground this check does not know (a gradient, an arbitrary value) — not judged
+      }
+      const groundIn = (p: Record<string, string>) => {
+        if (!own) return PAGE
+        const hex = colourOf(own[1], p) as string
+        return own[2] ? over(hex, Number(own[2]) / 100) : hex
       }
 
       for (const t of cls.matchAll(/(?:^|\s)text-([a-z]+-\d{2,3}|white|black)(?![\w-])/g)) {
-        const ink = HEX[t[1]]
-        if (!ink) continue
-        const r = ratio(ink, bg)
+        if (!colourOf(t[1], PALETTES[0])) continue
+        // the worst owner colour: a brand ink or ground is measured on every awkward palette, not on stock orange
+        let r = Infinity, owner = ''
+        PALETTES.forEach((p, k) => { const x = ratio(colourOf(t[1], p) as string, groundIn(p)); if (x < r) { r = x; owner = OWNER_COLOURS[k] } })
         if (r >= MIN) continue
-        bad.push(`${i + 1}: text-${t[1]} on ${bgName} = ${r.toFixed(2)}:1, under ${MIN}:1`)
+        const branded = isBrand(t[1]) || (own && isBrand(own[1]))
+        bad.push(`${i + 1}: text-${t[1]} on ${bgName} = ${r.toFixed(2)}:1${branded ? ` for an owner colour of ${owner}` : ''}, under ${MIN}:1`)
       }
     }
   })

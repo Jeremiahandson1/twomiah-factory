@@ -40,7 +40,7 @@ type Message = {
 
 const priorityColors: Record<string, string> = {
   critical: 'bg-red-500/20 text-red-700 dark:text-red-400',
-  urgent: 'bg-orange-500/20 text-orange-800 dark:text-orange-400',
+  urgent: 'bg-amber-500/20 text-amber-800 dark:text-amber-400',
   high: 'bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
   normal: 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
   low: 'bg-gray-500/20 text-gray-600 dark:text-gray-400',

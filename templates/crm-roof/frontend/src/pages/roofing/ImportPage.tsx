@@ -254,7 +254,7 @@ export default function ImportPage() {
                 type="checkbox"
                 checked={createMissing}
                 onChange={e => setCreateMissing(e.target.checked)}
-                className="rounded border-gray-300 text-orange-600 dark:text-orange-400 dark:border-slate-700"
+                className="rounded border-gray-300 accent-orange-600 dark:border-slate-700"
               />
               <span className="text-gray-700 dark:text-slate-200">
                 Auto-create contacts for jobs that don't match any existing client

@@ -20,8 +20,11 @@ const fail = (m: string) => { failed++; console.error('FAIL: ' + m) }
 const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-bar', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
 
 // White on blue/purple/green/red/yellow, or on gray-700, reads in both themes \u2014 that is a coloured button,
-// not a theme-blind surface.
-const ON_A_COLOURED_BUTTON = /\bbg-(blue|purple|green|red|yellow)-\d|\bbg-gray-700\b/
+// not a theme-blind surface. So does white on the BRAND (orange/primary/brand, which every template maps to
+// the company's palette): its 500/600/700 are clamped for white text at every hue, measured in
+// tests/shared/brand-palette-runtime.test.ts. The page's buttons are the brand now, not a fixed blue
+// (check-action-colour-is-brand.ts).
+const ON_A_COLOURED_BUTTON = /\bbg-(blue|purple|green|red|yellow)-\d|\bbg-(orange|primary|brand)-(500|600|700)\b|\bbg-gray-700\b/
 
 for (const tpl of TEMPLATES) {
   const rel = 'templates/' + tpl + '/frontend/src/pages/support/SupportPage.tsx'
