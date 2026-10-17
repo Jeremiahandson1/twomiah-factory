@@ -1,0 +1,28 @@
+<%
+  // Section composition renderer.
+  //
+  // homepage.json is expected to expose a sections[] array. Each entry shape:
+  //   { type: 'hero' | 'services' | 'cta' | ...,
+  //     variant: '<variant-name>',
+  //     data: { ... } }
+  //
+  // We loop the array and include views/sections/<type>/<variant>.ejs for each,
+  // passing { data } through. Unknown type or missing partial: silently skip
+  // (a missing partial shouldn't crash a customer's homepage).
+  const sections = Array.isArray(homepage.sections) ? homepage.sections : []
+%>
+<% for (const section of sections) { %>
+  <%
+    const type = (section && section.type) ? String(section.type).replace(/[^a-z0-9_-]/gi, '') : ''
+    const variant = (section && section.variant) ? String(section.variant).replace(/[^a-z0-9_-]/gi, '') : 'default'
+    const data = (section && section.data) || {}
+    if (!type) { continue }
+    // Single-page mode: the first section of each former "page" gets a
+    // scroll anchor so the nav (#menu, #schedule, etc.) can target it.
+    const onepageAnchor = section._onepageAnchor ? String(section._onepageAnchor).replace(/[^a-z0-9_-]/gi, '') : ''
+  %>
+  <% if (onepageAnchor) { %><span id="<%= onepageAnchor %>" class="onepage-anchor" aria-hidden="true"></span><% } %>
+  <% try { %>
+    <%- include('sections/' + type + '/' + variant, { data: data, settings: settings, site: (typeof site !== 'undefined' ? site : null), live: (typeof live !== 'undefined' ? live : null), md: (typeof md === 'function' ? md : function (t) { return String(t || '') }), currentPath: (typeof currentPath !== 'undefined' ? currentPath : '') }) %>
+  <% } catch (e) { /* missing partial — skip, don't crash */ } %>
+<% } %>

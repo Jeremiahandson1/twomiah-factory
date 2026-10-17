@@ -1,0 +1,2817 @@
+/**
+ * server-static.ts — premium bar & tavern template runtime (the premium standard + the bar's sections).
+ *
+ * The bar's live facts — menu, 86, specials, taps, hours, the bartender's live status, public events —
+ * are the CRM's (templates/crm-bar). lib/bar.ts reads them from the CRM's public endpoints (CRM_BAR=1,
+ * CRM_API_URL) into one cached `site` bundle the partials render from; /api/live re-serves the live
+ * state to the board's poller. Party enquiries and Regulars sign-ups go through /api/leads to the CRM.
+ *
+ * Renders pages from the section-composition schema:
+ *   pages row → { sections: [...] } → views/home.ejs → views/base.ejs.
+ *
+ * Routes:
+ *   /                 → renders page slug 'home'
+ *   /:slug            → renders any other page row (about, services, contact, custom)
+ *   /admin/*          → React SPA at admin/dist/ + JSON API at /api/admin/*
+ *   /api/leads        → public POST for the contact form
+ *   /api/internal/*   → Factory-key-gated control endpoints (settings sync, etc.)
+ *   /uploads/*        → local-fallback static file serving for dev (R2 in prod)
+ *   /styles/*, /scripts/* → inline-able build assets
+ *   /health           → liveness for Render
+ */
+import { Hono } from 'hono'
+import { registerMedia } from './services/mediaProxy.ts'
+import { logger } from 'hono/logger'
+import { cors } from 'hono/cors'
+import { serveStatic } from 'hono/bun'
+import { eq, asc, desc, and, gte, lte, sql } from 'drizzle-orm'
+import ejs from 'ejs'
+import fs from 'fs'
+import path from 'path'
+import crypto from 'crypto'
+import { db } from './db'
+import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl, posts as postsTbl, projects as projectsTbl, pageViews as pageViewsTbl } from './db/schema'
+import adminRoutes, { authMiddleware, requireAdmin } from './routes/admin'
+// The same check every route in routes/admin.ts uses: the admin app's httpOnly session cookie (or a
+// Bearer token), verified and checked against revoked sessions. The billing, domain and CRM routes
+// below used to accept ANY "Bearer ..." header — anyone could open the owner's billing portal — and
+// rejected the admin app itself, which sends the cookie, not a header.
+const adminAuth = authMiddleware as any
+const adminOnly = requireAdmin as any
+import { secureHeaders, adminCors, loginRateLimit, isSafeUrl } from './lib/security'
+import { CRM_BAR, loadSiteData, fetchLive, checkSpeakeasy, EMAIL_CONSENT_TEXT, type SiteData } from './lib/bar'
+import { pageJsonLd } from './lib/schema-org/page'
+
+// Cache-busting version for local stylesheets: changes every deploy (Render
+// sets RENDER_GIT_COMMIT) so browsers can keep long max-age but never serve
+// a stale CSS bundle after a redeploy.
+const ASSET_VERSION = (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || String(Date.now())
+
+const app = new Hono()
+
+app.use('*', logger())
+app.use('*', secureHeaders())
+// Public marketing pages can be embedded/fetched cross-origin freely.
+// The admin API gets a stricter CORS gate further down.
+app.use('*', cors())
+
+// In-memory per-IP rate limit for the public contact form. Honeypot +
+// dwell-time stop dumb bots; this stops someone hand-flooding a real
+// browser. 5 submissions per IP per 10 minutes — generous for a human
+// who's correcting typos, brutal for a flood.
+const leadBuckets = new Map<string, number[]>()
+const LEAD_WINDOW_MS = 10 * 60 * 1000
+const LEAD_MAX = 5
+function leadClientIp(c: any): string {
+  const xff = c.req.header('X-Forwarded-For') || ''
+  if (xff) return xff.split(',')[0].trim()
+  return c.req.header('CF-Connecting-IP') || c.req.header('X-Real-IP') || 'unknown'
+}
+
+// ── Health ────────────────────────────────────────────────────────────────
+app.get('/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }))
+
+// ─── Customer customizer entry ────────────────────────────────────────────
+// One token per tenant lives in settings.customizerToken. The customer
+// follows the emailed link, we verify in constant time, find-or-create
+// the synthetic 'customer' user, and drop them into the admin SPA with
+// a role-scoped session. AdminLayout filters the nav to Pages + Photos
+// + Account when role==='customer' — no security/billing/etc surfaces.
+app.get('/customize/:token', async (c) => {
+  const provided = c.req.param('token') || ''
+  const settings = await loadSettings()
+  const expected = (settings as any)?.customizerToken || ''
+  const ok = expected && provided.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected))
+  if (!ok) {
+    return c.html('<!doctype html><meta charset="utf-8"><title>Link expired</title>' +
+      '<body style="font:16px system-ui;padding:48px;max-width:560px;margin:auto;color:#1a1a1a;">' +
+      '<h1>This customize link isn\'t valid anymore</h1>' +
+      '<p style="color:#666;">The owner of this site may have rotated the link. Ask them to send you a fresh one.</p>' +
+      '</body>', 404)
+  }
+  const { users: usersTbl, sessions: sessionsTbl } = await import('./db/schema')
+  const customerEmail = 'customer@local'
+  const existing = (await db.select().from(usersTbl).where(eq(usersTbl.email, customerEmail)).limit(1))[0]
+  let user = existing
+  if (!user) {
+    const bcrypt = await import('bcryptjs')
+    const placeholderHash = await bcrypt.default.hash(crypto.randomBytes(32).toString('hex'), 10)
+    const [created] = await db.insert(usersTbl).values({
+      email: customerEmail,
+      name: 'Customer',
+      role: 'customer',
+      passwordHash: placeholderHash,
+    }).returning()
+    user = created
+  } else if (user.role !== 'customer') {
+    await db.update(usersTbl).set({ role: 'customer' }).where(eq(usersTbl.id, user.id))
+    user.role = 'customer'
+  }
+  const jti = crypto.randomBytes(16).toString('base64url')
+  await db.insert(sessionsTbl).values({
+    userId: user.id, jti,
+    ip: (c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown').split(',')[0].trim(),
+    userAgent: (c.req.header('User-Agent') || '').slice(0, 500),
+  })
+  const jwtLib = (await import('jsonwebtoken')).default
+  const JWT_SECRET = process.env.JWT_SECRET || ''
+  if (!JWT_SECRET) return c.text('Server misconfigured (no JWT_SECRET)', 503)
+  const token = jwtLib.sign({ sub: user.id, email: user.email, role: 'customer', jti }, JWT_SECRET, { expiresIn: 60 * 60 * 12 })
+  const { setCookie } = await import('hono/cookie')
+  setCookie(c, 'auth', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict', path: '/', maxAge: 60 * 60 * 12,
+  })
+  return c.redirect('/admin/pages')
+})
+
+// RFC 9116 security disclosure file. Pointer to twomiah.com/security
+// keeps every tenant pointing to a single coordinated disclosure page.
+app.get('/.well-known/security.txt', (c) => {
+  const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+  return c.text(
+    'Contact: mailto:security@twomiah.com\n' +
+    'Expires: ' + expires + '\n' +
+    'Preferred-Languages: en\n' +
+    'Canonical: https://twomiah.com/.well-known/security.txt\n' +
+    'Policy: https://twomiah.com/security\n',
+    200, { 'Content-Type': 'text/plain; charset=utf-8' }
+  )
+})
+
+// ── Asset serving (CSS, JS, uploads) ──────────────────────────────────────
+app.use('/styles/*', serveStatic({ root: './build' }))
+app.use('/scripts/*', serveStatic({ root: './build' }))
+// The bar look's self-hosted faces (build/fonts, build/styles/fonts.css).
+app.use('/fonts/*', serveStatic({ root: './build' }))
+app.use('/uploads/*', serveStatic({ root: '.' }))
+registerMedia(app)
+// Favicon + synthesized logo (build/favicon.svg, build/images/logo.svg) — makes the
+// browser-tab icon + og:image resolve. serveStatic 404s through when absent.
+app.use('/favicon.svg', serveStatic({ root: './build' }))
+app.use('/favicon.png', serveStatic({ root: './build' }))
+app.use('/favicon.ico', serveStatic({ root: './build' }))
+app.use('/images/*', serveStatic({ root: './build' }))
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+const viewsDir = path.join(__dirname, 'views')
+
+async function loadSettings() {
+  const rows = await db.select().from(settingsTbl).limit(1)
+  return rows[0] || null
+}
+
+async function loadPage(slug: string) {
+  const rows = await db.select().from(pagesTbl).where(eq(pagesTbl.slug, slug)).limit(1)
+  return rows[0] || null
+}
+
+// First-party pageview counter — fire-and-forget day/path upsert; a failed
+// count must never affect a render.
+function countView(path: string): void {
+  const day = new Date().toISOString().slice(0, 10)
+  db.insert(pageViewsTbl).values({ day, path, count: 1 })
+    .onConflictDoUpdate({ target: [pageViewsTbl.day, pageViewsTbl.path], set: { count: sql`${pageViewsTbl.count} + 1` } })
+    .catch(() => { /* non-blocking */ })
+}
+
+async function renderPage(slug: string, currentPath: string, origin: string): Promise<string | null> {
+  const [page, settingsRow] = await Promise.all([loadPage(slug), loadSettings()])
+  if (!page || !page.isPublished) return null
+  return renderSections(Array.isArray(page.sections) ? page.sections : [],
+    { title: page.title, metaTitle: page.metaTitle, metaDescription: page.metaDescription, slug }, settingsRow, currentPath, origin)
+}
+
+// Any section list through home.ejs + base.ejs — a stored page, or one the server builds (the
+// service-area pages).
+async function renderSections(
+  sections: any[],
+  meta: { title?: string | null; metaTitle?: string | null; metaDescription?: string | null; slug?: string; jsonLdItem?: any },
+  settingsRow: any,
+  currentPath: string,
+  origin: string,
+): Promise<string> {
+  // A dealer with a live feed: a composed "featured inventory" section shows real units, linked.
+  if (settingsRow?.inventoryFeedUrl && sections.some((s: any) => s?.type === 'inventory' && s?.variant === 'showcase')) {
+    const live = await feedUnits(settingsRow)
+    if (live && live.length) {
+      sections = sections.map((s: any) => s?.type === 'inventory' && s?.variant === 'showcase'
+        ? { ...s, data: { ...s.data, ctaUrl: '/inventory', units: live.slice(0, 6).map((u) => ({
+          title: u.title, type: [u.condition, u.category].filter(Boolean).join(' · '), price: u.price,
+          length: u.lengthFt ? u.lengthFt + ' ft' : '', mileage: u.mileage ? Number(u.mileage).toLocaleString('en-US') + ' mi' : '',
+          image: u.photos[0] || '', url: '/inventory/' + u.slug,
+        })) } }
+        : s)
+    }
+  }
+  const homepage = { sections }
+  const settings = settingsRow || { companyName: 'Your Company', nav: [], contactCtaLabel: 'Get in touch' }
+
+  // Per-page SEO overrides. siteOrigin drives base.ejs's canonical, og:url and
+  // business markup — without it none of the three render.
+  let baseNav = Array.isArray(settings.nav) ? settings.nav : []
+  // The Visualizer / instant estimator, when this site has them: in the nav even when seeded without.
+  for (const tool of await toolNav()) {
+    if (!baseNav.some((n: any) => '/' + String(n?.href || '').replace(/^\//, '') === tool.href)) baseNav = [...baseNav, tool]
+  }
+  // A dealer with a live inventory feed: "Inventory" in the nav even when the site was seeded without it.
+  if (feedUrlOk(settings.inventoryFeedUrl) && !baseNav.some((n: any) => /^\/?inventory\/?$/.test(String(n?.href || '')))) {
+    baseNav = [{ label: 'Inventory', href: '/inventory' }, ...baseNav]
+  }
+  const effectiveSettings = {
+    ...settings,
+    // A dispensary with the live CRM menu: "Menu" in the nav even when the site was seeded before it.
+    nav: CRM_MENU && !baseNav.some((n: any) => /^\/?menu\/?$/.test(String(n?.href || ''))) ? [{ label: 'Menu', href: '/menu' }, ...baseNav] : baseNav,
+    siteOrigin: origin,
+    seoTitle: meta.metaTitle || settings.seoTitle || meta.title,
+    seoDescription: meta.metaDescription || settings.seoDescription || '',
+  }
+  // The address as lines (the visit section, the footer) and as schema.org parts.
+  Object.assign(effectiveSettings as any, addressParts(effectiveSettings.address))
+  // The bar's live facts (lib/bar.ts) and the owner's cover art (photos tagged brand-* / header-logo).
+  const site: SiteData = await loadSiteData()
+  ;(effectiveSettings as any).brandArt = site.brandArt
+  if (site.headerLogoUrl) (effectiveSettings as any).headerLogoUrl = site.headerLogoUrl
+
+  // LCP preload: the first hero section's image is almost always the
+  // Largest Contentful Paint on mobile. Emitting <link rel="preload"
+  // as="image" fetchpriority="high"> lets the browser kick off the fetch
+  // during HTML parse instead of waiting for the EJS section render to
+  // discover the <img>. Mobile LCP typically improves 400-800ms.
+  // The bar's home page leads with the Tonight Board, not a hero: its cover or lettering image is the LCP.
+  const firstHero = (homepage.sections as any[]).find(s => s && (s.type === 'hero' || s.type === 'tonight'))
+  const pick = (...vals: any[]) => vals.find((v) => typeof v === 'string' && v) || ''
+  const lcpImage = firstHero?.type === 'tonight'
+    ? pick(firstHero.data?.coverImageSmall, firstHero.data?.coverImage, firstHero.data?.titleImageSmall, firstHero.data?.titleImage, firstHero.data?.art)
+    : pick(firstHero?.data?.image)
+
+  const body = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), { homepage, settings: effectiveSettings, site, live: site.live, md: markdownToHtml, currentPath }) as string
+  // Sitewide BarOrPub JSON-LD — bar hours and the kitchen as a department, from the CRM — plus the menu,
+  // FAQ, events and breadcrumbs the page actually renders (lib/schema-org/page.ts).
+  let jsonLd = ''
+  try {
+    jsonLd = pageJsonLd({ slug: meta.slug || currentPath.replace(/^\//, '') || 'home', title: meta.title || '', sections: homepage.sections as any[],
+      settings: { ...(effectiveSettings as any), ...addressParts(effectiveSettings.address) }, hoursSchema: site.hoursSchema,
+      menu: site.menu as any, events: site.events as any, item: meta.jsonLdItem || null })
+  } catch (e: any) { console.warn('[JSON-LD] skipped:', e?.message) }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage, jsonLd }) as string
+  return absolutizeHrefs(html)
+}
+
+// Composed pages link with bare slugs (href="contact", nav href="services"). Relative, those
+// resolve under whatever path the visitor is on — fine on /about, a 404 from /blog/a-post or
+// /service-areas/a-town. Every bare internal href becomes absolute.
+function absolutizeHrefs(html: string): string {
+  return html.replace(/href="([^"]*)"/g, (m: string, raw: string) => {
+    if (!raw || /^(?:[a-z][a-z0-9+.-]*:|\/|#|\?|\.)/i.test(raw)) return m
+    return 'href="/' + raw.replace(/\.html(?=$|[?#])/i, '') + '"'
+  })
+}
+
+// ── Service areas ─────────────────────────────────────────────────────────
+// settings.serviceAreas: the places the owner says they serve (their town + the intake's "areas you
+// serve", editable in admin Settings). Each gets /service-areas/<slug>, built from the site's own
+// sections — the owner's services and contact form — so a town page states nothing new.
+function areaSlug(name: string): string {
+  return name.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
+}
+function serviceAreasOf(settings: any): Array<{ name: string; slug: string }> {
+  const raw = Array.isArray(settings?.serviceAreas) ? settings.serviceAreas : []
+  const out: Array<{ name: string; slug: string }> = []
+  const seen = new Set<string>()
+  for (const v of raw) {
+    const name = String((v && typeof v === 'object' ? v.name : v) || '').trim().slice(0, 80)
+    const slug = areaSlug(name)
+    if (!name || !slug || seen.has(slug)) continue
+    seen.add(slug)
+    out.push({ name, slug })
+  }
+  return out.slice(0, 40)
+}
+function listOf(names: string[]): string {
+  return names.length <= 2 ? names.join(' and ') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+}
+async function firstSectionOfType(type: string, slugs: string[]): Promise<any | null> {
+  for (const slug of slugs) {
+    const p = await loadPage(slug)
+    if (!p || !p.isPublished || !Array.isArray(p.sections)) continue
+    const s = (p.sections as any[]).find((x) => x && x.type === type)
+    if (s) return s
+  }
+  return null
+}
+function contactCta(settingsRow: any, company: string) {
+  return { type: 'cta', variant: 'banner', data: { id: 'talk', heading: 'Talk to ' + company, primaryCta: { label: settingsRow?.contactCtaLabel || 'Get in touch', href: '/contact' } } }
+}
+
+// Default placeholder served when the pages.home row doesn't exist yet
+// (fresh deploy before the AI composer or admin has seeded any content).
+// 200 status — the site is up and usable; the CMS admin link gets the
+// owner straight to the editor.
+function defaultHomePlaceholder(siteName: string): string {
+  const safe = siteName.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${safe}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#fafaf7;color:#1a1a1a}main{max-width:680px;margin:10vh auto;padding:48px 32px;text-align:center}h1{font-size:2.5rem;margin:0 0 16px;letter-spacing:-.02em}p{color:#666;font-size:1.05rem;line-height:1.6;margin:0 0 32px}a.cta{display:inline-block;padding:14px 32px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px;font-weight:500}.tag{display:inline-block;font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:#999;margin-bottom:24px}</style></head><body><main><span class="tag">Coming Soon</span><h1>${safe}</h1><p>Your premium website is being prepared. Sign in to the admin to add your home page content, or wait for our composition team to send your preview.</p><a class="cta" href="/admin">Open Admin</a></main></body></html>`
+}
+
+// "840 E Madison St, Eau Claire, WI 54703" → the parts schema.org's PostalAddress wants. The settings row
+// holds one line; only what the owner typed is used, and a line that doesn't split cleanly gives none.
+function addressParts(address: unknown): Record<string, string> {
+  const parts = String(address || '').split(',').map((s) => s.trim()).filter(Boolean)
+  if (parts.length < 3) return {}
+  const m = parts[parts.length - 1].match(/^([A-Za-z]{2})\s*(\d{5}(?:-\d{4})?)?$/)
+  if (!m) return {}
+  return { streetAddress: parts.slice(0, -2).join(', '), addressLocality: parts[parts.length - 2], addressRegion: m[1].toUpperCase(), ...(m[2] ? { postalCode: m[2] } : {}) }
+}
+
+// ── The bar's live state ─────────────────────────────────────────────────
+// /api/live re-serves the CRM's live state (lib/bar.ts) to the Tonight Board's poller
+// (build/scripts/live.js). Never cached downstream; the server caches the CRM read ~20 s.
+app.get('/api/live', async (c) => {
+  c.header('Cache-Control', 'no-store')
+  const live = await fetchLive()
+  if (!live) return c.json({ error: 'Live status is not available.' }, 503)
+  return c.json(live)
+})
+// The speakeasy door: the guess is checked by the CRM, which keeps the password and rate-limits.
+app.post('/api/speakeasy', async (c) => {
+  const body: any = await c.req.json().catch(() => ({}))
+  const r = await checkSpeakeasy(String(body?.answer || ''))
+  if (!r) return c.json({ ok: false, note: 'The door is shut tonight.' }, 503)
+  return c.json(r, r.ok ? 200 : 403)
+})
+
+// ── Page routes ───────────────────────────────────────────────────────────
+app.get('/', async (c) => {
+  const html = await renderPage('home', '/', getSiteOrigin(c))
+  if (html) countView('/')
+  if (!html) {
+    const siteName = process.env.SITE_NAME || 'Your Site'
+    return c.html(defaultHomePlaceholder(siteName))
+  }
+  return c.html(html)
+})
+
+app.get('/service-areas', async (c) => {
+  const settingsRow = await loadSettings()
+  const areas = serviceAreasOf(settingsRow)
+  if (!areas.length) return c.notFound()
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const served = company + ' serves ' + listOf(areas.map((a) => a.name)) + '.'
+  const sections = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Service areas', title: 'Where we work', subtitle: served } },
+    { type: 'areas', variant: 'list', data: { heading: 'Areas we serve', areas } },
+    contactCta(settingsRow, company),
+  ]
+  countView('/service-areas')
+  return c.html(await renderSections(sections, { title: 'Service areas', metaTitle: 'Service areas | ' + company, metaDescription: served }, settingsRow, '/service-areas', getSiteOrigin(c)))
+})
+
+app.get('/service-areas/:area', async (c) => {
+  const settingsRow = await loadSettings()
+  const areas = serviceAreasOf(settingsRow)
+  const area = areas.find((a) => a.slug === c.req.param('area'))
+  if (!area) return c.notFound()
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const [services, contact] = await Promise.all([firstSectionOfType('services', ['services', 'home']), firstSectionOfType('contact', ['contact'])])
+  const serviceNames: string[] = Array.isArray(services?.data?.items)
+    ? services.data.items.map((i: any) => String(i?.title || '').trim()).filter(Boolean).slice(0, 4) : []
+  const lead = serviceNames.length ? listOf(serviceNames) + ' in ' + area.name + '.' : company + ' serves ' + area.name + '.'
+  const others = areas.filter((a) => a.slug !== area.slug)
+  const sections: any[] = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Service area', title: company + ' in ' + area.name, subtitle: lead, primaryCta: { label: settingsRow?.contactCtaLabel || 'Get in touch', href: '/contact' } } },
+  ]
+  if (services) sections.push({ ...services, data: { ...services.data, heading: 'What we do in ' + area.name } })
+  if (others.length) sections.push({ type: 'areas', variant: 'list', data: { heading: 'Other areas we serve', areas: others } })
+  sections.push(contact || contactCta(settingsRow, company))
+  countView('/service-areas/' + area.slug)
+  return c.html(await renderSections(sections, { title: area.name, metaTitle: company + ' in ' + area.name, metaDescription: lead }, settingsRow, '/service-areas/' + area.slug, getSiteOrigin(c)))
+})
+
+// ── Projects ──────────────────────────────────────────────────────────────
+// The owner's own projects (admin → Projects). /projects shows them inside the composed Projects page
+// (or on a page of their own); /projects/<slug> tells one. Nothing here is composed.
+async function publishedProjects() {
+  return db.select().from(projectsTbl).where(eq(projectsTbl.status, 'published')).orderBy(asc(projectsTbl.sortOrder), desc(projectsTbl.publishedAt))
+}
+function projectCard(p: any) {
+  const photos = Array.isArray(p.photos) ? p.photos : []
+  return { slug: p.slug, title: p.title, location: p.location || '', summary: p.summary || '', image: p.coverImageUrl || photos[0] || '' }
+}
+
+app.get('/projects', async (c) => {
+  const [settingsRow, page, list] = await Promise.all([loadSettings(), loadPage('projects'), publishedProjects()])
+  const composed = page && page.isPublished && Array.isArray(page.sections) ? (page.sections as any[]) : null
+  if (!list.length && !composed) return c.notFound()
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  let sections: any[]
+  if (!list.length) sections = composed!
+  else if (composed) {
+    // The owner's projects right under the page's opening section.
+    const grid = { type: 'projects', variant: 'grid', data: { heading: 'Recent projects', items: list.map(projectCard) } }
+    sections = composed[0]?.type === 'hero' ? [composed[0], grid, ...composed.slice(1)] : [grid, ...composed]
+  } else {
+    sections = [
+      { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Our work', title: 'Projects', subtitle: 'Recent work by ' + company + '.' } },
+      { type: 'projects', variant: 'grid', data: { items: list.map(projectCard) } },
+      contactCta(settingsRow, company),
+    ]
+  }
+  countView('/projects')
+  return c.html(await renderSections(sections, {
+    title: page?.title || 'Projects', metaTitle: page?.metaTitle || 'Projects | ' + company, metaDescription: page?.metaDescription || 'Recent work by ' + company + '.',
+  }, settingsRow, '/projects', getSiteOrigin(c)))
+})
+
+app.get('/projects/:slug', async (c) => {
+  const slug = c.req.param('slug')
+  const [settingsRow, rows] = await Promise.all([loadSettings(), db.select().from(projectsTbl).where(eq(projectsTbl.slug, slug)).limit(1)])
+  const p = rows[0]
+  if (!p || p.status !== 'published') return c.notFound()
+  const [others, contact] = await Promise.all([publishedProjects(), firstSectionOfType('contact', ['contact'])])
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const alt = p.title + (p.location ? ', ' + p.location : '')
+  const photos = (Array.isArray(p.photos) ? p.photos : []).filter((u: unknown) => typeof u === 'string' && u)
+  const more = others.filter((x) => x.slug !== p.slug).slice(0, 3)
+  const sections: any[] = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: p.location || 'Project', title: p.title, subtitle: p.summary || '' } },
+    { type: 'projects', variant: 'detail', data: { cover: p.coverImageUrl || '', alt, bodyHtml: markdownToHtml(p.body || ''), photos: photos.map((u: string) => ({ url: u, alt })) } },
+  ]
+  if (more.length) sections.push({ type: 'projects', variant: 'grid', data: { heading: 'More projects', items: more.map(projectCard) } })
+  sections.push(contact || contactCta(settingsRow, company))
+  countView('/projects/' + p.slug)
+  return c.html(await renderSections(sections, {
+    title: p.title, metaTitle: p.metaTitle || alt + ' | ' + company, metaDescription: p.metaDescription || p.summary || '',
+  }, settingsRow, '/projects/' + p.slug, getSiteOrigin(c)))
+})
+
+// ── Live CRM menu (dispensary) ──────────────────────────────────────────────
+// CRM_MENU=1 (deploy sets it for a dispensary with a CRM): /menu is the shop's real menu from the
+// CRM's public menu — products, prices, stock, THC/CBD — and when the shop has Order Ahead on in the
+// CRM it takes pickup orders through it. Without the flag /menu is an ordinary page (food trucks and
+// restaurants compose one).
+const CRM_MENU = process.env.CRM_MENU === '1' && !!process.env.CRM_API_URL
+const crmBase = () => String(process.env.CRM_API_URL || '').replace(/\/+$/, '')
+let crmMenuCache: { at: number; data: { categories: any[]; total: number } } | null = null
+async function crmMenu(): Promise<{ categories: any[]; total: number } | null> {
+  if (crmMenuCache && Date.now() - crmMenuCache.at < 60_000) return crmMenuCache.data
+  try {
+    const r = await fetch(crmBase() + '/api/public/menu', { signal: AbortSignal.timeout(8000) })
+    if (!r.ok) throw new Error('HTTP ' + r.status)
+    const j: any = await r.json()
+    const categories = (Array.isArray(j?.menu) ? j.menu : []).map((cat: any) => ({
+      key: String(cat?.key || 'other').replace(/[^a-z0-9_-]/gi, ''),
+      label: String(cat?.label || cat?.key || ''),
+      products: (Array.isArray(cat?.products) ? cat.products : []).map((p: any) => ({
+        id: String(p.id), name: String(p.name || ''), brand: p.brand || '', strainType: p.strainType || '',
+        thc: p.thcPercent ?? null, cbd: p.cbdPercent ?? null, weight: p.weight ?? null, weightUnit: p.weightUnit || '',
+        price: p.price ?? null, image: p.imageUrl || (Array.isArray(p.images) ? p.images[0] : '') || '',
+        inStock: p.inStock !== false, isCannabis: !!p.isCannabis,
+      })),
+    })).filter((cat: any) => cat.products.length)
+    const data = { categories, total: categories.reduce((n: number, cat: any) => n + cat.products.length, 0) }
+    crmMenuCache = { at: Date.now(), data }
+    return data
+  } catch (e: any) {
+    console.warn('[Menu] CRM menu fetch failed:', e.message)
+    return crmMenuCache?.data || null
+  }
+}
+// Whether the shop takes online orders (Order Ahead on in the CRM). The CRM's public order route
+// refuses with 403 FEATURE_NOT_ENABLED before it looks up a single product and writes nothing on the
+// way — so an order for a product that doesn't exist answers the question without placing anything.
+let orderingCache: { at: number; on: boolean } | null = null
+async function crmOrderingOn(): Promise<boolean> {
+  if (orderingCache && Date.now() - orderingCache.at < 300_000) return orderingCache.on
+  let on = false
+  try {
+    const r = await fetch(crmBase() + '/api/public/menu/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(8000),
+      body: JSON.stringify({ items: [{ productId: '00000000-0000-0000-0000-000000000000', quantity: 1 }], customerName: 'availability check', customerPhone: '0', orderType: 'pickup' }),
+    })
+    const j: any = await r.json().catch(() => ({}))
+    on = r.status === 400 && /product not found/i.test(String(j?.error || ''))
+  } catch { on = false }
+  orderingCache = { at: Date.now(), on }
+  return on
+}
+
+app.get('/menu', async (c, next) => {
+  if (!CRM_MENU) return next()
+  const [settingsRow, menu, ordering] = await Promise.all([loadSettings(), crmMenu(), crmOrderingOn()])
+  if (!menu) return next()  // CRM unreachable and nothing cached: fall back to a composed /menu page, if any
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const gate = await firstSectionOfType('age', ['home'])  // the site's own age gate, when it has one
+  const sections: any[] = []
+  if (gate) sections.push(gate)
+  sections.push({ type: 'hero', variant: 'centered-stats', data: { eyebrow: company, title: 'Menu', subtitle: ordering ? 'Order ahead and pick up in store.' : '' } })
+  sections.push({ type: 'menu', variant: 'live', data: { categories: menu.categories, ordering } })
+  countView('/menu')
+  return c.html(await renderSections(sections, { title: 'Menu', metaTitle: 'Menu | ' + company, metaDescription: company + ' menu — ' + menu.categories.map((cat: any) => cat.label).join(', ') + '.' }, settingsRow, '/menu', getSiteOrigin(c)))
+})
+
+// Pickup orders, passed to the CRM with only the fields its order schema takes.
+const orderBuckets = new Map<string, number[]>()
+app.post('/api/order', async (c) => {
+  if (!CRM_MENU) return c.json({ error: 'Online ordering is not available here.' }, 404)
+  const ip = leadClientIp(c), now = Date.now()
+  const times = (orderBuckets.get(ip) || []).filter((t) => now - t < 15 * 60_000)
+  if (times.length >= 10) return c.json({ error: 'Too many orders from here. Please call us.' }, 429)
+  orderBuckets.set(ip, [...times, now])
+  const body: any = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Invalid order.' }, 400)
+  const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : undefined)
+  const payload = {
+    items: (Array.isArray(body.items) ? body.items : []).slice(0, 50)
+      .map((i: any) => ({ productId: String(i?.productId || ''), quantity: Math.max(1, Math.min(99, parseInt(i?.quantity, 10) || 1)) }))
+      .filter((i: any) => i.productId),
+    customerName: str(body.customerName, 120) || '',
+    customerPhone: str(body.customerPhone, 40) || '',
+    customerEmail: str(body.customerEmail, 200),
+    dateOfBirth: str(body.dateOfBirth, 10),
+    orderType: 'pickup',
+    pickupTime: str(body.pickupTime, 60),
+    notes: str(body.notes, 1000),
+  }
+  if (!payload.items.length) return c.json({ error: 'Your order is empty.' }, 400)
+  try {
+    const r = await fetch(crmBase() + '/api/public/menu/order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(15_000),
+    })
+    const j: any = await r.json().catch(() => ({}))
+    if (r.ok) { crmMenuCache = null; return c.json(j, 201) }
+    return c.json({ error: String(j?.error || 'The shop couldn\'t take that order. Please call us.') }, r.status === 403 ? 403 : 400)
+  } catch (e: any) {
+    console.warn('[Order] CRM order failed:', e.message)
+    return c.json({ error: 'We couldn\'t reach the shop just now. Please call us to order.' }, 502)
+  }
+})
+
+// ── Live dealer inventory (RV / marine / powersports) ─────────────────────────
+// settings.inventoryFeedUrl: the dealer's inventory feed — the CRM's marketplace feed (CRM: Inventory →
+// Feed URL, the .json or .csv link) or any feed with the same columns. When it's set, /inventory and
+// /inventory/<stock> are the real units and a composed "featured inventory" section shows real ones.
+// Never composed; with no feed nothing changes.
+function feedUrlOk(raw: unknown): string | null {
+  try {
+    const u = new URL(String(raw || '').trim())
+    if (u.protocol !== 'https:') return null
+    const h = u.hostname.toLowerCase()
+    // The response is shown publicly, so never an address inside the network.
+    if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || /^[\d.]+$/.test(h) || h.includes(':')) return null
+    return u.toString()
+  } catch { return null }
+}
+function parseCsvRows(text: string): Record<string, string>[] {
+  const rows: string[][] = []
+  let row: string[] = [], cell = '', quoted = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (quoted) {
+      if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++ } else quoted = false } else cell += ch
+      continue
+    }
+    if (ch === '"') quoted = true
+    else if (ch === ',') { row.push(cell); cell = '' }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = '' }
+    else cell += ch
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row) }
+  const head = (rows.shift() || []).map((h) => h.trim())
+  // The CRM's CSV prefixes cells that start with = + - @ with a quote (formula-injection guard).
+  return rows.filter((r) => r.some((v) => v.trim())).map((r) => Object.fromEntries(head.map((h, i) => [h, (r[i] || '').replace(/^'(?=[=+\-@])/, '')])))
+}
+const feedNum = (v: unknown) => { const n = Number(String(v ?? '').replace(/[^0-9.]/g, '')); return Number.isFinite(n) && n > 0 ? n : null }
+function unitFromListing(l: any) {
+  const s = (v: unknown) => String(v ?? '').trim()
+  const stock = s(l.stockNumber || l.stock || l.vin).slice(0, 60)
+  const year = s(l.year), make = s(l.make), model = s(l.model), trim = s(l.trim)
+  const photos = (Array.isArray(l.photoUrls) ? l.photoUrls : s(l.photoUrls).split('|')).map(s).filter((u: string) => /^https:\/\//i.test(u)).slice(0, 40)
+  return {
+    stock, slug: stock.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
+    title: [year, make, model, trim].filter(Boolean).join(' '),
+    year, make, model, trim, vin: s(l.vin), condition: s(l.condition).toLowerCase() || 'used', category: s(l.category),
+    rvClass: s(l.rvClass), towableType: s(l.towableType), price: feedNum(l.price), msrp: feedNum(l.msrp),
+    lengthFt: s(l.lengthFt), sleeps: s(l.sleeps), slideOuts: s(l.slideOuts), mileage: feedNum(l.mileage), hours: s(l.hours), engineCc: s(l.engineCc),
+    beamFt: s(l.beamFt), draftFt: s(l.draftFt), hullMaterial: s(l.hullMaterial), engineType: s(l.engineType), engineHp: s(l.engineHp),
+    engineCount: s(l.engineCount), fuelCapacityGal: s(l.fuelCapacityGal), maxPersons: s(l.maxPersons), trailerIncluded: s(l.trailerIncluded),
+    exteriorColor: s(l.exteriorColor), photos, description: s(l.description).slice(0, 5000),
+  }
+}
+type FeedUnit = ReturnType<typeof unitFromListing>
+function unitSpecs(u: FeedUnit) {
+  const rows: Array<[string, unknown]> = [
+    ['Year', u.year], ['Make', u.make], ['Model', u.model], ['Trim', u.trim], ['Class', u.rvClass], ['Type', u.towableType],
+    ['Length', u.lengthFt && u.lengthFt + ' ft'], ['Sleeps', u.sleeps], ['Slide-outs', u.slideOuts],
+    ['Mileage', u.mileage && Number(u.mileage).toLocaleString('en-US') + ' mi'], ['Hours', u.hours], ['Engine size', u.engineCc && u.engineCc + ' cc'],
+    ['Beam', u.beamFt && u.beamFt + ' ft'], ['Draft', u.draftFt && u.draftFt + ' ft'], ['Hull', u.hullMaterial], ['Engine', u.engineType],
+    ['Horsepower', u.engineHp], ['Engines', u.engineCount], ['Fuel', u.fuelCapacityGal && u.fuelCapacityGal + ' gal'],
+    ['Capacity', u.maxPersons && u.maxPersons + ' people'], ['Trailer', u.trailerIncluded === 'yes' ? 'Included' : u.trailerIncluded === 'no' ? 'Not included' : ''],
+    ['Color', u.exteriorColor],
+  ]
+  return rows.filter(([, v]) => v && String(v) !== '0').map(([label, value]) => ({ label, value: String(value) }))
+}
+let feedCache: { url: string; at: number; units: FeedUnit[] } | null = null
+async function feedUnits(settingsRow: any): Promise<FeedUnit[] | null> {
+  const url = feedUrlOk(settingsRow?.inventoryFeedUrl)
+  if (!url) return null
+  if (feedCache && feedCache.url === url && Date.now() - feedCache.at < 10 * 60_000) return feedCache.units
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(10_000), redirect: 'error' })
+    if (!r.ok) throw new Error('HTTP ' + r.status)
+    const text = (await r.text()).slice(0, 8_000_000)
+    const head = text.trimStart()
+    let listings: any[]
+    if (head.startsWith('{') || head.startsWith('[')) {
+      const j = JSON.parse(text)
+      listings = Array.isArray(j) ? j : Array.isArray(j?.listings) ? j.listings : []
+    } else listings = parseCsvRows(text)
+    const seen = new Set<string>()
+    const units = listings.slice(0, 2000).map(unitFromListing).filter((u) => {
+      if (!u.slug || !u.title || seen.has(u.slug)) return false
+      seen.add(u.slug)
+      return true
+    })
+    feedCache = { url, at: Date.now(), units }
+    return units
+  } catch (e: any) {
+    console.warn('[Inventory] feed fetch failed:', e.message)
+    return feedCache && feedCache.url === url ? feedCache.units : null
+  }
+}
+
+app.get('/inventory', async (c, next) => {
+  const settingsRow = await loadSettings()
+  const all = await feedUnits(settingsRow)
+  if (!all) return next()  // no feed (or it's down with nothing cached): the composed /inventory page, if any
+  const q = {
+    q: (c.req.query('q') || '').slice(0, 80), condition: c.req.query('condition') || '', category: c.req.query('category') || '',
+    make: c.req.query('make') || '', sort: c.req.query('sort') || '',
+  }
+  const uniq = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort()
+  const facets = { conditions: uniq(all.map((u) => u.condition)), categories: uniq(all.map((u) => u.category)), makes: uniq(all.map((u) => u.make)) }
+  const needle = q.q.toLowerCase()
+  let units = all.filter((u) => (!q.condition || u.condition === q.condition) && (!q.category || u.category === q.category)
+    && (!q.make || u.make === q.make) && (!needle || (u.title + ' ' + u.stock).toLowerCase().includes(needle)))
+  if (q.sort === 'price-asc') units = [...units].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity))
+  else if (q.sort === 'price-desc') units = [...units].sort((a, b) => (b.price ?? -1) - (a.price ?? -1))
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const page = await loadPage('inventory')
+  const composedHero = page?.isPublished && Array.isArray(page.sections) ? (page.sections as any[]).find((s) => s?.type === 'hero') : null
+  const sections = [
+    composedHero || { type: 'hero', variant: 'centered-stats', data: { eyebrow: company, title: 'Inventory' } },
+    { type: 'inventory', variant: 'live', data: { units, total: all.length, facets, query: q } },
+    contactCta(settingsRow, company),
+  ]
+  countView('/inventory')
+  return c.html(await renderSections(sections, {
+    title: 'Inventory', metaTitle: 'Inventory | ' + company, metaDescription: company + ' — ' + all.length + ' unit' + (all.length === 1 ? '' : 's') + ' for sale.',
+  }, settingsRow, '/inventory', getSiteOrigin(c)))
+})
+
+app.get('/inventory/:unit', async (c) => {
+  const settingsRow = await loadSettings()
+  const all = await feedUnits(settingsRow)
+  if (!all) return c.notFound()
+  const u = all.find((x) => x.slug === c.req.param('unit'))
+  // Sold or delisted: the lot, not a dead end.
+  if (!u) return c.redirect('/inventory', 302)
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  countView('/inventory/' + u.slug)
+  return c.html(await renderSections([{ type: 'inventory', variant: 'unit', data: { unit: u, specs: unitSpecs(u) } }], {
+    title: u.title,
+    metaTitle: u.title + (u.price ? ' — $' + Number(u.price).toLocaleString('en-US') : '') + ' | ' + company,
+    metaDescription: (u.description || u.title + ' at ' + company + '.').slice(0, 300),
+  }, settingsRow, '/inventory/' + u.slug, getSiteOrigin(c)))
+})
+
+// ── Visualizer + instant estimator ────────────────────────────────────────────
+// /visualize embeds the business's Twomiah Visualizer (VISION_URL — deploy sets it when they have it).
+// /estimate mounts crm-roof's instant estimator (CRM_API_URL + /estimator.js), only while the roofer
+// has it switched on in the CRM (its config answers 403 otherwise). Each page sends its own security
+// policy allowing exactly that one origin; every other page keeps the 'self'-only policy.
+const VISION_ORIGIN = (() => { try { const u = new URL(String(process.env.VISION_URL || '')); return u.protocol === 'https:' ? u.origin : '' } catch { return '' } })()
+const TOOL_CRM_ORIGIN = (() => { try { const u = new URL(String(process.env.CRM_API_URL || '')); return /^https?:$/.test(u.protocol) ? u.origin : '' } catch { return '' } })()
+let estimatorCache: { at: number; on: boolean } | null = null
+async function estimatorOn(): Promise<boolean> {
+  const slug = process.env.TENANT_SLUG || ''
+  if (!TOOL_CRM_ORIGIN || !slug) return false
+  if (estimatorCache && Date.now() - estimatorCache.at < 300_000) return estimatorCache.on
+  let on = false
+  try {
+    const r = await fetch(TOOL_CRM_ORIGIN + '/api/estimator/config/' + encodeURIComponent(slug), { signal: AbortSignal.timeout(6000) })
+    on = r.ok
+  } catch { on = false }
+  estimatorCache = { at: Date.now(), on }
+  return on
+}
+async function toolNav(): Promise<Array<{ label: string; href: string }>> {
+  const out: Array<{ label: string; href: string }> = []
+  if (await estimatorOn()) out.push({ label: 'Instant estimate', href: '/estimate' })
+  if (VISION_ORIGIN) out.push({ label: 'Visualizer', href: '/visualize' })
+  return out
+}
+function pagePolicy(extra: { frame?: string; script?: string; connect?: string }): string {
+  return [
+    "default-src 'self'",
+    "img-src 'self' data: https:",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "script-src 'self' 'unsafe-inline'" + (extra.script ? ' ' + extra.script : ''),
+    "connect-src 'self'" + (extra.connect ? ' ' + extra.connect : ''),
+    ...(extra.frame ? ['frame-src ' + extra.frame] : []),
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ')
+}
+
+app.get('/visualize', async (c, next) => {
+  if (!VISION_ORIGIN) return next()
+  const settingsRow = await loadSettings()
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const sections = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: company, title: 'See it on your home', subtitle: 'Upload a photo of your house and try materials and colors before any work begins.' } },
+    { type: 'tools', variant: 'visualizer', data: { src: VISION_ORIGIN + '/embed?tenant=' + encodeURIComponent(process.env.TENANT_SLUG || '') } },
+    contactCta(settingsRow, company),
+  ]
+  c.header('Content-Security-Policy', pagePolicy({ frame: VISION_ORIGIN }))
+  c.header('Permissions-Policy', 'camera=(self "' + VISION_ORIGIN + '"), microphone=(), geolocation=(), interest-cohort=()')
+  countView('/visualize')
+  return c.html(await renderSections(sections, { title: 'Visualizer', metaTitle: 'Visualizer | ' + company, metaDescription: 'Try materials and colors on a photo of your home with ' + company + '.' }, settingsRow, '/visualize', getSiteOrigin(c)))
+})
+
+app.get('/estimate', async (c, next) => {
+  if (!(await estimatorOn())) return next()
+  const settingsRow = await loadSettings()
+  const company = settingsRow?.companyName || process.env.SITE_NAME || ''
+  const sections = [
+    { type: 'hero', variant: 'centered-stats', data: { eyebrow: company, title: 'Instant roof estimate', subtitle: 'Enter your address to get a price range for your roof.' } },
+    { type: 'tools', variant: 'estimator', data: { crmOrigin: TOOL_CRM_ORIGIN, slug: process.env.TENANT_SLUG || '' } },
+    contactCta(settingsRow, company),
+  ]
+  c.header('Content-Security-Policy', pagePolicy({ script: TOOL_CRM_ORIGIN, connect: TOOL_CRM_ORIGIN }))
+  countView('/estimate')
+  return c.html(await renderSections(sections, { title: 'Instant estimate', metaTitle: 'Instant roof estimate | ' + company, metaDescription: 'Get a price range for your roof from ' + company + '.' }, settingsRow, '/estimate', getSiteOrigin(c)))
+})
+
+// Blog routes — must register before the catch-all `/:slug` below or
+// Hono dispatches /blog to the slug handler first.
+app.get('/blog', async (c) => {
+  const settings = await loadSettings()
+  if (!settings) return c.text('Blog not configured yet.', 503)
+  const rows = await db.select().from(postsTbl).where(eq(postsTbl.status, 'published')).orderBy(desc(postsTbl.publishedAt))
+  const listHtml = rows.length === 0
+    ? '<p class="blog-empty">No posts yet. Check back soon.</p>'
+    : '<div class="blog-list">' + rows.map(r => {
+        const date = r.publishedAt ? new Date(r.publishedAt as any).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
+        return `<a class="blog-card" href="/blog/${r.slug}">
+          ${r.coverImageUrl ? `<img class="blog-card__cover" src="${r.coverImageUrl}" alt="" loading="lazy">` : ''}
+          <div class="blog-card__body">
+            ${date ? `<div class="blog-card__date">${date}</div>` : ''}
+            <h2 class="blog-card__title">${r.title}</h2>
+            ${r.excerpt ? `<p class="blog-card__excerpt">${r.excerpt}</p>` : ''}
+            <span class="blog-card__more">Read →</span>
+          </div>
+        </a>`
+      }).join('') + '</div>'
+  const body = '<section class="blog-section"><div class="container"><h1 class="blog-section__title">From the blog</h1>' + listHtml + '</div></section>'
+  const effectiveSettings = {
+    ...settings,
+    siteOrigin: getSiteOrigin(c),
+    homeHref: '/',
+    contactHref: '/contact',
+    seoTitle: 'Blog · ' + (settings.companyName || 'Our blog'),
+    seoDescription: settings.seoDescription || 'Recent posts from ' + (settings.companyName || 'the team') + '.',
+    nav: settings.nav || [],
+  }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog' }) as string
+  return c.html(html)
+})
+
+app.get('/blog/:slug', async (c) => {
+  const slug = c.req.param('slug')
+  const settings = await loadSettings()
+  if (!settings) return c.text('Blog not configured yet.', 503)
+  const rows = await db.select().from(postsTbl).where(eq(postsTbl.slug, slug as string)).limit(1)
+  const post = rows[0]
+  if (!post || post.status !== 'published') return c.notFound()
+  const date = post.publishedAt ? new Date(post.publishedAt as any).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
+  const body = `<article class="blog-post">
+    <div class="container container--narrow">
+      <a class="blog-post__back" href="/blog">← All posts</a>
+      ${post.coverImageUrl ? `<img class="blog-post__cover" src="${post.coverImageUrl}" alt="">` : ''}
+      ${date ? `<div class="blog-post__date">${date}</div>` : ''}
+      <h1 class="blog-post__title">${post.title}</h1>
+      ${post.excerpt ? `<p class="blog-post__excerpt">${post.excerpt}</p>` : ''}
+      <div class="blog-post__body">${markdownToHtml(post.body || '')}</div>
+    </div>
+  </article>`
+  const effectiveSettings = {
+    ...settings,
+    siteOrigin: getSiteOrigin(c),
+    homeHref: '/',
+    contactHref: '/contact',
+    seoTitle: post.metaTitle || post.title + ' — ' + (settings.companyName || ''),
+    seoDescription: post.metaDescription || post.excerpt || '',
+    nav: settings.nav || [],
+  }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog/' + slug }) as string
+  return c.html(absolutizeHrefs(html))
+})
+
+// ─── Twomiah Bookings — public routes ────────────────────────────────────
+// Register BEFORE the catch-all `/:slug` below or Hono dispatches /book
+// to the slug handler first.
+
+import { generateSlots, pickCrewForSlot } from './lib/booking-slots'
+import { sendBookingConfirmationEmail, notifyOwnerOfBooking } from './lib/email'
+import { pushBookingEvent, deleteBookingEvent, listExternalBusyEvents } from './lib/google-calendar'
+import { pushBookingEventOutlook, deleteBookingEventOutlook, listExternalBusyEventsOutlook } from './lib/outlook-calendar'
+import { depositAmountFor, createDepositCheckoutSession, verifyStripeWebhook } from './lib/stripe-deposit'
+import {
+  bookingServices as bookingServicesTbl,
+  bookingAvailabilityRules as bookingAvailabilityRulesTbl,
+  bookingBlackouts as bookingBlackoutsTbl,
+  bookingServiceZones as bookingServiceZonesTbl,
+  bookings as bookingsTbl,
+} from './db/schema'
+
+const TENANT_TZ = process.env.TENANT_TIMEZONE || 'America/Chicago'
+
+function dateInTenantTz(d: Date): { isoDate: string; dayOfWeek: number; minuteOfDay: number } {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: TENANT_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
+  })
+  const parts = Object.fromEntries(fmt.formatToParts(d).map(p => [p.type, p.value]))
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return {
+    isoDate: parts.year + '-' + parts.month + '-' + parts.day,
+    dayOfWeek: dayMap[parts.weekday] ?? 0,
+    minuteOfDay: parseInt(parts.hour, 10) * 60 + parseInt(parts.minute, 10),
+  }
+}
+
+// Convert a tenant-TZ wall-clock time on a specific date to UTC. Naive
+// approach: build a Date as if local, then offset. We rely on the
+// tenant TZ offset being stable for the target date (DST handled by
+// Intl on the way back).
+function tenantDateTimeToUtc(isoDate: string, minuteOfDay: number): Date {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  const hour = Math.floor(minuteOfDay / 60), minute = minuteOfDay % 60
+  // Build a UTC Date at the wall-clock time then shift by tenant offset
+  const naive = new Date(Date.UTC(y, m - 1, d, hour, minute))
+  const tzString = new Intl.DateTimeFormat('en-US', {
+    timeZone: TENANT_TZ, timeZoneName: 'shortOffset',
+  }).formatToParts(naive).find(p => p.type === 'timeZoneName')?.value || 'GMT'
+  // Parse offset like "GMT-05:00"
+  const m2 = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(tzString)
+  if (!m2) return naive
+  const sign = m2[1] === '+' ? -1 : 1  // GMT-5 means we add 5 hours to get UTC
+  const offsetMinutes = sign * (parseInt(m2[2], 10) * 60 + parseInt(m2[3] || '0', 10))
+  return new Date(naive.getTime() + offsetMinutes * 60_000)
+}
+
+app.get('/book', async (c) => {
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const services = await db.select().from(bookingServicesTbl)
+    .where(eq(bookingServicesTbl.isActive, true))
+    .orderBy(asc(bookingServicesTbl.displayOrder), asc(bookingServicesTbl.name))
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const heroTitle = (settings as any).bookingHeroTitle || 'Book a service'
+  const body = services.length === 0
+    ? '<section class="book-empty"><div class="container"><h1>Bookings opening soon</h1><p>This business is setting up online booking. Use the contact form for now.</p></div></section>'
+    : `<section class="book-services"><div class="container"><h1 class="book-services__title">${escape(heroTitle)}</h1>${(settings as any).bookingHeroSubtitle ? `<p class="book-services__subtitle">${escape((settings as any).bookingHeroSubtitle)}</p>` : ''}<div class="book-services__grid">${services.map(s => {
+        const price = s.priceCents != null ? '$' + (s.priceCents / 100).toFixed(0) : ''
+        const dur = s.durationMinutes >= 60 ? (s.durationMinutes / 60) + ' hr' : s.durationMinutes + ' min'
+        return `<a class="service-card" href="/book/${escape(s.slug)}"><div class="service-card__body"><h2 class="service-card__name">${escape(s.name)}</h2>${s.description ? `<p class="service-card__desc">${escape(s.description)}</p>` : ''}<div class="service-card__meta"><span class="service-card__dur">${dur}</span>${price ? `<span class="service-card__price">${price}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`
+      }).join('')}</div></div></section>`
+  const effectiveSettings = { ...settings, siteOrigin: getSiteOrigin(c), homeHref: '/', contactHref: '/contact', seoTitle: 'Book online · ' + (settings.companyName || ''), seoDescription: 'Pick a service and time that works for you.', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book' }) as string
+  return c.html(html)
+})
+
+// MUST be declared before `/book/:serviceSlug` so Hono doesn't try to
+// look up a service with slug="thanks" → 404.
+app.get('/book/thanks', async (c) => {
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const id = c.req.query('id')
+  if (!id) return c.notFound()
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.id, id as string)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const dateStr = (booking.startAt as Date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZone: TENANT_TZ })
+  const body = `<section class="book-thanks"><div class="container container--narrow">
+    <div class="book-thanks__check">✓</div>
+    <h1>${escape((settings as any).bookingThanksMessage || "You're booked.")}</h1>
+    <p class="book-thanks__lead">A confirmation is on its way to <strong>${escape(booking.customerEmail)}</strong>.</p>
+    <div class="book-thanks__summary">
+      <div><span>Service</span><strong>${escape(service?.name || 'Service')}</strong></div>
+      <div><span>When</span><strong>${escape(dateStr)}</strong></div>
+      ${booking.customerAddress ? `<div><span>Where</span><strong>${escape(booking.customerAddress)}</strong></div>` : ''}
+    </div>
+    <p class="book-thanks__addcal">Add to your calendar: <a href="/book/${booking.id}/ics">Apple / Outlook</a> · <a href="${googleCalendarLink(booking, service?.name || 'Booking')}" target="_blank" rel="noopener noreferrer">Google</a></p>
+  </div></section>`
+  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Booking confirmed', seoDescription: 'Your booking is confirmed.', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book/thanks' }) as string
+  return c.html(html)
+})
+
+app.get('/book/:serviceSlug', async (c) => {
+  const slug = c.req.param('serviceSlug')!
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.slug, slug)).limit(1))[0]
+  if (!service || !service.isActive) return c.notFound()
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const body = `<section class="book-picker"><div class="container container--narrow">
+    <a class="book-picker__back" href="/book">← All services</a>
+    <h1 class="book-picker__title">${escape(service.name)}</h1>
+    ${service.description ? `<p class="book-picker__desc">${escape(service.description)}</p>` : ''}
+    <div id="book-flow" data-service-slug="${escape(service.slug)}" data-service-name="${escape(service.name)}" data-duration="${service.durationMinutes}" data-price-cents="${service.priceCents ?? ''}">
+      <ol class="book-progress" aria-label="Booking progress">
+        <li class="book-progress__step is-active" data-step="date"><span class="book-progress__num">1</span><span class="book-progress__label">Date</span></li>
+        <li class="book-progress__step" data-step="slot"><span class="book-progress__num">2</span><span class="book-progress__label">Time</span></li>
+        <li class="book-progress__step" data-step="form"><span class="book-progress__num">3</span><span class="book-progress__label">Details</span></li>
+      </ol>
+      <div class="book-step book-step--date">
+        <h2>Pick a date</h2>
+        <div class="book-zip"><label>Your ZIP code <input type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="53703" id="book-zip-input"></label></div>
+        <div class="book-dates" id="book-dates"></div>
+      </div>
+      <div class="book-step book-step--slot" hidden>
+        <h2>Pick a time</h2>
+        <div class="book-slots" id="book-slots"></div>
+      </div>
+      <div class="book-step book-step--form" hidden>
+        <h2>Your details</h2>
+        <form id="book-form" autocomplete="on">
+          <input type="hidden" name="serviceSlug" value="${escape(service.slug)}">
+          <input type="hidden" name="startAtIso" id="book-start">
+          <input type="hidden" name="customerZip" id="book-zip-hidden">
+          <label>Name<input type="text" name="customerName" required autocomplete="name"></label>
+          <label>Email<input type="email" name="customerEmail" required autocomplete="email"></label>
+          <label>Phone<input type="tel" name="customerPhone" autocomplete="tel"></label>
+          <label>Address<input type="text" name="customerAddress" autocomplete="street-address"></label>
+          <label>Anything we should know? (optional)<textarea name="customerNotes" rows="3"></textarea></label>
+          ${service.priceCents && (settings as any)?.bookingTipPromptEnabled !== false ? `<div class="book-tip">
+            <label>Add a tip (optional)</label>
+            <div class="book-tip-row" id="book-tip-row" data-base="${service.priceCents}">
+              <button type="button" data-tip="0" class="book-tip-btn is-active">None</button>
+              <button type="button" data-tip="15" class="book-tip-btn">15%</button>
+              <button type="button" data-tip="20" class="book-tip-btn">20%</button>
+              <button type="button" data-tip="25" class="book-tip-btn">25%</button>
+            </div>
+            <input type="hidden" name="tipAmountCents" id="book-tip-cents" value="0">
+          </div>` : ''}
+          <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;" aria-hidden="true">
+          <input type="hidden" name="t" id="book-form-t">
+          <button type="submit" class="book-submit">${escape((settings as any).bookingConfirmCta || 'Confirm booking')}</button>
+          <div class="book-error" id="book-error" hidden></div>
+        </form>
+      </div>
+    </div>
+  </div></section>
+  <script src="/scripts/book-flow.js" defer></script>`
+  const effectiveSettings = { ...settings, siteOrigin: getSiteOrigin(c), homeHref: '/', contactHref: '/contact', seoTitle: 'Book ' + service.name + ' · ' + (settings.companyName || ''), seoDescription: service.description || '', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book/' + slug }) as string
+  return c.html(html)
+})
+
+// JSON endpoint the slot picker queries when the customer picks a date
+app.get('/book/:serviceSlug/slots', async (c) => {
+  const slug = c.req.param('serviceSlug')!
+  const dateStr = c.req.query('date') || ''
+  const customerZip = (c.req.query('zip') || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return c.json({ error: 'date required' }, 400)
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.slug, slug)).limit(1))[0]
+  if (!service || !service.isActive) return c.json({ error: 'service not found' }, 404)
+  const settings = await loadSettings()
+
+  // Figure out which day-of-week this date falls on in tenant TZ
+  const noonOfDate = new Date(dateStr + 'T12:00:00Z')
+  const { dayOfWeek } = dateInTenantTz(noonOfDate)
+
+  const rules = await db.select().from(bookingAvailabilityRulesTbl).where(eq(bookingAvailabilityRulesTbl.isActive, true))
+  const blackouts = await db.select().from(bookingBlackoutsTbl).where(eq(bookingBlackoutsTbl.date, dateStr))
+  const zones = await db.select().from(bookingServiceZonesTbl)
+  // Existing bookings overlapping the target date — pull anything that
+  // starts on the same date in tenant TZ, project to minutes
+  const dayStart = tenantDateTimeToUtc(dateStr, 0)
+  const dayEnd = tenantDateTimeToUtc(dateStr, 24 * 60)
+  const dayBookings = await db.select().from(bookingsTbl)
+    .where(and(gte(bookingsTbl.startAt, dayStart), lte(bookingsTbl.startAt, dayEnd), eq(bookingsTbl.status, 'confirmed')))
+  const projected = dayBookings.map(b => ({
+    assignedUserId: b.assignedUserId,
+    startMinute: dateInTenantTz(b.startAt as any).minuteOfDay,
+    endMinute: dateInTenantTz(b.endAt as any).minuteOfDay,
+    status: b.status,
+  }))
+
+  // External (Google Cal) busy events become virtual existing bookings.
+  // We dedupe against bookings we already pushed to those calendars.
+  const externalBusy = await externalBusyForDate({
+    dateStr, dayStart, dayEnd,
+    ourBookings: dayBookings.map(b => ({ assignedUserId: b.assignedUserId, externalCalendarEventId: b.externalCalendarEventId })),
+  })
+
+  const slots = generateSlots({
+    dayOfWeek,
+    service: {
+      durationMinutes: service.durationMinutes,
+      bufferBeforeMinutes: service.bufferBeforeMinutes,
+      bufferAfterMinutes: service.bufferAfterMinutes,
+      slotGranularityMinutes: service.slotGranularityMinutes,
+      capacityPerSlot: service.capacityPerSlot,
+      driveTimeMinutes: (settings as any)?.bookingDefaultDriveTimeMinutes || 0,
+    },
+    rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
+    blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
+    existingBookings: [...projected, ...externalBusy],
+    zone: customerZip ? { customerZip, serviceZones: zones.map(z => ({ userId: z.userId, zipList: z.zipList })) } : undefined,
+  })
+
+  return c.json({
+    slots: slots.map(s => ({
+      startMinute: s.startMinute,
+      label: minuteToLabel(s.startMinute),
+      startAtIso: tenantDateTimeToUtc(dateStr, s.startMinute).toISOString(),
+    })),
+  })
+})
+
+// Fetches external busy events from every connected calendar that
+// overlaps the target date, projects them into the slot generator's
+// ExistingBooking shape, and dedupes against bookings we already pushed
+// to that calendar (so we don't double-count a booking we created).
+async function externalBusyForDate(opts: {
+  dateStr: string
+  dayStart: Date
+  dayEnd: Date
+  ourBookings: Array<{ assignedUserId: string | null; externalCalendarEventId: string | null }>
+}): Promise<Array<{ assignedUserId: string | null; startMinute: number; endMinute: number; status: string }>> {
+  const { bookingCalendarConnections } = await import('./db/schema')
+  // Map userId -> set of providers they've connected
+  const conns = await db.select({ userId: bookingCalendarConnections.userId, provider: bookingCalendarConnections.provider })
+    .from(bookingCalendarConnections)
+  if (conns.length === 0) return []
+
+  const ourEventIds = new Set(opts.ourBookings.map(b => b.externalCalendarEventId).filter(Boolean) as string[])
+
+  const out: Array<{ assignedUserId: string | null; startMinute: number; endMinute: number; status: string }> = []
+  const projectEvent = (userId: string, ev: { eventId: string; startUtc: Date; endUtc: Date }) => {
+    if (ourEventIds.has(ev.eventId)) return
+    const startProj = dateInTenantTz(ev.startUtc)
+    const endProj = dateInTenantTz(ev.endUtc)
+    const startMin = startProj.isoDate === opts.dateStr ? startProj.minuteOfDay : 0
+    const endMin = endProj.isoDate === opts.dateStr ? endProj.minuteOfDay : 24 * 60
+    if (endMin <= startMin) return
+    out.push({ assignedUserId: userId, startMinute: startMin, endMinute: endMin, status: 'confirmed' })
+  }
+  for (const c of conns) {
+    const list = c.provider === 'google'
+      ? await listExternalBusyEvents({ userId: c.userId, timeMin: opts.dayStart, timeMax: opts.dayEnd })
+      : c.provider === 'outlook'
+        ? await listExternalBusyEventsOutlook({ userId: c.userId, timeMin: opts.dayStart, timeMax: opts.dayEnd })
+        : null
+    if (!list) continue
+    for (const ev of list) projectEvent(c.userId, ev)
+  }
+  return out
+}
+
+function minuteToLabel(min: number): string {
+  const h = Math.floor(min / 60), m = min % 60
+  const am = h < 12
+  const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return displayH + (m === 0 ? '' : ':' + String(m).padStart(2, '0')) + (am ? ' AM' : ' PM')
+}
+
+// In-memory rate limit for public booking POSTs — 3 per IP per hour
+const bookBuckets = new Map<string, number[]>()
+function bookIp(c: any): string {
+  const xff = c.req.header('X-Forwarded-For') || ''
+  if (xff) return xff.split(',')[0].trim()
+  return c.req.header('CF-Connecting-IP') || c.req.header('X-Real-IP') || 'unknown'
+}
+
+// SMS via the connected CRM's Twilio. We don't bundle Twilio here —
+// the CRM holds the credentials. Internal endpoint protected by
+// FACTORY_SYNC_KEY. Best-effort; silently swallows failures so the
+// booking still confirms.
+async function sendBookingSmsConfirmation(opts: { url: string; key: string; to: string; body: string }): Promise<void> {
+  await fetch(opts.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Factory-Key': opts.key },
+    body: JSON.stringify({ to: opts.to, body: opts.body }),
+  })
+}
+
+function siteOrigin(c: any): string {
+  const explicit = process.env.SITE_URL
+  if (explicit) return explicit.replace(/\/$/, '')
+  const host = c.req.header('Host') || 'localhost'
+  const proto = c.req.header('X-Forwarded-Proto') || (host.startsWith('localhost') ? 'http' : 'https')
+  return proto + '://' + host
+}
+
+function googleCalendarLink(booking: any, title: string): string {
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: fmt(booking.startAt) + '/' + fmt(booking.endAt),
+    details: 'Booking #' + (booking.id || '').slice(0, 8),
+    location: booking.customerAddress || '',
+  })
+  return 'https://www.google.com/calendar/render?' + params.toString()
+}
+
+app.get('/book/:id/ics', async (c) => {
+  const id = c.req.param('id')!
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.id, id)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  const settings = await loadSettings()
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Twomiah//Bookings//EN',
+    'BEGIN:VEVENT',
+    'UID:' + booking.id + '@twomiah',
+    'DTSTAMP:' + fmt(new Date()),
+    'DTSTART:' + fmt(booking.startAt as Date),
+    'DTEND:' + fmt(booking.endAt as Date),
+    'SUMMARY:' + (service?.name || 'Booking') + ' — ' + (settings?.companyName || ''),
+    'DESCRIPTION:Booking confirmation. Reschedule or cancel: open the link in your confirmation email.',
+    booking.customerAddress ? 'LOCATION:' + booking.customerAddress : '',
+    'END:VEVENT', 'END:VCALENDAR',
+  ].filter(Boolean).join('\r\n')
+  return new Response(ics, { headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'attachment; filename="booking.ics"' } })
+})
+
+app.post('/book/:serviceSlug', async (c) => {
+  const slug = c.req.param('serviceSlug')!
+  try {
+    const ip = bookIp(c)
+    const now = Date.now()
+    const times = (bookBuckets.get(ip) || []).filter(t => now - t < 60 * 60_000)
+    if (times.length >= 3) {
+      c.res.headers.set('Retry-After', String(Math.ceil((60 * 60_000 - (now - times[0])) / 1000)))
+      return c.json({ error: 'Too many booking attempts. Please try again later.' }, 429)
+    }
+    times.push(now); bookBuckets.set(ip, times)
+
+    const body = await c.req.parseBody() as Record<string, any>
+    // Honeypot + dwell-time
+    if (String(body.website || '').trim()) return c.json({ ok: true, booking: { id: 'silent' } })
+    const stamp = parseInt(String(body.t || '0'), 10)
+    if (stamp > 0 && Date.now() - stamp < 2000) return c.json({ ok: true, booking: { id: 'silent' } })
+
+    const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.slug, slug)).limit(1))[0]
+    if (!service || !service.isActive) return c.json({ error: 'service not found' }, 404)
+
+    const startAtIso = String(body.startAtIso || '')
+    const startAt = new Date(startAtIso)
+    if (isNaN(startAt.getTime())) return c.json({ error: 'invalid start time' }, 400)
+    if (startAt.getTime() < Date.now() + 30 * 60_000) return c.json({ error: 'start time must be at least 30 minutes from now' }, 400)
+    const endAt = new Date(startAt.getTime() + service.durationMinutes * 60_000)
+
+    const name = String(body.customerName || '').trim()
+    const email = String(body.customerEmail || '').trim()
+    if (!name || !email) return c.json({ error: 'name and email are required' }, 400)
+
+    // Banned customer gate — silently 200 (don't tip them off to the ban).
+    // Match by lowercased email OR digits-only phone.
+    const { bookingBans } = await import('./db/schema')
+    const phoneDigits = String(body.customerPhone || '').replace(/\D/g, '')
+    const banChecks: any[] = []
+    if (email) banChecks.push(eq(bookingBans.email, email.toLowerCase()))
+    if (phoneDigits) banChecks.push(eq(bookingBans.phone, phoneDigits))
+    if (banChecks.length > 0) {
+      const banned = await db.select().from(bookingBans).where(banChecks.length === 1 ? banChecks[0] : (await import('drizzle-orm')).or(...banChecks)).limit(1)
+      if (banned[0]) {
+        return c.json({ ok: true, booking: { id: 'pending' } })  // silent drop
+      }
+    }
+
+    // Re-verify this slot is still available, server-side. Cheap because
+    // we're already in the same transaction shape.
+    const settings = await loadSettings()
+    const { dayOfWeek } = dateInTenantTz(startAt)
+    const dateStr = dateInTenantTz(startAt).isoDate
+    const startMinuteWanted = dateInTenantTz(startAt).minuteOfDay
+    const rules = await db.select().from(bookingAvailabilityRulesTbl).where(eq(bookingAvailabilityRulesTbl.isActive, true))
+    const blackouts = await db.select().from(bookingBlackoutsTbl).where(eq(bookingBlackoutsTbl.date, dateStr))
+    const zones = await db.select().from(bookingServiceZonesTbl)
+    const verifyDayStart = tenantDateTimeToUtc(dateStr, 0)
+    const verifyDayEnd = tenantDateTimeToUtc(dateStr, 24 * 60)
+    const dayBookings = await db.select().from(bookingsTbl)
+      .where(and(gte(bookingsTbl.startAt, verifyDayStart), lte(bookingsTbl.startAt, verifyDayEnd), eq(bookingsTbl.status, 'confirmed')))
+    const externalBusy = await externalBusyForDate({
+      dateStr, dayStart: verifyDayStart, dayEnd: verifyDayEnd,
+      ourBookings: dayBookings.map(b => ({ assignedUserId: b.assignedUserId, externalCalendarEventId: b.externalCalendarEventId })),
+    })
+    const slots = generateSlots({
+      dayOfWeek,
+      service: {
+        durationMinutes: service.durationMinutes,
+        bufferBeforeMinutes: service.bufferBeforeMinutes,
+        bufferAfterMinutes: service.bufferAfterMinutes,
+        slotGranularityMinutes: service.slotGranularityMinutes,
+        capacityPerSlot: service.capacityPerSlot,
+      },
+      rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
+      blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
+      existingBookings: [
+        ...dayBookings.map(b => ({ assignedUserId: b.assignedUserId, startMinute: dateInTenantTz(b.startAt as any).minuteOfDay, endMinute: dateInTenantTz(b.endAt as any).minuteOfDay, status: b.status })),
+        ...externalBusy,
+      ],
+      zone: String(body.customerZip || '').trim() ? { customerZip: String(body.customerZip).trim(), serviceZones: zones.map(z => ({ userId: z.userId, zipList: z.zipList })) } : undefined,
+    })
+    const matchingSlot = slots.find(s => s.startMinute === startMinuteWanted)
+    if (!matchingSlot) return c.json({ error: 'That slot is no longer available. Please pick another.' }, 409)
+    const assignedUserId = pickCrewForSlot(matchingSlot.qualifyingUserIds)
+    const confirmationToken = crypto.randomBytes(24).toString('base64url')
+
+    const customerAddress = String(body.customerAddress || '').trim() || null
+    const customerNotes = String(body.customerNotes || '').trim() || null
+    const customerPhone = String(body.customerPhone || '').trim() || null
+    // Optional tip — sent as cents from the form's hidden field
+    const tipAmountCents = parseInt(String(body.tipAmountCents || '0'), 10) || null
+    const [created] = await db.insert(bookingsTbl).values({
+      serviceId: service.id,
+      startAt, endAt,
+      customerName: name,
+      customerEmail: email,
+      customerPhone,
+      customerAddress,
+      customerZip: String(body.customerZip || '').trim() || null,
+      customerNotes,
+      assignedUserId,
+      confirmationToken,
+      source: 'public_form',
+      sourcePath: String(body.sourcePath || '').trim() || null,
+      sourceReferrer: String(body.sourceReferrer || '').trim() || null,
+      sourceVariant: String(body.sourceVariant || '').trim() || null,
+      tipAmountCents,
+    }).returning({ id: bookingsTbl.id })
+
+    // Fire-and-forget customer + owner emails. SMS to customer fires
+    // through the CRM's existing Twilio integration via internal API
+    // (not implemented yet — falls through silently if SMS_INTERNAL_URL
+    // isn't set).
+    const settingsForEmail = await loadSettings()
+    const ownerEmail = (settingsForEmail as any)?.email || ''
+    const ctx = {
+      serviceName: service.name,
+      startAt, endAt,
+      customerName: name,
+      customerEmail: email,
+      customerAddress,
+      customerNotes,
+      manageUrl: siteOrigin(c) + '/booking/' + confirmationToken,
+      icsUrl: siteOrigin(c) + '/book/' + created.id + '/ics',
+      tenantTz: TENANT_TZ,
+    }
+    sendBookingConfirmationEmail({
+      ...ctx,
+      subjectOverride: (settingsForEmail as any)?.bookingConfirmEmailSubject || null,
+      introOverride: (settingsForEmail as any)?.bookingConfirmEmailIntro || null,
+    }).catch(e => console.warn('[book] customer email failed:', e?.message))
+    // Fire outbound webhooks for booking.created
+    const { fireBookingWebhook } = await import('./lib/webhooks')
+    fireBookingWebhook('booking.created', {
+      id: created.id,
+      serviceSlug: service.slug, serviceName: service.name,
+      startAt: startAt.toISOString(), endAt: endAt.toISOString(),
+      customerName: name, customerEmail: email,
+      customerPhone, customerAddress,
+    }).catch(() => {})
+    if (ownerEmail) {
+      notifyOwnerOfBooking({ ...ctx, ownerEmail }).catch(e => console.warn('[book] owner email failed:', e?.message))
+    }
+    // Push to assigned crew's Google Calendar if connected. Capture the
+    // event ID so admin updates/cancellations can patch the same event.
+    // Fallback: when the booking has no assigned crew (availability rules
+    // use the null wildcard for solo operators), push to whoever has a
+    // calendar connected — otherwise the connected calendar would
+    // silently never receive events.
+    let pushUserId: string | null = assignedUserId
+    if (!pushUserId) {
+      const { bookingCalendarConnections: bcc } = await import('./db/schema')
+      const conn = await db.select({ userId: bcc.userId }).from(bcc).limit(1)
+      pushUserId = conn[0]?.userId || null
+    }
+    if (pushUserId) {
+      const bookingForCal = {
+        id: created.id,
+        startAt, endAt,
+        customerName: name, customerEmail: email,
+        customerPhone, customerAddress, customerNotes,
+        externalCalendarEventId: null,
+      }
+      const svc = { name: service.name, description: service.description }
+      const companyName = (settingsForEmail as any)?.companyName || undefined
+      // Try Google first, fall back to Outlook. A crew can only have one
+      // provider connected at a time in V1 — if both rows exist, Google wins.
+      pushBookingEvent({ userId: pushUserId, booking: bookingForCal, service: svc, companyName })
+        .then(async eventId => {
+          if (eventId) {
+            await db.update(bookingsTbl).set({ externalCalendarEventId: eventId }).where(eq(bookingsTbl.id, created.id)).catch(() => {})
+            return
+          }
+          const outlookId = await pushBookingEventOutlook({ userId: pushUserId!, booking: bookingForCal, service: svc, companyName })
+          if (outlookId) await db.update(bookingsTbl).set({ externalCalendarEventId: outlookId }).where(eq(bookingsTbl.id, created.id)).catch(() => {})
+        })
+        .catch(e => console.warn('[book] external cal push failed:', e?.message))
+    }
+    if (customerPhone && process.env.SMS_INTERNAL_URL) {
+      sendBookingSmsConfirmation({
+        url: process.env.SMS_INTERNAL_URL,
+        key: process.env.FACTORY_SYNC_KEY || '',
+        to: customerPhone,
+        body: 'Booking confirmed: ' + service.name + ' on ' + (startAt.toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short', timeZone: TENANT_TZ })) + '. Manage: ' + ctx.manageUrl,
+      }).catch(e => console.warn('[book] customer sms failed:', e?.message))
+    }
+
+    // Stripe deposit (+ optional tip rolled in). If service requires
+    // a deposit, customer's tip is added to the Checkout amount so we
+    // collect it in one transaction.
+    const depositAmount = depositAmountFor(service)
+    const totalDepositCents = depositAmount > 0 ? depositAmount + (tipAmountCents || 0) : 0
+    if (totalDepositCents > 0) {
+      const checkout = await createDepositCheckoutSession({
+        amountCents: totalDepositCents,
+        serviceName: service.name + (tipAmountCents ? ' (incl. tip)' : ''),
+        customerEmail: email,
+        bookingId: created.id,
+        successUrl: siteOrigin(c) + '/book/thanks?id=' + created.id + '&deposit=paid',
+        cancelUrl: siteOrigin(c) + '/booking/' + confirmationToken + '?deposit=cancelled',
+      })
+      if (checkout) {
+        await db.update(bookingsTbl).set({
+          depositAmountCents: depositAmount,
+          depositStatus: 'pending',
+        }).where(eq(bookingsTbl.id, created.id))
+        return c.json({ ok: true, booking: { id: created.id, confirmationToken }, depositCheckoutUrl: checkout.url })
+      }
+      // Falling through — deposit configured but Stripe failed, log + still confirm
+      console.warn('[book] deposit checkout failed for booking ' + created.id)
+    }
+    return c.json({ ok: true, booking: { id: created.id, confirmationToken } })
+  } catch (err: any) {
+    console.error('[book] insert failed:', err.message)
+    return c.json({ error: 'Could not save your booking. Please try again.' }, 500)
+  }
+})
+
+// Stripe webhook for deposit payment status. Flips booking
+// depositStatus='paid' when the deposit checkout completes.
+app.post('/api/webhooks/stripe-deposit', async (c) => {
+  const signature = c.req.header('Stripe-Signature') || ''
+  const raw = await c.req.text()
+  if (!verifyStripeWebhook(signature, raw)) return c.json({ error: 'invalid signature' }, 400)
+  let event: any
+  try { event = JSON.parse(raw) } catch { return c.json({ error: 'invalid payload' }, 400) }
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data?.object || {}
+    const bookingId = session.metadata?.booking_id
+    if (bookingId) {
+      await db.update(bookingsTbl).set({
+        depositStatus: 'paid',
+        depositPaymentIntentId: session.payment_intent || null,
+      }).where(eq(bookingsTbl.id, bookingId))
+    }
+  } else if (event.type === 'checkout.session.expired') {
+    const session = event.data?.object || {}
+    const bookingId = session.metadata?.booking_id
+    if (bookingId) {
+      await db.update(bookingsTbl).set({
+        status: 'cancelled',
+        depositStatus: null,
+        cancelledAt: new Date(),
+        cancelledReason: 'deposit_not_paid',
+      }).where(eq(bookingsTbl.id, bookingId))
+    }
+  }
+  return c.json({ received: true })
+})
+
+// Customer self-service reschedule. Reuses the slot-list endpoint
+// (filtered to the same service) so the picker is identical to the
+// initial booking flow. New slot validated server-side, atomic update
+// on the same booking row, calendar event patched.
+app.get('/booking/:token/reschedule', async (c) => {
+  const token = c.req.param('token')!
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.confirmationToken, token)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  if (booking.status !== 'confirmed') return c.redirect('/booking/' + token)
+  if ((booking.startAt as Date).getTime() < Date.now() + 60 * 60_000) return c.redirect('/booking/' + token + '?reschedule=too-late')
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  if (!service) return c.notFound()
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const currentLabel = (booking.startAt as Date).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short', timeZone: TENANT_TZ })
+  const body = `<section class="book-picker"><div class="container container--narrow">
+    <a class="book-picker__back" href="/booking/${escape(token)}">← Booking</a>
+    <h1 class="book-picker__title">Reschedule</h1>
+    <p class="book-picker__desc">Currently booked for <strong>${escape(currentLabel)}</strong>. Pick a new time below.</p>
+    <div id="book-flow" data-service-slug="${escape(service.slug)}" data-reschedule-token="${escape(token)}" data-duration="${service.durationMinutes}">
+      <div class="book-step book-step--date">
+        <h2>Pick a date</h2>
+        <div class="book-dates" id="book-dates"></div>
+      </div>
+      <div class="book-step book-step--slot" hidden>
+        <h2>Pick a time</h2>
+        <div class="book-slots" id="book-slots"></div>
+      </div>
+      <div class="book-step book-step--form" hidden>
+        <form id="book-form">
+          <input type="hidden" name="startAtIso" id="book-start">
+          <button type="submit" class="book-submit">Confirm new time</button>
+          <div class="book-error" id="book-error" hidden></div>
+        </form>
+      </div>
+    </div>
+  </div></section>
+  <script src="/scripts/book-flow.js" defer></script>`
+  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Reschedule', seoDescription: '', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/booking/' + token + '/reschedule' }) as string
+  return c.html(html)
+})
+
+app.post('/booking/:token/reschedule', async (c) => {
+  const token = c.req.param('token')!
+  const body = await c.req.parseBody() as Record<string, any>
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.confirmationToken, token)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  if (booking.status !== 'confirmed') return c.json({ error: 'Cannot reschedule a non-confirmed booking' }, 409)
+  if ((booking.startAt as Date).getTime() < Date.now() + 60 * 60_000) {
+    return c.json({ error: 'Too late to reschedule (within 1 hour of start time).' }, 409)
+  }
+  const newStartIso = String(body.startAtIso || '')
+  const newStart = new Date(newStartIso)
+  if (isNaN(newStart.getTime())) return c.json({ error: 'Invalid start time' }, 400)
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  if (!service) return c.notFound()
+  const settings = await loadSettings()
+
+  // Server-side slot re-verification at the new time
+  const dateStr = dateInTenantTz(newStart).isoDate
+  const dayOfWeek = dateInTenantTz(newStart).dayOfWeek
+  const startMinuteWanted = dateInTenantTz(newStart).minuteOfDay
+  const rules = await db.select().from(bookingAvailabilityRulesTbl).where(eq(bookingAvailabilityRulesTbl.isActive, true))
+  const blackouts = await db.select().from(bookingBlackoutsTbl).where(eq(bookingBlackoutsTbl.date, dateStr))
+  const dayStart = tenantDateTimeToUtc(dateStr, 0)
+  const dayEnd = tenantDateTimeToUtc(dateStr, 24 * 60)
+  const dayBookings = (await db.select().from(bookingsTbl)
+    .where(and(gte(bookingsTbl.startAt, dayStart), lte(bookingsTbl.startAt, dayEnd), eq(bookingsTbl.status, 'confirmed'))))
+    .filter(b => b.id !== booking.id)  // exclude ourselves so we can re-pick our own slot if we want
+  const slots = generateSlots({
+    dayOfWeek,
+    service: {
+      durationMinutes: service.durationMinutes,
+      bufferBeforeMinutes: service.bufferBeforeMinutes,
+      bufferAfterMinutes: service.bufferAfterMinutes,
+      slotGranularityMinutes: service.slotGranularityMinutes,
+      capacityPerSlot: service.capacityPerSlot,
+      driveTimeMinutes: (settings as any)?.bookingDefaultDriveTimeMinutes || 0,
+    },
+    rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
+    blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
+    existingBookings: dayBookings.map(b => ({ assignedUserId: b.assignedUserId, startMinute: dateInTenantTz(b.startAt as any).minuteOfDay, endMinute: dateInTenantTz(b.endAt as any).minuteOfDay, status: b.status })),
+  })
+  if (!slots.find(s => s.startMinute === startMinuteWanted)) {
+    return c.json({ error: 'That slot is no longer available. Pick another.' }, 409)
+  }
+
+  const newEnd = new Date(newStart.getTime() + service.durationMinutes * 60_000)
+  await db.update(bookingsTbl).set({
+    startAt: newStart, endAt: newEnd, updatedAt: new Date(),
+  }).where(eq(bookingsTbl.id, booking.id))
+
+  // Patch the external calendar event if connected
+  if (booking.assignedUserId && booking.externalCalendarEventId) {
+    const { patchBookingEvent } = await import('./lib/google-calendar')
+    const settingsRow = await loadSettings()
+    patchBookingEvent({
+      userId: booking.assignedUserId,
+      eventId: booking.externalCalendarEventId,
+      booking: {
+        id: booking.id, startAt: newStart, endAt: newEnd,
+        customerName: booking.customerName, customerEmail: booking.customerEmail,
+        customerPhone: booking.customerPhone, customerAddress: booking.customerAddress, customerNotes: booking.customerNotes,
+        externalCalendarEventId: booking.externalCalendarEventId,
+      },
+      service: { name: service.name, description: service.description },
+      companyName: (settingsRow as any)?.companyName || undefined,
+    }).catch(() => {})
+  }
+
+  return c.json({ ok: true, booking: { id: booking.id, startAt: newStart.toISOString() } })
+})
+
+// Customer self-service: view + cancel a booking using the
+// confirmation token from their email.
+app.get('/booking/:token', async (c) => {
+  const token = c.req.param('token') as string
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.confirmationToken, token)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const dateStr = (booking.startAt as Date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZone: TENANT_TZ })
+  const statusLabel = booking.status === 'cancelled' ? 'Cancelled' : booking.status === 'completed' ? 'Completed' : 'Confirmed'
+  const showCancel = booking.status === 'confirmed' && (booking.startAt as Date).getTime() > Date.now() + 60 * 60_000
+  const body = `<section class="book-manage"><div class="container container--narrow">
+    <a class="book-picker__back" href="/">← Home</a>
+    <h1>Your booking</h1>
+    <div class="book-thanks__summary">
+      <div><span>Service</span><strong>${escape(service?.name || 'Service')}</strong></div>
+      <div><span>When</span><strong>${escape(dateStr)}</strong></div>
+      <div><span>Status</span><strong>${statusLabel}</strong></div>
+      ${booking.customerAddress ? `<div><span>Where</span><strong>${escape(booking.customerAddress)}</strong></div>` : ''}
+    </div>
+    ${showCancel ? `<div style="margin-top:24px;text-align:center;display:flex;gap:12px;justify-content:center;">
+      <a href="/booking/${escape(token)}/reschedule" class="book-submit" style="background:transparent;color:var(--brand);border:1px solid var(--brand);max-width:200px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Reschedule</a>
+      <form method="POST" action="/booking/${escape(token)}/cancel" onsubmit="return confirm('Cancel this booking?')" style="margin:0;"><button type="submit" class="book-submit" style="background:#dc2626;max-width:200px;">Cancel booking</button></form>
+    </div>` : ''}
+    <p style="margin-top:16px;color:var(--muted);font-size:13px;text-align:center;">Questions? Hit reply on your confirmation email.</p>
+  </div></section>`
+  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Your booking', seoDescription: '', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/booking/' + token }) as string
+  return c.html(html)
+})
+
+app.post('/booking/:token/cancel', async (c) => {
+  const token = c.req.param('token') as string
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.confirmationToken, token)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  if (booking.status !== 'confirmed') return c.redirect('/booking/' + token)
+  // 1-hour cutoff
+  if ((booking.startAt as Date).getTime() < Date.now() + 60 * 60_000) {
+    return c.redirect('/booking/' + token)
+  }
+  await db.update(bookingsTbl).set({ status: 'cancelled', cancelledAt: new Date(), cancelledReason: 'customer_self_service' })
+    .where(eq(bookingsTbl.id, booking.id))
+  const { fireBookingWebhook } = await import('./lib/webhooks')
+  fireBookingWebhook('booking.cancelled', {
+    id: booking.id, reason: 'customer_self_service',
+    cancelledAt: new Date().toISOString(),
+  }).catch(() => {})
+  // Best-effort: remove from crew's external calendar (Google or Outlook).
+  // Try both — only the connected one will succeed.
+  if (booking.assignedUserId && booking.externalCalendarEventId) {
+    deleteBookingEvent({ userId: booking.assignedUserId, eventId: booking.externalCalendarEventId }).catch(() => {})
+    deleteBookingEventOutlook({ userId: booking.assignedUserId, eventId: booking.externalCalendarEventId }).catch(() => {})
+  }
+  return c.redirect('/booking/' + token)
+})
+
+// ── SEO files ──────────────────────────────────────────────────────────
+// Dynamic sitemap + robots + llms.txt so search engines and AI assistants see
+// whatever's currently published in the pages table.
+//
+// Register BEFORE the catch-all `/:slug` below. Hono runs handlers in
+// registration order, and `/:slug` answers not-found for these names — so
+// declared after it, every premium site served 404 for /sitemap.xml and
+// /robots.txt.
+//
+// One origin for the sitemap, robots, canonical and business markup:
+// SITE_ORIGIN if set, else SITE_URL (deploy sets it; attaching a custom domain
+// points it at the domain), else the host the request came in on.
+
+function getSiteOrigin(c: any): string {
+  const explicit = process.env.SITE_ORIGIN
+  if (explicit) return explicit.replace(/\/+$/, '')
+  return siteOrigin(c)
+}
+
+app.get('/sitemap.xml', async (c) => {
+  const origin = getSiteOrigin(c)
+  const pageRows = await db.select().from(pagesTbl).where(eq(pagesTbl.isPublished, true)).orderBy(asc(pagesTbl.navOrder), asc(pagesTbl.title))
+  const postRows = await db.select().from(postsTbl).where(eq(postsTbl.status, 'published')).orderBy(desc(postsTbl.publishedAt))
+  const urls: string[] = []
+  for (const r of pageRows) {
+    const loc = origin + (r.slug === 'home' ? '/' : '/' + r.slug)
+    const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
+    urls.push(`  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`)
+  }
+  const projectList = await publishedProjects()
+  if (projectList.length && !pageRows.some((r) => r.slug === 'projects')) urls.push(`  <url><loc>${escapeXml(origin + '/projects')}</loc></url>`)
+  for (const r of projectList) {
+    const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
+    urls.push(`  <url><loc>${escapeXml(origin + '/projects/' + r.slug)}</loc><lastmod>${lastmod}</lastmod></url>`)
+  }
+  const invUnits = await feedUnits(await loadSettings())
+  if (invUnits && invUnits.length) {
+    if (!pageRows.some((r) => r.slug === 'inventory')) urls.push(`  <url><loc>${escapeXml(origin + '/inventory')}</loc></url>`)
+    for (const u of invUnits) urls.push(`  <url><loc>${escapeXml(origin + '/inventory/' + u.slug)}</loc></url>`)
+  }
+  // The bar's own URLs: each signature item's page (from the CRM's menu) and each era of the story.
+  try {
+    const site = await loadSiteData()
+    for (const s of site.menu) for (const it of s.items) if (it.isSignature) urls.push(`  <url><loc>${escapeXml(origin + '/' + s.slug + '/' + it.slug)}</loc></url>`)
+    const have = new Set(pageRows.map((r) => r.slug))
+    for (const e of site.timeline || []) {
+      const slug = String((e as any)?.slug || '').replace(/[^a-z0-9_-]/gi, '')
+      if (slug && (e as any).isPublished !== false && !have.has('story/' + slug)) urls.push(`  <url><loc>${escapeXml(origin + '/story/' + slug)}</loc></url>`)
+    }
+  } catch { /* a sitemap never fails over the bar's data */ }
+  const areaList = serviceAreasOf(await loadSettings())
+  if (areaList.length) {
+    urls.push(`  <url><loc>${escapeXml(origin + '/service-areas')}</loc></url>`)
+    for (const a of areaList) urls.push(`  <url><loc>${escapeXml(origin + '/service-areas/' + a.slug)}</loc></url>`)
+  }
+  if (postRows.length > 0) {
+    urls.push(`  <url><loc>${escapeXml(origin + '/blog')}</loc></url>`)
+    for (const r of postRows) {
+      const loc = origin + '/blog/' + r.slug
+      const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
+      urls.push(`  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`)
+    }
+  }
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    urls.join('\n') +
+    `\n</urlset>\n`
+  c.header('Content-Type', 'application/xml')
+  c.header('Cache-Control', 'public, max-age=3600')
+  return c.body(xml)
+})
+
+app.get('/robots.txt', async (c) => {
+  const origin = getSiteOrigin(c)
+  const body =
+    `User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: ${origin}/sitemap.xml\n`
+  c.header('Content-Type', 'text/plain')
+  c.header('Cache-Control', 'public, max-age=86400')
+  return c.body(body)
+})
+
+// llms.txt (llmstxt.org): a plain summary of the business and an index of its
+// published pages, for AI assistants answering questions about it. Built from
+// the same rows as the sitemap, and states only what the owner's settings and
+// pages already say.
+app.get('/llms.txt', async (c) => {
+  const origin = getSiteOrigin(c)
+  const settings = await loadSettings()
+  const pageRows = await db.select().from(pagesTbl).where(eq(pagesTbl.isPublished, true)).orderBy(asc(pagesTbl.navOrder), asc(pagesTbl.title))
+  const postRows = await db.select().from(postsTbl).where(eq(postsTbl.status, 'published')).orderBy(desc(postsTbl.publishedAt))
+  const oneLine = (s: unknown) => String(s || '').replace(/\s+/g, ' ').trim()
+  const linkText = (s: unknown) => oneLine(s).replace(/[\[\]]/g, '')
+  const name = oneLine(settings?.companyName) || 'Website'
+  const lines: string[] = ['# ' + name, '']
+  const summary = oneLine(settings?.seoDescription) || oneLine(settings?.tagline)
+  if (summary) lines.push('> ' + summary, '')
+  const contact = [
+    settings?.phone ? 'Phone: ' + oneLine(settings.phone) : '',
+    settings?.email ? 'Email: ' + oneLine(settings.email) : '',
+    // The area only — the street in settings.address is often the owner's home.
+    (() => { const p = oneLine(settings?.address).split(',').map(s => s.trim()).filter(Boolean); return p.length >= 2 ? 'Area: ' + p.slice(-2).join(', ') : '' })(),
+  ].filter(Boolean)
+  if (contact.length) lines.push(...contact.map(l => '- ' + l), '')
+  if (pageRows.length) {
+    lines.push('## Pages', '')
+    for (const r of pageRows) {
+      const desc = oneLine(r.metaDescription)
+      lines.push(`- [${linkText(r.title)}](${origin}${r.slug === 'home' ? '/' : '/' + r.slug})${desc ? ': ' + desc : ''}`)
+    }
+    lines.push('')
+  }
+  if (postRows.length) {
+    lines.push('## Blog', '')
+    for (const r of postRows) {
+      const desc = oneLine(r.excerpt)
+      lines.push(`- [${linkText(r.title)}](${origin}/blog/${r.slug})${desc ? ': ' + desc : ''}`)
+    }
+    lines.push('')
+  }
+  c.header('Content-Type', 'text/plain; charset=utf-8')
+  c.header('Cache-Control', 'public, max-age=3600')
+  return c.body(lines.join('\n'))
+})
+
+function escapeXml(s: string): string {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] || c))
+}
+
+// Match a single slug (no slashes, not an api/admin/uploads/styles/scripts prefix).
+// The SEO file names stay reserved so a page can never be created that
+// shadows them.
+app.get('/:slug', async (c) => {
+  const slug = c.req.param('slug')
+  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'llms.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
+  const html = await renderPage(slug, '/' + slug, getSiteOrigin(c))
+  if (html) countView('/' + slug)
+  if (!html) return c.notFound()
+  return c.html(html)
+})
+
+// ── Nested pages and signature items ──────────────────────────────────────
+// A page row may hold a nested path as its slug (/story/1881, /story/oldest-bar-in-wisconsin); failing
+// that, /<menu-section>/<item> is a signature item's own page (own URL, photo, story, MenuItem JSON-LD),
+// built from the CRM's menu so there is nothing to keep in sync. Unknown → 404.
+const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'blog', 'book', 'booking', 'customize',
+  'projects', 'service-areas', 'inventory', 'media', '.well-known']
+async function renderItemPage(sectionSlug: string, itemSlug: string, origin: string): Promise<string | null> {
+  const [site, settingsRow] = await Promise.all([loadSiteData(), loadSettings()])
+  const section = site.menu.find((s) => s.slug === sectionSlug)
+  const item = section?.items.find((i) => i.slug === itemSlug && i.isSignature)
+  if (!section || !item) return null
+  const company = (settingsRow as any)?.companyName || ''
+  const sections = [{ type: 'menu', variant: 'item-hero', data: { slug: item.slug, section: section.slug, eyebrow: section.name } }]
+  return renderSections(sections, { title: item.name, metaTitle: item.name + (company ? ' — ' + company : ''), metaDescription: item.description || '',
+    slug: section.slug + '/' + item.slug, jsonLdItem: { section, item } }, settingsRow, '/' + section.slug + '/' + item.slug, origin)
+}
+// /story/<era>: each era of the story timeline has its own page, built from the same entries the story
+// page shows (lib/bar.ts timeline) — the owner writes the history once.
+async function renderEraPage(eraSlug: string, origin: string): Promise<string | null> {
+  const [site, settingsRow] = await Promise.all([loadSiteData(), loadSettings()])
+  const entry = (site.timeline || []).find((e: any) => e && String(e.slug || '') === eraSlug && e.isPublished !== false)
+  if (!entry) return null
+  const company = (settingsRow as any)?.companyName || ''
+  return renderSections([{ type: 'timeline', variant: 'era', data: { slug: eraSlug } }],
+    { title: String(entry.title || eraSlug), metaTitle: String(entry.title || eraSlug) + (company ? ' — ' + company : ''), metaDescription: '', slug: 'story/' + eraSlug },
+    settingsRow, '/story/' + eraSlug, origin)
+}
+app.get('/:a/:b', async (c, next) => {
+  const { a, b } = c.req.param()
+  if (NESTED_RESERVED.includes(a)) return next()
+  const slug = a + '/' + b
+  const html = (await renderPage(slug, '/' + slug, getSiteOrigin(c)))
+    || (a === 'story' ? await renderEraPage(b, getSiteOrigin(c)) : null)
+    || (await renderItemPage(a, b, getSiteOrigin(c)))
+  if (!html) return next()
+  countView('/' + slug)
+  return c.html(html)
+})
+app.get('/:a/:b/:cc', async (c, next) => {
+  const { a, b, cc } = c.req.param()
+  if (NESTED_RESERVED.includes(a)) return next()
+  const slug = a + '/' + b + '/' + cc
+  const html = await renderPage(slug, '/' + slug, getSiteOrigin(c))
+  if (!html) return next()
+  countView('/' + slug)
+  return c.html(html)
+})
+
+// ── Blog ──────────────────────────────────────────────────────────────
+// /blog        → list of published posts (newest first)
+// /blog/:slug  → individual post detail
+// Body is stored as markdown; we render to HTML at request time with a
+// tiny inline converter rather than pulling a heavy dep — covers the
+// 90% case (headings, paragraphs, lists, links, bold/italic, code,
+// blockquotes, images).
+
+function markdownToHtml(md: string): string {
+  if (!md) return ''
+  const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const lines = md.replace(/\r\n/g, '\n').split('\n')
+  const out: string[] = []
+  let inList = false, listTag: 'ul' | 'ol' = 'ul'
+  let inBlockquote = false
+  let inCode = false, codeLang = ''
+  for (let raw of lines) {
+    // Fenced code block
+    const fence = raw.match(/^```(\w*)\s*$/)
+    if (fence) {
+      if (inCode) { out.push('</code></pre>'); inCode = false } else { codeLang = fence[1] || ''; out.push('<pre><code' + (codeLang ? ' class="lang-' + codeLang + '"' : '') + '>'); inCode = true }
+      continue
+    }
+    if (inCode) { out.push(escape(raw)); continue }
+    let line = raw
+    // Headings
+    const h = line.match(/^(#{1,6})\s+(.+)$/)
+    if (h) { if (inList) { out.push('</' + listTag + '>'); inList = false } if (inBlockquote) { out.push('</blockquote>'); inBlockquote = false } out.push('<h' + h[1].length + '>' + inlineMd(escape(h[2])) + '</h' + h[1].length + '>'); continue }
+    // List items
+    const ul = line.match(/^\s*[-*]\s+(.+)$/)
+    const ol = line.match(/^\s*\d+\.\s+(.+)$/)
+    if (ul || ol) {
+      const targetTag: 'ul' | 'ol' = ul ? 'ul' : 'ol'
+      if (!inList || listTag !== targetTag) { if (inList) out.push('</' + listTag + '>'); listTag = targetTag; out.push('<' + listTag + '>'); inList = true }
+      out.push('<li>' + inlineMd(escape((ul || ol)![1])) + '</li>')
+      continue
+    } else if (inList) { out.push('</' + listTag + '>'); inList = false }
+    // Blockquote
+    if (line.match(/^>\s?(.*)$/)) {
+      const bq = line.match(/^>\s?(.*)$/)![1]
+      if (!inBlockquote) { out.push('<blockquote>'); inBlockquote = true }
+      out.push('<p>' + inlineMd(escape(bq)) + '</p>')
+      continue
+    } else if (inBlockquote) { out.push('</blockquote>'); inBlockquote = false }
+    // Image: ![alt](url) — scheme-validate the URL so data:/javascript: can't sneak in
+    const img = line.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/)
+    if (img) {
+      const rawUrl = img[2]
+      if (isSafeUrl(rawUrl) && /^(https?:|\/)/i.test(rawUrl)) {
+        out.push('<p><img src="' + escape(rawUrl) + '" alt="' + escape(img[1]) + '" loading="lazy"></p>')
+      }
+      continue
+    }
+    // Blank line
+    if (line.trim() === '') { continue }
+    // Paragraph
+    out.push('<p>' + inlineMd(escape(line)) + '</p>')
+  }
+  if (inList) out.push('</' + listTag + '>')
+  if (inBlockquote) out.push('</blockquote>')
+  if (inCode) out.push('</code></pre>')
+  return out.join('\n')
+}
+
+function inlineMd(s: string): string {
+  // Order matters — bold before italic. Links are scheme-validated to
+  // strip javascript:/data:/vbscript: payloads even though body text is
+  // already HTML-escaped upstream (defense in depth).
+  return s
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/_([^_]+)_/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, href) => {
+      const safe = isSafeUrl(href) ? href : '#'
+      const external = /^https?:/i.test(safe)
+      const attrs = external ? ' rel="noopener noreferrer" target="_blank"' : ''
+      return '<a href="' + safe + '"' + attrs + '>' + text + '</a>'
+    })
+}
+
+// ── Public iCal feed — subscribe URL for any calendar app ─────────────────
+// Token must match settings.bookingIcalFeedToken. Returns confirmed
+// + upcoming bookings as a standards-compliant VCALENDAR. Calendar
+// apps poll this URL periodically and surface changes automatically.
+import { bookings as bookingsTblIcal, bookingServices as bookingServicesTblIcal } from './db/schema'
+
+app.get('/api/ical/bookings.ics', async (c) => {
+  const token = c.req.query('token') || ''
+  const settings = await loadSettings()
+  if (!settings || !(settings as any).bookingIcalFeedToken || (settings as any).bookingIcalFeedToken !== token) {
+    return c.text('Invalid feed token', 401)
+  }
+  const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)  // include last 60 days
+  const rows = await db.select().from(bookingsTblIcal).where(gte(bookingsTblIcal.startAt, cutoff)).orderBy(asc(bookingsTblIcal.startAt))
+  const services = await db.select().from(bookingServicesTblIcal)
+  const svcById = new Map(services.map(s => [s.id, s]))
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  const sanitize = (s: string) => (s || '').replace(/[\r\n,;]/g, ' ').slice(0, 250)
+  const events = rows.map(b => {
+    const svc = svcById.get(b.serviceId)
+    const summary = (b.status === 'cancelled' ? '[CANCELLED] ' : '') + sanitize((svc?.name || 'Booking') + ' — ' + b.customerName)
+    return [
+      'BEGIN:VEVENT',
+      'UID:booking-' + b.id + '@twomiah',
+      'DTSTAMP:' + fmt(new Date()),
+      'DTSTART:' + fmt(b.startAt as Date),
+      'DTEND:' + fmt(b.endAt as Date),
+      'SUMMARY:' + summary,
+      b.customerAddress ? 'LOCATION:' + sanitize(b.customerAddress) : '',
+      'DESCRIPTION:' + sanitize('Customer ' + b.customerEmail + (b.customerPhone ? ' / ' + b.customerPhone : '')),
+      b.status === 'cancelled' ? 'STATUS:CANCELLED' : 'STATUS:CONFIRMED',
+      'END:VEVENT',
+    ].filter(Boolean).join('\r\n')
+  })
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Twomiah//Bookings//EN',
+    'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'X-WR-CALNAME:' + sanitize(((settings as any)?.companyName || 'Bookings') + ' — Twomiah'),
+    ...events,
+    'END:VCALENDAR',
+  ].join('\r\n')
+  return new Response(ics, { headers: { 'Content-Type': 'text/calendar; charset=utf-8' } })
+})
+
+// ── Public: lead capture from the contact form ────────────────────────────
+// Every lead form posts here: the contact form (a plain post, or fetch from its inline script),
+// the care finder (JSON), catering inquiries (notes + event details) and the service-area
+// waitlist (email + ZIP). POST /contact too — pages composed before the contact form pointed
+// at /api/leads posted there, and those leads 404'd.
+app.post('/api/leads', (c) => handleLead(c))
+app.post('/contact', (c) => handleLead(c))
+
+async function handleLead(c: any) {
+  const isJson = (c.req.header('content-type') || '').includes('application/json')
+  // A browser posting the form without script gets a page back, not raw JSON.
+  const wantsPage = !isJson && (c.req.header('accept') || '').includes('text/html')
+  const reply = (ok: boolean, text: string, status = ok ? 200 : 400) =>
+    wantsPage
+      ? c.html(leadReplyPage(ok, text, c.req.header('referer')), status)
+      : c.json(ok ? { ok: true, message: text } : { error: text }, status)
+  try {
+    // Rate-limit first — keeps the DB write and email send off the
+    // critical path for flooders.
+    const ip = leadClientIp(c)
+    const now = Date.now()
+    const times = (leadBuckets.get(ip) || []).filter(t => now - t < LEAD_WINDOW_MS)
+    if (times.length >= LEAD_MAX) {
+      const retryAfterSec = Math.ceil((LEAD_WINDOW_MS - (now - times[0])) / 1000)
+      c.res.headers.set('Retry-After', String(retryAfterSec))
+      return reply(false, 'Too many submissions. Please try again later.', 429)
+    }
+    times.push(now)
+    leadBuckets.set(ip, times)
+
+    const body = (isJson ? await c.req.json().catch(() => ({})) : await c.req.parseBody({ all: true })) as Record<string, any>
+
+    // ── Spam protection (honeypot + minimum dwell time) ────────────────
+    // The contact form template includes a hidden 'website' field that
+    // legitimate users never see. Bots auto-fill every input — any
+    // value here is a tell. Silently 200 so the bot thinks it worked.
+    // The form also stamps a hidden 't' field with Date.now() when it
+    // renders; if the submit lands in under 1.5s the form was almost
+    // certainly auto-completed. Both checks are cheap and effective.
+    const honeypot = String(body.website || body.honeypot || '').trim()
+    if (honeypot) {
+      console.log('[Leads] honeypot triggered — silent drop')
+      return reply(true, "Got it — thanks. We'll be in touch soon.")
+    }
+    const stamp = parseInt(String(body.t || '0'), 10)
+    if (stamp > 0 && Date.now() - stamp < 1500) {
+      console.log('[Leads] dwell-time triggered — silent drop')
+      return reply(true, "Got it — thanks. We'll be in touch soon.")
+    }
+
+    const one = (v: any) => (Array.isArray(v) ? v.map(String).join(', ') : String(v ?? '')).trim()
+    // The bar's two forms (parties/inquiry-form, regulars/signup) post here too, with a formType. A bar
+    // calls back, so a phone number is what they need; email is optional (BAR_CONTRACT.md).
+    const formType = one(body.formType)
+    if (formType === 'party' || formType === 'regulars') return handleBarForm(c, formType, body, one, reply, ip)
+    const email = one(body.email)
+    const source = one(body.source) || String(c.req.header('referer') || '').trim() || null
+    // The waitlist asks only for an email; give the lead a name the CRM can show.
+    const name = one(body.name) || (source === 'service-area-waitlist' ? 'Service-area waitlist' : '')
+    const phone = one(body.phone) || null
+    // The written message plus every other answer the form asked for (event date, headcount,
+    // ZIP, care type…), so nothing the visitor told us is dropped.
+    const CONTROL = new Set(['name', 'email', 'phone', 'project', 'message', 'notes', 'source', 'website', 'honeypot', 't'])
+    const extras = Object.keys(body).filter((k) => !CONTROL.has(k) && one(body[k])).slice(0, 20)
+      .map((k) => k.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, (x) => x.toUpperCase()) + ': ' + one(body[k]).slice(0, 500))
+    const message = [one(body.project || body.message || body.notes), ...extras].filter(Boolean).join('\n').slice(0, 5000)
+
+    if (!name || name.length < 2) return reply(false, 'Name is required.')
+    if (!email || !email.includes('@')) return reply(false, 'Valid email required.')
+    if (!message || message.length < 4) return reply(false, 'Tell us a bit about your project.')
+
+    await db.insert(leadsTbl).values({ name, email, phone, message, source: source || undefined })
+
+    // Fire-and-forget owner notification. Reads recipient from
+    // settings.email (the customer's contact address); skips silently
+    // if SENDGRID_API_KEY isn't set yet.
+    notifyOwnerOfLead({ name, email, phone, message, source }).catch((e: any) =>
+      console.warn('[Leads] owner notification failed:', e.message))
+    // And into the CRM, the same webhook the standard sites post to — where the business works its leads.
+    forwardLeadToCrm({ name, email, phone, message }).catch((e: any) =>
+      console.warn('[Leads] CRM forward failed:', e.message))
+
+    return reply(true, "Got it — thanks. We'll be in touch soon.")
+  } catch (err: any) {
+    console.error('[Leads] insert failed:', err.message)
+    return reply(false, 'Could not save your message. Please try again.', 500)
+  }
+}
+
+// A private-party enquiry or a Regulars sign-up. Saved as a lead (email is '' when they gave none —
+// the leads table needs a value), the owner is emailed, and the CRM gets the structured fields: a party
+// enquiry opens a party in the CRM; a sign-up becomes a guest with consent evidence — the exact words
+// shown, where, when and from which IP — only when the box was ticked.
+async function handleBarForm(c: any, formType: 'party' | 'regulars', body: Record<string, any>, one: (v: any) => string,
+  reply: (ok: boolean, text: string, status?: number) => any, ip: string) {
+  const name = one(body.name).slice(0, 120)
+  const phone = one(body.phone).slice(0, 40)
+  const email = one(body.email).slice(0, 200)
+  if (!name || name.length < 2) return reply(false, 'Your name, please.')
+  if (phone.replace(/\D/g, '').length < 7) return reply(false, 'A phone number we can call you back on, please.')
+  if (email && !email.includes('@')) return reply(false, 'That email address does not look right.')
+  const fields: Record<string, any> = { formType }
+  let summary: string[] = []
+  if (formType === 'party') {
+    const size = Number.parseInt(one(body.partySize), 10)
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(one(body.requestedDate)) ? one(body.requestedDate) : null
+    const occasion = one(body.occasion).slice(0, 80) || null
+    const note = one(body.message).slice(0, 2000) || null
+    Object.assign(fields, { partySize: Number.isFinite(size) && size > 0 ? size : null, requestedDate: date, occasion, message: note })
+    summary = ['Private party enquiry', size > 0 ? size + ' people' : '', date ? 'on ' + date : '', occasion ? '— ' + occasion : '', note ? '\n' + note : '']
+  } else {
+    const month = Number.parseInt(one(body.birthdayMonth), 10), day = Number.parseInt(one(body.birthdayDay), 10)
+    const consent = one(body.emailConsent) === 'yes' && !!email
+    Object.assign(fields, {
+      birthdayMonth: month >= 1 && month <= 12 ? month : null, birthdayDay: day >= 1 && day <= 31 ? day : null,
+      ...(consent ? { consentText: EMAIL_CONSENT_TEXT, consentSource: 'website:' + (one(body.source) || '/regulars'), consentIp: ip } : {}),
+    })
+    summary = ['Joined the Regulars', fields.birthdayMonth && fields.birthdayDay ? '(birthday ' + fields.birthdayMonth + '/' + fields.birthdayDay + ')' : '', consent ? '— said yes to email' : '']
+  }
+  const message = summary.filter(Boolean).join(' ').replace(/ \n/, '\n').slice(0, 5000)
+  try {
+    await db.insert(leadsTbl).values({ name, email, phone, message, source: formType === 'party' ? 'parties' : 'regulars' })
+  } catch (err: any) {
+    console.error('[Leads] bar form insert failed:', err.message)
+    return reply(false, 'That did not save. Please call us instead.', 500)
+  }
+  notifyOwnerOfLead({ name, email, phone, message, source: formType === 'party' ? 'Party enquiry' : 'Regulars sign-up' })
+    .catch((e: any) => console.warn('[Leads] owner notification failed:', e.message))
+  forwardLeadToCrm({ name, email, phone, message, ...fields }).catch((e: any) => console.warn('[Leads] CRM forward failed:', e.message))
+  return reply(true, formType === 'party' ? "Got it. We'll call you back about your party." : "You're on the list.")
+}
+
+// The page a visitor sees after a plain (no-script) form post: one line and a way back.
+function leadReplyPage(ok: boolean, text: string, referer?: string): string {
+  let back = '/'
+  try { if (referer) back = new URL(referer).pathname || '/' } catch {}
+  const esc = (v: string) => v.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[ch])
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<meta name="robots" content="noindex"><title>' + (ok ? 'Thank you' : 'Please try again') + '</title>' +
+    '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f7f5;color:#1a1a1a}' +
+    'main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}</style></head>' +
+    '<body><main><h1>' + (ok ? 'Thank you.' : 'That didn\u2019t go through.') + '</h1><p>' + esc(text) + '</p>' +
+    '<p><a href="' + esc(back) + '">' + (ok ? 'Back to the site' : 'Go back and try again') + '</a></p></main></body></html>'
+}
+
+// CRM_API_URL + WEBHOOK_SECRET are set by the factory when the tenant has a CRM (at deploy, or
+// when one is added later). No CRM → nothing to do.
+async function forwardLeadToCrm(lead: { name: string; email: string; phone: string | null; message: string; formType?: string; [k: string]: any }): Promise<void> {
+  const url = (process.env.CRM_API_URL || '').replace(/\/+$/, '')
+  const secret = process.env.WEBHOOK_SECRET || ''
+  if (!url || !secret) return
+  const res = await fetch(url + '/api/webhooks/leads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-webhook-secret': secret },
+    body: JSON.stringify({ ...lead, source: 'website' }),
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!res.ok) console.warn('[Leads] CRM forward HTTP', res.status)
+}
+
+async function notifyOwnerOfLead(lead: { name: string; email: string; phone: string | null; message: string; source: string | null }): Promise<void> {
+  // Deploy gives a premium site RESEND_API_KEY (lib/email.ts, the same path as booking emails),
+  // not SENDGRID_API_KEY — so this used to return here on every site and no owner was ever told
+  // about a lead. Resend first; SendGrid only for a site that was given that key instead.
+  const apiKey = process.env.SENDGRID_API_KEY
+  if (!apiKey && !process.env.RESEND_API_KEY) return
+  const fromEmail = process.env.FROM_EMAIL || process.env.FACTORY_FROM_EMAIL || 'noreply@twomiah.app'
+  const settingsRow = await loadSettings()
+  const toEmail = (settingsRow as any)?.email
+  if (!toEmail) return
+  const companyName = (settingsRow as any)?.companyName || 'Your site'
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const subject = `New website lead — ${lead.name}`
+  const html = `<!doctype html><html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#fafaf7;margin:0;padding:40px 16px;color:#1a1a1a;">
+    <table width="560" cellpadding="0" cellspacing="0" align="center" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(20,20,30,0.06);">
+      <tr><td style="padding:28px 32px 16px;"><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#888;">${escape(companyName)} · new lead</div></td></tr>
+      <tr><td style="padding:0 32px 12px;"><h2 style="margin:0;font-size:22px;color:#1a1a1a;">${escape(lead.name)}</h2></td></tr>
+      <tr><td style="padding:0 32px 24px;color:#3a3a3a;font-size:15px;line-height:1.6;">
+        ${lead.email ? `<div><strong>Email:</strong> <a href="mailto:${escape(lead.email)}" style="color:#1a1a1a;">${escape(lead.email)}</a></div>` : ''}
+        ${lead.phone ? `<div><strong>Phone:</strong> <a href="tel:${escape(lead.phone)}" style="color:#1a1a1a;">${escape(lead.phone)}</a></div>` : ''}
+        ${lead.source ? `<div style="margin-top:6px;color:#888;font-size:13px;">Submitted from: ${escape(lead.source)}</div>` : ''}
+        <div style="margin-top:18px;padding:14px 18px;background:#fafaf7;border-left:3px solid #f97316;border-radius:4px;white-space:pre-wrap;">${escape(lead.message)}</div>
+      </td></tr>
+      ${lead.email ? `<tr><td style="padding:0 32px 24px;"><a href="mailto:${escape(lead.email)}?subject=Re:%20your%20inquiry" style="display:inline-block;background:#f97316;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Reply now</a></td></tr>` : ''}
+      <tr><td style="background:#fafaf7;padding:16px 32px;border-top:1px solid #eee;color:#888;font-size:12px;">This lead is also saved in your admin under Leads.</td></tr>
+    </table>
+  </body></html>`
+  if (process.env.RESEND_API_KEY) {
+    const { sendEmail } = await import('./lib/email')
+    // A party enquiry or Regulars sign-up may come with only a phone number: no reply-to then.
+    const sent = await sendEmail({ to: toEmail, subject, html, ...(lead.email ? { replyTo: { email: lead.email, name: lead.name } } : {}) })
+    if (sent || !apiKey) return
+  }
+  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: toEmail }], subject }],
+      from: { email: fromEmail, name: 'Twomiah' },
+      ...(lead.email ? { reply_to: { email: lead.email, name: lead.name } } : {}),
+      content: [{ type: 'text/html', value: html }],
+    }),
+  })
+  if (!res.ok) {
+    console.warn('[Leads] SendGrid HTTP', res.status, await res.text().catch(() => ''))
+  }
+}
+
+// ── Billing portal proxy ─────────────────────────────────────────────────
+// The admin UI calls this to get a Stripe Customer Portal URL. We
+// forward to the Factory (which has the Stripe secret key) using the
+// shared FACTORY_SYNC_KEY for auth. Admin-only — gated by /api/admin/
+// auth middleware in the route mount above isn't applied here, but
+// the path is /api/admin/billing-portal so we gate manually below.
+app.get('/api/admin/billing-portal', adminAuth, adminOnly, async (c: any) => {
+
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) {
+    return c.json({ error: 'Billing portal not configured on this tenant.' }, 503)
+  }
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/billing-portal/' + tenantId, {
+      headers: { 'X-Factory-Key': syncKey },
+      signal: AbortSignal.timeout(15000),
+    })
+    const body = await r.json()
+    if (!r.ok) return c.json(body, r.status as 400 | 401 | 403 | 404 | 409 | 500 | 503)
+    return c.json(body)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
+// Custom domain — attach the customer's BYOD domain to this tenant.
+// Proxies to factory which does the actual Cloudflare zone creation
+// + Render custom-domain attachment. Returns the nameservers the
+// customer needs to set at their registrar.
+app.post('/api/admin/domain/attach', adminAuth, adminOnly, async (c: any) => {
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) return c.json({ error: 'Custom domain not configured on this tenant.' }, 503)
+  const body = await c.req.json().catch(() => ({})) as { domain?: string; mode?: 'byod' | 'buy' }
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/domain/attach/' + tenantId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': syncKey },
+      body: JSON.stringify({ domain: body.domain, mode: body.mode || 'byod' }),
+      signal: AbortSignal.timeout(30000),
+    })
+    const data = await r.json()
+    if (!r.ok) return c.json(data, r.status as 400 | 401 | 403 | 404 | 409 | 500 | 501 | 503)
+    return c.json(data)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
+// Read current custom-domain status — drives the admin page's banner
+// (pending nameservers / active / not configured).
+app.get('/api/admin/domain/status', adminAuth, adminOnly, async (c: any) => {
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) return c.json({ status: 'unconfigured' })
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/domain/status/' + tenantId, {
+      headers: { 'X-Factory-Key': syncKey },
+      signal: AbortSignal.timeout(15000),
+    })
+    const data = await r.json()
+    if (!r.ok) return c.json(data, r.status as 400 | 401 | 403 | 404 | 500 | 503)
+    return c.json(data)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
+// Buy flow — proxy to factory to create a Stripe Checkout session for
+// the domain registration. The customer pays, the webhook fires the
+// actual Namecheap registration, then wireDomainInfrastructure runs.
+app.post('/api/admin/domain/buy-checkout', adminAuth, adminOnly, async (c: any) => {
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) return c.json({ error: 'Custom domain not configured on this tenant.' }, 503)
+  const body = await c.req.json().catch(() => ({})) as { domain?: string; years?: number }
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/domain/buy/' + tenantId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': syncKey },
+      body: JSON.stringify({ domain: body.domain, years: body.years || 1 }),
+      signal: AbortSignal.timeout(30000),
+    })
+    const data = await r.json()
+    if (!r.ok) return c.json(data, r.status as 400 | 401 | 403 | 404 | 409 | 422 | 500 | 503)
+    return c.json(data)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
+// Public: probe availability for the buy flow (proxies to factory).
+// Same rate-limiting story as the intake form — factory enforces.
+app.post('/api/admin/domain/check', adminAuth, adminOnly, async (c: any) => {
+  const factoryUrl = process.env.FACTORY_URL
+  if (!factoryUrl) return c.json({ error: 'Not configured' }, 503)
+  const body = await c.req.json().catch(() => ({})) as { domain?: string }
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/public/domain/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: body.domain }),
+      signal: AbortSignal.timeout(15000),
+    })
+    const data = await r.json()
+    if (!r.ok) return c.json(data, r.status as 400 | 401 | 403 | 404 | 500 | 503)
+    return c.json(data)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
+// Path A++ — internal: returns the premium owner's credentials so the
+// factory's provision script can seed the new CRM with matching
+// email + password hash. Render gives services internal-only
+// DATABASE_URLs that aren't reachable from outside its VPC, so the
+// script can't pg-connect directly; this endpoint is the supported
+// way to bridge.
+//
+// Returns the FIRST owner/admin user, ordered by created_at. The
+// password hash is exposed verbatim — that's by design: it's bcrypt,
+// X-Factory-Key gated, and the consumer needs it to seed the CRM
+// users table so cross-product sign-in works. Don't surface this
+// anywhere else.
+app.get('/api/internal/owner-credentials', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const { users: usersTbl } = await import('./db/schema')
+  const rows = await db.select({
+    email: usersTbl.email,
+    passwordHash: usersTbl.passwordHash,
+    name: usersTbl.name,
+  }).from(usersTbl).orderBy(asc(usersTbl.createdAt)).limit(1)
+  if (!rows[0]) return c.json({ error: 'No owner user found yet' }, 404)
+  return c.json(rows[0])
+})
+
+// Path A++ — internal: factory POSTs here after scripts/provision-crm-
+// for-tenant.ts succeeds. Sets settings.crmUrl + crmReadyAt so the
+// BillingPage flips from "Add CRM" to "Open CRM →" without a redeploy.
+app.post('/api/internal/set-crm-url', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json().catch(() => ({})) as { crmUrl?: string }
+  const url = String(body.crmUrl || '').trim()
+  if (!url || !/^https:\/\//.test(url)) return c.json({ error: 'crmUrl required (https://…)' }, 400)
+  const existing = await db.select().from(settingsTbl).limit(1)
+  if (!existing[0]) return c.json({ error: 'Settings not initialized' }, 409)
+  await db.update(settingsTbl).set({
+    crmUrl: url,
+    crmReadyAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(settingsTbl.id, existing[0].id))
+  return c.json({ success: true })
+})
+
+// Path A++ — surfaces CRM availability to the admin SPA. Powers the
+// /admin/billing UI's choice between "Add CRM" tile and "Open CRM →"
+// button. Public endpoint shape (returns booleans + URL, never the
+// handoff token) — token mint happens via /api/admin/crm-handoff
+// behind the admin gate.
+app.get('/api/admin/crm-status', adminAuth, async (c: any) => {
+  const s = (await db.select().from(settingsTbl).limit(1))[0]
+  const ready = !!(s as any)?.crmUrl
+  return c.json({
+    ready,
+    crmUrl: ready ? (s as any).crmUrl : null,
+    readyAt: ready ? (s as any).crmReadyAt : null,
+  })
+})
+
+// Path A++ — proxy to factory for a fresh handoff token + redirect URL.
+// Factory signs the token with the per-tenant FACTORY_SYNC_KEY so the
+// CRM (which has the same key) can verify. Token is single-use,
+// 60-second TTL, and carries the user's email so the CRM can match
+// to its local seeded user row.
+app.get('/api/admin/crm-handoff', adminAuth, adminOnly, async (c: any) => {
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) {
+    return c.json({ error: 'Handoff not configured on this tenant.' }, 503)
+  }
+  // Verified by adminAuth — the signed-in owner's own email.
+  const email = String(c.get('userEmail') || '').toLowerCase()
+  if (!email) return c.json({ error: 'No email on session' }, 401)
+  try {
+    const r = await fetch(
+      factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/crm-handoff/' + tenantId + '?email=' + encodeURIComponent(email),
+      { headers: { 'X-Factory-Key': syncKey }, signal: AbortSignal.timeout(15000) }
+    )
+    const body = await r.json()
+    if (!r.ok) return c.json(body, r.status as 400 | 401 | 403 | 404 | 409 | 500 | 503)
+    return c.json(body)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
+// Path A++ — proxy to the factory to start a Stripe Checkout for the
+// CRM add-on. Same pattern as billing-portal — factory holds the
+// Stripe secret, we forward the click. Customer pays, returns to
+// /admin/billing?crm=ordered, the BillingPage shows a "thanks, we'll
+// have it up within 24h" banner. Actual provisioning is gated by
+// Jeremiah running scripts/provision-crm-for-tenant.ts in V1.
+app.get('/api/admin/checkout/crm-addon', adminAuth, adminOnly, async (c: any) => {
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) {
+    return c.json({ error: 'Upgrade not configured on this tenant.' }, 503)
+  }
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/checkout/crm-addon/' + tenantId, {
+      headers: { 'X-Factory-Key': syncKey },
+      signal: AbortSignal.timeout(15000),
+    })
+    const body = await r.json()
+    if (!r.ok) return c.json(body, r.status as 400 | 401 | 403 | 404 | 409 | 500 | 503)
+    return c.json(body)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
+// ── Factory internal: bookings list for CRM SchedulePage ──────────────────
+// CRM admin views jobs + bookings in one schedule view. The CRM backend
+// calls this endpoint server-to-server with FACTORY_SYNC_KEY. Returns
+// bookings in the requested date range with the service+assignee joined
+// so the CRM doesn't need a separate lookup.
+app.get('/api/internal/bookings', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+  const fromQ = c.req.query('from')
+  const toQ = c.req.query('to')
+  const conds: any[] = []
+  if (fromQ) conds.push(gte(bookingsTbl.startAt, new Date(fromQ)))
+  if (toQ) conds.push(lte(bookingsTbl.startAt, new Date(toQ)))
+  const rows = conds.length > 0
+    ? await db.select().from(bookingsTbl).where(and(...conds)).orderBy(asc(bookingsTbl.startAt))
+    : await db.select().from(bookingsTbl).orderBy(asc(bookingsTbl.startAt))
+  // Hydrate service name and assignee email so the CRM has everything inline
+  const serviceIds = Array.from(new Set(rows.map(r => r.serviceId)))
+  const userIds = Array.from(new Set(rows.map(r => r.assignedUserId).filter(Boolean) as string[]))
+  const services = serviceIds.length > 0 ? await db.select().from(bookingServicesTbl) : []
+  const { users: usersTbl } = await import('./db/schema')
+  const users = userIds.length > 0 ? await db.select({ id: usersTbl.id, email: usersTbl.email, name: usersTbl.name }).from(usersTbl) : []
+  const sById = new Map(services.map(s => [s.id, s]))
+  const uById = new Map(users.map(u => [u.id, u]))
+  return c.json({
+    bookings: rows.map(b => ({
+      id: b.id,
+      startAt: b.startAt, endAt: b.endAt,
+      status: b.status,
+      customerName: b.customerName,
+      customerEmail: b.customerEmail,
+      customerPhone: b.customerPhone,
+      customerAddress: b.customerAddress,
+      serviceName: sById.get(b.serviceId)?.name || null,
+      assignedUser: b.assignedUserId ? (uById.get(b.assignedUserId) ? { id: b.assignedUserId, email: uById.get(b.assignedUserId)!.email, name: uById.get(b.assignedUserId)!.name } : null) : null,
+    })),
+  })
+})
+
+// ── Public: booking waitlist ──────────────────────────────────────────────
+// Customer joins the waitlist when no slots match their needs. When a
+// confirmed booking gets cancelled, we email waitlist members whose
+// date window overlaps.
+import { bookingWaitlist as waitlistTbl } from './db/schema'
+
+app.post('/book/:serviceSlug/waitlist', async (c) => {
+  const slug = c.req.param('serviceSlug')!
+  const body = await c.req.parseBody() as Record<string, any>
+  if (String(body.website || '').trim()) return c.json({ ok: true })  // honeypot
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.slug, slug)).limit(1))[0]
+  if (!service) return c.json({ error: 'service not found' }, 404)
+  const name = String(body.customerName || '').trim()
+  const email = String(body.customerEmail || '').trim()
+  if (!name || !email) return c.json({ error: 'name and email required' }, 400)
+  await db.insert(waitlistTbl).values({
+    serviceId: service.id,
+    customerName: name, customerEmail: email,
+    customerPhone: String(body.customerPhone || '').trim() || null,
+    customerZip: String(body.customerZip || '').trim() || null,
+    preferredFrom: String(body.preferredFrom || '').trim() || null,
+    preferredTo: String(body.preferredTo || '').trim() || null,
+    notes: String(body.notes || '').trim() || null,
+  })
+  return c.json({ ok: true, message: "You're on the list. We'll email if a slot opens up." })
+})
+
+// ── Factory internal: store Google Calendar OAuth tokens ──────────────────
+// The Factory orchestrates the OAuth flow with one global Google app and
+// POSTs the resulting tokens here, gated by FACTORY_SYNC_KEY. We upsert
+// by (user_id, provider) so a re-connect overwrites the old row cleanly.
+import { bookingCalendarConnections as calConnTbl } from './db/schema'
+
+app.post('/api/internal/calendar/store-tokens', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json().catch(() => ({})) as any
+  const provider = body.provider === 'outlook' ? 'outlook' : 'google'
+  if (!body.userId || !body.accessToken) {
+    return c.json({ error: 'userId + accessToken required' }, 400)
+  }
+  const expiresAt = new Date(Date.now() + ((body.expiresInSec || 3600) - 60) * 1000)
+  // Upsert: delete any existing connection of this provider for this user, then insert
+  await db.delete(calConnTbl).where(and(eq(calConnTbl.userId, body.userId), eq(calConnTbl.provider, provider)))
+  const [row] = await db.insert(calConnTbl).values({
+    userId: body.userId,
+    provider,
+    externalAccountEmail: body.externalAccountEmail || null,
+    accessToken: body.accessToken,
+    refreshToken: body.refreshToken || null,
+    expiresAt,
+    calendarId: body.calendarId || 'primary',
+  }).returning({ id: calConnTbl.id })
+
+  // Subscribe to push notifications. Best-effort; pull side still works
+  // if subscription fails.
+  if (provider === 'google') {
+    const { watchCalendar } = await import('./lib/google-calendar')
+    const webhookUrl = siteOrigin(c) + '/api/webhooks/google-calendar'
+    watchCalendar({ userId: body.userId, webhookUrl })
+      .then(async sub => {
+        if (sub) await db.update(calConnTbl).set({
+          syncChannelId: sub.channelId,
+          syncResourceId: sub.resourceId,
+          lastSyncAt: new Date(),
+        }).where(eq(calConnTbl.id, row.id)).catch(() => {})
+      })
+      .catch(() => {})
+  } else if (provider === 'outlook') {
+    const { watchCalendarOutlook } = await import('./lib/outlook-calendar')
+    const webhookUrl = siteOrigin(c) + '/api/webhooks/outlook-calendar'
+    watchCalendarOutlook({ userId: body.userId, webhookUrl })
+      .then(async sub => {
+        if (sub) await db.update(calConnTbl).set({
+          syncChannelId: sub.subscriptionId,
+          lastSyncAt: new Date(),
+        }).where(eq(calConnTbl.id, row.id)).catch(() => {})
+      })
+      .catch(() => {})
+  }
+
+  return c.json({ ok: true, connectionId: row.id })
+})
+
+// Outlook (Microsoft Graph) sends a validationToken on initial
+// subscription handshake — we have to echo it within 10 seconds or
+// the subscription fails. After that, POSTs carry change notifications.
+app.post('/api/webhooks/outlook-calendar', async (c) => {
+  const validationToken = c.req.query('validationToken')
+  if (validationToken) {
+    return c.text(validationToken, 200, { 'Content-Type': 'text/plain' })
+  }
+  // Real notification — we don't act on it directly; slot generator
+  // pulls fresh on next list. Stamp lastSyncAt and 202.
+  try {
+    const body = await c.req.json().catch(() => ({})) as any
+    for (const v of (body.value || [])) {
+      if (v.subscriptionId) {
+        await db.update(calConnTbl).set({ lastSyncAt: new Date() })
+          .where(eq(calConnTbl.syncChannelId, v.subscriptionId))
+          .catch(() => {})
+      }
+    }
+  } catch { /* ignore */ }
+  return c.body(null, 202)
+})
+
+// Google Calendar webhook receiver. We don't actually do anything
+// fancy on push — slot generation pulls fresh events at slot-list
+// time, so the notification just means "next list will be fresher".
+// We log + 200 to acknowledge the channel.
+app.post('/api/webhooks/google-calendar', async (c) => {
+  const channelId = c.req.header('X-Goog-Channel-Id') || ''
+  const resourceState = c.req.header('X-Goog-Resource-State') || ''
+  if (channelId) {
+    await db.update(calConnTbl).set({ lastSyncAt: new Date() })
+      .where(eq(calConnTbl.syncChannelId, channelId))
+      .catch(() => {})
+  }
+  if (resourceState === 'sync') return c.body(null, 200)  // initial handshake
+  return c.body(null, 200)
+})
+
+// Cron: refresh watch subscriptions approaching expiry. Hourly cron.
+// Google channels: 7-day TTL. Outlook subscriptions: 3-day TTL (we
+// RENEW rather than re-create to preserve the subscription ID).
+app.post('/api/internal/calendar/refresh-watches', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+  const { watchCalendar, unwatchCalendar } = await import('./lib/google-calendar')
+  const { renewSubscriptionOutlook, watchCalendarOutlook } = await import('./lib/outlook-calendar')
+  const dueSoon = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  const stale = await db.select().from(calConnTbl)
+  let refreshed = 0
+  for (const conn of stale) {
+    if (!conn.lastSyncAt) continue
+    if (conn.provider === 'google') {
+      const guessedExpiry = new Date(conn.lastSyncAt.getTime() + 7 * 24 * 60 * 60 * 1000)
+      if (guessedExpiry > dueSoon) continue
+      if (conn.syncChannelId && conn.syncResourceId) {
+        await unwatchCalendar({ userId: conn.userId, channelId: conn.syncChannelId, resourceId: conn.syncResourceId }).catch(() => {})
+      }
+      const webhookUrl = siteOrigin(c) + '/api/webhooks/google-calendar'
+      const sub = await watchCalendar({ userId: conn.userId, webhookUrl })
+      if (sub) {
+        await db.update(calConnTbl).set({
+          syncChannelId: sub.channelId, syncResourceId: sub.resourceId, lastSyncAt: new Date(),
+        }).where(eq(calConnTbl.id, conn.id))
+        refreshed++
+      }
+    } else if (conn.provider === 'outlook') {
+      const guessedExpiry = new Date(conn.lastSyncAt.getTime() + 70 * 60 * 60 * 1000)
+      if (guessedExpiry > dueSoon) continue
+      let ok = false
+      if (conn.syncChannelId) {
+        ok = await renewSubscriptionOutlook({ userId: conn.userId, subscriptionId: conn.syncChannelId })
+      }
+      if (!ok) {
+        const sub = await watchCalendarOutlook({ userId: conn.userId, webhookUrl: siteOrigin(c) + '/api/webhooks/outlook-calendar' })
+        if (sub) {
+          await db.update(calConnTbl).set({
+            syncChannelId: sub.subscriptionId, lastSyncAt: new Date(),
+          }).where(eq(calConnTbl.id, conn.id))
+          refreshed++
+        }
+      } else {
+        await db.update(calConnTbl).set({ lastSyncAt: new Date() }).where(eq(calConnTbl.id, conn.id))
+        refreshed++
+      }
+    }
+  }
+  return c.json({ ok: true, refreshed })
+})
+
+// ── Factory internal: rebook nudge cron ───────────────────────────────────
+// Daily cron from the Factory. For each service with rebookIntervalDays
+// set, find completed bookings whose end_at is between (today - N days
+// + 0d) and (today - N days + 1d) and whose rebook_reminder_sent_at is
+// null. Send the "ready for your next one?" email, stamp the column.
+app.post('/api/internal/booking-rebook-reminders', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+  const { sendBookingRebookEmail } = await import('./lib/email')
+
+  const services = await db.select().from(bookingServicesTbl)
+  let sent = 0, checked = 0
+  for (const svc of services) {
+    if (!svc.rebookIntervalDays || svc.rebookIntervalDays <= 0) continue
+    const lowerBound = new Date(Date.now() - (svc.rebookIntervalDays + 1) * 24 * 60 * 60 * 1000)
+    const upperBound = new Date(Date.now() - svc.rebookIntervalDays * 24 * 60 * 60 * 1000)
+    const due = await db.select().from(bookingsTbl).where(and(
+      eq(bookingsTbl.serviceId, svc.id),
+      eq(bookingsTbl.status, 'completed'),
+      gte(bookingsTbl.endAt, lowerBound),
+      lte(bookingsTbl.endAt, upperBound),
+    ))
+    for (const b of due) {
+      checked++
+      if (b.rebookReminderSentAt) continue
+      try {
+        const bookUrl = siteOrigin(c) + '/book/' + svc.slug
+        await sendBookingRebookEmail({
+          serviceName: svc.name,
+          startAt: b.startAt as Date, endAt: b.endAt as Date,
+          customerName: b.customerName, customerEmail: b.customerEmail,
+          customerAddress: b.customerAddress,
+          bookUrl,
+          tenantTz: TENANT_TZ,
+        })
+        await db.update(bookingsTbl).set({ rebookReminderSentAt: new Date() }).where(eq(bookingsTbl.id, b.id))
+        sent++
+      } catch (err: any) {
+        console.warn('[rebook] failed for booking ' + b.id + ':', err?.message)
+      }
+    }
+  }
+  return c.json({ ok: true, checked, sent })
+})
+
+// ── Factory internal: 24h booking reminders ───────────────────────────────
+// Hourly cron from the Factory hits this. We find every confirmed
+// booking with start_at in the next 23-25 hours and reminder_24h_sent_at
+// IS NULL, send the reminder, stamp the sent-at column. Idempotent.
+app.post('/api/internal/booking-reminders', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+
+  const { sendBookingReminderEmail } = await import('./lib/email')
+  const now = new Date()
+  const windowStart = new Date(now.getTime() + 23 * 60 * 60 * 1000)
+  const windowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000)
+  const due = await db.select().from(bookingsTbl)
+    .where(and(
+      eq(bookingsTbl.status, 'confirmed'),
+      gte(bookingsTbl.startAt, windowStart),
+      lte(bookingsTbl.startAt, windowEnd),
+    ))
+  let emailsSent = 0, smsSent = 0
+  for (const b of due) {
+    const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, b.serviceId)).limit(1))[0]
+    if (!service) continue
+    if (!b.reminder24hSentAt) {
+      try {
+        await sendBookingReminderEmail({
+          serviceName: service.name,
+          startAt: b.startAt as Date, endAt: b.endAt as Date,
+          customerName: b.customerName, customerEmail: b.customerEmail,
+          customerAddress: b.customerAddress,
+          manageUrl: siteOrigin(c) + '/booking/' + b.confirmationToken,
+          tenantTz: TENANT_TZ,
+        })
+        await db.update(bookingsTbl).set({ reminder24hSentAt: new Date() }).where(eq(bookingsTbl.id, b.id))
+        emailsSent++
+      } catch (err: any) { console.warn('[reminder email] ' + b.id + ':', err?.message) }
+    }
+    if (!b.reminder24hSmsSentAt && b.customerPhone && process.env.SMS_INTERNAL_URL) {
+      try {
+        const when = (b.startAt as Date).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: TENANT_TZ })
+        await sendBookingSmsConfirmation({
+          url: process.env.SMS_INTERNAL_URL,
+          key: process.env.FACTORY_SYNC_KEY || '',
+          to: b.customerPhone,
+          body: 'Reminder: ' + service.name + ' tomorrow at ' + when + '.',
+        })
+        await db.update(bookingsTbl).set({ reminder24hSmsSentAt: new Date() }).where(eq(bookingsTbl.id, b.id))
+        smsSent++
+      } catch (err: any) { console.warn('[reminder sms] ' + b.id + ':', err?.message) }
+    }
+  }
+  return c.json({ ok: true, checked: due.length, emailsSent, smsSent })
+})
+
+// Post-job review-request SMS cron. Daily fan-out from Factory.
+// For bookings that ended 1-2 days ago and haven't sent a review SMS yet.
+app.post('/api/internal/booking-review-requests', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+  const settings = await loadSettings()
+  const companyName = (settings as any)?.companyName || 'the team'
+  const reviewLink = (settings as any)?.googleReviewLink || ''
+  const now = Date.now()
+  const due = await db.select().from(bookingsTbl).where(and(
+    eq(bookingsTbl.status, 'completed'),
+    gte(bookingsTbl.endAt, new Date(now - 2 * 86400000)),
+    lte(bookingsTbl.endAt, new Date(now - 86400000)),
+  ))
+  let sent = 0
+  for (const b of due) {
+    if (b.reviewRequestSmsSentAt) continue
+    if (!b.customerPhone || !process.env.SMS_INTERNAL_URL) continue
+    try {
+      const msg = ('Hi ' + b.customerName.split(' ')[0] + ', thanks for choosing ' + companyName + '! If we did good work, a quick Google review would mean a lot' + (reviewLink ? ': ' + reviewLink : '. Just reply with your thoughts.')).slice(0, 320)
+      await sendBookingSmsConfirmation({
+        url: process.env.SMS_INTERNAL_URL,
+        key: process.env.FACTORY_SYNC_KEY || '',
+        to: b.customerPhone, body: msg,
+      })
+      await db.update(bookingsTbl).set({ reviewRequestSmsSentAt: new Date() }).where(eq(bookingsTbl.id, b.id))
+      sent++
+    } catch (err: any) { console.warn('[review sms] ' + b.id + ':', err?.message) }
+  }
+  return c.json({ ok: true, checked: due.length, sent })
+})
+
+// ── Factory internal: sync settings from the Factory ──────────────────────
+app.post('/api/internal/sync-settings', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+
+  const patch = await c.req.json().catch(() => ({})) as Record<string, any>
+  const existing = await loadSettings()
+  if (!existing) return c.json({ error: 'Settings row not initialized yet' }, 409)
+
+  const allowed: Record<string, any> = {}
+  const fields = ['companyName', 'tagline', 'phone', 'email', 'address', 'seoTitle', 'seoDescription',
+    'contactCtaLabel', 'primaryColor', 'secondaryColor', 'accentColor', 'logoUrl', 'faviconUrl',
+    'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId', 'nav']
+  for (const f of fields) if (f in patch) allowed[f] = patch[f]
+  if (Object.keys(allowed).length === 0) return c.json({ ok: true, noChanges: true })
+
+  await db.update(settingsTbl).set({ ...allowed, updatedAt: new Date() }).where(eq(settingsTbl.id, existing.id))
+  return c.json({ ok: true, applied: Object.keys(allowed) })
+})
+
+// ── Factory internal: seed intake photos into the tenant's library ────────
+//
+// Called by the Factory after deploy completes, to copy photos the prospect
+// uploaded during /public/intake (which live on the Factory's signed-URL
+// storage and expire in 7 days) into the tenant's own R2 bucket + photos
+// table so they survive long-term.
+//
+// Body: { photos: [{ url, tag?, alt? }] }
+app.post('/api/internal/seed-photos', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+
+  let body: { photos?: Array<{ url?: string; tag?: string; alt?: string }> }
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const incoming = Array.isArray(body.photos) ? body.photos : []
+  if (incoming.length === 0) return c.json({ ok: true, seeded: 0 })
+
+  const [sharp, { uploadImage }, schema] = await Promise.all([
+    import('sharp').then(m => m.default),
+    import('./services/storage'),
+    import('./db/schema'),
+  ])
+  const photosTbl = schema.photos
+
+  let seeded = 0
+  const errors: Array<{ url: string; error: string }> = []
+  for (const p of incoming.slice(0, 50)) {
+    if (!p.url || typeof p.url !== 'string') continue
+    try {
+      const res = await fetch(p.url, { signal: AbortSignal.timeout(30_000) })
+      if (!res.ok) throw new Error('fetch failed: ' + res.status)
+      const raw = Buffer.from(await res.arrayBuffer())
+      const meta = await sharp(raw).metadata()
+      const isAlphaPng = meta.format === 'png' && meta.hasAlpha
+      const processedBuffer = isAlphaPng ? raw : await sharp(raw).rotate().jpeg({ quality: 82, mozjpeg: true }).toBuffer()
+      const processedType = isAlphaPng ? 'image/png' : 'image/jpeg'
+
+      const upload = await uploadImage(processedBuffer, {
+        filename: 'intake-photo' + (isAlphaPng ? '.png' : '.jpg'),
+        contentType: processedType,
+      })
+
+      await db.insert(photosTbl).values({
+        url: upload.url,
+        storageKey: upload.storageKey,
+        alt: p.alt || null,
+        tag: p.tag || null,
+        width: meta.width || null,
+        height: meta.height || null,
+        bytes: upload.bytes,
+        contentType: upload.contentType,
+      })
+      seeded++
+    } catch (err: any) {
+      errors.push({ url: p.url, error: err.message || String(err) })
+    }
+  }
+
+  return c.json({ ok: true, seeded, errors: errors.length > 0 ? errors : undefined })
+})
+
+// ── Admin: JSON API + SPA ─────────────────────────────────────────────────
+// JSON API mounted at /api/admin/*. The React SPA build lands at
+// admin/dist/ and gets served below at /admin/*. SPA routes that don't
+// match a built asset fall back to index.html so client-side routing works.
+// Admin API: stricter CORS than public pages — only same-origin browser
+// requests, or explicit allowlist via CORS_ALLOWED_ORIGINS env var.
+app.use('/api/admin/*', adminCors())
+// Login endpoint gets its own rate limit before the bcrypt comparison.
+app.use('/api/admin/login', loginRateLimit())
+app.route('/api/admin', adminRoutes)
+
+const adminDistDir = path.join(__dirname, 'admin', 'dist')
+const hasAdminBuild = fs.existsSync(adminDistDir) && fs.existsSync(path.join(adminDistDir, 'index.html'))
+
+if (hasAdminBuild) {
+  // Hono's serveStatic joins root + c.req.path verbatim, so without a
+  // rewrite it would look for ./admin/dist/admin/assets/<file>. Strip
+  // the /admin prefix so the lookup lands at ./admin/dist/assets/<file>
+  // where Vite actually emits the build.
+  app.use('/admin/assets/*', serveStatic({
+    root: './admin/dist',
+    rewriteRequestPath: (p) => p.replace(/^\/admin/, ''),
+  }))
+  app.get('/admin/*', (c) => {
+    // SPA fallback — serve index.html for any /admin/* request that wasn't
+    // an asset. React Router takes over from there.
+    const html = fs.readFileSync(path.join(adminDistDir, 'index.html'), 'utf8')
+    return c.html(html)
+  })
+} else {
+  app.get('/admin/*', (c) => c.html(
+    '<!doctype html><meta charset="utf-8"><title>Admin not built</title>' +
+    '<body style="font:16px system-ui;padding:40px;max-width:560px;margin:auto">' +
+    '<h1>Admin not built</h1>' +
+    '<p>Run <code>cd admin && bun install && bun run build</code> to ship the admin UI.</p>' +
+    '</body>'
+  ))
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+const port = Number(process.env.PORT || '3000')
+console.log('[Premium-Bar] Serving on port', port)
+
+export default {
+  port,
+  fetch: app.fetch,
+}

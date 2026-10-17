@@ -247,7 +247,7 @@ const invented = (): Record<string, Section[]> => ({
 // that can never be built.
 {
   const trades = ['food truck', 'dispensary', 'veterinary clinic', 'RV dealership', 'roofing', 'landscaping', 'home care',
-    'plumbing', 'cafe', 'restaurant', 'salon', 'gym', 'hotel', 'wedding venue', 'general contractor', 'online store', 'accountant']
+    'plumbing', 'cafe', 'restaurant', 'salon', 'bar & grill', 'gym', 'hotel', 'wedding venue', 'general contractor', 'online store', 'accountant']
   for (const bt of trades) {
     for (const [page, r] of Object.entries(pageRecipesFor(bt))) {
       for (const t of r.allowed_types) check(ALL_TYPES.has(t), `${bt}/${page}: allowed type "${t}" is not in SECTION_SCHEMA`)
@@ -467,7 +467,8 @@ for (const t of premium) {
   const { TRADE_SECTIONS } = await import('../templates/website-premium-contractor/admin/src/sectionFields.ts')
   const FORMS = new Set(['hero/full-bleed', 'hero/split', 'hero/centered-stats', 'services/cards-grid', 'services/alternating', 'cta/banner', 'cta/split',
     'about/story', 'team/grid', 'contact/form-info', 'gallery/grid', 'testimonials/quotes', 'faq/accordion', 'stats/bar'])
-  const SERVER_BUILT = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator'])
+  // menu/item-hero: a bar's signature item page, built by the server from the CRM's menu (/<section>/<item>).
+  const SERVER_BUILT = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'menu/item-hero', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator'])
   const premium = readdirSync(ROOT + 'templates').filter((d) => d.startsWith('website-premium-'))
   const partialFor = (key: string) => {
     for (const t of premium) {

@@ -1,0 +1,26 @@
+<%
+  // Gallery section: a responsive grid of photos. Best for showcasing
+  // recent work / projects / dishes / before-after pairs.
+  const heading = data.heading || ''
+  const intro = data.intro || ''
+  const photos = Array.isArray(data.photos) ? data.photos.filter(p => p && p.url) : []
+  if (photos.length === 0) return
+%>
+<section class="gallery-section">
+  <div class="container">
+    <% if (heading || intro) { %>
+      <div class="gallery-section__head">
+        <% if (heading) { %><h2 class="gallery-section__title"><%= heading %></h2><% } %>
+        <% if (intro) { %><p class="gallery-section__intro"><%= intro %></p><% } %>
+      </div>
+    <% } %>
+    <div class="gallery-grid">
+      <% photos.forEach(function(p) { %>
+        <figure class="gallery-grid__item">
+          <img src="<%= p.url %>" alt="<%= p.alt || '' %>" loading="lazy">
+          <% if (p.caption) { %><figcaption><%= p.caption %></figcaption><% } %>
+        </figure>
+      <% }) %>
+    </div>
+  </div>
+</section>

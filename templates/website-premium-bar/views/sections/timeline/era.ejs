@@ -1,0 +1,105 @@
+<%
+  // One era of THE ARCHIVE on its own page (/story/<slug>). data.slug picks
+  // the entry out of site.timeline; prev/next follow the same order as the
+  // /story page. A missing slug renders a one-line placeholder, never a crash.
+  //
+  // data: { slug, backHref?, backLabel?, entries? (fallback when site is null) }
+  const source = (typeof site !== 'undefined' && site && Array.isArray(site.timeline)) ? site.timeline
+    : (Array.isArray(data.entries) ? data.entries : [])
+  const entries = source
+    .filter(e => e && e.slug && e.isPublished !== false)
+    .slice()
+    .sort((a, b) => ((a.sortOrder || 0) - (b.sortOrder || 0)) || ((a.yearStart || 0) - (b.yearStart || 0)))
+  const safeSlug = s => String(s || '').replace(/[^a-z0-9_-]/gi, '')
+  const want = safeSlug(data.slug)
+  const idx = entries.findIndex(e => safeSlug(e.slug) === want)
+  const e = idx >= 0 ? entries[idx] : null
+  const prev = idx > 0 ? entries[idx - 1] : null
+  const next = idx >= 0 && idx < entries.length - 1 ? entries[idx + 1] : null
+  const backHref = data.backHref || '/story'
+  const backLabel = data.backLabel || 'Back to the story'
+  function yearLabel(x) {
+    if (!x.yearStart) return 'The claim'
+    if (x.yearEnd && x.yearEnd !== x.yearStart) return x.yearStart + '–' + x.yearEnd
+    return String(x.yearStart)
+  }
+  function yearHtml(x) {
+    if (!x.yearStart) return '<span class="era__year-word">The claim</span>'
+    if (x.yearEnd && x.yearEnd !== x.yearStart) return '<span class="era__year-start">' + x.yearStart + '</span><span class="era__year-end">–' + x.yearEnd + '</span>'
+    return String(x.yearStart)
+  }
+%>
+<section class="era-page">
+  <div class="container era-page__inner">
+    <% if (!e) { %>
+      <header class="era-page__head">
+        <div class="eyebrow">The story</div>
+        <h1 class="era-page__title foil">This chapter is being written</h1>
+      </header>
+      <p class="era-page__empty">Nothing here yet. <a href="<%= backHref %>"><%= backLabel %></a>.</p>
+    <% } else { const yl = yearLabel(e); const slug = safeSlug(e.slug) %>
+      <article class="era era--single" id="<%= slug %>">
+        <header class="era-page__head">
+          <div class="eyebrow">The story · <a href="<%= backHref %>#<%= slug %>">Chapter <%= idx + 1 %> of <%= entries.length %></a></div>
+          <div class="era__year era__year--page<%= e.yearStart ? '' : ' era__year--word' %> foil" aria-hidden="true"><%- yearHtml(e) %></div>
+          <h1 class="era-page__title"><span class="era__sr"><%= yl %>: </span><%= e.title %></h1>
+        </header>
+        <div class="era__prose era__prose--page"><%- md(e.bodyMd || '') %></div>
+
+        <% if (e.thenImageUrl && e.nowImageUrl) { %>
+          <figure class="era__compare">
+            <div class="ba-compare" data-ba>
+              <img class="ba-img ba-img--after" src="<%= e.nowImageUrl %>" alt="<%= e.title %> — now" loading="lazy">
+              <img class="ba-img ba-img--before" src="<%= e.thenImageUrl %>" alt="<%= e.title %> — then" loading="lazy" style="clip-path: inset(0 50% 0 0);">
+              <span class="ba-tag ba-tag--before">Then</span>
+              <span class="ba-tag ba-tag--after">Now</span>
+              <span class="ba-handle" aria-hidden="true"></span>
+              <input class="ba-range" type="range" min="0" max="100" value="50" aria-label="Slide between then and now">
+            </div>
+            <figcaption class="era__caption">Same angle, then and now.<% if (e.imageCredit) { %> <span class="era__credit">Then photo: <%= e.imageCredit %></span><% } %></figcaption>
+          </figure>
+          <script>
+          (function () {
+            document.querySelectorAll('.era-page .ba-compare[data-ba]').forEach(function (el) {
+              var range = el.querySelector('.ba-range');
+              var before = el.querySelector('.ba-img--before');
+              var handle = el.querySelector('.ba-handle');
+              if (!range || !before) return;
+              range.addEventListener('input', function () {
+                var v = range.value;
+                before.style.clipPath = 'inset(0 ' + (100 - v) + '% 0 0)';
+                if (handle) handle.style.left = v + '%';
+              });
+            });
+          })();
+          </script>
+        <% } else if (e.imageUrl) { %>
+          <figure class="era__figure">
+            <img class="era__img" src="<%= e.imageUrl %>" alt="<%= e.title %><%= e.imageYear ? ', ' + e.imageYear : '' %>" loading="lazy">
+            <% if (e.imageCredit || e.imageYear) { %>
+              <figcaption class="era__caption"><%= [e.imageYear, e.imageCredit].filter(Boolean).join(' · ') %></figcaption>
+            <% } %>
+          </figure>
+        <% } %>
+      </article>
+
+      <nav class="era-nav" aria-label="Other eras">
+        <% if (prev) { %>
+          <a class="era-nav__link era-nav__link--prev" href="/story/<%= safeSlug(prev.slug) %>" rel="prev">
+            <span class="era-nav__label">Earlier</span>
+            <span class="era-nav__year foil"><%= yearLabel(prev) %></span>
+            <span class="era-nav__title"><%= prev.title %></span>
+          </a>
+        <% } else { %><span class="era-nav__spacer" aria-hidden="true"></span><% } %>
+        <a class="era-nav__back btn btn--outline btn--lg" href="<%= backHref %>#<%= slug %>"><%= backLabel %></a>
+        <% if (next) { %>
+          <a class="era-nav__link era-nav__link--next" href="/story/<%= safeSlug(next.slug) %>" rel="next">
+            <span class="era-nav__label">Later</span>
+            <span class="era-nav__year foil"><%= yearLabel(next) %></span>
+            <span class="era-nav__title"><%= next.title %></span>
+          </a>
+        <% } else { %><span class="era-nav__spacer" aria-hidden="true"></span><% } %>
+      </nav>
+    <% } %>
+  </div>
+</section>

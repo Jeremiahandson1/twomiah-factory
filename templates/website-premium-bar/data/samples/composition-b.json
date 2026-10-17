@@ -1,0 +1,80 @@
+{
+  "_note": "Composition B — chef's-voice led. Centered hero with provenance stats, about-us split with the kitchen team, menu cards-grid by course, reservations banner.",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "centered-stats",
+      "data": {
+        "eyebrow": "Mineral Point, WI · A Driftless dinner house",
+        "title": "The kitchen is closer to your plate than the highway",
+        "subtitle": "Ridge & Field is a 28-seat dinner house built around three Driftless farms, a wood hearth, and a cellar of small-production upper-Midwest wines. Five courses, two seatings, Tuesday through Saturday.",
+        "primaryCta": { "label": "Reservations", "href": "#contact" },
+        "stats": [
+          { "value": "30 mi", "label": "Farthest ingredient" },
+          { "value": "28", "label": "Seats per service" },
+          { "value": "5", "label": "Courses" },
+          { "value": "4 wks", "label": "Booking window" }
+        ]
+      }
+    },
+    {
+      "type": "hero",
+      "variant": "split",
+      "data": {
+        "flip": true,
+        "eyebrow": "The kitchen",
+        "title": "Chef Anika Rasmussen runs a four-person line — and answers her own phone",
+        "subtitle": "Ridge & Field opened in 2022 in a 1903 stone building on Mineral Point's High Street. Anika came home to the Driftless after fifteen years on lines in San Francisco, Copenhagen, and the upper peninsula.",
+        "image": "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=1400&q=80",
+        "primaryCta": { "label": "The story", "href": "#about" },
+        "stats": [
+          { "value": "4", "label": "People on the line" },
+          { "value": "3", "label": "Partner farms" }
+        ]
+      }
+    },
+    {
+      "type": "services",
+      "variant": "cards-grid",
+      "data": {
+        "heading": "The week's menu",
+        "intro": "Menus turn weekly. Pairings are drawn from our cellar of small-production upper-Midwest producers.",
+        "items": [
+          {
+            "title": "Garden",
+            "description": "Late-summer tomatoes with smoked ricotta + marigold honey. Eat with your hands.",
+            "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "From the river",
+            "description": "Slow-poached brook trout, brown butter, sorrel, and trout roe.",
+            "image": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "From the field",
+            "description": "Pasture-raised lamb shoulder, juniper, roots glazed in lamb fat.",
+            "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Sweet",
+            "description": "Roasted plums, brown-butter financier, late-harvest Edelweiss.",
+            "image": "https://images.unsplash.com/photo-1551024506-0bccd828d307?w=900&q=80",
+            "href": "#contact"
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "banner",
+      "data": {
+        "heading": "Reservations open four weeks ahead",
+        "subtitle": "Tuesday through Saturday · 5:30 and 7:30 seatings. $95 menu, $145 with pairings.",
+        "primaryCta": { "label": "Book a table", "href": "#contact" }
+      }
+    }
+  ]
+}

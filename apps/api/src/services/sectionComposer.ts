@@ -176,12 +176,58 @@ export const SECTION_SCHEMA = {
       use_when: 'pre-empt the common buyer questions for this business. Strong SEO win, so add one even when the intake did not ask for it — but every ANSWER must be something the intake actually says, or general knowledge about the trade stated as general ("most kitchen remodels need a permit"), never a policy of this business it did not state (lead times, minimums, deposits, warranties, cancellation terms, who pulls permits, prices). A question the intake cannot answer is left out — "plausibly true" is not true.',
     },
   },
+  // ─── Bar-specific section types (website-premium-bar) ───────────────────
+  timeline: {
+    book: { required: [], optional: ['eyebrow', 'heading', 'intro', 'asHeading', 'entries', 'closing'], use_when: 'the /story page as an old book - chapters on cream spreads you turn through. entries: [{ slug, yearStart, yearEnd, title, bodyMd }] — ONLY the history the intake tells, in its own facts; no era it does not name. Preferred over timeline/eras for bars with real history.' },
+    eras: { required: [], optional: ['eyebrow', 'heading', 'intro', 'asHeading', 'entries'], use_when: 'bars/restaurants with real history — the whole timeline as one page (/story). entries: [{ slug, yearStart, yearEnd, title, bodyMd }] — ONLY the history the intake tells; each era also gets its own page at /story/<slug>.' },
+    era: { required: ['slug'], optional: ['backHref', 'backLabel'], use_when: 'one era of the timeline as its own page (/story/<slug>).' },
+  },
+  hours: {
+    table: { required: [], optional: ['heading', 'intro', 'asHeading', 'showHolidays'], use_when: 'bars — weekly BAR and KITCHEN hours side by side, live from the bar\'s CRM, with tonight\'s live line. Use on the /visit page. Never type hours into copy.' },
+  },
+  visit: {
+    details: { required: ['heading'], optional: ['intro', 'asHeading', 'parking', 'accessibility', 'notes', 'showMap'], use_when: 'the /visit page lead: address + phone from settings, directions to Google AND Apple Maps, parking, accessibility list, good-to-know list.' },
+  },
+  parties: {
+    'inquiry-form': { required: ['heading'], optional: ['intro', 'asHeading', 'minParty', 'promise', 'occasions', 'sidebar', 'facts'], use_when: 'bars — a private-party ENQUIRY (name, phone, date, how many, occasion) that lands in the owner\'s CRM. Not a reservation system. occasions, minParty, promise, sidebar and facts ONLY when the intake states them — they are the owner\'s policies.' },
+  },
+  taps: {
+    wall: { required: [], optional: ['heading', 'intro', 'asHeading', 'leadOrigins', 'showPrices', 'emptyText'], use_when: 'bars — the live tap list from the bar\'s CRM. Framing only; never list beers here.' },
+  },
+  tonight: {
+    board: {
+      required: [],
+      optional: ['eyebrow', 'title', 'intro', 'asHeading', 'showTaps', 'showRoom', 'tapsHref', 'menuHref'],
+      use_when: 'bars and taverns ONLY — the live status board that replaces the hero: kitchen open/closed with countdown, bar hours, what is on tap, tonight\'s game, today\'s special, how busy. Its content is live from the bar\'s CRM, so the composer supplies only framing (eyebrow/title/intro). Always the FIRST section of a bar home page.',
+    },
+  },
+  regulars: {
+    signup: { required: [], optional: ['heading', 'intro', 'asHeading', 'perks', 'promise'], use_when: 'bars — guests join the bar\'s list (name, phone, optional birthday, email only with a ticked consent box) into the CRM. perks and promise ONLY when the intake states them.' },
+  },
+  events: {
+    list: { required: [], optional: ['heading', 'intro', 'asHeading', 'recurring', 'emptyText'], use_when: 'the /events page: upcoming events live from the bar\'s CRM plus the standing weekly things listed in `recurring` (title, when, href, description) — ONLY weekly nights the intake names.' },
+    recurring: {
+      required: ['title', 'day', 'startTime'],
+      optional: ['eyebrow', 'endTime', 'timeLabel', 'price', 'description', 'details', 'where', 'image', 'imageAlt', 'asHeading', 'cta'],
+      use_when: 'a weekly night the intake names that deserves its own page — a fish fry, trivia night, live music night. Day + time, and a price only when the intake gives one; emits Event structured data with a weekly schedule. Bars, restaurants, cafes.',
+    },
+  },
   // ─── Food truck-specific section types ─────────────────────────────────
   // Available to food_truck industry. Showcase / restaurant / cafe verticals
   // can use them too where appropriate (e.g. a restaurant with a true daily
   // menu benefits from menu/cards, a beach-pop-up cafe might use
   // location/live-map).
   menu: {
+    sections: {
+      required: [],
+      optional: ['heading', 'intro', 'asHeading', 'kind', 'showSignatureLinks'],
+      use_when: 'bars whose menu lives in the bar\'s CRM — renders the WHOLE menu grouped by section as real text with prices and Menu/MenuItem structured data. Supply only framing; never list items here. Use on the /menu page; use menu/cards for a short hand-picked teaser on the home page.',
+    },
+    'item-hero': {
+      required: ['slug'],
+      optional: ['section', 'eyebrow'],
+      use_when: 'a signature item\'s own page (a famous burger) — built by the site from the CRM\'s menu at /<section>/<item>; never composed.',
+    },
     cards: {
       required: ['items'],
       optional: ['heading', 'intro', 'dietary_legend'],
@@ -1006,7 +1052,7 @@ const EVENTS_PAGE_RECIPES = {
   about: {
     purpose: 'Owner/family + property history + philosophy.',
     allowed_types: ['about', 'stats', 'gallery', 'testimonials', 'cta'],
-    required_sequence: '1 about/story (owner/family portrait + the WHY of the venue — restoration, family farm, historical building), optional 1 stats/bar (events/year, years operating, capacity), optional 1 gallery, optional 1 testimonials, close with 1 cta',
+    required_sequence: '1 about/story (owner/family portrait + the WHY of the venue — restoration, family farm, historical building), optional 1 stats/bar (events a year, years operating, capacity), optional 1 gallery, optional 1 testimonials, close with 1 cta',
   },
   contact: {
     purpose: 'Conversion page — for tours, vendor inquiries, press.',
@@ -1264,6 +1310,53 @@ const DISPENSARY_PAGE_RECIPES = {
 // most important thing after location, social-following IS the marketing.
 // Override the recipes accordingly. Selected by buildSitePrompt when
 // input.businessType maps to the foodtruck vertical.
+// Bars and taverns. The one question the site must answer is "should I go
+// there right now?" — kitchen open, what's on tap, is the game on — so the
+// live board (tonight/board, once registered) leads and the story of the
+// place is a first-class page, not an About paragraph. Menu is real HTML
+// with prices; never a PDF or image. No reservations section, ever — a bar
+// is walk-in business; private parties go through an inquiry form.
+const BAR_PAGE_RECIPES = {
+  // A bar's pages. The live facts (tonight's status, the menu, taps, hours, upcoming events) are the
+  // bar's CRM's and render by themselves — the composer writes only framing and the facts the intake
+  // gives: the history it tells, the dishes it names, the policies it states. Nothing else.
+  home: {
+    purpose: 'Front door for a bar. Answer "is the kitchen open, what\'s on tap, is the game on" above the fold, then the signature food, then the story.',
+    allowed_types: ['tonight', 'menu', 'about', 'stats', 'gallery', 'faq', 'cta'],
+    required_sequence: '1 tonight/board FIRST (it replaces the hero — never add a hero on a bar home page), optional 1 menu/cards (ONLY signature dishes the intake names, at the prices it gives), optional 1 about/story (the history the intake tells, in 2-3 short plain paragraphs), optional 1 stats/bar (only numbers the intake states), close with 1 cta/split pointing to the menu or visit page',
+  },
+  menu: {
+    purpose: 'The full menu — every item, price, description. Real text, real prices. This is the page Google and AI assistants quote.',
+    allowed_types: ['menu', 'faq', 'cta'],
+    required_sequence: '1 menu/sections with asHeading=true (the whole menu comes live from the CRM — do NOT list items), optional 1 faq/accordion (ONLY questions the intake answers), close with 1 cta/banner',
+  },
+  story: {
+    purpose: 'The history of the bar — the reason people link to it. Plain voice, no marketing adjectives, nothing the intake does not tell.',
+    allowed_types: ['timeline', 'about', 'gallery', 'cta'],
+    required_sequence: '1 timeline/book or timeline/eras with asHeading=true (entries: ONLY the eras the intake tells — year, title, the story in its own facts), optional 1 gallery/grid (the owner\'s historic photos only), close with 1 cta. Hold the page when the intake tells no history.',
+  },
+  events: {
+    purpose: 'What is happening — game days, live music, weekly nights.',
+    allowed_types: ['events', 'cta'],
+    required_sequence: '1 events/list with asHeading=true (upcoming events come live from the CRM; `recurring` ONLY for weekly nights the intake names), close with 1 cta/banner',
+  },
+  taps: {
+    purpose: 'The live tap wall — what is actually pouring right now.',
+    allowed_types: ['taps', 'cta'],
+    required_sequence: '1 taps/wall with asHeading=true (framing only — the list is live from the CRM), close with 1 cta/split',
+  },
+  parties: {
+    purpose: 'Private-party enquiries — the back room, a birthday, a work group. They land in the owner\'s CRM.',
+    allowed_types: ['parties', 'faq', 'gallery', 'cta'],
+    required_sequence: '1 parties/inquiry-form with asHeading=true (occasions, minimums and promises ONLY when the intake states them), optional 1 gallery/grid (the owner\'s own photos), optional 1 faq/accordion (ONLY questions the intake answers), close with 1 cta',
+  },
+  visit: {
+    purpose: 'Hours (bar AND kitchen, separately), address, parking, directions, accessibility, contact.',
+    allowed_types: ['visit', 'hours', 'faq', 'cta'],
+    required_sequence: '1 visit/details with asHeading=true (parking, accessibility and notes ONLY as the intake gives them), 1 hours/table (bar + kitchen hours come live from the CRM), optional 1 faq/accordion (ONLY questions the intake answers), close with 1 cta/banner',
+  },
+} as const
+
 const FOODTRUCK_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a mobile food business. Answer "where are you right now" and "what do you serve" in the first three seconds.',
@@ -1305,7 +1398,7 @@ type PageRecipe = { purpose: string; allowed_types: readonly string[]; required_
 
 /** The page set (and per-page recipe) for a business type. */
 export function pageRecipesFor(businessType: string): Record<string, PageRecipe> {
-  const { ft, dispensary, vet, rv, roofing, landscaping, homecare, fieldservice, cafe, restaurant, salon, fitness, hotel, events, contractor, store } = tradeFlagsFor(businessType)
+  const { ft, dispensary, vet, rv, roofing, landscaping, homecare, fieldservice, cafe, restaurant, salon, bar, fitness, hotel, events, contractor, store } = tradeFlagsFor(businessType)
   return ft
     ? FOODTRUCK_PAGE_RECIPES
     : vet
@@ -1328,6 +1421,8 @@ export function pageRecipesFor(businessType: string): Record<string, PageRecipe>
                   ? RESTAURANT_PAGE_RECIPES
                   : salon
                     ? SALON_PAGE_RECIPES
+                    : bar
+                      ? BAR_PAGE_RECIPES
                     : fitness
                       ? FITNESS_PAGE_RECIPES
                       : hotel

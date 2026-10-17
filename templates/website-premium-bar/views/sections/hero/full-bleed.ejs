@@ -1,0 +1,25 @@
+<%
+  // Full-bleed hero: one large background image, dark overlay, content
+  // anchored bottom-left. Used when there's a strong single shot we want
+  // to lead with — a recent project, a portrait, a hero environment.
+  const bg = data.image || ''
+  const eyebrow = data.eyebrow || ''
+  const title = data.title || ''
+  const subtitle = data.subtitle || ''
+  const primaryCta = data.primaryCta || null
+  const secondaryCta = data.secondaryCta || null
+%>
+<section class="hero hero--full-bleed" style="background-image: url('<%= bg %>')">
+  <div class="hero__scrim"></div>
+  <div class="container hero__inner">
+    <% if (eyebrow) { %><div class="hero__eyebrow"><%= eyebrow %></div><% } %>
+    <h1 class="hero__title"><%= title %></h1>
+    <% if (subtitle) { %><p class="hero__subtitle"><%= subtitle %></p><% } %>
+    <% if (primaryCta || secondaryCta) { %>
+      <div class="hero__ctas">
+        <% if (primaryCta) { %><a class="btn btn--primary btn--lg" href="<%= primaryCta.href || '#contact' %>"><%= primaryCta.label %></a><% } %>
+        <% if (secondaryCta) { %><a class="btn btn--ghost btn--lg" href="<%= secondaryCta.href || '#services' %>"><%= secondaryCta.label %></a><% } %>
+      </div>
+    <% } %>
+  </div>
+</section>
