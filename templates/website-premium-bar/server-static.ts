@@ -1622,6 +1622,16 @@ app.get('/sitemap.xml', async (c) => {
     if (!pageRows.some((r) => r.slug === 'inventory')) urls.push(`  <url><loc>${escapeXml(origin + '/inventory')}</loc></url>`)
     for (const u of invUnits) urls.push(`  <url><loc>${escapeXml(origin + '/inventory/' + u.slug)}</loc></url>`)
   }
+  // The bar's own URLs: each signature item's page (from the CRM's menu) and each era of the story.
+  try {
+    const site = await loadSiteData()
+    for (const s of site.menu) for (const it of s.items) if (it.isSignature) urls.push(`  <url><loc>${escapeXml(origin + '/' + s.slug + '/' + it.slug)}</loc></url>`)
+    const have = new Set(pageRows.map((r) => r.slug))
+    for (const e of site.timeline || []) {
+      const slug = String((e as any)?.slug || '').replace(/[^a-z0-9_-]/gi, '')
+      if (slug && (e as any).isPublished !== false && !have.has('story/' + slug)) urls.push(`  <url><loc>${escapeXml(origin + '/story/' + slug)}</loc></url>`)
+    }
+  } catch { /* a sitemap never fails over the bar's data */ }
   const areaList = serviceAreasOf(await loadSettings())
   if (areaList.length) {
     urls.push(`  <url><loc>${escapeXml(origin + '/service-areas')}</loc></url>`)
@@ -1728,11 +1738,24 @@ async function renderItemPage(sectionSlug: string, itemSlug: string, origin: str
   return renderSections(sections, { title: item.name, metaTitle: item.name + (company ? ' — ' + company : ''), metaDescription: item.description || '',
     slug: section.slug + '/' + item.slug, jsonLdItem: { section, item } }, settingsRow, '/' + section.slug + '/' + item.slug, origin)
 }
+// /story/<era>: each era of the story timeline has its own page, built from the same entries the story
+// page shows (lib/bar.ts timeline) — the owner writes the history once.
+async function renderEraPage(eraSlug: string, origin: string): Promise<string | null> {
+  const [site, settingsRow] = await Promise.all([loadSiteData(), loadSettings()])
+  const entry = (site.timeline || []).find((e: any) => e && String(e.slug || '') === eraSlug && e.isPublished !== false)
+  if (!entry) return null
+  const company = (settingsRow as any)?.companyName || ''
+  return renderSections([{ type: 'timeline', variant: 'era', data: { slug: eraSlug } }],
+    { title: String(entry.title || eraSlug), metaTitle: String(entry.title || eraSlug) + (company ? ' — ' + company : ''), metaDescription: '', slug: 'story/' + eraSlug },
+    settingsRow, '/story/' + eraSlug, origin)
+}
 app.get('/:a/:b', async (c, next) => {
   const { a, b } = c.req.param()
   if (NESTED_RESERVED.includes(a)) return next()
   const slug = a + '/' + b
-  const html = (await renderPage(slug, '/' + slug, getSiteOrigin(c))) || (await renderItemPage(a, b, getSiteOrigin(c)))
+  const html = (await renderPage(slug, '/' + slug, getSiteOrigin(c)))
+    || (a === 'story' ? await renderEraPage(b, getSiteOrigin(c)) : null)
+    || (await renderItemPage(a, b, getSiteOrigin(c)))
   if (!html) return next()
   countView('/' + slug)
   return c.html(html)

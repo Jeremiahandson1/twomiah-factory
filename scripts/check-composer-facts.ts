@@ -247,7 +247,7 @@ const invented = (): Record<string, Section[]> => ({
 // that can never be built.
 {
   const trades = ['food truck', 'dispensary', 'veterinary clinic', 'RV dealership', 'roofing', 'landscaping', 'home care',
-    'plumbing', 'cafe', 'restaurant', 'salon', 'gym', 'hotel', 'wedding venue', 'general contractor', 'online store', 'accountant']
+    'plumbing', 'cafe', 'restaurant', 'salon', 'bar & grill', 'gym', 'hotel', 'wedding venue', 'general contractor', 'online store', 'accountant']
   for (const bt of trades) {
     for (const [page, r] of Object.entries(pageRecipesFor(bt))) {
       for (const t of r.allowed_types) check(ALL_TYPES.has(t), `${bt}/${page}: allowed type "${t}" is not in SECTION_SCHEMA`)
