@@ -196,7 +196,7 @@ export default function SupportPage() {
             )}
             {chatMessages.map((msg, i) => (
               <div key={i} className={'flex ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-                <div className={'max-w-[80%] rounded-xl px-4 py-2 text-sm ' + (msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300')}>
+                <div className={'max-w-[80%] rounded-xl px-4 py-2 text-sm ' + (msg.role === 'user' ? 'bg-orange-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300')}>
                   {msg.content}
                 </div>
               </div>
@@ -221,7 +221,7 @@ export default function SupportPage() {
             </button>
           </div>
         </div>
-        <p className="text-xs text-gray-600 mt-2 dark:text-slate-400">Can't find an answer? <button onClick={() => setShowCreate(true)} className="text-blue-700 dark:text-blue-400 hover:underline">Create a ticket</button></p>
+        <p className="text-xs text-gray-600 mt-2 dark:text-slate-400">Can't find an answer? <button onClick={() => setShowCreate(true)} className="text-orange-700 dark:text-orange-200 hover:underline">Create a ticket</button></p>
       </div>
     );
   }
@@ -285,7 +285,7 @@ export default function SupportPage() {
                 </button>
               ))}
               {ratingValue > 0 && (
-                <button onClick={() => rateTicket(selected.id)} className="ml-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">Submit</button>
+                <button onClick={() => rateTicket(selected.id)} className="ml-2 px-3 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs">Submit</button>
               )}
             </div>
           </div>
@@ -308,7 +308,7 @@ export default function SupportPage() {
                 <input type="checkbox" checked={isInternal} onChange={e => setIsInternal(e.target.checked)} />
                 Internal note
               </label>
-              <button onClick={sendReply} disabled={!replyText.trim()} className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded text-xs">
+              <button onClick={sendReply} disabled={!replyText.trim()} className="flex items-center gap-1 px-3 py-1 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded text-xs">
                 <Send size={12} /> Send
               </button>
             </div>
@@ -327,7 +327,7 @@ export default function SupportPage() {
           <button onClick={() => setView('ai-chat')} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600/20 text-purple-700 dark:text-purple-400 hover:bg-purple-600/30 rounded-lg text-sm">
             <Bot size={16} /> AI Chat
           </button>
-          <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">
             <Plus size={16} /> New Ticket
           </button>
         </div>
@@ -419,7 +419,7 @@ export default function SupportPage() {
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 text-gray-500 dark:text-slate-400 text-sm">Cancel</button>
               <button onClick={createTicket} disabled={!newTicket.subject}
-                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm">Create</button>
+                className="px-4 py-1.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-lg text-sm">Create</button>
             </div>
           </div>
         </div>

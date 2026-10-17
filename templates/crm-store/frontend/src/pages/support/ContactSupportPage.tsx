@@ -67,7 +67,7 @@ export default function ContactSupportPage() {
         {statusUrl && (
           <p className="text-sm mt-2">
             Before you write: <a href={statusUrl} target="_blank" rel="noreferrer"
-              className="text-blue-600 underline dark:text-blue-300">check whether we already know about an outage</a>.
+              className="text-orange-600 underline dark:text-orange-200">check whether we already know about an outage</a>.
           </p>
         )}
       </div>
@@ -124,7 +124,7 @@ export default function ContactSupportPage() {
         <button
           type="submit"
           disabled={sending || !subject.trim()}
-          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
         >
           <Send className="w-4 h-4" /> {sending ? 'Sending...' : 'Send to Twomiah'}
         </button>

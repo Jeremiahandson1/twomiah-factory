@@ -180,7 +180,7 @@ export default function SnowBillingPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><Snowflake className="w-6 h-6" /> Snow &amp; Ice Billing</h1>
           <p className="text-gray-500 text-sm dark:text-slate-400">Per-push, per-event, per-inch, or seasonal — log storms and the charge is computed automatically.</p>
         </div>
-        {mayBill && <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-blue-600 text-white rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" /> New Contract</button>}
+        {mayBill && <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-orange-600 text-white rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" /> New Contract</button>}
       </div>
 
       {showForm && (
@@ -218,7 +218,7 @@ export default function SnowBillingPage() {
               Salt is charged on top in every mode.
             </p>
           )}
-          <button onClick={createContract} className="col-span-2 bg-blue-600 text-white rounded px-3 py-1.5 text-sm">Create Contract</button>
+          <button onClick={createContract} className="col-span-2 bg-orange-600 text-white rounded px-3 py-1.5 text-sm">Create Contract</button>
         </div>
       )}
 
@@ -229,7 +229,7 @@ export default function SnowBillingPage() {
             const sm = sumFor(ct.id);
             return (
               <div key={ct.id} onClick={() => openContract(ct)}
-                className={`border rounded-lg p-4 bg-white cursor-pointer hover:shadow ${selected?.id === ct.id ? 'ring-2 ring-blue-500' : ''} dark:bg-slate-900`}>
+                className={`border rounded-lg p-4 bg-white cursor-pointer hover:shadow ${selected?.id === ct.id ? 'ring-2 ring-orange-500' : ''} dark:bg-slate-900`}>
                 <div className="flex justify-between">
                   <div>
                     <div className="font-medium">{ct.siteName || ct.siteId}</div>
@@ -288,7 +288,7 @@ export default function SnowBillingPage() {
                   <input id="snow-notes" className="w-full border rounded px-2 py-1.5 text-sm" placeholder="Notes" value={evForm.notes} onChange={e => setEvForm({ ...evForm, notes: e.target.value })} />
                 </Field>
               </div>
-              {mayBill && <button onClick={logEvent} className="mt-3 w-full bg-blue-600 text-white rounded px-3 py-2 text-sm">Log Event</button>}
+              {mayBill && <button onClick={logEvent} className="mt-3 w-full bg-orange-600 text-white rounded px-3 py-2 text-sm">Log Event</button>}
 
               <h3 className="font-semibold mt-5 mb-2 text-sm">Recent Events</h3>
               <div className="space-y-1 max-h-72 overflow-y-auto">

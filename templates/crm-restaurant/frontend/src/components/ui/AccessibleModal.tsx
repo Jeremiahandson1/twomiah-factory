@@ -175,7 +175,7 @@ export function AccessibleModal({
 const confirmVariants = {
   danger: 'bg-red-500 hover:bg-red-600 focus:ring-red-500',
   warning: 'bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-500',
-  info: 'bg-blue-500 hover:bg-blue-600 focus:ring-blue-500',
+  info: 'bg-orange-500 hover:bg-orange-600 focus:ring-orange-500',
 };
 
 interface ConfirmDialogProps {

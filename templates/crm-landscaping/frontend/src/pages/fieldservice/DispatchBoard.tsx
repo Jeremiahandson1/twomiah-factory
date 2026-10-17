@@ -445,7 +445,7 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
           {job.status !== 'in_progress' && job.status !== 'completed' && job.assignedTo && (
             <button
               onClick={() => onStatusChange(job.id, 'in_progress')}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700"
             >
               <Play className="w-3.5 h-3.5" />
               Start

@@ -100,7 +100,7 @@ export default function DeskingPage() {
   return (
     <div className="max-w-5xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-1">
-        <div className="w-10 h-10 rounded-lg bg-blue-700 flex items-center justify-center text-white"><ClipboardList size={22} /></div>
+        <div className="w-10 h-10 rounded-lg bg-orange-700 flex items-center justify-center text-white"><ClipboardList size={22} /></div>
         <div><h1 className="text-2xl font-bold">Desking</h1><p className="text-sm text-gray-500 dark:text-slate-400">Structure the deal — out-the-door price, trade, fees, tax, and the payment matrix.</p></div>
       </div>
 
@@ -167,10 +167,10 @@ export default function DeskingPage() {
                     contacts:read only. DISABLED rather than hidden, with the reason in the tooltip:
                     the desk is a worksheet a salesperson is encouraged to play with, and a Save
                     button that vanishes reads as the page being broken. */}
-                <button type="button" onClick={save} disabled={saving || loadingDeal || hasErrors || !dirty || !maySaveDeal} title={!maySaveDeal ? 'Saving a desked deal needs permission to edit the lead.' : undefined} className="px-3 py-1.5 rounded-lg bg-blue-700 text-white text-sm font-medium hover:bg-blue-800 disabled:opacity-50 inline-flex items-center gap-1.5">
+                <button type="button" onClick={save} disabled={saving || loadingDeal || hasErrors || !dirty || !maySaveDeal} title={!maySaveDeal ? 'Saving a desked deal needs permission to edit the lead.' : undefined} className="px-3 py-1.5 rounded-lg bg-orange-700 text-white text-sm font-medium hover:bg-orange-800 disabled:opacity-50 inline-flex items-center gap-1.5">
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{dirty ? 'Save deal' : 'Saved'}
                 </button>
-                <button type="button" onClick={sendToFi} disabled={saving || loadingDeal || hasErrors} className="px-3 py-1.5 rounded-lg border text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:hover:bg-slate-800 dark:text-blue-300">Send to F&I →</button>
+                <button type="button" onClick={sendToFi} disabled={saving || loadingDeal || hasErrors} className="px-3 py-1.5 rounded-lg border text-sm text-orange-700 hover:bg-orange-50 disabled:opacity-50 dark:hover:bg-slate-800 dark:text-orange-200">Send to F&I →</button>
                 {hasErrors && <span className="text-xs text-red-600 dark:text-red-400">Fix the highlighted fields to save.</span>}
               </div>
             )}

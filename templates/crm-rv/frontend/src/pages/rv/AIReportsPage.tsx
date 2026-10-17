@@ -83,7 +83,7 @@ export default function AIReportsPage() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-1">
-        <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white"><Bot size={22} /></div>
+        <div className="w-10 h-10 rounded-lg bg-orange-600 flex items-center justify-center text-white"><Bot size={22} /></div>
         <div>
           <h1 className="text-2xl font-bold">AI Reports</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400">Ask anything about your dealership — inventory, sales, service, leads. Answered from your live data.</p>
@@ -97,10 +97,10 @@ export default function AIReportsPage() {
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) run(); }}
             placeholder="e.g. How many boats did we sell last month and what was the gross?"
-            className="flex-1 p-3 border rounded-lg resize-none h-20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 p-3 border rounded-lg resize-none h-20 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
           <button onClick={() => run()} disabled={loading || !question.trim()}
-            className="px-5 self-stretch rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+            className="px-5 self-stretch rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 disabled:opacity-50 flex items-center gap-2">
             {loading ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
             {loading ? 'Thinking…' : 'Ask'}
           </button>
@@ -108,7 +108,7 @@ export default function AIReportsPage() {
         <div className="flex flex-wrap gap-2 mt-3">
           {SUGGESTIONS.map((s, k) => (
             <button key={k} onClick={() => run(s)} disabled={loading}
-              className="text-xs px-3 py-1.5 rounded-full bg-gray-100 hover:bg-blue-50 hover:text-blue-700 text-gray-600 border border-gray-200 disabled:opacity-50 inline-flex items-center gap-1 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+              className="text-xs px-3 py-1.5 rounded-full bg-gray-100 hover:bg-orange-50 hover:text-orange-700 text-gray-600 border border-gray-200 disabled:opacity-50 inline-flex items-center gap-1 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
               <Sparkles size={12} /> {s}
             </button>
           ))}

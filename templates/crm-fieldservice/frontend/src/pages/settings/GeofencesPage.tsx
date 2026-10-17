@@ -386,7 +386,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
               type="button"
               onClick={getCurrentLocation}
               disabled={gettingLocation}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 rounded-lg dark:text-orange-200"
             >
               {gettingLocation ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

@@ -81,7 +81,7 @@ export function SitePicker({ id, value, sites, onChange, onAdded, allowAdd = tru
             </select>
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={save} disabled={saving} className="bg-blue-600 text-white rounded px-3 py-1.5 text-xs disabled:opacity-50">{saving ? 'Saving…' : 'Save property'}</button>
+            <button type="button" onClick={save} disabled={saving} className="bg-orange-600 text-white rounded px-3 py-1.5 text-xs disabled:opacity-50">{saving ? 'Saving…' : 'Save property'}</button>
             <button type="button" onClick={() => setAdding(false)} className="border rounded px-3 py-1.5 text-xs">Cancel</button>
           </div>
         </div>

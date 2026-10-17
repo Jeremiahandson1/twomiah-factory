@@ -93,7 +93,7 @@ export default function FIPage() {
         <div className="mt-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4 text-sm dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-200">
           <div className="font-semibold">This deal hasn't been desked yet.</div>
           <p className="mt-1">{lead.deal ? 'A desk from the Sales Pipeline is waiting to be saved. ' : ''}Structure it in Desking first (price, trade, tax and fees) so F&I finances the right amount.</p>
-          <Link to={`/crm/desking?lead=${leadId}`} className="mt-2 inline-block font-medium text-blue-700 hover:underline dark:text-blue-300">Open in Desking →</Link>
+          <Link to={`/crm/desking?lead=${leadId}`} className="mt-2 inline-block font-medium text-orange-700 hover:underline dark:text-orange-200">Open in Desking →</Link>
         </div>
       )}
 
@@ -102,7 +102,7 @@ export default function FIPage() {
           <div className="bg-white rounded-xl border shadow-sm p-4 space-y-3 dark:bg-slate-900">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-gray-700 dark:text-slate-200">Deal structure <span className="font-normal text-gray-500 dark:text-slate-400">(from Desking)</span></div>
-              <Link to={`/crm/desking?lead=${leadId}`} className="text-xs text-blue-700 hover:underline dark:text-blue-300">Edit in Desking</Link>
+              <Link to={`/crm/desking?lead=${leadId}`} className="text-xs text-orange-700 hover:underline dark:text-orange-200">Edit in Desking</Link>
             </div>
             <div className="text-sm divide-y">
               {([
