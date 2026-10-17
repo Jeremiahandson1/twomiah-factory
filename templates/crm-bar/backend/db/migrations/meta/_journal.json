@@ -260,6 +260,13 @@
       "when": 1791601504004,
       "tag": "0036_bar_register",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791601504005,
+      "tag": "0037_bar_gift_cards",
+      "breakpoints": true
     }
   ]
 }

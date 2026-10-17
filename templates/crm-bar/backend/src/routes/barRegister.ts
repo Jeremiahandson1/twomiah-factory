@@ -7,7 +7,8 @@
 //   PATCH  /register/check/:id              { label, spot, note }
 //   POST   /register/check/:id/items        { menuItemId | 'tap:<id>', sizeId, qty, note, seat, priceCents }
 //   POST   /register/check/:id/send         { itemIds? }   coursing: send just these
-//   POST   /register/check/:id/pay          { tender: cash | card_external, amountCents, tipCents, cashTenderedCents }
+//   POST   /register/check/:id/pay          { tender: cash | card_external | giftcard, amountCents, tipCents, cashTenderedCents, giftCardCode }
+//   POST   /register/check/:id/giftcard     { amountCents, code? }   sell a gift card (issued when the check is paid)
 //   POST   /register/check/:id/split        { itemIds, label }
 //   POST   /register/check/:id/split-seats
 //   POST   /register/check/:id/guest        { contactId | null }
@@ -26,10 +27,10 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { requireEnabledFeature } from '../middleware/enabledFeature.ts'
+import { isFeatureEnabled, requireEnabledFeature } from '../middleware/enabledFeature.ts'
 import audit from '../services/audit.ts'
 import {
-  addItem, addPayment, attachGuest, CheckError, checkNeedsManager, getCheck, itemNeedsManager, listOpen, listRecentClosed,
+  addGiftCardLine, addItem, addPayment, attachGuest, CheckError, checkNeedsManager, getCheck, itemNeedsManager, listOpen, listRecentClosed,
   menuForRegister, openCheck, renameCheck, sendCheck, splitBySeat, splitItems, taxRateBps, updateItem, voidCheck, voidItem, voidPayment,
 } from '../services/barRegister.ts'
 import { actorOf, clearOwnPin, hasOwnPin, managerApproval, mayManage, PinError, setOwnPin, type Actor } from '../services/barManagers.ts'
@@ -72,7 +73,7 @@ registerRoutes.get('/state', ...ring, async (c) => {
     taxRateBps(actor.companyId), mayManage(actor), hasOwnPin(actor),
   ])
   c.header('Cache-Control', 'no-store')
-  return c.json({ serverNow: Date.now(), businessDay: night, open, recent, menu, taxRateBps: rate, me: { name: actor.name, mayManage: manage, hasPin: pin } })
+  return c.json({ serverNow: Date.now(), businessDay: night, open, recent, menu, taxRateBps: rate, giftCards: await giftCardsOn(actor), me: { name: actor.name, mayManage: manage, hasPin: pin } })
 })
 
 registerRoutes.get('/check/:id', ...ring, async (c) => {
@@ -96,9 +97,19 @@ registerRoutes.post('/check/:id/send', ...ring, async (c) => {
   const only = Array.isArray(b.itemIds) ? b.itemIds.map(String).slice(0, 100) : undefined
   return act(c, async () => ({ check: await sendCheck(actor, c.req.param('id'), only) }))
 })
+// Gift cards on the register are the gift_cards feature's: switched off, a card can be neither sold nor spent.
+const giftCardsOn = (actor: Actor) => isFeatureEnabled(actor.companyId, ['gift_cards'])
+const giftCardsOff = (c: Ctx) => c.json({ error: 'Gift cards are not switched on.', code: 'FEATURE_NOT_ENABLED', feature: 'gift_cards' }, 403)
+
 registerRoutes.post('/check/:id/pay', ...ring, async (c) => {
   const actor = await actorOf(c); const b = await body(c)
-  return act(c, async () => { const { changeCents, ...check } = await addPayment(actor, c.req.param('id'), b); return { check, changeCents } })
+  if (b.tender === 'giftcard' && !(await giftCardsOn(actor))) return giftCardsOff(c)
+  return act(c, async () => { const { changeCents, giftCard, ...check } = await addPayment(actor, c.req.param('id'), b); return { check, changeCents, giftCard: giftCard || null } })
+})
+registerRoutes.post('/check/:id/giftcard', ...ring, async (c) => {
+  const actor = await actorOf(c); const b = await body(c)
+  if (!(await giftCardsOn(actor))) return giftCardsOff(c)
+  return act(c, async () => ({ check: await addGiftCardLine(actor, c.req.param('id'), { amountCents: b.amountCents, code: b.code }) }))
 })
 registerRoutes.post('/check/:id/split', ...ring, async (c) => {
   const actor = await actorOf(c); const b = await body(c)

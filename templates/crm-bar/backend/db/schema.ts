@@ -3114,6 +3114,9 @@ export const barSettings = pgTable('bar_settings', {
   ticketWarnSeconds: integer('ticket_warn_seconds').default(600).notNull(),
   ticketLateSeconds: integer('ticket_late_seconds').default(900).notNull(),
   defaultPrepSeconds: integer('default_prep_seconds').default(480).notNull(),
+  /** The first part of every gift card code ("AMBE-7K2Q-9XMP"), set from the bar's name the first time a card is
+   *  issued and kept, so renaming the bar never changes the codes people hold (services/barGiftCards.ts). */
+  giftCardPrefix: text('gift_card_prefix'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
@@ -3316,6 +3319,7 @@ export const barCheckItem = pgTable('bar_check_item', {
   kind: text('kind').default('item').notNull(),   // item | reward (negative) | giftcard (stored value, not taxed)
   state: text('state').default('held').notNull(), // held | sent | void
   ticketId: text('ticket_id'),
+  giftCardId: text('gift_card_id'),               // kind giftcard: the card this line issued (set when the check is paid)
   voidReason: text('void_reason'),
   voidedByName: text('voided_by_name'),
   addedById: text('added_by_id').references(() => user.id, { onDelete: 'set null' }),
@@ -3336,6 +3340,7 @@ export const barCheckPayment = pgTable('bar_check_payment', {
   cashTenderedCents: integer('cash_tendered_cents'),
   changeCents: integer('change_cents'),
   providerPaymentId: text('provider_payment_id'),
+  giftCardId: text('gift_card_id'),               // tender giftcard: the card it came off
   takenById: text('taken_by_id').references(() => user.id, { onDelete: 'set null' }),
   takenByName: text('taken_by_name'),
   takenAt: timestamp('taken_at').defaultNow().notNull(),
@@ -3379,6 +3384,49 @@ export const barKitchenTicketItem = pgTable('bar_kitchen_ticket_item', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
   index('bar_kitchen_ticket_item_ticket_idx').on(t.ticketId),
+])
+
+// The bar's own gift cards (services/barGiftCards.ts). Stored value, no expiry and no fees, ever. A sale is not
+// revenue until it is spent, so the close-out keeps "gift cards sold" apart from sales. Every change to a balance
+// is a ledger row, written in the same transaction as balance_cents with the card row locked.
+export const barGiftCard = pgTable('bar_gift_card', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  code: text('code').notNull(),                   // "AMBE-7K2Q-9XMP", or a pre-printed card's own number
+  initialCents: integer('initial_cents').notNull(),
+  balanceCents: integer('balance_cents').notNull(),
+  status: text('status').default('active').notNull(), // active | void
+  soldVia: text('sold_via').notNull(),            // register | online
+  soldByName: text('sold_by_name'),
+  checkId: text('check_id').references(() => barCheck.id, { onDelete: 'set null' }),
+  purchaserName: text('purchaser_name'),
+  purchaserEmail: text('purchaser_email'),
+  recipientName: text('recipient_name'),
+  recipientEmail: text('recipient_email'),
+  message: text('message'),
+  providerPaymentId: text('provider_payment_id'),
+  idempotencyKey: text('idempotency_key'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  voidedAt: timestamp('voided_at'),
+  voidReason: text('void_reason'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_gift_card_company_code_key').on(t.companyId, t.code),
+  uniqueIndex('bar_gift_card_company_key_key').on(t.companyId, t.idempotencyKey),
+])
+
+export const barGiftCardLedger = pgTable('bar_gift_card_ledger', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  cardId: text('card_id').notNull().references(() => barGiftCard.id, { onDelete: 'cascade' }),
+  amountCents: integer('amount_cents').notNull(), // + issued / put back, − spent
+  kind: text('kind').notNull(),                   // issue | redeem | refund | adjust | void
+  checkId: text('check_id'),
+  paymentId: text('payment_id'),
+  byName: text('by_name'),
+  note: text('note'),
+  at: timestamp('at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_gift_card_ledger_card_idx').on(t.cardId, t.at),
 ])
 
 // One row per night closed. The summary is frozen as it was at close, so a report never changes afterwards.

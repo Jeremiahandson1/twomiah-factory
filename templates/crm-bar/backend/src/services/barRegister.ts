@@ -18,6 +18,7 @@ import { fireTicket, noteVoidOnTicket, notifyKitchen } from './barKitchen.ts'
 import { sizesOf } from './barMenuSizes.ts'
 import { changeDue, checkTotals, quickCash, taxRateBpsFrom, type CheckTotals } from './barCheckMoney.ts'
 import type { Actor } from './barManagers.ts'
+import { findCard, GiftCardError, issueCard, normalizeCode, cardPrefix, refundTo, spend, validAmount, MIN_CARD_CENTS, MAX_CARD_CENTS } from './barGiftCards.ts'
 
 type Tx = any
 
@@ -239,7 +240,8 @@ export async function updateItem(actor: Actor, itemId: string, patch: { qty?: nu
 
 /** Does voiding this item need a manager? Only food or drink already sent (a held item just comes off). */
 export async function itemNeedsManager(companyId: string, itemId: string): Promise<boolean> {
-  const [it] = await db.select({ state: barCheckItem.state }).from(barCheckItem).where(and(eq(barCheckItem.id, itemId), eq(barCheckItem.companyId, companyId))).limit(1)
+  const [it] = await db.select({ state: barCheckItem.state, kind: barCheckItem.kind, giftCardId: barCheckItem.giftCardId }).from(barCheckItem).where(and(eq(barCheckItem.id, itemId), eq(barCheckItem.companyId, companyId))).limit(1)
+  if (it?.kind === 'giftcard' && !it.giftCardId) return false   // not a real card yet: nothing to protect
   return it?.state === 'sent'
 }
 
@@ -252,7 +254,7 @@ export async function voidItem(actor: Actor, itemId: string, reason: string, byN
     if (!it) throw new CheckError('That item is gone.', 404)
     await lockOpen(tx, companyId, it.checkId)
     if (it.state === 'void') throw new CheckError('Already voided.', 409)
-    if (it.state === 'held') { await tx.delete(barCheckItem).where(eq(barCheckItem.id, itemId)); return it.checkId }
+    if (it.state === 'held' || (it.kind === 'giftcard' && !it.giftCardId)) { await tx.delete(barCheckItem).where(eq(barCheckItem.id, itemId)); return it.checkId }
     const why = clean(reason, 80)
     if (!why) throw new CheckError('Give a reason for the void.')
     await tx.update(barCheckItem).set({ state: 'void', voidReason: why, voidedByName: byName }).where(eq(barCheckItem.id, itemId))
@@ -313,13 +315,20 @@ async function closeIfPaid(tx: Tx, companyId: string, checkId: string, actor: Ac
     status: 'paid', closedAt: new Date(), closedById: actor.id, closedByName: actor.name, taxRateBps: view.taxRateBps,
     subtotalCents: t.subtotalCents, taxCents: t.taxCents, totalCents: t.totalCents, tipCents: t.tipCents, updatedAt: new Date(),
   }).where(eq(barCheck.id, checkId))
+  // Gift cards sold on this check come to life now that they are paid for — in this same transaction, so a card
+  // exists exactly when its sale does.
+  for (const line of view.items.filter(i => i.kind === 'giftcard' && i.state !== 'void' && !i.giftCardId)) {
+    const card = await issueCard(tx, companyId, { cents: line.unitPriceCents, soldVia: 'register', soldByName: actor.name, checkId, code: line.note || null })
+    await tx.update(barCheckItem).set({ giftCardId: card.id, note: card.code }).where(eq(barCheckItem.id, line.id))
+  }
   return fired
 }
 
 export const TENDERS = ['cash', 'card_external'] as const
 
-export async function addPayment(actor: Actor, checkId: string, input: { tender?: string; amountCents?: number; tipCents?: number; cashTenderedCents?: number | null }): Promise<CheckView & { changeCents: number | null }> {
+export async function addPayment(actor: Actor, checkId: string, input: { tender?: string; amountCents?: number; tipCents?: number; cashTenderedCents?: number | null; giftCardCode?: string | null }): Promise<CheckView & { changeCents: number | null; giftCard?: { code: string; balanceCents: number } | null }> {
   const companyId = actor.companyId
+  if (input.tender === 'giftcard') return payWithGiftCard(actor, checkId, input)
   const tender = (TENDERS as readonly string[]).includes(String(input.tender)) ? String(input.tender) : null
   if (!tender) throw new CheckError('Cash or card?')
   let change: number | null = null
@@ -346,6 +355,58 @@ export async function addPayment(actor: Actor, checkId: string, input: { tender?
   return { ...(await getCheck(companyId, checkId)), changeCents: change }
 }
 
+/** Take what's owed (up to the card's balance) off a gift card. No tip off a gift card: it pays for the check. */
+async function payWithGiftCard(actor: Actor, checkId: string, input: { amountCents?: number; tipCents?: number; giftCardCode?: string | null }) {
+  const companyId = actor.companyId
+  if (Math.round(Number(input.tipCents || 0)) > 0) throw new CheckError('Take the tip in cash or on a card; a gift card pays for the check.')
+  let after: { code: string; balanceCents: number } | null = null
+  let fired = false
+  try {
+    fired = await db.transaction(async (tx: Tx) => {
+      await lockOpen(tx, companyId, checkId)
+      const card = await findCard(companyId, String(input.giftCardCode || ''), tx)
+      if (!card) throw new CheckError('No gift card with that number.', 404)
+      const before = await getCheck(companyId, checkId, tx)
+      if (before.totals.balanceCents <= 0) throw new CheckError('Nothing left to pay on this check.')
+      // A card paying for a card would just move money between cards; sell it for cash or card.
+      if (before.items.some(i => i.kind === 'giftcard' && i.state !== 'void')) throw new CheckError('A gift card cannot pay for a gift card.')
+      const asked = Math.round(Number(input.amountCents))
+      const want = Math.min(Number.isFinite(asked) && asked > 0 ? asked : before.totals.balanceCents, before.totals.balanceCents)
+      const [p] = await tx.insert(barCheckPayment).values({ checkId, tender: 'giftcard', amountCents: want, tipCents: 0, giftCardId: card.id, takenById: actor.id, takenByName: actor.name, companyId }).returning({ id: barCheckPayment.id })
+      const taken = await spend(tx, companyId, card.id, want, { checkId, paymentId: p.id, byName: actor.name })
+      if (taken !== want) await tx.update(barCheckPayment).set({ amountCents: taken }).where(eq(barCheckPayment.id, p.id))
+      after = { code: card.code, balanceCents: card.balanceCents - taken }
+      return closeIfPaid(tx, companyId, checkId, actor)
+    })
+  } catch (e) {
+    if (e instanceof GiftCardError) throw new CheckError(e.message, e.status)
+    throw e
+  }
+  if (fired) notifyKitchen(companyId)
+  notifyRegister(companyId)
+  return { ...(await getCheck(companyId, checkId)), changeCents: null, giftCard: after }
+}
+
+/** Sell a gift card on this check. It is issued (and its number final) when the check is paid. */
+export async function addGiftCardLine(actor: Actor, checkId: string, input: { amountCents?: unknown; code?: unknown }): Promise<CheckView> {
+  const companyId = actor.companyId
+  const cents = Math.round(Number(input.amountCents))
+  if (!validAmount(cents)) throw new CheckError(`A gift card is $${MIN_CARD_CENTS / 100} to $${MAX_CARD_CENTS / 100}.`)
+  await db.transaction(async (tx: Tx) => {
+    await lockOpen(tx, companyId, checkId)
+    let code: string | null = null
+    if (input.code && String(input.code).trim()) {
+      code = normalizeCode(String(input.code), await cardPrefix(companyId, tx))
+      if (code.length < 6) throw new CheckError('That card number is too short.')
+      if (await findCard(companyId, code, tx)) throw new CheckError('That card number is already in use.', 409)
+    }
+    await tx.insert(barCheckItem).values({ checkId, name: 'Gift card', qty: 1, unitPriceCents: cents, kind: 'giftcard', toKitchen: false, state: 'sent', sentAt: new Date(), note: code, addedById: actor.id, addedByName: actor.name, companyId })
+    await tx.update(barCheck).set({ updatedAt: new Date() }).where(eq(barCheck.id, checkId))
+  })
+  notifyRegister(companyId)
+  return getCheck(companyId, checkId)
+}
+
 export async function voidPayment(actor: Actor, paymentId: string, reason: string, byName: string): Promise<CheckView> {
   const companyId = actor.companyId
   const checkId = await db.transaction(async (tx: Tx) => {
@@ -356,6 +417,8 @@ export async function voidPayment(actor: Actor, paymentId: string, reason: strin
     const why = clean(reason, 80)
     if (!why) throw new CheckError('Give a reason.')
     await tx.update(barCheckPayment).set({ voidedAt: new Date(), voidReason: why, voidedByName: byName }).where(eq(barCheckPayment.id, paymentId))
+    // Money that came off a gift card goes back on it.
+    if (p.tender === 'giftcard' && p.giftCardId) await refundTo(tx, companyId, p.giftCardId, p.amountCents, { checkId: p.checkId, paymentId, byName, note: why })
     return p.checkId as string
   })
   notifyRegister(companyId)
