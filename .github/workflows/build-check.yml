@@ -2500,6 +2500,17 @@ jobs:
       - name: "Bar CRM suite"
         run: bun run tests/bar/harness/run.ts
 
+  crm-render-yaml-own-template:
+    name: "Each CRM's Blueprint builds its own template"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "render.yaml.template rootDir is the template's own"
+        run: bun run scripts/check-crm-render-yaml-own-template.ts
+
   landscaping-suite:
     name: "Landscaping behaviour suite (real PGlite)"
     runs-on: ubuntu-latest
