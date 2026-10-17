@@ -2809,7 +2809,7 @@ if (hasAdminBuild) {
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 const port = Number(process.env.PORT || '3000')
-console.log('[Premium-Contractor] Serving on port', port)
+console.log('[Premium-Bar] Serving on port', port)
 
 export default {
   port,

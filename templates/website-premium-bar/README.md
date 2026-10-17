@@ -1,67 +1,53 @@
 # website-premium-bar
 
-The bar & tavern premium template. Reference tenant: **Amber Inn Bar & Grill**, Eau Claire, WI (est. 1881, Walter Brewing tied house). Spec and build plan live in `C:\ALL TWOMIAH PRODUCTS\amber-inn\` (`SPEC.md`, `BUILD_PLAN.md`, `DISCOVERY_2026-09-07.md`).
+The premium website for bars, taverns, pubs and taprooms. Paired with the **crm-bar** CRM.
+Reference tenant: Amber Inn Bar & Grill, Eau Claire, WI (his content pack: `amber-inn/factory-content/`).
 
-Cloned from `website-premium-foodtruck` with the whole Twomiah Bookings system removed (a bar is walk-in business; private parties go through an inquiry form, never a reservation platform).
+It is the current premium standard (the same SQLite schema, admin, lead forwarding, service areas, projects,
+security headers and content checklist as every `website-premium-*` template) plus the bar's look and sections.
 
-## What makes this template different
+## What makes it a bar's site
 
-1. **It answers "should I go there right now?"** — the Tonight Board (kitchen open / closes in, bar hours, what's on tap, tonight's game, tonight's special, how busy) replaces the hero. Fed by `/api/live`, the single source of live truth for the site, the phone agent, and anything else.
-2. **Bar hours ≠ kitchen hours.** `lib/hours/` owns every hours decision (weekly per department, holiday + game-day + "closing early" overrides, `America/Chicago` DST). The board, the JSON-LD `department`, and the voice agent all read from it.
-3. **The menu is real HTML with real prices** and `Menu / MenuSection / MenuItem` JSON-LD. Never a PDF, never an image. Square Catalog becomes the source of truth in Phase 2.
-4. **The console.** `/console` is a PIN-gated PWA a bartender runs one-thumbed: kitchen open/closed, tonight's special, 86 an item, tap/blow a keg, room status, post an event, party inbox.
-5. **Dark-first design.** Matte-black leather, walnut, bottle green, oxblood, gold-foil type, brass hairlines. Light palette derived for daylight; all three viewer states (system, `data-theme="dark"`, `data-theme="light"`) supported. Fonts come from settings (`fontDisplay` / `fontEyebrow` / `fontBody` / `fontMono`).
+1. **The Tonight Board answers "should I go there right now?"** — kitchen open/closed with a countdown, bar
+   hours, what's on tap, tonight's game and special, how busy. It replaces the hero on the home page.
+2. **Bar hours ≠ kitchen hours**, everywhere: the board, the hours table and the `BarOrPub` JSON-LD (the kitchen
+   is a `department`).
+3. **The menu is real HTML with real prices** and `Menu / MenuSection / MenuItem` JSON-LD. Signature items get
+   their own page at `/<section>/<item>`. Never a PDF, never an image.
+4. **The story** is section content: a timeline (or an old book) on `/story`, each era also at `/story/<era>`.
+5. **Dark-first leather cover** look. The owner's own art dresses it: photos tagged `brand-leather`,
+   `brand-corner`, `brand-rivet` and `header-logo` in the admin (no art → flat leather, drawn corners).
 
-## Layout
+## Where the facts come from
+
+The bar's CRM owns every changing fact — menu, 86, specials, taps, hours, the bartender's live status, public
+events — on one database the register will share. `lib/bar.ts` reads them (server side, cached ~20 s) from
+`{CRM_API_URL}/api/public/bar/{live,menu,taps,hours,events}`. Deploy sets `CRM_BAR=1` for the bar vertical.
+Off, or the CRM unreachable, every section falls back to a correct static line ("being set up — call us").
+
+- `/api/live` re-serves the live state to the board's poller (`build/scripts/live.js`, every 60 s).
+- `POST /api/speakeasy` passes the door's password guess to the CRM, which holds the password and the reward.
+- Party enquiries and Regulars sign-ups post to `/api/leads` (`formType: 'party' | 'regulars'`), are saved and
+  emailed to the owner, and are forwarded to the CRM's `/api/webhooks/leads` with their fields.
+
+## Layout (bar-specific)
 
 ```
-templates/website-premium-showcase/
-├── server-static.ts           Hono server: page renderer, lead capture, admin SPA mount
-├── package.json               Bun + Hono + Drizzle + Sharp + R2
-├── render.yaml.template       Render service + Postgres database
-├── drizzle.config.ts          Migration target
-├── .env.example               Env var names (values are set on Render by the Factory)
-├── db/
-│   ├── index.ts               Drizzle client (pg pool)
-│   └── schema.ts              Tables: settings, pages, photos, users, leads
-├── views/
-│   ├── base.ejs               Header / nav / footer shell
-│   ├── home.ejs               Section renderer (loop sections → include partials)
-│   └── sections/
-│       ├── hero/              full-bleed, split, centered-stats
-│       ├── services/          cards-grid, alternating
-│       ├── cta/               banner, split
-│       ├── about/             story
-│       ├── team/              grid
-│       └── contact/           form-info
-├── build/styles/
-│   └── main.css               Brand-tunable CSS variables, Inter + Fraunces, per-section styles
-└── data/
-    ├── settings.json          Local dev sample
-    └── samples/               Hand-authored composition-a.json + composition-b.json
-                                (live data lives in the `pages` table at runtime)
+lib/bar.ts                 the CRM reader + the `site` bundle every bar partial reads
+lib/hours/                 the hours engine (pure; tests) — openingHoursSpecification for the JSON-LD
+lib/schema-org/            BarOrPub / Menu / MenuItem / Event / FAQ / Breadcrumb JSON-LD
+views/sections/tonight/    the board          views/sections/taps/       the tap wall
+views/sections/menu/       sections, item-hero (+ the shared cards, live)
+views/sections/timeline/   eras, era, book    views/sections/hours/      bar + kitchen table
+views/sections/visit/      find us            views/sections/events/     list, recurring
+views/sections/parties/    enquiry form       views/sections/regulars/   sign-up
+views/sections/speakeasy/  the door game      build/fonts, build/styles/fonts.css   self-hosted faces
 ```
-
-Tenant content lives in `content/` and Postgres; everything else is machinery shared by every bar. The second install should be a content job, not a code job.
 
 ## Run
 
 ```bash
 bun install
-cp .env.example .env   # fill DATABASE_URL at minimum
-bun run db:push        # creates tables in your local Postgres
-bun run dev            # serves on :3000
+bun run start          # SQLite at persistent/site.db (SITE_DB_PATH); CRM_BAR=1 CRM_API_URL=… for live facts
+bun test lib           # hours engine + booking
 ```
-
-For local-only rendering without a database (the proof-of-concept path), use `apps/api/scripts/render-premium-contractor-site.ts` — it generates standalone HTML from `data/settings.json` + `data/samples/composition-*.json` and from AI composition.
-
-bun run render:static                 # no DB: content/ → _render/home.html
-bun test lib                          # hours engine + schema builder tests
-```
-
-## Rules (from SPEC.md)
-
-- No accessibility overlay. No QR-replaces-the-menu. No reservation platform. No hero carousel. No scraped "popular times". No digital meat raffle.
-- Menu = semantic HTML with prices. Hours through `lib/hours/` only. Site must work with JavaScript disabled.
-- Budgets are acceptance criteria: LCP ≤ 2.0 s, INP ≤ 200 ms, CLS ≤ 0.05, homepage JS ≤ 120 KB gz, Lighthouse a11y + SEO 100.
-- Voice: dry, plain, Wisconsin. No exclamation marks.

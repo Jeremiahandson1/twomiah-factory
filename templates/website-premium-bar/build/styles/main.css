@@ -634,7 +634,7 @@ a.board__text:hover { text-decoration-color: var(--brand); }
 .board__row[data-live-row="room"][data-state="filling"] .board__text { color: var(--brand-bright); }
 .board__row--note .board__text { font-family: var(--font-body); font-style: italic; }
 .board__stamp { margin: 22px 0 0; font-size: 12px; color: #8F8474; letter-spacing: 0.04em; }
-.board__by { color: #6F6760; }
+.board__by { color: inherit; }  /* the stamp's ink: #6F6760 measured 3.58:1 on the board */
 .board__empty { color: #CDBFA5; }
 .board__empty a { color: var(--brand); }
 [data-live].is-updating { opacity: 0.25; transition: opacity .18s ease; }
@@ -1302,7 +1302,7 @@ body { background: transparent; }
 
 
 /* ── The door in the leather (speakeasy easter egg; behind it: speakeasy.css) ── */
-.speak { padding: clamp(40px, 6vw, 80px) 0; position: relative; }
+.speak { padding: clamp(40px, 6vw, 80px) 0; position: relative; overflow-x: clip; }  /* the door's glow spills sideways; never the page */
 .speak__inner { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: clamp(24px, 5vw, 64px); }
 .speak__copy { max-width: 46ch; }
 .speak__title { text-align: left; }
