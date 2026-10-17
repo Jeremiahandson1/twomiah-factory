@@ -1,0 +1,68 @@
+{
+  "_note": "Composition A — editorial/magazine led. Full-bleed plated-course hero, alternating menu-section rows that read like a printed cookbook, photo-led closing CTA.",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "full-bleed",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=2000&q=80",
+        "eyebrow": "Tuesday – Saturday · Two seatings",
+        "title": "A dinner house grown within thirty miles of the table",
+        "subtitle": "Five-course tasting menus built from the day's harvest at three Driftless farms we know by name. Service begins at 5:30 and 7:30; reservations open four weeks ahead.",
+        "primaryCta": { "label": "Reservations", "href": "#contact" },
+        "secondaryCta": { "label": "This week's menu", "href": "#services" }
+      }
+    },
+    {
+      "type": "services",
+      "variant": "alternating",
+      "data": {
+        "heading": "The week's menu",
+        "intro": "Menus turn weekly to follow what's coming out of the ground. Each course is paired with a wine drawn from our cellar of small-production Wisconsin and upper-Midwest producers.",
+        "items": [
+          {
+            "title": "First — Garden",
+            "description": "Late-summer tomatoes from Ridge Farm with smoked ricotta, marigold honey, and sourdough hearth-bread. Eat with your hands.",
+            "image": "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=1400&q=80",
+            "bullets": ["Paired with a 2023 Wisconsin orange wine, La Crosse blend"]
+          },
+          {
+            "title": "Second — From the river",
+            "description": "Slow-poached brook trout from a spring-fed pond two valleys over, finished with brown butter, sorrel, and trout roe.",
+            "image": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=1400&q=80",
+            "bullets": ["Paired with a 2022 Minnesota Marquette, light pour"]
+          },
+          {
+            "title": "Third — From the field",
+            "description": "Pasture-raised lamb shoulder, slow-cooked on the wood hearth with juniper, root vegetables glazed in lamb fat, and a pomegranate-port reduction.",
+            "image": "https://images.unsplash.com/photo-1544025162-d76694265947?w=1400&q=80",
+            "bullets": ["Paired with a 2021 Iowa Frontenac Noir reserve"]
+          },
+          {
+            "title": "Fourth — Sweet",
+            "description": "Roasted plums from the Mineral Point Orchard, brown butter financier, and a small glass of late-harvest Edelweiss. Coffee is roasted three blocks away.",
+            "image": "https://images.unsplash.com/photo-1551024506-0bccd828d307?w=1400&q=80",
+            "bullets": ["Coffee from Working Draft, Madison · Tea by request"]
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=1400&q=80",
+        "heading": "Reserve your table",
+        "subtitle": "Two seatings each evening, Tuesday through Saturday. Reservations open four weeks ahead and tend to fill within a few days — joining the standby list often gets you in.",
+        "bullets": [
+          "Five-course menu $95, with wine pairings $145",
+          "Vegetarian and shellfish-free menus by request, 48 hours ahead",
+          "Private dining room seats up to 10; weekday lunches by arrangement",
+          "Walk-ins seated at the chef's counter when space allows"
+        ],
+        "primaryCta": { "label": "Book a table", "href": "#contact" },
+        "phone": "608-555-8866"
+      }
+    }
+  ]
+}

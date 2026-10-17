@@ -1,0 +1,38 @@
+<%
+  // A weekly thing with its own page — the Friday fish fry, trivia night.
+  // Day, time, price, details; the Event JSON-LD (eventSchedule) is built
+  // from the same data by lib/schema-org/page.ts.
+  //
+  // data: { eyebrow, title, day ('Friday'), startTime ('11:00'), endTime ('21:00'), timeLabel ('11 AM – 9 PM'),
+  //         price ('$14'), priceCents, description, details: [], image, imageAlt, asHeading, cta: {label, href} }
+  const H = data.asHeading === false ? 'h2' : 'h1'
+  const details = Array.isArray(data.details) ? data.details.filter(Boolean) : []
+  function fmt(t) { if (!t) return ''; const [h, m] = String(t).split(':').map(Number); const h12 = h % 12 === 0 ? 12 : h % 12; const ap = h < 12 ? 'AM' : 'PM'; return m ? h12 + ':' + String(m).padStart(2, '0') + ' ' + ap : h12 + ' ' + ap }
+  const when = data.timeLabel || (data.startTime ? fmt(data.startTime) + (data.endTime ? ' – ' + fmt(data.endTime) : '') : '')
+  const image = data.image || ''
+%>
+<section class="recurring<%= image ? '' : ' recurring--noimage' %>" id="event">
+  <div class="container recurring__grid">
+    <div class="recurring__copy">
+      <% if (data.eyebrow) { %><div class="eyebrow"><%= data.eyebrow %></div><% } %>
+      <<%= H %> class="recurring__title foil"><%= data.title || 'Every week' %></<%= H %>>
+      <dl class="recurring__facts mono">
+        <% if (data.day) { %><div><dt>When</dt><dd>Every <%= Array.isArray(data.day) ? data.day.join(' and ') : data.day %><%= when ? ', ' + when : '' %></dd></div><% } %>
+        <% if (data.price) { %><div><dt>Price</dt><dd><%= data.price %></dd></div><% } %>
+        <% if (data.where) { %><div><dt>Where</dt><dd><%= data.where %></dd></div><% } %>
+      </dl>
+      <% if (data.description) { %><p class="recurring__desc"><%= data.description %></p><% } %>
+      <% if (details.length) { %>
+        <ul class="recurring__details">
+          <% for (const d of details) { %><li><%= d %></li><% } %>
+        </ul>
+      <% } %>
+      <% if (data.cta && data.cta.label) { %>
+        <div class="recurring__ctas"><a class="btn btn--primary btn--lg" href="<%= data.cta.href || '/visit' %>"><%= data.cta.label %></a></div>
+      <% } %>
+    </div>
+    <% if (image) { %>
+      <figure class="recurring__figure"><img src="<%= image %>" alt="<%= data.imageAlt || data.title || '' %>" width="1200" height="900" loading="eager"></figure>
+    <% } %>
+  </div>
+</section>

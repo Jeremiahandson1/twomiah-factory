@@ -1,0 +1,64 @@
+<%
+  // THE REGULARS — sign up for the bar's list. Posts to /api/regulars → a
+  // guest record, plus email consent evidence only if the box is ticked
+  // (never pre-ticked). The consent words come from the server (site.regulars)
+  // so what's shown is exactly what's stored.
+  //
+  // data: { heading, intro, asHeading, perks: [] }
+  const H = data.asHeading ? 'h1' : 'h2'
+  const R = (typeof site !== 'undefined' && site && site.regulars) ? site.regulars : null
+  const L = R ? R.loyalty : null
+  const money = (c) => c % 100 === 0 ? '$' + (c / 100) : '$' + (c / 100).toFixed(2)
+  const pointsLine = L && L.enabled ? `A point for every dollar${L.pointsPerDollar > 1 ? ' (' + L.pointsPerDollar + ' points)' : ''} on food and drink. ${L.rewardPoints} points is ${money(L.rewardCents)} off.` : ''
+  const perks = Array.isArray(data.perks) ? data.perks.filter(Boolean) : []
+  const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  const ts = Date.now()
+%>
+<section class="parties regulars" id="regulars" aria-labelledby="regulars-heading">
+  <div class="container">
+    <div class="section-head section-head--left">
+      <<%= H %> class="section-title" id="regulars-heading"><%= data.heading || 'The Regulars' %></<%= H %>>
+      <% if (data.intro) { %><p class="section-intro"><%= data.intro %></p><% } %>
+    </div>
+    <div class="parties__layout">
+      <form class="parties__form" method="POST" action="/api/regulars" aria-label="Join the Regulars">
+        <p class="regulars__error" id="regulars-error" role="alert" hidden></p>
+        <input type="hidden" name="ts" value="<%= ts %>">
+        <div class="parties__hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+        <div class="parties__row">
+          <div class="parties__field"><label class="parties__label" for="r-name">Your name</label><input id="r-name" type="text" name="name" required maxlength="60" autocomplete="name"></div>
+          <div class="parties__field"><label class="parties__label" for="r-phone">Phone (how the bar finds you)</label><input id="r-phone" type="tel" name="phone" required autocomplete="tel" inputmode="tel"></div>
+        </div>
+        <fieldset class="parties__field regulars__bday">
+          <legend class="parties__label">Birthday (optional)</legend>
+          <div class="parties__row">
+            <div class="parties__field"><label class="visually-hidden" for="r-month">Month</label>
+              <select id="r-month" name="birthdayMonth"><option value="">Month</option><% MONTHS.forEach(function (m, i) { %><option value="<%= i + 1 %>"><%= m %></option><% }) %></select></div>
+            <div class="parties__field"><label class="visually-hidden" for="r-day">Day</label>
+              <select id="r-day" name="birthdayDay"><option value="">Day</option><% for (let d = 1; d <= 31; d++) { %><option value="<%= d %>"><%= d %></option><% } %></select></div>
+          </div>
+        </fieldset>
+        <div class="parties__field"><label class="parties__label" for="r-email">Email (optional)</label><input id="r-email" type="email" name="email" maxlength="120" autocomplete="email"></div>
+        <% if (R) { %>
+          <label class="regulars__consent"><input type="checkbox" name="emailConsent" value="yes"> <span><%= R.emailConsentText %></span></label>
+        <% } %>
+        <div class="parties__submit-row">
+          <button class="btn btn--primary btn--xl" type="submit">Put me on the list</button>
+          <span class="parties__promise">No texts from us. Your number stays at the bar.</span>
+        </div>
+      </form>
+      <aside class="parties__sidebar">
+        <% if (pointsLine) { %><div class="parties__sidebar-row"><div class="parties__sidebar-num">Points</div><div class="parties__sidebar-label"><%= pointsLine %></div></div><% } %>
+        <% if (perks.length) { %><div class="parties__sidebar-row"><ul class="parties__sidebar-list"><% for (const p of perks) { %><li><%= p %></li><% } %></ul></div><% } %>
+        <div class="parties__sidebar-row"><div class="eyebrow">Already a regular?</div><p class="parties__sidebar-label">Give your number at the bar and it goes on your tab.</p></div>
+      </aside>
+    </div>
+  </div>
+</section>
+<script>
+(function () {
+  var m = /[?&]error=([^&#]*)/.exec(location.search); if (!m) return;
+  var el = document.getElementById('regulars-error'); if (!el) return;
+  el.textContent = decodeURIComponent(m[1].replace(/\+/g, ' ')); el.hidden = false;
+})();
+</script>

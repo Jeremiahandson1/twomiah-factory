@@ -1,0 +1,54 @@
+<%
+  // What's on — upcoming events from the database (site.events) plus the
+  // standing weekly things (data.recurring, e.g. Friday fish fry) so the
+  // page is never empty.
+  //
+  // data: { heading, intro, asHeading, recurring: [{ title, when, href, description }], emptyText }
+  const H = data.asHeading ? 'h1' : 'h2'
+  const tz = (typeof live !== 'undefined' && live && live.timezone) || settings.timezone || 'America/Chicago'
+  const evs = (typeof site !== 'undefined' && site && Array.isArray(site.events)) ? site.events : []
+  const recurring = Array.isArray(data.recurring) ? data.recurring.filter(r => r && r.title) : []
+  function when(d) {
+    const dt = d instanceof Date ? d : new Date(d)
+    if (isNaN(dt.getTime())) return ''
+    return new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(dt)
+  }
+%>
+<section class="events" id="events" aria-labelledby="events-heading">
+  <div class="container">
+    <div class="section-head">
+      <<%= H %> class="section-title" id="events-heading"><%= data.heading || "What's on" %></<%= H %>>
+      <% if (data.intro) { %><p class="section-intro"><%= data.intro %></p><% } %>
+    </div>
+    <% if (recurring.length) { %>
+      <div class="events__standing">
+        <div class="eyebrow">Every week</div>
+        <ul class="events__standing-list">
+          <% for (const r of recurring) { %>
+            <li>
+              <span class="events__standing-title"><% if (r.href) { %><a href="<%= r.href %>"><%= r.title %></a><% } else { %><%= r.title %><% } %></span>
+              <% if (r.when) { %><span class="events__standing-when mono"><%= r.when %></span><% } %>
+              <% if (r.description) { %><span class="events__standing-desc"><%= r.description %></span><% } %>
+            </li>
+          <% } %>
+        </ul>
+      </div>
+    <% } %>
+    <% if (!evs.length) { %>
+      <p class="events__empty"><%= data.emptyText || 'Nothing extra on the calendar right now. The game is on when there is a game; the fish fry is every Friday.' %></p>
+    <% } else { %>
+      <ol class="events__list" role="list">
+        <% for (const e of evs) { %>
+          <li class="events__item" id="event-<%= e.slug %>">
+            <div class="events__when mono"><time datetime="<%= new Date(e.startsAt).toISOString() %>"><%= when(e.startsAt) %></time></div>
+            <div class="events__body">
+              <h3 class="events__title"><%= e.title %></h3>
+              <% if (e.description) { %><div class="events__desc"><%- md(e.description) %></div><% } %>
+            </div>
+            <% if (e.imageUrl) { %><img class="events__img" src="<%= e.imageUrl %>" alt="" width="320" height="240" loading="lazy"><% } %>
+          </li>
+        <% } %>
+      </ol>
+    <% } %>
+  </div>
+</section>

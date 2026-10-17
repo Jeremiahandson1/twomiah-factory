@@ -1,0 +1,55 @@
+<%
+  // THE TAP WALL — what is actually pouring right now, from the taps table
+  // the console's tap/blow buttons write to. Public words are limited to
+  // "pouring" / "just tapped" / "last keg" — never a percentage.
+  //
+  // data: { heading, intro, asHeading, leadOrigins: ['Germany'] (listed first), showPrices, emptyText }
+  const H = data.asHeading ? 'h1' : 'h2'
+  const all = (typeof site !== 'undefined' && site && Array.isArray(site.taps)) ? site.taps : []
+  const pouring = all.filter(t => t && t.isActive !== false && t.status !== 'blown')
+  const lead = Array.isArray(data.leadOrigins) ? data.leadOrigins.map(s => String(s).toLowerCase()) : []
+  const sorted = pouring.slice().sort((a, b) => {
+    const la = lead.indexOf(String(a.originCountry || '').toLowerCase()), lb = lead.indexOf(String(b.originCountry || '').toLowerCase())
+    const ra = la < 0 ? 99 : la, rb = lb < 0 ? 99 : lb
+    return ra - rb || (a.sortOrder || 0) - (b.sortOrder || 0) || (a.lineNumber || 0) - (b.lineNumber || 0)
+  })
+  const STATUS = { pouring: 'Pouring', just_tapped: 'Just tapped', last_keg: 'Last keg' }
+  function price(t) { if (t.priceCents === null || t.priceCents === undefined) return ''; return t.priceCents % 100 === 0 ? '$' + (t.priceCents / 100) : '$' + (t.priceCents / 100).toFixed(2) }
+  const L = (typeof live !== 'undefined' && live) ? live : null
+  const updated = L && L.taps && L.taps.updatedAt ? new Intl.DateTimeFormat('en-US', { timeZone: L.timezone, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(L.taps.updatedAt)) : ''
+%>
+<section class="taps" id="taps" aria-labelledby="taps-heading">
+  <div class="container">
+    <div class="section-head">
+      <<%= H %> class="section-title" id="taps-heading"><%= data.heading || 'On tap' %></<%= H %>>
+      <% if (data.intro) { %><p class="section-intro"><%= data.intro %></p><% } %>
+      <% if (updated) { %><p class="taps__stamp mono">Board updated <%= updated %></p><% } %>
+    </div>
+    <% if (!sorted.length) { %>
+      <p class="taps__empty"><%= data.emptyText || 'The tap list is being typed in. Ask the bar what is pouring.' %></p>
+    <% } else { %>
+      <ol class="taps__list" role="list">
+        <% for (const t of sorted) { %>
+          <li class="tap tap--<%= t.status || 'pouring' %>">
+            <span class="tap__line mono"><%= t.lineNumber ? String(t.lineNumber).padStart(2, '0') : '' %></span>
+            <div class="tap__body">
+              <div class="tap__head">
+                <span class="tap__name"><%= t.beerName %></span>
+                <% if (t.badge) { %><span class="tap__badge"><%= t.badge %></span><% } %>
+                <% if (t.status && t.status !== 'pouring') { %><span class="tap__status"><%= STATUS[t.status] || t.status %></span><% } %>
+              </div>
+              <div class="tap__meta mono">
+                <% if (t.brewery) { %><span><%= t.brewery %></span><% } %>
+                <% if (t.style) { %><span><%= t.style %></span><% } %>
+                <% if (t.abv) { %><span><%= t.abv %>% ABV</span><% } %>
+                <% if (t.originCountry) { %><span><%= t.originCountry %></span><% } %>
+                <% if (data.showPrices !== false && price(t)) { %><span class="tap__price"><%= price(t) %></span><% } %>
+              </div>
+              <% if (t.description) { %><p class="tap__desc"><%= t.description %></p><% } %>
+            </div>
+          </li>
+        <% } %>
+      </ol>
+    <% } %>
+  </div>
+</section>
