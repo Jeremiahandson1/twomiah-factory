@@ -24,6 +24,9 @@ import { dueRebookings } from '../services/rebookingDue.ts'
  */
 
 const app = new Hono()
+
+// The most rows one reminders list answers with (lapsed, birthdays).
+const LIST_CAP = 500
 app.use('*', authenticate)
 
 const dayStr = (d: Date) => d.toISOString().slice(0, 10)
@@ -196,6 +199,10 @@ app.get('/lapsed', requirePermission('contacts:read'), async (c) => {
     .where(and(eq(contact.companyId, u.companyId), eq(serviceRecord.companyId, u.companyId)))
     .groupBy(contact.id)
     .having(sql`max(${serviceRecord.performedAt}) < ${cutoffIso}`)
+    // Highest spend first IN THE QUERY, and at most LIST_CAP: every lapsed client in one answer was the whole
+    // book for an old salon. A call list longer than this is worked from the top anyway. (Launch list, 10/17)
+    .orderBy(sql`coalesce(sum(${serviceRecord.priceCharged}), 0) desc`)
+    .limit(LIST_CAP)
 
   /**
    * THE SIBLING OF THE CLIENT CHART'S LIFETIME VALUE. (T41)
@@ -220,7 +227,7 @@ app.get('/lapsed', requirePermission('contacts:read'), async (c) => {
     .sort((a, b) => b.lifetimeValue - a.lifetimeValue)
     .map(r => { if (maySeeClientMoney) return r; const { lifetimeValue, ...rest } = r; return rest })
 
-  return c.json({ count: data.length, months, data })
+  return c.json({ count: data.length, months, data, capped: data.length >= LIST_CAP })
 })
 
 // GET /reminders/birthdays?window=30 — birthdays in the next N days. Month/day
@@ -254,8 +261,9 @@ app.get('/birthdays', requirePermission('contacts:read'), async (c) => {
     })
     .filter(r => r.daysAway <= windowDays)
     .sort((a, b) => a.daysAway - b.daysAway)
+    .slice(0, LIST_CAP)
 
-  return c.json({ count: data.length, data })
+  return c.json({ count: data.length, data, capped: data.length >= LIST_CAP })
 })
 
 // POST /reminders/send  { contactIds: string[], message: string } — bulk SMS.

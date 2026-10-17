@@ -33,8 +33,9 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const search = c.req.query('search')
   const stylistId = c.req.query('stylistId')
-  const page = +(c.req.query('page') || '1')
-  const limit = +(c.req.query('limit') || '50')
+  // Clamped: ?limit=100000 was honoured, the whole book in one answer. (Launch list, 10/17)
+  const page = Math.max(1, Math.floor(+(c.req.query('page') || '1')) || 1)
+  const limit = Math.min(200, Math.max(1, Math.floor(+(c.req.query('limit') || '50')) || 50))
 
   // The client book is people who sit in the chair — not vendors/suppliers (CC-20), and not leads
   // either: a lead has not been in the chair yet. They belong on Contacts, where they carry a Lead
