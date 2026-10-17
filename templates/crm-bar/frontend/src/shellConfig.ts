@@ -51,12 +51,9 @@ export const SHELL: ShellConfig = {
   searchPlaceholder: 'Search contacts, jobs, invoices...',
   routeGates: {
     '/crm/reviews': ['google_reviews'],
-    // Reachable by typing the URL, with no sidebar entry to gate them. /crm/geofences rendered and then
-    // logged "Failed to load geofences" against its own 403; the rest are CONSTRUCTION modules the
-    // registry does not offer this vertical at all, so gating on the real feature removes them here
-    // without hardcoding "never" — if one is ever offered to field service, it opens by itself.
-    // (Field Service T28 M1)
-    '/crm/geofences': ['gps_tracking'],
+    // Reachable by typing the URL, with no sidebar entry to gate them: CONSTRUCTION modules the registry
+    // does not offer this vertical at all, so gating on the real feature removes them here without
+    // hardcoding "never". (Field Service T28 M1.) A bar has no crews, so the GPS geofences page is gone.
     '/crm/projects': ['projects'],
     '/crm/change-orders': ['change_orders'],
     '/crm/selections': ['selections'],

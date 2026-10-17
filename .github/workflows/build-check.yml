@@ -2489,6 +2489,17 @@ jobs:
       - name: "Basic CRM suite"
         run: bun run tests/basic/harness/run.ts
 
+  bar-suite:
+    name: "Bar CRM behaviour suite (real PGlite)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Bar CRM suite"
+        run: bun run tests/bar/harness/run.ts
+
   landscaping-suite:
     name: "Landscaping behaviour suite (real PGlite)"
     runs-on: ubuntu-latest

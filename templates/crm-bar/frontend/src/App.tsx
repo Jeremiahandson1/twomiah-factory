@@ -57,7 +57,6 @@ import OnboardingWizard from './pages/OnboardingWizard';
 import PricebookTrialPage from './pages/PricebookTrialPage';
 import ReviewsPage from './pages/reviews/ReviewsPage';
 
-import GeofencesPage from './pages/settings/GeofencesPage';
 
 // Field Service Pages
 
@@ -168,7 +167,6 @@ function App() {
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/import" element={<ImportPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
-                    <Route path="geofences" element={<GeofencesPage />} />
                     <Route path="fleet" element={<FleetPage />} />
                     <Route path="locations" element={<LocationsPage />} />
                     <Route path="commissions" element={<CommissionsPage />} />
