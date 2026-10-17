@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, Flame, Send, CreditCard, Banknote, Scissors, Ban, KeyRound, Plus, Minus, ClipboardCheck, Pencil, Users, Gift } from 'lucide-react';
+import { Loader2, Flame, Send, CreditCard, Banknote, Scissors, Ban, KeyRound, Plus, Minus, ClipboardCheck, Pencil, Users, Gift, Star, UserPlus } from 'lucide-react';
 import api from '../../services/api';
 import FormError, { errorText } from '../../components/ui/FormError';
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dialog, useLive, useManagerPin, TillPinDialog } from './registerUi';
@@ -23,10 +23,12 @@ interface Line { id: string; name: string; size: string | null; qty: number; uni
 interface Payment { id: string; tender: string; amountCents: number; tipCents: number; changeCents: number | null; takenByName: string | null; voidedAt: string | null; voidReason: string | null }
 interface Check {
   id: string; number: number; kind: string; label: string; spot: string | null; note: string | null; status: string
+  contactId: string | null; guestName: string | null; guestPoints: number | null
   items: Line[]; payments: Payment[]; heldFood: number; quickCash: number[]
   totals: { subtotalCents: number; taxCents: number; totalCents: number; paidCents: number; tipCents: number; balanceCents: number }
 }
-interface State { businessDay: string; open: OpenRow[]; recent: Recent[]; menu: Section[]; taxRateBps: number; giftCards: boolean; me: { name: string; mayManage: boolean; hasPin: boolean } }
+interface Reward { id: string; name: string; pointsCost: number; type: string }
+interface State { businessDay: string; open: OpenRow[]; recent: Recent[]; menu: Section[]; taxRateBps: number; giftCards: boolean; regulars: { rewards: Reward[] } | null; me: { name: string; mayManage: boolean; hasPin: boolean } }
 
 const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card', card_online: 'Card (website)', giftcard: 'Gift card' };
 
@@ -38,7 +40,7 @@ export default function RegisterPage() {
   const [seat, setSeat] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
-  const [dialog, setDialog] = useState<null | { kind: 'open'; as: 'tab' | 'table' } | { kind: 'size'; item: MenuItem } | { kind: 'price'; item: MenuItem; size: Size | null } | { kind: 'pay' } | { kind: 'split' } | { kind: 'void'; what: 'item' | 'payment' | 'check'; id: string; label: string } | { kind: 'rename' } | { kind: 'pin' } | { kind: 'sellCard' }>(null);
+  const [dialog, setDialog] = useState<null | { kind: 'open'; as: 'tab' | 'table' } | { kind: 'size'; item: MenuItem } | { kind: 'price'; item: MenuItem; size: Size | null } | { kind: 'pay' } | { kind: 'split' } | { kind: 'void'; what: 'item' | 'payment' | 'check'; id: string; label: string } | { kind: 'rename' } | { kind: 'pin' } | { kind: 'sellCard' } | { kind: 'guest' }>(null);
   const [showRecent, setShowRecent] = useState(false);
   const [paid, setPaid] = useState<{ changeCents: number | null; giftCard: { code: string; balanceCents: number } | null } | null>(null);
   const { guarded, dialog: managerDialog } = useManagerPin();
@@ -205,6 +207,25 @@ export default function RegisterPage() {
                 {live && <button className={`${BTN} ${OFF} px-3`} aria-label="Rename or move" onClick={() => setDialog({ kind: 'rename' })}><Pencil className="w-4 h-4" /></button>}
               </div>
 
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2 rounded-xl border border-gray-200 dark:border-slate-800 px-3 py-2">
+                <span className="text-sm text-gray-900 dark:text-slate-100">
+                  {check.guestName ? <><Star className="w-4 h-4 inline -mt-0.5 mr-1" />{check.guestName}{check.guestPoints !== null ? ` · ${check.guestPoints} points` : ''}</> : <span className={MUTED}>No guest on this check</span>}
+                </span>
+                {live && <button className={`${BTN} ${OFF} min-h-[40px] px-3`} onClick={() => setDialog({ kind: 'guest' })}>{check.guestName ? 'Change' : 'Add a guest'}</button>}
+              </div>
+              {live && check.contactId && state.regulars && state.regulars.rewards.length > 0 && !lines.some((l) => l.kind === 'reward') && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {state.regulars.rewards.map((r) => {
+                    const short = (check.guestPoints ?? 0) < r.pointsCost;
+                    return (
+                      <button key={r.id} className={`${BTN} ${OFF} min-h-[40px] text-xs`} disabled={short || !!busy} title={short ? `Needs ${r.pointsCost} points` : undefined}
+                        onClick={() => act('reward', () => api.post(`/api/register/check/${check.id}/reward`, { rewardId: r.id }))}>
+                        {r.name} · {r.pointsCost} pts
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               <ul className="divide-y divide-gray-200 dark:divide-slate-800 mb-3">
                 {lines.length === 0 && <li className={`py-3 text-sm ${MUTED}`}>Nothing on it yet.</li>}
                 {lines.map((l) => (
@@ -226,7 +247,10 @@ export default function RegisterPage() {
                         <button className={`${BTN} ${OFF} min-h-[40px] px-3`} aria-label={`One more ${l.name}`} onClick={() => act('qty', () => api.patch(`/api/register/item/${l.id}`, { qty: l.qty + 1 }))}><Plus className="w-4 h-4" /></button>
                       </div>
                     )}
-                    {live && l.state === 'sent' && (
+                    {live && l.state === 'sent' && l.kind === 'reward' && (
+                      <button className={`mt-1 text-sm underline text-gray-800 dark:text-slate-200`} onClick={() => act('unreward', () => api.post(`/api/register/item/${l.id}/void`, {}))}>Take the reward off</button>
+                    )}
+                    {live && l.state === 'sent' && l.kind !== 'reward' && (
                       <button className={`mt-1 text-sm underline text-red-700 dark:text-red-300`} onClick={() => setDialog({ kind: 'void', what: 'item', id: l.id, label: l.name })}>Void</button>
                     )}
                   </li>
@@ -295,6 +319,10 @@ export default function RegisterPage() {
       {dialog?.kind === 'split' && check && (
         <SplitDialog check={check} onClose={() => setDialog(null)}
           onSplit={async (itemIds, label) => { const r = await act('split', () => api.post(`/api/register/check/${check.id}/split`, { itemIds, label })); if (r?.to) { setDialog(null); setCheckId(r.to.id); } }} />
+      )}
+      {dialog?.kind === 'guest' && check && (
+        <GuestDialog regulars={!!state.regulars} current={check.contactId} onClose={() => setDialog(null)}
+          onPick={async (contactId) => { const r = await act('guest', () => api.post(`/api/register/check/${check.id}/guest`, { contactId })); if (r) setDialog(null); }} />
       )}
       {dialog?.kind === 'sellCard' && check && (
         <SellCardDialog onClose={() => setDialog(null)}
@@ -443,6 +471,72 @@ function PayDialog({ check, result, onClose, onPay, giftCards }: { check: Check;
           <button type="submit" className={`${BTN} ${ON}`} disabled={busy || amt === null || amt <= 0 || (tender === 'giftcard' && !cardCode.trim())}>Take {amt !== null ? money(tender === 'giftcard' ? amt : amt + tipC) : ''}</button>
         </div>
       </form>
+    </Dialog>
+  );
+}
+
+interface GuestHit { id: string; name: string; phone: string | null; email: string | null; isRegular: boolean; pointsBalance: number | null }
+
+function GuestDialog({ regulars, current, onClose, onPick }: { regulars: boolean; current: string | null; onClose: () => void; onPick: (contactId: string | null) => Promise<void> }) {
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<GuestHit[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) { setHits([]); return; }
+    const t = setTimeout(async () => {
+      try { const r = await api.get(`/api/register/guests?q=${encodeURIComponent(term)}`); setHits(r.guests || []); setErr(''); }
+      catch (e) { setErr(errorText(e, 'Could not search.')); }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
+  return (
+    <Dialog title="Guest on this check" onClose={onClose}>
+      {!adding && (
+        <>
+          <label className={LABEL} htmlFor="guest-q">Phone number or name</label>
+          <input id="guest-q" className={`${INPUT} mt-1`} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="715-555-0142" />
+          <ul className="mt-2 space-y-1">
+            {hits.map((g) => (
+              <li key={g.id}>
+                <button className={`w-full text-left rounded-xl border px-3 py-2 min-h-[48px] border-gray-200 bg-white text-gray-900 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800`} disabled={busy}
+                  onClick={async () => { setBusy(true); await onPick(g.id); setBusy(false); }}>
+                  <span className="font-semibold">{g.name}</span>
+                  <span className={`block text-xs ${MUTED}`}>{[g.phone, g.isRegular ? (g.pointsBalance !== null ? `${g.pointsBalance} points` : 'Regular') : null].filter(Boolean).join(' · ')}</span>
+                </button>
+              </li>
+            ))}
+            {q.trim().length >= 2 && hits.length === 0 && <li className={`text-sm ${MUTED}`}>Nobody by that number or name.</li>}
+          </ul>
+          <FormError message={err} className="mt-2" />
+          <div className="flex flex-wrap justify-end gap-2 mt-4">
+            {current && <button className={`${BTN} ${OFF}`} disabled={busy} onClick={async () => { setBusy(true); await onPick(null); setBusy(false); }}>Take the guest off</button>}
+            {regulars && <button className={`${BTN} ${ON} inline-flex items-center gap-2`} onClick={() => { setAdding(true); setPhone(/\d{3}/.test(q) ? q : ''); setName(/\d{3}/.test(q) ? '' : q); }}><UserPlus className="w-4 h-4" />Add a regular</button>}
+          </div>
+        </>
+      )}
+      {adding && (
+        <form onSubmit={async (e) => {
+          e.preventDefault(); setBusy(true); setErr('');
+          try { const r = await api.post('/api/register/guests', { name, phone }); await onPick(r.guest.id); }
+          catch (ex) { setErr(errorText(ex, 'That did not save.')); } finally { setBusy(false); }
+        }}>
+          <p className={`text-sm mb-2 ${MUTED}`}>A name and a phone number. If that number is already a guest, it is them — nothing about them is changed.</p>
+          <label className={LABEL} htmlFor="reg-name">Name</label>
+          <input id="reg-name" className={`${INPUT} mt-1`} value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus />
+          <label className={`${LABEL} block mt-3`} htmlFor="reg-phone">Phone</label>
+          <input id="reg-phone" className={`${INPUT} mt-1`} inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
+          <FormError message={err} className="mt-2" />
+          <div className="flex justify-end gap-2 mt-4">
+            <button type="button" className={`${BTN} ${OFF}`} onClick={() => setAdding(false)}>Back</button>
+            <button type="submit" className={`${BTN} ${ON}`} disabled={busy || !name.trim() || phone.replace(/\D/g, '').length < 10}>Add and put on the check</button>
+          </div>
+        </form>
+      )}
     </Dialog>
   );
 }

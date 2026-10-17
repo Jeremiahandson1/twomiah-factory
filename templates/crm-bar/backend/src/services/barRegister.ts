@@ -56,7 +56,7 @@ async function lockOpen(tx: Tx, companyId: string, id: string) {
 // ─── Reading ────────────────────────────────────────────────────────────────
 export interface CheckView {
   id: string; number: number; kind: string; label: string; spot: string | null; note: string | null; status: string
-  contactId: string | null; guestName: string | null
+  contactId: string | null; guestName: string | null; guestPoints: number | null
   openedAt: string; openedByName: string | null; closedAt: string | null; closedByName: string | null; voidReason: string | null
   items: Array<typeof barCheckItem.$inferSelect>
   payments: Array<typeof barCheckPayment.$inferSelect>
@@ -73,14 +73,14 @@ export async function getCheck(companyId: string, id: string, tx: Tx = db): Prom
     tx.select().from(barCheckItem).where(and(eq(barCheckItem.checkId, id), eq(barCheckItem.companyId, companyId))).orderBy(asc(barCheckItem.addedAt)),
     tx.select().from(barCheckPayment).where(and(eq(barCheckPayment.checkId, id), eq(barCheckPayment.companyId, companyId))).orderBy(asc(barCheckPayment.takenAt)),
     taxRateBps(companyId, tx),
-    c.contactId ? tx.select({ name: contact.name }).from(contact).where(and(eq(contact.id, c.contactId), eq(contact.companyId, companyId))).limit(1) : Promise.resolve([]),
+    c.contactId ? tx.select({ name: contact.name, points: loyaltyMember.pointsBalance }).from(contact).leftJoin(loyaltyMember, and(eq(loyaltyMember.contactId, contact.id), eq(loyaltyMember.companyId, companyId))).where(and(eq(contact.id, c.contactId), eq(contact.companyId, companyId))).limit(1) : Promise.resolve([]),
   ])
   // A closed check keeps the rate it closed at; an open one is at today's rate.
   const rate = c.status === 'open' || c.taxRateBps === null ? liveRate : c.taxRateBps
   const totals = checkTotals(items, payments, rate)
   return {
     id: c.id, number: c.number, kind: c.kind, label: c.label, spot: c.spot, note: c.note, status: c.status,
-    contactId: c.contactId, guestName: (guest as any[])[0]?.name ?? null,
+    contactId: c.contactId, guestName: (guest as any[])[0]?.name ?? null, guestPoints: (guest as any[])[0]?.points ?? null,
     openedAt: c.openedAt.toISOString(), openedByName: c.openedByName, closedAt: c.closedAt ? c.closedAt.toISOString() : null,
     closedByName: c.closedByName, voidReason: c.voidReason,
     items, payments, totals, taxRateBps: rate,

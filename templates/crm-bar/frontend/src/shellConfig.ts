@@ -16,6 +16,7 @@ const NAV: NavItem[] = [
   // The register (tabs, tables, walk-ups) and, from it, the grill screen and the close-out.
   { to: '/crm/register', icon: CreditCard, label: 'Register', features: ['bar_register'], permission: 'bar:register' },
   { to: '/crm/gift-cards', icon: Gift, label: 'Gift Cards', features: ['gift_cards'], permission: 'bar:manage' },
+  { to: '/crm/regulars', icon: Star, label: 'Regulars', features: ['loyalty_rewards'], permission: 'loyalty:read' },
   { to: '/crm/menu', icon: Utensils, label: 'Menu', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/taps', icon: Beer, label: 'Taps', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/whats-on', icon: CalendarDays, label: "What's on", features: ['bar_tonight'], permission: 'bar:read' },
