@@ -61,11 +61,22 @@ export function sizesOf(item: { variations?: unknown; priceCents: number | null;
 // Size names the section description already explains ("Sandwich / platter"), so the price column can stay short.
 const PLAIN = /^(regular|sandwich|burger|platter|basket|dinner|small|large|single|double)$/i
 
+/**
+ * A menu price as people read it: "$9" for whole dollars, "$9.50" otherwise, with thousands separated
+ * ("$1,200" for a party package). The ONE price formatter for the bar — the live board, the public menu and
+ * the tap list all print through it. Null for no price.
+ */
+export function formatPrice(cents: number | null | undefined): string | null {
+  if (cents === null || cents === undefined || !Number.isFinite(cents)) return null
+  const whole = cents % 100 === 0
+  return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: whole ? 0 : 2, maximumFractionDigits: whole ? 0 : 2 })
+}
+
 /** The printed price for a set of sizes. One price → null (the price column shows it). */
 export function labelFromSizes(sizes: Size[]): string | null {
   const priced = sizes.filter(v => typeof v.priceCents === 'number')
   if (priced.length <= 1) return null
-  const money = (c: number) => (c % 100 === 0 ? `$${c / 100}` : `$${(c / 100).toFixed(2)}`)
+  const money = (c: number) => formatPrice(c) as string
   if (priced.every(v => PLAIN.test(v.name.trim()))) return priced.map(v => money(v.priceCents as number)).join(' / ')
   return priced.map(v => `${v.name} ${money(v.priceCents as number)}`).join(' · ')
 }

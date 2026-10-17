@@ -12,6 +12,7 @@ import {
   describe, evaluate, formatCountdown, formatTime, isHoursConfig, localDateString, EMPTY_HOURS,
   type DateOverride, type DepartmentStatus, type HoursConfig, type ManualOverride,
 } from './barHours.ts'
+import { formatPrice } from './barMenuSizes.ts'
 
 export type RoomStatus = 'quiet' | 'filling' | 'packed'
 export const ROOM_STATUSES: RoomStatus[] = ['quiet', 'filling', 'packed']
@@ -51,11 +52,8 @@ export interface LiveState {
   updatedBy: string | null
 }
 
-/** "$9" for whole dollars, "$9.50" otherwise; null for no price. */
-export function formatPrice(cents: number | null | undefined): string | null {
-  if (cents === null || cents === undefined) return null
-  return cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`
-}
+// The bar's one price formatter lives with the menu sizes; re-exported so callers of the live state keep it.
+export { formatPrice } from './barMenuSizes.ts'
 
 function dept(status: DepartmentStatus, now: Date, tz: string, noun: string): LiveDepartment {
   const countdown = status.msUntilChange !== null ? formatCountdown(status.msUntilChange) : null
