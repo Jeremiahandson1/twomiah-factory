@@ -3117,6 +3117,8 @@ export const barSettings = pgTable('bar_settings', {
   /** The first part of every gift card code ("AMBE-7K2Q-9XMP"), set from the bar's name the first time a card is
    *  issued and kept, so renaming the bar never changes the codes people hold (services/barGiftCards.ts). */
   giftCardPrefix: text('gift_card_prefix'),
+  /** The room as the floor screen draws it: { tables: [{ id, name, kind: booth|table|bar, seats }] } (services/barFloor.ts). */
+  floor: json('floor'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [

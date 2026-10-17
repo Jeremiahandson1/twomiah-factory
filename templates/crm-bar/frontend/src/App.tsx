@@ -30,6 +30,7 @@ import GrillPage from './pages/bar/GrillPage';
 import CloseoutPage from './pages/bar/CloseoutPage';
 import GiftCardsPage from './pages/bar/GiftCardsPage';
 import RegularsPage from './pages/bar/RegularsPage';
+import FloorPage from './pages/bar/FloorPage';
 // Private parties — crm-restaurant's events screens, unchanged.
 import EventsPage from './pages/events/EventsPage';
 import EventDetailPage from './pages/events/EventDetailPage';
@@ -163,6 +164,7 @@ function App() {
                     <Route path="closeout" element={<CloseoutPage />} />
                     <Route path="gift-cards" element={<GiftCardsPage />} />
                     <Route path="regulars" element={<RegularsPage />} />
+                    <Route path="floor" element={<FloorPage />} />
                     <Route path="events" element={<EventsPage />} />
                     <Route path="events/:id" element={<EventDetailPage />} />
                     <Route path="spaces" element={<SpacesPage />} />

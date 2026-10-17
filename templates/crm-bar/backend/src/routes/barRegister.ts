@@ -22,6 +22,8 @@
 //   GET    /register/day?day=YYYY-MM-DD     the night's summary, open checks, its close-outs
 //   POST   /register/closeout               { day, floatCents, countedCents, note, force, managerPin? }
 //   PUT    /register/pin  { pin }  ·  DELETE /register/pin     my own till PIN
+//   GET    /register/floor              the room, and each table's open check (bar:register)
+//   PUT    /register/floor  { tables }  set the room (bar:update — the same as the menu and the hours)
 //   GET    /grill/state  ·  POST /grill/bump { id }  ·  POST /grill/recall { id }
 //
 // Permissions (packages/tenant-backend/src/auth/permissions.ts): bar:register works the register and the grill
@@ -39,6 +41,7 @@ import {
 import { actorOf, clearOwnPin, hasOwnPin, managerApproval, mayManage, PinError, setOwnPin, type Actor } from '../services/barManagers.ts'
 import { bumpTicket, kitchenState, recallTicket } from '../services/barKitchen.ts'
 import { barTimezone, closeDay, closeoutsFor, loadDay } from '../services/barReports.ts'
+import { floorFor, saveFloor } from '../services/barFloor.ts'
 import { addRegular, listRewards, loyaltyRunning, LoyaltyError, searchGuests } from '../services/barLoyalty.ts'
 import { businessDayOf, businessDayWindow } from '../services/barLive.ts'
 
@@ -209,6 +212,24 @@ registerRoutes.post('/closeout', ...ring, async (c) => {
     audit.log({ req: c, action: 'create', entity: 'bar_closeout', entityId: closeout.id, entityName: `Close-out ${closeout.businessDay}`, changes: { overShortCents: closeout.overShortCents, by: m.byName } })
     return { closeout }
   })
+})
+
+// ── The floor ──
+registerRoutes.get('/floor', ...ring, async (c) => {
+  const actor = await actorOf(c)
+  const [floor, open] = await Promise.all([floorFor(actor.companyId), listOpen(actor.companyId)])
+  c.header('Cache-Control', 'no-store')
+  // A table's open checks are the ones on its spot (a table can hold more than one after a split).
+  const bySpot = (name: string) => open.filter((o) => (o.spot || o.label).toLowerCase() === name.toLowerCase())
+  return c.json({ floor, tables: floor.tables.map((t) => ({ ...t, checks: bySpot(t.name) })) })
+})
+registerRoutes.put('/floor', requireEnabledFeature(FEATURE), requirePermission('bar:update'), async (c) => {
+  const actor = await actorOf(c); const b = await body(c)
+  try {
+    const floor = await saveFloor(actor.companyId, b)
+    audit.log({ req: c, action: 'update', entity: 'bar_settings', entityName: 'Floor', changes: { tables: floor.tables.length } })
+    return c.json({ ok: true, floor })
+  } catch (e: any) { return c.json({ error: e?.message || 'That did not save.' }, 400) }
 })
 
 // ── My till PIN ──

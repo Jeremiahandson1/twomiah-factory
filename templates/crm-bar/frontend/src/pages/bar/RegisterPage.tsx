@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Loader2, Flame, Send, CreditCard, Banknote, Scissors, Ban, KeyRound, Plus, Minus, ClipboardCheck, Pencil, Users, Gift, Star, UserPlus } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Loader2, Flame, LayoutGrid, Send, CreditCard, Banknote, Scissors, Ban, KeyRound, Plus, Minus, ClipboardCheck, Pencil, Users, Gift, Star, UserPlus } from 'lucide-react';
 import api from '../../services/api';
 import FormError, { errorText } from '../../components/ui/FormError';
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dialog, useLive, useManagerPin, TillPinDialog } from './registerUi';
@@ -33,8 +33,10 @@ interface State { businessDay: string; open: OpenRow[]; recent: Recent[]; menu: 
 const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card', card_online: 'Card (website)', giftcard: 'Gift card' };
 
 export default function RegisterPage() {
+  const [params] = useSearchParams();
   const [state, setState] = useState<State | null>(null);
-  const [checkId, setCheckId] = useState<string>('');
+  // Opened from the floor ("/crm/register?check=…"): that table's check is the one on screen.
+  const [checkId, setCheckId] = useState<string>(params.get('check') || '');
   const [check, setCheck] = useState<Check | null>(null);
   const [section, setSection] = useState<string>('');
   const [seat, setSeat] = useState<number | null>(null);
@@ -113,6 +115,7 @@ export default function RegisterPage() {
           <p className={`text-sm ${MUTED}`}>{state.me.name} · the night of {state.businessDay}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link to="/crm/floor" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><LayoutGrid className="w-4 h-4" />Floor</Link>
           <Link to="/crm/grill" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><Flame className="w-4 h-4" />Grill screen</Link>
           <Link to="/crm/closeout" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><ClipboardCheck className="w-4 h-4" />Close-out</Link>
           <button className={`${BTN} ${OFF} inline-flex items-center gap-2`} onClick={() => setDialog({ kind: 'pin' })}><KeyRound className="w-4 h-4" />{state.me.hasPin ? 'My till PIN' : 'Set my till PIN'}</button>
@@ -245,6 +248,7 @@ export default function RegisterPage() {
                       <div className="flex gap-2 mt-1">
                         <button className={`${BTN} ${OFF} min-h-[40px] px-3`} aria-label={`One fewer ${l.name}`} onClick={() => act('qty', () => api.patch(`/api/register/item/${l.id}`, { qty: l.qty - 1 }))}><Minus className="w-4 h-4" /></button>
                         <button className={`${BTN} ${OFF} min-h-[40px] px-3`} aria-label={`One more ${l.name}`} onClick={() => act('qty', () => api.patch(`/api/register/item/${l.id}`, { qty: l.qty + 1 }))}><Plus className="w-4 h-4" /></button>
+                        {held.length > 1 && <button className={`${BTN} ${OFF} min-h-[40px] px-3 text-xs`} title="Send just this now; the rest waits" onClick={() => act('fire', () => api.post(`/api/register/check/${check.id}/send`, { itemIds: [l.id] }))}>Fire just this</button>}
                       </div>
                     )}
                     {live && l.state === 'sent' && l.kind === 'reward' && (

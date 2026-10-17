@@ -57,12 +57,14 @@ export const SHELL: ShellConfig = {
   // a page whose every request is refused.
   routePermissions: {
     '/crm/grill': 'bar:register',
+    '/crm/floor': 'bar:register',
     '/crm/closeout': 'bar:register',
   },
   routeGates: {
     '/crm/reviews': ['google_reviews'],
     // Opened from the register, so no sidebar entry of their own.
     '/crm/grill': ['bar_register'],
+    '/crm/floor': ['bar_register'],
     '/crm/closeout': ['bar_register'],
     // Reachable by typing the URL, with no sidebar entry to gate them: modules the registry does not offer a
     // bar at all, so gating on the real feature removes them without hardcoding "never". (Field Service T28 M1)
