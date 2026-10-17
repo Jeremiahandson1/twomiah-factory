@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs'
 import { tradeFlagsFor } from '../apps/api/src/config/tradeDetect.ts'
 import { pageRecipesFor } from '../apps/api/src/services/sectionComposer.ts'
+import { composeInstant } from '../apps/api/src/services/instantComposer.ts'
 
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
@@ -45,6 +46,31 @@ check(pages('nail_bar') === pages('salon') && pages('lash_bar') === pages('salon
 check(!tradeFlagsFor('mobile_kitchen').contractor && !tradeFlagsFor('pop_up_kitchen').contractor, 'a mobile / pop-up kitchen gets no kitchen-remodeler guidance')
 check(tradeFlagsFor('kitchen_remodeling').contractor && tradeFlagsFor('kitchen').contractor, 'kitchen remodelers stay contractors')
 check(!tradeFlagsFor('juice_bar').bar && !tradeFlagsFor('smoothie_bar').bar, 'juice/smoothie bars are not bars')
+
+// 4. A bar signup's instant site is the bar's site. Reading the slug right was half of it: the
+//    instant composer only wrote hero + "What we do" + contact, the recipe filter then kept home and
+//    contact, the facts gate dropped the live menu (an empty list), and the nav had no label for
+//    taps/events/parties — so Run 1's site had no Tonight board, /menu, /taps or /visit.
+{
+  const site = composeInstant({ businessName: 'Test Bar', businessType: 'bar_and_grill', city: 'Eau Claire', state: 'WI', email: 'bar@example.com', services: ['Food & Drinks', 'Beer on Tap'] } as any)
+  const types = (slug: string) => (site.pages[slug] || []).map((s: any) => s.type + '/' + s.variant)
+  check(types('home')[0] === 'tonight/board', `bar home opens with the Tonight board (got ${types('home').join(', ')})`)
+  for (const [slug, want] of [['menu', 'menu/sections'], ['taps', 'taps/wall'], ['events', 'events/list'], ['parties', 'parties/inquiry-form'], ['visit', 'visit/details'], ['visit', 'hours/table']])
+    check(types(slug).includes(want), `bar /${slug} has ${want} (got ${types(slug).join(', ') || 'no page'})`)
+  check(site.heldPages.length === 0, `no bar page is held (held: ${site.heldPages.join(', ')})`)
+  const all = Object.values(site.pages).flat().map((s: any) => s.type)
+  check(!all.includes('hero') && !all.includes('services'), 'a bar site has no hero and no "What we do" services block')
+  const tonightData = site.pages.home[0]?.data || {}
+  check(Object.keys(tonightData).every(k => ['title', 'eyebrow', 'intro', 'asHeading', 'tapsHref', 'menuHref', 'showTaps', 'showRoom'].includes(k)), 'the Tonight board carries framing only')
+
+  const intake = readFileSync(ROOT + 'apps/api/src/routes/factory/intake.ts', 'utf8')
+  const labels = intake.match(/const PREMIUM_PAGE_NAV_LABEL[^{]*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const order = intake.match(/const order = \[([^\]]*)\]/)?.[1] || ''
+  for (const slug of Object.keys(site.pages).filter(s => s !== 'home' && s !== 'contact')) {
+    check(new RegExp(`(^|\\s|')${slug}'?:`, 'm').test(labels), `nav label for the bar's /${slug} page`)
+    check(order.includes(`'${slug}'`), `/${slug} is in buildPremiumNav's order`)
+  }
+}
 
 if (failed) {
   console.error(`\n${failed} failed, ${passed} passed`)

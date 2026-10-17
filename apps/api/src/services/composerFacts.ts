@@ -547,6 +547,9 @@ const LIST_KEY: Record<string, string> = {
   deals: 'items', schedule: 'days', faq: 'items', services: 'items', packages: 'items',
   coverage: 'items', inventory: 'units',
 }
+// List-typed variants whose list is read live from the CRM, never composed: empty is their normal
+// shape. menu/sections is a bar's whole menu — dropping it held the bar's /menu page (Test Bar Run 1).
+const LIVE_LIST_VARIANTS = new Set(['menu/sections'])
 
 // Pages that always publish, however thin. Everything else needs at least one
 // section that isn't framing (hero / cta / booking button).
@@ -584,7 +587,7 @@ export function enforceIntakeFacts(
       if (policed.type === 'hero' && isEmpty(data.title)) data.title = input.businessName
 
       const listKey = LIST_KEY[policed.type]
-      if (listKey && isEmpty(data[listKey])) {
+      if (listKey && isEmpty(data[listKey]) && !LIVE_LIST_VARIANTS.has(policed.type + '/' + policed.variant)) {
         removed.push(policed.type + '/' + policed.variant + ' — nothing left after removing unsupplied facts')
         droppedByPage[slug].add(policed.type)
         continue

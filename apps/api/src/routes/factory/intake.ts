@@ -1204,6 +1204,11 @@ const PREMIUM_PAGE_NAV_LABEL: Record<string, string> = {
   service: 'Service',
   team: 'Our team',
   menu: 'Menu',
+  // Bar pages: in BAR_PAGE_RECIPES, but with no label they never reached the nav.
+  taps: 'On tap',
+  events: 'Events',
+  parties: 'Private parties',
+  story: 'Our story',
   shop: 'Shop',
   guides: 'Guides',
   services: 'Services',
@@ -1247,7 +1252,7 @@ function buildPremiumNav(
   // Stable per-vertical order: the thing they sell first (menu/services/
   // strains), then secondary funnels (find us/catering/deals/visit), then
   // about.
-  const order = ['emergency', 'inventory', 'menu', 'shop', 'guides', 'services', 'service', 'rooms', 'venue', 'find-care', 'classes', 'packages', 'quote', 'pricing', 'reservations', 'private-dining', 'strains', 'caregivers', 'coverage', 'projects', 'storm', 'schedule', 'amenities', 'local', 'vendors', 'stylists', 'team', 'trainers', 'catering', 'deals', 'gallery', 'visit', 'service-areas', 'about']
+  const order = ['emergency', 'inventory', 'menu', 'taps', 'events', 'parties', 'shop', 'guides', 'services', 'service', 'rooms', 'venue', 'find-care', 'classes', 'packages', 'quote', 'pricing', 'reservations', 'private-dining', 'strains', 'caregivers', 'coverage', 'projects', 'storm', 'schedule', 'amenities', 'local', 'vendors', 'stylists', 'team', 'trainers', 'catering', 'deals', 'gallery', 'visit', 'service-areas', 'story', 'about']
   const present = new Set(pageSlugs)
   const out: Array<{ label: string; href: string }> = []
   for (const slug of order) {

@@ -100,7 +100,30 @@ export function composeInstant(input: ComposerInput): SiteResult {
   if (/\bemergency\/bar\b/.test(homeSeq)) home.unshift({ type: 'emergency', variant: 'bar', data: { phone: input.phone || '' } })
 
   const pages: Record<string, Section[]> = { home }
-  if (serviceNames.length) pages.services = [
+  // A bar's home is the live Tonight board — it replaces the hero — and its menu, taps, events and
+  // hours come live from the bar's CRM, so these pages are framing only and state no fact. Without
+  // this branch a bar got the hero + "What we do" home and none of these pages (Test Bar Run 1).
+  const isBar = /\btonight\/board\b/.test(homeSeq)
+  if (isBar) {
+    const toVisit = (): Section => ({ type: 'cta', variant: 'banner', data: { heading: 'Visit ' + name, subtitle: place ? 'Serving ' + place + '.' : '', primaryCta: { label: 'Find us', href: 'visit' } } })
+    pages.home = [
+      { type: 'tonight', variant: 'board', data: { title: name } },
+      ...(input.description ? [{ type: 'about', variant: 'story', data: { title: 'About ' + name, paragraphs: paragraphsOf(input.description) } }] : []),
+      ...(ownPhotos.length >= 3 ? [{ type: 'gallery', variant: 'grid', data: { photos: ownPhotos.slice(0, 9).map((url) => ({ url })) } }] : []),
+      toVisit(),
+    ]
+    pages.menu = [{ type: 'menu', variant: 'sections', data: { asHeading: true } }, toVisit()]
+    pages.taps = [{ type: 'taps', variant: 'wall', data: { asHeading: true } }, toVisit()]
+    pages.events = [{ type: 'events', variant: 'list', data: { asHeading: true } }, toVisit()]
+    // The partial's own default heading ("Book the back booths") names a room this bar may not have.
+    pages.parties = [{ type: 'parties', variant: 'inquiry-form', data: { heading: 'Private parties', asHeading: true } }]
+    pages.visit = [
+      { type: 'visit', variant: 'details', data: { heading: 'Find us', asHeading: true } },
+      { type: 'hours', variant: 'table', data: {} },
+      { type: 'cta', variant: 'banner', data: { heading: 'Talk to ' + name, primaryCta: contactCta } },
+    ]
+  }
+  if (serviceNames.length && !isBar) pages.services = [
     { type: 'hero', variant: 'centered-stats', data: { eyebrow: 'Services', title: label ? (place ? label + ' in ' + place : label) : 'What we do' } },
     { type: 'services', variant: 'cards-grid', data: { heading: 'What we do', items: serviceNames.map((title) => ({ title })) } },
     { type: 'cta', variant: 'banner', data: { heading: 'Ask us about your project', primaryCta: contactCta } },
