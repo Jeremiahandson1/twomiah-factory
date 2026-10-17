@@ -19,7 +19,8 @@ type Company = { id: string; name: string; enabledFeatures: string[]; settings: 
  * The shared PermissionsProvider reads exactly `{ user, permissions }` off its auth context, so
  * naming it the same way here is what lets App.tsx mount it and `useMayWrite` start answering.
  */
-type AuthState = { user: User | null; company: Company | null; permissions: string[] | null; token: string | null; login: (email: string, password: string) => Promise<void>; logout: () => void; hasFeature: (featureId: string) => boolean }
+export type MfaChallenge = { challengeId: string; recoveryCodesAvailable: boolean; message?: string }
+type AuthState = { user: User | null; company: Company | null; permissions: string[] | null; token: string | null; login: (email: string, password: string) => Promise<MfaChallenge | null>; completeMfa: (challengeId: string, code: string) => Promise<void>; logout: () => void; hasFeature: (featureId: string) => boolean }
 
 const AuthContext = createContext<AuthState>(null as any)
 export const useAuth = () => useContext(AuthContext)
@@ -125,7 +126,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function login(email: string, password: string) {
+  // null when signed in; the challenge when the account has two-factor and the code is still owed. (Launch list, 10/17)
+  async function login(email: string, password: string): Promise<MfaChallenge | null> {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -133,6 +135,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Login failed') }
     const data = await res.json()
+    if (data.mfaRequired) return { challengeId: data.challengeId, recoveryCodesAvailable: !!data.recoveryCodesAvailable, message: data.message }
+    signedIn(data)
+    return null
+  }
+
+  // The second step: the authenticator's code, or a recovery code. Wrong codes throw with the server's words.
+  async function completeMfa(challengeId: string, code: string) {
+    const res = await fetch('/api/auth/mfa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ challengeId, code }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) { const err: Error & { restart?: boolean } = new Error(data.error || 'That code did not work'); err.restart = res.status !== 401; throw err }
+    signedIn(data)
+  }
+
+  function signedIn(data: any) {
     setTokens(data.accessToken, data.refreshToken)
     setToken(data.accessToken)
     // Straight off the login response, so the first render after signing in already knows. Waiting
@@ -152,5 +172,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return company?.enabledFeatures?.includes(featureId) ?? false
   }
 
-  return <AuthContext.Provider value={{ user, company, permissions, token, login, logout, hasFeature }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, company, permissions, token, login, completeMfa, logout, hasFeature }}>{children}</AuthContext.Provider>
 }

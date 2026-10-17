@@ -21,6 +21,7 @@ const __dirname = path.dirname(__filename)
 const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
 
 import authRoutes from './routes/auth.ts'
+import mfaRoutes from './routes/mfa.ts'
 import platformSupportRoutes from './routes/platformSupport.ts'
 import messagingBillingRoutes from './routes/messagingBilling.ts'
 import companyRoutes from './routes/company.ts'
@@ -175,6 +176,8 @@ app.use('*', (c, next) => requestScope.run({ c }, next))
 app.use('*', writeAudit)
 
 app.route('/api/auth', authRoutes)
+// Two-factor enrolment, under /api/auth beside the sign-in challenge (POST /api/auth/mfa in routes/auth.ts).
+app.route('/api/auth/mfa-devices', mfaRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useMayWrite, useKnownPermission } from '../../shared';
+import { useMayWrite, useKnownPermission, TwoFactorCard } from '../../shared';
 import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, CreditCard, SlidersHorizontal, AtSign, Globe, Inbox } from 'lucide-react';
@@ -7,6 +7,17 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useFeature } from '../../hooks/useFeature';
 import api from '../../services/api';
+
+// The shared Two-Factor card asks for its five calls by name; these are roofing's client making them.
+const mfaApi = {
+  mfa: {
+    devices: () => api.request('/api/auth/mfa-devices/devices'),
+    setup: () => api.request('/api/auth/mfa-devices/setup', { method: 'POST', body: '{}' }),
+    verify: (deviceId: string, code: string) => api.request('/api/auth/mfa-devices/verify', { method: 'POST', body: JSON.stringify({ deviceId, code }) }),
+    newRecoveryCodes: (code: string) => api.request('/api/auth/mfa-devices/recovery-codes', { method: 'POST', body: JSON.stringify({ code }) }),
+    remove: (deviceId: string, code: string) => api.request(`/api/auth/mfa-devices/devices/${deviceId}`, { method: 'DELETE', body: JSON.stringify({ code }) }),
+  },
+}
 
 export default function SettingsPage() {
   // Two blocks on this page were open to every seat. The company and branding saves above were
@@ -295,6 +306,10 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
           <Settings className="w-6 h-6 text-gray-400" /> Settings
         </h1>
+
+        {/* Two-factor for the signed-in person, whatever their seat — it protects their own account. Roofing had no
+            second factor at all until 10/17 (launch list): the enrolment routes are /api/auth/mfa-devices. */}
+        <TwoFactorCard api={mfaApi} toast={toast} />
 
         {/* SMS & AI Billing — the wallet is the bill, and GET /messaging-billing/portal-link is requireAdmin; staff
             were offered "Manage billing" and refused. Shown to the same seats the route serves. (T63) */}

@@ -10,7 +10,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { getPermissions, getExtraPermissions, normalizeRole } from '../middleware/permissions.ts'
 import logger from '../services/logger.ts'
 import emailService from '../services/email.ts'
-import { passwordSchema, redactCompanySettings, isPrivilegedRole } from '../shared/index.ts'
+import { passwordSchema, redactCompanySettings, isPrivilegedRole, mfaGateFor, openLoginChallenge, verifyLoginChallenge } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -131,6 +131,47 @@ app.post('/login', async (c) => {
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
+  /**
+   * THE PASSWORD WAS RIGHT; IS THERE A SECOND FACTOR TO ASK FOR? (Launch list, 10/17)
+   *
+   * Roof signs in here, not through shared auth, so the T57 two-factor port never reached it: an owner had no
+   * way to protect the account at all. The same shared gate every other vertical asks — it answers "required"
+   * only when a VERIFIED authenticator exists, so nobody is locked out by a half-finished enrolment.
+   */
+  const gate = await mfaGateFor(db, foundUser.companyId, foundUser.id)
+  if (gate.required) {
+    const { challengeId, expiresAt } = await openLoginChallenge(db, foundUser.companyId, foundUser.id)
+    return c.json({
+      mfaRequired: true,
+      challengeId,
+      expiresAt,
+      methods: gate.methods,
+      recoveryCodesAvailable: gate.hasRecoveryCodes,
+      message: 'Enter the code from your authenticator app to finish signing in.',
+    }, 200)
+  }
+  return c.json(await signedIn(foundUser, foundCompany))
+})
+
+/**
+ * Finish a sign-in that stopped for a code. PUBLIC on purpose — the caller has no token yet. What stands in for
+ * authentication is the challenge id: single-use, ten minutes, five wrong codes at most, and created only after a
+ * correct password. Recovery codes are accepted and burned. (Same contract as shared auth's /mfa.)
+ */
+app.post('/mfa', async (c) => {
+  const parsed = z.object({ challengeId: z.string().min(1), code: z.string().min(1) }).safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) return c.json({ error: 'Send the challenge id and the code from your authenticator or a recovery code.', code: 'code_required' }, 400)
+  const outcome = await verifyLoginChallenge(db, parsed.data.challengeId, parsed.data.code)
+  if (!outcome.ok) return c.json({ error: outcome.error, code: outcome.code }, outcome.code === 'bad_code' ? 401 : 400)
+  const [mfaUser] = await db.select().from(user).where(eq(user.id, outcome.userId)).limit(1)
+  if (!mfaUser || !mfaUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
+  const [mfaCompany] = await db.select().from(company).where(eq(company.id, mfaUser.companyId)).limit(1)
+  if (!mfaCompany) return c.json({ error: 'Company not found' }, 404)
+  return c.json({ ...(await signedIn(mfaUser, mfaCompany)), ...(outcome.usedRecoveryCode ? { usedRecoveryCode: true } : {}) })
+})
+
+// The tokens and the account, once every factor this person has is satisfied — one answer for both doors.
+async function signedIn(foundUser: typeof user.$inferSelect, foundCompany: typeof company.$inferSelect) {
   const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
   await storeRefreshToken(foundUser.id, tokens.refreshToken, { lastLogin: new Date() })
 
@@ -139,7 +180,7 @@ app.post('/login', async (c) => {
   const planKey = settings?.plan || 'starter'
   const limits = PLAN_LIMITS[planKey] || PLAN_LIMITS.starter
 
-  return c.json({
+  return {
     user: {
       id: foundUser.id,
       email: foundUser.email,
@@ -165,8 +206,8 @@ app.post('/login', async (c) => {
     // in the other direction. (The shared auth module learned this in T32 M16.)
     permissions: await effectivePermissions(foundUser.id, foundUser.role),
     ...tokens,
-  })
-})
+  }
+}
 
 // Refresh token
 app.post('/refresh', async (c) => {
