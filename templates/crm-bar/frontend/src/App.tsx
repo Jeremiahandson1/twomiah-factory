@@ -33,6 +33,8 @@ import RegularsPage from './pages/bar/RegularsPage';
 import FloorPage from './pages/bar/FloorPage';
 import StockPage from './pages/bar/StockPage';
 import CountPage from './pages/bar/CountPage';
+import ClockPage from './pages/bar/ClockPage';
+import BarSchedulePage from './pages/bar/BarSchedulePage';
 // Private parties — crm-restaurant's events screens, unchanged.
 import EventsPage from './pages/events/EventsPage';
 import EventDetailPage from './pages/events/EventDetailPage';
@@ -169,6 +171,8 @@ function App() {
                     <Route path="floor" element={<FloorPage />} />
                     <Route path="stock" element={<StockPage />} />
                     <Route path="count" element={<CountPage />} />
+                    <Route path="clock" element={<ClockPage />} />
+                    <Route path="shifts" element={<BarSchedulePage />} />
                     <Route path="events" element={<EventsPage />} />
                     <Route path="events/:id" element={<EventDetailPage />} />
                     <Route path="spaces" element={<SpacesPage />} />

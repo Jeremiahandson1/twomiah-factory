@@ -238,13 +238,13 @@ registerRoutes.put('/floor', requireEnabledFeature(FEATURE), requirePermission('
 registerRoutes.get('/clock', ...ring, requireEnabledFeature('time_tracking'), async (c) => {
   const actor = await actorOf(c)
   c.header('Cache-Control', 'no-store')
-  return c.json({ on: await onTheClock(actor.companyId) })
+  return c.json({ on: await onTheClock(actor.companyId), timezone: await barTimezone(actor.companyId) })
 })
 registerRoutes.post('/clock', ...ring, requireEnabledFeature('time_tracking'), async (c) => {
   const actor = await actorOf(c); const b = await body(c)
   try {
     const r = await punchByPin(actor, b.pin)
-    return c.json({ ok: true, ...r, on: await onTheClock(actor.companyId) })
+    return c.json({ ok: true, ...r, on: await onTheClock(actor.companyId), timezone: await barTimezone(actor.companyId) })
   } catch (e: any) {
     if (e instanceof RotaError) return c.json({ error: e.message }, e.status)
     console.error('[register] clock', e?.message || e)

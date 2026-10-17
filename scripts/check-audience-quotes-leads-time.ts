@@ -32,9 +32,16 @@ if (/error: `Unknown lead source "\$\{platform\}"`/.test(leads)) fail('the bare 
 const time = read('packages/tenant-backend/src/time/time.ts')
 if (!/const MIN_CLOCK_MINUTES = 1/.test(time)) fail('there must be a minimum clock-in length')
 if (!/if \(elapsedMinutes < MIN_CLOCK_MINUTES\) \{/.test(time)) fail('a clock-out under that minimum must be handled separately')
-if (!/await db\.delete\(t\.timeEntry\)\.where\(and\(eq\(t\.timeEntry\.id, open\.id\), eq\(t\.timeEntry\.companyId, currentUser\.companyId\)\)\)/.test(time)) fail('the discarded clock-in must be removed, not saved as 0.00 hours')
-if (!/discarded: true, message: 'That clock-in lasted less than a minute/.test(time)) fail('the answer must say nothing was recorded')
-if (!/if \(worked <= 0\) return c\.json\(\{ error: 'Break is longer than the time worked' \}, 400\)/.test(time)) fail('a break longer than the shift must be refused on clock-out, as it is on a manual entry')
+// The rules live in createTimeClock (10/17), which POST /clock-out AND a vertical's own punch screen (crm-bar's
+// till-PIN clock) both call — so the clock is read there, and the route must still go through it.
+const clockFn = time.slice(time.indexOf('export function createTimeClock('), time.indexOf('export function createTimeRoutes('))
+if (!clockFn) fail('the clock rules must live in createTimeClock')
+if (!/await db\.delete\(t\.timeEntry\)\.where\(and\(eq\(t\.timeEntry\.id, open\.id\), eq\(t\.timeEntry\.companyId, person\.companyId\)\)\)/.test(clockFn)) fail('the discarded clock-in must be removed, not saved as 0.00 hours')
+if (!/discarded: true, message: 'That clock-in lasted less than a minute/.test(clockFn)) fail('the answer must say nothing was recorded')
+if (!/if \(worked <= 0\) return \{ ok: false, status: 400, error: 'Break is longer than the time worked' \}/.test(clockFn)) fail('a break longer than the shift must be refused on clock-out, as it is on a manual entry')
+const outRoute = time.slice(time.indexOf("app.post('/clock-out'"), time.indexOf("app.post('/', requirePermission('time:create')"))
+if (!/await clock\.clockOut\(currentUser,/.test(outRoute) || !/if \(r\.discarded\) return c\.json\(\{ discarded: true, message: r\.message \}\)/.test(outRoute)) fail('POST /clock-out must clock out through createTimeClock and pass the discard on')
+if (!/await clock\.clockIn\(currentUser,/.test(time.slice(time.indexOf("app.post('/clock-in'"), time.indexOf("app.post('/clock-out'")))) fail('POST /clock-in must clock in through createTimeClock')
 const timePage = read('packages/tenant-ui/src/people/TimePage.tsx')
 if (!/r\?\.discarded \? \(r\.message \|\| 'That clock-in was too short to record'\)/.test(timePage)) fail('the Time page must not report a discarded clock-in as "Clocked out — 0.00 h"')
 

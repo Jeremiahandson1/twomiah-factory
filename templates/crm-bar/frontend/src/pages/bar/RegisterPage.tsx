@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Loader2, Flame, LayoutGrid, Send, CreditCard, Banknote, Scissors, Ban, KeyRound, Plus, Minus, ClipboardCheck, Pencil, Users, Gift, Star, UserPlus } from 'lucide-react';
+import { Loader2, Flame, LayoutGrid, Clock, Send, CreditCard, Banknote, Scissors, Ban, KeyRound, Plus, Minus, ClipboardCheck, Pencil, Users, Gift, Star, UserPlus } from 'lucide-react';
 import api from '../../services/api';
 import FormError, { errorText } from '../../components/ui/FormError';
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dialog, useLive, useManagerPin, TillPinDialog } from './registerUi';
@@ -117,6 +117,7 @@ export default function RegisterPage() {
         <div className="flex flex-wrap gap-2">
           <Link to="/crm/floor" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><LayoutGrid className="w-4 h-4" />Floor</Link>
           <Link to="/crm/grill" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><Flame className="w-4 h-4" />Grill screen</Link>
+          <Link to="/crm/clock" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><Clock className="w-4 h-4" />Clock in</Link>
           <Link to="/crm/closeout" className={`${BTN} ${OFF} inline-flex items-center gap-2`}><ClipboardCheck className="w-4 h-4" />Close-out</Link>
           <button className={`${BTN} ${OFF} inline-flex items-center gap-2`} onClick={() => setDialog({ kind: 'pin' })}><KeyRound className="w-4 h-4" />{state.me.hasPin ? 'My till PIN' : 'Set my till PIN'}</button>
         </div>
