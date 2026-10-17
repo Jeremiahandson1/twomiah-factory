@@ -338,7 +338,7 @@ factory.post('/customers/:id/regenerate', requireRole('owner', 'admin', 'editor'
       template: job.template,
       deployment_model: 'owned',
       status: 'pending',
-      features: job.features || [],
+      features: result.crmFeatures || job.features || [],
       branding: job.branding,
       build_id: result.buildId,
       zip_name: result.zipName,
@@ -574,8 +574,10 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
         await logTenantAudit(tenant.id, 'deploy', auditChanges, 'system', `Deploy completed for ${tenant.slug}`)
       }
 
-      // Sync features from config to tenant record so Feature Management shows correct state
-      const deployedFeatures = config.features?.crm || job.features || []
+      // The list the CRM's seed started the company with (GenerateResult.crmFeatures) is what the tenant row records and
+      // what is synced below — one list on both sides. It used to be config.features.crm, while the seed wrote the
+      // plan's full list from a copy of config (Bar Run 1).
+      const deployedFeatures = genResult.crmFeatures || config.features?.crm || job.features || []
       if (deployedFeatures.length > 0) {
         const { error: featErr } = await supabase.from('tenants').update({ features: deployedFeatures }).eq('id', tenant.id)
         if (featErr) console.warn('[Deploy] Features sync failed (non-blocking):', featErr.message)

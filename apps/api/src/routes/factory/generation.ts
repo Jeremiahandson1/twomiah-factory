@@ -38,7 +38,7 @@ factory.post('/generate', requireRole('owner', 'admin', 'editor'), async (c) => 
         template: config.products.join('+'),
         deployment_model: 'owned',
         status: 'pending',
-        features: config.features?.crm || [],
+        features: result.crmFeatures || config.features?.crm || [],   // what the CRM's seed starts with
         branding: config.branding,
         build_id: result.buildId,
         zip_name: result.zipName,

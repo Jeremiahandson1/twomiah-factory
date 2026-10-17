@@ -124,11 +124,18 @@ async function doProvision(tenantId: string): Promise<{ success: boolean; crmUrl
       primaryColor: tenant.primary_color || '#FF6B35',
       secondaryColor: tenant.secondary_color || '#1A365D',
     },
-    features: {},
+    // The tenant row's own list (every signup is given one, website-only included): the new CRM starts on it.
+    features: { crm: Array.isArray(tenant.features) ? tenant.features : [] },
     integrations: { resendKey: process.env.TWOMIAH_RESEND_API_KEY || process.env.RESEND_API_KEY || '' },
     content: {},
   }
   const zip = await generate({ id: tenant.id, ...config } as any)
+  // A row with no list yet: record the one the seed started the CRM on (the template's lean default), so the
+  // Factory's Features page shows what the CRM has.
+  if (zip.crmFeatures?.length && !(Array.isArray(tenant.features) && tenant.features.length)) {
+    const { error: fErr } = await supabase.from('tenants').update({ features: zip.crmFeatures }).eq('id', tenant.id)
+    if (fErr) console.warn('[Generate] Saving the CRM feature list failed (non-blocking):', fErr.message)
+  }
 
   console.log('[CrmAddon] Deploying CRM to Render for', tenant.slug)
   const { deployCustomer } = await import('./deploy')

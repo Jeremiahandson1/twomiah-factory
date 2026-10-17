@@ -2392,6 +2392,8 @@ jobs:
         run: bun run tests/shared/subscription-restart.test.ts
       - name: "The welcome and ready emails greet the owner by name and print the plan's name, every vertical"
         run: bun run tests/shared/owner-emails.test.ts
+      - name: "A new CRM starts on the Factory's feature list — the seed and the sync are one list"
+        run: bun run tests/shared/crm-feature-seed.test.ts
       - name: "A business name with an apostrophe or quotes cannot break a generated build, every template"
         run: bun run tests/shared/generator-free-text.test.ts
       - name: "Every vertical's CRM backend is found on Render — a bought domain reaches the admin"

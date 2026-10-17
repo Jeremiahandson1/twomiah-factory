@@ -437,7 +437,9 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
         ...signupImages(body.branding),
       },
       features: {
-        crm: body.features || [],
+        // The list the tenant row was given above (the signup's choice, or the template's lean default) — the CRM's
+        // seed starts the company on exactly this, so the build and the Factory never disagree.
+        crm: (Array.isArray(tenant.features) && tenant.features.length ? tenant.features : body.features) || [],
       },
       ...(ownerServices.length ? { content: { ownerServiceNames: ownerServices } } : {}),
     }

@@ -10,7 +10,7 @@ import crypto from 'crypto'
 import { spawnSync } from 'child_process'
 import AdmZip from 'adm-zip'
 import bcrypt from 'bcryptjs'
-import { getFeaturesForPlan, FEATURE_MAP } from '../config/featureRegistry'
+import { getFeaturesForPlan, getDefaultFeaturesForTemplate, FEATURE_MAP } from '../config/featureRegistry'
 import { crmTemplateFor, premiumWebsiteTemplateFor, buildCrmApiHost, verticalFor } from '../config/industryRouting'
 import { getServiceImage } from '../config/serviceImageLibrary'
 import { websiteTradeFor, type WebsiteTrade } from '../config/websiteTrades'
@@ -168,6 +168,11 @@ export interface GenerateResult {
   buildId: string
   slug: string
   defaultPassword: string
+  /**
+   * The features the CRM's company starts with — written into its seed. The caller saves THIS on the tenant row and
+   * syncs it, so the CRM and the Factory begin on one list (absent when no CRM was built). See resolveCrmFeatures.
+   */
+  crmFeatures?: string[]
 }
 
 export async function generate(config: GenerateConfig): Promise<GenerateResult> {
@@ -184,6 +189,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
   fs.mkdirSync(workDir, { recursive: true })
 
   const defaultPassword = config.company?.defaultPassword || generatePassword()
+  let crmFeatures: string[] | undefined   // what the CRM's seed starts the company with (processCRM)
   config = { ...config, company: { ...config.company, defaultPassword } }
 
   // The trade as the signup sent it — the standard website is picked and named from this
@@ -369,7 +375,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       // Vendor shared packages into the tenant's src/shared/ so the generated
       // repo stays fully standalone (no @twomiah/* workspace imports at runtime).
       vendorSharedCode(path.join(workDir, crmOutputDir), crmTokens)
-      processCRM(path.join(workDir, crmOutputDir), config, crmTokens)
+      crmFeatures = processCRM(path.join(workDir, crmOutputDir), config, crmTokens)
       await writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding, config.company?.name)
     }
 
@@ -421,7 +427,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
     fs.rmSync(workDir, { recursive: true, force: true })
 
-    return { zipPath, zipName, buildId, slug, defaultPassword }
+    return { zipPath, zipName, buildId, slug, defaultPassword, ...(crmFeatures ? { crmFeatures } : {}) }
 
   } catch (err) {
     if (fs.existsSync(workDir)) fs.rmSync(workDir, { recursive: true, force: true })
@@ -858,23 +864,27 @@ export function injectTokens(content: string, tokens: Record<string, string>): s
 }
 
 
-function processCRM(crmDir: string, config: GenerateConfig, tokens: Record<string, string>) {
-  // Derive features from the plan tier + template.
-  // The signup form sends add-on checkboxes (sms, gps, etc.) but NOT the
-  // full feature list for the tier. We resolve: plan → tier features → merge with add-ons.
+/**
+ * Two lists, which used to be one:
+ *   · `seed` — what the company STARTS with: exactly the Factory's list (tenants.features — the signup's lean set, or
+ *     what staff chose), or the template's lean default when none was given. The seed writes it once, at company
+ *     creation (db/seed.template.ts never re-applies it).
+ *   · `code` — what ships: everything the plan allows plus the seed, so a feature the owner turns on later has its
+ *     code. Only the file strip reads it.
+ * The seed used to get the PLAN's full list while the deploy synced the Factory's lean one over it — the two agreed
+ * only when that sync landed (Bar Run 1). And the "write back into config" that was meant to reconcile them wrote to a
+ * copy: generate() spreads its config. The seeded list now comes back on GenerateResult.crmFeatures instead.
+ * Never a not-ready (hidden) feature, whichever side asked for it. (Owner, 2026-10-09)
+ */
+export function resolveCrmFeatures(template: string, plan: string, requested: string[] | undefined): { seed: string[]; code: string[] } {
+  const ready = (ids: string[]) => [...new Set(ids)].filter((id) => !FEATURE_MAP[id]?.hidden)
+  const seed = ready(requested && requested.length ? requested : getDefaultFeaturesForTemplate(template))
+  return { seed, code: ready([...getFeaturesForPlan(template, plan), ...seed]) }
+}
+
+function processCRM(crmDir: string, config: GenerateConfig, tokens: Record<string, string>): string[] {
   const templateName = path.basename(crmDir)
-  const signupFeatures = config.features?.crm || []
-  const plan = config.company?.plan || 'starter'
-  const planFeatures = getFeaturesForPlan(templateName, plan)
-  // …and never a not-ready (hidden) feature, whichever side asked for it. (Owner, 2026-10-09)
-  const features = (planFeatures.length > 0
-    ? [...new Set([...planFeatures, ...signupFeatures])]
-    : signupFeatures).filter((id: string) => !FEATURE_MAP[id]?.hidden)
-  // Write the resolved feature list back into config so the caller (runDeploy) can
-  // persist it to tenants.features in the factory DB. Without this, the seeded CRM
-  // gets the right features but the factory's tenant record stays empty, forcing
-  // the user to manually re-add features in the platform UI after every deploy.
-  config.features = { ...(config.features || {}), crm: features }
+  const { seed: features, code: codeFeatures } = resolveCrmFeatures(templateName, config.company?.plan || 'starter', config.features?.crm)
   const manifest = loadManifest(crmDir)
 
   // Support both Drizzle (db/) and legacy Prisma (prisma/) seed locations
@@ -897,7 +907,7 @@ function processCRM(crmDir: string, config: GenerateConfig, tokens: Record<strin
     fs.unlinkSync(seedTemplatePath)
   }
 
-  if (manifest) stripUnusedCRMFiles(crmDir, features, manifest)
+  if (manifest) stripUnusedCRMFiles(crmDir, codeFeatures, manifest)
 
   processEnvTemplate(path.join(crmDir, 'backend'), tokens)
   processEnvTemplate(path.join(crmDir, 'frontend'), tokens)
@@ -923,6 +933,7 @@ function processCRM(crmDir: string, config: GenerateConfig, tokens: Record<strin
 
   const manifestPath = path.join(crmDir, 'feature-manifest.json')
   if (fs.existsSync(manifestPath)) fs.unlinkSync(manifestPath)
+  return features
 }
 
 
