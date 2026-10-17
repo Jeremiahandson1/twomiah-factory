@@ -34,6 +34,7 @@ emailService.sendTeamInvite = async (to: string, data: any) => { sent.push({ to,
 const app = new Hono()
 app.route('/api/company', (await import('./src/routes/company.ts')).default)
 app.route('/api/auth', (await import('./src/routes/auth.ts')).default)
+app.route('/api/team', (await import('./src/routes/team.ts')).default)
 app.onError((await import('./src/utils/errors.ts')).errorHandler)
 const call = (who: any) => async (method: string, path: string, body?: unknown) => {
   const res = await app.request(path, { method, headers: { 'content-type': 'application/json', ...(who ? { 'x-test-user': who.id } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -62,6 +63,14 @@ const tokenOf = (link: string) => new URL(link, 'https://x.test').searchParams.g
   const patRow = (listed.json || []).find((u: any) => u.email === 'pat@test.local')
   check('the Users list says the invite is pending, not plain Active', patRow?.invitePending === true, patRow)
   check('…and never sends the token that is the password link', !JSON.stringify(listed.json).includes(p.resetToken) && !('resetToken' in (patRow || {})), Object.keys(patRow || {}))
+  // Team says the same (Bar Run 1: "Active" there beside "Invite sent" here) — as a borrowed login row, and once
+  // they are given a roster card (a pay rate) under the same email.
+  const teamRow = async () => ((await asOwner('GET', '/api/team')).json?.data || []).find((m: any) => String(m.email || '').toLowerCase() === 'pat@test.local')
+  const asLogin = await teamRow()
+  check('Team says the invite is pending too, on the login row', asLogin?.invitePending === true, asLogin)
+  const card = await asOwner('POST', '/api/team', { name: 'Pat Lee', email: 'pat@test.local', hourlyRate: 18 })
+  const asCard = await teamRow()
+  check(`…and on their roster card once they have a pay rate (${card.status})`, card.status === 201 && asCard?._source !== 'user' && asCard?.invitePending === true, asCard)
   const sentHtml = (await import('./src/services/email.ts')).templates.teamInvite({ ...mail.data })
   check('the invite greets them by name, and its subject names the company once', /Hi Pat,/.test(sentHtml.html) && sentHtml.subject === "You're invited to join Invite Builders", sentHtml.subject)
   const { inlineButtonColours } = await import('./src/services/email.ts')
@@ -73,6 +82,8 @@ const tokenOf = (link: string) => new URL(link, 'https://x.test').searchParams.g
   check(`…and they can sign in with it (${login.status})`, login.status === 200 && !!login.json?.accessToken, login.json)
   const after = ((await asOwner('GET', '/api/company/users')).json || []).find((u: any) => u.email === 'pat@test.local')
   check('once they have chosen a password the invite is no longer pending', after?.invitePending === false, after)
+  const teamAfter = ((await asOwner('GET', '/api/team')).json?.data || []).find((m: any) => String(m.email || '').toLowerCase() === 'pat@test.local')
+  check('…on Team as well', teamAfter?.invitePending === false, teamAfter)
   const again = await anon('POST', '/api/auth/reset-password', { token: p.resetToken, password: 'someone-else-1' })
   check(`the link works once (${again.status})`, again.status === 400, again.json)
 }
