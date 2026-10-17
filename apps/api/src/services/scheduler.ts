@@ -20,7 +20,7 @@ const TZ_OFFSET_HOURS_FOR_DAILY = 0 // UTC — match the schedules in the runboo
 interface JobConfig {
   name: string
   path: string
-  schedule: 'hourly' | { dailyAtUtcHour: number }
+  schedule: 'hourly' | { dailyAtUtcHour: number } | { everyMinutes: number; firstAfterMinutes: number }
 }
 
 const JOBS: JobConfig[] = [
@@ -34,6 +34,10 @@ const JOBS: JobConfig[] = [
   { name: 'email-alias-sweep', path: '/api/v1/factory/internal/email-alias-sweep', schedule: 'hourly' },
   { name: 'messaging-monthly', path: '/api/v1/factory/internal/messaging/monthly', schedule: { dailyAtUtcHour: 9 } },
   { name: 'messaging-low-balance-nudge', path: '/api/v1/factory/internal/messaging/low-balance-nudge', schedule: { dailyAtUtcHour: 15 } },
+  // A website preview whose compose died with a restart or failed (routes/factory/intake.ts). Soon after
+  // boot — a deploy is exactly what kills one, and the prospect was promised it within 15 minutes —
+  // by when the instance it replaced has stopped; then every 10 minutes.
+  { name: 'preview-sweep', path: '/api/v1/factory/internal/preview-sweep', schedule: { everyMinutes: 10, firstAfterMinutes: 3 } },
 ]
 
 async function fireJob(job: JobConfig, port: number, secret: string) {
@@ -80,7 +84,14 @@ export function startScheduler(port: number): void {
   }
 
   for (const job of JOBS) {
-    if (job.schedule === 'hourly') {
+    if (typeof job.schedule === 'object' && 'everyMinutes' in job.schedule) {
+      const { everyMinutes, firstAfterMinutes } = job.schedule
+      console.log(`[scheduler] ${job.name} first fire in ${firstAfterMinutes}min, then every ${everyMinutes}min`)
+      setTimeout(() => {
+        fireJob(job, port, secret)
+        setInterval(() => fireJob(job, port, secret), everyMinutes * 60 * 1000)
+      }, firstAfterMinutes * 60 * 1000)
+    } else if (job.schedule === 'hourly') {
       const delay = msUntilNextHourTop()
       console.log(`[scheduler] ${job.name} first fire in ${Math.round(delay / 1000)}s, then every hour`)
       setTimeout(() => {

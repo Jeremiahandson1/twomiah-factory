@@ -2405,6 +2405,8 @@ jobs:
         run: bun run tests/shared/owner-emails.test.ts
       - name: "A new CRM starts on the Factory's feature list — the seed and the sync are one list"
         run: bun run tests/shared/crm-feature-seed.test.ts
+      - name: "A website preview lost to a restart or a failed compose is composed again; staff hear if it cannot be"
+        run: bun run tests/shared/preview-retry.test.ts
       - name: "A business name with an apostrophe or quotes cannot break a generated build, every template"
         run: bun run tests/shared/generator-free-text.test.ts
       - name: "Every vertical's CRM backend is found on Render — a bought domain reaches the admin"

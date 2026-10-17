@@ -8,6 +8,7 @@ import path from 'path'
 import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
 import { buildBrief, type Intake } from '../../services/briefBuilder'
 import { renderHomepagePreview } from '../../services/previewRenderer'
+import { previewRetryDecision, MAX_COMPOSE_ATTEMPTS } from '../../services/previewRetry'
 import { cacheGet, cacheSet, acquireInflight, releaseInflight } from '../../lib/previewGuard'
 import { composeSite } from '../../services/sectionComposer'
 import { parseIntakeFacts, type ContentGap } from '../../services/composerFacts'
@@ -1941,13 +1942,93 @@ factory.get('/public/intake/:id/status', async (c) => {
   })
 })
 
-// Auto-compose path. Called from /public/intake right after the row
-// lands. Mirrors the staff-triggered /intake/:id/preview-premium logic
+// ─── The "within 15 minutes" promise survives a restart ───────────────────────
+// The intake fires the composer on a timer inside this process. A deploy or crash mid-compose
+// killed it, and so did a failed composer call — and nothing ever tried again, so the prospect
+// was promised an email that never came. Every attempt is now written on the row
+// (intake_data.compose: attempts, lastAttemptAt, lastError, gaveUpAt) and /internal/preview-sweep
+// (services/scheduler.ts: 3 minutes after boot, then every 10) composes any intake still without a
+// preview, by the rule in services/previewRetry.ts.
+const BOOTED_AT = Date.now()
+const COMPOSING = new Set<string>()
+const SWEEP_WINDOW_MS = 3 * 24 * 60 * 60_000
+const SWEEP_SETTLE_MS = 2 * 60_000
+
+async function noteCompose(tenantId: string, patch: Record<string, unknown>): Promise<void> {
+  // Re-read, so the note never writes back a stale copy of the owner's answers.
+  const { data } = await supabase.from('tenants').select('intake_data').eq('id', tenantId).maybeSingle()
+  const root = (data?.intake_data || {}) as any
+  await supabase.from('tenants').update({ intake_data: { ...root, compose: { ...(root.compose || {}), ...patch } } }).eq('id', tenantId)
+}
+
+// Auto-compose path: /public/intake (on a timer) and the preview sweep. Records the attempt,
+// then composes; a failure is written down and rethrown.
+async function autoComposeForNewIntake(tenantId: string): Promise<void> {
+  if (COMPOSING.has(tenantId)) return
+  const { data: row } = await supabase.from('tenants')
+    .select('id, name, slug, email, intake_data, preview_premium_pages')
+    .eq('id', tenantId).maybeSingle()
+  if (!row || row.preview_premium_pages || !row.intake_data) return composeIntakePreview(tenantId)
+  COMPOSING.add(tenantId)
+  const attempt = (Number((row.intake_data as any).compose?.attempts) || 0) + 1
+  try {
+    await noteCompose(tenantId, { attempts: attempt, lastAttemptAt: new Date().toISOString() })
+    await composeIntakePreview(tenantId)
+  } catch (err: any) {
+    const msg = String(err?.message || err).slice(0, 500)
+    await noteCompose(tenantId, { lastError: msg }).catch(() => {})
+    if (attempt >= MAX_COMPOSE_ATTEMPTS) await giveUpOnPreview(row, attempt, msg)
+    throw err
+  } finally {
+    COMPOSING.delete(tenantId)
+  }
+}
+
+async function giveUpOnPreview(row: { id: string; name?: string; slug?: string; email?: string }, attempts: number, why: string): Promise<void> {
+  await noteCompose(row.id, { gaveUpAt: new Date().toISOString() }).catch(() => {})
+  await notifyProvisionFailure({ id: row.id, name: row.name, slug: row.slug, email: row.email }, 'Website preview',
+    `No preview after ${attempts} attempt(s); the prospect was promised one within 15 minutes. Last error: ${why || 'none recorded (the process stopped mid-compose)'}`)
+    .catch((e: any) => console.warn('[PreviewSweep] staff email failed:', e?.message))
+}
+
+// Hourly-ish (services/scheduler.ts): compose every intake still waiting on its preview.
+factory.post('/internal/preview-sweep', async (c) => {
+  if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const now = Date.now()
+  const { data: rows, error } = await supabase.from('tenants')
+    .select('id, name, slug, email, intake_data, created_at')
+    .eq('status', 'intake')
+    .is('preview_premium_pages', null)
+    .not('intake_data', 'is', null)
+    .gte('created_at', new Date(now - SWEEP_WINDOW_MS).toISOString())
+    .lte('created_at', new Date(now - SWEEP_SETTLE_MS).toISOString())
+    .order('created_at', { ascending: true })
+    .limit(25)
+  if (error) return c.json({ error: error.message }, 500)
+  const result = { waiting: (rows || []).length, composed: [] as string[], failed: [] as string[], gaveUp: [] as string[], skipped: 0 }
+  for (const row of rows || []) {
+    const decision = previewRetryDecision(row, { now, bootedAt: BOOTED_AT, composingHere: COMPOSING.has(row.id) })
+    if (decision === 'give_up') {
+      const st = (row.intake_data as any)?.compose || {}
+      await giveUpOnPreview(row, Number(st.attempts) || 1, st.lastError || '')
+      result.gaveUp.push(row.id)
+      continue
+    }
+    if (decision !== 'compose') { result.skipped++; continue }
+    // One at a time: each is a full composer call.
+    if (result.composed.length + result.failed.length >= 3) { result.skipped++; continue }
+    try { await autoComposeForNewIntake(row.id); result.composed.push(row.id) }
+    catch (e: any) { console.warn('[PreviewSweep] ' + row.id + ' failed:', e?.message); result.failed.push(row.id) }
+  }
+  return c.json({ ok: true, ...result })
+})
+
+// The compose itself. Mirrors the staff-triggered /intake/:id/preview-premium logic
 // — pulls intake_data, signs customer photo URLs, fetches stock photos
 // if configured, calls composeSite, saves preview_premium_pages, fires
 // the preview-ready email. Idempotent: skips when the tenant already
 // has preview_premium_pages set.
-async function autoComposeForNewIntake(tenantId: string): Promise<void> {
+async function composeIntakePreview(tenantId: string): Promise<void> {
   const { data: tenant, error } = await supabase.from('tenants')
     .select('id, name, email, industry, intake_data, preview_premium_pages')
     .eq('id', tenantId)
