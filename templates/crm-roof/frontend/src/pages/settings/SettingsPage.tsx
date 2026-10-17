@@ -22,7 +22,7 @@ export default function SettingsPage() {
   const mayWriteStormArea = useMayWrite('storms:update');
   // …and the storm inputs follow it, not just the buttons: staff could type a zip, a hail size and tick the boxes,
   // with no Save to keep any of it. (T62: "Roofing storm settings are editable but can't be saved")
-  const { token, user: currentUser } = useAuth();
+  const { token, user: currentUser, updateCompany } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -139,14 +139,20 @@ export default function SettingsPage() {
   };
 
   const saveBrandingSettings = async () => {
+    // The colour now paints this CRM's own buttons and menus as well as the portal, so refuse what cannot be
+    // painted rather than store it — the shared Settings page holds the same rule. (Brand colour at runtime)
+    const colour = String(branding.primaryColor || '').trim();
+    if (!/^#[0-9a-fA-F]{6}$/.test(colour)) { toast.error('Brand colour must be a 6-digit hex value like #f97316.'); return; }
     setSavingBranding(true);
     try {
       const res = await api.raw('/api/settings/branding', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(branding),
+        body: JSON.stringify({ ...branding, primaryColor: colour }),
       });
       if (!res.ok) throw new Error();
+      // The layout's palette follows `company`, so the new colour is on screen now, not after a reload.
+      updateCompany({ primaryColor: colour });
       toast.success('Branding saved');
     } catch {
       toast.error('Failed to save');

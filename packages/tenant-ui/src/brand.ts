@@ -7,12 +7,13 @@
 //   · a SURFACE that white text sits on (the portal's avatar tile, an email header/button)
 //   · the brand used AS INK on a light ground (an email's amount line)
 //
-// `tailwind.config.js` already clamps the 500/600 shades for the first case, but that only reaches
+// The brand palette (brandPalette.js, behind every tailwind.config.js) already clamps the 500/600 shades for
+// the first case — at build time and again at runtime for a colour set in Settings — but that only reaches
 // code written as `bg-*-500`. Anything that paints `company.primaryColor` directly — an inline style,
 // or CSS built at generation — bypasses Tailwind completely and keeps the raw, possibly unreadable
 // hex. These helpers are that same clamp for those paths.
 //
-// They deliberately mirror `readableUnderWhite` in every template's tailwind.config.js, value for
+// They deliberately mirror `readableUnderWhite` in brandPalette.js, value for
 // value, so the portal tile and the primary button land on the SAME shade rather than two different
 // darkenings of the same brand. `scripts/check-contrast-measured.ts` asserts that agreement across
 // all 360 hues, so the two cannot drift apart silently.

@@ -1,5 +1,6 @@
 // Theme + media-query hooks used by the shell (and by any template component that needs them).
 import { useState, useEffect } from 'react'
+import { applyBrandPalette } from '../brandPalette.js'
 
 export type Theme = 'light' | 'dark' | 'system'
 
@@ -99,3 +100,17 @@ export function useIsTablet() { return useMediaQuery('(min-width: 768px) and (ma
 export function useIsDesktop() { return useMediaQuery('(min-width: 1024px)') }
 export function usePrefersDarkMode() { return useMediaQuery('(prefers-color-scheme: dark)') }
 export function usePrefersReducedMotion() { return useMediaQuery('(prefers-reduced-motion: reduce)') }
+
+/**
+ * The CRM's own screens in the company's own colour — the one set in Settings, not only the one chosen at signup.
+ *
+ * Every orange-/primary-/brand- class reads a --brand-* CSS variable whose default is the palette the build
+ * baked in (tailwind.config.js). This sets those variables on <html> from `primaryColor`, through the SAME
+ * generatePalette and contrast clamps the build uses (brandPalette.js), so a pale colour picked in Settings still
+ * gets a primary button white text can be read on. Re-runs whenever the colour changes — which is how a save in
+ * Settings shows at once: the save puts the new row into auth (updateCompany) and the shell re-renders with it.
+ * Blank or not a hex → the overrides come off and the build's palette shows again.
+ */
+export function useBrandPalette(primaryColor?: string | null): void {
+  useEffect(() => { applyBrandPalette(primaryColor) }, [primaryColor])
+}

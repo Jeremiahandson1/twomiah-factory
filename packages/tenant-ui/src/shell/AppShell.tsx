@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useOutlet, useLocation, useNavigate } from 'react-router-dom'
 import { Menu, X, Home, Settings, LogOut, ChevronDown, Building, User, Sun, Moon } from 'lucide-react'
-import { useTheme, useIsMobile } from './hooks'
+import { useTheme, useIsMobile, useBrandPalette } from './hooks'
 import { SkipLink, RouteAnnouncer } from './Accessibility'
 import { GlobalSearch } from './GlobalSearch'
 import { TrialBanner } from './TrialBanner'
@@ -68,6 +68,9 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const { setTheme, isDark } = useTheme()
+  // The company's colour from Settings, on every brand-coloured class in the CRM — not only the signup colour
+  // the build baked in. Same generator, same clamps (brandPalette.js); blank falls back to the build's.
+  useBrandPalette(company?.primaryColor)
   const location = useLocation()
   const navigate = useNavigate()
   const isMobile = useIsMobile()

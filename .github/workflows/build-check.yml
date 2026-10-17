@@ -2415,6 +2415,9 @@ jobs:
         run: bun run tests/shared/generator-free-text.test.ts
       - name: "Every vertical's CRM backend is found on Render — a bought domain reaches the admin"
         run: bun run tests/shared/render-service-lookup.test.ts
+      # after the install above: it imports brand.ts, whose theme import reaches react
+      - name: "A colour changed in Settings reaches the CRM's own screens, through the same palette and clamps as the build"
+        run: bun run tests/shared/brand-palette-runtime.test.ts
 
   store-suite:
     name: "Store behaviour suite (real PGlite)"

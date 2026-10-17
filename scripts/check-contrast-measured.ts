@@ -18,9 +18,33 @@
 // DARK. A failure prints the measured ratio, not an opinion.
 //   bun scripts/check-contrast-measured.ts
 import { readFileSync, readdirSync } from 'node:fs'
+import { dirname, resolve as resolvePath } from 'node:path'
+import { pathToFileURL } from 'node:url'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
 const fail = (m: string) => { failed++; console.error('FAIL: ' + m) }
+
+/**
+ * The generatePalette a template's tailwind.config.js ACTUALLY builds with.
+ *
+ * Two shapes: the config's own inline `function generatePalette` (the old one, still the parked
+ * automotive's), or — every live template since the brand colour went runtime — an import from
+ * src/shared/brandPalette.js, which in the template repo re-exports packages/tenant-ui/src/brandPalette.js.
+ * The import is followed from the path the config names, so this measures the module the build loads,
+ * and the same module the running app calls. null = the config has no generator at all (skipped, as before).
+ * Throws when the config names one that cannot be loaded — that is a failure, not a skip.
+ */
+async function loadGenerator(cfgPath: string, src: string): Promise<((hex: string) => Record<string, string>) | null> {
+  if (/function generatePalette/.test(src)) {
+    const body = src.slice(0, src.search(/^(export default|module\.exports)/m))
+    return new Function(body + '; return generatePalette;')() as (hex: string) => Record<string, string>
+  }
+  const imp = /import\s*\{[^}]*\bgeneratePalette\b[^}]*\}\s*from\s*['"]([^'"]+)['"]/.exec(src)
+  if (!imp) return null
+  const mod = await import(pathToFileURL(resolvePath(dirname(cfgPath), imp[1])).href)
+  if (typeof mod.generatePalette !== 'function') throw new Error(`${imp[1]} does not export generatePalette`)
+  return mod.generatePalette
+}
 
 const AA = 4.5
 
@@ -344,17 +368,17 @@ for (const t of BRAND_TEXT) {
     const cfgPath = ROOT + 'templates/' + t + '/frontend/tailwind.config.js'
     let src: string
     try { src = readFileSync(cfgPath, 'utf8').replace(/\r/g, '') } catch { continue }
-    if (!/function generatePalette/.test(src)) continue
+    if (!/\bgeneratePalette\b/.test(src)) continue
     if (PARKED.has(t)) { console.log(`  (parked, not enforced: ${t})`); continue }
 
     let palette: ((hex: string) => Record<string, string>) | null = null
     try {
-      const body = src.slice(0, src.search(/^(export default|module\.exports)/m))
-      palette = new Function(body + '; return generatePalette;')() as (hex: string) => Record<string, string>
+      palette = await loadGenerator(cfgPath, src)
     } catch (e: any) {
       fail('could not load generatePalette from ' + cfgPath + ': ' + (e?.message || e))
       continue
     }
+    if (!palette) { fail(`${t}: tailwind.config.js names generatePalette but neither defines nor imports it`); continue }
     checked++
     let worst = { shade: '', hue: -1, r: Infinity }
     for (let h = 0; h < 360; h++) {
@@ -398,14 +422,14 @@ for (const t of BRAND_TEXT) {
     const cfgPath = ROOT + 'templates/' + t + '/frontend/tailwind.config.js'
     let src: string
     try { src = readFileSync(cfgPath, 'utf8').replace(/\r/g, '') } catch { continue }
-    if (!/function generatePalette/.test(src)) continue
+    if (!/\bgeneratePalette\b/.test(src)) continue
     if (PARKED.has(t)) continue
 
     let palette: ((hex: string) => Record<string, string>) | null = null
     try {
-      const body = src.slice(0, src.search(/^(export default|module\.exports)/m))
-      palette = new Function(body + '; return generatePalette;')() as (hex: string) => Record<string, string>
+      palette = await loadGenerator(cfgPath, src)
     } catch (e: any) { fail('could not load generatePalette from ' + cfgPath + ': ' + (e?.message || e)); continue }
+    if (!palette) { fail(`${t}: tailwind.config.js names generatePalette but neither defines nor imports it`); continue }
     checked++
     let worst = { tint: '', hue: -1, r: Infinity }
     for (let h = 0; h < 360; h++) {

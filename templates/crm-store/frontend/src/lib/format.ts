@@ -26,7 +26,9 @@ const STATUS_COLORS: Record<string, string> = {
   shipped: 'bg-purple-100 text-purple-700',
   delivered: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
-  refunded: 'bg-orange-100 text-orange-700',
+  // amber, not orange: orange-* is the shop's brand colour (tailwind.config.js), and a status must not change
+  // hue with the brand. 800 on 100 (6.37:1) rather than 700, which only just clears at 4.51:1.
+  refunded: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200',
 }
 export function statusColor(status: string) {
   return STATUS_COLORS[status] || 'bg-gray-100 text-gray-700'

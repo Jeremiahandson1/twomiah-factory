@@ -20,7 +20,7 @@ type Company = { id: string; name: string; enabledFeatures: string[]; settings: 
  * naming it the same way here is what lets App.tsx mount it and `useMayWrite` start answering.
  */
 export type MfaChallenge = { challengeId: string; recoveryCodesAvailable: boolean; message?: string }
-type AuthState = { user: User | null; company: Company | null; permissions: string[] | null; token: string | null; login: (email: string, password: string) => Promise<MfaChallenge | null>; completeMfa: (challengeId: string, code: string) => Promise<void>; logout: () => void; hasFeature: (featureId: string) => boolean }
+type AuthState = { user: User | null; company: Company | null; permissions: string[] | null; token: string | null; login: (email: string, password: string) => Promise<MfaChallenge | null>; completeMfa: (challengeId: string, code: string) => Promise<void>; logout: () => void; hasFeature: (featureId: string) => boolean; updateCompany: (updates: Partial<Company>) => void }
 
 const AuthContext = createContext<AuthState>(null as any)
 export const useAuth = () => useContext(AuthContext)
@@ -172,5 +172,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return company?.enabledFeatures?.includes(featureId) ?? false
   }
 
-  return <AuthContext.Provider value={{ user, company, permissions, token, login, completeMfa, logout, hasFeature }}>{children}</AuthContext.Provider>
+  // A save that changes the company row (Settings › Branding) puts the new values here, so everything reading
+  // `company` follows at once — the layout's brand palette first — instead of on the next /me.
+  const updateCompany = (updates: Partial<Company>) => {
+    setCompany(prev => (prev ? { ...prev, ...updates } : prev))
+  }
+
+  return <AuthContext.Provider value={{ user, company, permissions, token, login, completeMfa, logout, hasFeature, updateCompany }}>{children}</AuthContext.Provider>
 }
