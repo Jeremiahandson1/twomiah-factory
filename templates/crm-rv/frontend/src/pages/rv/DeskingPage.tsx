@@ -167,7 +167,7 @@ export default function DeskingPage() {
                     contacts:read only. DISABLED rather than hidden, with the reason in the tooltip:
                     the desk is a worksheet a salesperson is encouraged to play with, and a Save
                     button that vanishes reads as the page being broken. */}
-                <button type="button" onClick={save} disabled={saving || loadingDeal || hasErrors || !dirty || !maySaveDeal} title={!maySaveDeal ? 'Saving a desked deal needs permission to edit the lead.' : undefined} className="px-3 py-1.5 rounded-lg bg-orange-700 text-white text-sm font-medium hover:bg-orange-800 disabled:opacity-50 inline-flex items-center gap-1.5">
+                <button type="button" onClick={save} disabled={saving || loadingDeal || hasErrors || !dirty || !maySaveDeal} title={!maySaveDeal ? 'Saving a desked deal needs permission to edit the lead.' : undefined} className="px-3 py-1.5 rounded-lg bg-orange-700 text-white text-sm font-medium hover:bg-orange-900 disabled:opacity-50 inline-flex items-center gap-1.5">
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}{dirty ? 'Save deal' : 'Saved'}
                 </button>
                 <button type="button" onClick={sendToFi} disabled={saving || loadingDeal || hasErrors} className="px-3 py-1.5 rounded-lg border text-sm text-orange-700 hover:bg-orange-50 disabled:opacity-50 dark:hover:bg-slate-800 dark:text-orange-200">Send to F&I →</button>

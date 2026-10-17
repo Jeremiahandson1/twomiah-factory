@@ -216,7 +216,7 @@ check('…and no longer says "What your customers see:" as if that were all of i
 // white). The shade used as INK on its own tints: 700 on 50 and 100 (every status chip). Brand-coloured text
 // on the page grounds: 900 on white, 200 on the dark card (#1e293b) — the pair check-contrast-measured.ts
 // names as safe for every hue. Measured on the RUNTIME palette, i.e. what a Settings change produces.
-const AWKWARD = ['#fff59d', '#ffffff', '#111111', '#ff0000', '#808080', '#ffff00', '#00ff00', '#00ffff', '#ff00ff', '#f97316', '#000000', '#fefefe']
+const AWKWARD = ['#fff59d', '#ffffff', '#111111', '#ff0000', '#808080', '#ffff00', '#00ff00', '#00ffff', '#ff00ff', '#f97316', '#000000', '#fefefe', '#2563eb', '#0000ff']
 for (const colour of AWKWARD) {
   const root = fakeRoot()
   const p = applyBrandPalette(colour, root)
@@ -227,6 +227,35 @@ for (const colour of AWKWARD) {
   { const r = ratio(p['200'], '#1e293b'); if (r < 4.5) bad.push(`200 on the dark card ${r.toFixed(2)}:1`) }
   check(`owner colour ${colour}: white on 500/600/700, 700 on its tints, and brand text in both themes all clear 4.5:1`, bad.length === 0, bad)
 }
+// The pairings the blue→brand conversion introduced (check-action-colour-is-brand.ts). Actions that were
+// hard-coded blue now paint the brand, so each shade they use is measured here for every awkward colour:
+//   · text links on the page                 600 / 700 on white
+//   · ink on a selected tab / tinted button  700 and 900 on the 50 and 100 tints (800 → 900: 800 on white is
+//                                            3.9:1 for a yellow brand, so light ink 800 became 900)
+//   · white on the darkest hover             white on 900 (Sandata's and the desk's 700 buttons hover to 900:
+//                                            white on 800 is 3.9:1 for a #ffff00 brand — 800 is not clamped)
+//   · brand ink in dark mode                 200 on every dark ground the CRMs use, and on the brand's own
+//                                            dark wash (950/40, 900/30 over slate-900) — 300 and 400 are NOT
+//                                            used: on a pure-blue brand they fall to 2.7:1 and 1.8:1
+//   · dark hover ink                         100 on the same grounds
+//   · the roof portal (always bg-gray-900)   200 ink on gray-900 and on its gray-800 cards
+const over = (fg: string, alpha: number, bg: string) => '#' + [1, 3, 5]
+  .map((i) => Math.round(parseInt(fg.slice(i, i + 2), 16) * alpha + parseInt(bg.slice(i, i + 2), 16) * (1 - alpha)).toString(16).padStart(2, '0')).join('')
+const DARK_GROUNDS: Record<string, string> = { 'slate-900': '#0f172a', 'slate-800': '#1e293b', 'gray-900': '#111827', 'gray-800': '#1f2937' }
+for (const colour of AWKWARD) {
+  const p = generatePalette(colour)
+  const bad: string[] = []
+  const need = (what: string, fg: string, bg: string) => { const r = ratio(fg, bg); if (r < 4.5) bad.push(`${what} ${r.toFixed(2)}:1`) }
+  need('600 link on white', p['600'], '#ffffff')
+  need('700 link on white', p['700'], '#ffffff')
+  for (const t of ['50', '100']) { need(`700 on ${t}`, p['700'], p[t]); need(`900 on ${t}`, p['900'], p[t]) }
+  need('white on 900', '#ffffff', p['900'])
+  for (const [name, g] of Object.entries(DARK_GROUNDS)) { need(`dark 200 on ${name}`, p['200'], g); need(`dark hover 100 on ${name}`, p['100'], g) }
+  need('dark 200 on 950/40 over slate-900', p['200'], over(p['950'], 0.4, DARK_GROUNDS['slate-900']))
+  need('dark 200 on 900/30 over slate-900', p['200'], over(p['900'], 0.3, DARK_GROUNDS['slate-900']))
+  check(`owner colour ${colour}: the converted actions' shades — links, tinted selections, dark-mode ink — all clear 4.5:1`, bad.length === 0, bad)
+}
+
 // …and the clamp only darkens what needs it: a colour that already clears is the button, unchanged.
 check('a brand that already clears under white is used exactly as picked', generatePalette('#1d4ed8')['500'] === '#1d4ed8' && generatePalette('#111111')['500'] === '#111111')
 check('a pale one is darkened, keeping its hue', generatePalette('#fff59d')['500'] !== '#fff59d' && ratio('#ffffff', generatePalette('#fff59d')['500']) >= 4.5)

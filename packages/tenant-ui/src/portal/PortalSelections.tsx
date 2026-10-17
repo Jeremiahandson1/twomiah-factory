@@ -104,7 +104,7 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
       {selection.selected_option && (
         <div className="mt-2 p-3 bg-orange-50 rounded-lg flex items-center gap-3 dark:bg-orange-950/30">
           <Check className="w-5 h-5 text-orange-600 shrink-0 dark:text-orange-200" />
-          <div className="flex-1"><p className="text-sm font-medium text-orange-900 dark:text-orange-200">{selection.selected_option.name}{selection.selected_option.manufacturer && <span className="text-orange-600 font-normal dark:text-orange-200"> by {selection.selected_option.manufacturer}</span>}</p>{selection.client_notes && <p className="text-xs text-orange-700 mt-1 dark:text-orange-200">Note: {selection.client_notes}</p>}</div>
+          <div className="flex-1"><p className="text-sm font-medium text-orange-900 dark:text-orange-200">{selection.selected_option.name}{selection.selected_option.manufacturer && <span className="text-orange-700 font-normal dark:text-orange-200"> by {selection.selected_option.manufacturer}</span>}</p>{selection.client_notes && <p className="text-xs text-orange-700 mt-1 dark:text-orange-200">Note: {selection.client_notes}</p>}</div>
           {selection.selected_option.image_url && <img src={selection.selected_option.image_url} alt="" className="w-12 h-12 rounded object-cover" />}
         </div>
       )}
@@ -128,7 +128,7 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
                       {option.description && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 line-clamp-2">{option.description}</p>}
                       <div className="mt-2 flex items-center justify-between"><p className="text-sm font-bold text-gray-900 dark:text-slate-100">{moneyShort(totalPrice)}</p>{allowance > 0 && <span className={`text-xs font-medium ${priceDiff > 0 ? 'text-red-600 dark:text-red-400' : priceDiff < 0 ? 'text-green-700 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>{priceDiff !== 0 ? `${priceDiff > 0 ? '+' : ''}${moneyShort(priceDiff)}` : 'Within allowance'}</span>}</div>
                       {option.lead_time_days > 0 && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{option.lead_time_days} day lead time</p>}
-                      {isSelected && <div className="mt-2 flex items-center gap-1 text-orange-600 text-xs font-medium dark:text-orange-200"><Check className="w-3 h-3" /> Currently selected</div>}
+                      {isSelected && <div className="mt-2 flex items-center gap-1 text-orange-700 text-xs font-medium dark:text-orange-200"><Check className="w-3 h-3" /> Currently selected</div>}
                     </button>
                   )
                 })}

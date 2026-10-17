@@ -58,7 +58,7 @@ export function SandataIdBox({ client, withOpen = false }: { client: SandataClie
       </div>
       {withOpen && (
         <button type="button" onClick={() => copy(true)}
-          className="mt-2 w-full rounded-lg bg-orange-700 py-2.5 text-base font-extrabold text-white hover:bg-orange-800 dark:bg-orange-600 dark:text-white dark:hover:bg-orange-500">
+          className="mt-2 w-full rounded-lg bg-orange-700 py-2.5 text-base font-extrabold text-white hover:bg-orange-900 dark:bg-orange-600 dark:text-white dark:hover:bg-orange-500">
           📋 Copy ID &amp; open Sandata
         </button>
       )}
@@ -111,7 +111,7 @@ export function SandataPrompt({ prompt, client, ctx, email, onClose }: {
       <SandataIdBox client={client} withOpen />
       {!hasId && (
         <button type="button" onClick={() => { openSandata(); onClose(); }}
-          className="w-full rounded-lg bg-orange-700 py-3 text-base font-extrabold text-white hover:bg-orange-800 dark:bg-orange-600 dark:text-white dark:hover:bg-orange-500">
+          className="w-full rounded-lg bg-orange-700 py-3 text-base font-extrabold text-white hover:bg-orange-900 dark:bg-orange-600 dark:text-white dark:hover:bg-orange-500">
           Open the Sandata app
         </button>
       )}
@@ -173,7 +173,7 @@ export function SandataNotice({ userId, ctx, companyPhone, onSetup }: {
           </p>
         )}
         <button type="button" onClick={() => { dismiss(); onSetup(); }}
-          className="w-full rounded-lg bg-orange-700 py-3 text-base font-extrabold text-white hover:bg-orange-800 dark:bg-orange-600 dark:text-white dark:hover:bg-orange-500">
+          className="w-full rounded-lg bg-orange-700 py-3 text-base font-extrabold text-white hover:bg-orange-900 dark:bg-orange-600 dark:text-white dark:hover:bg-orange-500">
           I understand — show me how to set it up
         </button>
         <button type="button" onClick={dismiss}
