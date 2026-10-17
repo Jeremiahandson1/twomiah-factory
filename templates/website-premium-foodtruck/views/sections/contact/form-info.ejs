@@ -37,7 +37,7 @@
         <% } %>
         <% if (address) { %>
           <div class="contact-section__row">
-            <div class="contact-section__label">Office</div>
+            <div class="contact-section__label">Address</div>
             <div class="contact-section__value"><%= address %></div>
           </div>
         <% } %>
@@ -77,8 +77,9 @@
         <input id="cf-phone" name="phone" type="tel">
       </div>
       <div class="contact-form__row">
-        <label for="cf-project">What you're working on</label>
-        <textarea id="cf-project" name="project" rows="5" required></textarea>
+        <%# The contractor form's question and field name were left here (found beside Bar Run 2). The server reads message. %>
+        <label for="cf-message">Your message</label>
+        <textarea id="cf-message" name="message" rows="5" required></textarea>
       </div>
       <button class="btn btn--primary btn--lg" type="submit">Send</button>
       <p class="contact-form__status" role="status" aria-live="polite" hidden></p>

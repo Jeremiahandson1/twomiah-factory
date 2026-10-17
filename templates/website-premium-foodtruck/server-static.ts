@@ -1849,7 +1849,7 @@ async function handleLead(c: any) {
 
     if (!name || name.length < 2) return reply(false, 'Name is required.')
     if (!email || !email.includes('@')) return reply(false, 'Valid email required.')
-    if (!message || message.length < 4) return reply(false, 'Tell us a bit about your project.')
+    if (!message || message.length < 4) return reply(false, 'Please write a short message.')
 
     await db.insert(leadsTbl).values({ name, email, phone, message, source: source || undefined })
 
