@@ -181,7 +181,7 @@ export default function CurbsidePage() {
                     {pickup.status === 'waiting' && (
                       <button
                         onClick={() => updateStatus(pickup.id, 'assigned')}
-                        className="flex-1 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center gap-1"
+                        className="flex-1 px-3 py-1.5 text-xs font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center justify-center gap-1"
                       >
                         Assign Staff
                       </button>

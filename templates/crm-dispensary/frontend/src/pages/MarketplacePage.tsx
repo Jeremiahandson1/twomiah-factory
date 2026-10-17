@@ -326,7 +326,7 @@ export default function MarketplacePage() {
                     </button>
                     <button
                       onClick={() => handleSync(integration.id)}
-                      className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-950/40"
+                      className="px-3 py-1.5 text-xs font-medium text-orange-700 bg-orange-50 rounded-lg hover:bg-orange-100 dark:text-orange-200 dark:bg-orange-950/40"
                     >
                       <RefreshCw className="w-3 h-3 inline mr-1" />
                       Sync

@@ -254,6 +254,7 @@ export default function SEOPagesPage() {
             <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 max-w-2xl dark:bg-slate-900">
               <h3 className="text-sm font-medium text-gray-500 mb-4 dark:text-slate-400">Google Search Preview</h3>
               <div className="space-y-1">
+                {/* semantic-blue: Google's own result-link colour, previewing how the page shows in Google — not an action in this CRM */}
                 <p className="text-xl text-blue-700 hover:underline cursor-pointer leading-snug dark:text-blue-300">
                   {previewPage.metaTitle || previewPage.productName || 'Untitled Page'}
                 </p>

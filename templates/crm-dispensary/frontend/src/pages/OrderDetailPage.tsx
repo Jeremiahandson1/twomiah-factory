@@ -350,7 +350,7 @@ export default function OrderDetailPage() {
             {order.status === 'pending' && (
               <button
                 onClick={() => handleStatusUpdate('processing')}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                className="px-3 py-1.5 bg-orange-600 text-white rounded-lg text-sm hover:bg-orange-700"
               >
                 Start Processing
               </button>

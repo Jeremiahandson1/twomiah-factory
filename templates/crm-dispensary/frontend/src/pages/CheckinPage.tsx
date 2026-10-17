@@ -238,7 +238,7 @@ export default function CheckinPage() {
                         {entry.status === 'waiting' && (
                           <button
                             onClick={() => updateStatus(entry.id, 'called')}
-                            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            className="px-3 py-1.5 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700"
                           >
                             Call Next
                           </button>

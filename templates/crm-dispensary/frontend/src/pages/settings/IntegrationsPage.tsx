@@ -395,7 +395,7 @@ export default function IntegrationsPage() {
               {saving === 'sms' ? (
                 <Loader2 className="w-10 h-10 text-gray-400 animate-spin" />
               ) : integrations.sms.enabled ? (
-                <ToggleRight className="w-10 h-10 text-blue-500 dark:text-blue-300" />
+                <ToggleRight className="w-10 h-10 text-orange-500 dark:text-orange-200" />
               ) : (
                 <ToggleLeft className="w-10 h-10 text-gray-300" />
               )}

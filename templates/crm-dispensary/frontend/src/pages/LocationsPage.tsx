@@ -583,7 +583,7 @@ export default function LocationsPage() {
                           <button
                             onClick={() => handleShipTransfer(transfer)}
                             disabled={shippingId === transfer.id}
-                            className="text-sm text-blue-600 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 disabled:opacity-50 dark:text-blue-300"
+                            className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-100 flex items-center gap-1 disabled:opacity-50 dark:text-orange-200"
                           >
                             <ArrowRight className="w-3 h-3" /> {shippingId === transfer.id ? 'Shipping...' : 'Ship'}
                           </button>

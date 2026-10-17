@@ -206,7 +206,7 @@ export default function ContactDetailPage() {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 dark:text-slate-400">Email</p>
-                    <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline dark:text-blue-300">
+                    <a href={`mailto:${contact.email}`} className="text-orange-600 hover:underline dark:text-orange-200">
                       {contact.email}
                     </a>
                   </div>

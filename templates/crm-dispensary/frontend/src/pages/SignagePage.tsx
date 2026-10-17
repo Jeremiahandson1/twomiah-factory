@@ -230,7 +230,7 @@ export default function SignagePage() {
                     </button>
                     <button
                       onClick={() => { setPreviewScreen(screen); loadPreview(screen.id); setTab('preview'); }}
-                      className="text-sm text-blue-600 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 dark:text-blue-300"
+                      className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-100 flex items-center gap-1 dark:text-orange-200"
                     >
                       <Eye className="w-3 h-3" /> Preview
                     </button>

@@ -390,7 +390,7 @@ export default function IDScannerPage() {
                       <User className="w-4 h-4 inline mr-1" />
                       Matched to existing customer profile
                     </p>
-                    <button className="text-sm text-blue-600 hover:underline mt-1 font-medium dark:text-blue-300">
+                    <button className="text-sm text-orange-600 hover:underline mt-1 font-medium dark:text-orange-200">
                       View Customer Profile
                     </button>
                   </div>

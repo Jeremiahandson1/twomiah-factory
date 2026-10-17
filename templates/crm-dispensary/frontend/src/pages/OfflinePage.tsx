@@ -350,7 +350,7 @@ export default function OfflinePage() {
                         {item.status === 'failed' && (
                           <div className="flex gap-2">
                             <button onClick={() => retryItem(item.id)}
-                              className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 dark:text-blue-300 dark:bg-blue-950/40">
+                              className="flex items-center gap-1 text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 dark:text-orange-200 dark:bg-orange-950/40">
                               <RotateCcw className="w-3 h-3" />Retry
                             </button>
                             <button onClick={() => skipItem(item.id)}

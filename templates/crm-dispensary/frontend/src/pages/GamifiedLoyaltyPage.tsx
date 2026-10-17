@@ -819,7 +819,7 @@ export default function GamifiedLoyaltyPage() {
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-slate-700 dark:text-slate-100">
                             <div
-                              className={`h-3 rounded-full transition-all ${cp.completed ? 'bg-green-500' : 'bg-blue-500'}`}
+                              className={`h-3 rounded-full transition-all ${cp.completed ? 'bg-green-500' : 'bg-orange-500'}`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>
