@@ -153,6 +153,18 @@ export function DomainPage() {
         </div>
       )}
 
+      {/* After checkout and until the address is live: the confirmation email is what it is waiting on. */}
+      {justRegistered && status.status !== 'active' && (
+        <div className="mb-6 rounded-lg border border-line bg-paper-alt px-5 py-4 text-sm text-ink-soft">
+          <div className="font-semibold text-ink">Check your email for a link from Namecheap</div>
+          <div className="mt-0.5">
+            Namecheap, our registrar, asks every new domain owner to confirm their contact details. Click the link in that
+            email, and your site goes live at {status.domain || 'your new address'} in about ten minutes. Nothing else to do
+            here — this page updates on its own.
+          </div>
+        </div>
+      )}
+
       {wasCancelled && (
         <div className="mb-6 rounded-lg border border-line bg-paper-alt px-5 py-3 text-sm text-ink-soft">
           Checkout cancelled — no charges made. Try a different domain below, or use the "I already own a domain" tab.
@@ -294,6 +306,13 @@ export function DomainPage() {
               <p className="text-sm text-ink-soft mb-5">
                 We'll register it on your behalf and set everything up. Type the domain you want — we'll
                 check if it's open right now.
+              </p>
+              {/* Every new domain owner must confirm their contact details (an ICANN rule); Namecheap emails the link right
+                  after registration, and the address does not go live until it is clicked. Said BEFORE they pay, so the
+                  email is expected rather than a surprise. (Amber Inn, 10/17) */}
+              <p className="text-sm text-ink-soft mb-5">
+                <strong className="text-ink">One step after you buy:</strong> Namecheap, our registrar, will email you a link
+                to confirm your contact details. Click it, and your site goes live at your new address in about ten minutes.
               </p>
               <input type="text" value={buyInput} onChange={e => setBuyInput(e.target.value)}
                 placeholder="madisonroofing.com"
