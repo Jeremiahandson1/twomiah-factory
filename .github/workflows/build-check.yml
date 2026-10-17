@@ -1231,6 +1231,8 @@ jobs:
           bun-version: latest
       - name: "Check portal seat"
         run: bun run scripts/check-portal-seat.ts
+      - name: "Home care's two-factor is wired end to end"
+        run: bun run scripts/check-homecare-mfa-wiring.ts
 
   help-page-theme:
     name: "Help page follows the theme"
