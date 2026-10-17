@@ -1,0 +1,46 @@
+import api from '../services/api';
+/**
+ * Opens a server-rendered printable HTML document in a new tab.
+ *
+ * A plain window.open('/api/...') CANNOT work here: this API authenticates with
+ * a Bearer header only — it sets no cookie — so a top-level navigation arrives
+ * with no credentials and the tab shows {"error":"No token provided"}.
+ *
+ * The token is deliberately NOT put in the query string: a
+ * JWT in a URL leaks into browser history, referrer headers and server logs.
+ * Instead the document is fetched with the header and handed to the tab as a
+ * blob, which prints identically.
+ *
+ * ON FAILURE IT THROWS, and the caller renders the reason. (T58)
+ * It used to alert(), which is the wrong place twice over: this helper has no idea which screen it
+ * was called from, and a pop-up takes the reason away from the page the coordinator is working on.
+ * The caller has somewhere to put it; the helper's job is to say what went wrong, not where.
+ */
+export async function openPrintable(path: string): Promise<void> {
+  // Open the tab BEFORE awaiting — a window.open() after an await is a popup
+  // blocker's definition of "not user initiated".
+  const tab = window.open('', '_blank');
+
+  try {
+    // Through the client: the current token, refreshed if it has expired — never a token in the URL.
+    const res = await api.raw(path);
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`Could not load the document (HTTP ${res.status}). ${detail.slice(0, 200)}`);
+    }
+    const html = await res.text();
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    if (tab) {
+      tab.location.href = url;
+      // Revoke once the tab has had time to load it; revoking immediately
+      // races the navigation and yields a blank tab.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } else {
+      // Popup blocked — fall back to the current tab rather than failing silently.
+      window.location.href = url;
+    }
+  } catch (err) {
+    tab?.close();
+    throw err instanceof Error ? err : new Error('Could not open the document');
+  }
+}

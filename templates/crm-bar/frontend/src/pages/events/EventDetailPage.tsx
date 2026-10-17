@@ -1,0 +1,1096 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import {
+  Loader2, CalendarDays, Users, DoorOpen, Phone, Mail, Plus, X, ArrowLeft,
+  UtensilsCrossed, Clock, Wallet, AlertTriangle, AlertCircle, ExternalLink, Trash2, Check,
+} from 'lucide-react';
+import api from '../../services/api';
+import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, money, prettyType, localDay } from './EventsPage';
+import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
+import { confirmEventRisks } from '../../lib/eventWarnings';
+import { openPrintable } from '../../lib/printable';
+import { PAYMENT_METHODS, useMayWrite } from '../../shared';
+import ClientPicker from '../../components/events/ClientPicker';
+
+/**
+ * The event file — GET /api/events/:id returns
+ * { event, client, space, menu[], timeline[], payments[], invoice, totals }.
+ *
+ * Money lives on the event's invoice (one ledger with Reports): payments[] is the schedule, each
+ * installment with what the invoice has covered of it; recording a payment, refunding or sending
+ * happens on the invoice (/api/invoices/:id/...).
+ *
+ * Three tabs because three different people use this page: sales works the
+ * menu and the money, the coordinator works the run of show, and the kitchen
+ * prints the BEO that stitches all three together.
+ */
+
+const DEPARTMENTS = ['floor', 'kitchen', 'bar', 'av', 'setup'];
+
+interface EventFull {
+  id: string;
+  name?: string;
+  eventType?: string;
+  status?: string;
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
+  guestCount?: number;
+  guestCountFinal?: number;
+  quotedTotal?: number | string;
+  depositRequired?: number | string;
+  source?: string;
+  lostReason?: string;
+  dietaryRequirements?: string;
+  setupNotes?: string;
+  notes?: string;
+  contactId?: string;
+  spaceId?: string;
+  coordinatorId?: string;
+}
+interface Client { id?: string; name?: string; email?: string; phone?: string; mobile?: string }
+interface Space { id?: string; name?: string; seatedCapacity?: number; standingCapacity?: number; minimumSpend?: number | string }
+interface MenuLine { id: string; name?: string; perPerson?: boolean; quantity?: number; unitPrice?: number | string; notes?: string; packageId?: string; spaceId?: string | null }
+interface TimelineLine { id: string; time?: string; title?: string; department?: string; details?: string; sortOrder?: number }
+type InstallmentState = 'paid' | 'part_paid' | 'unpaid' | 'refunded' | 'void';
+interface PaymentLine { id: string; label?: string; amount?: number; dueDate?: string | null; paidAmount?: number; state?: InstallmentState }
+interface EventInvoice { id: string; number?: string; status?: string; dueDate?: string | null; total?: number | string; taxAmount?: number | string; amountPaid?: number | string; amountRefunded?: number | string; sentAt?: string | null }
+// menuTotal = every line (room hire included); fbTotal = food & beverage only (minimum spend). When
+// invoiced, total/tax/paid/refunded/outstanding are the invoice's; before that, the estimate.
+interface Totals { menuTotal?: number; fbTotal?: number; quoted?: number; invoiced?: boolean; total?: number; tax?: number; paid?: number; refunded?: number; outstanding?: number }
+interface Detail {
+  event?: EventFull;
+  client?: Client | null;
+  space?: Space | null;
+  menu?: MenuLine[];
+  timeline?: TimelineLine[];
+  payments?: PaymentLine[];
+  invoice?: EventInvoice | null;
+  totals?: Totals;
+  // The server withheld the money from this seat (invoices:read). Nothing priced is drawn — not as $0. (T62)
+  moneyWithheld?: boolean;
+}
+interface PackageOption { id: string; name?: string; pricePerPerson?: number | string; minGuests?: number; category?: string }
+interface SpaceOption { id: string; name?: string; seatedCapacity?: number }
+
+function money2(v: number | string | undefined | null): string {
+  return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+function lineTotal(l: MenuLine): number {
+  return Number(l.unitPrice || 0) * Number(l.quantity || 0);
+}
+function isOverdue(p: PaymentLine): boolean {
+  if (!p.dueDate || (p.state !== 'unpaid' && p.state !== 'part_paid')) return false;
+  return p.dueDate < localDay();
+}
+
+type Tab = 'menu' | 'runsheet' | 'money';
+
+export default function EventDetailPage() {
+  /**
+   * "Staff are shown Edit, Add Line, Schedule Payment and Record payment buttons, which 403."
+   * (T41 events)
+   *
+   * Each asks what its own route asks, read off src/routes/events.ts. crm-restaurant runs its event
+   * book on the contacts verbs and its money on the invoicing ones, which is the line the server
+   * already draws:
+   *
+   *   Edit event        PUT /:id                      contacts:update
+   *   Add Line          POST /:id/menu                contacts:update
+   *   Remove line       DELETE /:id/menu/:lineId      contacts:update
+   *   Timeline edits    POST|PUT|DELETE /:id/timeline contacts:update
+   *   Schedule Payment  POST /:id/payments            invoices:update
+   *   Record payment    PUT /:id/payments/:paymentId  invoices:update
+   *   Remove from schedule DELETE /:id/payments/:id   invoices:update
+   *
+   * The field rung holds contacts:read only and no invoices right at all, so a service team could
+   * read the event — which is their job — and every control on it refused them.
+   */
+  const mayEdit = useMayWrite('contacts:update');
+  const mayTakeMoney = useMayWrite('invoices:update');
+  const { id } = useParams<{ id: string }>();
+  const [detail, setDetail] = useState<Detail>({});
+  const [loading, setLoading] = useState<boolean>(true);
+  // A refusal from a page-level action, shown at the top of the page rather than in a pop-up. (T58)
+  const [pageErr, setPageErr] = useState<string>('');
+  const [tab, setTab] = useState<Tab>('menu');
+  const [showEdit, setShowEdit] = useState<boolean>(false);
+  const [showMenu, setShowMenu] = useState<boolean>(false);
+  const [showTimeline, setShowTimeline] = useState<boolean>(false);
+  const [showPayment, setShowPayment] = useState<boolean>(false);
+  const [recordFor, setRecordFor] = useState<PaymentLine | null>(null);
+
+  const load = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const res = await api.get(`/api/events/${id}`);
+      setDetail(res || {});
+    } catch (error) {
+      console.error('Failed to load event:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const setStatus = async (status: string) => {
+    if (!id) return;
+    const body: Record<string, unknown> = { status };
+    // Leaving the book with money collected: keep it as a retained deposit (the invoice closes at what
+    // came in), or stop here and refund it on the invoice first.
+    const collected = Number(detail.totals?.paid || 0);
+    const leaving = (status === 'cancelled' || status === 'lost') && detail.event?.status !== 'cancelled' && detail.event?.status !== 'lost';
+    if (leaving && collected > 0) {
+      const keep = confirm(`${money2(collected)} has been collected for this event.\n\nOK — keep it as a retained deposit and close invoice ${detail.invoice?.number || ''}.\nCancel — stop, so you can refund it on the invoice first.`);
+      if (!keep) { load(); return; }
+      body.keepDeposit = true;
+    }
+    setPageErr('');
+    try {
+      await api.put(`/api/events/${id}`, body);
+      load();
+    } catch (e2) {
+      // A 409 here is the double-book guard (another event holds the room) or money still to settle.
+      // Both name something the coordinator has to decide about, so it stays on the page.
+      setPageErr((e2 as Error).message || 'Failed to change status');
+      load();
+    }
+  };
+
+  const removeLine = async (kind: 'menu' | 'timeline' | 'payments', lineId: string) => {
+    if (!id) return;
+    setPageErr('');
+    try {
+      await api.delete(`/api/events/${id}/${kind}`, lineId);
+      load();
+    } catch (e2) {
+      setPageErr((e2 as Error).message || 'Could not remove that line.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  const ev = detail.event;
+  if (!ev) {
+    return (
+      <div className="text-center py-12 text-gray-500 dark:text-slate-400">
+        Event not found. <Link to="/crm/events" className="text-orange-600 dark:text-orange-300">Back to events</Link>
+      </div>
+    );
+  }
+
+  const client = detail.client;
+  const space = detail.space;
+  const menu = detail.menu || [];
+  const timeline = detail.timeline || [];
+  const payments = detail.payments || [];
+  const totals = detail.totals || {};
+  const showMoney = !detail.moneyWithheld;
+  const heads = ev.guestCountFinal ?? ev.guestCount ?? 0;
+
+  // The minimum-spend check is the whole reason a venue takes private events —
+  // showing it here means nobody has to work it out on a calculator mid-call.
+  // Minimum spend is food & beverage — the room-hire line doesn't count toward it.
+  const minSpend = Number(space?.minimumSpend || 0);
+  const fbTotal = Number(totals.fbTotal || 0);
+  // Only when the totals are real: worked out from a withheld F&B figure it read "$0.00 — $9,000.00 short". (T62)
+  const belowMinimum = showMoney && minSpend > 0 && fbTotal < minSpend;
+
+  // Warn when the guest count exceeds the room — 200 guests in a 55-standing room
+  // saved silently before (M-02). A warning, not a hard block, mirrors the
+  // below-minimum banner (some events legitimately push a room's limit).
+  const capacity = Math.max(Number(space?.standingCapacity || 0), Number(space?.seatedCapacity || 0));
+  const overCapacity = capacity > 0 && heads > capacity;
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
+    { id: 'menu', label: 'Food & Beverage', icon: <UtensilsCrossed className="w-4 h-4" />, count: menu.length },
+    { id: 'runsheet', label: 'Run of Show', icon: <Clock className="w-4 h-4" />, count: timeline.length },
+    ...(showMoney ? [{ id: 'money' as Tab, label: 'Payments', icon: <Wallet className="w-4 h-4" />, count: payments.length }] : []),
+  ];
+
+  return (
+    <div className="space-y-6">
+      <Link to="/crm/events" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400">
+        <ArrowLeft className="w-4 h-4" /> Events
+      </Link>
+
+      {/*
+        A refusal from a page-level action — changing the status, removing a line — has no form to
+        sit on, so it sits here, at the top of the event it is about. It stays until the next
+        attempt rather than timing out: "another event already holds that room" is a sentence the
+        coordinator needs while they decide what to do, not for four seconds. (T58 follow-up)
+      */}
+      {pageErr ? (
+        <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="flex-1">{pageErr}</span>
+          <button onClick={() => setPageErr('')} className="shrink-0 hover:opacity-70" aria-label="Dismiss">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ) : null}
+
+      {/* Header */}
+      <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 break-words dark:text-slate-100">{ev.name || 'Untitled event'}</h1>
+            <p className="text-gray-500 capitalize dark:text-slate-400">
+              {prettyType(ev.eventType)}
+              {client?.name ? ` · ${client.name}` : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* PUT /:id, contacts:update. DISABLED rather than hidden: this control is also the
+                only place the page shows WHICH STAGE the event is at, and the floor team needs to
+                read that even when they cannot change it. (T41) */}
+            <select
+              value={ev.status || 'enquiry'}
+              onChange={(e) => setStatus(e.target.value)}
+              disabled={!mayEdit}
+              title={!mayEdit ? 'Changing the stage needs permission to edit the event.' : undefined}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize border disabled:opacity-100 disabled:cursor-default ${STATUS_COLORS[ev.status || ''] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}
+            >
+              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {mayEdit && <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 border rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700">Edit</button>}
+            <button
+              onClick={async () => {
+                setPageErr('');
+                try { await openPrintable(`/api/events/${ev.id}/beo`); }
+                catch (e2) { setPageErr((e2 as Error)?.message || 'Could not open the banquet event order.'); }
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
+            >
+              <ExternalLink className="w-4 h-4" /> Print BEO
+            </button>
+          </div>
+        </div>
+
+        {ev.dietaryRequirements && (
+          <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 dark:text-red-400 dark:bg-red-950/40">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Dietary requirements</p>
+              <p className="text-sm">{ev.dietaryRequirements}</p>
+            </div>
+          </div>
+        )}
+
+        {belowMinimum && (
+          <div className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 dark:text-amber-300 dark:bg-amber-950/40">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Below minimum spend</p>
+              <p className="text-sm">
+                {space?.name} has a {money2(minSpend)} food &amp; beverage minimum. This event is at {money2(fbTotal)} —
+                {' '}{money2(minSpend - fbTotal)} short.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {overCapacity && (
+          <div className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3 dark:text-amber-300 dark:bg-amber-950/40">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Over capacity</p>
+              <p className="text-sm">
+                {space?.name} holds {capacity} guests. This event is set to {heads} — {heads - capacity} over.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+          <div className="border rounded-lg p-3">
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Date</p>
+            <p className="text-sm font-medium text-gray-900 mt-1 dark:text-slate-100">{fmtEventDate(ev.eventDate)}</p>
+            {ev.startTime && <p className="text-xs text-gray-500 dark:text-slate-400">{ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}</p>}
+          </div>
+          <div className="border rounded-lg p-3">
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Guests</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{heads || '—'}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{ev.guestCountFinal ? 'guaranteed' : 'estimated'}</p>
+          </div>
+          {showMoney && <>
+          <div className="border rounded-lg p-3">
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">F&amp;B Total</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(fbTotal)}</p>
+            {heads > 0 && <p className="text-xs text-gray-500 dark:text-slate-400">{money2(fbTotal / heads)} / head</p>}
+          </div>
+          <div className={`border rounded-lg p-3 ${Number(totals.outstanding || 0) > 0 ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-700' : ''}`}>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Outstanding</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(totals.outstanding)}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">
+              {totals.invoiced ? `${money2(totals.paid)} paid of ${money2(totals.total)}` : 'estimate — not invoiced yet'}
+            </p>
+          </div>
+          </>}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div className="border rounded-lg p-3">
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">Client</p>
+            {client ? (
+              <>
+                <p className="font-medium text-gray-900 dark:text-slate-100">
+                  {ev.contactId ? <Link to={`/crm/contacts`} className="hover:text-orange-600 dark:hover:text-orange-200">{client.name}</Link> : client.name}
+                </p>
+                {(client.mobile || client.phone) && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Phone className="w-3 h-3" /> {client.mobile || client.phone}</p>}
+                {client.email && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Mail className="w-3 h-3" /> {client.email}</p>}
+              </>
+            ) : <p className="text-sm text-gray-500 dark:text-slate-400">No client attached</p>}
+          </div>
+          <div className="border rounded-lg p-3">
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">Space</p>
+            {space ? (
+              <>
+                <p className="font-medium text-gray-900 flex items-center gap-2 dark:text-slate-100"><DoorOpen className="w-4 h-4 text-gray-400" /> {space.name}</p>
+                <p className="text-sm text-gray-500 mt-1 flex items-center gap-2 dark:text-slate-400">
+                  <Users className="w-3 h-3" />
+                  {space.seatedCapacity ? `${space.seatedCapacity} seated` : ''}
+                  {space.standingCapacity ? ` · ${space.standingCapacity} standing` : ''}
+                </p>
+                {showMoney && minSpend > 0 && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Minimum spend {money2(minSpend)}</p>}
+              </>
+            ) : <p className="text-sm text-gray-500 dark:text-slate-400">No space assigned</p>}
+          </div>
+        </div>
+
+        {ev.setupNotes && (
+          <div className="mt-4">
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-1">Setup</p>
+            <p className="text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{ev.setupNotes}</p>
+          </div>
+        )}
+        {ev.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap dark:text-slate-400">{ev.notes}</p>}
+        {ev.status === 'lost' && ev.lostReason && (
+          <p className="text-sm text-red-700 mt-3 dark:text-red-300"><span className="font-medium">Lost:</span> {ev.lostReason}</p>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b overflow-x-auto">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
+              tab === t.id ? 'border-orange-600 text-orange-700 dark:text-orange-300' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+            }`}
+          >
+            {t.icon} {t.label}
+            <span className="text-xs bg-gray-100 text-gray-600 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{t.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Food & beverage */}
+      {tab === 'menu' && (
+        <div className="space-y-3">
+          {mayEdit && (
+            <div className="flex justify-end">
+              <button onClick={() => setShowMenu(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
+                <Plus className="w-4 h-4" /> Add Line
+              </button>
+            </div>
+          )}
+          {menu.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">Nothing on the menu yet</div>
+          ) : (
+            <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Item</th>
+                    <th className="px-4 py-3 font-medium">Basis</th>
+                    <th className="px-4 py-3 font-medium text-right">Qty</th>
+                    {showMoney && <th className="px-4 py-3 font-medium text-right">Unit</th>}
+                    {showMoney && <th className="px-4 py-3 font-medium text-right">Total</th>}
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {menu.map((l) => (
+                    <tr key={l.id}>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
+                        {l.name}
+                        {l.notes && <span className="block text-xs text-gray-500 dark:text-slate-400 font-normal">{l.notes}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{l.perPerson ? 'per person' : 'flat'}</td>
+                      <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{l.quantity}</td>
+                      {showMoney && <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{money2(l.unitPrice)}</td>}
+                      {showMoney && <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(lineTotal(l))}</td>}
+                      <td className="px-4 py-3 text-right">
+                        {mayEdit && <button onClick={() => removeLine('menu', l.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove"><Trash2 className="w-4 h-4" /></button>}
+                      </td>
+                    </tr>
+                  ))}
+                  {showMoney && <tr className="bg-gray-50 dark:bg-slate-900">
+                    <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-slate-200">Total</td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">{money2(totals.menuTotal)}</td>
+                    <td></td>
+                  </tr>}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Run of show */}
+      {tab === 'runsheet' && (
+        <div className="space-y-3">
+          {mayEdit && (
+            <div className="flex justify-end">
+              <button onClick={() => setShowTimeline(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
+                <Plus className="w-4 h-4" /> Add Step
+              </button>
+            </div>
+          )}
+          {timeline.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No run of show yet</div>
+          ) : (
+            <div className="space-y-2">
+              {timeline.map((t) => (
+                <div key={t.id} className="bg-white rounded-xl border p-4 flex items-start gap-4 dark:bg-slate-900">
+                  <div className="w-16 font-medium text-gray-900 dark:text-slate-100">{t.time}</div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{t.title}</p>
+                    {t.details && <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{t.details}</p>}
+                  </div>
+                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{t.department}</span>
+                  {mayEdit && <button onClick={() => removeLine('timeline', t.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove"><Trash2 className="w-4 h-4" /></button>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Payments */}
+      {tab === 'money' && showMoney && (
+        <div className="space-y-3">
+          {mayTakeMoney && (
+            <div className="flex justify-end">
+              <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
+                <Plus className="w-4 h-4" /> Schedule Payment
+              </button>
+            </div>
+          )}
+          {detail.invoice && (
+            <div className="bg-white rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3 dark:bg-slate-900">
+              <div>
+                <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Invoice</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">
+                  {detail.invoice.number}
+                  <span className="ml-2 text-xs capitalize bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{detail.invoice.status}</span>
+                </p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">
+                  {money2(totals.total)} total{Number(totals.tax || 0) > 0 ? ` incl. ${money2(totals.tax)} tax` : ''} · {money2(totals.paid)} paid
+                  {Number(totals.refunded || 0) > 0 ? ` · ${money2(totals.refunded)} refunded` : ''} · {money2(totals.outstanding)} outstanding
+                </p>
+              </div>
+              <Link to={`/crm/invoices/${detail.invoice.id}`} className="inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">
+                Send, refund or view invoice <ExternalLink className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
+          {payments.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">
+              No payment schedule yet{!client ? ' — add a client first; the invoice is raised to them' : ''}
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Stage</th>
+                    <th className="px-4 py-3 font-medium">Due</th>
+                    <th className="px-4 py-3 font-medium text-right">Amount</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {payments.map((p) => (
+                    <tr key={p.id} className={isOverdue(p) ? 'bg-red-50 dark:bg-red-900/20' : ''}>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{p.label}</td>
+                      <td className={`px-4 py-3 ${isOverdue(p) ? 'text-red-700 font-medium dark:text-red-300' : 'text-gray-600 dark:text-slate-400'}`}>
+                        {p.dueDate || '—'}{isOverdue(p) ? ' (overdue)' : ''}
+                      </td>
+                      <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(p.amount)}</td>
+                      <td className="px-4 py-3">
+                        {p.state === 'paid' ? (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full dark:text-green-300 dark:bg-green-950/40">Paid</span>
+                        ) : p.state === 'part_paid' ? (
+                          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full dark:text-amber-300 dark:bg-amber-950/40">{money2(p.paidAmount)} paid</span>
+                        ) : p.state === 'refunded' || p.state === 'void' ? (
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{p.state}</span>
+                        ) : (
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Scheduled</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        {mayTakeMoney && detail.invoice && (p.state === 'unpaid' || p.state === 'part_paid') && (
+                          <button onClick={() => setRecordFor(p)} className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 mr-3 dark:text-orange-300">
+                            <Check className="w-3 h-3" /> Record payment
+                          </button>
+                        )}
+                        {mayTakeMoney && <button onClick={() => removeLine('payments', p.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove from schedule"><Trash2 className="w-4 h-4" /></button>}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-50 dark:bg-slate-900">
+                    <td colSpan={2} className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-slate-200">Paid / Outstanding</td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">{money2(totals.paid)} / {money2(totals.outstanding)}</td>
+                    <td colSpan={2}></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showEdit && <EditEventModal event={ev} clientLabel={client?.name} onSave={() => { setShowEdit(false); load(); }} onClose={() => setShowEdit(false)} />}
+      {showMenu && <MenuLineModal eventId={ev.id} heads={heads} onSave={() => { setShowMenu(false); load(); }} onClose={() => setShowMenu(false)} />}
+      {showTimeline && <TimelineModal eventId={ev.id} nextOrder={timeline.length + 1} onSave={() => { setShowTimeline(false); load(); }} onClose={() => setShowTimeline(false)} />}
+      {showPayment && (
+        <PaymentModal
+          eventId={ev.id}
+          // What's still unscheduled: the invoice (or estimate) total less the installments already planned.
+          // what is not yet scheduled, and never more than is still owed — $700 already paid used to be ignored (T16 L14)
+          suggested={Math.max(0, Math.min(Number(totals.total || 0) - payments.reduce((s, p) => s + Number(p.amount || 0), 0), Number(totals.outstanding ?? totals.total ?? 0)))}
+          onSave={() => { setShowPayment(false); load(); }}
+          onClose={() => setShowPayment(false)}
+        />
+      )}
+      {recordFor && detail.invoice && (
+        <RecordPaymentModal
+          invoiceId={detail.invoice.id}
+          installment={recordFor}
+          balance={Number(totals.outstanding || 0)}
+          onSave={() => { setRecordFor(null); load(); }}
+          onClose={() => setRecordFor(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Shared modal shell ---------------- */
+
+function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">{title}</h2>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A REFUSAL BELONGS ON THE FORM THAT CAUSED IT. (T58 follow-up)
+ *
+ *   Owner: "when Schedule Payment is refused, the message now goes to a browser pop-up instead of
+ *   showing on the page. In this browser nothing visible appeared at all." And then, next round:
+ *   "24 other pop-up error messages remain."
+ *
+ * window.alert is routed through the toast by ToastContext, and that was still the wrong answer
+ * twice over. A toast is a notification — it slides in at the corner, times out, and lives outside
+ * the modal the person is looking at, so a refusal about the amount they just typed appears away
+ * from the amount they just typed and then disappears. And when it does not paint at all, for any
+ * reason, the refusal is simply lost: the save did nothing and the screen said nothing.
+ *
+ * So the error renders inside the form, above the buttons, next to the fields it is about, and stays
+ * until the next attempt. Every modal on this page already ends with FormButtons, which is why it
+ * lives here rather than in twenty places.
+ *
+ * role="alert" so a screen reader announces it, and so a rendered-page check can find it.
+ */
+function FormButtons({ saving, onClose, label = 'Save', error = '' }: { saving: boolean; onClose: () => void; label?: string; error?: string }) {
+  return (
+    <>
+      {error ? (
+        <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+      <div className="flex gap-3 pt-2">
+        <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+        <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
+          {saving ? 'Saving...' : label}
+        </button>
+      </div>
+    </>
+  );
+}
+
+/* ---------------- Edit Event ---------------- */
+
+function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: EventFull; clientLabel?: string; onSave: () => void; onClose: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  // Held outside `form`, which is all strings keyed by input name — the same shape the New Enquiry
+  // modal uses for its picker, so the two forms read the same way.
+  const [contactId, setContactId] = useState<string>(ev.contactId || '');
+  const [spaces, setSpaces] = useState<SpaceOption[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [form, setForm] = useState({
+    name: ev.name || '',
+    eventType: ev.eventType || 'private_dining',
+    eventDate: ev.eventDate || '',
+    startTime: ev.startTime || '',
+    endTime: ev.endTime || '',
+    guestCount: ev.guestCount?.toString() || '',
+    guestCountFinal: ev.guestCountFinal?.toString() || '',
+    spaceId: ev.spaceId || '',
+    coordinatorId: ev.coordinatorId || '',
+    quotedTotal: ev.quotedTotal?.toString() || '',
+    depositRequired: ev.depositRequired?.toString() || '',
+    dietaryRequirements: ev.dietaryRequirements || '',
+    setupNotes: ev.setupNotes || '',
+    lostReason: ev.lostReason || '',
+    notes: ev.notes || '',
+  });
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [spaceRes, people] = await Promise.all([
+          api.get('/api/event-spaces'),
+          fetchStaff(),
+        ]);
+        setSpaces(spaceRes.data || []);
+        setStaff(people);
+      } catch { /* the rest of the form still works */ }
+    })();
+  }, []);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr('');
+    if (!form.name.trim()) { setErr('Event name is required'); return; }
+    if (!confirmEventRisks(form, spaces, ev)) return; // a changed past date / over-capacity room: warn, allow (T16 L1 / L2)
+    setSaving(true);
+    try {
+      await api.put(`/api/events/${ev.id}`, {
+        name: form.name.trim(),
+        contactId: contactId || null,
+        eventType: form.eventType,
+        eventDate: form.eventDate,
+        startTime: form.startTime || null,
+        endTime: form.endTime || null,
+        guestCount: form.guestCount === '' ? null : Number(form.guestCount),
+        guestCountFinal: form.guestCountFinal === '' ? null : Number(form.guestCountFinal),
+        spaceId: form.spaceId || null,
+        coordinatorId: form.coordinatorId || null,
+        quotedTotal: form.quotedTotal === '' ? null : Number(form.quotedTotal),
+        depositRequired: form.depositRequired === '' ? null : Number(form.depositRequired),
+        dietaryRequirements: form.dietaryRequirements || null,
+        setupNotes: form.setupNotes || null,
+        lostReason: form.lostReason || null,
+        notes: form.notes || null,
+      });
+      onSave();
+    } catch (e2) {
+      setErr((e2 as Error).message || 'Failed to save event');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell title="Edit Event" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-500 dark:text-red-400">*</span></label>
+          <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client</label>
+          <ClientPicker value={contactId} onChange={(id) => setContactId(id)} initialLabel={clientLabel} />
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Leave empty for an enquiry you have not put a name to yet.</p>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
+            <input type="date" value={form.eventDate} onChange={(e) => set('eventDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">From</label>
+            <input type="time" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">To</label>
+            <input type="time" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
+            <select value={form.eventType} onChange={(e) => set('eventType', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
+              {EVENT_TYPES.map((t) => <option key={t} value={t}>{prettyType(t)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Guests (est.)</label>
+            <input type="number" value={form.guestCount} onChange={(e) => set('guestCount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Guaranteed</label>
+            <input type="number" value={form.guestCountFinal} onChange={(e) => set('guestCountFinal', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Space</label>
+            <select value={form.spaceId} onChange={(e) => set('spaceId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+              <option value="">Not decided yet</option>
+              {spaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Coordinator</label>
+            <select value={form.coordinatorId} onChange={(e) => set('coordinatorId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+              <option value="">Unassigned</option>
+              {staff.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quoted total ($)</label>
+            <input type="number" step="any" value={form.quotedTotal} onChange={(e) => set('quotedTotal', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Deposit required ($)</label>
+            <input type="number" step="any" value={form.depositRequired} onChange={(e) => set('depositRequired', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Dietary requirements <span className="text-xs text-gray-500 dark:text-slate-400">(shown as a red banner)</span></label>
+          <input type="text" value={form.dietaryRequirements} onChange={(e) => set('dietaryRequirements', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="2 x vegan, 1 x severe nut allergy" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Setup notes</label>
+          <textarea value={form.setupNotes} onChange={(e) => set('setupNotes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Lost reason <span className="text-xs text-gray-500 dark:text-slate-400">(only used when status is Lost)</span></label>
+          <input type="text" value={form.lostReason} onChange={(e) => set('lostReason', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Price, date unavailable, went elsewhere..." />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
+          <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+        </div>
+        <FormButtons saving={saving} onClose={onClose} error={err} />
+      </form>
+    </ModalShell>
+  );
+}
+
+/* ---------------- Menu line ---------------- */
+
+function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; heads: number; onSave: () => void; onClose: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [packages, setPackages] = useState<PackageOption[]>([]);
+  const [form, setForm] = useState({
+    packageId: '', name: '', perPerson: true,
+    quantity: heads ? String(heads) : '1', unitPrice: '', notes: '',
+  });
+  const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/api/menu-packages');
+        setPackages(res.data || []);
+      } catch { /* a free-text line still works */ }
+    })();
+  }, []);
+
+  // Picking a package fills name and per-head price, which is what the line is
+  // 90% of the time; the coordinator can still override either.
+  const onPackage = (id: string) => {
+    const pkg = packages.find((p) => p.id === id);
+    setForm((f) => ({
+      ...f,
+      packageId: id,
+      name: pkg?.name || f.name,
+      perPerson: true,
+      unitPrice: pkg?.pricePerPerson !== undefined && pkg?.pricePerPerson !== null ? String(pkg.pricePerPerson) : f.unitPrice,
+    }));
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr('');
+    if (!form.packageId && !form.name.trim()) { setErr('Pick a package or type a line name'); return; }
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        perPerson: form.perPerson,
+        quantity: form.quantity === '' ? 1 : Number(form.quantity),
+      };
+      if (form.packageId) payload.packageId = form.packageId;
+      if (form.name.trim()) payload.name = form.name.trim();
+      if (form.unitPrice !== '') payload.unitPrice = Number(form.unitPrice);
+      if (form.notes) payload.notes = form.notes;
+      await api.post(`/api/events/${eventId}/menu`, payload);
+      onSave();
+    } catch (e2) {
+      // A 400 here is usually the package minimum-guest guard, or the sub-cent money rule — both
+      // say something the coordinator can act on, so they belong on the form.
+      setErr((e2 as Error).message || 'Failed to add line');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selected = packages.find((p) => p.id === form.packageId);
+
+  return (
+    <ModalShell title="Add Menu Line" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Package</label>
+          <select value={form.packageId} onChange={(e) => onPackage(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+            <option value="">Free line (room hire, cake fee, bar tab...)</option>
+            {packages.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}{p.pricePerPerson ? ` — $${p.pricePerPerson}/head` : ''}{p.minGuests ? ` (min ${p.minGuests})` : ''}
+              </option>
+            ))}
+          </select>
+          {selected?.minGuests && Number(form.quantity || 0) > 0 && Number(form.quantity) < selected.minGuests && (
+            <p className="text-xs text-amber-700 mt-1 dark:text-amber-300">
+              This package's minimum is {selected.minGuests} guests and you've entered {form.quantity} — the line will be billed at {selected.minGuests}.
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Line name</label>
+          <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder={form.packageId ? 'Leave blank to use the package name' : 'Room hire, cake cutting, bar tab...'} />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quantity</label>
+            <input type="number" value={form.quantity} onChange={(e) => set('quantity', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{form.perPerson ? 'Number of guests' : 'Number of units'}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Unit price ($)</label>
+            <input type="number" step="any" value={form.unitPrice} onChange={(e) => set('unitPrice', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <input id="perPerson" type="checkbox" checked={form.perPerson} onChange={(e) => set('perPerson', e.target.checked)} className="w-4 h-4" />
+          <label htmlFor="perPerson" className="text-sm font-medium text-gray-700 dark:text-slate-200">Priced per person</label>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
+          <input type="text" value={form.notes} onChange={(e) => set('notes', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+        </div>
+        <FormButtons saving={saving} onClose={onClose} label="Add" error={err} />
+      </form>
+    </ModalShell>
+  );
+}
+
+/* ---------------- Timeline line ---------------- */
+
+function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: string; nextOrder: number; onSave: () => void; onClose: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [form, setForm] = useState({ time: '', title: '', department: 'floor', details: '' });
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr('');
+    if (!form.time.trim()) { setErr('Time is required'); return; }
+    if (!form.title.trim()) { setErr('Title is required'); return; }
+    setSaving(true);
+    try {
+      await api.post(`/api/events/${eventId}/timeline`, {
+        time: form.time.trim(),
+        title: form.title.trim(),
+        department: form.department,
+        details: form.details || null,
+        sortOrder: nextOrder,
+      });
+      onSave();
+    } catch (e2) {
+      setErr((e2 as Error).message || 'Failed to add step');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell title="Add Run-of-Show Step" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Time <span className="text-red-500 dark:text-red-400">*</span></label>
+            <input type="time" value={form.time} onChange={(e) => set('time', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Department</label>
+            <select value={form.department} onChange={(e) => set('department', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
+              {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">What happens <span className="text-red-500 dark:text-red-400">*</span></label>
+          <input type="text" value={form.title} onChange={(e) => set('title', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Guests arrive — canapes passed" required />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Details</label>
+          <textarea value={form.details} onChange={(e) => set('details', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+        </div>
+        <FormButtons saving={saving} onClose={onClose} label="Add" error={err} />
+      </form>
+    </ModalShell>
+  );
+}
+
+/* ---------------- Payment ---------------- */
+
+// Schedule an installment (what is due, and when). The first one raises the event's invoice.
+function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string; suggested: number; onSave: () => void; onClose: () => void }) {
+  const [saving, setSaving] = useState(false);
+  // The refusal this form is about, shown ON this form. The owner's report was specifically here:
+  // a refused Schedule Payment produced a pop-up, and then nothing visible at all. (T58 follow-up)
+  const [err, setErr] = useState('');
+  const [form, setForm] = useState({
+    label: 'Deposit',
+    amount: suggested > 0 ? suggested.toFixed(2) : '',
+    dueDate: '',
+  });
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr('');
+    if (form.amount === '') { setErr('Amount is required'); return; }
+    setSaving(true);
+    try {
+      await api.post(`/api/events/${eventId}/payments`, {
+        label: form.label.trim() || 'Payment',
+        amount: Number(form.amount),
+        dueDate: form.dueDate || null,
+      });
+      onSave();
+    } catch (e2) {
+      // The server's own words — "Amount of 0.001 rounds to $0.00. Enter at least one cent." is a
+      // sentence the person can act on, and it belongs beside the box they typed it into.
+      setErr((e2 as Error).message || 'Failed to schedule payment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell title="Schedule Payment" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Stage</label>
+            <input type="text" value={form.label} onChange={(e) => set('label', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Deposit, Final balance..." />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount ($) <span className="text-red-500 dark:text-red-400">*</span></label>
+            <input type="number" step="any" value={form.amount} onChange={(e) => set('amount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Due date</label>
+          <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+        </div>
+        <p className="text-xs text-gray-500 dark:text-slate-400">Already paid? Schedule it, then use Record payment on the row.</p>
+        <FormButtons saving={saving} onClose={onClose} label="Schedule" error={err} />
+      </form>
+    </ModalShell>
+  );
+}
+
+/* ---------------- Record payment (on the invoice) ---------------- */
+
+// Money received against an installment is recorded on the event's invoice — the same endpoint as the
+// Invoices page, so it counts in Reports and follows the refund rules.
+function RecordPaymentModal({ invoiceId, installment, balance, onSave, onClose }: { invoiceId: string; installment: PaymentLine; balance: number; onSave: () => void; onClose: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const due = Math.max(0, Math.min(Number(installment.amount || 0) - Number(installment.paidAmount || 0), balance));
+  const [form, setForm] = useState({ amount: due > 0 ? due.toFixed(2) : '', method: 'card', reference: '' });
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr('');
+    if (form.amount === '' || !(Number(form.amount) > 0)) { setErr('Enter the amount received'); return; }
+    setSaving(true);
+    try {
+      await api.post(`/api/invoices/${invoiceId}/payments`, {
+        amount: Number(form.amount),
+        method: form.method,
+        reference: form.reference || undefined,
+        notes: installment.label || undefined,
+      });
+      onSave();
+    } catch (e2) {
+      setErr((e2 as Error).message || 'Failed to record payment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell title={`Record payment — ${installment.label || 'Payment'}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount received ($) <span className="text-red-500 dark:text-red-400">*</span></label>
+            <input type="number" step="any" min="0" value={form.amount} onChange={(e) => set('amount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{money2(balance)} outstanding on the invoice</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Method</label>
+            <select value={form.method} onChange={(e) => set('method', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+              {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reference</label>
+          <input type="text" value={form.reference} onChange={(e) => set('reference', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Card last 4, cheque no., transfer ref" />
+        </div>
+        <FormButtons saving={saving} onClose={onClose} label="Record" error={err} />
+      </form>
+    </ModalShell>
+  );
+}

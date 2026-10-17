@@ -17,7 +17,18 @@ import IntegrationsPage from './pages/settings/IntegrationsPage';
 import MigrationPage from './pages/settings/MigrationPage';
 import ImportPage from './pages/settings/ImportPage';
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
-import DashboardPage from './pages/DashboardPage';
+// The bar: home (Tonight + the party book), the console, menu, taps, what's on, bar settings.
+import BarHomePage from './pages/bar/HomePage';
+import TonightPage from './pages/bar/TonightPage';
+import MenuPage from './pages/bar/MenuPage';
+import TapsPage from './pages/bar/TapsPage';
+import HappeningsPage from './pages/bar/HappeningsPage';
+import BarSettingsPage from './pages/bar/BarSettingsPage';
+// Private parties — crm-restaurant's events screens, unchanged.
+import EventsPage from './pages/events/EventsPage';
+import EventDetailPage from './pages/events/EventDetailPage';
+import SpacesPage from './pages/events/SpacesPage';
+import MenusPage from './pages/events/MenusPage';
 import ContactsPage from './pages/ContactsPage';
 import JobsPage from './pages/JobsPage';
 import QuotesPage from './pages/QuotesPage';
@@ -135,7 +146,16 @@ function App() {
 
                   {/* CRM — full business management interface */}
                   <Route path="/crm" element={<ProtectedRoute><OnboardingGate><AppLayout /></OnboardingGate></ProtectedRoute>}>
-                    <Route index element={<DashboardPage />} />
+                    <Route index element={<BarHomePage />} />
+                    <Route path="tonight" element={<TonightPage />} />
+                    <Route path="menu" element={<MenuPage />} />
+                    <Route path="taps" element={<TapsPage />} />
+                    <Route path="whats-on" element={<HappeningsPage />} />
+                    <Route path="bar-settings" element={<BarSettingsPage />} />
+                    <Route path="events" element={<EventsPage />} />
+                    <Route path="events/:id" element={<EventDetailPage />} />
+                    <Route path="spaces" element={<SpacesPage />} />
+                    <Route path="menus" element={<MenusPage />} />
                     {/* /crm/dashboard is what people type and bookmark; the dashboard itself is the index route, so without this the URL answered with the 404 page. (Vet T12 L4) */}
                     <Route path="dashboard" element={<Navigate to="/crm" replace />} />
                     <Route path="contacts" element={<ContactsPage />} />

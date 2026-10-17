@@ -1,46 +1,46 @@
 // This vertical's sidebar + URL gates for the shared app shell (see ./shared). Items without `features`
 // are core; items with `features` show when ANY listed feature is enabled. routeGates cover routes
 // that exist without a sidebar entry, so a module the tenant doesn't have is not reachable by URL.
-import { BarChart3, BookOpen, Bot, Briefcase, Calendar, CalendarCheck, Clock, CreditCard, DollarSign, ExternalLink, FileText, FolderOpen, Home, Inbox, LifeBuoy, Mail, MapPin, Megaphone, MessageSquare, Phone, Receipt, Repeat, ShieldCheck, Star, Truck, Users, Warehouse, Wrench, Calculator } from 'lucide-react'
+//
+// crm-bar is crm-basic's clone made into a bar's CRM: the night (Tonight, Menu, Taps, What's on), private
+// parties (crm-restaurant's events), guests, and the shared office tools. crm-basic's field-service modules
+// (jobs, quotes, the job schedule, fleet, equipment, pricebook, agreements, warranties, recurring, job costing)
+// are still in the code, gated and never offered to a bar — so they have no menu entry and their URLs bounce.
+import { BarChart3, Beer, BookOpen, Bot, CalendarCheck, CalendarDays, Clock, DollarSign, DoorOpen, ExternalLink, FileText, Flame, FolderOpen, Home, Inbox, LifeBuoy, Mail, Megaphone, MessageSquare, Phone, Receipt, Settings, Star, Users, Utensils, ClipboardList } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared';
 
 const NAV: NavItem[] = [
   { to: '/crm', icon: Home, label: 'Dashboard', exact: true },
-  { to: '/crm/contacts', icon: Users, label: 'Contacts' },
-  { to: '/crm/jobs', icon: Briefcase, label: 'Jobs' },
-  { to: '/crm/quotes', icon: FileText, label: 'Quotes', permission: 'quotes:read' },
+  // The night — what the bar's website shows live.
+  { to: '/crm/tonight', icon: Flame, label: 'Tonight', features: ['bar_tonight'], permission: 'bar:read' },
+  { to: '/crm/menu', icon: Utensils, label: 'Menu', features: ['bar_menu'], permission: 'bar:read' },
+  { to: '/crm/taps', icon: Beer, label: 'Taps', features: ['bar_menu'], permission: 'bar:read' },
+  { to: '/crm/whats-on', icon: CalendarDays, label: "What's on", features: ['bar_tonight'], permission: 'bar:read' },
+  // Private parties — enquiry, booking, deposit, the run of show.
+  { to: '/crm/events', icon: CalendarCheck, label: 'Parties', features: ['event_bookings'] },
+  { to: '/crm/spaces', icon: DoorOpen, label: 'Spaces', features: ['event_spaces'] },
+  { to: '/crm/menus', icon: ClipboardList, label: 'Party Packages', features: ['catering_menus'] },
+  { to: '/crm/contacts', icon: Users, label: 'Guests' },
   { to: '/crm/invoices', icon: Receipt, label: 'Invoices', permission: 'invoices:read' },
-  { to: '/crm/schedule', icon: Calendar, label: 'Schedule', features: ['scheduling'] },
   { to: '/crm/time', icon: Clock, label: 'Time', features: ['time_tracking'] },
   { to: '/crm/expenses', icon: DollarSign, label: 'Expenses', features: ['expense_tracking'] },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['documents'] },
   { to: '/crm/team', icon: Users, label: 'Team', permission: 'team:read' },
-  { to: '/crm/fleet', icon: Truck, label: 'Fleet', features: ['fleet'] },
-  { to: '/crm/locations', icon: MapPin, label: 'Locations', features: ['multi_location'], permission: 'locations:read' },
-  { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['commission_tracking'], permission: 'commissions:read' },
-  { to: '/crm/inventory', icon: Warehouse, label: 'Inventory', features: ['inventory'] },
-  { to: '/crm/equipment', icon: Wrench, label: 'Equipment', features: ['equipment_tracking'] },
-  { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   // The Marketing page is email marketing (campaigns, templates, drips); Reviews has its own route gate below. (T15 M5)
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing'], permission: 'marketing:read' },
-  { to: '/crm/pricebook', icon: CreditCard, label: 'Pricebook', features: ['pricebook'] },
-  { to: '/crm/agreements', icon: ShieldCheck, label: 'Agreements', features: ['service_agreements'] },
-  { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'] },
   { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'], permission: 'calltracking:read' },
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'], minRole: 'admin' },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'], minRole: 'admin' },
   { to: '/crm/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: ['ai_receptionist'], permission: 'ai-receptionist:read' },
-  { to: '/crm/recurring', icon: Repeat, label: 'Recurring', features: ['recurring_jobs'], permission: 'invoices:read' },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
   // The audit trail — owners and admins only (owner's decision, 10/09). Behind audit:read, the same permission the /api/audit route requires, so the
   // entry never offers a seat a page it would be refused. (T51)
   { to: '/crm/audit', icon: FileText, label: 'Audit Log', permission: 'audit:read' },
-  { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
-  { to: '/crm/ads', icon: Megaphone, label: 'Ads', features: ['paid_ads'], permission: 'ads:read' },
+  { to: '/crm/bar-settings', icon: Settings, label: 'Bar Settings', features: ['bar_tonight'], permission: 'bar:read' },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
 
   { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
@@ -48,12 +48,27 @@ const NAV: NavItem[] = [
 
 export const SHELL: ShellConfig = {
   nav: NAV,
-  searchPlaceholder: 'Search contacts, jobs, invoices...',
+  searchPlaceholder: 'Search guests, the menu, parties...',
   routeGates: {
     '/crm/reviews': ['google_reviews'],
-    // Reachable by typing the URL, with no sidebar entry to gate them: CONSTRUCTION modules the registry
-    // does not offer this vertical at all, so gating on the real feature removes them here without
-    // hardcoding "never". (Field Service T28 M1.) A bar has no crews, so the GPS geofences page is gone.
+    // Reachable by typing the URL, with no sidebar entry to gate them: modules the registry does not offer a
+    // bar at all, so gating on the real feature removes them without hardcoding "never". (Field Service T28 M1)
+    '/crm/jobs': ['jobs'],
+    '/crm/quotes': ['quotes'],
+    '/crm/schedule': ['scheduling'],
+    '/crm/fleet': ['fleet'],
+    '/crm/locations': ['multi_location'],
+    '/crm/commissions': ['commission_tracking'],
+    '/crm/inventory': ['inventory'],
+    '/crm/equipment': ['equipment_tracking'],
+    '/crm/bookings': ['online_booking'],
+    '/crm/pricebook': ['pricebook'],
+    '/crm/pricebook-trial': ['pricebook'],
+    '/crm/agreements': ['service_agreements'],
+    '/crm/warranties': ['warranties'],
+    '/crm/recurring': ['recurring_jobs'],
+    '/crm/job-costing': ['job_costing'],
+    '/crm/ads': ['paid_ads'],
     '/crm/projects': ['projects'],
     '/crm/change-orders': ['change_orders'],
     '/crm/selections': ['selections'],
@@ -62,13 +77,6 @@ export const SHELL: ShellConfig = {
     '/crm/rfis-assigned': ['rfis'],
     '/crm/shared-documents': ['documents'],
     '/crm/payment-methods': ['online_payments'],
-    // NOT '/crm/pricebook-trial': ['pricebook'].
-    //
-    // That page exists to sell Pricebook to a tenant who does not have it — the home tile only appears
-    // when hasFeature('pricebook') is false — so gating it behind `pricebook` made the offer refuse
-    // everyone it was written for: click FREE TRIAL, land on "Pricebook Trial isn't part of this CRM".
-    // The page itself raises a support ticket and reads no pricebook data, so there is nothing to gate.
-    // (Field Service T28 H2)
   },
   // Reachable by URL with no sidebar entry to gate them, and every one is requireAdmin (or
   // requireRole('admin','owner')) on the server: emailAliases.ts, emailDomain.ts, billing.ts,

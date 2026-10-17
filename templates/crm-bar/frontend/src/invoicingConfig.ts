@@ -1,4 +1,6 @@
-// What this vertical does differently in the shared invoices + quotes pages (see ../shared).
+// What this vertical does differently in the shared invoices + quotes pages (see ./shared).
 import type { InvoicingConfig } from './shared'
 
-export const INVOICING: InvoicingConfig = { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. AC Compressor Replacement', pricebook: true }
+// A bar invoices guests for private parties (crm-restaurant's events ledger): no jobs, no projects, no
+// field-service quote extras. 'open' = a party's invoice: billed from its first scheduled payment, not yet emailed.
+export const INVOICING: InvoicingConfig = { clientLabel: 'Guest', projects: false, jobs: false, extraInvoiceStatuses: ['open'], quickbooks: true, quoteNamePlaceholder: 'e.g. Packers party, back room' }
