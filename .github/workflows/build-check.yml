@@ -2809,6 +2809,17 @@ jobs:
           bun-version: latest
       - name: "check trade detect slugs"
         run: bun run scripts/check-trade-detect-slugs.ts
+
+  ejs-no-escaped-markup:
+    name: "No template prints markup through an escaping <%= tag"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check ejs escaped markup"
+        run: bun run scripts/check-ejs-no-escaped-markup.ts
       - name: "check premium site origin"
         run: bun run scripts/check-premium-site-origin.ts
       - name: "check premium sqlite"

@@ -105,7 +105,7 @@ function inv(v) {
                   data-price-display="<%= money(v.priceCents) %>"
                   data-compare="<%= (v.compareAtPriceCents && v.compareAtPriceCents > v.priceCents) ? money(v.compareAtPriceCents) : '' %>"
                   data-max="<%= inv(v) %>"
-                  <%= (v.inventoryQty === 0) ? 'data-soldout="1"' : '' %>
+                  <% if (v.inventoryQty === 0) { %>data-soldout="1"<% } %>
                 >
                   <%= v.name %><% if (v.inventoryQty === 0) { %> &mdash; sold out<% } %>
                 </button>

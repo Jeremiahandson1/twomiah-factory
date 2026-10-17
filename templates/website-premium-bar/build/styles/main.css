@@ -1128,6 +1128,11 @@ body { background: transparent; }
 .cover > .flourish--tl { top: 0; left: 0; transform: scaleX(-1); }
 .cover > .flourish--br { bottom: 0; right: 0; transform: scaleY(-1); }
 .cover > .flourish--bl { bottom: 0; left: 0; transform: scale(-1, -1); }
+/* Phones: the 96px minimum corner sat over the logo (x 24–185) and the menu button. Smaller corners, and the header clears them. */
+@media (max-width: 640px) {
+  .cover > .flourish { width: 52px; }
+  .header-inner { padding-left: 56px; padding-right: 56px; }
+}
 /* Spine with brass rivets — the owner's photographed rivet head, three of them: near the top, the middle, near the bottom, clear of the corner caps. */
 @media (min-width: 900px) {
   .cover { padding-left: 64px; }

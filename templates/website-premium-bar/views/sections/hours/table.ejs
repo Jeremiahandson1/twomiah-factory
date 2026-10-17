@@ -37,8 +37,9 @@
         <thead><tr><th scope="col">Day</th><th scope="col">Bar</th><th scope="col">Kitchen</th></tr></thead>
         <tbody>
           <% for (const [k, name] of DAYS) { %>
-            <tr<%= k === todayKey ? ' class="is-today"' : '' %>>
-              <th scope="row"><%= name %><%= k === todayKey ? ' <span class="hours__today-tag">today</span>' : '' %></th>
+            <%# Escaped output tags used to wrap these, so today's row printed '<span class="hours__today-tag">' as text and lost its class. %>
+            <tr<% if (k === todayKey) { %> class="is-today"<% } %>>
+              <th scope="row"><%= name %><% if (k === todayKey) { %> <span class="hours__today-tag">today</span><% } %></th>
               <td class="mono"><%= ranges(cfg.bar && cfg.bar[k]) %></td>
               <td class="mono"><%= ranges(cfg.kitchen && cfg.kitchen[k]) %></td>
             </tr>
