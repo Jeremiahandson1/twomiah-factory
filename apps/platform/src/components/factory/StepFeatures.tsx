@@ -340,7 +340,12 @@ const AUTOMOTIVE_INDUSTRIES = new Set(['automotive'])
 const RV_INDUSTRIES = new Set(['rv'])
 const VET_INDUSTRIES = new Set(['veterinary'])
 const SALON_INDUSTRIES = new Set(['salon', 'hair_salon', 'barber', 'barbershop', 'nail_salon', 'spa', 'day_spa', 'med_spa', 'beauty', 'beauty_salon', 'esthetician', 'lash', 'brow_bar', 'waxing'])
-const EVENTS_INDUSTRIES = new Set(['restaurant', 'cafe', 'bar', 'pub', 'brewery', 'bakery', 'catering', 'caterer', 'events', 'event_venue', 'venue', 'banquet', 'private_events', 'wedding_venue'])
+const EVENTS_INDUSTRIES = new Set(['restaurant', 'cafe', 'bakery', 'catering', 'caterer', 'events', 'event_venue', 'venue', 'banquet', 'private_events', 'wedding_venue'])
+// Mirrors industryRouting.ts BAR_INDUSTRIES → crm-bar (bars left EVENTS when they got their own CRM).
+const BAR_INDUSTRIES = new Set(['bar', 'bar_and_grill', 'bar_grill', 'tavern', 'pub', 'public_house', 'saloon',
+  'sports_bar', 'dive_bar', 'neighborhood_bar', 'cocktail_bar', 'wine_bar', 'beer_bar',
+  'brewpub', 'brew_pub', 'taproom', 'tap_room', 'brewery', 'beer_garden', 'biergarten',
+  'lounge', 'speakeasy', 'supper_club'])
 const ROOFING_INDUSTRIES = new Set(['roofing'])
 const SHOWCASE_INDUSTRIES = new Set(['hospitality', 'hotel', 'fitness', 'gym', 'yoga', 'wedding', 'photography'])
 const CONTRACTOR_INDUSTRIES = new Set(['contractor', 'general_contractor', 'construction', 'remodeling', 'siding',
@@ -362,6 +367,8 @@ const TEMPLATE_CATEGORIES: Record<string, Set<string>> = {
   'crm-vet': new Set(['Core', 'Veterinary', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-salon': new Set(['Core', 'Salon & Barber', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-restaurant': new Set(['Core', 'Private Events & Catering', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+  // Field Operations carries the time clock a bar's staff use; nothing else in it is offered to crm-bar.
+  'crm-bar': new Set(['Core', 'Bar', 'Private Events & Catering', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-dispensary': new Set(['Core', 'Finance', 'Communication', 'Marketing', 'Advanced']),
 }
 
@@ -381,6 +388,7 @@ function getTemplateFromIndustry(industry?: string): string {
   if (RV_INDUSTRIES.has(industry)) return 'crm-rv'
   if (VET_INDUSTRIES.has(industry)) return 'crm-vet'
   if (SALON_INDUSTRIES.has(industry)) return 'crm-salon'
+  if (BAR_INDUSTRIES.has(industry)) return 'crm-bar'
   if (EVENTS_INDUSTRIES.has(industry)) return 'crm-restaurant'
   if (DISPENSARY_INDUSTRIES.has(industry)) return 'crm-dispensary'
   if (SHOWCASE_INDUSTRIES.has(industry)) return 'crm-basic'

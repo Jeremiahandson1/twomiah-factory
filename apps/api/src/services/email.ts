@@ -154,6 +154,7 @@ function getProductName(industry?: string, products?: string[]): string {
   if (verticalFor(industry) === 'rv') return 'Roam'
   if (verticalFor(industry) === 'veterinary') return 'Vet'
   if (verticalFor(industry) === 'salon') return 'Salon'
+  if (verticalFor(industry) === 'bar') return 'Bar'
   if (verticalFor(industry) === 'events') return 'Events'
   if (industry === 'field_service' || industry === 'hvac' || industry === 'plumbing' || industry === 'electrical') return 'Wrench'
   // basic, showcase and foodtruck all land on crm-basic, so key on the TEMPLATE rather than adding three
@@ -165,6 +166,7 @@ function getProductName(industry?: string, products?: string[]): string {
   if (products?.includes('crm-rv')) return 'Roam'
   if (products?.includes('crm-vet')) return 'Vet'
   if (products?.includes('crm-salon')) return 'Salon'
+  if (products?.includes('crm-bar')) return 'Bar'
   if (products?.includes('crm-restaurant')) return 'Events'
   return 'Build'
 }

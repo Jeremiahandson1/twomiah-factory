@@ -13,7 +13,7 @@ const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 //
 // crm-basic joined the list in T32: all eight of these now share a byte-identical audit.ts, so the
 // one that was outside the guard was the one nobody would have noticed drifting.
-const services = ['crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
+const services = ['crm', 'crm-basic', 'crm-bar', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
 for (const t of services) {
   const p = `templates/${t}/backend/src/services/audit.ts`
   if (!existsSync(join(ROOT, p))) { fail(`${t}: services/audit.ts is missing`); continue }

@@ -65,7 +65,7 @@ if (/COMPANY_LOGO/.test(read('templates/crm-automotive/backend/db/seed.template.
  * the generated mark when nothing was uploaded, the uploaded raster otherwise (it removes the
  * generic SVG in that branch, or the browser would prefer it over the customer's own file).
  */
-const FAVICON_TEMPLATES = [...ALL, 'crm-basic', 'crm-store']
+const FAVICON_TEMPLATES = [...ALL, 'crm-basic', 'crm-bar', 'crm-store']
 for (const t of FAVICON_TEMPLATES) {
   const html = read(`templates/${t}/frontend/index.html`)
   if (!html) { fail(`templates/${t}/frontend/index.html is missing`); continue }

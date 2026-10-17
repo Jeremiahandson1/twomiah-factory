@@ -89,7 +89,7 @@ else {
 }
 
 // ── every vertical that wires the module must hand it the user table ───────────────────────────────
-const TEMPLATES = ['crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
+const TEMPLATES = ['crm', 'crm-basic', 'crm-bar', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
 for (const t of TEMPLATES) {
   const src = read(`templates/${t}/backend/src/routes/team.ts`)
   if (!src) { fail(`templates/${t}/backend/src/routes/team.ts is missing`); continue }

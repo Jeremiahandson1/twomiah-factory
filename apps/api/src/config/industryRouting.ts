@@ -33,6 +33,7 @@ export type CrmTemplate =
   | 'crm-vet'
   | 'crm-salon'
   | 'crm-restaurant'
+  | 'crm-bar'
   | 'crm-store'
 
 export type PremiumWebsiteTemplate =
@@ -44,6 +45,7 @@ export type PremiumWebsiteTemplate =
   | 'website-premium-dispensary'
   | 'website-premium-showcase'
   | 'website-premium-foodtruck'
+  | 'website-premium-bar'
   | 'website-premium-vet'
   | 'website-premium-rv'
 
@@ -68,6 +70,7 @@ export type Vertical =
   | 'dispensary'
   | 'showcase'
   | 'foodtruck'
+  | 'bar'
   | 'rv'
   | 'veterinary'
   | 'salon'
@@ -131,7 +134,7 @@ export const SHOWCASE_INDUSTRIES = new Set([
 // They all keep a showcase-style WEBSITE; only the CRM changes.
 export const EVENTS_INDUSTRIES = new Set([
   'restaurant', 'restaurants', 'cafe', 'coffee_shop', 'bistro', 'brasserie',
-  'bar', 'wine_bar', 'cocktail_bar', 'pub', 'brewery', 'taproom', 'winery', 'distillery',
+  'winery', 'distillery',
   'bakery', 'patisserie', 'deli',
   'catering', 'caterer', 'catering_company', 'private_chef',
   'events', 'event_venue', 'venue', 'banquet', 'banquet_hall', 'private_events',
@@ -156,6 +159,22 @@ export const SALON_INDUSTRIES = new Set([
   'esthetician', 'esthetics', 'skincare', 'facials',
   'lash', 'lash_bar', 'lash_extensions', 'brow_bar', 'waxing', 'wax_salon',
   'blow_dry_bar', 'braiding', 'braiding_salon',
+])
+
+// Bars, taverns, pubs, brewpubs, taprooms — the hospitality vertical built for
+// the Amber Inn (Eau Claire, est. 1881) as reference tenant. Website =
+// website-premium-bar (live Tonight Board, bar-vs-kitchen hours engine,
+// crawlable menu with MenuItem schema, tap wall). CRM = crm-bar (cloned from
+// crm-basic): the menu, 86 and taps the site shows live, the bartender console,
+// guests and regulars, and private parties.
+// 'bar', 'pub', 'brewery', 'taproom', 'wine_bar', 'cocktail_bar' used to sit in
+// EVENTS_INDUSTRIES and got the restaurant CRM and the generic showcase site;
+// wineries and distilleries stay there (tasting rooms and events, not a bar).
+export const BAR_INDUSTRIES = new Set([
+  'bar', 'bar_and_grill', 'bar_grill', 'tavern', 'pub', 'public_house', 'saloon',
+  'sports_bar', 'dive_bar', 'neighborhood_bar', 'cocktail_bar', 'wine_bar', 'beer_bar',
+  'brewpub', 'brew_pub', 'taproom', 'tap_room', 'brewery', 'beer_garden', 'biergarten',
+  'lounge', 'speakeasy', 'supper_club',
 ])
 
 export const FOODTRUCK_INDUSTRIES = new Set([
@@ -250,6 +269,12 @@ export function normalizeIndustry(input: string | undefined | null): string {
   s = s.replace(/^food_truck_business$/, 'food_truck')
   s = s.replace(/^mobile_food_truck$/, 'food_truck')
   s = s.replace(/^food_trucks$/, 'food_truck')
+  // Bar variants: "bar & grill", "bar and grille", "bar n grill", "tavern & grill".
+  s = s.replace(/^(bar|tavern|pub)_?(&|and|n|'n'|\+)_?grille?$/, 'bar_and_grill')
+  s = s.replace(/^bar_&_grill$/, 'bar_and_grill')
+  s = s.replace(/^bars$/, 'bar')
+  s = s.replace(/^taverns$/, 'tavern')
+  s = s.replace(/^pubs$/, 'pub')
   return s
 }
 
@@ -270,6 +295,9 @@ export function verticalFor(industry: string | undefined | null): Vertical {
   // Salon must check BEFORE showcase: a salon still gets the showcase-style
   // website, but it gets its own CRM rather than the contractor base.
   if (SALON_INDUSTRIES.has(i)) return 'salon'
+  // Bars get their own website template AND the restaurant/events CRM, so
+  // they must be resolved before events.
+  if (BAR_INDUSTRIES.has(i)) return 'bar'
   // Events must check BEFORE showcase for the same reason as salon: a
   // restaurant still gets the showcase-style website, but its own CRM.
   if (EVENTS_INDUSTRIES.has(i)) return 'events'
@@ -295,6 +323,9 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
     case 'veterinary':   return 'crm-vet'
     case 'salon':        return 'crm-salon'
     case 'events':       return 'crm-restaurant'
+    // A bar's own CRM: menu, taps, live status, guests, and the private-party
+    // pipeline (enquiry → booking → deposit) brought over from crm-restaurant.
+    case 'bar':          return 'crm-bar'
     case 'store':        return 'crm-store'
     // Hotels, gyms, yoga studios, wedding services and photographers. They keep the showcase-style
     // WEBSITE, which is right for them; what they no longer get is a construction CRM.
@@ -377,7 +408,10 @@ function premiumTemplateFromText(industry: string | undefined | null): PremiumWe
   if (f.landscaping) return 'website-premium-landscaping'
   if (f.homecare) return 'website-premium-homecare'
   if (f.fieldservice) return 'website-premium-fieldservice'
-  if (f.cafe || f.restaurant || f.salon || f.fitness || f.hotel || f.events) return 'website-premium-showcase'
+  // A bar after cafe/restaurant/salon ("espresso bar", "sushi bar", "nail bar" keep theirs), as tradeDetect orders it.
+  if (f.cafe || f.restaurant || f.salon) return 'website-premium-showcase'
+  if (f.bar) return 'website-premium-bar'
+  if (f.fitness || f.hotel || f.events) return 'website-premium-showcase'
   return 'website-premium-contractor'
 }
 
@@ -407,6 +441,9 @@ export function legacyWebsiteTemplateFor(industry: string | undefined | null): L
     salon:        'website-showcase',
     // Same for restaurants and venues.
     events:       'website-showcase',
+    // No legacy bar template — showcase is the closest look; premium
+    // customers get the dedicated website-premium-bar template.
+    bar:          'website-showcase',
     // E-commerce storefront (Next.js). The generator ladder routes here.
     store:        'website-store',
   }
@@ -440,6 +477,7 @@ export function crmServiceSuffixFor(industry: string | undefined | null): string
     case 'veterinary':   return 'vet'  // {slug}-vet-api.onrender.com
     case 'salon':        return 'salon' // {slug}-salon-api.onrender.com
     case 'events':       return 'events' // {slug}-events-api.onrender.com
+    case 'bar':          return 'bar'    // {slug}-bar-api.onrender.com
     case 'store':        return 'shop' // {slug}-shop-api.onrender.com
     case 'showcase':     return 'basic' // shares crm-basic
     case 'foodtruck':    return 'basic' // shares crm-basic
@@ -505,6 +543,9 @@ const LAYOUT_MODE_BY_VERTICAL: Record<Vertical, LayoutMode> = {
   veterinary: 'multi-page',
   salon: 'multi-page',
   events: 'multi-page',
+  // Bars have deep routes by design: /menu, /taps, /story/<era>, /events,
+  // /parties, /visit — and the burger pages. Never a one-page scroll.
+  bar: 'multi-page',
   store: 'multi-page',
 }
 

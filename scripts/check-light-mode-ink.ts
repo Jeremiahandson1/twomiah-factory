@@ -41,9 +41,9 @@ const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
 /** The screens this guard answers for. crm-automotive and crm-homecare are PARKED (CLAUDE.md). */
 const FILES = [
-  ...['crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping'].map((t) => `templates/${t}/frontend/src/components/features/AIReceptionistPage.tsx`),
+  ...['crm', 'crm-basic', 'crm-bar', 'crm-fieldservice', 'crm-landscaping'].map((t) => `templates/${t}/frontend/src/components/features/AIReceptionistPage.tsx`),
   'templates/crm-roof/frontend/src/pages/roofing/AIReceptionistPage.tsx',
-  ...['crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet'].map((t) => `templates/${t}/frontend/src/pages/support/SupportPage.tsx`),
+  ...['crm', 'crm-basic', 'crm-bar', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet'].map((t) => `templates/${t}/frontend/src/pages/support/SupportPage.tsx`),
   /**
    * …AND THE SHARED PRIMITIVES, which is the gap that let the AI Receptionist ship broken twice.
    *
@@ -59,7 +59,7 @@ const FILES = [
    * check-brand-hex-under-white-text.ts — pulling them in here would make this guard fail on a
    * decision somebody already made, and a guard that reports settled decisions gets switched off.
    */
-  ...['crm', 'crm-basic', 'crm-dispensary', 'crm-fieldservice', 'crm-landscaping'].flatMap((t) =>
+  ...['crm', 'crm-basic', 'crm-bar', 'crm-dispensary', 'crm-fieldservice', 'crm-landscaping'].flatMap((t) =>
     ['Table.tsx', 'Tabs.tsx', 'Card.tsx', 'Checkbox.tsx', 'Modal.tsx'].map((f) => `templates/${t}/frontend/src/components/ui/${f}`)),
 ]
 

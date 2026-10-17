@@ -15,7 +15,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => (existsSync(ROOT + p) ? readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n') : '')
-const TEMPLATES = ['crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-restaurant', 'crm-salon', 'crm-vet', 'crm-roof']
+const TEMPLATES = ['crm', 'crm-basic', 'crm-bar', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-restaurant', 'crm-salon', 'crm-vet', 'crm-roof']
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 

@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs'
 import { stripSource as strip } from './lib/stripComments.ts'
 const read = (p: string) => strip(readFileSync(new URL(`../${p}`, import.meta.url), 'utf8'))
 
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-bar', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
 const FUNCTIONS = [
   'bulkUpdateContacts', 'bulkDeleteContacts', 'bulkAssignContactTags', 'bulkUpdateProjects', 'bulkDeleteProjects', 'bulkArchiveProjects',
   'bulkUpdateJobs', 'bulkDeleteJobs', 'bulkAssignJobs', 'bulkRescheduleJobs', 'bulkUpdateJobStatus', 'bulkUpdateInvoices', 'bulkDeleteInvoices',

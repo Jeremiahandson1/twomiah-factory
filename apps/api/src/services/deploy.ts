@@ -1010,6 +1010,7 @@ export async function deployCustomer(
   const isRv = vertical === 'rv' // RV + powersports dealership CRM
   const isVet = vertical === 'veterinary' // veterinary practice CRM
   const isSalon = vertical === 'salon' // salon / barber / spa CRM
+  const isBar = vertical === 'bar' // bar / tavern / pub CRM (crm-bar)
   const isEvents = vertical === 'events' // restaurant / caterer / venue private-events CRM
   const isStore = vertical === 'store' // e-commerce: crm-store back-office + website-store storefront
   // Everything with no vertical of its own: 'other', hotels, gyms, yoga, weddings, photographers,
@@ -1287,9 +1288,9 @@ export async function deployCustomer(
           backendEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: supabaseProject.serviceRoleKey })
         }
 
-        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : isVet ? slug + '-vet-api' : isSalon ? slug + '-salon-api' : isEvents ? slug + '-events-api' : isStore ? slug + '-shop-api' : isBasic ? slug + '-basic-api' : slug + '-api'
-        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : isSalon ? slug + '-salon' : isEvents ? slug + '-events' : isStore ? slug + '-shop' : isBasic ? slug + '-basic' : slug + '-crm'
-        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : isSalon ? 'crm-salon' : isEvents ? 'crm-restaurant' : isStore ? 'crm-store' : isBasic ? 'crm-basic' : 'crm'
+        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : isVet ? slug + '-vet-api' : isSalon ? slug + '-salon-api' : isBar ? slug + '-bar-api' : isEvents ? slug + '-events-api' : isStore ? slug + '-shop-api' : isBasic ? slug + '-basic-api' : slug + '-api'
+        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : isSalon ? slug + '-salon' : isBar ? slug + '-bar' : isEvents ? slug + '-events' : isStore ? slug + '-shop' : isBasic ? slug + '-basic' : slug + '-crm'
+        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : isSalon ? 'crm-salon' : isBar ? 'crm-bar' : isEvents ? 'crm-restaurant' : isStore ? 'crm-store' : isBasic ? 'crm-basic' : 'crm'
 
         // crm-store needs its own back-office URL for the merchant-facing webhook
         // setup screen. STOREFRONT_ORIGIN/URL are set later (Step 7) once the
@@ -2028,7 +2029,7 @@ export async function updateCustomerCode(
  * it found NO backend: a domain bought for a store or a roofer never had app.<domain> attached to its admin on Render,
  * and a redeploy/visualizer lookup by slug came back empty. (10/14, found writing the store E2E script)
  */
-export const CRM_API_SUFFIXES = ['-api', '-care-api', '-wrench-api', '-drive-api', '-roof-api', '-landscape-api', '-leaf-api', '-rv-api', '-vet-api', '-salon-api', '-events-api', '-shop-api', '-basic-api'] as const
+export const CRM_API_SUFFIXES = ['-api', '-care-api', '-wrench-api', '-drive-api', '-roof-api', '-landscape-api', '-leaf-api', '-rv-api', '-vet-api', '-salon-api', '-bar-api', '-events-api', '-shop-api', '-basic-api'] as const
 
 /**
  * The tenant's Render services, by role. `backendUrl` (tenants.render_backend_url) names the backend exactly — preferred,

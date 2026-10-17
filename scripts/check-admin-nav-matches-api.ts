@@ -41,7 +41,7 @@ const PAGE_ROUTER: Record<string, string> = {
 
 /** Templates whose sidebar comes from the shared shell's shellConfig.ts. */
 const SHELL_TEMPLATES = [
-  'crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping',
+  'crm', 'crm-basic', 'crm-bar', 'crm-fieldservice', 'crm-landscaping',
   'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet',
 ]
 /**

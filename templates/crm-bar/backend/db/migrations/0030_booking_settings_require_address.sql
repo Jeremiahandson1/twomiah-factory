@@ -1,0 +1,1 @@
+ALTER TABLE "booking_settings" ADD COLUMN IF NOT EXISTS "require_address" boolean;

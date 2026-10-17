@@ -48,6 +48,7 @@ const ALLOW: Record<string, string> = {
   // Wisetack account exists (project memory). The handler hands it the x-wisetack-signature header.
   'crm POST /api/wisetack/webhook': 'Wisetack — signature checked in services/wisetack.ts processWebhook; router 503s until configured',
   'crm-basic POST /api/wisetack/webhook': 'Wisetack — signature checked in services/wisetack.ts processWebhook; router 503s until configured',
+  'crm-bar POST /api/wisetack/webhook': 'Wisetack — signature checked in services/wisetack.ts processWebhook; router 503s until configured',
   'crm-fieldservice POST /api/wisetack/webhook': 'Wisetack — signature checked in services/wisetack.ts processWebhook; router 503s until configured',
   'crm-landscaping POST /api/wisetack/webhook': 'Wisetack — signature checked in services/wisetack.ts processWebhook; router 503s until configured',
   'crm-restaurant POST /api/wisetack/webhook': 'Wisetack — signature checked in services/wisetack.ts processWebhook; router 503s until configured',

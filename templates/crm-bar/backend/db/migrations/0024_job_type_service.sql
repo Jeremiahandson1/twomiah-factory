@@ -1,0 +1,16 @@
+-- Every job created on this template was typed a 'repair'. (T42, showcase HIGH)
+--
+--   "Vertical identity still field-service/HVAC: … jobType 'repair' …"
+--
+-- crm-basic was forked from crm-fieldservice and kept its column default. The template serves three
+-- verticals (industryRouting.ts) — showcase (hotels, gyms, yoga studios, wedding services,
+-- photographers), foodtruck, and basic, the blank slate — and not one of them repairs anything. A
+-- strength session booked online landed on the job card as a repair, and so did every export of it.
+--
+-- EXISTING ROWS ARE LEFT ALONE, deliberately. A job already recorded as a repair is a record of what
+-- somebody typed, or of what the old default typed for them; rewriting history would make the brief's
+-- own evidence disagree with the tenant. Only the default moves, so the next job is a 'service'.
+--
+-- The column stays free text (nothing validates it against a list), so a tenant whose work really is
+-- repairs can keep typing 'repair'.
+ALTER TABLE "job" ALTER COLUMN "job_type" SET DEFAULT 'service';

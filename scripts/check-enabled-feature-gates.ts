@@ -17,7 +17,7 @@ const read = (p: string) => strip(readFileSync(new URL(`../${p}`, import.meta.ur
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-bar', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 
 // one implementation, one id or any-of a list
 const shared = read('packages/tenant-backend/src/enabledFeature.ts')
@@ -48,6 +48,8 @@ const GATES: Record<string, Gate[]> = {
   // Everything FS does gate — fleet, locations, commissions, inventory, equipment, agreements,
   // maintenance contracts, warranties, recurring — is still mounted and still gated here.
   'crm-basic': [...FS, ...PHOTOS],
+  // crm-bar is crm-basic's clone: the same field-service modules are still mounted, gated and off.
+  'crm-bar': [...FS, ...PHOTOS],
   'crm-landscaping': [...FS, ['/api/recurring-routes', 'recurring_routes'], ['/api/area-pricing', 'area_pricing'], ['/api/snow', 'snow_billing'], ...PHOTOS],
   'crm-rv': [['/api/warranties', 'warranties'], ['/api/inventory', ['inventory', 'parts_tracking']]],
   'crm-vet': [],

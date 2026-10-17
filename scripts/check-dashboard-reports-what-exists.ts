@@ -53,7 +53,7 @@ else {
 }
 
 // ── every template tells it ────────────────────────────────────────────────────────────────────────
-const TEMPLATES = ['crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
+const TEMPLATES = ['crm', 'crm-basic', 'crm-bar', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
 let wired = 0
 for (const t of TEMPLATES) {
   const p = `templates/${t}/backend/src/routes/reporting.ts`

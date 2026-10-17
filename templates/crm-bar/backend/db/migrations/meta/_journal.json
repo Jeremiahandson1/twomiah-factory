@@ -1,0 +1,244 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1772785271393,
+      "tag": "0000_daily_valkyrie",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772785271394,
+      "tag": "0001_add_support_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772785271395,
+      "tag": "0002_add_lead_inbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772785271396,
+      "tag": "0003_add_ai_receptionist",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1772785271397,
+      "tag": "0004_add_missing_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1772785271398,
+      "tag": "0005_add_fleet_tier_features",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772785271399,
+      "tag": "0006_add_portal_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1772785271400,
+      "tag": "0007_add_site_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772785271401,
+      "tag": "0008_add_email_alias",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1772785271402,
+      "tag": "0009_add_inbound_message",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780000000000,
+      "tag": "0010_add_job_photo",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791400000000,
+      "tag": "0011_add_gbp_connection",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791400100000,
+      "tag": "0012_add_signature_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791400200000,
+      "tag": "0013_marketing_fixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791400300000,
+      "tag": "0014_email_recipient_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1791400400000,
+      "tag": "0015_booking_deposits",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791400500000,
+      "tag": "0016_agreement_autopay",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791400600000,
+      "tag": "0017_agreement_renewal_notice",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791400700000,
+      "tag": "0018_job_roster_assignee",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791400800000,
+      "tag": "0019_add_plan_markup",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791400900000,
+      "tag": "0020_expense_submitter",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791401000000,
+      "tag": "0021_expense_repayment",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791401100000,
+      "tag": "0022_staff_account_entry",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791401200000,
+      "tag": "0023_mfa",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791401300000,
+      "tag": "0024_job_type_service",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791501300000,
+      "tag": "0025_warranty_claim_fk_project_warranty",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791601300000,
+      "tag": "0026_warranty_claim_title_location_priority",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1791601400000,
+      "tag": "0027_warranty_claim_reported_method",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1791601500000,
+      "tag": "0028_quote_line_cost",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791601501000,
+      "tag": "0029_warranty_claim_job",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791601502000,
+      "tag": "0030_booking_settings_require_address",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791601503000,
+      "tag": "0031_auto_commissions_and_branches",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791601504000,
+      "tag": "0032_audit_email_alias",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791601504001,
+      "tag": "0033_callrail_signing_key",
+      "breakpoints": true
+    }
+  ]
+}

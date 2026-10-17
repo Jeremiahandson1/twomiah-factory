@@ -444,6 +444,7 @@ const KNOWN_HOLE = [
   const RATCHET: Record<string, number> = {
     crm: 0,
     'crm-basic': 0,
+    'crm-bar': 0,
     'crm-dispensary': 0,
     'crm-fieldservice': 0,
     'crm-landscaping': 0,

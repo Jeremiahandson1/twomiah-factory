@@ -136,7 +136,7 @@ walk('templates/crm-salon/frontend/src/')
  * crm-automotive and crm-homecare are PARKED (CLAUDE.md) and deliberately excluded — a rule nobody
  * is allowed to satisfy would fail the build for ever.
  */
-const LIVE_TEMPLATES = ['crm-basic', 'crm-dispensary', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-roof', 'crm-rv', 'crm-store', 'crm-vet']
+const LIVE_TEMPLATES = ['crm-basic', 'crm-bar', 'crm-dispensary', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-roof', 'crm-rv', 'crm-store', 'crm-vet']
 for (const t of LIVE_TEMPLATES) walk(`templates/${t}/frontend/src/`)
 /**
  * The BASE CRM's frontend, added in T32 M14.

@@ -57,6 +57,7 @@ for (const f of ['orders.ts', 'contacts.ts', 'compliance.ts', 'cash.ts', 'invent
 const SHARED_AUDIT = [
   'templates/crm/backend/src/services/audit.ts',
   'templates/crm-basic/backend/src/services/audit.ts',
+  'templates/crm-bar/backend/src/services/audit.ts',
   'templates/crm-fieldservice/backend/src/services/audit.ts',
   'templates/crm-landscaping/backend/src/services/audit.ts',
   'templates/crm-restaurant/backend/src/services/audit.ts',
@@ -86,7 +87,7 @@ const CALLERS = [
   'packages/tenant-backend/src/integrations/quickbooks.ts',
   'packages/tenant-backend/src/integrations/reviews.ts',
   'packages/tenant-backend/src/payments/stripe.ts',
-  ...['crm', 'crm-basic', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
+  ...['crm', 'crm-basic', 'crm-bar', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
     .map((t) => `templates/${t}/backend/src/routes/wisetack.ts`),
 ]
 for (const p of CALLERS) {

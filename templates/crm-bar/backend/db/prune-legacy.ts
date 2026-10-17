@@ -1,0 +1,171 @@
+// Pre-push prune.
+//
+// `drizzle-kit push` renders an interactive "Is X created or renamed?" prompt
+// when it sees a table dropped from the schema (e.g. the removed
+// quickbooks_connection) alongside a newly-added table (ads_experiment). In
+// Render's non-TTY that prompt hangs forever, the boot's `timeout` kills push,
+// and the schema is left only partially reconciled — which is why columns like
+// review_request.job_id never get added and those endpoints 500.
+//
+// Dropping the known-removed legacy tables here (BEFORE push) eliminates the
+// rename ambiguity so push runs non-interactively and fully reconciles. This is
+// a TARGETED allowlist — never a generic "drop everything not in the schema",
+// which would wipe raw-SQL tables (recurring_invoice, recurring_line_item) that
+// are intentionally not modelled in the Drizzle schema.
+
+import { db } from './index.ts'
+import { sql } from 'drizzle-orm'
+
+const LEGACY_TABLES = ['quickbooks_connection']
+
+for (const t of LEGACY_TABLES) {
+  try {
+    await db.execute(sql.raw(`DROP TABLE IF EXISTS "${t}" CASCADE`))
+    console.log('[prune-legacy] ensured dropped:', t)
+  } catch (e: any) {
+    console.warn('[prune-legacy] could not drop', t, e?.message || e)
+  }
+}
+
+// The recurring_invoice / recurring_line_item tables are raw-SQL (not in the
+// Drizzle schema), so `drizzle-kit push` never reconciles them — an old table
+// missing the `total` column made recurring-invoice creation 500. Ensure they
+// exist with every column the recurring service writes (idempotent).
+const ENSURE = [
+  // takeoff_item column drift: fieldservice-lineage migrations created this table
+  // with the old cost columns; schema.ts uses assembly_id + measurement columns.
+  // Pre-add them so drizzle-kit push sees no NEW column to rename-prompt on.
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS assembly_id text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS notes text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS location text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS measurement_type text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS measurement_value numeric`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS length numeric`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS width numeric`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS height numeric`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS waste_factor numeric`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS sort_order integer`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS unit text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS category text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS description text`,
+  // Pre-create the ads_experiment tables (schema-managed) so drizzle-kit push
+  // sees no NEW table and never renders the interactive "created or renamed?"
+  // prompt that hangs boot on Render (some verticals have several orphan tables
+  // it would otherwise offer as rename targets). Columns match schema.ts; push
+  // adds FKs/indexes non-interactively afterward.
+  `CREATE TABLE IF NOT EXISTS ads_experiment (
+     id text PRIMARY KEY, company_id text NOT NULL, name text NOT NULL, path text NOT NULL,
+     status text NOT NULL DEFAULT 'draft', variants json NOT NULL DEFAULT '[]', winner_key text,
+     started_at timestamptz, ended_at timestamptz,
+     created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`,
+  `CREATE TABLE IF NOT EXISTS ads_experiment_assignment (
+     id text PRIMARY KEY, experiment_id text NOT NULL, variant_key text NOT NULL,
+     visitor_id text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`,
+  `CREATE TABLE IF NOT EXISTS ads_experiment_conversion (
+     id text PRIMARY KEY, experiment_id text NOT NULL, variant_key text NOT NULL,
+     visitor_id text NOT NULL, event_type text NOT NULL DEFAULT 'lead', target_id text,
+     created_at timestamptz NOT NULL DEFAULT now())`,
+  `CREATE TABLE IF NOT EXISTS recurring_invoice (
+     id text PRIMARY KEY, company_id text NOT NULL, contact_id text, project_id text,
+     frequency text, start_date timestamp, end_date timestamp, next_run_date timestamp,
+     terms text, subtotal numeric, tax_rate numeric, tax_amount numeric, discount numeric,
+     total numeric, notes text, auto_send boolean DEFAULT false, status text DEFAULT 'active',
+     created_at timestamp DEFAULT now())`,
+  `CREATE TABLE IF NOT EXISTS recurring_line_item (
+     id text PRIMARY KEY, recurring_invoice_id text, description text, quantity numeric,
+     unit_price numeric, total numeric, sort_order integer)`,
+  `ALTER TABLE recurring_line_item ADD COLUMN IF NOT EXISTS total numeric`,
+  `ALTER TABLE recurring_line_item ADD COLUMN IF NOT EXISTS unit_price numeric`,
+  `ALTER TABLE recurring_line_item ADD COLUMN IF NOT EXISTS sort_order integer`,
+  `ALTER TABLE recurring_invoice ADD COLUMN IF NOT EXISTS total numeric`,
+  `ALTER TABLE recurring_invoice ADD COLUMN IF NOT EXISTS next_run_date timestamp`,
+  `ALTER TABLE recurring_invoice ADD COLUMN IF NOT EXISTS auto_send boolean DEFAULT false`,
+  // review_request is schema-managed, but drizzle-kit push hangs at "Pulling
+  // schema" on Render and never reconciles its added columns (job_id, channel,
+  // the *_at timestamps), so /api/reviews 500s. Reconcile it directly.
+  `CREATE TABLE IF NOT EXISTS review_request (
+     id text PRIMARY KEY, status text DEFAULT 'pending', channel text DEFAULT 'both',
+     sent_at timestamp, clicked_at timestamp, follow_up_sent_at timestamp,
+     opened_at timestamp, submitted_at timestamp, review_link text,
+     company_id text, job_id text, contact_id text, created_at timestamp DEFAULT now())`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS job_id text`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS channel text DEFAULT 'both'`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS sent_at timestamp`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS clicked_at timestamp`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS follow_up_sent_at timestamp`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS opened_at timestamp`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS submitted_at timestamp`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS review_link text`,
+  // Refund model: amount_paid is GROSS collected and amount_refunded tracks returns, so a refund never reopens a balance.
+  `ALTER TABLE invoice ADD COLUMN IF NOT EXISTS amount_refunded numeric(12,2) NOT NULL DEFAULT 0`,
+  // Invoices refunded under the old model had amount_paid reduced; rebuild both figures from the payment ledger, once.
+  `UPDATE invoice i SET amount_paid = r.paid, amount_refunded = r.refunded, status = CASE WHEN r.refunded >= r.paid - 0.005 THEN 'refunded' WHEN r.paid >= i.total::numeric - 0.005 THEN 'paid' WHEN r.paid > 0 THEN 'partial' ELSE i.status END FROM (SELECT invoice_id, COALESCE(SUM(CASE WHEN amount::numeric > 0 THEN amount::numeric END), 0) AS paid, COALESCE(SUM(CASE WHEN amount::numeric < 0 THEN -amount::numeric END), 0) AS refunded FROM payment GROUP BY invoice_id HAVING SUM(CASE WHEN amount::numeric < 0 THEN 1 ELSE 0 END) > 0) r WHERE i.id = r.invoice_id AND i.amount_refunded = 0 AND i.status <> 'void'`,
+]
+for (const stmt of ENSURE) {
+  try { await db.execute(sql.raw(stmt)) }
+  catch (e: any) { console.warn('[prune-legacy] ensure failed:', e?.message || e) }
+}
+console.log('[prune-legacy] recurring tables reconciled')
+
+/**
+ * THE FIELD-SERVICE HELP ARTICLE SEEDED INTO THE SHOWCASE VERTICAL. (T58k)
+ *
+ *   owner: "The KB article 'Equipment & Service History' is still published."
+ *
+ * It is, and changing the seed could never have removed it: seed.template.ts runs once, for a NEW
+ * tenant. T58j rewrote the seed and called the item fixed, which is the write-path-fix-leaves-old-rows
+ * mistake — the live row was written months ago and stayed exactly where it was.
+ *
+ * This template serves the SHOWCASE verticals (gyms, studios, caterers) and the article is the
+ * field-service one: "the equipment you look after for a customer", "the next time you are on site".
+ * A gym looks after its own equipment and nobody is on site at a customer's.
+ *
+ * Guarded so it heals only the SEEDED row and never somebody's own writing: the title must still be
+ * the seeded title AND the body must still contain the field-service phrase. An owner who has
+ * rewritten or retitled it is left alone, and re-running this is a no-op.
+ */
+const HELP_HEAL = `
+  UPDATE support_knowledge_base
+     SET title = 'Files and documents',
+         content = 'Attach files to a customer, a job or a quote — photos, signed paperwork, anything you need to find again. They stay on the record, so whoever opens it next has everything you had.'
+   WHERE title = 'Equipment & Service History'
+     AND content LIKE '%equipment you look after for a customer%'
+`
+try {
+  const res: any = await db.execute(sql.raw(HELP_HEAL))
+  const n = res?.rowCount ?? res?.rowsAffected ?? '?'
+  console.log('[prune-legacy] showcase help article healed, rows:', n)
+} catch (e: any) {
+  // A tenant without the support module has no such table. Never block boot for a help article.
+  console.warn('[prune-legacy] help-article heal skipped:', e?.message || e)
+}
+
+/**
+ * ONLINE BOOKERS ARE CLIENTS. routes/booking.ts filed a brand-new booker as a `lead`, so a tenant
+ * that takes bookings had its leads count made of people already on the schedule — 20 of the 21
+ * "leads" on the showcase tenant had booked. New bookers are `client` now; this moves the ones written
+ * before. Only the rows the booking widget itself created (source = 'online_booking') that are still
+ * `lead`, so a contact somebody has since retyped by hand is left alone, and a second run matches
+ * nothing.
+ */
+try {
+  const res: any = await db.execute(sql.raw(`UPDATE contact SET type = 'client', updated_at = NOW() WHERE type = 'lead' AND source = 'online_booking'`))
+  console.log('[prune-legacy] online bookers filed as clients, rows:', res?.rowCount ?? res?.rowsAffected ?? '?')
+} catch (e: any) {
+  console.warn('[prune-legacy] booker type heal failed:', e?.message || e)
+}
+
+/**
+ * PRE-T59 WEBSITE ENQUIRIES GET A LEAD INBOX ROW. The form now writes to the inbox; the enquiries that
+ * arrived before it were written as Contacts and never reached the inbox or its New leads count. Each
+ * untouched one gets an inbox row pointing at its contact — nothing moved, nothing deleted — see
+ * src/shared/leads/legacyWebsiteLeads.ts. Imported dynamically so it can never stop this script.
+ */
+try {
+  const { moveLegacyWebsiteLeadsToInbox } = await import('../src/shared/leads/legacyWebsiteLeads.ts')
+  console.log('[prune-legacy] pre-T59 website enquiries given a Lead Inbox row:', await moveLegacyWebsiteLeadsToInbox(db, sql))
+} catch (e: any) {
+  console.warn('[prune-legacy] website enquiry heal failed:', e?.message || e)
+}
+
+process.exit(0)

@@ -9,7 +9,7 @@ import { stripSource as strip } from './lib/stripComments.ts'
 const read = (p: string) => strip(readFileSync(new URL(`../${p}`, import.meta.url), 'utf8'))
 
 // Dispensary (no Stripe — policy) and homecare (parked) keep their own files and are not vendored here.
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-bar', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
 const APPOINTMENT_BOOK = new Set(['crm-salon', 'crm-vet'])
 
 let failed = 0
@@ -36,7 +36,7 @@ for (const t of TEMPLATES) {
   // The events CRM books the date (bookOnDeposit), then moves the due date (#171). The four CRMs with automatic
   // commissions pass the earner — and nothing else — so a card payment or Stripe refund earns at once. Every other
   // template passes nothing.
-  const COMMISSION_EARNERS = new Set(['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-basic'])
+  const COMMISSION_EARNERS = new Set(['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-basic', 'crm-bar'])
   const earnerHook = /afterInvoicePayment: async \(invoiceId: string\) => \{ await commissionEarner\.earnForInvoice\(invoiceId\) \},/
   const ok = t === 'crm-restaurant'
     ? /afterInvoicePayment: async \(invoiceId: string\) =>[\s\S]*bookOnDeposit\([\s\S]*await syncEventInvoiceDueDate\(invoiceId\)/.test(svc)

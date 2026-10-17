@@ -264,7 +264,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       // Salons, restaurants/venues and food trucks get the showcase site too (what
       // legacyWebsiteTemplateFor says). The signup sends 'salon', 'restaurant' and
       // 'food_truck', which used to fall through to the roofing contractor site.
-      else if (['salon', 'events', 'showcase', 'foodtruck'].includes(verticalFor(industry))) websiteTemplate = 'website-showcase'
+      else if (['salon', 'events', 'bar', 'showcase', 'foodtruck'].includes(verticalFor(industry))) websiteTemplate = 'website-showcase'
       else if (verticalFor(industry) === 'veterinary') websiteTemplate = 'website-vet'
       else if (verticalFor(industry) === 'rv') websiteTemplate = 'website-rv'
       else if (verticalFor(industry) === 'store') websiteTemplate = 'website-store'

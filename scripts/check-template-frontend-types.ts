@@ -113,7 +113,7 @@ if (skipped.length) {
  *     file that index reaches is typechecked here, five times over (an undeclared name in AdsPage.tsx
  *     fails every template). A tenant-ui file the index does not export is still unchecked.
  */
-const NO_COMPILER = ['crm-automotive', 'crm-basic', 'crm-dispensary', 'crm-fieldservice', 'crm-landscaping', 'crm-roof']
+const NO_COMPILER = ['crm-automotive', 'crm-basic', 'crm-bar', 'crm-dispensary', 'crm-fieldservice', 'crm-landscaping', 'crm-roof']
   .filter((t) => existsSync(join(ROOT, 'templates', t, 'frontend')))
   .filter((t) => !/"typescript"/.test(readFileSync(join(ROOT, 'templates', t, 'frontend', 'package.json'), 'utf8')))
 if (NO_COMPILER.length) console.log(`note: ${NO_COMPILER.length} template frontend(s) list no typescript dependency, so they cannot be checked: ${NO_COMPILER.join(', ')}`)
