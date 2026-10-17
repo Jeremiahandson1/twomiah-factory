@@ -308,6 +308,29 @@ const settle = () => new Promise((r) => setTimeout(r, 50))
   check('format: a zero refund is refused before PayPal is asked', !!zero && pp.length === c0 + 1)
 }
 
+// 10. WHAT is stored to refund against: the CAPTURE id, not PayPal's order id — from the success page (capture on return)
+//     and from the PAYMENT.CAPTURE.COMPLETED webhook alike. finalizeOrder writes it to orders.providerPaymentId.
+{
+  const { PayPalProvider } = await import('./src/payments/paypal.ts')
+  const completed = { id: 'PP-ORDER-X', status: 'COMPLETED', payer: { email_address: 'pat@example.com' }, purchase_units: [{ payments: { captures: [{ id: 'PP-CAP-X', status: 'COMPLETED', amount: { value: '55.19', currency_code: 'USD' } }] } }] }
+  const prev = globalThis.fetch
+  globalThis.fetch = (async (input: any, init?: any) => {
+    const url = String(input?.url ?? input)
+    const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
+    if (url.endsWith('/v1/oauth2/token')) return json({ access_token: 'A21-test-token' })
+    if (url.endsWith('/v2/checkout/orders/PP-ORDER-X/capture')) return json(completed, 201)
+    if (url.endsWith('/v2/checkout/orders/PP-ORDER-X')) return json({ ...completed, status: 'APPROVED', purchase_units: [{}] })
+    if (url.endsWith('/v1/notifications/verify-webhook-signature')) return json({ verification_status: 'SUCCESS' })
+    return json({}, 404)
+  }) as any
+  const p = new PayPalProvider({ secretKey: 'pp-secret', publishableKey: 'pp-client', webhookSecret: 'WH-TEST', mode: 'test' })
+  const r = await p.retrieveSession('PP-ORDER-X')
+  check(`capture id: the success page's capture yields the capture id to refund against (${r.providerPaymentId}), the order id as the session`, r.type === 'paid' && r.providerPaymentId === 'PP-CAP-X' && r.providerSessionId === 'PP-ORDER-X' && r.amountTotalCents === 5519, r)
+  const w = await p.verifyAndParseWebhook({ rawBody: JSON.stringify({ event_type: 'PAYMENT.CAPTURE.COMPLETED', resource: { id: 'PP-CAP-X', amount: { value: '55.19', currency_code: 'USD' }, supplementary_data: { related_ids: { order_id: 'PP-ORDER-X' } } } }), signature: undefined, headers: {} })
+  check(`capture id: …and so does the webhook (${w.providerPaymentId})`, w.type === 'paid' && w.providerPaymentId === 'PP-CAP-X' && w.providerSessionId === 'PP-ORDER-X' && w.amountTotalCents === 5519, w)
+  globalThis.fetch = prev
+}
+
 globalThis.fetch = realFetch
 console.log(`\npaypal refunds: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)
