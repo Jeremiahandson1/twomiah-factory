@@ -35,7 +35,7 @@ const read = (p: string) => readFileSync(new URL('../../' + p, import.meta.url),
 // ── a fake GitHub + Render ──────────────────────────────────────────────────
 type Svc = { id: string; name: string; repo?: string; slug?: string; serviceDetails?: { url?: string } }
 type Db = { id: string; name: string; status: string; suspended: string }
-type World = { repos: Set<string>; services: Svc[]; dbs: Db[]; calls: string[]; failServiceCreate?: boolean; failLookup?: 'services' | 'postgres' | 'github' }
+type World = { repos: Set<string>; services: Svc[]; dbs: Db[]; calls: string[]; failServiceCreate?: boolean; failLookup?: 'services' | 'postgres' | 'github'; repoDeleteRefused?: boolean }
 let W: World
 const newWorld = (w: Partial<World> = {}): World => ({ repos: new Set(), services: [], dbs: [], calls: [], ...w })
 const svc = (id: string, name: string, repo?: string): Svc => ({ id, name, slug: name, repo, serviceDetails: { url: `https://${name}.onrender.com` } })
@@ -51,8 +51,9 @@ globalThis.fetch = (async (input: any, init?: any) => {
     if (W.failLookup === 'github') return json({ message: 'boom' }, 502)
     const m = p.match(/^\/repos\/([^/]+\/[^/]+)$/)
     if (m && method === 'GET') return W.repos.has(m[1]) ? json({ full_name: m[1] }) : json({ message: 'Not Found' }, 404)
-    if (m && method === 'DELETE') { if (!W.repos.has(m[1])) return new Response(null, { status: 404 }); W.repos.delete(m[1]); return new Response(null, { status: 204 }) }
-    if (p === '/orgs/' + ORG + '/repos' && method === 'POST') {
+    if (m && method === 'DELETE') { if (!W.repos.has(m[1])) return new Response(null, { status: 404 }); if (W.repoDeleteRefused) return json({ message: 'Must have admin rights' }, 403); W.repos.delete(m[1]); return new Response(null, { status: 204 }) }
+    // createGitHubRepo falls back to /user/repos when the org create fails; here both answer for the one namespace.
+    if ((p === '/orgs/' + ORG + '/repos' || p === '/user/repos') && method === 'POST') {
       const name = JSON.parse(init.body).name, full = ORG + '/' + name
       if (W.repos.has(full)) return json({ errors: [{ message: 'name already exists on this account' }] }, 422)
       W.repos.add(full); return json({ full_name: full, clone_url: 'https://github.com/' + full + '.git' }, 201)
@@ -194,6 +195,12 @@ for (const which of ['services', 'postgres', 'github'] as const) {
   const r = await deploy('acme', owns({ databaseIds: ['dpg-keep-a'] }), ['crm'])
   check('every service fails: the run rolls back', !r.success && W.calls.includes('DELETE api.github.com/repos/' + ORG + '/acme'), W.calls)
   check('…the REUSED database (the tenant\'s, from before this run) is NOT deleted', !W.calls.includes('DELETE api.render.com/v1/postgres/dpg-keep-a') && W.dbs.some((d) => d.id === 'dpg-keep-a'), deletes())
+}
+{
+  // The tenant's own repo could not be deleted, so the run reused it — it is not this run's to delete either.
+  W = newWorld({ repos: new Set([ORG + '/acme']), failServiceCreate: true, repoDeleteRefused: true })
+  const r = await deploy('acme', owns({ repos: [ORG + '/acme'] }), ['crm'])
+  check('…a repo the run REUSED (its own, undeletable) is not deleted by the rollback either', !r.success && pushes.includes('push ' + ORG + '/acme') && W.calls.filter((c) => c === 'DELETE api.github.com/repos/' + ORG + '/acme').length === 1 && W.repos.has(ORG + '/acme'), { calls: W.calls.filter((c) => c.includes('github')) })
 }
 {
   W = newWorld({ failServiceCreate: true })
