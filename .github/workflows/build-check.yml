@@ -2810,6 +2810,17 @@ jobs:
       - name: "check action colour is brand"
         run: bun run scripts/check-action-colour-is-brand.ts
 
+  brand-colour-rules:
+    name: "The brand carries no meaning, its dark-mode ink is 200, and white on it reads for every owner colour"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check brand colour rules"
+        run: bun run scripts/check-brand-colour-rules.ts
+
   portal-token-never-ships:
     name: "A contact's portal credential never leaves the server on their record"
     runs-on: ubuntu-latest
