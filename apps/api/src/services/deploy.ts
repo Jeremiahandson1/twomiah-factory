@@ -789,8 +789,11 @@ export function platformIntegrationEnv(backendUrl: string, opts: { customerHasSt
 
 /**
  * Existing tenant: add the platform integration env vars it is missing. Never overwrites a value that is set —
- * except the two QuickBooks environment flags (QBO_SANDBOX / QUICKBOOKS_ENVIRONMENT), which are not tenant
- * secrets and must track the Factory: tenants deployed before quickbooksEnv.ts got QBO_SANDBOX=true by default.
+ * except QBO_ENVIRONMENT_KEYS (quickbooksEnv.ts), which are not tenant secrets and must track the Factory: the two
+ * environment flags (tenants deployed before quickbooksEnv.ts got QBO_SANDBOX=true by default) and QBO_REDIRECT_URI /
+ * QBO_RETURN_URL (tenants deployed before the QuickBooks relay carry their own per-tenant redirect URI, which Intuit
+ * refuses unless someone registered it by hand). Render loads a changed value only on the next deploy — both callers
+ * deploy right after (deployCustomer's first build; updateCustomerCode's redeploy).
  */
 export async function refreshPlatformIntegrationEnv(serviceId: string): Promise<{ added: string[]; error?: string }> {
   try {
@@ -1320,7 +1323,8 @@ export async function deployCustomer(
         }
 
         // QuickBooks: factory-level credentials flow to each tenant CRM — one decision for both spellings
-        // and the environment (services/quickbooksEnv.ts); the redirect URI is the tenant's own backend host.
+        // and the environment (services/quickbooksEnv.ts); the redirect URI is the Factory's relay, and the tenant's own
+        // callback (QBO_RETURN_URL) rides in the signed OAuth state.
         backendEnvVars.push(...quickbooksTenantEnv(`https://${crmApiName}.onrender.com`))
 
         // Delete existing services so names are available (avoids random suffixes)

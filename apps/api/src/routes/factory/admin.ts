@@ -4,6 +4,7 @@ import pg from 'pg'
 import { FEATURE_REGISTRY, getFeaturesForTemplate, getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
 import { crmTemplateFor } from '../../config/industryRouting'
 import { getAuthorizationUrl, exchangeCodeForTokens, refreshAccessToken, getCompanyInfo } from '../../services/quickbooksOnline'
+import { qboRelayDecision, tenantOriginLookup } from '../../services/qboRelay'
 import { type FactoryApp, parseJsonBody, UUID_RE, DOMAIN_RE, logTenantAudit, diffTenantChanges, qboOAuthStates, cleanExpiredStates } from './shared'
 
 export function registerAdminRoutes(factory: FactoryApp) {
@@ -856,8 +857,17 @@ factory.get('/integrations/qbo/connect', requireRole('owner', 'admin'), async (c
 })
 
 // ─── QBO OAuth: Callback (public — Intuit redirects here) ────────────────────
+// The ONE redirect URI registered in the Intuit app, for the Factory's own connection AND every tenant CRM's. A tenant's
+// state names its own callback; that request is relayed to the tenant (services/qboRelay.ts: known tenant host, exact
+// callback path, else 400 — never an open redirect). Anything else is the Factory's own connection, handled below.
 factory.get('/integrations/qbo/callback', async (c) => {
   const platformUrl = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
+  const relay = await qboRelayDecision(c.req.query(), tenantOriginLookup(supabase))
+  if (relay.kind === 'redirect') return c.redirect(relay.location, 302)
+  if (relay.kind === 'refuse') {
+    console.warn('[QBO] relay refused:', relay.reason)
+    return c.json({ error: 'This QuickBooks connection link is not valid. Start again from Settings in your CRM.' }, 400)
+  }
   try {
     const state = c.req.query('state')
     const code = c.req.query('code')

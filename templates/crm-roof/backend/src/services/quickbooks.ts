@@ -3,33 +3,60 @@ import { qbIntegration, contact, invoice, company } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
 import logger from './logger.ts'
 import { notFound } from '../utils/errors.ts'
+import { signQboState, verifyQboState } from '../shared/index.ts'
 
 const QB_BASE = 'https://quickbooks.api.intuit.com/v3/company'
 const QB_AUTH_URL = 'https://appcenter.intuit.com/connect/oauth2'
 const QB_TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
 
+// The Factory injects the Intuit app as QBO_* (apps/api/src/services/quickbooksEnv.ts), the same names every other CRM
+// reads. This template read only QB_*, which nothing sets, so Connect QuickBooks sent Intuit an empty client id on every
+// roof tenant. QB_* still wins when someone has set it by hand.
+//
+// redirectUri is the ONE URI registered with Intuit: the Factory's QuickBooks callback (QBO_REDIRECT_URI), which relays
+// the browser to returnUrl — this backend's /api/quickbooks/callback (QBO_RETURN_URL) — carried in the signed state.
+// Without QBO_RETURN_URL (env from before the relay), or with QB_REDIRECT_URI set by hand, there is no return URL and
+// Intuit redirects straight to redirectUri, as before.
 function getQBEnv() {
+  const handSet = process.env.QB_REDIRECT_URI || ''
+  const returnUrl = !handSet && process.env.QBO_REDIRECT_URI && process.env.QBO_RETURN_URL ? process.env.QBO_RETURN_URL : undefined
   return {
-    clientId: process.env.QB_CLIENT_ID || '',
-    clientSecret: process.env.QB_CLIENT_SECRET || '',
-    redirectUri: process.env.QB_REDIRECT_URI || '',
+    clientId: process.env.QB_CLIENT_ID || process.env.QBO_CLIENT_ID || '',
+    clientSecret: process.env.QB_CLIENT_SECRET || process.env.QBO_CLIENT_SECRET || '',
+    redirectUri: handSet || process.env.QBO_REDIRECT_URI || '',
+    returnUrl,
   }
 }
 
+// The state is SIGNED (shared integrations/quickbooksState.ts). It was base64 of { companyId } and the callback trusted
+// it, so anyone could finish an Intuit consent with a hand-made state naming another company and attach their books to it.
+const stateSecret = () => process.env.QBO_STATE_SECRET || process.env.JWT_SECRET || ''
+
+export function isConfigured() {
+  const { clientId, clientSecret, redirectUri } = getQBEnv()
+  return !!(clientId && clientSecret && redirectUri && stateSecret())
+}
+
 export function getAuthUrl(companyId: string) {
-  const { clientId, redirectUri } = getQBEnv()
-  const state = Buffer.from(JSON.stringify({ companyId })).toString('base64url')
-  return `${QB_AUTH_URL}?client_id=${clientId}&response_type=code&scope=com.intuit.quickbooks.accounting&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`
+  const { clientId, redirectUri, returnUrl } = getQBEnv()
+  const state = signQboState(returnUrl ? { companyId, returnUrl } : { companyId }, stateSecret())
+  return `${QB_AUTH_URL}?client_id=${encodeURIComponent(clientId)}&response_type=code&scope=com.intuit.quickbooks.accounting&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`
+}
+
+/** companyId when the state is one this server signed (unexpired, return URL untouched); null otherwise. */
+export function verifyState(state: string | undefined | null): string | null {
+  return verifyQboState(state, stateSecret())?.companyId ?? null
 }
 
 export async function handleCallback(code: string, companyId: string) {
   const { clientId, clientSecret, redirectUri } = getQBEnv()
   const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
 
+  // The same redirect_uri the authorize step sent (the relay, when there is one) — Intuit refuses the exchange otherwise.
   const res = await fetch(QB_TOKEN_URL, {
     method: 'POST',
     headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}`,
+    body: `grant_type=authorization_code&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`,
   })
   if (!res.ok) throw new Error('Failed to exchange token')
   const data = await res.json()

@@ -10,6 +10,7 @@ import Stripe from 'stripe'
 import audit from '../services/audit.ts'
 import { recomputeTier } from '../utils/loyaltyTier.ts'
 import { zodRefusal } from '../utils/errors.ts'
+import { signQboState, verifyQboState } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -21,8 +22,27 @@ const stripe = process.env.STRIPE_SECRET_KEY
 
 const QB_CLIENT_ID = process.env.QUICKBOOKS_CLIENT_ID
 const QB_CLIENT_SECRET = process.env.QUICKBOOKS_CLIENT_SECRET
-const QB_REDIRECT_URI = process.env.QUICKBOOKS_REDIRECT_URI || `${process.env.API_URL}/api/integrations/quickbooks/callback`
 const QB_ENVIRONMENT = process.env.QUICKBOOKS_ENVIRONMENT || 'sandbox'
+
+// Where Intuit sends the browser back. Intuit only accepts redirect URIs registered by hand in the Intuit app, so the
+// Factory gives every tenant the SAME one — its QuickBooks callback (QBO_REDIRECT_URI) — plus QBO_RETURN_URL, this
+// backend's own origin. Then this shop's callback below goes into the signed state and the Factory relays the browser
+// to it (apps/api/src/services/qboRelay.ts). Without QBO_RETURN_URL (a tenant whose env predates the relay), or with an
+// explicit QUICKBOOKS_REDIRECT_URI, it is exactly as before: Intuit redirects straight here. Read per call, not at
+// import, so an env change needs nothing but the deploy that loads it.
+const OWN_QB_CALLBACK = '/api/integrations/quickbooks/callback'
+function qbReturnUrl(): string | undefined {
+  if (process.env.QUICKBOOKS_REDIRECT_URI || !process.env.QBO_REDIRECT_URI || !process.env.QBO_RETURN_URL) return undefined
+  try { return new URL(OWN_QB_CALLBACK, process.env.QBO_RETURN_URL).href } catch { return undefined }
+}
+function qbRedirectUri(): string {
+  if (qbReturnUrl()) return process.env.QBO_REDIRECT_URI!
+  return process.env.QUICKBOOKS_REDIRECT_URI || `${process.env.API_URL}${OWN_QB_CALLBACK}`
+}
+// The state is SIGNED (shared integrations/quickbooksState.ts). It was base64 of { companyId, userId } and the callback
+// trusted it, so anyone could finish an Intuit consent with a hand-made state naming another shop's company id and
+// attach their QuickBooks company to it — the hole the shared module closed for every other CRM.
+const qbStateSecret = () => process.env.QBO_STATE_SECRET || process.env.JWT_SECRET || ''
 
 // ─── Auth middleware: verify X-Integration-Key against company.integrationKey ──
 // Applied PER-ROUTE to the external-POS endpoints only, so the session-authenticated
@@ -664,19 +684,17 @@ app.get('/quickbooks/auth-url', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
 
   // Missing config is a valid state, not a server error — the settings UI shows "not connected".
-  if (!QB_CLIENT_ID) return c.json({ configured: false, authUrl: null, message: 'QuickBooks not configured' })
+  if (!QB_CLIENT_ID || !qbStateSecret()) return c.json({ configured: false, authUrl: null, message: 'QuickBooks not configured' })
 
-  const state = Buffer.from(JSON.stringify({
-    companyId: user.companyId,
-    userId: user.userId,
-  })).toString('base64')
+  const returnUrl = qbReturnUrl()
+  const state = signQboState(returnUrl ? { companyId: user.companyId, returnUrl } : { companyId: user.companyId }, qbStateSecret())
 
   const baseUrl = 'https://appcenter.intuit.com/connect/oauth2'
   const params = new URLSearchParams({
     client_id: QB_CLIENT_ID,
     response_type: 'code',
     scope: 'com.intuit.quickbooks.accounting',
-    redirect_uri: QB_REDIRECT_URI,
+    redirect_uri: qbRedirectUri(),
     state,
   })
 
@@ -703,12 +721,9 @@ app.get('/quickbooks/callback', async (c) => {
     return c.redirect(`${settingsUrl}?error=quickbooks_failed`)
   }
 
-  let companyId: string, userId: string
-  try {
-    ({ companyId, userId } = JSON.parse(Buffer.from(state, 'base64').toString()))
-  } catch {
-    return c.redirect(`${settingsUrl}?error=quickbooks_failed`)
-  }
+  const verified = verifyQboState(state, qbStateSecret())
+  if (!verified) return c.redirect(`${settingsUrl}?error=quickbooks_failed`)
+  const companyId = verified.companyId
 
   const tokenResponse = await fetch('https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer', {
     method: 'POST',
@@ -719,7 +734,8 @@ app.get('/quickbooks/callback', async (c) => {
     body: new URLSearchParams({
       grant_type: 'authorization_code',
       code: code!,
-      redirect_uri: QB_REDIRECT_URI,
+      // The same redirect_uri the authorize step sent — Intuit refuses the exchange otherwise.
+      redirect_uri: qbRedirectUri(),
     }),
   })
 

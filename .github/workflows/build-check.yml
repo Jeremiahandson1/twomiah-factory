@@ -2418,6 +2418,8 @@ jobs:
       # after the install above: it imports brand.ts, whose theme import reaches react
       - name: "A colour changed in Settings reaches the CRM's own screens, through the same palette and clamps as the build"
         run: bun run tests/shared/brand-palette-runtime.test.ts
+      - name: "Connect QuickBooks: one redirect URI for every tenant; the relay goes only to a known tenant's callback"
+        run: bun run tests/shared/qbo-relay.test.ts
 
   store-suite:
     name: "Store behaviour suite (real PGlite)"

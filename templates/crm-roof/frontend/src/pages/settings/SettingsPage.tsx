@@ -215,8 +215,20 @@ export default function SettingsPage() {
     }
   };
 
-  const connectQB = () => {
-    window.location.href = '/api/quickbooks/connect';
+  // Ask for the Intuit URL with the session, then go there. Navigating to /api/quickbooks/connect sent no
+  // Authorization header, so the server answered 401 to every click.
+  const connectQB = async () => {
+    try {
+      const res = await api.raw('/api/quickbooks/auth-url');
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok || !data?.url) {
+        toast.error(data?.error || 'Could not start the QuickBooks connection');
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      toast.error('Could not start the QuickBooks connection');
+    }
   };
 
   const disconnectQB = async () => {
