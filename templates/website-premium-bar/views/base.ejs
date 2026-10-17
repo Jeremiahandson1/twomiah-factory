@@ -176,6 +176,18 @@
       nav.querySelectorAll('a').forEach(function(a){
         a.addEventListener('click', function(){ nav.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); btn.classList.remove('is-open'); });
       });
+      // Above the phone breakpoint, a long name or many links may not fit one row: switch to the menu button
+      // (.is-compact, main.css) instead of wrapping. Items overflow into the row's padding, not its scroll
+      // width, so each one's right edge is measured against the content edge.
+      var head = btn.closest('.site-header'), row = btn.parentNode;
+      function fit(){
+        head.classList.remove('is-compact');
+        var end = row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight), over = false;
+        for (var i = 0; i < row.children.length; i++) { var r = row.children[i].getBoundingClientRect(); if (r.width && r.right > end + 1) over = true; }
+        if (over) head.classList.add('is-compact');
+      }
+      fit(); window.addEventListener('resize', fit);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
     })();
   </script>
 

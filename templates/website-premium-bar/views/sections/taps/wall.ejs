@@ -16,6 +16,8 @@
   const STATUS = { pouring: 'Pouring', just_tapped: 'Just tapped', last_keg: 'Last keg' }
   // The CRM sends the price already formatted (t.price); a whole-cents value is formatted here.
   function price(t) { if (t.price) return t.price; if (t.priceCents === null || t.priceCents === undefined) return ''; return t.priceCents % 100 === 0 ? '$' + (t.priceCents / 100) : '$' + (t.priceCents / 100).toFixed(2) }
+  // Every priced pour ("Pint $5.50 · Pitcher $18") when the bar sells more than one; one pour keeps the single price.
+  function pours(t) { const z = Array.isArray(t.sizes) ? t.sizes.filter(s => s && s.name && s.price) : []; return z.length > 1 ? z : [] }
   const L = (typeof live !== 'undefined' && live) ? live : null
   const updated = L && L.taps && L.taps.updatedAt ? new Intl.DateTimeFormat('en-US', { timeZone: L.timezone, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(L.taps.updatedAt)) : ''
 %>
@@ -44,7 +46,7 @@
                 <% if (t.style) { %><span><%= t.style %></span><% } %>
                 <% if (t.abv) { %><span><%= t.abv %>% ABV</span><% } %>
                 <% if (t.originCountry) { %><span><%= t.originCountry %></span><% } %>
-                <% if (data.showPrices !== false && price(t)) { %><span class="tap__price"><%= price(t) %></span><% } %>
+                <% if (data.showPrices !== false && pours(t).length) { %><span class="tap__price tap__sizes"><% pours(t).forEach((z, i) => { %><%= i ? ' · ' : '' %><span class="tap__size"><%= z.name %> <%= z.price %></span><% }) %></span><% } else if (data.showPrices !== false && price(t)) { %><span class="tap__price"><%= price(t) %></span><% } %>
               </div>
               <% if (t.description) { %><p class="tap__desc"><%= t.description %></p><% } %>
             </div>

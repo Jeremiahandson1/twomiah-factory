@@ -62,7 +62,7 @@ export function LoginPage() {
         {!challengeId ? (
           <>
             <h1 className="text-2xl text-ink mb-1">Sign in</h1>
-            <p className="text-sm text-muted mb-6">Premium-contractor admin</p>
+            <p className="text-sm text-muted mb-6">Website admin</p>
             <form onSubmit={onPasswordSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-ink-soft mb-1.5">Email</label>

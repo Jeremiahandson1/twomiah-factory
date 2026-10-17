@@ -2836,6 +2836,17 @@ jobs:
       - name: "check premium sqlite"
         run: bun run scripts/check-premium-sqlite.ts
 
+  bar-site-words-and-header:
+    name: "The bar site speaks to guests and its header holds at every width"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check bar site words and header"
+        run: bun run scripts/check-bar-site-words-and-header.ts
+
   write-controls-ask-permission:
     name: "A shared screen that writes asks whether this person may"
     runs-on: ubuntu-latest

@@ -733,6 +733,12 @@ a.board__text:hover { text-decoration-color: var(--brand); }
 .hours__holidays { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line-strong); }
 .hours__holidays ul { list-style: none; padding: 0; margin: 10px 0 0; color: var(--ink-soft); font-size: 15px; line-height: 1.7; }
 .hours__empty { text-align: center; color: var(--ink-soft); }
+/* A time range never breaks ("11 AM –" / "12 AM" on a phone, Test Bar Run 2); a day with two ranges breaks between them. */
+.hours__range { white-space: nowrap; }
+@media (max-width: 640px) {
+  .hours__table { font-size: 14px; }
+  .hours__table th, .hours__table td { padding: 10px 6px; }
+}
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .section-head--left { text-align: left; margin-left: 0; }
 .section-head--left .section-title::after { margin-left: 0; }
@@ -817,6 +823,7 @@ a.board__text:hover { text-decoration-color: var(--brand); }
 .tap--last_keg .tap__status { color: #F3B8B0; border-color: color-mix(in srgb, var(--oxblood) 60%, transparent); }
 .tap__meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 14px; color: var(--ink-soft); }
 .tap__price { color: var(--brand); }
+.tap__size { white-space: nowrap; }
 .tap__desc { margin: 8px 0 0; font-size: 15px; color: var(--ink-soft); line-height: 1.55; }
 @media (max-width: 480px) { .tap { grid-template-columns: 40px 1fr; } }
 
@@ -1123,15 +1130,21 @@ body { background: transparent; }
 /* Gold double rule at the edge, on every screen */
 .cover::before { content: ''; position: absolute; inset: 10px; border: 2px solid transparent; border-image: var(--gold-rule) 1; box-shadow: inset 0 0 0 5px transparent, inset 0 0 0 6px rgba(217,178,116,.55); pointer-events: none; z-index: 5; }
 .cover > .cap { display: none; }
-.cover > .flourish { position: absolute; width: clamp(96px, 11vw, 172px); aspect-ratio: 200 / 174; background: var(--art-corner, var(--corner)) no-repeat center / contain; z-index: 6; pointer-events: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); -webkit-mask-image: linear-gradient(225deg, #000 48%, rgba(0,0,0,0) 82%); mask-image: linear-gradient(225deg, #000 48%, rgba(0,0,0,0) 82%); }
+:root { --corner-w: clamp(96px, 11vw, 172px); --cover-pad: 0px; }
+.cover > .flourish { position: absolute; width: var(--corner-w); aspect-ratio: 200 / 174; background: var(--art-corner, var(--corner)) no-repeat center / contain; z-index: 6; pointer-events: none; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); -webkit-mask-image: linear-gradient(225deg, #000 48%, rgba(0,0,0,0) 82%); mask-image: linear-gradient(225deg, #000 48%, rgba(0,0,0,0) 82%); }
 .cover > .flourish--tr { top: 0; right: 0; }
 .cover > .flourish--tl { top: 0; left: 0; transform: scaleX(-1); }
 .cover > .flourish--br { bottom: 0; right: 0; transform: scaleY(-1); }
 .cover > .flourish--bl { bottom: 0; left: 0; transform: scale(-1, -1); }
-/* Phones: the 96px minimum corner sat over the logo (x 24–185) and the menu button. Smaller corners, and the header clears them. */
-@media (max-width: 640px) {
-  .cover > .flourish { width: 52px; }
-  .header-inner { padding-left: 56px; padding-right: 56px; }
+/* Phones: the 96px minimum corner sat over the logo (x 24–185) and the menu button. Smaller corners. */
+@media (max-width: 640px) { :root { --corner-w: 52px; } }
+@media (min-width: 900px) { :root { --cover-pad: 64px; } }
+/* The header row keeps clear of the top corners at every width (they sat over the logo at 800px and the
+   "Get in touch" button at 1024px, Test Bar Run 2). Once the container is wide enough to leave a margin
+   beyond the corners, only the 24px gutter is left. The left corner starts under the 64px spine padding. */
+.site-header .header-inner {
+  padding-right: max(24px, calc(var(--corner-w) + 8px - max(0px, (100% - var(--max)) / 2)));
+  padding-left: max(24px, calc(var(--corner-w) + 8px - var(--cover-pad) - max(0px, (100% - var(--max)) / 2)));
 }
 /* Spine with brass rivets — the owner's photographed rivet head, three of them: near the top, the middle, near the bottom, clear of the corner caps. */
 @media (min-width: 900px) {
@@ -1140,6 +1153,16 @@ body { background: transparent; }
 }
 .site-header, .site-footer { background: transparent; }
 .site-header { backdrop-filter: none; border-bottom: 1px solid rgba(217,178,116,.45); box-shadow: 0 1px 0 rgba(217,178,116,.18), 0 6px 0 -5px rgba(217,178,116,.35); }
+/* The sticky header is leather, not see-through: a transparent one let the page's text scroll visibly
+   behind the name and menu (Test Bar Run 2). It sits under the gold rule (5) and corners (6) so the
+   cover still frames it, and above the book's page-turn layers (2–3). */
+.site-header { z-index: 4; background: color-mix(in srgb, var(--leather) 90%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+/* The name and links never wrap: when the row doesn't fit, base.ejs adds .is-compact and the menu button
+   takes over (the name wrapped onto two lines at ~800px, Test Bar Run 2). */
+.brand, .primary-nav a, .header-cta { white-space: nowrap; }
+.site-header.is-compact .primary-nav, .site-header.is-compact .header-cta { display: none; }
+.site-header.is-compact .mobile-nav-toggle { display: flex; }
+.site-header.is-compact .mobile-nav:not([hidden]) { display: block; }
 .board, .menu-full, .menu, .story, .services, .team, .faq-section, .testimonials-section, .gallery-section, .contact-section, .hours, .visit, .parties, .events, .taps, .item-hero, .recurring, .cta--split, .cta__split-copy, .hero--split, .timeline { background: transparent; }
 .board::before { background: none; }
 /* Gold foil with a reflection, like the embossed lettering */

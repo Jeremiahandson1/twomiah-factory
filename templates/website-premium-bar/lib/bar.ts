@@ -52,6 +52,8 @@ export interface MenuSection { slug: string; name: string; description: string |
 export interface Tap {
   lineNumber: number; beerName: string; brewery: string | null; style: string | null; abv: string | null; originCountry: string | null
   description: string | null; badge: string | null; price: string | null; status: 'pouring' | 'just_tapped' | 'last_keg'
+  /** Every pour the tap sells ("Pint" $5.50, "Pitcher" $18), from the CRM's sizes; price above is the usual pour. */
+  sizes: Array<{ name: string; oz: number | null; price: string | null }>
 }
 export interface BarEvent { slug: string; title: string; description: string | null; startsAt: string; endsAt: string | null; imageUrl: string | null; isRecurring: boolean; recurrenceRule: string | null }
 
@@ -129,6 +131,7 @@ function tapsFrom(raw: any): Tap[] {
   return (Array.isArray(raw?.taps) ? raw.taps : []).filter((t: any) => t && t.beerName && ok.has(t.status)).map((t: any) => ({
     lineNumber: num(t.lineNumber) ?? 0, beerName: String(t.beerName), brewery: str(t.brewery), style: str(t.style), abv: t.abv == null ? null : String(t.abv),
     originCountry: str(t.originCountry), description: str(t.description), badge: str(t.badge), price: str(t.price), status: t.status,
+    sizes: (Array.isArray(t.sizes) ? t.sizes : []).filter((z: any) => z && str(z.name)).map((z: any) => ({ name: String(z.name), oz: num(z.oz), price: str(z.price) })),
   }))
 }
 

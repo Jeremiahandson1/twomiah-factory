@@ -10,6 +10,8 @@
   const DAYS = [['mon','Monday'],['tue','Tuesday'],['wed','Wednesday'],['thu','Thursday'],['fri','Friday'],['sat','Saturday'],['sun','Sunday']]
   function fmt(t) { const [h, m] = String(t).split(':').map(Number); const h12 = h % 12 === 0 ? 12 : h % 12; const ap = h < 12 ? 'AM' : 'PM'; return m ? h12 + ':' + String(m).padStart(2, '0') + ' ' + ap : h12 + ' ' + ap }
   function ranges(r) { if (!Array.isArray(r) || !r.length) return 'Closed'; return r.map(x => fmt(x.open) + ' – ' + fmt(x.close)).join(', ') }
+  // The table prints each range on its own unbreakable span (main.css .hours__range).
+  function rangeList(r) { return Array.isArray(r) && r.length ? r.map(x => fmt(x.open) + ' – ' + fmt(x.close)) : ['Closed'] }
   // Today on the BAR's clock (L.localDate), not the server's: Render runs on UTC, a day ahead every evening.
   const todayKey = L && /^\d{4}-\d{2}-\d{2}$/.test(L.localDate) ? ['sun','mon','tue','wed','thu','fri','sat'][new Date(L.localDate + 'T12:00:00Z').getUTCDay()] : ''
   const today = L ? L.localDate : ''
@@ -40,8 +42,9 @@
             <%# Escaped output tags used to wrap these, so today's row printed '<span class="hours__today-tag">' as text and lost its class. %>
             <tr<% if (k === todayKey) { %> class="is-today"<% } %>>
               <th scope="row"><%= name %><% if (k === todayKey) { %> <span class="hours__today-tag">today</span><% } %></th>
-              <td class="mono"><%= ranges(cfg.bar && cfg.bar[k]) %></td>
-              <td class="mono"><%= ranges(cfg.kitchen && cfg.kitchen[k]) %></td>
+              <% for (const side of [cfg.bar, cfg.kitchen]) { const list = rangeList(side && side[k]) %>
+              <td class="mono"><% list.forEach((x, i) => { %><%= i ? ', ' : '' %><span class="hours__range"><%= x %></span><% }) %></td>
+              <% } %>
             </tr>
           <% } %>
         </tbody>
