@@ -504,7 +504,8 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {/* The actions wrap onto a second row on a phone: unwrapped, View As, Help and Log out ran off the right edge at 390px (browser check 10/17). */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end', minWidth: 0 }}>
             {/* Live stats */}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span style={{ padding: '0.3rem 0.6rem', background: '#F0FDF4', color: '#16A34A', borderRadius: '6px', fontSize: '0.78rem', fontWeight: '600', border: '1px solid #BBF7D0' }}>
