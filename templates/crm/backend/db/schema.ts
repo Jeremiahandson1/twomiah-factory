@@ -645,6 +645,11 @@ export const submittal = pgTable('submittal', {
   approvedDate: timestamp('approved_date'),
   approvedBy: text('approved_by'),
   notes: text('notes'),
+  // What the form asks for and what the reviewer said (migration 0045). Before it these went into `notes` or nowhere.
+  submittalType: text('submittal_type').default('product_data').notNull(),
+  priority: text('priority').default('normal').notNull(),
+  assignedTo: text('assigned_to'),
+  reviewNotes: text('review_notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 

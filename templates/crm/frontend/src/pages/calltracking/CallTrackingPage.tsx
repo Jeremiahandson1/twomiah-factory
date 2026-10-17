@@ -55,7 +55,7 @@ interface TrackingNumber {
   name?: string;
   source: string;
   forwardTo: string;
-  _count?: { calls?: number };
+  callCount?: number;
 }
 
 interface StatCardProps {
@@ -473,7 +473,7 @@ function TrackingNumbersTab() {
                   </span>
                 </td>
                 <td className="px-4 py-3 font-mono text-gray-500 dark:text-slate-400">{num.forwardTo}</td>
-                <td className="px-4 py-3 text-right font-medium">{num._count?.calls || 0}</td>
+                <td className="px-4 py-3 text-right font-medium tabular-nums">{Number(num.callCount || 0)}</td>
               </tr>
             ))}
           </tbody>

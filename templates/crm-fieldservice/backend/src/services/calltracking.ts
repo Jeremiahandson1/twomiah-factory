@@ -24,6 +24,16 @@ function rows(result: any): any[] {
   return Array.isArray(result) ? result : (result?.rows || [])
 }
 
+/**
+ * THE SCREEN READS camelCase; THESE QUERIES ANSWERED snake_case. (crm-bar/crm-basic T57; here 10/17, launch list)
+ *
+ * Postgres answers in snake_case and `rows()` hands it straight out, so the call list's caller, number, time,
+ * recording and first-time flag, and the tracking numbers' Phone Number, Forward To and call count, arrived under
+ * names CallTrackingPage.tsx does not read — blank columns on a screen whose job is phone numbers. Fixed in bar and
+ * basic in T57 and left in this copy. Only the ENTITY row sets are camelised; the aggregates below are mapped by hand.
+ */
+import { camelRows } from '../shared/index.ts'
+
 // Provider configuration
 const PROVIDER = process.env.CALL_TRACKING_PROVIDER;
 const CALLRAIL_API_KEY = process.env.CALLRAIL_API_KEY;
@@ -64,7 +74,7 @@ export async function getTrackingNumbers(companyId: string, { source, active = t
   if (active !== null) conds.push(sql`active = ${active}`);
   const where = sql.join(conds, sql` AND `);
 
-  return rows(await db.execute(sql`
+  return camelRows(await db.execute(sql`
     SELECT tn.*, (SELECT COUNT(*) FROM call_log cl WHERE cl.tracking_number_id = tn.id)::int as call_count
     FROM tracking_number tn
     WHERE ${where}
@@ -256,7 +266,7 @@ export async function getCalls(companyId: string, {
   const limitN = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.min(200, Math.floor(Number(limit))) : 50;
   const offset = (pageN - 1) * limitN;
 
-  const callData = rows(await db.execute(sql`
+  const callData = camelRows(await db.execute(sql`
     SELECT cl.*,
       tn.name as tracking_number_name, tn.source as tracking_number_source,
       c.id as contact_id_ref, c.name as contact_name
@@ -278,7 +288,7 @@ export async function getCalls(companyId: string, {
  * Get single call
  */
 export async function getCall(callId: string, companyId: string) {
-  const callRows = rows(await db.execute(sql`
+  const callRows = camelRows(await db.execute(sql`
     SELECT cl.*,
       tn.name as tracking_number_name, tn.source as tracking_number_source,
       c.id as contact_id_ref, c.name as contact_name

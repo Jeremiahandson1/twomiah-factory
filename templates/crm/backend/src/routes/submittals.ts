@@ -11,7 +11,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { submittal, project } from '../../db/schema.ts'
+import { submittal, project, user } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -32,13 +32,19 @@ const submittalSchema = z.object({
   attachments: z.array(z.string()).optional(),
 })
 
+// The page and the form say "subject"; the table says title. One mapping, used by every reply.
+const shape = <T extends { title: string }>(s: T) => ({ ...s, subject: s.title })
+// A submittal is written as a draft and goes out on Submit. (The column's default is 'pending', which no screen
+// offered a button for: an office submittal could never be submitted, so never approved.)
+const DRAFTS = ['draft', 'pending']
+
 // List submittals for the tenant, with optional status/project filters
 app.get('/', requirePermission('submittals:read'), async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
   const projectId = c.req.query('projectId')
-  const page = +(c.req.query('page') || '1')
-  const limit = +(c.req.query('limit') || '50')
+  const page = Math.max(1, Math.floor(+(c.req.query('page') || '1')) || 1)
+  const limit = Math.min(200, Math.max(1, Math.floor(+(c.req.query('limit') || '50')) || 50))
 
   const conditions = [eq(submittal.companyId, currentUser.companyId)]
   if (status) conditions.push(eq(submittal.status, status))
@@ -57,7 +63,7 @@ app.get('/', requirePermission('submittals:read'), async (c) => {
     : []
   const projectMap = Object.fromEntries(projects.map((p) => [p.id, p]))
 
-  const enriched = data.map((s) => ({ ...s, project: projectMap[s.projectId] || null }))
+  const enriched = data.map((s) => ({ ...shape(s), project: projectMap[s.projectId] || null }))
 
   return c.json({ data: enriched, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
@@ -75,7 +81,7 @@ app.get('/:id', requirePermission('submittals:read'), async (c) => {
 
   const [proj] = await db.select().from(project).where(eq(project.id, found.projectId)).limit(1)
 
-  return c.json({ ...found, project: proj || null })
+  return c.json({ ...shape(found), project: proj || null })
 })
 
 app.post('/', requirePermission('submittals:create'), async (c) => {
@@ -97,25 +103,29 @@ app.post('/', requirePermission('submittals:create'), async (c) => {
       description: data.description,
       number: `SUB-${String(Number(cnt) + 1).padStart(3, '0')}`,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
-      notes: [data.submittalType, data.priority, data.assignedTo].filter(Boolean).join(' | ') || null,
+      submittalType: data.submittalType,
+      priority: data.priority,
+      assignedTo: data.assignedTo || null,
+      status: 'draft',
       companyId: currentUser.companyId,
-    } as any)
+    })
     .returning()
 
-  return c.json(created, 201)
+  return c.json(shape(created), 201)
 })
 
 app.put('/:id', requirePermission('submittals:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const data = submittalSchema.partial().parse(await c.req.json())
-  const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
-  if (data.dueDate) updateData.dueDate = new Date(data.dueDate)
+  const { subject, dueDate, attachments: _attachments, ...rest } = submittalSchema.partial().parse(await c.req.json())
+  const updateData: Partial<typeof submittal.$inferInsert> = { ...rest, updatedAt: new Date() }
+  if (subject !== undefined) updateData.title = subject
+  if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null
 
   // Scoped to the caller's company like the reads above, not matched on id alone.
   const [updated] = await db.update(submittal).set(updateData).where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId))).returning()
   if (!updated) return c.json({ error: 'Submittal not found' }, 404)
-  return c.json(updated)
+  return c.json(shape(updated))
 })
 
 app.delete('/:id', requirePermission('submittals:delete'), async (c) => {
@@ -127,56 +137,47 @@ app.delete('/:id', requirePermission('submittals:delete'), async (c) => {
   return c.body(null, 204)
 })
 
-// Workflow: submitted → reviewed → approved / revise_resubmit / rejected
-app.post('/:id/submit', requirePermission('submittals:update'), async (c) => {
-  const currentUser = c.get('user') as any
-  const id = c.req.param('id')
-  const [updated] = await db
-    .update(submittal)
-    .set({ status: 'submitted', submittedAt: new Date(), updatedAt: new Date() } as any)
-    .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId)))
-    .returning()
-  if (!updated) return c.json({ error: 'Submittal not found' }, 404)
-  return c.json(updated)
-})
+// Workflow: draft → submitted → approved / revise_resubmit / rejected; a revised one is submitted again.
+//
+// These wrote reviewNotes, approvedAt and submittedAt — names the table never had — through `as any`, so every
+// review's notes and dates were dropped without an error. Typed now (no `as any`), so a wrong name does not compile.
+// The review's notes are kept on the row and also added to its running notes, with who and when, the way the
+// architect's portal records a revision request (packages/tenant-backend/src/portal/portal.ts).
+const FROM: Record<string, string[]> = {
+  submit: [...DRAFTS, 'revise_resubmit', 'revise'],
+  approve: ['submitted'],
+  reject: ['submitted'],
+  revise: ['submitted'],
+}
+const TO: Record<string, string> = { submit: 'submitted', approve: 'approved', reject: 'rejected', revise: 'revise_resubmit' }
+const VERB: Record<string, string> = { approve: 'Approved', reject: 'Rejected', revise: 'Revision requested' }
 
-app.post('/:id/approve', requirePermission('submittals:update'), async (c) => {
-  const currentUser = c.get('user') as any
-  const id = c.req.param('id')
-  const { notes } = await c.req.json().catch(() => ({}))
-  const [updated] = await db
-    .update(submittal)
-    .set({ status: 'approved', approvedAt: new Date(), reviewNotes: notes, updatedAt: new Date() } as any)
-    .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId)))
-    .returning()
-  if (!updated) return c.json({ error: 'Submittal not found' }, 404)
-  return c.json(updated)
-})
-
-app.post('/:id/reject', requirePermission('submittals:update'), async (c) => {
-  const currentUser = c.get('user') as any
-  const id = c.req.param('id')
-  const { notes } = await c.req.json().catch(() => ({}))
-  const [updated] = await db
-    .update(submittal)
-    .set({ status: 'rejected', reviewNotes: notes, updatedAt: new Date() } as any)
-    .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId)))
-    .returning()
-  if (!updated) return c.json({ error: 'Submittal not found' }, 404)
-  return c.json(updated)
-})
-
-app.post('/:id/revise', requirePermission('submittals:update'), async (c) => {
-  const currentUser = c.get('user') as any
-  const id = c.req.param('id')
-  const { notes } = await c.req.json().catch(() => ({}))
-  const [updated] = await db
-    .update(submittal)
-    .set({ status: 'revise_resubmit', reviewNotes: notes, updatedAt: new Date() } as any)
-    .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId)))
-    .returning()
-  if (!updated) return c.json({ error: 'Submittal not found' }, 404)
-  return c.json(updated)
-})
+for (const action of Object.keys(TO)) {
+  app.post(`/:id/${action}`, requirePermission('submittals:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    const id = c.req.param('id')
+    const body = await c.req.json().catch(() => ({})) as { notes?: unknown }
+    const notes = typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim().slice(0, 4000) : null
+    const [found] = await db.select().from(submittal)
+      .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId))).limit(1)
+    if (!found) return c.json({ error: 'Submittal not found' }, 404)
+    if (!FROM[action].includes(found.status)) {
+      return c.json({ error: `A submittal that is ${found.status.replace(/_/g, ' ')} cannot be ${action === 'submit' ? 'submitted' : TO[action].replace(/_/g, ' ')}.` }, 409)
+    }
+    const now = new Date()
+    const set: Partial<typeof submittal.$inferInsert> = { status: TO[action], updatedAt: now }
+    if (action === 'submit') set.submittedDate = now
+    else {
+      const [me] = await db.select({ firstName: user.firstName, lastName: user.lastName }).from(user).where(eq(user.id, currentUser.userId)).limit(1)
+      const who = [me?.firstName, me?.lastName].filter(Boolean).join(' ') || currentUser.email || 'the office'
+      set.reviewNotes = notes
+      if (action === 'approve') { set.approvedDate = now; set.approvedBy = who }
+      if (notes) set.notes = (found.notes ? `${found.notes}\n\n` : '') + `[${VERB[action]} by ${who} on ${now.toISOString().slice(0, 10)}] ${notes}`
+    }
+    const [updated] = await db.update(submittal).set(set)
+      .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId))).returning()
+    return c.json(shape(updated))
+  })
+}
 
 export default app

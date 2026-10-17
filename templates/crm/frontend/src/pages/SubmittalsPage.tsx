@@ -27,11 +27,18 @@ interface Submittal {
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  pending: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   submitted: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
   approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   revise_resubmit: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
+  // what the architect's portal sets when it asks for a revision
+  revise: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
   rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
+
+// Which rows can go out for review: a new one (stored 'draft'; rows made before 10/17 say 'pending') and one sent back.
+const SUBMITTABLE = ['draft', 'pending', 'revise_resubmit', 'revise'];
+const STATUS_WORDS: Record<string, string> = { pending: 'draft', revise_resubmit: 'revise and resubmit', revise: 'revise and resubmit' };
 
 const TYPE_LABELS: Record<string, string> = {
   shop_drawing: 'Shop Drawing',
@@ -125,15 +132,18 @@ export default function SubmittalsPage() {
             ) : submittals.map((s) => (
               <tr key={s.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
                 <td className="px-4 py-3 font-mono text-sm">{s.number}</td>
-                <td className="px-4 py-3 font-medium">{s.subject}</td>
+                <td className="px-4 py-3 font-medium">
+                  {s.subject}
+                  {s.reviewNotes && <p className="text-xs font-normal text-gray-500 mt-0.5 dark:text-slate-400">Review: {s.reviewNotes}</p>}
+                </td>
                 <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{s.project?.name || '—'}</td>
                 <td className="px-4 py-3 text-sm">{TYPE_LABELS[s.submittalType] || s.submittalType}</td>
                 <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{s.specSection || '—'}</td>
-                <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>{s.status.replace('_', ' ')}</span></td>
+                <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>{STATUS_WORDS[s.status] || s.status.replace(/_/g, ' ')}</span></td>
                 <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{s.dueDate ? formatDate(s.dueDate) : '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
-                    {can('submittals:update') && s.status === 'draft' && <button onClick={() => runAction(s.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded dark:text-blue-300" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}
+                    {can('submittals:update') && SUBMITTABLE.includes(s.status) && <button onClick={() => runAction(s.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded dark:text-blue-300" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}
                     {can('submittals:update') && s.status === 'submitted' && (<>
                       <button onClick={() => runAction(s.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300" title="Approve"><Check className="w-4 h-4" /></button>
                       <button onClick={() => runAction(s.id, 'revise')} className="text-yellow-700 hover:bg-yellow-50 p-1 rounded dark:text-yellow-300" title="Revise and resubmit"><RotateCcw className="w-4 h-4" /></button>
