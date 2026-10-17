@@ -239,6 +239,13 @@
       "when": 1791601504001,
       "tag": "0033_callrail_signing_key",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791601504002,
+      "tag": "0034_bar_live",
+      "breakpoints": true
     }
   ]
 }

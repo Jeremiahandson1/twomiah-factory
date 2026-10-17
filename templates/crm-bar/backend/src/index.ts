@@ -80,6 +80,9 @@ import warrantiesRoutes from './routes/warranties.ts'
 import weatherRoutes from './routes/weather.ts'
 import supportRoutes from './routes/support.ts'
 import leadsRoutes from './routes/leads.ts'
+// The bar: staff records (menu, taps, the Tonight console) and what the bar's website reads live.
+import barRoutes from './routes/bar.ts'
+import barPublicRoutes from './routes/barPublic.ts'
 import wisetackRoutes from './routes/wisetack.ts'
 import adsRoutes, { adsConnector } from './routes/ads.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
@@ -353,6 +356,9 @@ app.route('/api/ads', adsRoutes)
 // Public visitor tracking — no auth, called from tenant public website JS
 const adsPublicRoutes = (await import('./routes/adsPublic.ts')).default
 app.route('/api/public/ads-experiments', adsPublicRoutes)
+app.route('/api/bar', barRoutes)
+// No sign-in: public fields only, read by the bar's website server (routes/barPublic.ts).
+app.route('/api/public/bar', barPublicRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
 // Public media proxy for uploaded photos (streamed from private R2). Must be
 // registered before the static/SPA catch-all so /media/* is not swallowed.

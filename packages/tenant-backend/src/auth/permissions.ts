@@ -214,6 +214,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
      * five (crm-dispensary's orders/products live in its own forked matrix).
      */
     'orders:*', 'products:*', 'discounts:*', 'shipping:*', 'reviews:*',
+    // crm-bar: the menu, taps, specials, hours and the Tonight console (routes/bar.ts).
+    'bar:*',
   ],
   manager: [
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
@@ -281,6 +283,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // deleting from the catalogue and moderating reviews. Not payments, settings or logins — the same
     // line payments:* and settings:* already draw. (crm-store; note on admin)
     'orders:*', 'products:*', 'discounts:*', 'shipping:*', 'reviews:*',
+    'bar:*',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',
@@ -300,6 +303,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // Sees a balance and a card. Spending and correcting are widened per-vertical, because who works
     // the till differs: a salon stylist checks their own client out, a site crew never does.
     'loyalty:read',
+    // A bartender works the console: 86 an item, tap or blow a keg, how busy, the note, tonight's special.
+    // Changing the menu, the taps on the lines, or the hours is a manager's.
+    'bar:read', 'bar:console',
   ],
   viewer: [
     'contacts:read', 'projects:read', 'jobs:read', 'quotes:read', 'invoices:read',
@@ -310,6 +316,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'loyalty:read',
     // Sees revenue, not cost (owner's decision) — what it read before revenue:read existed. (T62; note on admin)
     'revenue:read',
+    'bar:read',
   ],
   user: [],
 }

@@ -3086,3 +3086,162 @@ export const mfaChallenge = pgTable('mfa_challenges', {
 }, (t) => [
   index('mfa_challenge_user_idx').on(t.userId),
 ])
+
+// ==================== THE BAR ====================
+// What a bar changes every night, owned here and read live by its website (GET /api/public/bar/*,
+// routes/barPublic.ts): the menu and 86, taps, specials, games, public events, and the status the bartender
+// sets on the Tonight console. Hours (bar and kitchen) live on bar_settings and run through
+// services/barHours.ts. Moved from website-premium-bar's own tables (Amber Inn, 9/7) when the CRM became the
+// bar's one database. One row per company where a singleton is meant (bar_settings, bar_status).
+
+export const barSettings = pgTable('bar_settings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  /** services/barHours.ts HoursConfig: { timezone, bar, kitchen, holidays }. */
+  hours: json('hours').default({}).notNull(),
+  /** The speakeasy door game on the website: a bcrypt hash, never the password. Null = the door is off. */
+  speakeasyPasswordHash: text('speakeasy_password_hash'),
+  /** What the password is good for ("$1 off a root beer"), shown only to someone who got it right. */
+  speakeasyNote: text('speakeasy_note'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_settings_company_key').on(t.companyId),
+])
+
+export const barStatus = pgTable('bar_status', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  // null = follow the hours; false = closed now; true = open now (rare). All overrides lapse at overrideUntil.
+  kitchenOpen: boolean('kitchen_open'),
+  kitchenClosesAt: timestamp('kitchen_closes_at'),
+  barOpen: boolean('bar_open'),
+  barClosesAt: timestamp('bar_closes_at'),
+  overrideUntil: timestamp('override_until'),
+  roomStatus: text('room_status').default('quiet').notNull(), // quiet | filling | packed
+  note: text('note'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  updatedById: text('updated_by_id').references(() => user.id, { onDelete: 'set null' }),
+  updatedByName: text('updated_by_name'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_status_company_key').on(t.companyId),
+])
+
+export const barTap = pgTable('bar_tap', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  lineNumber: integer('line_number').notNull(),
+  beerName: text('beer_name').notNull(),
+  brewery: text('brewery'),
+  style: text('style'),
+  abv: decimal('abv', { precision: 4, scale: 1 }),
+  originCountry: text('origin_country'),
+  description: text('description'),
+  badge: text('badge'),
+  priceCents: integer('price_cents'),
+  /** pouring | just_tapped | last_keg | blown. The website shows the first three, never a keg level. */
+  status: text('status').default('pouring').notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  tappedAt: timestamp('tapped_at'),
+  blownAt: timestamp('blown_at'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_tap_company_idx').on(t.companyId, t.isActive, t.sortOrder),
+])
+
+export const barSpecial = pgTable('bar_special', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  title: text('title').notNull(),
+  description: text('description'),
+  priceCents: integer('price_cents'),
+  startsAt: timestamp('starts_at').notNull(),
+  endsAt: timestamp('ends_at'),
+  /** Weekly: the weekdays it runs, as two-letter codes ('MO,FR'). Null = every day while active. */
+  isRecurring: boolean('is_recurring').default(false).notNull(),
+  recurrenceDays: text('recurrence_days'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_special_company_idx').on(t.companyId, t.startsAt),
+])
+
+export const barGame = pgTable('bar_game', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  league: text('league').notNull(),
+  home: text('home').notNull(),
+  away: text('away').notNull(),
+  startsAt: timestamp('starts_at').notNull(),
+  isFeatured: boolean('is_featured').default(false).notNull(),
+  note: text('note'),
+  /** Optional game-day hours, services/barHours.ts Range[] shape. */
+  barHours: json('bar_hours'),
+  kitchenHours: json('kitchen_hours'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_game_company_idx').on(t.companyId, t.startsAt),
+])
+
+export const barEvent = pgTable('bar_event', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  slug: text('slug').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  startsAt: timestamp('starts_at').notNull(),
+  endsAt: timestamp('ends_at'),
+  imageUrl: text('image_url'),
+  isRecurring: boolean('is_recurring').default(false).notNull(),
+  recurrenceDays: text('recurrence_days'),
+  isPublished: boolean('is_published').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_event_company_slug_key').on(t.companyId, t.slug),
+  index('bar_event_company_idx').on(t.companyId, t.isPublished, t.startsAt),
+])
+
+export const barMenuSection = pgTable('bar_menu_section', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  slug: text('slug').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  kind: text('kind').default('food').notNull(), // food | drink
+  sortOrder: integer('sort_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_menu_section_company_slug_key').on(t.companyId, t.slug),
+])
+
+export const barMenuItem = pgTable('bar_menu_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sectionId: text('section_id').references(() => barMenuSection.id, { onDelete: 'set null' }),
+  slug: text('slug').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  priceCents: integer('price_cents'),
+  /** When one price will not do: "1/2 lb $14 · 1/4 lb $10", "market". */
+  priceLabel: text('price_label'),
+  dietary: json('dietary').default([]).notNull(),
+  imageUrl: text('image_url'),
+  heroImageUrl: text('hero_image_url'),
+  /** Markdown, for a signature item's own page on the website. */
+  story: text('story'),
+  isSignature: boolean('is_signature').default(false).notNull(),
+  is86ed: boolean('is_86ed').default(false).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  /** Every priced size: [{ id, name, priceCents }] (services/barMenuSizes.ts). */
+  variations: json('variations').default([]).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_menu_item_company_slug_key').on(t.companyId, t.slug),
+  index('bar_menu_item_section_idx').on(t.sectionId, t.sortOrder),
+])

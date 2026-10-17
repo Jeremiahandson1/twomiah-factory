@@ -110,6 +110,10 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'rebooking_reminders', name: 'Rebooking & Recall', description: 'Who is due back, who has lapsed, whose birthday is coming — with bulk texting', category: 'Salon & Barber', core: true, templates: ['crm-salon'] },
   { id: 'salon_memberships', name: 'Memberships & Packages', description: 'Recurring memberships and prepaid visit packages that burn down per redeem', category: 'Salon & Barber', core: false, templates: ['crm-salon'] },
 
+  // Bar (crm-bar) — what a bar changes every night and its website shows live (routes/bar.ts, barPublic.ts).
+  { id: 'bar_menu', name: 'Menu & Taps', description: 'The menu with real prices and one-tap 86, and the tap list — shown live on your website', category: 'Bar', core: true, templates: ['crm-bar'] },
+  { id: 'bar_tonight', name: 'Tonight', description: "Kitchen and bar open or closed, how busy, the note, tonight's special, the game and events — from a phone, live on your website", category: 'Bar', core: true, templates: ['crm-bar'] },
+
   // Private Events & Catering (crm-restaurant) — enquiry -> booking -> deposit
   // -> banquet event order. Scoped to the private-events side of a restaurant,
   // NOT a POS or covers system. Every id here gates exactly one sidebar item or
