@@ -108,7 +108,7 @@ export default function DrawSchedulesPage() {
                         <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${REQ_STATUS_COLORS[r.status]}`}>{r.status}</span></td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
-                            {r.status === 'pending' && <button onClick={() => drawAction(r.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded text-xs dark:text-blue-300">Submit</button>}
+                            {r.status === 'pending' && <button onClick={() => drawAction(r.id, 'submit')} className="text-orange-700 hover:bg-orange-50 p-1 rounded text-xs dark:text-orange-200">Submit</button>}
                             {r.status === 'submitted' && <button aria-label="Approve" onClick={() => drawAction(r.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300"><Check className="w-4 h-4" /></button>}
                             {r.status === 'approved' && <button onClick={() => drawAction(r.id, 'mark-paid')} className="text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 p-1 rounded text-xs">Mark Paid</button>}
                           </div>

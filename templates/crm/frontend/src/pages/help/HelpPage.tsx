@@ -149,7 +149,7 @@ export default function HelpPage() {
             )}
             {chatMessages.map((msg, i) => (
               <div key={i} className={'flex ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-                <div className={'max-w-[80%] rounded-xl px-4 py-2 text-sm ' + (msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300')}>
+                <div className={'max-w-[80%] rounded-xl px-4 py-2 text-sm ' + (msg.role === 'user' ? 'bg-orange-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300')}>
                   {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
                 </div>
               </div>
@@ -167,7 +167,7 @@ export default function HelpPage() {
           </div>
         </div>
         <p className="text-xs text-gray-600 mt-2 dark:text-slate-400">
-          Can't find an answer? <a href={hasFeature('support_tickets') ? '/crm/support' : '/crm/contact-support'} className="text-blue-600 dark:text-blue-400 hover:underline">{hasFeature('support_tickets') ? 'Submit a support ticket' : 'Contact Twomiah'}</a>
+          Can't find an answer? <a href={hasFeature('support_tickets') ? '/crm/support' : '/crm/contact-support'} className="text-orange-600 dark:text-orange-200 hover:underline">{hasFeature('support_tickets') ? 'Submit a support ticket' : 'Contact Twomiah'}</a>
         </p>
       </div>
     );
@@ -183,7 +183,7 @@ export default function HelpPage() {
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">Manage Help Articles</h1>
           </div>
           <button onClick={() => setEditArticle({ title: '', content: '', category: '', isFaq: false, sortOrder: 0 })}
-            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
+            className="flex items-center gap-1 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">
             <Plus size={14} /> Add Article
           </button>
         </div>
@@ -232,7 +232,7 @@ export default function HelpPage() {
               <div className="flex justify-end gap-2 mt-4">
                 <button onClick={() => setEditArticle(null)} className="px-3 py-1.5 text-gray-600 dark:text-gray-400 text-sm">Cancel</button>
                 <button onClick={saveArticle} disabled={!editArticle.title || !editArticle.content}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm">Save</button>
+                  className="px-4 py-1.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-lg text-sm">Save</button>
               </div>
             </div>
           </div>
@@ -335,7 +335,7 @@ export default function HelpPage() {
           (Field Service T28 L2 + L8) */}
       <div className="mt-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 text-center">
         <p className="text-sm text-gray-600 dark:text-gray-400">Can't find what you need?</p>
-        <a href={hasFeature('support_tickets') ? '/crm/support' : '/crm/contact-support'} className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium">{hasFeature('support_tickets') ? 'Submit a support ticket' : 'Contact Twomiah'}</a>
+        <a href={hasFeature('support_tickets') ? '/crm/support' : '/crm/contact-support'} className="text-orange-600 dark:text-orange-200 hover:underline text-sm font-medium">{hasFeature('support_tickets') ? 'Submit a support ticket' : 'Contact Twomiah'}</a>
       </div>
     </div>
   );

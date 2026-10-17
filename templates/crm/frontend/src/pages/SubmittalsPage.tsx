@@ -143,7 +143,7 @@ export default function SubmittalsPage() {
                 <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{s.dueDate ? formatDate(s.dueDate) : '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
-                    {can('submittals:update') && SUBMITTABLE.includes(s.status) && <button onClick={() => runAction(s.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded dark:text-blue-300" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}
+                    {can('submittals:update') && SUBMITTABLE.includes(s.status) && <button onClick={() => runAction(s.id, 'submit')} className="text-orange-700 hover:bg-orange-50 p-1 rounded dark:text-orange-200" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}
                     {can('submittals:update') && s.status === 'submitted' && (<>
                       <button onClick={() => runAction(s.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300" title="Approve"><Check className="w-4 h-4" /></button>
                       <button onClick={() => runAction(s.id, 'revise')} className="text-yellow-700 hover:bg-yellow-50 p-1 rounded dark:text-yellow-300" title="Revise and resubmit"><RotateCcw className="w-4 h-4" /></button>
