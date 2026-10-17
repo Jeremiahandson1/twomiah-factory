@@ -2927,3 +2927,20 @@ jobs:
       # not bunx: an empty bunx tsc run is not proof of zero errors.
       - name: "tsc --noEmit (apps/mobile)"
         run: bun install --frozen-lockfile && cd apps/mobile && node node_modules/typescript/bin/tsc --noEmit -p .
+
+  mobile-behaviour:
+    name: "The mobile app's sign-in (two-factor) and caregiver logic behave"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "bun install"
+        run: bun install --frozen-lockfile
+      # login → mfaRequired → code → tokens in SecureStore; a wrong code stays, an expired one restarts.
+      # Over the real api/client.ts with a fake fetch and an in-memory expo-secure-store.
+      - name: "sign-in with two-factor (apps/mobile/src/auth/signIn.ts)"
+        run: bun run tests/mobile/sign-in-mfa.test.ts
+      - name: "caregiver app logic (apps/mobile/src/care)"
+        run: bun run tests/mobile/care-app.test.ts
