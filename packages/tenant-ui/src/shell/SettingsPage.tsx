@@ -283,9 +283,11 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                 {showLicense && <Field label="License #"><input value={form.licenseNumber} onChange={set('licenseNumber')} className={inputCls} /></Field>}
               </div>
               {/* The company row has carried logo and primaryColor all along, and the portal header, the Stripe
-                  payment form and your invoices already use them — there was simply nowhere to set them. (T14 M8) */}
+                  payment form and your invoices already use them — there was simply nowhere to set them. (T14 M8)
+                  The colour also paints this CRM's own screens now: the shell sets the brand palette from it at
+                  runtime (useBrandPalette), so this line no longer says "the portal and invoices only". */}
               <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Branding</h3>
-              <p className="text-sm text-gray-500 -mt-2 dark:text-slate-400">What your customers see: the portal header, the payment form and your invoices.</p>
+              <p className="text-sm text-gray-500 -mt-2 dark:text-slate-400">Your colour across this CRM — its buttons, links and menus — and on what your customers see: the portal header, the payment form and your invoices.</p>
               <Field label="Logo URL" hint="A direct link to your logo image. Leave blank to show your company name instead.">
                 <input value={form.logo} onChange={set('logo')} className={inputCls} placeholder="https://example.com/logo.png" />
               </Field>
@@ -295,7 +297,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                   <img src={form.logo} alt="Company logo preview" className="h-10 max-w-[200px] object-contain border border-gray-200 rounded p-1 dark:border-slate-700" />
                 </div>
               )}
-              <Field label="Brand Colour" hint="A 6-digit hex value. Leave blank to use the default.">
+              <Field label="Brand Colour" hint="A 6-digit hex value. Leave blank to use the default. A very light colour is darkened where white text sits on it, so buttons stay readable.">
                 <div className="flex items-center gap-2">
                   <input
                     type="color"

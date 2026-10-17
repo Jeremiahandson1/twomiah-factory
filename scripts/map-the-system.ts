@@ -3,8 +3,9 @@
 //
 // Written because I kept acting on stale recollection: I reported two closed QA items as open, proposed a
 // types change that would have enforced nothing (CI never type-checks the templates), and nearly built a
-// CSS-variable brand-theming system when every tailwind.config.js has mapped orange/primary/brand to the
-// tenant's generated palette all along.
+// CSS-variable brand-theming system when every tailwind.config.js had mapped orange/primary/brand to the
+// tenant's generated palette all along. (The CSS variables came later, for a different reason: so a colour
+// changed in Settings reaches the screens at runtime. They carry that same generated palette.)
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
 
 // Repo-relative, so this runs from any checkout or worktree.
@@ -50,8 +51,9 @@ console.log(`  feature ids          packages/tenant-backend/src/featureRegistry.
 console.log(`                       apps/api/src/config/featureRegistry.ts is a ${read('apps/api/src/config/featureRegistry.ts').split('\n').length}-line re-export`)
 const routing = read('apps/api/src/config/industryRouting.ts')
 console.log(`  industry -> vertical apps/api/src/config/industryRouting.ts — ${count(routing, /case '|Set\(\[/g)} decision points`)
-console.log(`  brand colour         templates/*/frontend/tailwind.config.js maps orange+primary+brand -> generatePalette('{{PRIMARY_COLOR}}')`)
-console.log(`                       => an orange-* class IS the tenant's colour. There is no CSS-var system and none is needed.`)
+console.log(`  brand colour         packages/tenant-ui/src/brandPalette.js — generatePalette, one copy. tailwind.config.js maps orange+primary+brand`)
+console.log(`                       to --brand-* variables defaulting to generatePalette('{{PRIMARY_COLOR}}'); the shell resets them from`)
+console.log(`                       company.primaryColor at runtime => an orange-* class IS the tenant's CURRENT colour.`)
 console.log(`  shared backend       packages/tenant-backend/src  -> vendored to backend/src/shared at generation`)
 console.log(`  shared frontend      packages/tenant-ui/src       -> vendored to frontend/src/shared at generation`)
 

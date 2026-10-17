@@ -18,6 +18,7 @@ import api from '../../services/api';
 import { SkipLink, RouteAnnouncer } from '../common/Accessibility';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../hooks/useTheme';
+import { useBrandPalette } from '../../shared';
 
 // Nav items with optional feature gating.
 // Items without `features` are always visible (core).
@@ -153,6 +154,9 @@ export default function AppLayout() {
   const { user, company, logout, hasFeature } = useAuth();
   const { connected } = useSocket();
   const { theme, setTheme, isDark } = useTheme();
+  // This layout is a fork of the shared AppShell, so it must do what the shell does: put company.primaryColor —
+  // the colour set after signup — on every brand-coloured class, through the build's own generator and clamps.
+  useBrandPalette(company?.primaryColor);
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();

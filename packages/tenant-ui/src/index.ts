@@ -86,7 +86,7 @@ export { GlobalSearch } from './shell/GlobalSearch'
 export { TrialBanner } from './shell/TrialBanner'
 export { ErrorBoundary } from './shell/ErrorBoundary'
 export { SkipLink, FocusTrap, RouteAnnouncer } from './shell/Accessibility'
-export { applyStoredTheme, useTheme, useIsDark, useMediaQuery, useIsMobile, useIsTablet, useIsDesktop, usePrefersDarkMode, usePrefersReducedMotion } from './shell/hooks'
+export { applyStoredTheme, useTheme, useBrandPalette, useIsDark, useMediaQuery, useIsMobile, useIsTablet, useIsDesktop, usePrefersDarkMode, usePrefersReducedMotion } from './shell/hooks'
 export type { NavItem, ShellConfig, ShellAuth, AppShellProps, SettingsConfig, SettingsPageProps, FeaturesSettingsPageProps, RoleOption } from './shell/types'
 export { DEFAULT_ROLES, ROLE_LABELS } from './shell/types'
 // The shell's own route rules, so a link drawn OUTSIDE the shell (the portal home's Account Settings
@@ -163,3 +163,6 @@ export { localDayKey, todayKey, dayKeyPlus } from './time/day'
 // already clamps bg-*-500/600; these are the same clamp for code that paints company.primaryColor
 // directly and so never goes through Tailwind at all.
 export { brandSurfaceUnderWhite, brandInkOn } from './brand'
+// The brand palette itself: the one generator tailwind.config.js builds with and the shell runs again over
+// company.primaryColor at runtime (useBrandPalette). A forked layout calls useBrandPalette; nothing else needs these.
+export { generatePalette, applyBrandPalette, normalizeHex, BRAND_SHADES } from './brandPalette.js'

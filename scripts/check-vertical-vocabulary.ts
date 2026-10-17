@@ -250,8 +250,9 @@ for (const [constName, { module, fields }] of Object.entries(PINNED)) {
 // ── 5. the chrome wears the TENANT's colour, not a hardcoded one ────────────────────────────────
 //
 // tailwind.config.js maps `orange`, `primary` and `brand` to generatePalette('{{PRIMARY_COLOR}}') in
-// every template, so a class in those families IS the tenant's colour — that mapping is how the fleet is
-// branded, and there is no CSS-variable system (nor any need for one). crm-roof's sidebar used
+// every template (as --brand-* CSS variables with that palette as their defaults, which the shell resets
+// from company.primaryColor at runtime), so a class in those families IS the tenant's colour — that mapping
+// is how the fleet is branded. crm-roof's sidebar used
 // `bg-blue-600`; blue is NOT mapped, so a roofer's own colour never reached their own chrome, and the
 // defect read as "brand colour is never applied" (Summit Ridge M-06).
 //

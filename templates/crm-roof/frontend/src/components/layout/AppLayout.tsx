@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { useTheme, meetsRole, usePermissions } from '../../shared'
+import { useTheme, meetsRole, usePermissions, useBrandPalette } from '../../shared'
 import { TrialBanner } from '../trial/TrialBanner'
 import {
   LayoutDashboard,
@@ -96,6 +96,10 @@ const bottomNavItems = [
 export default function AppLayout() {
   const { user, company, logout, hasFeature } = useAuth()
   const { setTheme, isDark } = useTheme()
+  // This layout is a fork of the shared AppShell, so it does what the shell does: company.primaryColor — the colour
+  // set in Settings › Branding, not only the one chosen at signup — on every brand-coloured class, through the
+  // build's own generator and clamps. Settings › Branding updates `company` on save, so it shows at once.
+  useBrandPalette(company?.primaryColor)
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // The same rule for every group: an item with no `feature` is always shown, one with a feature is

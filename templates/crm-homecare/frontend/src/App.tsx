@@ -23,7 +23,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import AdsPage from './pages/ads/AdsPage';
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, isAccountLocked } from './shared';
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, isAccountLocked, useBrandPalette } from './shared';
 import PaywallPage from './pages/PaywallPage';
 import { LOCK_PAGE } from './services/api';
 import { usePageTitle } from './hooks/usePageTitle';
@@ -269,6 +269,9 @@ const FamilyApp = () => {
 const MainApp = () => {
   const auth = useAuth();
   const { user, company, loading, isAdmin, isCaregiver, token, login, logout } = auth;
+  // The agency's colour on every brand-coloured (orange-/primary-/brand-) class — the stored one, not only the one
+  // the build baked in; same generator and clamps as tailwind.config.js. Before any early return: it is a hook.
+  useBrandPalette(company?.primaryColor);
 
   // Impersonation state — keeps original admin session intact
   const [impersonationToken, setImpersonationToken] = useState(null);
