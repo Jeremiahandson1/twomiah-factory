@@ -238,7 +238,7 @@ export default function ContactsPage() {
           {mayCreateContact && (
             <button
               onClick={openCreate}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg"
             >
               <Plus className="w-4 h-4" /> Add Contact
             </button>
@@ -270,7 +270,7 @@ export default function ContactsPage() {
                     key={contact.id}
                     onClick={() => selectContact(contact)}
                     className={`px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors ${
-                      selected?.id === contact.id ? 'bg-blue-50 border-l-2 border-l-blue-600 dark:bg-blue-950/40 dark:text-slate-100' : ''
+                      selected?.id === contact.id ? 'bg-orange-50 border-l-2 border-l-orange-600 dark:bg-orange-950/40 dark:text-slate-100' : ''
                     }`}
                   >
                     <p className="font-medium text-gray-900 text-sm dark:text-slate-100">
@@ -332,7 +332,7 @@ export default function ContactsPage() {
                       key={tab}
                       onClick={() => setDetailTab(tab)}
                       className={`flex-1 py-2.5 text-xs font-medium uppercase tracking-wider ${
-                        detailTab === tab ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+                        detailTab === tab ? 'border-b-2 border-orange-600 text-orange-600 dark:text-orange-200' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
                       }`}
                     >
                       {tab}
@@ -344,12 +344,12 @@ export default function ContactsPage() {
                   {detailTab === 'info' && (
                     <div className="space-y-4">
                       {selected.phone && (
-                        <a href={`tel:${selected.phone}`} className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                        <a href={`tel:${selected.phone}`} className="flex items-center gap-2 text-sm text-orange-600 dark:text-orange-200 hover:underline">
                           <Phone className="w-4 h-4" /> {selected.phone}
                         </a>
                       )}
                       {selected.email && (
-                        <a href={`mailto:${selected.email}`} className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                        <a href={`mailto:${selected.email}`} className="flex items-center gap-2 text-sm text-orange-600 dark:text-orange-200 hover:underline">
                           <Mail className="w-4 h-4" /> {selected.email}
                         </a>
                       )}
@@ -369,7 +369,7 @@ export default function ContactsPage() {
                             onClick={togglePortal}
                             disabled={togglingPortal}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              selected.portalEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100'
+                              selected.portalEnabled ? 'bg-orange-600' : 'bg-gray-200 dark:bg-slate-700 dark:text-slate-100'
                             }`}
                           >
                             <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
@@ -380,7 +380,7 @@ export default function ContactsPage() {
                         {selected.portalEnabled && (
                           mayEditContact && (<button
                             onClick={resendInvite}
-                            className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                            className="flex items-center gap-1.5 text-sm text-orange-600 dark:text-orange-200 hover:underline"
                           >
                             <Send className="w-3.5 h-3.5" /> Resend Invite
                           </button>)
@@ -430,11 +430,11 @@ export default function ContactsPage() {
                           // dark:text-slate-100, so the bubble needs its own dark ground or the
                           // customer's words are near-white on light grey. (T41)
                           ? 'bg-gray-100 dark:bg-slate-700 text-gray-900 mr-auto dark:text-slate-200'
-                                : 'bg-blue-600 text-white ml-auto'
+                                : 'bg-orange-600 text-white ml-auto'
                             } dark:text-slate-100`}
                           >
                             <p>{msg.body || msg.message}</p>
-                            <p className={`text-[10px] mt-1 ${msg.direction === 'inbound' ? 'text-gray-600 dark:text-slate-300' : 'text-blue-200'}`}>
+                            <p className={`text-[10px] mt-1 ${msg.direction === 'inbound' ? 'text-gray-600 dark:text-slate-300' : 'text-white'}`}>
                               {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ''}
                             </p>
                           </div>
@@ -452,7 +452,7 @@ export default function ContactsPage() {
                         {mayTextContact && (<button aria-label="Send text"
                           onClick={sendSms}
                           disabled={sendingSms || !smsText.trim()}
-                          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                          className="px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
                         >
                           <Send className="w-4 h-4" />
                         </button>)}
@@ -486,14 +486,14 @@ export default function ContactsPage() {
                     type={key === 'email' ? 'email' : 'text'}
                     value={form[key]}
                     onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none dark:border-slate-700"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none dark:border-slate-700"
                   />
                 </label>
               ))}
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
               <button onClick={() => setShowCreate(false)} disabled={saving} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-400">Cancel</button>
-              <button onClick={saveContact} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg">
+              <button onClick={saveContact} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg">
                 {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Contact'}
               </button>
             </div>

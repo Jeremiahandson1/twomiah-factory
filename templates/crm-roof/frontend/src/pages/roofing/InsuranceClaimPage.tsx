@@ -572,7 +572,7 @@ export default function InsuranceClaimPage() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+    return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" /></div>;
   }
 
   if (!claim) {
@@ -601,7 +601,7 @@ export default function InsuranceClaimPage() {
               {mayWriteClaim ? (
                 <button
                   onClick={() => setStartOpen(true)}
-                  className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
+                  className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-semibold">
                   <Plus className="w-4 h-4" /> Start insurance claim
                 </button>
               ) : (
@@ -652,7 +652,7 @@ export default function InsuranceClaimPage() {
               </div>
               <div className="flex gap-2 pt-1">
                 <button onClick={createClaim} disabled={creating}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-semibold">
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-semibold">
                   {creating ? <><Loader2 className="w-4 h-4 animate-spin" /> Starting…</> : 'Start claim'}
                 </button>
                 <button onClick={() => setStartOpen(false)} disabled={creating}
@@ -730,7 +730,7 @@ export default function InsuranceClaimPage() {
               {/* POST /claims/:id/activity asks insurance:create. A crew reads the trail — it is
                   how they know where the claim stands — and does not write to it. (T41) */}
               {mayWriteClaim && (
-                <button onClick={() => setActivityOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <button onClick={() => setActivityOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-orange-600 text-white rounded-lg hover:bg-orange-700">
                   <Plus className="w-3.5 h-3.5" /> Log Activity
                 </button>
               )}
@@ -797,15 +797,15 @@ export default function InsuranceClaimPage() {
                         disabled={!mayWriteClaim}
                         title={mayWriteClaim ? undefined : 'A manager moves the claim along'}
                         className={`flex flex-col items-center px-2 py-1.5 rounded-lg text-[10px] font-medium transition min-w-[80px] ${mayWriteClaim ? '' : 'cursor-default'} ${
-                          isActive ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-300 dark:text-blue-300 dark:bg-blue-950/40' :
+                          isActive ? 'bg-orange-100 text-orange-700 ring-2 ring-orange-300 dark:text-orange-200 dark:bg-orange-950/40' :
                           isPast ? 'bg-green-50 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
                           (mayWriteClaim
                             ? 'bg-gray-50 text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-300 dark:bg-slate-800'
                             : 'bg-gray-50 text-gray-600 dark:text-slate-300 dark:bg-slate-800')
-                        } ${isDenied && isActive ? 'bg-red-100 text-red-700 ring-red-300 dark:text-red-400 dark:bg-red-950/40' : ''} dark:text-blue-300`}
+                        } ${isDenied && isActive ? 'bg-red-100 text-red-700 ring-red-300 dark:text-red-400 dark:bg-red-950/40' : ''}`}
                       >
                         <div className={`w-5 h-5 rounded-full flex items-center justify-center mb-1 ${
-                          isActive ? 'bg-blue-600 text-white' :
+                          isActive ? 'bg-orange-600 text-white' :
                           isPast ? 'bg-green-700 text-white' :
                           'bg-gray-200 text-gray-600 dark:text-slate-300 dark:bg-slate-700'
                         }`}>
@@ -885,7 +885,7 @@ export default function InsuranceClaimPage() {
                 </div>
               </div>
               {mayWriteClaim && (
-                <button onClick={saveAdjusterToDirectory} className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
+                <button onClick={saveAdjusterToDirectory} className="mt-3 text-xs text-orange-600 dark:text-orange-200 hover:text-orange-900 dark:hover:text-orange-100 font-medium">
                   Save to Adjuster Directory
                 </button>
               )}
@@ -1085,7 +1085,7 @@ export default function InsuranceClaimPage() {
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Supplements</h3>
                 {/* POST /claims/:id/supplements asks insurance:create. (T41) */}
                 {mayWriteClaim && (
-                  <button onClick={() => setSupOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  <button onClick={() => setSupOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-orange-600 text-white rounded-lg hover:bg-orange-700">
                     <Plus className="w-3.5 h-3.5" /> Add Supplement
                   </button>
                 )}
@@ -1127,7 +1127,7 @@ export default function InsuranceClaimPage() {
                       )}
                       {sup.status === 'draft' && mayWriteClaim && (
                         <div className="mt-2 flex items-center gap-4">
-                          <button onClick={() => submitSupplement(sup.id)} className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium hover:text-blue-800 dark:hover:text-blue-300">
+                          <button onClick={() => submitSupplement(sup.id)} className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-200 font-medium hover:text-orange-900 dark:hover:text-orange-100">
                             <Send className="w-3 h-3" /> Submit to Carrier
                           </button>
                           <button onClick={() => openEditSupplement(sup)} className="flex items-center gap-1 text-xs text-gray-600 font-medium hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200">
@@ -1204,7 +1204,7 @@ export default function InsuranceClaimPage() {
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setActivityOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={submitActivity} disabled={submittingActivity} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={submitActivity} disabled={submittingActivity} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {submittingActivity ? 'Saving...' : 'Log'}
               </button>
             </div>
@@ -1280,7 +1280,7 @@ export default function InsuranceClaimPage() {
                     ))}
                   </tbody>
                 </table>
-                <button onClick={() => setSupLineItems(prev => [...prev, newSupRow()])} className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
+                <button onClick={() => setSupLineItems(prev => [...prev, newSupRow()])} className="mt-2 text-xs text-orange-600 dark:text-orange-200 hover:text-orange-900 dark:hover:text-orange-100 font-medium">
                   + Add Line Item
                 </button>
                 <div className="flex flex-col items-end mt-2">
@@ -1301,7 +1301,7 @@ export default function InsuranceClaimPage() {
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setSupOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={createSupplement} disabled={submittingSup} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={createSupplement} disabled={submittingSup} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {submittingSup ? 'Creating...' : 'Save as Draft'}
               </button>
             </div>
@@ -1323,7 +1323,7 @@ export default function InsuranceClaimPage() {
 
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs text-gray-500 dark:text-slate-400">Line items</label>
-              <button onClick={() => setEditItems([...editItems, { code: '', description: '', unit: 'EA', qty: '1', unitPrice: '0' }])} className="text-xs font-medium text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">+ Add line</button>
+              <button onClick={() => setEditItems([...editItems, { code: '', description: '', unit: 'EA', qty: '1', unitPrice: '0' }])} className="text-xs font-medium text-orange-700 dark:text-orange-200 hover:text-orange-900 dark:hover:text-orange-100">+ Add line</button>
             </div>
             <div className="space-y-2">
               {editItems.map((li, i) => (
@@ -1352,7 +1352,7 @@ export default function InsuranceClaimPage() {
 
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setEditSup(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={saveSupplementEdit} disabled={savingEdit} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={saveSupplementEdit} disabled={savingEdit} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {savingEdit ? 'Saving...' : 'Save Changes'}
               </button>
             </div>

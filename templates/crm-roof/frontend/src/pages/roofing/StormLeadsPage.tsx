@@ -225,7 +225,7 @@ export default function StormLeadsPage() {
   leads.forEach(l => { if (stats[l.status as keyof typeof stats] !== undefined) stats[l.status as keyof typeof stats]++ })
 
   if (loading) {
-    return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+    return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" /></div>
   }
 
   return (
@@ -234,7 +234,7 @@ export default function StormLeadsPage() {
       <div className="w-80 border-r bg-white flex-shrink-0 flex flex-col dark:bg-slate-900">
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="text-sm font-bold flex items-center gap-1.5"><Zap size={16} className="text-yellow-500 dark:text-yellow-300" /> Storm Events</h2>
-          {mayWorkStorms && (<button onClick={() => setShowNewEvent(true)} className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
+          {mayWorkStorms && (<button onClick={() => setShowNewEvent(true)} className="text-xs bg-orange-600 text-white px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
             <Plus size={12} /> New
           </button>)}
         </div>
@@ -256,7 +256,7 @@ export default function StormLeadsPage() {
           )}
           {events.map(event => (
             <button key={event.id} onClick={() => selectEvent(event)}
-              className={`w-full text-left p-4 border-b hover:bg-gray-50 dark:hover:bg-slate-800 ${selectedEvent?.id === event.id ? 'bg-blue-50 border-l-2 border-l-blue-600 dark:bg-blue-950/40 dark:text-slate-100' : ''}`}>
+              className={`w-full text-left p-4 border-b hover:bg-gray-50 dark:hover:bg-slate-800 ${selectedEvent?.id === event.id ? 'bg-orange-50 border-l-2 border-l-orange-600 dark:bg-orange-950/40 dark:text-slate-100' : ''}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Zap size={14} className={event.status === 'detected' ? 'text-yellow-500 dark:text-yellow-300' : 'text-gray-400'} />
@@ -301,7 +301,7 @@ export default function StormLeadsPage() {
               </div>
               <div className="flex items-center gap-2">
                 {selectedEvent.status === 'detected' && (
-                  mayWorkStorms && (<button onClick={generateLeads} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg font-medium">
+                  mayWorkStorms && (<button onClick={generateLeads} className="text-xs bg-orange-600 text-white px-3 py-1.5 rounded-lg font-medium">
                     Generate Leads
                   </button>)
                 )}
@@ -315,7 +315,7 @@ export default function StormLeadsPage() {
             <div className="flex gap-2 px-4 py-2 bg-gray-50 border-b flex-shrink-0 dark:bg-slate-900">
               {Object.entries(stats).map(([k, v]) => (
                 <button key={k} onClick={() => { const next = filterStatus === k ? '' : k; setFilterStatus(next); loadLeads(selectedEvent.id, 1, next) }}
-                  className={`text-xs px-3 py-1 rounded-full font-medium ${filterStatus === k ? 'bg-blue-600 text-white' : STATUS_COLORS[k] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>
+                  className={`text-xs px-3 py-1 rounded-full font-medium ${filterStatus === k ? 'bg-orange-600 text-white' : STATUS_COLORS[k] || 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>
                   {k}: {v}
                 </button>
               ))}
@@ -384,14 +384,14 @@ export default function StormLeadsPage() {
                         <td className="px-4 py-2">
                           {lead.status === 'new' && !lead.isExistingCustomer && (
                             mayWorkStorms && (<button onClick={() => { setShowConvertModal(lead.id); setConvertName(''); setConvertPhone(''); setConvertEmail('') }}
-                              className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline">Convert</button>)
+                              className="text-xs text-orange-600 dark:text-orange-200 font-medium hover:underline">Convert</button>)
                           )}
                           {lead.isExistingCustomer && lead.status === 'new' && (
                             <button className="text-xs text-yellow-700 font-medium hover:underline dark:text-yellow-300">Follow Up</button>
                           )}
                           {lead.jobId && (
                             <button onClick={() => navigate(`/crm/jobs/${lead.jobId}`)}
-                              className="text-xs text-blue-600 dark:text-blue-400 font-medium flex items-center gap-0.5 hover:underline">
+                              className="text-xs text-orange-600 dark:text-orange-200 font-medium flex items-center gap-0.5 hover:underline">
                               View <ArrowRight size={10} />
                             </button>
                           )}
@@ -454,7 +454,7 @@ export default function StormLeadsPage() {
                 <label className="text-xs text-gray-500 dark:text-slate-400">Description (optional)</label>
                 <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} rows={2} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" />
               </div>
-              <button onClick={createEvent} className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm">Create Storm Event</button>
+              <button onClick={createEvent} className="w-full py-2.5 bg-orange-600 text-white rounded-xl font-semibold text-sm">Create Storm Event</button>
             </div>
           </div>
         </div>

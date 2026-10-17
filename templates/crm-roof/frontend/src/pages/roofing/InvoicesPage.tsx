@@ -214,7 +214,7 @@ export default function InvoicesPage() {
                 setForm({ contactId: '', jobId: '', dueDate: '', taxRate: '0', notes: '', lineItems: [{ description: '', quantity: '1', unitPrice: '' }] });
                 setModalOpen(true);
               }}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700"
             >
               <Plus className="w-4 h-4" /> New Invoice
             </button>
@@ -228,7 +228,7 @@ export default function InvoicesPage() {
               key={t}
               onClick={() => setTab(t)}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 capitalize ${
-                tab === t ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+                tab === t ? 'border-orange-600 text-orange-600 dark:text-orange-200' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
               }`}
             >
               {t}
@@ -263,7 +263,7 @@ export default function InvoicesPage() {
                     return (
                       <tr key={inv.id} className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-slate-800">
                         <td
-                          className="px-4 py-3 font-mono text-xs font-semibold text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                          className="px-4 py-3 font-mono text-xs font-semibold text-orange-600 dark:text-orange-200 cursor-pointer hover:underline"
                           onClick={() => navigate(`/crm/invoices/${inv.id}`)}
                         >
                           {inv.invoiceNumber || `INV-${String(inv.id).padStart(4, '0')}`}
@@ -294,7 +294,7 @@ export default function InvoicesPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
                             {inv.status === 'draft' && (
-                              mayBillInvoice && (<button onClick={() => sendInvoice(inv.id)} title="Send" className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded">
+                              mayBillInvoice && (<button onClick={() => sendInvoice(inv.id)} title="Send" className="p-1 text-orange-700 dark:text-orange-200 hover:bg-orange-50 rounded">
                                 <Send className="w-4 h-4" />
                               </button>)
                             )}
@@ -400,7 +400,7 @@ export default function InvoicesPage() {
                     )}
                   </div>
                 ))}
-                <button onClick={() => setForm((prev) => ({ ...prev, lineItems: [...prev.lineItems, { description: '', quantity: '1', unitPrice: '' }] }))} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">+ Add line</button>
+                <button onClick={() => setForm((prev) => ({ ...prev, lineItems: [...prev.lineItems, { description: '', quantity: '1', unitPrice: '' }] }))} className="text-xs text-orange-600 dark:text-orange-200 hover:underline">+ Add line</button>
               </div>
               <div className="flex justify-end">
                 <div className="w-56 space-y-1 text-sm">
@@ -425,7 +425,7 @@ export default function InvoicesPage() {
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {saving ? 'Creating...' : 'Create Invoice'}
               </button>
             </div>

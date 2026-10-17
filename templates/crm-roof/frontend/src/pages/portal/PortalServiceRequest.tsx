@@ -50,7 +50,7 @@ export default function PortalServiceRequest() {
           </p>
           <button
             onClick={() => navigate('/portal/dashboard')}
-            className="px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+            className="px-6 py-2.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700"
           >
             Back to Dashboard
           </button>
@@ -63,7 +63,7 @@ export default function PortalServiceRequest() {
     <div className="px-4 py-6 max-w-lg mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <PenTool className="w-6 h-6 text-blue-400" /> Service Request
+          <PenTool className="w-6 h-6 text-orange-200" /> Service Request
         </h1>
         <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">Tell us what you need and we'll get back to you</p>
       </div>
@@ -76,7 +76,7 @@ export default function PortalServiceRequest() {
             onChange={(e) => { setForm({ ...form, description: e.target.value }); setError(''); }}
             rows={4}
             placeholder="Describe the issue or service you need..."
-            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 resize-none placeholder-gray-300"
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-300 resize-none placeholder-gray-300"
           />
         </div>
 
@@ -86,7 +86,7 @@ export default function PortalServiceRequest() {
             type="date"
             value={form.preferredDate}
             onChange={(e) => setForm({ ...form, preferredDate: e.target.value })}
-            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500"
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-300"
           />
         </div>
 
@@ -97,7 +97,7 @@ export default function PortalServiceRequest() {
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
             placeholder="(555) 123-4567"
-            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 placeholder-gray-300"
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-300 placeholder-gray-300"
           />
         </div>
 
@@ -106,7 +106,7 @@ export default function PortalServiceRequest() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+          className="w-full py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
         >
           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
           {submitting ? 'Submitting...' : 'Submit Request'}

@@ -60,7 +60,7 @@ export default function AccountPage() {
         <label className="block text-sm text-gray-700 dark:text-slate-200">Confirm new password
           <input type="password" autoComplete="new-password" value={pw.confirmPassword} onChange={(e) => setPw({ ...pw, confirmPassword: e.target.value })} className={inputCls} />
         </label>
-        <button onClick={changePassword} disabled={saving || !pw.currentPassword || !pw.newPassword} className="px-4 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50">
+        <button onClick={changePassword} disabled={saving || !pw.currentPassword || !pw.newPassword} className="px-4 py-2 text-sm font-semibold bg-orange-600 hover:bg-orange-700 text-white rounded-lg disabled:opacity-50">
           {saving ? 'Saving…' : 'Change password'}
         </button>
       </section>

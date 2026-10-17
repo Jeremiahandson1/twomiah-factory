@@ -167,7 +167,7 @@ export default function AddressAutocomplete({
   }, [])
 
   const inputClasses = className ??
-    'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+    'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500'
 
   // If new API is available, show the Google widget container
   // If not, fall back to a plain input

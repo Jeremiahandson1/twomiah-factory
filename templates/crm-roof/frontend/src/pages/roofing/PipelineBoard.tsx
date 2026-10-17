@@ -189,7 +189,7 @@ export default function PipelineBoard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
       </div>
     );
   }
@@ -248,13 +248,13 @@ export default function PipelineBoard() {
           <option value="urgent">Urgent</option>
         </select>
         <button type="button" onClick={() => setMineOnly(!mineOnly)} aria-pressed={mineOnly}
-          className={`text-sm px-3 py-1.5 rounded-lg border font-medium ${mineOnly ? 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-700 dark:text-blue-200' : 'bg-white border-gray-300 text-gray-700 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200'}`}>
+          className={`text-sm px-3 py-1.5 rounded-lg border font-medium ${mineOnly ? 'bg-orange-100 border-orange-300 text-orange-900 dark:bg-orange-950/40 dark:border-orange-700 dark:text-orange-200' : 'bg-white border-gray-300 text-gray-700 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200'}`}>
           My jobs
         </button>
         <button
           onClick={() => setFilterCanvassing(!filterCanvassing)}
           className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border font-medium transition ${
-            filterCanvassing ? 'bg-blue-100 border-blue-300 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'bg-white border-gray-300 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
+            filterCanvassing ? 'bg-orange-100 border-orange-300 text-orange-700 dark:text-orange-200 dark:bg-orange-950/40' : 'bg-white border-gray-300 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
           } dark:bg-slate-900`}
         >
           <MapPin className="w-3.5 h-3.5" />

@@ -80,14 +80,14 @@ export default function LoginPage() {
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-slate-700"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent dark:border-slate-700"
                 placeholder="123456"
               />
             </div>
             <button
               type="submit"
               disabled={loading || !code.trim()}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2.5 rounded-lg text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Checking...' : 'Verify'}
             </button>
@@ -116,7 +116,7 @@ export default function LoginPage() {
               required
               autoCapitalize="none"
               autoCorrect="off"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-slate-700"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent dark:border-slate-700"
               placeholder="you@company.com"
             />
           </div>
@@ -131,7 +131,7 @@ export default function LoginPage() {
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:border-slate-700"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent dark:border-slate-700"
               placeholder="Enter your password"
             />
           </div>
@@ -139,7 +139,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2.5 rounded-lg text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>

@@ -211,7 +211,7 @@ export default function AIReceptionistPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-slate-900">
-        <RefreshCw className="animate-spin text-blue-700 dark:text-blue-400" size={32} />
+        <RefreshCw className="animate-spin text-orange-700 dark:text-orange-200" size={32} />
       </div>
     )
   }
@@ -227,7 +227,7 @@ export default function AIReceptionistPage() {
         {tab === 'rules' && (
           mayWriteReceptionist && (<button
             onClick={openCreate}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+            className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
           >
             <Plus size={16} /> New Rule
           </button>)
@@ -263,7 +263,7 @@ export default function AIReceptionistPage() {
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition capitalize ${
-              tab === t ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700'
+              tab === t ? 'bg-orange-600 text-white' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700'
             }`}
           >
             {t === 'calls' ? 'Call Log' : t}
@@ -281,7 +281,7 @@ export default function AIReceptionistPage() {
               <p className="text-sm mb-4">Create your first AI receptionist rule to get started.</p>
               {mayWriteReceptionist && (<button
                 onClick={openCreate}
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+                className="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
               >
                 <Plus size={16} /> Create Rule
               </button>)}
@@ -437,14 +437,14 @@ export default function AIReceptionistPage() {
                 type="time"
                 value={settings.businessHoursStart}
                 onChange={e => setSettings(s => ({ ...s, businessHoursStart: e.target.value }))}
-                className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
               <span className="text-gray-500 dark:text-slate-400">to</span>
               <input
                 type="time"
                 value={settings.businessHoursEnd}
                 onChange={e => setSettings(s => ({ ...s, businessHoursEnd: e.target.value }))}
-                className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
           </div>
@@ -455,7 +455,7 @@ export default function AIReceptionistPage() {
             <select
               value={settings.timezone}
               onChange={e => setSettings(s => ({ ...s, timezone: e.target.value }))}
-              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
             >
               {TIMEZONES.map(tz => (
                 <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
@@ -471,7 +471,7 @@ export default function AIReceptionistPage() {
               onChange={e => setSettings(s => ({ ...s, greetingText: e.target.value }))}
               rows={3}
               placeholder="Hello! Thank you for calling..."
-              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-600 dark:placeholder-slate-300"
+              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-orange-500 placeholder-gray-600 dark:placeholder-slate-300"
             />
           </div>
 
@@ -483,14 +483,14 @@ export default function AIReceptionistPage() {
               value={settings.forwardingNumber}
               onChange={e => setSettings(s => ({ ...s, forwardingNumber: e.target.value }))}
               placeholder="+1 (555) 123-4567"
-              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-600 dark:placeholder-slate-300"
+              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-orange-500 placeholder-gray-600 dark:placeholder-slate-300"
             />
           </div>
 
           {mayWriteReceptionist && (<button
             onClick={saveSettings}
             disabled={saving}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg text-sm font-medium transition"
+            className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg text-sm font-medium transition"
           >
             {saving ? 'Saving...' : 'Save Settings'}
           </button>)}
@@ -524,7 +524,7 @@ export default function AIReceptionistPage() {
                 <input
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-orange-500"
                   placeholder="Rule name"
                 />
               </div>
@@ -535,7 +535,7 @@ export default function AIReceptionistPage() {
                 <select
                   value={form.trigger}
                   onChange={e => setForm(f => ({ ...f, trigger: e.target.value }))}
-                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-orange-500"
                 >
                   <option value="missed_call">Missed Call</option>
                   <option value="voicemail">Voicemail</option>
@@ -551,7 +551,7 @@ export default function AIReceptionistPage() {
                   <input
                     value={form.keywordMatch}
                     onChange={e => setForm(f => ({ ...f, keywordMatch: e.target.value }))}
-                    className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-orange-500"
                     placeholder="e.g. emergency, leak, urgent"
                   />
                 </div>
@@ -563,7 +563,7 @@ export default function AIReceptionistPage() {
                 <select
                   value={form.channel}
                   onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}
-                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-orange-500"
                 >
                   <option value="sms">SMS</option>
                   <option value="email">Email</option>
@@ -579,7 +579,7 @@ export default function AIReceptionistPage() {
                   min={0}
                   value={form.delayMinutes}
                   onChange={e => setForm(f => ({ ...f, delayMinutes: e.target.value }))}
-                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-32 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-32 focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
 
@@ -591,7 +591,7 @@ export default function AIReceptionistPage() {
                   onChange={e => setForm(f => ({ ...f, messageTemplate: e.target.value }))}
                   rows={3}
                   placeholder="Hi {{name}}, we noticed we missed your call..."
-                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-600 dark:placeholder-slate-300"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-orange-500 placeholder-gray-600 dark:placeholder-slate-300"
                 />
               </div>
 
@@ -601,7 +601,7 @@ export default function AIReceptionistPage() {
                   type="checkbox"
                   checked={form.isActive}
                   onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))}
-                  className="rounded bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
+                  className="rounded bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-orange-600 dark:text-orange-200 focus:ring-orange-500"
                 />
                 Active
               </label>
@@ -617,7 +617,7 @@ export default function AIReceptionistPage() {
               <button
                 onClick={saveRule}
                 disabled={saving || !form.name.trim()}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition"
+                className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-medium transition"
               >
                 {saving ? 'Saving...' : editingRule ? 'Update' : 'Create'}
               </button>

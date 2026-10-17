@@ -311,7 +311,7 @@ export default function JobDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
       </div>
     );
   }
@@ -404,7 +404,7 @@ export default function JobDetailPage() {
                 <button
                   key={v}
                   onClick={() => setCloseStatus(v)}
-                  className={`flex-1 p-3 rounded-lg border-2 text-left transition-colors ${closeStatus === v ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300'}`}
+                  className={`flex-1 p-3 rounded-lg border-2 text-left transition-colors ${closeStatus === v ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200' : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300'}`}
                 >
                   <p className="font-semibold text-sm">{label}</p>
                   <p className="text-xs">{hint}</p>
@@ -507,7 +507,7 @@ export default function JobDetailPage() {
                     <p className="text-gray-500 dark:text-slate-400">Adjuster Phone</p>
                     <p className="font-medium text-gray-900 dark:text-slate-100">
                       {job.adjusterPhone ? (
-                        <a href={`tel:${job.adjusterPhone}`} className="text-blue-600 dark:text-blue-400 hover:underline">{job.adjusterPhone}</a>
+                        <a href={`tel:${job.adjusterPhone}`} className="text-orange-600 dark:text-orange-200 hover:underline">{job.adjusterPhone}</a>
                       ) : '—'}
                     </p>
                   </div>
@@ -705,7 +705,7 @@ export default function JobDetailPage() {
                     onClick={() => setPhotoTab(tab)}
                     className={`px-3 py-2 text-sm font-medium border-b-2 capitalize ${
                       photoTab === tab
-                        ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                        ? 'border-orange-600 text-orange-600 dark:text-orange-200'
                         : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
                     }`}
                   >
@@ -777,7 +777,7 @@ export default function JobDetailPage() {
                 <button
                   onClick={addNote}
                   disabled={savingNote || !noteText.trim()}
-                  className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="px-3 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 disabled:opacity-50"
                 >
                   {savingNote ? '...' : 'Add'}
                 </button>
@@ -821,12 +821,12 @@ export default function JobDetailPage() {
                 {[job.contactFirstName || job.contact?.firstName, job.contactLastName || job.contact?.lastName].filter(Boolean).join(' ') || job.contactName || '—'}
               </p>
               {(job.contactPhone || job.contact?.phone) && (
-                <a href={`tel:${job.contactPhone || job.contact?.phone}`} className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline mt-1.5">
+                <a href={`tel:${job.contactPhone || job.contact?.phone}`} className="flex items-center gap-1.5 text-sm text-orange-600 dark:text-orange-200 hover:underline mt-1.5">
                   <Phone className="w-3.5 h-3.5" /> {job.contactPhone || job.contact?.phone}
                 </a>
               )}
               {(job.contactEmail || job.contact?.email) && (
-                <a href={`mailto:${job.contactEmail || job.contact?.email}`} className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline mt-1">
+                <a href={`mailto:${job.contactEmail || job.contact?.email}`} className="flex items-center gap-1.5 text-sm text-orange-600 dark:text-orange-200 hover:underline mt-1">
                   <Mail className="w-3.5 h-3.5" /> {job.contactEmail || job.contact?.email}
                 </a>
               )}

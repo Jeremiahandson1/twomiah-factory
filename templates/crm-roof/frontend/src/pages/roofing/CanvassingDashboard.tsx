@@ -222,7 +222,7 @@ export default function CanvassingDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
       </div>
     )
   }
@@ -238,7 +238,7 @@ export default function CanvassingDashboard() {
     return (
       <div className="p-6">
         <button onClick={() => { setSelectedSession(null); setSessionStops([]) }}
-          className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-4 flex items-center gap-1 hover:underline">
+          className="text-sm text-orange-600 dark:text-orange-200 font-medium mb-4 flex items-center gap-1 hover:underline">
           &larr; Back to Dashboard
         </button>
 
@@ -300,7 +300,7 @@ export default function CanvassingDashboard() {
                   {stop.notes && <p className="text-xs text-gray-500 mt-1 truncate dark:text-slate-400">{stop.notes}</p>}
                   {stop.jobId && (
                     <button onClick={() => navigate(`/crm/jobs/${stop.jobId}`)}
-                      className="text-xs text-blue-600 dark:text-blue-400 mt-1 hover:underline">
+                      className="text-xs text-orange-600 dark:text-orange-200 mt-1 hover:underline">
                       View CRM Lead &rarr;
                     </button>
                   )}
@@ -322,7 +322,7 @@ export default function CanvassingDashboard() {
           <p className="text-sm text-gray-500 dark:text-slate-400">Review canvassing activity and manage scripts</p>
         </div>
         {mayWriteScripts && (<button onClick={() => openScriptEditor()}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+          className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700">
           <Plus size={16} /> Manage Scripts
         </button>)}
       </div>
@@ -442,7 +442,7 @@ export default function CanvassingDashboard() {
           <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold">Canvassing Scripts</h3>
-              {mayWriteScripts && (<button onClick={() => openScriptEditor()} className="text-xs text-blue-600 dark:text-blue-400 font-medium">+ New</button>)}
+              {mayWriteScripts && (<button onClick={() => openScriptEditor()} className="text-xs text-orange-600 dark:text-orange-200 font-medium">+ New</button>)}
             </div>
             {scripts.length > 0 ? (
               <div className="space-y-2">
@@ -457,7 +457,7 @@ export default function CanvassingDashboard() {
                     </div>
                     <div className="flex items-center gap-1">
                       {mayWriteScripts && (<button onClick={(e) => { e.stopPropagation(); openScriptEditor(script) }}
-                        className="text-xs text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 px-2 py-1">Edit</button>)}
+                        className="text-xs text-gray-500 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-100 px-2 py-1">Edit</button>)}
                       {!script.isDefault && (
                         mayWriteScripts && (<button aria-label="Delete script" onClick={(e) => { e.stopPropagation(); deleteScript(script) }}
                           className="text-gray-400 hover:text-red-600 px-1 py-1">
@@ -518,7 +518,7 @@ export default function CanvassingDashboard() {
                     </div>
                   ))}
                   <button onClick={() => setScriptSteps(prev => [...prev, { title: '', body: '', tips: '' }])}
-                    className="w-full py-2 border-2 border-dashed rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 hover:border-blue-300">
+                    className="w-full py-2 border-2 border-dashed rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-100 hover:border-orange-300">
                     + Add Step
                   </button>
                 </div>
@@ -528,7 +528,7 @@ export default function CanvassingDashboard() {
                 <button onClick={() => setShowScriptEditor(false)}
                   className="flex-1 py-2.5 border rounded-xl text-sm font-medium">Cancel</button>
                 <button onClick={saveScript}
-                  className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+                  className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
                   <Save size={16} /> Save Script
                 </button>
               </div>

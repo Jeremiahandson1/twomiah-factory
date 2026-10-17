@@ -179,7 +179,7 @@ export default function ImportPage() {
         <div
           onDrop={handleDrop}
           onDragOver={e => e.preventDefault()}
-          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/50 transition cursor-pointer mb-6 dark:border-slate-700"
+          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-orange-400 hover:bg-orange-50/50 transition cursor-pointer mb-6 dark:border-slate-700"
           onClick={() => {
             const input = document.createElement('input')
             input.type = 'file'
@@ -254,7 +254,7 @@ export default function ImportPage() {
                 type="checkbox"
                 checked={createMissing}
                 onChange={e => setCreateMissing(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 dark:text-blue-400 dark:border-slate-700"
+                className="rounded border-gray-300 text-orange-600 dark:text-orange-400 dark:border-slate-700"
               />
               <span className="text-gray-700 dark:text-slate-200">
                 Auto-create contacts for jobs that don't match any existing client
@@ -282,7 +282,7 @@ export default function ImportPage() {
             <button
               onClick={() => runImport(false)}
               disabled={importing || files.every(f => f.loading)}
-              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
+              className="px-6 py-2.5 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition disabled:opacity-50"
             >
               {importing ? <><Loader2 size={16} className="inline animate-spin mr-2" />Importing...</> : 'Import Now'}
             </button>
@@ -394,7 +394,7 @@ export default function ImportPage() {
                 <button
                   onClick={() => runImport(false)}
                   disabled={importing}
-                  className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
+                  className="px-6 py-2.5 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition disabled:opacity-50"
                 >
                   {importing ? <><Loader2 size={16} className="inline animate-spin mr-2" />Importing...</> : 'Import Now'}
                 </button>

@@ -74,7 +74,7 @@ export default function PortalDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-orange-200" />
       </div>
     );
   }
@@ -94,7 +94,7 @@ export default function PortalDashboard() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3">
         <Link to="/portal/jobs" className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-colors">
-          <Briefcase className="w-6 h-6 text-blue-400 mb-2" />
+          <Briefcase className="w-6 h-6 text-orange-200 mb-2" />
           <p className="text-2xl font-bold text-white">{data.activeJobs.length}</p>
           <p className="text-sm text-gray-500 dark:text-slate-400">Active Jobs</p>
         </Link>
@@ -143,7 +143,7 @@ export default function PortalDashboard() {
                 </span>
               </div>
               {job.address && <p className="text-sm text-gray-300 mb-2">{job.address}</p>}
-              <p className="text-sm text-blue-400">
+              <p className="text-sm text-orange-200">
                 {STATUS_DESCRIPTIONS[job.status] || 'In progress'}
               </p>
             </Link>
@@ -154,7 +154,7 @@ export default function PortalDashboard() {
       {/* Request Service */}
       <Link
         to="/portal/service-request"
-        className="flex items-center justify-center gap-2 w-full py-4 bg-blue-600 text-white text-center rounded-xl font-semibold text-sm hover:bg-blue-700 transition-colors"
+        className="flex items-center justify-center gap-2 w-full py-4 bg-orange-600 text-white text-center rounded-xl font-semibold text-sm hover:bg-orange-700 transition-colors"
       >
         <PenTool className="w-4 h-4" /> Request Service
       </Link>
@@ -165,12 +165,12 @@ export default function PortalDashboard() {
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 dark:text-slate-400">Contact Us</h3>
           <p className="font-medium text-white">{data.company.name}</p>
           {data.company.phone && (
-            <a href={`tel:${data.company.phone}`} className="flex items-center gap-1.5 text-sm text-blue-400 hover:underline mt-1.5">
+            <a href={`tel:${data.company.phone}`} className="flex items-center gap-1.5 text-sm text-orange-200 hover:underline mt-1.5">
               <Phone className="w-3.5 h-3.5" /> {data.company.phone}
             </a>
           )}
           {data.company.email && (
-            <a href={`mailto:${data.company.email}`} className="flex items-center gap-1.5 text-sm text-blue-400 hover:underline mt-1">
+            <a href={`mailto:${data.company.email}`} className="flex items-center gap-1.5 text-sm text-orange-200 hover:underline mt-1">
               <Mail className="w-3.5 h-3.5" /> {data.company.email}
             </a>
           )}

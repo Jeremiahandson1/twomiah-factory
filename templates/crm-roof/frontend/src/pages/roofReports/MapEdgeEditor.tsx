@@ -621,13 +621,13 @@ export default function MapEdgeEditor({
           <div className="flex items-center bg-white rounded-lg border shadow-sm overflow-hidden dark:bg-slate-900">
             <button
               onClick={() => { setMode('select'); setAddStart(null) }}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${mode === 'select' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${mode === 'select' ? 'bg-orange-50 text-orange-700 dark:text-orange-200 dark:bg-orange-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
             >
               <MousePointer2 className="w-3.5 h-3.5" /> Select
             </button>
             <button
               onClick={() => { setMode('add'); setAddStart(null) }}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'add' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'add' ? 'bg-orange-50 text-orange-700 dark:text-orange-200 dark:bg-orange-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
             >
               <Plus className="w-3.5 h-3.5" /> Add Line
             </button>
@@ -683,7 +683,7 @@ export default function MapEdgeEditor({
           <button
             onClick={handleSave}
             disabled={saving || !dirty}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors"
           >
             <Save className="w-3.5 h-3.5" /> {saving ? 'Saving...' : 'Save'}
           </button>

@@ -198,7 +198,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
               value={name}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               placeholder="Enter your full name"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 placeholder-gray-400"
             />
           </div>
 
@@ -207,7 +207,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
               type="checkbox"
               checked={consent}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConsent(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
+              className="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-900 text-orange-600 dark:text-orange-200 focus:ring-orange-500"
             />
             <span className="text-xs text-gray-500 dark:text-slate-400">
               {CONSENT_TEXT} <span className="text-red-400">*</span>

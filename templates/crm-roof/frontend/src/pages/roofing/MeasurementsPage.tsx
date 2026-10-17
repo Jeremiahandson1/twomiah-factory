@@ -264,7 +264,7 @@ export default function MeasurementsPage() {
                         {m.status === 'failed' && (
                           mayCorrectMeasurement && (<button
                             onClick={(e) => { e.stopPropagation(); regenerateReport(m.id); }}
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                            className="text-orange-600 dark:text-orange-200 hover:text-orange-900 dark:hover:text-orange-100"
                             title="Retry"
                           >
                             <RefreshCw className="w-4 h-4" />
@@ -441,7 +441,7 @@ export default function MeasurementsPage() {
               {/* Actions */}
               <div className="flex gap-2 pt-2">
                 {selectedReport.status === 'failed' && (
-                  mayCorrectMeasurement && (<button onClick={() => { regenerateReport(selectedReport.id); setSelectedReport(null); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  mayCorrectMeasurement && (<button onClick={() => { regenerateReport(selectedReport.id); setSelectedReport(null); }} className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700">
                     <RefreshCw className="w-4 h-4" /> Retry
                   </button>)
                 )}

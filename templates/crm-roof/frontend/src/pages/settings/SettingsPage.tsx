@@ -295,7 +295,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
       </div>
     );
   }
@@ -374,7 +374,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-end gap-3 mt-4">
             {!isAdmin && <span className="text-xs text-gray-500 dark:text-slate-400">Only an administrator can change the company details.</span>}
             {isAdmin && (
-              <button onClick={saveCompany} disabled={savingCompany} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={saveCompany} disabled={savingCompany} className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 <Save className="w-4 h-4" /> {savingCompany ? 'Saving...' : 'Save'}
               </button>
             )}
@@ -408,7 +408,7 @@ export default function SettingsPage() {
             <div className="flex-1 flex items-end justify-end">
               {!isAdmin && <span className="text-xs text-gray-500 dark:text-slate-400">Only an administrator can change the branding.</span>}
               {isAdmin && (
-                <button onClick={saveBrandingSettings} disabled={savingBranding} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <button onClick={saveBrandingSettings} disabled={savingBranding} className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 disabled:opacity-50">
                   <Save className="w-4 h-4" /> {savingBranding ? 'Saving...' : 'Save'}
                 </button>
               )}
@@ -476,7 +476,7 @@ export default function SettingsPage() {
         {/* Branded Email */}
         <div
           onClick={() => navigate('/crm/settings/email')}
-          className="bg-white rounded-xl shadow-sm border p-6 hover:border-blue-300 cursor-pointer transition-colors dark:bg-slate-900"
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-orange-300 cursor-pointer transition-colors dark:bg-slate-900"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -550,7 +550,7 @@ export default function SettingsPage() {
                   <p className="text-xs text-gray-500 dark:text-slate-400">Connected since: {formatDate(qbStatus.connectedSince)}</p>
                 )}
                 <div className="flex gap-2 pt-2">
-                  {mayManageIntegrations && (<button onClick={syncQB} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {mayManageIntegrations && (<button onClick={syncQB} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 text-white text-xs rounded-lg hover:bg-orange-700 disabled:opacity-50">
                     <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} /> {syncing ? 'Syncing...' : 'Full Sync'}
                   </button>)}
                   {mayManageIntegrations && (<button onClick={disconnectQB} disabled={qbLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-xs rounded-lg hover:bg-red-100 disabled:opacity-50 dark:text-red-400 dark:bg-red-950/40">
@@ -589,7 +589,7 @@ export default function SettingsPage() {
                     className="w-32 text-sm border rounded-lg px-3 py-1.5"
                     maxLength={5}
                   />
-                  {mayWriteStormArea && (<button onClick={addZip} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">Add</button>)}
+                  {mayWriteStormArea && (<button onClick={addZip} className="px-3 py-1.5 bg-orange-600 text-white text-xs rounded-lg hover:bg-orange-700">Add</button>)}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {stormSettings.zipCodes.map((zip) => (
@@ -653,7 +653,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                {mayWriteStormArea && (<button onClick={saveStormSettings} disabled={savingStorm} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {mayWriteStormArea && (<button onClick={saveStormSettings} disabled={savingStorm} className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 disabled:opacity-50">
                   <Save className="w-4 h-4" /> {savingStorm ? 'Saving...' : 'Save Storm Settings'}
                 </button>)}
               </div>
@@ -685,7 +685,7 @@ export default function SettingsPage() {
             {canManageUsers && (
               <button
                 onClick={() => { setInviteForm({ email: '', firstName: '', lastName: '', password: '', role: 'user' }); setInviteOpen(true); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 text-white text-xs rounded-lg hover:bg-orange-700"
               >
                 <Plus className="w-3.5 h-3.5" /> Add User
               </button>
@@ -780,7 +780,7 @@ export default function SettingsPage() {
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setInviteOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={inviteUser} disabled={inviting} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={inviteUser} disabled={inviting} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 <Send className="w-4 h-4" /> {inviting ? 'Adding...' : 'Add User'}
               </button>
             </div>

@@ -94,7 +94,7 @@ export default function RoofReportDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
       </div>
     )
   }
@@ -163,7 +163,7 @@ export default function RoofReportDetail() {
           </button>
           <button
             onClick={handleDownloadPdf}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
           >
             <Download className="w-4 h-4" />
             Download PDF
@@ -175,13 +175,13 @@ export default function RoofReportDetail() {
       <div className="flex items-center gap-1 bg-white rounded-lg border shadow-sm p-1 w-fit dark:bg-slate-900">
         <button
           onClick={() => setViewTab('2d')}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '2d' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '2d' ? 'bg-orange-50 text-orange-700 dark:text-orange-200 dark:bg-orange-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
         >
           <Eye className="w-4 h-4" /> 2D Report
         </button>
         <button
           onClick={() => setViewTab('3d')}
-          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '3d' ? 'bg-blue-50 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '3d' ? 'bg-orange-50 text-orange-700 dark:text-orange-200 dark:bg-orange-950/40' : 'text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
         >
           <Box className="w-4 h-4" /> 3D View
         </button>
@@ -204,7 +204,7 @@ export default function RoofReportDetail() {
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden p-4 dark:bg-slate-900">
           <Suspense fallback={
             <div className="flex items-center justify-center h-96">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
             </div>
           }>
             <Roof3DViewer

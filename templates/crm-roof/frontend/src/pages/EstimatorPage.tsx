@@ -60,7 +60,7 @@ export default function EstimatorPage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+    return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" /></div>;
   }
 
   const siteUrl = company?.settings?.siteUrl;
@@ -78,7 +78,7 @@ export default function EstimatorPage() {
               <ExternalLink className="w-4 h-4" /> View on Website
             </a>
           )}
-          <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-5 py-2.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 disabled:opacity-50">
             <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save'}
           </button>
         </div>

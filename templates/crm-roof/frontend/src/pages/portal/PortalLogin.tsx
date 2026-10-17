@@ -63,7 +63,7 @@ export default function PortalLogin() {
       <div className="w-full max-w-sm">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Home className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-white">Customer Portal</h1>
@@ -80,13 +80,13 @@ export default function PortalLogin() {
                 onChange={(e) => { setEmail(e.target.value); setError(''); }}
                 placeholder="your@email.com"
                 autoFocus
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 placeholder-gray-300"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-300 placeholder-gray-300"
               />
               {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                className="w-full mt-4 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                 {loading ? 'Checking...' : 'Continue'}
@@ -105,13 +105,13 @@ export default function PortalLogin() {
                 placeholder="123456"
                 autoFocus
                 maxLength={6}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm text-center tracking-[0.3em] text-lg font-mono focus:outline-none focus:border-blue-500 placeholder-gray-300"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm text-center tracking-[0.3em] text-lg font-mono focus:outline-none focus:border-orange-300 placeholder-gray-300"
               />
               {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
+                className="w-full mt-4 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {loading ? 'Verifying...' : 'Sign In'}

@@ -85,7 +85,7 @@ export default function CrewsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
       </div>
     );
   }
@@ -100,7 +100,7 @@ export default function CrewsPage() {
           </div>
           {mayAddCrew && (<button
             onClick={openCreate}
-            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+            className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700"
           >
             <Plus className="w-4 h-4" /> Add Crew
           </button>)}
@@ -135,7 +135,7 @@ export default function CrewsPage() {
                   </div>
                 )}
                 {crew.foremanPhone && (
-                  <a href={`tel:${crew.foremanPhone}`} className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline">
+                  <a href={`tel:${crew.foremanPhone}`} className="flex items-center gap-2 text-orange-600 dark:text-orange-200 hover:underline">
                     <Phone className="w-4 h-4" />
                     <span>{crew.foremanPhone}</span>
                   </a>
@@ -198,7 +198,7 @@ export default function CrewsPage() {
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Crew'}
               </button>
             </div>

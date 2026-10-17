@@ -60,7 +60,7 @@ export default function PortalJobDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-orange-200" />
       </div>
     );
   }
@@ -100,18 +100,18 @@ export default function PortalJobDetail() {
               <div key={stage} className="flex items-center flex-shrink-0">
                 <div className={`flex flex-col items-center ${isCurrent ? 'scale-110' : ''}`}>
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold ${
-                    isComplete ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'
+                    isComplete ? 'bg-orange-600 text-white' : 'bg-gray-700 text-gray-300'
                   }`}>
                     {isComplete ? <CheckCircle className="w-3.5 h-3.5" /> : idx + 1}
                   </div>
                   <span className={`text-[8px] mt-1 w-12 text-center leading-tight ${
-                    isCurrent ? 'text-blue-400 font-semibold' : isComplete ? 'text-gray-400' : 'text-gray-400'
+                    isCurrent ? 'text-orange-200 font-semibold' : isComplete ? 'text-gray-400' : 'text-gray-400'
                   }`}>
                     {STAGE_SHORT[stage]}
                   </span>
                 </div>
                 {idx < STAGE_ORDER.length - 1 && (
-                  <div className={`w-3 h-0.5 mx-0.5 ${idx < currentStageIdx ? 'bg-blue-600' : 'bg-gray-700'}`} />
+                  <div className={`w-3 h-0.5 mx-0.5 ${idx < currentStageIdx ? 'bg-orange-600' : 'bg-gray-700'}`} />
                 )}
               </div>
             );

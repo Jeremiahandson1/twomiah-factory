@@ -61,7 +61,7 @@ export default function PortalInvoices() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-orange-200" />
       </div>
     );
   }
@@ -117,7 +117,7 @@ export default function PortalInvoices() {
                     <button
                       onClick={() => handlePayNow(inv.id)}
                       disabled={paying === inv.id}
-                      className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-4 py-2.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 disabled:opacity-50"
                     >
                       {paying === inv.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />

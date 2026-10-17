@@ -191,7 +191,7 @@ export default function JobsPage() {
           {mayCreateJob && (
             <button
               onClick={openCreate}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700"
             >
               <Plus className="w-4 h-4" /> New Job
             </button>
@@ -211,7 +211,7 @@ export default function JobsPage() {
             />
           </div>
           <button type="button" onClick={() => setMineOnly(!mineOnly)} aria-pressed={mineOnly}
-            className={`text-sm px-3 py-2 rounded-lg border font-medium ${mineOnly ? 'bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-700 dark:text-blue-200' : 'bg-white border-gray-300 text-gray-700 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200'}`}>
+            className={`text-sm px-3 py-2 rounded-lg border font-medium ${mineOnly ? 'bg-orange-100 border-orange-300 text-orange-900 dark:bg-orange-950/40 dark:border-orange-700 dark:text-orange-200' : 'bg-white border-gray-300 text-gray-700 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200'}`}>
             My jobs
           </button>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
@@ -366,7 +366,7 @@ export default function JobsPage() {
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {saving ? 'Creating...' : 'Create Job'}
               </button>
             </div>

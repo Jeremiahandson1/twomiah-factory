@@ -383,7 +383,7 @@ export default function CanvassingView() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-slate-900">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
       </div>
     )
   }
@@ -441,7 +441,7 @@ export default function CanvassingView() {
                   <p className="text-sm font-medium">{st.address}</p>
                   {st.notes && <p className="text-xs text-gray-600 mt-1 dark:text-slate-400">{st.notes}</p>}
                   {st.jobId && (
-                    <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-blue-600 mt-1 flex items-center gap-1 dark:text-blue-300">
+                    <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-orange-600 mt-1 flex items-center gap-1 dark:text-orange-200">
                       View in CRM <ArrowRight size={12} />
                     </button>
                   )}
@@ -457,7 +457,7 @@ export default function CanvassingView() {
                 <div key={st.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2 text-gray-900 dark:text-slate-100 dark:bg-yellow-950/40">
                   <p className="text-sm font-medium">{st.address}</p>
                   {st.jobId && (
-                    <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-blue-600 mt-1 flex items-center gap-1 dark:text-blue-300">
+                    <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-orange-600 mt-1 flex items-center gap-1 dark:text-orange-200">
                       View lead <ArrowRight size={12} />
                     </button>
                   )}
@@ -505,7 +505,7 @@ export default function CanvassingView() {
               setNewName(`Canvassing — ${formatDate()}`)
               setShowStartModal(true)
             }}
-            className="w-full py-4 bg-blue-600 text-white rounded-2xl font-semibold text-lg flex items-center justify-center gap-2 active:bg-blue-700"
+            className="w-full py-4 bg-orange-600 text-white rounded-2xl font-semibold text-lg flex items-center justify-center gap-2 active:bg-orange-700"
           >
             <Plus size={24} /> Start New Session
           </button>}
@@ -533,7 +533,7 @@ export default function CanvassingView() {
                 </button>
               ))}
               {sessions.length > 5 && (
-                <button onClick={() => setTab('sessions')} className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                <button onClick={() => setTab('sessions')} className="text-sm text-orange-600 dark:text-orange-200 font-medium">
                   View All Sessions
                 </button>
               )}
@@ -566,7 +566,7 @@ export default function CanvassingView() {
                     className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" placeholder="e.g. 0.5" />
                 </div>
                 {mayCanvass && (<button onClick={handleStartSession}
-                  className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold active:bg-blue-700">
+                  className="w-full py-3 bg-orange-600 text-white rounded-xl font-semibold active:bg-orange-700">
                   Start Canvassing
                 </button>)}
               </div>
@@ -633,7 +633,7 @@ export default function CanvassingView() {
 
             {/* FAB */}
             {mayCanvass && (<button aria-label="Log a door" onClick={openLogModal}
-              className="absolute bottom-6 right-6 w-16 h-16 bg-blue-600 text-white rounded-full shadow-xl flex items-center justify-center active:bg-blue-700 z-[1000]">
+              className="absolute bottom-6 right-6 w-16 h-16 bg-orange-600 text-white rounded-full shadow-xl flex items-center justify-center active:bg-orange-700 z-[1000]">
               <DoorOpen size={28} />
             </button>)}
           </div>
@@ -668,7 +668,7 @@ export default function CanvassingView() {
                     </button>
                     <button onClick={() => setScriptStep(Math.min(steps.length - 1, scriptStep + 1))}
                       disabled={scriptStep >= steps.length - 1}
-                      className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-sm font-medium disabled:opacity-30">
+                      className="flex-1 py-3 bg-orange-600 text-white rounded-xl text-sm font-medium disabled:opacity-30">
                       Next <ChevronRight size={16} className="inline" />
                     </button>
                   </div>
@@ -717,7 +717,7 @@ export default function CanvassingView() {
           <button key={item.key}
             onClick={item.action || (() => setTab(item.key))}
             className={`flex-1 py-2.5 flex flex-col items-center gap-0.5 text-[10px] font-medium ${
-              tab === item.key ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400'
+              tab === item.key ? 'text-orange-600 dark:text-orange-200' : 'text-gray-500 dark:text-slate-400'
             }`}>
             <item.icon size={20} />
             {item.label}
@@ -734,7 +734,7 @@ export default function CanvassingView() {
             <h2 className="font-bold">Log Door Knock</h2>
             <div className="flex gap-1">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className={`w-2 h-2 rounded-full ${i <= logStep ? 'bg-blue-600' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`} />
+                <div key={i} className={`w-2 h-2 rounded-full ${i <= logStep ? 'bg-orange-600' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`} />
               ))}
             </div>
           </div>
@@ -747,7 +747,7 @@ export default function CanvassingView() {
 
                 {logGpsStatus === 'loading' && (
                   <div className="bg-blue-50 rounded-xl p-4 flex items-center gap-3 dark:bg-blue-950/40">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600" />
                     <p className="text-sm text-blue-700 dark:text-blue-300">Getting your location...</p>
                   </div>
                 )}
@@ -793,7 +793,7 @@ export default function CanvassingView() {
 
                 {logGpsStatus !== 'success' && (
                   <button onClick={requestGps}
-                    className="w-full py-2.5 border border-blue-200 rounded-lg text-sm text-blue-600 font-medium flex items-center justify-center gap-2 dark:text-blue-300">
+                    className="w-full py-2.5 border border-orange-200 rounded-lg text-sm text-orange-600 font-medium flex items-center justify-center gap-2 dark:text-orange-200">
                     <Navigation size={16} /> Use GPS Location
                   </button>
                 )}
@@ -811,7 +811,7 @@ export default function CanvassingView() {
                   </label>
                   <input type="file" accept="image/*" capture="environment" multiple
                     onChange={handlePhotoCapture}
-                    className="mt-2 w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 file:font-medium" />
+                    className="mt-2 w-full text-sm file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-orange-50 file:text-orange-700 file:font-medium" />
                 </div>
 
                 {logPhotos.length > 0 && (
@@ -837,7 +837,7 @@ export default function CanvassingView() {
                           prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
                         )}
                         className={`text-xs px-3 py-1.5 rounded-full border font-medium ${
-                          logDamageTags.includes(tag) ? 'bg-blue-100 border-blue-300 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' : 'bg-white dark:bg-slate-900 border-gray-300 text-gray-600 dark:text-slate-300'
+                          logDamageTags.includes(tag) ? 'bg-orange-100 border-orange-300 text-orange-700 dark:text-orange-200 dark:bg-orange-950/40' : 'bg-white dark:bg-slate-900 border-gray-300 text-gray-600 dark:text-slate-300'
                         }`}>
                         {tag}
                       </button>
@@ -906,7 +906,7 @@ export default function CanvassingView() {
                 <div className="flex items-center justify-between bg-white border rounded-xl p-4 dark:bg-slate-900">
                   <span className="text-sm font-medium">Left door hanger</span>
                   <button onClick={() => setLogDoorHanger(!logDoorHanger)}
-                    className={`w-12 h-6 rounded-full transition ${logDoorHanger ? 'bg-blue-600' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}>
+                    className={`w-12 h-6 rounded-full transition ${logDoorHanger ? 'bg-orange-600' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`}>
                     {/* The knob STAYS white in both themes — it is white to read against its own
                       coloured track, so `dark:bg-white` is the deliberate answer rather than an
                       omission. A dark surface here would hide the knob inside the track. (T41) */}
@@ -976,11 +976,11 @@ export default function CanvassingView() {
 
                 <div className="flex gap-3">
                   <button onClick={() => handleSubmitStop(false)} disabled={submitting}
-                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-semibold disabled:opacity-50 active:bg-blue-700">
+                    className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-semibold disabled:opacity-50 active:bg-orange-700">
                     {submitting ? 'Saving...' : 'Log & Continue'}
                   </button>
                   <button onClick={() => handleSubmitStop(true)} disabled={submitting}
-                    className="flex-1 py-3 border-2 border-blue-600 text-blue-600 rounded-xl font-semibold disabled:opacity-50 dark:text-blue-300">
+                    className="flex-1 py-3 border-2 border-orange-600 text-orange-600 rounded-xl font-semibold disabled:opacity-50 dark:text-orange-200">
                     Log & Done
                   </button>
                 </div>
@@ -1000,7 +1000,7 @@ export default function CanvassingView() {
                 )}
                 <button onClick={() => setLogStep(logStep + 1)}
                   disabled={logStep === 0 && !logAddress}
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold disabled:opacity-30 active:bg-blue-700">
+                  className="flex-1 py-3 bg-orange-600 text-white rounded-xl text-sm font-semibold disabled:opacity-30 active:bg-orange-700">
                   Next
                 </button>
               </div>

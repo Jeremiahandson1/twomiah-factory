@@ -85,7 +85,7 @@ export default function AdjusterDirectoryPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Adjuster Directory</h1>
             <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{adjusters.length} adjusters</p>
           </div>
-          {mayAddAdjuster && (<button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+          {mayAddAdjuster && (<button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
             <Plus className="w-4 h-4" /> Add Adjuster
           </button>)}
         </div>
@@ -119,14 +119,14 @@ export default function AdjusterDirectoryPage() {
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{adj.territory || '—'}</td>
                       <td className="px-4 py-3">
                         {adj.phone ? (
-                          <a href={`tel:${adj.phone}`} className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline">
+                          <a href={`tel:${adj.phone}`} className="flex items-center gap-1 text-orange-600 dark:text-orange-200 hover:underline">
                             <Phone className="w-3 h-3" /> {adj.phone}
                           </a>
                         ) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         {adj.email ? (
-                          <a href={`mailto:${adj.email}`} className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline">
+                          <a href={`mailto:${adj.email}`} className="flex items-center gap-1 text-orange-600 dark:text-orange-200 hover:underline">
                             <Mail className="w-3 h-3" /> {adj.email}
                           </a>
                         ) : '—'}
@@ -137,7 +137,7 @@ export default function AdjusterDirectoryPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {mayEditAdjuster && (<button onClick={() => openEdit(adj)} className="text-xs font-medium text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">Edit</button>)}
+                        {mayEditAdjuster && (<button onClick={() => openEdit(adj)} className="text-xs font-medium text-orange-700 dark:text-orange-200 hover:text-orange-900 dark:hover:text-orange-100">Edit</button>)}
                       </td>
                     </tr>
                   ))
@@ -188,7 +188,7 @@ export default function AdjusterDirectoryPage() {
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setAddOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={saveAdjuster} disabled={submitting} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={saveAdjuster} disabled={submitting} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {submitting ? 'Saving...' : editId ? 'Save Changes' : 'Add Adjuster'}
               </button>
             </div>

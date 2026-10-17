@@ -207,7 +207,7 @@ export default function RoofReportsPage() {
   if (confirming) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <Loader2 className="w-10 h-10 text-blue-600 dark:text-blue-400 animate-spin" />
+        <Loader2 className="w-10 h-10 text-orange-600 dark:text-orange-200 animate-spin" />
         <p className="text-gray-600 font-medium dark:text-slate-400">Generating your roof report...</p>
         <p className="text-sm text-gray-500 dark:text-slate-400">Analyzing satellite imagery and computing measurements</p>
       </div>
@@ -298,7 +298,7 @@ export default function RoofReportsPage() {
         </div>
         {(mayDrawReport || mayBuyReport) && (<button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
         >
           <Plus className="w-4 h-4" />
           New Report
@@ -328,7 +328,7 @@ export default function RoofReportsPage() {
                   type="text"
                   value={form.city}
                   onChange={(e) => setForm({ ...form, city: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   placeholder="Dallas"
                   required
                 />
@@ -339,7 +339,7 @@ export default function RoofReportsPage() {
                   type="text"
                   value={form.state}
                   onChange={(e) => setForm({ ...form, state: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   placeholder="TX"
                   required
                 />
@@ -350,7 +350,7 @@ export default function RoofReportsPage() {
                   type="text"
                   value={form.zip}
                   onChange={(e) => setForm({ ...form, zip: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   placeholder="75201"
                   required
                 />
@@ -361,7 +361,7 @@ export default function RoofReportsPage() {
               <select
                 value={form.contactId}
                 onChange={(e) => setForm({ ...form, contactId: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
               >
                 <option value="">No contact</option>
                 {contacts.map((c) => (
@@ -380,7 +380,7 @@ export default function RoofReportsPage() {
                   max={36}
                   value={form.eaveOverhangInches}
                   onChange={(e) => setForm({ ...form, eaveOverhangInches: e.target.value })}
-                  className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                 />
                 <span className="text-sm text-gray-500 dark:text-slate-400">inches (expands roof segments outward to account for eave overhang)</span>
               </div>
@@ -401,11 +401,11 @@ export default function RoofReportsPage() {
                   type="button"
                   onClick={() => handleGenerate('auto')}
                   disabled={purchasing}
-                  className="flex flex-col items-center gap-1 p-4 border-2 border-blue-200 bg-blue-50 rounded-xl hover:border-blue-400 hover:bg-blue-100 transition-colors disabled:opacity-50 dark:bg-blue-950/40"
+                  className="flex flex-col items-center gap-1 p-4 border-2 border-orange-200 bg-orange-50 rounded-xl hover:border-orange-400 hover:bg-orange-100 transition-colors disabled:opacity-50 dark:bg-orange-950/40"
                 >
-                  <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">Professional Report</span>
-                  <span className="text-xs text-blue-500 dark:text-blue-300">Verified measurements, delivered fast</span>
-                  <span className="mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase dark:text-blue-300 dark:bg-blue-950/40">$9.99</span>
+                  <span className="text-sm font-semibold text-orange-700 dark:text-orange-200">Professional Report</span>
+                  <span className="text-xs text-orange-500 dark:text-orange-200">Verified measurements, delivered fast</span>
+                  <span className="mt-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold rounded-full uppercase dark:text-orange-200 dark:bg-orange-950/40">$9.99</span>
                 </button>)}
               </div>
               {purchasing && (
@@ -434,7 +434,7 @@ export default function RoofReportsPage() {
       {/* Reports List */}
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
         </div>
       ) : reports.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border p-12 text-center dark:bg-slate-900">
@@ -444,7 +444,7 @@ export default function RoofReportsPage() {
           <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">Ridges, valleys, hips, rakes, eaves, waste factor, ice & water shield — all computed from satellite data.</p>
           {(mayDrawReport || mayBuyReport) && (<button
             onClick={() => setShowForm(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Generate First Report
@@ -506,14 +506,14 @@ export default function RoofReportsPage() {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => navigate(`/crm/roof-reports/${report.id}`)}
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors dark:text-slate-400"
+                        className="p-2 text-gray-500 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors dark:text-slate-400"
                         title="View details"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDownloadPdf(report.id)}
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors dark:text-slate-400"
+                        className="p-2 text-gray-500 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors dark:text-slate-400"
                         title="Print / PDF"
                       >
                         <Download className="w-4 h-4" />

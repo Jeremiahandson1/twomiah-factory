@@ -191,7 +191,7 @@ export default function QuotesPage() {
           {mayCreateQuote && (
             <button
               onClick={openCreate}
-              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700"
             >
               <Plus className="w-4 h-4" /> New Quote
             </button>
@@ -267,7 +267,7 @@ export default function QuotesPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           {q.status === 'draft' && (
-                            mayWorkQuote && (<button onClick={() => performAction(q.id, 'send')} title="Send" className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded">
+                            mayWorkQuote && (<button onClick={() => performAction(q.id, 'send')} title="Send" className="p-1 text-orange-700 dark:text-orange-200 hover:bg-orange-50 rounded">
                               <Send className="w-4 h-4" />
                             </button>)
                           )}
@@ -437,7 +437,7 @@ export default function QuotesPage() {
                     ))}
                   </tbody>
                 </table>
-                <button onClick={addLine} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">+ Add line</button>
+                <button onClick={addLine} className="text-xs text-orange-600 dark:text-orange-200 hover:underline">+ Add line</button>
               </div>
 
               {/* Totals */}
@@ -474,7 +474,7 @@ export default function QuotesPage() {
 
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {saving ? 'Creating...' : 'Create Quote'}
               </button>
             </div>
