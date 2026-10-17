@@ -6,7 +6,7 @@
 // parties (crm-restaurant's events), guests, and the shared office tools. crm-basic's field-service modules
 // (jobs, quotes, the job schedule, fleet, equipment, pricebook, agreements, warranties, recurring, job costing)
 // are still in the code, gated and never offered to a bar — so they have no menu entry and their URLs bounce.
-import { BarChart3, Beer, BookOpen, Bot, CalendarCheck, CalendarDays, Clock, CreditCard, DollarSign, DoorOpen, ExternalLink, FileText, Flame, FolderOpen, Home, Inbox, LifeBuoy, Mail, Megaphone, MessageSquare, Phone, Receipt, Settings, Star, Users, Utensils, ClipboardList } from 'lucide-react'
+import { BarChart3, Beer, BookOpen, Bot, CalendarCheck, CalendarDays, Clock, CreditCard, DollarSign, Gift, DoorOpen, ExternalLink, FileText, Flame, FolderOpen, Home, Inbox, LifeBuoy, Mail, Megaphone, MessageSquare, Phone, Receipt, Settings, Star, Users, Utensils, ClipboardList } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared';
 
 const NAV: NavItem[] = [
@@ -15,6 +15,7 @@ const NAV: NavItem[] = [
   { to: '/crm/tonight', icon: Flame, label: 'Tonight', features: ['bar_tonight'], permission: 'bar:read' },
   // The register (tabs, tables, walk-ups) and, from it, the grill screen and the close-out.
   { to: '/crm/register', icon: CreditCard, label: 'Register', features: ['bar_register'], permission: 'bar:register' },
+  { to: '/crm/gift-cards', icon: Gift, label: 'Gift Cards', features: ['gift_cards'], permission: 'bar:manage' },
   { to: '/crm/menu', icon: Utensils, label: 'Menu', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/taps', icon: Beer, label: 'Taps', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/whats-on', icon: CalendarDays, label: "What's on", features: ['bar_tonight'], permission: 'bar:read' },

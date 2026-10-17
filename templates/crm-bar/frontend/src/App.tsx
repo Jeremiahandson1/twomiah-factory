@@ -28,6 +28,7 @@ import BarSettingsPage from './pages/bar/BarSettingsPage';
 import RegisterPage from './pages/bar/RegisterPage';
 import GrillPage from './pages/bar/GrillPage';
 import CloseoutPage from './pages/bar/CloseoutPage';
+import GiftCardsPage from './pages/bar/GiftCardsPage';
 // Private parties — crm-restaurant's events screens, unchanged.
 import EventsPage from './pages/events/EventsPage';
 import EventDetailPage from './pages/events/EventDetailPage';
@@ -159,6 +160,7 @@ function App() {
                     <Route path="register" element={<RegisterPage />} />
                     <Route path="grill" element={<GrillPage />} />
                     <Route path="closeout" element={<CloseoutPage />} />
+                    <Route path="gift-cards" element={<GiftCardsPage />} />
                     <Route path="events" element={<EventsPage />} />
                     <Route path="events/:id" element={<EventDetailPage />} />
                     <Route path="spaces" element={<SpacesPage />} />

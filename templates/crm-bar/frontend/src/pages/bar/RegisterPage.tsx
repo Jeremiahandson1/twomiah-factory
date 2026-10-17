@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, Flame, Send, CreditCard, Banknote, Scissors, Ban, KeyRound, Plus, Minus, ClipboardCheck, Pencil, Users } from 'lucide-react';
+import { Loader2, Flame, Send, CreditCard, Banknote, Scissors, Ban, KeyRound, Plus, Minus, ClipboardCheck, Pencil, Users, Gift } from 'lucide-react';
 import api from '../../services/api';
 import FormError, { errorText } from '../../components/ui/FormError';
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dialog, useLive, useManagerPin, TillPinDialog } from './registerUi';
@@ -26,7 +26,7 @@ interface Check {
   items: Line[]; payments: Payment[]; heldFood: number; quickCash: number[]
   totals: { subtotalCents: number; taxCents: number; totalCents: number; paidCents: number; tipCents: number; balanceCents: number }
 }
-interface State { businessDay: string; open: OpenRow[]; recent: Recent[]; menu: Section[]; taxRateBps: number; me: { name: string; mayManage: boolean; hasPin: boolean } }
+interface State { businessDay: string; open: OpenRow[]; recent: Recent[]; menu: Section[]; taxRateBps: number; giftCards: boolean; me: { name: string; mayManage: boolean; hasPin: boolean } }
 
 const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card', card_online: 'Card (website)', giftcard: 'Gift card' };
 
@@ -38,9 +38,9 @@ export default function RegisterPage() {
   const [seat, setSeat] = useState<number | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState('');
-  const [dialog, setDialog] = useState<null | { kind: 'open'; as: 'tab' | 'table' } | { kind: 'size'; item: MenuItem } | { kind: 'price'; item: MenuItem; size: Size | null } | { kind: 'pay' } | { kind: 'split' } | { kind: 'void'; what: 'item' | 'payment' | 'check'; id: string; label: string } | { kind: 'rename' } | { kind: 'pin' }>(null);
+  const [dialog, setDialog] = useState<null | { kind: 'open'; as: 'tab' | 'table' } | { kind: 'size'; item: MenuItem } | { kind: 'price'; item: MenuItem; size: Size | null } | { kind: 'pay' } | { kind: 'split' } | { kind: 'void'; what: 'item' | 'payment' | 'check'; id: string; label: string } | { kind: 'rename' } | { kind: 'pin' } | { kind: 'sellCard' }>(null);
   const [showRecent, setShowRecent] = useState(false);
-  const [paid, setPaid] = useState<{ changeCents: number | null } | null>(null);
+  const [paid, setPaid] = useState<{ changeCents: number | null; giftCard: { code: string; balanceCents: number } | null } | null>(null);
   const { guarded, dialog: managerDialog } = useManagerPin();
 
   const loadState = useCallback(async () => {
@@ -262,6 +262,7 @@ export default function RegisterPage() {
                   {isTable
                     ? <button className={`${BTN} ${OFF} inline-flex items-center justify-center gap-2`} onClick={() => act('seats', () => api.post(`/api/register/check/${check.id}/split-seats`, {}))}><Users className="w-4 h-4" />By seat</button>
                     : <span />}
+                  {state.giftCards && <button className={`${BTN} ${OFF} inline-flex items-center justify-center gap-2 col-span-2`} onClick={() => setDialog({ kind: 'sellCard' })}><Gift className="w-4 h-4" />Sell a gift card</button>}
                   <button className={`${BTN} ${DANGER} inline-flex items-center justify-center gap-2 col-span-2`} onClick={() => setDialog({ kind: 'void', what: 'check', id: check.id, label: `check #${check.number}` })}><Ban className="w-4 h-4" />Void the check</button>
                 </div>
               )}
@@ -289,11 +290,15 @@ export default function RegisterPage() {
       {dialog?.kind === 'price' && <PriceDialog item={dialog.item} onClose={() => setDialog(null)} onRing={(cents) => { const d = dialog; setDialog(null); ring(d.item, d.size, cents); }} />}
       {dialog?.kind === 'pay' && check && (
         <PayDialog check={check} result={paid} onClose={() => { setDialog(null); setPaid(null); }}
-          onPay={async (body) => { const r = await act('pay', () => api.post(`/api/register/check/${check.id}/pay`, body)); if (r) setPaid({ changeCents: r.changeCents ?? null }); return !!r; }} />
+          onPay={async (body) => { const r = await act('pay', () => api.post(`/api/register/check/${check.id}/pay`, body)); if (r) setPaid({ changeCents: r.changeCents ?? null, giftCard: r.giftCard ?? null }); return !!r; }} giftCards={state.giftCards} />
       )}
       {dialog?.kind === 'split' && check && (
         <SplitDialog check={check} onClose={() => setDialog(null)}
           onSplit={async (itemIds, label) => { const r = await act('split', () => api.post(`/api/register/check/${check.id}/split`, { itemIds, label })); if (r?.to) { setDialog(null); setCheckId(r.to.id); } }} />
+      )}
+      {dialog?.kind === 'sellCard' && check && (
+        <SellCardDialog onClose={() => setDialog(null)}
+          onSell={async (amountCents, code) => { const r = await act('sell', () => api.post(`/api/register/check/${check.id}/giftcard`, { amountCents, code })); if (r) setDialog(null); }} />
       )}
       {dialog?.kind === 'rename' && check && (
         <RenameDialog check={check} onClose={() => setDialog(null)}
@@ -359,8 +364,10 @@ function PriceDialog({ item, onClose, onRing }: { item: MenuItem; onClose: () =>
   );
 }
 
-function PayDialog({ check, result, onClose, onPay }: { check: Check; result: { changeCents: number | null } | null; onClose: () => void; onPay: (b: Record<string, unknown>) => Promise<boolean> }) {
-  const [tender, setTender] = useState<'cash' | 'card_external'>('card_external');
+function PayDialog({ check, result, onClose, onPay, giftCards }: { check: Check; result: { changeCents: number | null; giftCard: { code: string; balanceCents: number } | null } | null; onClose: () => void; onPay: (b: Record<string, unknown>) => Promise<boolean>; giftCards: boolean }) {
+  const [tender, setTender] = useState<'cash' | 'card_external' | 'giftcard'>('card_external');
+  const [cardCode, setCardCode] = useState('');
+  const [cardBalance, setCardBalance] = useState<{ text: string; cents: number | null } | null>(null);
   const [amount, setAmount] = useState((check.totals.balanceCents / 100).toFixed(2));
   const [tip, setTip] = useState('');
   const [tendered, setTendered] = useState('');
@@ -371,6 +378,7 @@ function PayDialog({ check, result, onClose, onPay }: { check: Check; result: { 
     return (
       <Dialog title="Paid" onClose={onClose}>
         {result.changeCents !== null && <p className="text-3xl font-bold text-gray-900 dark:text-slate-100 mb-2">Change {money(result.changeCents)}</p>}
+        {result.giftCard && <p className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-2">{result.giftCard.code}: {money(result.giftCard.balanceCents)} left on the card</p>}
         <p className={`text-sm ${MUTED}`}>{check.status === 'paid' ? 'The check is paid and closed.' : `Still owed: ${money(check.totals.balanceCents)}`}</p>
         <div className="flex justify-end mt-4"><button className={`${BTN} ${ON}`} onClick={onClose}>Done</button></div>
       </Dialog>
@@ -380,14 +388,31 @@ function PayDialog({ check, result, onClose, onPay }: { check: Check; result: { 
     <Dialog title={`Pay #${check.number} ${check.label}`} onClose={onClose}>
       <form onSubmit={async (e) => {
         e.preventDefault(); if (amt === null) return; setBusy(true);
-        await onPay({ tender, amountCents: amt, tipCents: tipC, cashTenderedCents: tender === 'cash' && tend !== null ? tend : null });
+        await onPay(tender === 'giftcard'
+          ? { tender, amountCents: amt, giftCardCode: cardCode }
+          : { tender, amountCents: amt, tipCents: tipC, cashTenderedCents: tender === 'cash' && tend !== null ? tend : null });
         setBusy(false);
       }}>
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className={`grid ${giftCards ? 'grid-cols-3' : 'grid-cols-2'} gap-2 mb-3`}>
           <button type="button" className={`${BTN} ${tender === 'card_external' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'card_external'} onClick={() => setTender('card_external')}><CreditCard className="w-4 h-4" />Card</button>
           <button type="button" className={`${BTN} ${tender === 'cash' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'cash'} onClick={() => setTender('cash')}><Banknote className="w-4 h-4" />Cash</button>
+          {giftCards && <button type="button" className={`${BTN} ${tender === 'giftcard' ? ON : OFF} inline-flex items-center justify-center gap-2`} aria-pressed={tender === 'giftcard'} onClick={() => setTender('giftcard')}><Gift className="w-4 h-4" />Gift card</button>}
         </div>
         {tender === 'card_external' && <p className={`text-sm mb-3 ${MUTED}`}>Run the card on the card reader first, then record it here.</p>}
+        {tender === 'giftcard' && (
+          <div className="mb-3">
+            <label className={LABEL} htmlFor="pay-card">Gift card number</label>
+            <div className="flex gap-2 mt-1">
+              <input id="pay-card" className={INPUT} autoComplete="off" value={cardCode} onChange={(e) => { setCardCode(e.target.value); setCardBalance(null); }} placeholder="ABCD-7K2Q-9XMP" />
+              <button type="button" className={`${BTN} ${OFF}`} disabled={!cardCode.trim()} onClick={async () => {
+                try { const r = await api.get(`/api/gift-cards/lookup?code=${encodeURIComponent(cardCode)}`); setCardBalance({ text: r.status === 'active' ? `${money(r.balanceCents)} on ${r.code}` : `${r.code} was voided`, cents: r.status === 'active' ? r.balanceCents : null }); }
+                catch (e) { setCardBalance({ text: errorText(e, 'Could not look that up.'), cents: null }); }
+              }}>Balance</button>
+            </div>
+            {cardBalance && <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-slate-100">{cardBalance.text}</p>}
+            <p className={`text-xs mt-1 ${MUTED}`}>Takes up to what is on the card; anything left is paid another way. No tip off a gift card.</p>
+          </div>
+        )}
         <label className={LABEL} htmlFor="pay-amount">Amount ($) — balance {money(check.totals.balanceCents)}</label>
         <input id="pay-amount" className={`${INPUT} mt-1`} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <div className="flex flex-wrap gap-2 mt-2">
@@ -397,8 +422,12 @@ function PayDialog({ check, result, onClose, onPay }: { check: Check; result: { 
             return <button key={n} type="button" className={`${BTN} ${OFF} min-h-[40px]`} onClick={() => setAmount((part / 100).toFixed(2))}>{n} ways · {money(part)}</button>;
           })}
         </div>
-        <label className={`${LABEL} block mt-3`} htmlFor="pay-tip">Tip ($)</label>
-        <input id="pay-tip" className={`${INPUT} mt-1`} inputMode="decimal" value={tip} onChange={(e) => setTip(e.target.value)} placeholder="0.00" />
+        {tender !== 'giftcard' && (
+          <>
+            <label className={`${LABEL} block mt-3`} htmlFor="pay-tip">Tip ($)</label>
+            <input id="pay-tip" className={`${INPUT} mt-1`} inputMode="decimal" value={tip} onChange={(e) => setTip(e.target.value)} placeholder="0.00" />
+          </>
+        )}
         {tender === 'cash' && (
           <>
             <label className={`${LABEL} block mt-3`} htmlFor="pay-tendered">Cash handed over ($)</label>
@@ -411,7 +440,32 @@ function PayDialog({ check, result, onClose, onPay }: { check: Check; result: { 
         )}
         <div className="flex justify-end gap-2 mt-4">
           <button type="button" className={`${BTN} ${OFF}`} onClick={onClose}>Cancel</button>
-          <button type="submit" className={`${BTN} ${ON}`} disabled={busy || amt === null || amt <= 0}>Take {amt !== null ? money(amt + tipC) : ''}</button>
+          <button type="submit" className={`${BTN} ${ON}`} disabled={busy || amt === null || amt <= 0 || (tender === 'giftcard' && !cardCode.trim())}>Take {amt !== null ? money(tender === 'giftcard' ? amt : amt + tipC) : ''}</button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+function SellCardDialog({ onClose, onSell }: { onClose: () => void; onSell: (amountCents: number, code: string | null) => Promise<void> }) {
+  const [typed, setTyped] = useState('25');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const cents = centsFrom(typed);
+  return (
+    <Dialog title="Sell a gift card" onClose={onClose}>
+      <form onSubmit={async (e) => { e.preventDefault(); if (cents === null) return; setBusy(true); await onSell(cents, code.trim() || null); setBusy(false); }}>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {[25, 50, 100].map((d) => <button key={d} type="button" className={`${BTN} ${typed === String(d) ? ON : OFF}`} onClick={() => setTyped(String(d))}>${d}</button>)}
+        </div>
+        <label className={LABEL} htmlFor="gc-amount">Amount ($5 to $500)</label>
+        <input id="gc-amount" className={`${INPUT} mt-1`} inputMode="decimal" value={typed} onChange={(e) => setTyped(e.target.value)} />
+        <label className={`${LABEL} block mt-3`} htmlFor="gc-code">Card number (only for a pre-printed card)</label>
+        <input id="gc-code" className={`${INPUT} mt-1`} autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Leave blank to make one" />
+        <p className={`text-xs mt-2 ${MUTED}`}>It goes on this check and becomes a card when the check is paid. No expiry, no fees. It is not taxed — the food is, when the card is spent.</p>
+        <div className="flex justify-end gap-2 mt-4">
+          <button type="button" className={`${BTN} ${OFF}`} onClick={onClose}>Cancel</button>
+          <button type="submit" className={`${BTN} ${ON}`} disabled={busy || cents === null}>Add {cents !== null ? money(cents) : ''}</button>
         </div>
       </form>
     </Dialog>
