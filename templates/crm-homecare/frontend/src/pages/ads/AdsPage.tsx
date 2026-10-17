@@ -450,7 +450,7 @@ function CampaignsTab() {
                 <p className="font-semibold text-gray-900 dark:text-white text-sm">{ad.headline}</p>
                 <p className="text-gray-500 dark:text-slate-400 text-xs mt-1 line-clamp-2">{ad.body}</p>
                 {ad.cta && (
-                  {/* semantic-blue: the ad's call-to-action as the ad platform draws it, in a preview — not an action in this CRM */}
+                  // semantic-blue: the ad's call-to-action as the ad platform draws it, in a preview — not an action in this CRM
                   <span className="inline-block mt-2 px-2 py-0.5 text-xs font-medium bg-blue-500 text-white rounded">
                     {ad.cta}
                   </span>
@@ -585,7 +585,7 @@ function ApprovalsTab({ onCountChange }: { onCountChange: (n: number) => void })
                     <h4 className="font-semibold text-gray-900 dark:text-white">{item.headline}</h4>
                     <p className="text-gray-600 dark:text-slate-300 text-sm mt-1">{item.body}</p>
                     {item.cta && (
-                      {/* semantic-blue: the ad's call-to-action as the ad platform draws it, in a preview — not an action in this CRM */}
+                      // semantic-blue: the ad's call-to-action as the ad platform draws it, in a preview — not an action in this CRM
                       <span className="inline-block mt-3 px-3 py-1 text-xs font-semibold bg-blue-500 text-white rounded-md">
                         {item.cta}
                       </span>
@@ -717,7 +717,7 @@ function AdDetailSlideOver({ ad, onClose }: { ad: any; onClose: () => void }) {
             <h4 className="font-semibold text-gray-900 dark:text-white text-lg">{ad.headline}</h4>
             <p className="text-gray-600 dark:text-slate-300 text-sm mt-2">{ad.body}</p>
             {ad.cta && (
-              {/* semantic-blue: the ad's call-to-action as the ad platform draws it, in a preview — not an action in this CRM */}
+              // semantic-blue: the ad's call-to-action as the ad platform draws it, in a preview — not an action in this CRM
               <span className="inline-block mt-3 px-4 py-1.5 text-sm font-semibold bg-blue-500 text-white rounded-lg">
                 {ad.cta}
               </span>
