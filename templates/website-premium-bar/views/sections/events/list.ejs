@@ -35,7 +35,7 @@
       </div>
     <% } %>
     <% if (!evs.length) { %>
-      <p class="events__empty"><%= data.emptyText || 'Nothing extra on the calendar right now. The game is on when there is a game; the fish fry is every Friday.' %></p>
+      <p class="events__empty"><%= data.emptyText || 'Nothing extra on the calendar right now.' %></p>
     <% } else { %>
       <ol class="events__list" role="list">
         <% for (const e of evs) { %>

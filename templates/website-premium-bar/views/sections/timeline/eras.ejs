@@ -34,7 +34,7 @@
 <section class="eras" id="story" aria-labelledby="eras-heading">
   <div class="container">
     <header class="eras__head">
-      <div class="eyebrow">Est. 1881 · East Madison Street</div>
+      <% if (data.eyebrow) { %><div class="eyebrow"><%= data.eyebrow %></div><% } %>
       <<%= H %> class="eras__title foil" id="eras-heading"><%= heading %></<%= H %>>
       <% if (intro) { %><p class="eras__intro"><%= intro %></p><% } %>
     </header>

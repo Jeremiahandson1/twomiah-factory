@@ -74,7 +74,7 @@
   <meta name="twitter:title" content="<%= seoTitle %>">
   <meta name="twitter:description" content="<%= seoDescription %>">
   <% if (ogImage) { %><meta name="twitter:image" content="<%= ogImage %>"><% } %>
-  <link rel="icon" href="<%= settings.faviconUrl || '/favicon.svg' %>"<%= settings.faviconUrl ? '' : ' type="image/svg+xml"' %>>
+  <% if (settings.faviconUrl) { %><link rel="icon" href="<%= settings.faviconUrl %>"><% } %>
   <% if (settings.appleTouchIconUrl) { %><link rel="apple-touch-icon" href="<%= settings.appleTouchIconUrl %>"><% } %>
   <% if (typeof lcpImage !== 'undefined' && lcpImage) { %>
     <link rel="preload" as="image" href="<%= lcpImage %>" fetchpriority="high">

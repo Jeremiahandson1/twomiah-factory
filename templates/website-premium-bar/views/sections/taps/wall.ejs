@@ -1,7 +1,7 @@
 <%
-  // THE TAP WALL — what is actually pouring right now, from the taps table
-  // the console's tap/blow buttons write to. Public words are limited to
-  // "pouring" / "just tapped" / "last keg" — never a percentage.
+  // THE TAP WALL — what is actually pouring right now, from the CRM (site.taps, lib/bar.ts), which the
+  // bartender's tap/blow buttons write to. Public words are limited to "pouring" / "just tapped" /
+  // "last keg" — never a percentage.
   //
   // data: { heading, intro, asHeading, leadOrigins: ['Germany'] (listed first), showPrices, emptyText }
   const H = data.asHeading ? 'h1' : 'h2'
@@ -14,7 +14,8 @@
     return ra - rb || (a.sortOrder || 0) - (b.sortOrder || 0) || (a.lineNumber || 0) - (b.lineNumber || 0)
   })
   const STATUS = { pouring: 'Pouring', just_tapped: 'Just tapped', last_keg: 'Last keg' }
-  function price(t) { if (t.priceCents === null || t.priceCents === undefined) return ''; return t.priceCents % 100 === 0 ? '$' + (t.priceCents / 100) : '$' + (t.priceCents / 100).toFixed(2) }
+  // The CRM sends the price already formatted (t.price); a whole-cents value is formatted here.
+  function price(t) { if (t.price) return t.price; if (t.priceCents === null || t.priceCents === undefined) return ''; return t.priceCents % 100 === 0 ? '$' + (t.priceCents / 100) : '$' + (t.priceCents / 100).toFixed(2) }
   const L = (typeof live !== 'undefined' && live) ? live : null
   const updated = L && L.taps && L.taps.updatedAt ? new Intl.DateTimeFormat('en-US', { timeZone: L.timezone, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(L.taps.updatedAt)) : ''
 %>

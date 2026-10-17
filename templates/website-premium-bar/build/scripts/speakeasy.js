@@ -1,8 +1,9 @@
 /* speakeasy.js — the door in the leather.
  *
- * Knock → the slot opens → password (a riddle from the bar's own story) → the
- * door swings → a cellar of riddle rooms → the Back Room, where the bar's
- * password of the week is waiting (/api/speakeasy, set from the console).
+ * Knock → the slot opens → the password of the week (the owner sets it in the CRM and writes the riddle
+ * that leads to it in the section) → the door swings → a cellar of riddle rooms → the Back Room, which
+ * shows the owner's reward. The password is checked by the CRM (POST /api/speakeasy → the CRM, rate-
+ * limited); it is never sent to the browser.
  * The overlay's CSS loads on the first knock, so the home page pays nothing
  * until someone plays. Keyboard: Enter answers, Esc closes. Progress is
  * remembered in localStorage so the door stays lit for people who know. */
@@ -14,7 +15,8 @@
   var openBtn = section.querySelector('[data-speak-open]');
   var statusEl = section.querySelector('[data-speak-status]');
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var KEY = 'amber.speakeasy.v1';
+  var KEY = 'speakeasy.v1';
+  var reward = null;   // the owner's note, handed back by the CRM when the password is right
   var saved = {}; try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) {}
   function save() { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {} }
   if (saved.solved) { section.classList.add('is-known'); if (statusEl) statusEl.textContent = 'You know the way.'; }
@@ -72,32 +74,43 @@
       wait(750).then(function () {
         wrap.classList.remove('is-knocking'); wrap.classList.add('is-slot-open');
         say.textContent = 'Password?';
-        line.textContent = cfg.password.question || 'What did George Berg sell over the counter in 1920?';
+        line.textContent = cfg.password.question || '';
         knock.remove();
         var form = el('form', 'spk__form');
         var input = el('input', 'spk__input'); input.type = 'text'; input.autocomplete = 'off'; input.setAttribute('aria-label', 'Password'); input.placeholder = 'say it quiet';
         var go = el('button', 'spk__btn', 'Say it'); go.type = 'submit';
         form.appendChild(input); form.appendChild(go); s.appendChild(form);
-        var small = el('p', 'spk__small', 'It is in <a href="/story/1920" target="_blank" rel="noopener">the story</a>.'); small.hidden = true; s.appendChild(small);
+        var small = el('p', 'spk__small'); small.hidden = true; s.appendChild(small);
+        if (cfg.password.hintHref) { var a2 = el('a', null); a2.href = cfg.password.hintHref; a2.target = '_blank'; a2.rel = 'noopener'; a2.textContent = cfg.password.hintLinkText || 'A clue'; small.appendChild(a2); }
         input.focus();
         form.addEventListener('submit', function (e) {
           e.preventDefault();
           var a = norm(input.value); if (!a) return;
-          var ok = (cfg.password.answers || []).some(function (x) { return norm(x) === a || (a.length > 3 && norm(x).indexOf(a) === 0); });
+          go.disabled = true;
+          fetch('/api/speakeasy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answer: input.value }) })
+            .then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { return { status: r.status, j: j }; }); })
+            .catch(function () { return { status: 0, j: null }; })
+            .then(function (res) { go.disabled = false; answered(res); });
+        });
+        function answered(res) {
+          var ok = res.j && res.j.ok === true;
+          if (res.status === 503 || res.status === 0) { say.textContent = (res.j && res.j.note) || 'The door is shut tonight.'; form.remove(); return; }
+          if (!ok && res.j && res.j.note && res.status === 429) { say.textContent = res.j.note; return; }
           if (!ok) {
             tries++; buzz(120);
             wrap.classList.add('is-slam'); wrap.classList.remove('is-slot-open');
             say.textContent = ['Beat it.', 'Never heard of it.', 'Wrong door, pal.'][Math.min(tries - 1, 2)];
             input.value = '';
-            wait(900).then(function () { wrap.classList.remove('is-slam'); wrap.classList.add('is-slot-open'); say.textContent = 'Password?'; if (tries >= 2) { small.hidden = false; if (cfg.password.hint) line.textContent = cfg.password.hint; } input.focus(); });
+            wait(900).then(function () { wrap.classList.remove('is-slam'); wrap.classList.add('is-slot-open'); say.textContent = 'Password?'; if (tries >= 2) { small.hidden = !cfg.password.hintHref; if (cfg.password.hint) line.textContent = cfg.password.hint; } input.focus(); });
             return;
           }
+          reward = res.j.note || null;
           buzz(60);
           say.textContent = 'Come in.'; form.remove(); small.remove(); line.textContent = '';
           light.classList.add('is-on'); wrap.classList.add('is-opening');
           saved.door = true; save();
-          wait(1150).then(cellarScene);
-        });
+          wait(1150).then(function () { if (cfg.riddles.length) cellarScene(); else backRoom(); });
+        }
       });
     });
   }
@@ -116,7 +129,8 @@
     var s = scene('spk__scene--cellar');
     var map = el('div', 'spk__map'); map.setAttribute('aria-hidden', 'true');
     var svg = '<svg viewBox="0 0 500 300"><defs><radialGradient id="spk-glow2" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFD98A" stop-opacity=".8"/><stop offset="1" stop-color="#FFD98A" stop-opacity="0"/></radialGradient></defs>';
-    svg += '<text x="250" y="24" class="lbl" style="font-size:11px">Cellar · 840 East Madison · 1920</text>';
+    var mapTitle = String(cfg.mapTitle || 'The cellar').replace(/[&<>"]/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]; });
+    svg += '<text x="250" y="24" class="lbl" style="font-size:11px">' + mapTitle + '</text>';
     var n = Math.min(riddles.length + 1, ROOMS.length);
     for (var i = 0; i < n - 1; i++) { var a = ROOMS[i], b = ROOMS[i + 1]; svg += '<line class="hall" data-h="' + i + '" x1="' + (a.x + a.w / 2) + '" y1="' + (a.y + a.h / 2) + '" x2="' + (b.x + b.w / 2) + '" y2="' + (b.y + b.h / 2) + '"/>'; }
     for (var j = 0; j < n; j++) { var r = ROOMS[j === n - 1 ? ROOMS.length - 1 : j]; svg += '<rect class="rm" data-r="' + j + '" x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" rx="3"/><text class="lbl" x="' + (r.x + r.w / 2) + '" y="' + (r.y + r.h + 14) + '">' + r.label + '</text>'; }
@@ -168,20 +182,15 @@
     var s = scene('spk__scene--back');
     var plaque = el('div', 'spk__plaque');
     var h = el('h3', null, cfg.reward.title || 'The Back Room');
-    var lead = el('p', null, 'You found it. Nobody who matters saw you come down.');
-    var pw = el('div', 'spk__pw', '…');
-    var note = el('p', null, cfg.reward.fallback || 'Say it at the bar.');
-    plaque.appendChild(h); plaque.appendChild(lead); plaque.appendChild(pw); plaque.appendChild(note);
+    var lead = el('p', null, 'You found it.');
+    // The owner's reward, from the CRM with the password check — or the section's own words.
+    var note = el('p', 'spk__pw');
+    note.textContent = reward || cfg.reward.fallback || '';
+    plaque.appendChild(h); plaque.appendChild(lead); if (note.textContent) plaque.appendChild(note);
     var row = el('div', 'spk__row');
-    var copy = el('button', 'spk__btn spk__btn--ghost', 'Copy the password'); copy.type = 'button';
     var again = el('button', 'spk__btn spk__btn--ghost', 'Back to the cover'); again.type = 'button'; again.addEventListener('click', hide);
-    row.appendChild(copy); row.appendChild(again);
+    row.appendChild(again);
     s.appendChild(plaque); s.appendChild(row);
-    copy.addEventListener('click', function () { try { navigator.clipboard.writeText(pw.textContent); copy.textContent = 'Copied'; } catch (e) {} });
-    fetch('/api/speakeasy', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
-      if (j && j.password) { pw.textContent = j.password; if (j.note) note.textContent = j.note; }
-      else { pw.textContent = 'ROOT BEER, IMPROVED'; note.textContent = cfg.reward.fallback || 'Say it at the bar and see what happens.'; }
-    }).catch(function () { pw.textContent = 'ROOT BEER, IMPROVED'; });
     again.focus();
   }
 

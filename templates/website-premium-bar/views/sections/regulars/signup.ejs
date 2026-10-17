@@ -1,10 +1,9 @@
 <%
-  // THE REGULARS — sign up for the bar's list. Posts to /api/regulars → a
-  // guest record, plus email consent evidence only if the box is ticked
-  // (never pre-ticked). The consent words come from the server (site.regulars)
-  // so what's shown is exactly what's stored.
+  // THE REGULARS — sign up for the bar's list. Posts to /api/leads (formType 'regulars') → a guest in
+  // the CRM, plus email consent evidence only if the box is ticked (never pre-ticked). The consent words
+  // come from the server (site.regulars) so what's shown is exactly what's stored.
   //
-  // data: { heading, intro, asHeading, perks: [] }
+  // data: { heading, intro, asHeading, perks: [], promise }
   const H = data.asHeading ? 'h1' : 'h2'
   const R = (typeof site !== 'undefined' && site && site.regulars) ? site.regulars : null
   const L = R ? R.loyalty : null
@@ -12,7 +11,7 @@
   const pointsLine = L && L.enabled ? `A point for every dollar${L.pointsPerDollar > 1 ? ' (' + L.pointsPerDollar + ' points)' : ''} on food and drink. ${L.rewardPoints} points is ${money(L.rewardCents)} off.` : ''
   const perks = Array.isArray(data.perks) ? data.perks.filter(Boolean) : []
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-  const ts = Date.now()
+  const t = Date.now()
 %>
 <section class="parties regulars" id="regulars" aria-labelledby="regulars-heading">
   <div class="container">
@@ -21,9 +20,11 @@
       <% if (data.intro) { %><p class="section-intro"><%= data.intro %></p><% } %>
     </div>
     <div class="parties__layout">
-      <form class="parties__form" method="POST" action="/api/regulars" aria-label="Join the Regulars">
+      <form class="parties__form" method="POST" action="/api/leads" aria-label="Join the Regulars">
         <p class="regulars__error" id="regulars-error" role="alert" hidden></p>
-        <input type="hidden" name="ts" value="<%= ts %>">
+        <input type="hidden" name="formType" value="regulars">
+        <input type="hidden" name="source" value="<%= typeof currentPath !== 'undefined' && currentPath ? currentPath : '/regulars' %>">
+        <input type="hidden" name="t" value="<%= t %>">
         <div class="parties__hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
         <div class="parties__row">
           <div class="parties__field"><label class="parties__label" for="r-name">Your name</label><input id="r-name" type="text" name="name" required maxlength="60" autocomplete="name"></div>
@@ -44,13 +45,12 @@
         <% } %>
         <div class="parties__submit-row">
           <button class="btn btn--primary btn--xl" type="submit">Put me on the list</button>
-          <span class="parties__promise">No texts from us. Your number stays at the bar.</span>
+          <% if (data.promise) { %><span class="parties__promise"><%= data.promise %></span><% } %>
         </div>
       </form>
       <aside class="parties__sidebar">
         <% if (pointsLine) { %><div class="parties__sidebar-row"><div class="parties__sidebar-num">Points</div><div class="parties__sidebar-label"><%= pointsLine %></div></div><% } %>
         <% if (perks.length) { %><div class="parties__sidebar-row"><ul class="parties__sidebar-list"><% for (const p of perks) { %><li><%= p %></li><% } %></ul></div><% } %>
-        <div class="parties__sidebar-row"><div class="eyebrow">Already a regular?</div><p class="parties__sidebar-label">Give your number at the bar and it goes on your tab.</p></div>
       </aside>
     </div>
   </div>

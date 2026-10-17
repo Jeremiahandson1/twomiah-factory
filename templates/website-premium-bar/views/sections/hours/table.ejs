@@ -1,5 +1,5 @@
 <%
-  // Hours — bar AND kitchen, side by side, from lib/hours config (site.hours)
+  // Hours — bar AND kitchen, side by side, from the CRM's hours (site.hours, null until entered)
   // with today's live line from `live`. Holidays coming up are listed so the
   // page never lies on Christmas. Never hardcode hours anywhere else.
   //
@@ -10,7 +10,8 @@
   const DAYS = [['mon','Monday'],['tue','Tuesday'],['wed','Wednesday'],['thu','Thursday'],['fri','Friday'],['sat','Saturday'],['sun','Sunday']]
   function fmt(t) { const [h, m] = String(t).split(':').map(Number); const h12 = h % 12 === 0 ? 12 : h % 12; const ap = h < 12 ? 'AM' : 'PM'; return m ? h12 + ':' + String(m).padStart(2, '0') + ' ' + ap : h12 + ' ' + ap }
   function ranges(r) { if (!Array.isArray(r) || !r.length) return 'Closed'; return r.map(x => fmt(x.open) + ' – ' + fmt(x.close)).join(', ') }
-  const todayKey = L ? ['sun','mon','tue','wed','thu','fri','sat'][new Date(L.generatedAt).getDay()] : ''
+  // Today on the BAR's clock (L.localDate), not the server's: Render runs on UTC, a day ahead every evening.
+  const todayKey = L && /^\d{4}-\d{2}-\d{2}$/.test(L.localDate) ? ['sun','mon','tue','wed','thu','fri','sat'][new Date(L.localDate + 'T12:00:00Z').getUTCDay()] : ''
   const today = L ? L.localDate : ''
   const holidays = cfg && Array.isArray(cfg.holidays) ? cfg.holidays.filter(h => h && h.date && (!today || h.date >= today)).slice(0, 6) : []
   function dateLabel(d) { const [y, m, dd] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric' }) }
@@ -28,7 +29,7 @@
       </p>
     <% } %>
     <% if (!cfg) { %>
-      <p class="hours__empty">Hours are being set up. Call <a href="tel:<%= String(settings.phone || '').replace(/[^\d+]/g, '') %>"><%= settings.phone %></a>.</p>
+      <p class="hours__empty">Hours are being set up.<% if (settings.phone) { %> Call <a href="tel:<%= String(settings.phone).replace(/[^\d+]/g, '') %>"><%= settings.phone %></a>.<% } %></p>
     <% } else { %>
     <div class="hours__table-wrap" tabindex="0" role="region" aria-label="Weekly hours table">
       <table class="hours__table">

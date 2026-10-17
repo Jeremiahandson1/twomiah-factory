@@ -1,5 +1,10 @@
 /**
- * server-static.ts — premium-contractor template runtime.
+ * server-static.ts — premium bar & tavern template runtime (the premium standard + the bar's sections).
+ *
+ * The bar's live facts — menu, 86, specials, taps, hours, the bartender's live status, public events —
+ * are the CRM's (templates/crm-bar). lib/bar.ts reads them from the CRM's public endpoints (CRM_BAR=1,
+ * CRM_API_URL) into one cached `site` bundle the partials render from; /api/live re-serves the live
+ * state to the board's poller. Party enquiries and Regulars sign-ups go through /api/leads to the CRM.
  *
  * Renders pages from the section-composition schema:
  *   pages row → { sections: [...] } → views/home.ejs → views/base.ejs.
@@ -34,6 +39,8 @@ import adminRoutes, { authMiddleware, requireAdmin } from './routes/admin'
 const adminAuth = authMiddleware as any
 const adminOnly = requireAdmin as any
 import { secureHeaders, adminCors, loginRateLimit, isSafeUrl } from './lib/security'
+import { CRM_BAR, loadSiteData, fetchLive, checkSpeakeasy, EMAIL_CONSENT_TEXT, type SiteData } from './lib/bar'
+import { pageJsonLd } from './lib/schema-org/page'
 
 // Cache-busting version for local stylesheets: changes every deploy (Render
 // sets RENDER_GIT_COMMIT) so browsers can keep long max-age but never serve
@@ -137,6 +144,8 @@ app.get('/.well-known/security.txt', (c) => {
 // ── Asset serving (CSS, JS, uploads) ──────────────────────────────────────
 app.use('/styles/*', serveStatic({ root: './build' }))
 app.use('/scripts/*', serveStatic({ root: './build' }))
+// The bar look's self-hosted faces (build/fonts, build/styles/fonts.css).
+app.use('/fonts/*', serveStatic({ root: './build' }))
 app.use('/uploads/*', serveStatic({ root: '.' }))
 registerMedia(app)
 // Favicon + synthesized logo (build/favicon.svg, build/images/logo.svg) — makes the
@@ -172,14 +181,14 @@ async function renderPage(slug: string, currentPath: string, origin: string): Pr
   const [page, settingsRow] = await Promise.all([loadPage(slug), loadSettings()])
   if (!page || !page.isPublished) return null
   return renderSections(Array.isArray(page.sections) ? page.sections : [],
-    { title: page.title, metaTitle: page.metaTitle, metaDescription: page.metaDescription }, settingsRow, currentPath, origin)
+    { title: page.title, metaTitle: page.metaTitle, metaDescription: page.metaDescription, slug }, settingsRow, currentPath, origin)
 }
 
 // Any section list through home.ejs + base.ejs — a stored page, or one the server builds (the
 // service-area pages).
 async function renderSections(
   sections: any[],
-  meta: { title?: string | null; metaTitle?: string | null; metaDescription?: string | null },
+  meta: { title?: string | null; metaTitle?: string | null; metaDescription?: string | null; slug?: string; jsonLdItem?: any },
   settingsRow: any,
   currentPath: string,
   origin: string,
@@ -219,17 +228,35 @@ async function renderSections(
     seoTitle: meta.metaTitle || settings.seoTitle || meta.title,
     seoDescription: meta.metaDescription || settings.seoDescription || '',
   }
+  // The address as lines (the visit section, the footer) and as schema.org parts.
+  Object.assign(effectiveSettings as any, addressParts(effectiveSettings.address))
+  // The bar's live facts (lib/bar.ts) and the owner's cover art (photos tagged brand-* / header-logo).
+  const site: SiteData = await loadSiteData()
+  ;(effectiveSettings as any).brandArt = site.brandArt
+  if (site.headerLogoUrl) (effectiveSettings as any).headerLogoUrl = site.headerLogoUrl
 
   // LCP preload: the first hero section's image is almost always the
   // Largest Contentful Paint on mobile. Emitting <link rel="preload"
   // as="image" fetchpriority="high"> lets the browser kick off the fetch
   // during HTML parse instead of waiting for the EJS section render to
   // discover the <img>. Mobile LCP typically improves 400-800ms.
-  const firstHero = (homepage.sections as any[]).find(s => s && s.type === 'hero')
-  const lcpImage = firstHero?.data?.image && typeof firstHero.data.image === 'string' ? firstHero.data.image : ''
+  // The bar's home page leads with the Tonight Board, not a hero: its cover or lettering image is the LCP.
+  const firstHero = (homepage.sections as any[]).find(s => s && (s.type === 'hero' || s.type === 'tonight'))
+  const pick = (...vals: any[]) => vals.find((v) => typeof v === 'string' && v) || ''
+  const lcpImage = firstHero?.type === 'tonight'
+    ? pick(firstHero.data?.coverImageSmall, firstHero.data?.coverImage, firstHero.data?.titleImageSmall, firstHero.data?.titleImage, firstHero.data?.art)
+    : pick(firstHero?.data?.image)
 
-  const body = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), { homepage, settings: effectiveSettings }) as string
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage }) as string
+  const body = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), { homepage, settings: effectiveSettings, site, live: site.live, md: markdownToHtml, currentPath }) as string
+  // Sitewide BarOrPub JSON-LD — bar hours and the kitchen as a department, from the CRM — plus the menu,
+  // FAQ, events and breadcrumbs the page actually renders (lib/schema-org/page.ts).
+  let jsonLd = ''
+  try {
+    jsonLd = pageJsonLd({ slug: meta.slug || currentPath.replace(/^\//, '') || 'home', title: meta.title || '', sections: homepage.sections as any[],
+      settings: { ...(effectiveSettings as any), ...addressParts(effectiveSettings.address) }, hoursSchema: site.hoursSchema,
+      menu: site.menu as any, events: site.events as any, item: meta.jsonLdItem || null })
+  } catch (e: any) { console.warn('[JSON-LD] skipped:', e?.message) }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage, jsonLd }) as string
   return absolutizeHrefs(html)
 }
 
@@ -288,6 +315,33 @@ function defaultHomePlaceholder(siteName: string): string {
   const safe = siteName.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${safe}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#fafaf7;color:#1a1a1a}main{max-width:680px;margin:10vh auto;padding:48px 32px;text-align:center}h1{font-size:2.5rem;margin:0 0 16px;letter-spacing:-.02em}p{color:#666;font-size:1.05rem;line-height:1.6;margin:0 0 32px}a.cta{display:inline-block;padding:14px 32px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px;font-weight:500}.tag{display:inline-block;font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:#999;margin-bottom:24px}</style></head><body><main><span class="tag">Coming Soon</span><h1>${safe}</h1><p>Your premium website is being prepared. Sign in to the admin to add your home page content, or wait for our composition team to send your preview.</p><a class="cta" href="/admin">Open Admin</a></main></body></html>`
 }
+
+// "840 E Madison St, Eau Claire, WI 54703" → the parts schema.org's PostalAddress wants. The settings row
+// holds one line; only what the owner typed is used, and a line that doesn't split cleanly gives none.
+function addressParts(address: unknown): Record<string, string> {
+  const parts = String(address || '').split(',').map((s) => s.trim()).filter(Boolean)
+  if (parts.length < 3) return {}
+  const m = parts[parts.length - 1].match(/^([A-Za-z]{2})\s*(\d{5}(?:-\d{4})?)?$/)
+  if (!m) return {}
+  return { streetAddress: parts.slice(0, -2).join(', '), addressLocality: parts[parts.length - 2], addressRegion: m[1].toUpperCase(), ...(m[2] ? { postalCode: m[2] } : {}) }
+}
+
+// ── The bar's live state ─────────────────────────────────────────────────
+// /api/live re-serves the CRM's live state (lib/bar.ts) to the Tonight Board's poller
+// (build/scripts/live.js). Never cached downstream; the server caches the CRM read ~20 s.
+app.get('/api/live', async (c) => {
+  c.header('Cache-Control', 'no-store')
+  const live = await fetchLive()
+  if (!live) return c.json({ error: 'Live status is not available.' }, 503)
+  return c.json(live)
+})
+// The speakeasy door: the guess is checked by the CRM, which keeps the password and rate-limits.
+app.post('/api/speakeasy', async (c) => {
+  const body: any = await c.req.json().catch(() => ({}))
+  const r = await checkSpeakeasy(String(body?.answer || ''))
+  if (!r) return c.json({ ok: false, note: 'The door is shut tonight.' }, 503)
+  return c.json(r, r.ok ? 200 : 403)
+})
 
 // ── Page routes ───────────────────────────────────────────────────────────
 app.get('/', async (c) => {
@@ -1651,10 +1705,45 @@ function escapeXml(s: string): string {
 // shadows them.
 app.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
-  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'llms.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
+  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'llms.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
   const html = await renderPage(slug, '/' + slug, getSiteOrigin(c))
   if (html) countView('/' + slug)
   if (!html) return c.notFound()
+  return c.html(html)
+})
+
+// ── Nested pages and signature items ──────────────────────────────────────
+// A page row may hold a nested path as its slug (/story/1881, /story/oldest-bar-in-wisconsin); failing
+// that, /<menu-section>/<item> is a signature item's own page (own URL, photo, story, MenuItem JSON-LD),
+// built from the CRM's menu so there is nothing to keep in sync. Unknown → 404.
+const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'blog', 'book', 'booking', 'customize',
+  'projects', 'service-areas', 'inventory', 'media', '.well-known']
+async function renderItemPage(sectionSlug: string, itemSlug: string, origin: string): Promise<string | null> {
+  const [site, settingsRow] = await Promise.all([loadSiteData(), loadSettings()])
+  const section = site.menu.find((s) => s.slug === sectionSlug)
+  const item = section?.items.find((i) => i.slug === itemSlug && i.isSignature)
+  if (!section || !item) return null
+  const company = (settingsRow as any)?.companyName || ''
+  const sections = [{ type: 'menu', variant: 'item-hero', data: { slug: item.slug, section: section.slug, eyebrow: section.name } }]
+  return renderSections(sections, { title: item.name, metaTitle: item.name + (company ? ' — ' + company : ''), metaDescription: item.description || '',
+    slug: section.slug + '/' + item.slug, jsonLdItem: { section, item } }, settingsRow, '/' + section.slug + '/' + item.slug, origin)
+}
+app.get('/:a/:b', async (c, next) => {
+  const { a, b } = c.req.param()
+  if (NESTED_RESERVED.includes(a)) return next()
+  const slug = a + '/' + b
+  const html = (await renderPage(slug, '/' + slug, getSiteOrigin(c))) || (await renderItemPage(a, b, getSiteOrigin(c)))
+  if (!html) return next()
+  countView('/' + slug)
+  return c.html(html)
+})
+app.get('/:a/:b/:cc', async (c, next) => {
+  const { a, b, cc } = c.req.param()
+  if (NESTED_RESERVED.includes(a)) return next()
+  const slug = a + '/' + b + '/' + cc
+  const html = await renderPage(slug, '/' + slug, getSiteOrigin(c))
+  if (!html) return next()
+  countView('/' + slug)
   return c.html(html)
 })
 
@@ -1835,6 +1924,10 @@ async function handleLead(c: any) {
     }
 
     const one = (v: any) => (Array.isArray(v) ? v.map(String).join(', ') : String(v ?? '')).trim()
+    // The bar's two forms (parties/inquiry-form, regulars/signup) post here too, with a formType. A bar
+    // calls back, so a phone number is what they need; email is optional (BAR_CONTRACT.md).
+    const formType = one(body.formType)
+    if (formType === 'party' || formType === 'regulars') return handleBarForm(c, formType, body, one, reply, ip)
     const email = one(body.email)
     const source = one(body.source) || String(c.req.header('referer') || '').trim() || null
     // The waitlist asks only for an email; give the lead a name the CRM can show.
@@ -1869,6 +1962,49 @@ async function handleLead(c: any) {
   }
 }
 
+// A private-party enquiry or a Regulars sign-up. Saved as a lead (email is '' when they gave none —
+// the leads table needs a value), the owner is emailed, and the CRM gets the structured fields: a party
+// enquiry opens a party in the CRM; a sign-up becomes a guest with consent evidence — the exact words
+// shown, where, when and from which IP — only when the box was ticked.
+async function handleBarForm(c: any, formType: 'party' | 'regulars', body: Record<string, any>, one: (v: any) => string,
+  reply: (ok: boolean, text: string, status?: number) => any, ip: string) {
+  const name = one(body.name).slice(0, 120)
+  const phone = one(body.phone).slice(0, 40)
+  const email = one(body.email).slice(0, 200)
+  if (!name || name.length < 2) return reply(false, 'Your name, please.')
+  if (phone.replace(/\D/g, '').length < 7) return reply(false, 'A phone number we can call you back on, please.')
+  if (email && !email.includes('@')) return reply(false, 'That email address does not look right.')
+  const fields: Record<string, any> = { formType }
+  let summary: string[] = []
+  if (formType === 'party') {
+    const size = Number.parseInt(one(body.partySize), 10)
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(one(body.requestedDate)) ? one(body.requestedDate) : null
+    const occasion = one(body.occasion).slice(0, 80) || null
+    const note = one(body.message).slice(0, 2000) || null
+    Object.assign(fields, { partySize: Number.isFinite(size) && size > 0 ? size : null, requestedDate: date, occasion, message: note })
+    summary = ['Private party enquiry', size > 0 ? size + ' people' : '', date ? 'on ' + date : '', occasion ? '— ' + occasion : '', note ? '\n' + note : '']
+  } else {
+    const month = Number.parseInt(one(body.birthdayMonth), 10), day = Number.parseInt(one(body.birthdayDay), 10)
+    const consent = one(body.emailConsent) === 'yes' && !!email
+    Object.assign(fields, {
+      birthdayMonth: month >= 1 && month <= 12 ? month : null, birthdayDay: day >= 1 && day <= 31 ? day : null,
+      ...(consent ? { consentText: EMAIL_CONSENT_TEXT, consentSource: 'website:' + (one(body.source) || '/regulars'), consentIp: ip } : {}),
+    })
+    summary = ['Joined the Regulars', fields.birthdayMonth && fields.birthdayDay ? '(birthday ' + fields.birthdayMonth + '/' + fields.birthdayDay + ')' : '', consent ? '— said yes to email' : '']
+  }
+  const message = summary.filter(Boolean).join(' ').replace(/ \n/, '\n').slice(0, 5000)
+  try {
+    await db.insert(leadsTbl).values({ name, email, phone, message, source: formType === 'party' ? 'parties' : 'regulars' })
+  } catch (err: any) {
+    console.error('[Leads] bar form insert failed:', err.message)
+    return reply(false, 'That did not save. Please call us instead.', 500)
+  }
+  notifyOwnerOfLead({ name, email, phone, message, source: formType === 'party' ? 'Party enquiry' : 'Regulars sign-up' })
+    .catch((e: any) => console.warn('[Leads] owner notification failed:', e.message))
+  forwardLeadToCrm({ name, email, phone, message, ...fields }).catch((e: any) => console.warn('[Leads] CRM forward failed:', e.message))
+  return reply(true, formType === 'party' ? "Got it. We'll call you back about your party." : "You're on the list.")
+}
+
 // The page a visitor sees after a plain (no-script) form post: one line and a way back.
 function leadReplyPage(ok: boolean, text: string, referer?: string): string {
   let back = '/'
@@ -1884,7 +2020,7 @@ function leadReplyPage(ok: boolean, text: string, referer?: string): string {
 
 // CRM_API_URL + WEBHOOK_SECRET are set by the factory when the tenant has a CRM (at deploy, or
 // when one is added later). No CRM → nothing to do.
-async function forwardLeadToCrm(lead: { name: string; email: string; phone: string | null; message: string }): Promise<void> {
+async function forwardLeadToCrm(lead: { name: string; email: string; phone: string | null; message: string; formType?: string; [k: string]: any }): Promise<void> {
   const url = (process.env.CRM_API_URL || '').replace(/\/+$/, '')
   const secret = process.env.WEBHOOK_SECRET || ''
   if (!url || !secret) return
@@ -1915,18 +2051,19 @@ async function notifyOwnerOfLead(lead: { name: string; email: string; phone: str
       <tr><td style="padding:28px 32px 16px;"><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#888;">${escape(companyName)} · new lead</div></td></tr>
       <tr><td style="padding:0 32px 12px;"><h2 style="margin:0;font-size:22px;color:#1a1a1a;">${escape(lead.name)}</h2></td></tr>
       <tr><td style="padding:0 32px 24px;color:#3a3a3a;font-size:15px;line-height:1.6;">
-        <div><strong>Email:</strong> <a href="mailto:${escape(lead.email)}" style="color:#1a1a1a;">${escape(lead.email)}</a></div>
+        ${lead.email ? `<div><strong>Email:</strong> <a href="mailto:${escape(lead.email)}" style="color:#1a1a1a;">${escape(lead.email)}</a></div>` : ''}
         ${lead.phone ? `<div><strong>Phone:</strong> <a href="tel:${escape(lead.phone)}" style="color:#1a1a1a;">${escape(lead.phone)}</a></div>` : ''}
         ${lead.source ? `<div style="margin-top:6px;color:#888;font-size:13px;">Submitted from: ${escape(lead.source)}</div>` : ''}
         <div style="margin-top:18px;padding:14px 18px;background:#fafaf7;border-left:3px solid #f97316;border-radius:4px;white-space:pre-wrap;">${escape(lead.message)}</div>
       </td></tr>
-      <tr><td style="padding:0 32px 24px;"><a href="mailto:${escape(lead.email)}?subject=Re:%20your%20inquiry" style="display:inline-block;background:#f97316;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Reply now</a></td></tr>
+      ${lead.email ? `<tr><td style="padding:0 32px 24px;"><a href="mailto:${escape(lead.email)}?subject=Re:%20your%20inquiry" style="display:inline-block;background:#f97316;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Reply now</a></td></tr>` : ''}
       <tr><td style="background:#fafaf7;padding:16px 32px;border-top:1px solid #eee;color:#888;font-size:12px;">This lead is also saved in your admin under Leads.</td></tr>
     </table>
   </body></html>`
   if (process.env.RESEND_API_KEY) {
     const { sendEmail } = await import('./lib/email')
-    const sent = await sendEmail({ to: toEmail, subject, html, replyTo: { email: lead.email, name: lead.name } })
+    // A party enquiry or Regulars sign-up may come with only a phone number: no reply-to then.
+    const sent = await sendEmail({ to: toEmail, subject, html, ...(lead.email ? { replyTo: { email: lead.email, name: lead.name } } : {}) })
     if (sent || !apiKey) return
   }
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -1935,7 +2072,7 @@ async function notifyOwnerOfLead(lead: { name: string; email: string; phone: str
     body: JSON.stringify({
       personalizations: [{ to: [{ email: toEmail }], subject }],
       from: { email: fromEmail, name: 'Twomiah' },
-      reply_to: { email: lead.email, name: lead.name },
+      ...(lead.email ? { reply_to: { email: lead.email, name: lead.name } } : {}),
       content: [{ type: 'text/html', value: html }],
     }),
   })

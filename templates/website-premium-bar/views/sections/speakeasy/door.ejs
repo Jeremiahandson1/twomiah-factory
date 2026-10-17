@@ -1,17 +1,21 @@
 <%
-  // THE DOOR IN THE LEATHER — a speakeasy easter egg. A brass-framed door sits
-  // on the cover; tap it, knock, give the password at the slot, then find the
-  // Back Room through a cellar of riddles drawn from the bar's real story. The
-  // reward is a password of the week the bar sets from the console
-  // (/api/speakeasy). Everything past the door loads on first tap
-  // (build/scripts/speakeasy.js + build/styles/speakeasy.css), so the page
-  // pays nothing for it until someone plays.
+  // THE DOOR IN THE LEATHER — a speakeasy easter egg. A brass-framed door sits on the cover; tap it,
+  // knock, give the password of the week at the slot, then find the Back Room through a cellar of riddles
+  // the owner writes. The password and the reward live in the CRM (the owner sets them there): the slot's
+  // answer is checked by the CRM through POST /api/speakeasy and never reaches the browser. Shown only
+  // while the owner has a password set (live.speakeasy.enabled). Everything past the door loads on first
+  // tap (build/scripts/speakeasy.js + build/styles/speakeasy.css).
   //
-  // data: { eyebrow, heading, intro, doorNumber, password: { question, answers[], hint },
-  //         riddles: [{ question, doors: [labels], answer: index, hint? }], reward: { title, fallback } }
-  const d = data || {}
-  const riddles = Array.isArray(d.riddles) ? d.riddles : []
-  const cfg = { password: d.password || {}, riddles, reward: d.reward || {}, companyName: settings.companyName || 'the bar' }
+  // data: { eyebrow, heading, intro, doorNumber, mapTitle, password: { question, hint, hintHref, hintLinkText },
+  //         riddles: [{ question, doors: [labels], answer: index, right?, wrong? }], reward: { title, fallback } }
+  const L = (typeof live !== 'undefined' && live) ? live : null
+  const on = !!(L && L.speakeasy && L.speakeasy.enabled)
+  const riddles = (Array.isArray(data.riddles) ? data.riddles : []).filter(r => r && r.question && Array.isArray(r.doors) && r.doors.length > 1)
+    .map(r => ({ question: String(r.question), doors: r.doors.map(String), answer: Number(r.answer) || 0, right: r.right || '', wrong: r.wrong || '' }))
+  const pw = data.password || {}
+  const cfg = { password: { question: pw.question || '', hint: pw.hint || '', hintHref: pw.hintHref || '', hintLinkText: pw.hintLinkText || '' },
+    riddles, reward: { title: (data.reward && data.reward.title) || '', fallback: (data.reward && data.reward.fallback) || '' }, mapTitle: data.mapTitle || '', companyName: settings.companyName || 'the bar' }
+  const plate = String(data.doorNumber || '').replace(/[^A-Za-z0-9 #.-]/g, '').slice(0, 6)
   const doorSvg = `        <!-- frame -->
         <rect x="6" y="6" width="228" height="328" rx="6" fill="url(#spk-brass)"/>
         <rect x="14" y="14" width="212" height="320" rx="4" fill="#120B05"/>
@@ -25,7 +29,7 @@
           <g fill="#F1D9A3" opacity=".9"><circle cx="34" cy="57" r="2.2"/><circle cx="72" cy="57" r="2.2"/><circle cx="120" cy="57" r="2.2"/><circle cx="168" cy="57" r="2.2"/><circle cx="206" cy="57" r="2.2"/><circle cx="34" cy="271" r="2.2"/><circle cx="72" cy="271" r="2.2"/><circle cx="120" cy="271" r="2.2"/><circle cx="168" cy="271" r="2.2"/><circle cx="206" cy="271" r="2.2"/></g>
           <!-- number plate -->
           <rect x="88" y="78" width="64" height="26" rx="3" fill="url(#spk-brass)"/>
-          <text x="120" y="97" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="15" font-weight="700" fill="#2A1A0E" letter-spacing="2">${(d.doorNumber || '840')}</text>
+          <text x="120" y="97" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="15" font-weight="700" fill="#2A1A0E" letter-spacing="2">${plate}</text>
           <!-- peephole slot: light behind, then the sliding cover -->
           <rect class="spk-slot-light" x="66" y="140" width="108" height="22" rx="2" fill="#FFD98A"/>
           <g class="spk-eyes" opacity="0"><circle cx="102" cy="151" r="3.2" fill="#FFF3D0"/><circle cx="138" cy="151" r="3.2" fill="#FFF3D0"/><circle cx="103" cy="151" r="1.4" fill="#1a1006"/><circle cx="139" cy="151" r="1.4" fill="#1a1006"/></g>
@@ -40,6 +44,7 @@
           <rect class="spk-under" x="18" y="330" width="204" height="4" fill="#FFD98A" opacity=".55"/>
         </g>`
 %>
+<% if (on) { %>
 <section class="speak" id="speakeasy" aria-labelledby="speak-heading">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
@@ -60,9 +65,9 @@
 
   <div class="container speak__inner">
     <div class="speak__copy">
-      <% if (d.eyebrow) { %><div class="eyebrow"><%= d.eyebrow %></div><% } %>
-      <h2 class="section-title speak__title" id="speak-heading"><%= d.heading || 'There is a door in the leather.' %></h2>
-      <% if (d.intro) { %><p class="section-intro speak__intro"><%= d.intro %></p><% } %>
+      <% if (data.eyebrow) { %><div class="eyebrow"><%= data.eyebrow %></div><% } %>
+      <h2 class="section-title speak__title" id="speak-heading"><%= data.heading || 'There is a door in the leather.' %></h2>
+      <% if (data.intro) { %><p class="section-intro speak__intro"><%= data.intro %></p><% } %>
       <p class="speak__hint mono" data-speak-status>Knock. If you know, you know.</p>
     </div>
     <button class="speak__door" type="button" data-speak-open aria-label="Knock on the door" aria-haspopup="dialog">
@@ -75,3 +80,4 @@
   <script type="application/json" id="speak-config"><%- JSON.stringify(cfg).replace(/</g, '\\u003c') %></script>
   <script src="/scripts/speakeasy.js" defer></script>
 </section>
+<% } %>

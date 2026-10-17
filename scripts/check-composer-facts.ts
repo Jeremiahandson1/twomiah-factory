@@ -467,7 +467,8 @@ for (const t of premium) {
   const { TRADE_SECTIONS } = await import('../templates/website-premium-contractor/admin/src/sectionFields.ts')
   const FORMS = new Set(['hero/full-bleed', 'hero/split', 'hero/centered-stats', 'services/cards-grid', 'services/alternating', 'cta/banner', 'cta/split',
     'about/story', 'team/grid', 'contact/form-info', 'gallery/grid', 'testimonials/quotes', 'faq/accordion', 'stats/bar'])
-  const SERVER_BUILT = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator'])
+  // menu/item-hero: a bar's signature item page, built by the server from the CRM's menu (/<section>/<item>).
+  const SERVER_BUILT = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'menu/item-hero', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator'])
   const premium = readdirSync(ROOT + 'templates').filter((d) => d.startsWith('website-premium-'))
   const partialFor = (key: string) => {
     for (const t of premium) {
