@@ -13,7 +13,9 @@ app.use('*', authenticate)
 // in step. Types not listed are always shown. (events T18: "review jobs" under Recent on a tenant with Jobs off)
 // `project` joins the list with T18 M6: /api/projects is gated on `projects` now, and search that
 // still returned project rows would hand back links the API refuses to open.
-const TYPE_FEATURES: Record<string, string[] | false> = { rfi: false, project: ['projects'] }
+// crm-bar: jobs and quotes are never offered to a bar and are gated at the API (index.ts); the party
+// modules and the bar's own menu/taps follow their features too.
+const TYPE_FEATURES: Record<string, string[] | false> = { rfi: false, project: ['projects'], job: ['jobs'], quote: ['quotes'], event: ['event_bookings'], space: ['event_spaces'], menu: ['catering_menus'], item: ['bar_menu'], tap: ['bar_menu'] }
 
 /**
  * …and what the SEARCHER has to be allowed to read.
@@ -40,6 +42,9 @@ const TYPE_PERMISSIONS: Record<string, string> = {
   service: 'contacts:read',
   menu: 'contacts:read',
   space: 'contacts:read',
+  // the bar's menu items and taps: their list routes ask bar:read (routes/bar.ts)
+  item: 'bar:read',
+  tap: 'bar:read',
 }
 
 async function shownTypes(companyId: string, user?: any) {

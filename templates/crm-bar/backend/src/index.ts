@@ -83,6 +83,9 @@ import leadsRoutes from './routes/leads.ts'
 // The bar: staff records (menu, taps, the Tonight console) and what the bar's website reads live.
 import barRoutes from './routes/bar.ts'
 import barPublicRoutes from './routes/barPublic.ts'
+import eventsRoutes from './routes/events.ts'
+import eventSpacesRoutes from './routes/eventSpaces.ts'
+import menuPackagesRoutes from './routes/menuPackages.ts'
 import wisetackRoutes from './routes/wisetack.ts'
 import adsRoutes, { adsConnector } from './routes/ads.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
@@ -280,6 +283,19 @@ app.use('/api/photos', authenticate, requireEnabledFeature('photo_capture'))
 app.use('/api/photos/*', authenticate, requireEnabledFeature('photo_capture'))
 app.use('/api/jobs/:id/photos', authenticate, requireEnabledFeature('photo_capture'))
 app.use('/api/jobs/:id/photos/*', authenticate, requireEnabledFeature('photo_capture'))
+// A bar is never offered jobs or quotes (crm-basic's core); refused at the API like crm-restaurant does,
+// not just missing from the menu.
+app.use('/api/jobs', authenticate, requireEnabledFeature('jobs'))
+app.use('/api/jobs/*', authenticate, requireEnabledFeature('jobs'))
+app.use('/api/quotes', authenticate, requireEnabledFeature('quotes'))
+app.use('/api/quotes/*', authenticate, requireEnabledFeature('quotes'))
+// Private parties (crm-restaurant's events module): gated on their own features at the API.
+app.use('/api/events', authenticate, requireEnabledFeature('event_bookings'))
+app.use('/api/events/*', authenticate, requireEnabledFeature('event_bookings'))
+app.use('/api/event-spaces', authenticate, requireEnabledFeature('event_spaces'))
+app.use('/api/event-spaces/*', authenticate, requireEnabledFeature('event_spaces'))
+app.use('/api/menu-packages', authenticate, requireEnabledFeature('catering_menus'))
+app.use('/api/menu-packages/*', authenticate, requireEnabledFeature('catering_menus'))
 
 app.route('/api/auth', authRoutes)
 // Two-factor enrolment. Its own mount, under /api/auth, so the sign-in challenge (POST /api/auth/mfa,
@@ -357,6 +373,10 @@ app.route('/api/ads', adsRoutes)
 const adsPublicRoutes = (await import('./routes/adsPublic.ts')).default
 app.route('/api/public/ads-experiments', adsPublicRoutes)
 app.route('/api/bar', barRoutes)
+// Private parties — enquiry, booking, deposit, the run of show (crm-restaurant's module, unchanged).
+app.route('/api/events', eventsRoutes)
+app.route('/api/event-spaces', eventSpacesRoutes)
+app.route('/api/menu-packages', menuPackagesRoutes)
 // No sign-in: public fields only, read by the bar's website server (routes/barPublic.ts).
 app.route('/api/public/bar', barPublicRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)

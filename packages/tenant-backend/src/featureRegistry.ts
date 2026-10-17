@@ -118,11 +118,11 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // -> banquet event order. Scoped to the private-events side of a restaurant,
   // NOT a POS or covers system. Every id here gates exactly one sidebar item or
   // tab in the template; nothing is listed that the app doesn't act on.
-  { id: 'event_bookings', name: 'Events', description: 'Enquiry-to-confirmed pipeline with per-space double-book protection', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
-  { id: 'event_spaces', name: 'Spaces', description: 'Bookable rooms with seated/standing capacity, minimum spend and hire fees', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
-  { id: 'catering_menus', name: 'Catering Menus', description: 'Per-head packages with structured courses, choices and guest minimums', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
-  { id: 'banquet_orders', name: 'Run of Show / BEO', description: 'Minute-by-minute banquet event order the kitchen and floor work from, printable', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
-  { id: 'event_deposits', name: 'Deposits & Balances', description: 'Staged payment schedule per event with overdue tracking across the whole book', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
+  { id: 'event_bookings', name: 'Events', description: 'Enquiry-to-confirmed pipeline with per-space double-book protection', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
+  { id: 'event_spaces', name: 'Spaces', description: 'Bookable rooms with seated/standing capacity, minimum spend and hire fees', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
+  { id: 'catering_menus', name: 'Catering Menus', description: 'Per-head packages with structured courses, choices and guest minimums', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
+  { id: 'banquet_orders', name: 'Run of Show / BEO', description: 'Minute-by-minute banquet event order the kitchen and floor work from, printable', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
+  { id: 'event_deposits', name: 'Deposits & Balances', description: 'Staged payment schedule per event with overdue tracking across the whole book', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
 
   // Field Operations
   { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-salon', 'crm-bar'] },

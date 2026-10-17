@@ -246,6 +246,15 @@ app.put('/menu/items/:id', requireEnabledFeature('bar_menu'), requirePermission(
   const body = await c.req.json().catch(() => ({}))
   const v = await itemInput(body, companyId, false); if (!v.ok) return bad(c, v.error, v.status)
   if (body.slug !== undefined) v.value.slug = await uniqueSlug(barMenuItem, companyId, str(body.slug, 80) || '', id)
+  // A changed price or printed label re-derives the sizes, unless the sizes themselves were sent.
+  if (!v.value.variations && ('priceCents' in v.value || 'priceLabel' in v.value)) {
+    const [cur] = await db.select({ priceCents: barMenuItem.priceCents, priceLabel: barMenuItem.priceLabel }).from(barMenuItem).where(and(eq(barMenuItem.id, id), eq(barMenuItem.companyId, companyId))).limit(1)
+    if (cur) {
+      const pc = 'priceCents' in v.value ? v.value.priceCents : cur.priceCents
+      const label = 'priceLabel' in v.value ? v.value.priceLabel : cur.priceLabel
+      v.value.variations = sizesFromLabel(pc ?? null, label ?? null, null).filter((s) => s.priceCents !== null)
+    }
+  }
   const [row] = await db.update(barMenuItem).set({ ...v.value, updatedAt: new Date() }).where(and(eq(barMenuItem.id, id), eq(barMenuItem.companyId, companyId))).returning()
   if (!row) return bad(c, 'Menu item not found', 404)
   audit.log({ req: c, action: 'update', entity: 'bar_menu_item', entityId: row.id, entityName: row.name, changes: v.value })

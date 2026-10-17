@@ -4,7 +4,7 @@ import { createContactRoutes, standardRelations, standardGuards } from '../share
 import { z } from 'zod'
 import { asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { contact, company, project, quote, invoice, job, equipment, site } from '../../db/schema.ts'
+import { contact, company, project, quote, invoice, job, equipment, site, event } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -26,10 +26,12 @@ export default createContactRoutes({
   options: {
     relations: [
       ...standardRelations({ project, quote, invoice, job }),
+      // a guest's private parties (crm-restaurant's H-02)
+      { key: 'events', table: event, column: event.contactId, columns: { id: event.id, name: event.name, status: event.status, eventDate: event.eventDate } },
       { key: 'equipment', table: equipment, column: equipment.contactId, columns: { id: equipment.id, name: equipment.name, manufacturer: equipment.manufacturer, model: equipment.model, serialNumber: equipment.serialNumber, status: equipment.status, location: equipment.location, purchaseDate: equipment.purchaseDate, warrantyExpiry: equipment.warrantyExpiry, siteId: equipment.siteId } },
       { key: 'sites', table: site, column: site.contactId, orderBy: asc(site.name) },
     ],
-    guards: [...standardGuards({ invoice, quote, job, project }), { table: equipment, column: equipment.contactId, label: 'piece of equipment', plural: 'pieces of equipment' }],
+    guards: [...standardGuards({ invoice, quote, job, project }), { table: event, column: event.contactId, label: 'event' }, { table: equipment, column: equipment.contactId, label: 'piece of equipment', plural: 'pieces of equipment' }],
     // SMS opt-out lives on the contact here; the old route's schema dropped the field, so the toggle never saved.
     extraFields: { optedOutSms: z.boolean().optional() },
     sites: { site, equipment, job },

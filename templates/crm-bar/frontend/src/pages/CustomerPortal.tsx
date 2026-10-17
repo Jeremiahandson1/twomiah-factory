@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, Globe, Palette, Inbox, FileText,
   DollarSign, ArrowRight, ExternalLink, Settings,
-  Clock, LogOut, Camera, Sparkles, BookOpen
+  Clock, LogOut, Camera
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 // One definition of what money looks like. Building the string here dropped the cents: bare
@@ -244,28 +244,7 @@ export default function CustomerPortal() {
             </a>
           )}
 
-          {/* Pricebook Promo — show if they don't have it yet */}
-          {!hasFeature('pricebook') && (
-            <div
-              onClick={() => navigate('/crm/pricebook-trial')}
-              className="bg-white rounded-xl border border-amber-200 border-dashed p-6 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-amber-700" />
-                </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full dark:bg-amber-950/40 dark:text-amber-300">
-                  <Sparkles className="w-3 h-3" />
-                  FREE TRIAL
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Pricebook</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Standardized pricing catalog — consistent quotes, faster estimates
-              </p>
-            </div>
-          )}
+          {/* No Pricebook offer: a bar is never offered Pricebook (featureRegistry), so a trial tile would sell a module it cannot switch on. */}
 
           {/* Settings — or, for a seat that cannot change the company, its own account */}
           {(maySeeSettings || !runsTheCompany) && (

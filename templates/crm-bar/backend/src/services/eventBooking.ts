@@ -1,0 +1,320 @@
+// Event booking rules — ONE set of them for everything that writes an event: POST /events, PUT /events/:id
+// and the CSV importer. What an event may hold (validateEventInput) and how a booking is written
+// (createEvent: the per-business lock, the room-clash check, the row, the room-hire line). The importer
+// once inserted straight into the table with none of this, so a CSV could double-book a room and save
+// dates, times, guest counts, money and types the form refuses (T15 B1/H4, M1–M4). (#162)
+import { and, eq, gte, inArray, notInArray, ne, isNotNull, sql, count, countDistinct } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
+import { db } from '../../db/index.ts'
+import { event, eventSpace, eventMenuItem, user } from '../../db/schema.ts'
+import { EXIT_STATUSES } from './eventLedger.ts'
+
+// The lists the frontend offers (pages/events/EventsPage.tsx STATUSES / EVENT_TYPES) — pinned equal by
+// scripts/check-events-input.ts, so a status or type is one vocabulary end to end.
+export const EVENT_STATUSES = ['enquiry', 'tentative', 'confirmed', 'completed', 'lost', 'cancelled'] as const
+export const EVENT_TYPES = ['private_dining', 'wedding', 'corporate', 'birthday', 'anniversary', 'funeral', 'christmas_party', 'other'] as const
+
+// A space can only host one live event per date. HELD lists the statuses that hold the room; enquiries
+// deliberately do NOT, because two people asking about the same Saturday is normal and must not block
+// either of them.
+export const HELD = ['tentative', 'confirmed', 'completed']
+
+export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+export const MAX_EVENT_NAME = 200
+// Run-of-show departments — the frontend's list (EventDetailPage.tsx DEPARTMENTS), pinned equal by the guard.
+export const TIMELINE_DEPARTMENTS = ['floor', 'kitchen', 'bar', 'av', 'setup'] as const
+
+/** A YYYY-MM-DD string that is a real calendar day (2027-02-30 and 2026-13-45 are not). */
+export function isCalendarDate(v: unknown): boolean {
+  if (typeof v !== 'string' || !DATE_RE.test(v)) return false
+  const [y, m, d] = v.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+}
+
+// '' and null mean "not set"; anything else must be a number.
+const num = (v: any) => (v === '' || v == null ? null : Number(v))
+const has = (input: Record<string, any>, k: string) => k in input
+
+/**
+ * THE MONEY RULE, IN ONE PLACE. (T51 follow-up)
+ *
+ * The owner reported "0.001 amounts are accepted" twice: first on a deposit instalment, and then —
+ * after I fixed only that one route — on menu prices and quantities. That second report is the
+ * point. Every money field on this vertical was validated with `< 0`, which lets through a value
+ * that is positive but rounds to $0.00 when it is stored, and I fixed the one path that was named
+ * instead of the rule behind it. Six entry points had it: the menu line's price and quantity on
+ * both create and edit, the event's quotedTotal, and its depositRequired.
+ *
+ * ZERO IS ALLOWED, and that distinction is the whole reason this is a helper rather than `> 0`:
+ *   · a menu line at $0.00 is a complimentary item — a celebration cake the venue throws in — and
+ *     it belongs on the banquet order so the kitchen makes it;
+ *   · depositRequired of 0 is a booking taken with no deposit;
+ *   · quotedTotal of 0 is an event not yet priced.
+ * Refusing those would be the opposite fault: a rule that stops real work.
+ *
+ * What is refused is a SUB-CENT amount — positive, so it passes `< 0`, but stored as 0.00. Nobody
+ * means that, it cannot be told apart from a deliberate zero afterwards, and it quietly makes a
+ * priced line free.
+ */
+export function moneyRefusal(value: unknown, label: string, opts: { zeroAllowed?: boolean } = {}): string | null {
+  const zeroAllowed = opts.zeroAllowed !== false
+  const v = num(value)
+  if (v == null) return null
+  if (!Number.isFinite(v)) return `${label} must be a number.`
+  if (v < 0) return `${label} cannot be negative.`
+  /**
+   * THE REFUSAL MUST NOT OFFER A WAY OUT THAT IS ALSO REFUSED. (T58 follow-up)
+   *
+   * Owner: *"refusing a 0.001 payment says 'Enter 0 if it is complimentary', but 0 is then refused
+   * too."* Both rules were right on their own — a menu line CAN be complimentary, and a scheduled
+   * payment of nothing never makes sense — but this message is shared and spoke for both. So the one
+   * path where zero is also wrong told the operator to enter the one other value it would reject,
+   * which is worse than a blunt refusal: it sends them round a loop.
+   *
+   * The caller says which rule it is holding, and the sentence follows it.
+   */
+  if (v === 0 && !zeroAllowed) return `${label} must be more than $0.00.`
+  if (v > 0 && Math.round(v * 100) / 100 === 0) {
+    return zeroAllowed
+      ? `${label} of ${v} rounds to $0.00. Enter 0 if it is complimentary, or at least one cent.`
+      : `${label} of ${v} rounds to $0.00. Enter at least one cent.`
+  }
+  return null
+}
+
+/**
+ * A QUANTITY OF NOTHING IS NOT A LINE. (T51 follow-up: "quantity 0 is accepted")
+ *
+ * Unlike money, zero is NOT meaningful here: a menu line for nought guests is priced at nothing,
+ * prints on the banquet event order as a line the kitchen has to read and ignore, and the way to say
+ * "we are not having this" is to remove the line. The guest count is where "not yet known" lives.
+ */
+export function quantityRefusal(value: unknown, label = 'Quantity'): string | null {
+  const v = num(value)
+  if (v == null) return null
+  if (!Number.isFinite(v)) return `${label} must be a number.`
+  if (v < 0) return `${label} cannot be negative.`
+  if (v === 0) return `${label} must be at least 1 — remove the line instead of setting it to nought.`
+  return null
+}
+
+/**
+ * The rules, on a create body or an update patch. `existing` supplies the other half of a pair (start/end
+ * times, guest counts) when a patch changes only one of them — the same "effective values" check PUT
+ * always did. Returns the first problem as the message the form shows.
+ */
+export function validateEventInput(input: Record<string, any>, existing?: Record<string, any> | null): string | null {
+  const eff = (k: string) => (has(input, k) ? input[k] : existing?.[k])
+  const creating = !existing
+
+  if (creating || has(input, 'name')) {
+    if (typeof input.name !== 'string' || !input.name.trim()) return 'name is required'
+    if (input.name.trim().length > MAX_EVENT_NAME) return `Event name must be ${MAX_EVENT_NAME} characters or fewer.`
+  }
+  if (creating || has(input, 'eventDate')) {
+    if (typeof input.eventDate !== 'string' || !DATE_RE.test(input.eventDate)) return 'eventDate is required as YYYY-MM-DD'
+    if (!isCalendarDate(input.eventDate)) return `${input.eventDate} is not a real calendar date.`
+  }
+  if (has(input, 'status') && input.status != null && !EVENT_STATUSES.includes(input.status)) return `Status must be one of: ${EVENT_STATUSES.join(', ')}.`
+  if (has(input, 'eventType') && input.eventType != null && !EVENT_TYPES.includes(input.eventType)) return `Event type must be one of: ${EVENT_TYPES.join(', ')}.`
+
+  for (const k of ['startTime', 'endTime']) {
+    const v = input[k]
+    if (has(input, k) && v != null && v !== '' && (typeof v !== 'string' || !TIME_RE.test(v))) return 'Times must be HH:MM (24-hour clock).'
+  }
+  const start = eff('startTime'), end = eff('endTime')
+  if (start && end && String(end) <= String(start)) return 'End time must be after the start time.'
+
+  // Server-side event validation — the API accepted end-before-start, negative and absurd guest counts,
+  // and persisted them (only the widget validated). (F5)
+  const g = num(eff('guestCount')), gf = num(eff('guestCountFinal'))
+  if (g != null && (isNaN(g) || g < 0 || g > 1000000)) return 'Guest count must be between 0 and 1,000,000.'
+  if (gf != null && (isNaN(gf) || gf < 0 || gf > 1000000)) return 'Final guest count must be between 0 and 1,000,000.'
+
+  // Through the one money rule, so a sub-cent quoted total is refused here too and not only on the
+  // instalment route the owner happened to name first. (T51 follow-up)
+  for (const [k, label] of [['quotedTotal', 'Quoted total'], ['depositRequired', 'Deposit']] as const) {
+    if (!has(input, k)) continue
+    const mErr = moneyRefusal(input[k], label)
+    if (mErr) return mErr
+  }
+  return null
+}
+
+/**
+ * The run-of-show rules, on a create body or an update patch: a real HH:MM time, a title, a department
+ * from the list. Run-of-show lines saved 99:99 and department "banana" while the event form refused
+ * both. (T16 M3)
+ */
+export function validateTimelineInput(input: Record<string, any>, existing?: Record<string, any> | null): string | null {
+  const creating = !existing
+  if (creating || has(input, 'time')) {
+    if (typeof input.time !== 'string' || !input.time.trim()) return 'time is required'
+    if (!TIME_RE.test(input.time.trim())) return 'Times must be HH:MM (24-hour clock).'
+  }
+  if (creating || has(input, 'title')) {
+    if (typeof input.title !== 'string' || !input.title.trim()) return 'title is required'
+  }
+  if (has(input, 'department') && input.department != null && input.department !== '' && !(TIMELINE_DEPARTMENTS as readonly string[]).includes(input.department)) {
+    return `Department must be one of: ${TIMELINE_DEPARTMENTS.join(', ')}.`
+  }
+  if (has(input, 'sortOrder') && input.sortOrder != null && !Number.isInteger(Number(input.sortOrder))) return 'sortOrder must be a whole number.'
+  return null
+}
+
+// Thrown inside the booking transaction so a detected clash rolls back the write and is answered as a
+// 409 after it unwinds. One advisory lock per business serialises the whole check-then-write, so two
+// coordinators holding the same space+date at the same instant can't both pass findClash. (space race)
+export class SpaceClash extends Error { constructor(public payload: any) { super('space clash') } }
+export const eventLock = (tx: any, companyId: string) => tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':event'}))`)
+
+export async function findClash(exec: any, companyId: string, spaceId: string, eventDate: string, ignoreId?: string) {
+  const rows = await exec.select().from(event)
+    .where(and(
+      eq(event.companyId, companyId),
+      eq(event.spaceId, spaceId),
+      eq(event.eventDate, eventDate),
+      inArray(event.status, HELD),
+      ...(ignoreId ? [ne(event.id, ignoreId)] : []),
+    ))
+    .limit(1)
+  return rows[0]
+}
+
+// A room's hire fee is charged as its own menu line (spaceId set), priced when the room is booked.
+// Moving rooms swaps the line; hand-typed lines are never touched. Runs inside the booking transaction.
+export async function syncHireLine(tx: any, companyId: string, ev: { id: string; spaceId: string | null }) {
+  const auto = await tx.select().from(eventMenuItem)
+    .where(and(eq(eventMenuItem.eventId, ev.id), eq(eventMenuItem.companyId, companyId), isNotNull(eventMenuItem.spaceId)))
+  const keep = auto.find((l: any) => l.spaceId === ev.spaceId)
+  for (const l of auto) if (l !== keep) await tx.delete(eventMenuItem).where(eq(eventMenuItem.id, l.id))
+  if (keep || !ev.spaceId) return
+  const [space] = await tx.select().from(eventSpace).where(and(eq(eventSpace.id, ev.spaceId), eq(eventSpace.companyId, companyId))).limit(1)
+  if (!space || !(Number(space.hireFee) > 0)) return
+  await tx.insert(eventMenuItem).values({
+    id: createId(), eventId: ev.id, spaceId: space.id, name: `Room hire — ${space.name}`,
+    perPerson: false, quantity: 1, unitPrice: space.hireFee, companyId,
+  })
+}
+
+/**
+ * Write a new event inside the caller's transaction: lock the business's book, refuse a held room
+ * (SpaceClash, answered 409 by the route / a row error by the importer), insert, add the room-hire line.
+ * The caller has already run validateEventInput. This is the body POST /events always had; the
+ * importer now goes through it too.
+ */
+export async function createEvent(tx: any, companyId: string, body: Record<string, any>) {
+  const status = body.status || 'enquiry'
+  await eventLock(tx, companyId)
+  if (body.spaceId && HELD.includes(status)) {
+    const clash = await findClash(tx, companyId, body.spaceId, body.eventDate)
+    if (clash) throw new SpaceClash({ error: `That space is already held on ${body.eventDate} by "${clash.name}"`, conflictId: clash.id })
+  }
+  const [row] = await tx.insert(event).values({
+    id: createId(),
+    contactId: body.contactId || null,
+    spaceId: body.spaceId || null,
+    coordinatorId: body.coordinatorId || null,
+    name: body.name.trim(),
+    eventType: body.eventType || 'private_dining',
+    status,
+    eventDate: body.eventDate,
+    startTime: body.startTime || null,
+    endTime: body.endTime || null,
+    guestCount: body.guestCount ?? null,
+    guestCountFinal: body.guestCountFinal ?? null,
+    quotedTotal: body.quotedTotal ?? null,
+    depositRequired: body.depositRequired ?? null,
+    source: body.source || null,
+    dietaryRequirements: body.dietaryRequirements || null,
+    setupNotes: body.setupNotes || null,
+    notes: body.notes || null,
+    companyId,
+  }).returning()
+  await syncHireLine(tx, companyId, row)
+  return row
+}
+
+/**
+ * Money books the date. A deposit recorded on an enquiry confirms it and holds the room — unless the
+ * room is already held that day, in which case the money is refused: there is nothing to sell. Runs
+ * inside the payment transaction (the caller holds the invoice row lock); returns the refusal, or null
+ * once the event is confirmed or needed no change. (T16 M8 — "definite" = deposit received)
+ */
+export async function bookOnDeposit(tx: any, companyId: string, eventId: string | null | undefined): Promise<string | null> {
+  if (!eventId) return null
+  const [ev] = await tx.select().from(event).where(and(eq(event.id, eventId), eq(event.companyId, companyId))).limit(1)
+  if (!ev || ev.status !== 'enquiry') return null
+  await eventLock(tx, companyId)
+  if (ev.spaceId) {
+    const clash = await findClash(tx, companyId, ev.spaceId, ev.eventDate, ev.id)
+    if (clash) return `"${ev.name}" is still an enquiry and its room is already held on ${ev.eventDate} by "${clash.name}" — move the date or the room before taking money.`
+  }
+  await tx.update(event).set({ status: 'confirmed', updatedAt: new Date() }).where(eq(event.id, ev.id))
+  return null
+}
+/** The invoice-payment hook form: the locked invoice row (raw SQL, snake_case) or a drizzle row. */
+export const bookOnDepositForInvoice = (tx: any, inv: any) => bookOnDeposit(tx, inv.company_id ?? inv.companyId, inv.event_id ?? inv.eventId)
+
+/**
+ * Soft warnings on a saved event — never a refusal (venues back-date walk-ins and history; a 30-seat room
+ * hosts 60 standing). The forms ask before saving (lib/eventWarnings.ts); the API returns the same two
+ * warnings in `warnings` so an API caller is told too. `check` limits them to what the write changed, so
+ * re-saving an old event for another reason isn't flagged. (T16/T17 L1, L2)
+ * "Past" means past everywhere: the date is before today in the furthest-behind time zone (UTC−12), so an
+ * event dated today in the venue's evening is never called past by a server already on tomorrow in UTC.
+ */
+export async function eventWarnings(exec: any, companyId: string, ev: any, check: { date: boolean; capacity: boolean }): Promise<string[]> {
+  const out: string[] = []
+  const earliestToday = new Date(Date.now() - 12 * 3600_000).toISOString().slice(0, 10)
+  if (check.date && ev.eventDate && ev.eventDate < earliestToday) out.push(`${ev.eventDate} is in the past.`)
+  const heads = Number(ev.guestCountFinal ?? ev.guestCount ?? 0)
+  if (check.capacity && ev.spaceId && heads > 0) {
+    const [sp] = await exec.select({ name: eventSpace.name, seated: eventSpace.seatedCapacity, standing: eventSpace.standingCapacity }).from(eventSpace)
+      .where(and(eq(eventSpace.id, ev.spaceId), eq(eventSpace.companyId, companyId))).limit(1)
+    const cap = sp ? Math.max(Number(sp.seated || 0), Number(sp.standing || 0)) : 0
+    if (cap > 0 && heads > cap) out.push(`${heads} guests is more than ${sp.name} holds (${cap} at most).`)
+  }
+  return out
+}
+
+/**
+ * A coordinator is a login user of this business (event.coordinator_id → user). A roster-only team
+ * member has no login and can't be assigned; say so instead of the FK's "Referenced record does not
+ * exist". (T16 H3)
+ */
+export async function coordinatorRefusal(exec: any, companyId: string, coordinatorId: unknown): Promise<string | null> {
+  if (coordinatorId == null || coordinatorId === '') return null
+  if (typeof coordinatorId !== 'string') return 'coordinatorId must be a user id'
+  const [u] = await exec.select({ id: user.id }).from(user).where(and(eq(user.id, coordinatorId), eq(user.companyId, companyId))).limit(1)
+  return u ? null : "The coordinator must be one of your login users (Settings › Users) — a roster-only team member can't be assigned."
+}
+
+// ── Retiring what upcoming bookings still use ───────────────────────────────────────────────────
+// Rooms and packages are retired (active = false), never deleted, so history keeps them. But a room
+// that still holds upcoming bookings, or a package still on upcoming menus, vanishes from every picker
+// the moment it is retired — those bookings must be moved first. (T15 H1)
+// "Upcoming" is the dashboard's rule: dated today (UTC calendar day) or later.
+export const todayUtc = () => new Date().toISOString().slice(0, 10)
+// A room is held by tentative/confirmed bookings (the same statuses that block a clash today).
+const UPCOMING_HOLDS = ['tentative', 'confirmed']
+
+/** Upcoming bookings (today or later, tentative/confirmed) still in this room. */
+export async function upcomingEventsUsingSpace(companyId: string, spaceId: string): Promise<number> {
+  const [row] = await db.select({ value: count() }).from(event)
+    .where(and(eq(event.companyId, companyId), eq(event.spaceId, spaceId), gte(event.eventDate, todayUtc()), inArray(event.status, UPCOMING_HOLDS)))
+  return Number(row?.value || 0)
+}
+
+/** Upcoming events (today or later, not lost/cancelled) with this package on their menu. */
+export async function upcomingEventsUsingPackage(companyId: string, packageId: string): Promise<number> {
+  const [row] = await db.select({ value: countDistinct(eventMenuItem.eventId) }).from(eventMenuItem)
+    .innerJoin(event, eq(event.id, eventMenuItem.eventId))
+    .where(and(eq(eventMenuItem.companyId, companyId), eq(eventMenuItem.packageId, packageId), gte(event.eventDate, todayUtc()), notInArray(event.status, EXIT_STATUSES)))
+  return Number(row?.value || 0)
+}
+
+export const retireSpaceRefusal = (name: string, n: number) => `"${name}" still has ${n} upcoming booking${n === 1 ? '' : 's'} — move ${n === 1 ? 'it' : 'them'} to another room first.`
+export const retirePackageRefusal = (name: string, n: number) => `"${name}" is on the menu of ${n} upcoming event${n === 1 ? '' : 's'} — change ${n === 1 ? 'its menu' : 'their menus'} first.`

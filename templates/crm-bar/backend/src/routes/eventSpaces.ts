@@ -1,0 +1,186 @@
+import { Hono } from 'hono'
+import { db } from '../../db/index.ts'
+import { eventSpace } from '../../db/schema.ts'
+import { eq, and, asc, ne, sql } from 'drizzle-orm'
+import { authenticate } from '../middleware/auth.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
+import { emitToCompany, EVENTS } from '../services/socket.ts'
+import audit from '../services/audit.ts'
+import { createId } from '@paralleldrive/cuid2'
+import { upcomingEventsUsingSpace, retireSpaceRefusal } from '../services/eventBooking.ts'
+import { money } from '../shared/invoicing/money.ts'
+
+/**
+ * WHAT THE RECORD COLUMN SHOWS. (T58k)
+ *
+ *   owner: "Events: event, menu-line and event-payment rows have no IP and no record name (0 of 66)."
+ *
+ * Every audit call in this file passed an entityId and no entityName, so the screen had nothing to
+ * print but the humanised entity — "Event", "Event menu item" — on all 66 rows. An id is not a name
+ * and the reader cannot look one up.
+ *
+ * Tried in order of how a person would refer to the thing. A PAYMENT has no name of its own, so its
+ * amount is what identifies it in a list; returning null there would have left the column empty for
+ * exactly the rows the owner counted.
+ */
+const nameOf = (row: any): string | null => {
+  if (!row || typeof row !== 'object') return null
+  for (const k of ['name', 'title', 'eventName', 'packageName', 'itemName', 'description']) {
+    const v = row[k]
+    if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 120)
+  }
+  if (row.amount !== undefined && row.amount !== null && Number.isFinite(Number(row.amount))) {
+    // Separated thousands: a $12,000 deposit must not read as $12000.00, and the audit log is
+    // where somebody checks a figure. Not the shared money() — events.ts already declares its own
+    // `money` at the top level and importing a second one is a redeclaration. (T58k)
+    return '$' + Number(row.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+  return null
+}
+
+
+/**
+ * Event spaces — the rooms you can sell, with the two numbers every enquiry
+ * starts with: how many it holds, and what it has to spend.
+ */
+
+const app = new Hono()
+app.use('*', authenticate)
+
+// Capacities and money can't go negative — minimumSpend -500 / hireFee -250 saved
+// (201). Same rule and wording as event menu lines (H-01). Runs on create and update.
+const NON_NEGATIVE = [
+  ['seatedCapacity', 'Seated capacity'],
+  ['standingCapacity', 'Standing capacity'],
+  ['minimumSpend', 'Minimum spend'],
+  ['hireFee', 'Hire fee'],
+] as const
+function negativeFieldError(values: any): string | null {
+  for (const [k, label] of NON_NEGATIVE) {
+    const v = values[k]
+    if (v === null || v === undefined) continue
+    if (!Number.isFinite(Number(v))) return `${label} must be a number` // "abc" is not negative, it is not a number (T16 L5)
+    if (Number(v) < 0) return `${label} cannot be negative`
+  }
+  return null
+}
+
+// Two live rooms with the same name can't be told apart in any picker — a second "The Cellar" saved
+// while the first was still active. A retired room's name may be reused. (T16 L4)
+async function sameNameSpace(companyId: string, name: string, ignoreId?: string) {
+  const rows = await db.select({ id: eventSpace.id, name: eventSpace.name }).from(eventSpace)
+    .where(and(eq(eventSpace.companyId, companyId), eq(eventSpace.active, true), sql`lower(${eventSpace.name}) = lower(${name})`, ...(ignoreId ? [ne(eventSpace.id, ignoreId)] : [])))
+    .limit(1)
+  return rows[0]
+}
+
+// GET /event-spaces — ?includeInactive=1
+app.get('/', requirePermission('contacts:read'), async (c) => {
+  const currentUser = c.get('user') as any
+  const includeInactive = c.req.query('includeInactive') === '1'
+
+  const conditions = [eq(eventSpace.companyId, currentUser.companyId)]
+  if (!includeInactive) conditions.push(eq(eventSpace.active, true))
+
+  const data = await db.select().from(eventSpace)
+    .where(and(...conditions))
+    .orderBy(asc(eventSpace.name))
+
+  // A room's minimum spend and hire fee are prices — invoices:read, the rule the event page uses for the same
+  // two figures. The floor team keeps the rooms, their capacities and amenities. (T62)
+  if (hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))) return c.json({ data })
+  return c.json({ data: data.map(({ minimumSpend, hireFee, ...rest }: any) => rest), moneyWithheld: true })
+})
+
+// POST /event-spaces
+app.post('/', requirePermission('contacts:create'), async (c) => {
+  const currentUser = c.get('user') as any
+  const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+  if (typeof body.name !== 'string' || !body.name.trim()) {
+    return c.json({ error: 'name is required' }, 400)
+  }
+  const vErr = negativeFieldError(body)
+  if (vErr) return c.json({ error: vErr }, 400)
+  const dupe = await sameNameSpace(currentUser.companyId, body.name.trim())
+  if (dupe) return c.json({ error: `A space named "${dupe.name}" already exists.`, existingId: dupe.id }, 409)
+
+  const [created] = await db.insert(eventSpace).values({
+    id: createId(),
+    name: body.name.trim(),
+    description: body.description || null,
+    seatedCapacity: body.seatedCapacity ?? null,
+    standingCapacity: body.standingCapacity ?? null,
+    minimumSpend: body.minimumSpend ?? null,
+    hireFee: body.hireFee ?? null,
+    amenities: Array.isArray(body.amenities) ? body.amenities : [],
+    photo: body.photo || null,
+    active: body.active ?? true,
+    companyId: currentUser.companyId,
+  }).returning()
+
+  await audit.log({ action: 'create', entity: 'event_space', entityId: created.id, entityName: nameOf(created), metadata: created, req: { user: currentUser } })
+  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event_space' })
+  return c.json(created, 201)
+})
+
+// PUT /event-spaces/:id
+app.put('/:id', requirePermission('contacts:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+
+  const [existing] = await db.select().from(eventSpace)
+    .where(and(eq(eventSpace.id, id), eq(eventSpace.companyId, currentUser.companyId)))
+    .limit(1)
+  if (!existing) return c.json({ error: 'Space not found' }, 404)
+
+  // Whitelist editable columns — never let companyId/id be reassigned from the body.
+  const EDITABLE = ['name', 'description', 'seatedCapacity', 'standingCapacity', 'minimumSpend', 'hireFee', 'amenities', 'photo', 'active'] as const
+  const updates: any = { updatedAt: new Date() }
+  for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  const vErr = negativeFieldError(updates)
+  if (vErr) return c.json({ error: vErr }, 400)
+  if ('name' in updates) {
+    if (typeof updates.name !== 'string' || !updates.name.trim()) return c.json({ error: 'name is required' }, 400)
+    updates.name = updates.name.trim()
+    const dupe = await sameNameSpace(currentUser.companyId, updates.name, existing.id)
+    if (dupe) return c.json({ error: `A space named "${dupe.name}" already exists.`, existingId: dupe.id }, 409)
+  }
+  // Retiring through the edit form is the same act as DELETE: refused while upcoming bookings hold the room. (T15 H1)
+  if (updates.active === false && existing.active) {
+    const n = await upcomingEventsUsingSpace(currentUser.companyId, existing.id)
+    if (n > 0) return c.json({ error: retireSpaceRefusal(existing.name, n), upcomingEvents: n }, 409)
+  }
+
+  const [updated] = await db.update(eventSpace).set(updates).where(eq(eventSpace.id, id)).returning()
+  await audit.log({ action: 'update', entity: 'event_space', entityId: id, entityName: nameOf(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
+  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event_space' })
+  return c.json(updated)
+})
+
+// DELETE /event-spaces/:id — soft delete. Past events reference the space, so a
+// hard delete would blank the room out of the history. A room that still holds
+// upcoming bookings cannot be retired until they are moved (409 with the count). (T15 H1)
+app.delete('/:id', requirePermission('contacts:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [existing] = await db.select().from(eventSpace)
+    .where(and(eq(eventSpace.id, id), eq(eventSpace.companyId, currentUser.companyId)))
+    .limit(1)
+  if (!existing) return c.json({ error: 'Space not found' }, 404)
+
+  const n = await upcomingEventsUsingSpace(currentUser.companyId, existing.id)
+  if (n > 0) return c.json({ error: retireSpaceRefusal(existing.name, n), upcomingEvents: n }, 409)
+
+  const [updated] = await db.update(eventSpace)
+    .set({ active: false, updatedAt: new Date() })
+    .where(eq(eventSpace.id, id))
+    .returning()
+
+  await audit.log({ action: 'update', entity: 'event_space', entityId: id, entityName: nameOf(updated), changes: audit.diff(existing, updated), req: { user: currentUser } })
+  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event_space' })
+  return c.json({ success: true, space: updated })
+})
+
+export default app

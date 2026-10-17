@@ -6,7 +6,7 @@
  */
 
 import { db } from '../../db/index.ts'
-import { contact, project, job, quote, invoice, document, teamMember, rfi } from '../../db/schema.ts'
+import { contact, project, job, quote, invoice, document, teamMember, rfi, event, eventSpace, menuPackage, barMenuItem, barTap } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
 import { deriveStatus } from '../shared/index.ts'
 
@@ -38,7 +38,10 @@ export async function globalSearch(
   const perType = Math.ceil(limit / 6)
   const pattern = `%${searchTerm}%`
 
-  const searchTypes = types || ['contact', 'project', 'job', 'quote', 'invoice', 'document']
+  // Index the venue-side entities this business actually books, not just the
+  // contractor set — events/spaces/menus were missing from the palette (H-03).
+  // A bar: guests, the menu and taps, parties and their spaces/packages, invoices, documents.
+  const searchTypes = types || ['contact', 'item', 'tap', 'event', 'space', 'menu', 'invoice', 'document']
 
   const searches: Promise<SearchResult[]>[] = []
 
@@ -215,6 +218,88 @@ export async function globalSearch(
             description: item.mimeType || '',
             url: `/crm/documents/${item.id}`,
             icon: 'file',
+          }))
+        )
+    )
+  }
+
+  // Events (enquiry → confirmed bookings)
+  if (searchTypes.includes('event')) {
+    searches.push(
+      db
+        .select({ id: event.id, name: event.name, status: event.status, eventDate: event.eventDate })
+        .from(event)
+        .where(and(eq(event.companyId, companyId), or(ilike(event.name, pattern), ilike(event.notes, pattern))))
+        .orderBy(desc(event.updatedAt))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'event', subtype: item.status, id: item.id, name: item.name || 'Untitled event',
+            description: item.eventDate ? String(item.eventDate) : '', url: `/crm/events/${item.id}`, icon: 'calendar',
+          }))
+        )
+    )
+  }
+
+  // Spaces
+  if (searchTypes.includes('space')) {
+    searches.push(
+      db
+        .select({ id: eventSpace.id, name: eventSpace.name })
+        .from(eventSpace)
+        .where(and(eq(eventSpace.companyId, companyId), ilike(eventSpace.name, pattern)))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'space', subtype: null, id: item.id, name: item.name, description: 'Space', url: `/crm/spaces`, icon: 'map-pin',
+          }))
+        )
+    )
+  }
+
+  // Catering menu packages
+  if (searchTypes.includes('menu')) {
+    searches.push(
+      db
+        .select({ id: menuPackage.id, name: menuPackage.name })
+        .from(menuPackage)
+        .where(and(eq(menuPackage.companyId, companyId), ilike(menuPackage.name, pattern)))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'menu', subtype: null, id: item.id, name: item.name, description: 'Party package', url: `/crm/menus`, icon: 'utensils',
+          }))
+        )
+    )
+  }
+
+  // The bar's menu items (86 status shows in the description)
+  if (searchTypes.includes('item')) {
+    searches.push(
+      db
+        .select({ id: barMenuItem.id, name: barMenuItem.name, is86ed: barMenuItem.is86ed })
+        .from(barMenuItem)
+        .where(and(eq(barMenuItem.companyId, companyId), ilike(barMenuItem.name, pattern)))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'item', subtype: null, id: item.id, name: item.name, description: item.is86ed ? 'Menu · 86' : 'Menu', url: `/crm/menu`, icon: 'utensils',
+          }))
+        )
+    )
+  }
+
+  // Taps
+  if (searchTypes.includes('tap')) {
+    searches.push(
+      db
+        .select({ id: barTap.id, name: barTap.beerName, line: barTap.lineNumber })
+        .from(barTap)
+        .where(and(eq(barTap.companyId, companyId), eq(barTap.isActive, true), ilike(barTap.beerName, pattern)))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'tap', subtype: null, id: item.id, name: item.name, description: `Tap ${item.line}`, url: `/crm/taps`, icon: 'beer',
           }))
         )
     )

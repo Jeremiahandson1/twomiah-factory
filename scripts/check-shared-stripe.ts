@@ -36,14 +36,15 @@ for (const t of TEMPLATES) {
   // The events CRM books the date (bookOnDeposit), then moves the due date (#171). The four CRMs with automatic
   // commissions pass the earner — and nothing else — so a card payment or Stripe refund earns at once. Every other
   // template passes nothing.
-  const COMMISSION_EARNERS = new Set(['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-basic', 'crm-bar'])
+  const COMMISSION_EARNERS = new Set(['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-basic'])
   const earnerHook = /afterInvoicePayment: async \(invoiceId: string\) => \{ await commissionEarner\.earnForInvoice\(invoiceId\) \},/
-  const ok = t === 'crm-restaurant'
+  // crm-bar carries crm-restaurant's private-party ledger (and is never offered commissions), so the same hook.
+  const ok = t === 'crm-restaurant' || t === 'crm-bar'
     ? /afterInvoicePayment: async \(invoiceId: string\) =>[\s\S]*bookOnDeposit\([\s\S]*await syncEventInvoiceDueDate\(invoiceId\)/.test(svc)
     : COMMISSION_EARNERS.has(t)
       ? earnerHook.test(svc) && (svc.match(/afterInvoicePayment/g) || []).length === 1
       : !/afterInvoicePayment/.test(svc)
-  if (!ok) fail(`${t}/services/stripe.ts afterInvoicePayment wiring is wrong (crm-restaurant: bookOnDeposit, then syncEventInvoiceDueDate; crm/fieldservice/landscaping/basic: the commission earner only; everyone else: none)`)
+  if (!ok) fail(`${t}/services/stripe.ts afterInvoicePayment wiring is wrong (crm-restaurant and crm-bar: bookOnDeposit, then syncEventInvoiceDueDate; crm/fieldservice/landscaping/basic: the commission earner only; everyone else: none)`)
   // Every named export the rest of the template imports (agreements, booking) must still be there.
   for (const name of ['createBookingDepositIntent', 'listSavedPaymentMethods', 'chargeInvoiceOffSession', 'constructWebhookEvent', 'handleWebhook']) {
     if (!svc.includes(name)) fail(`${t}/services/stripe.ts must re-export ${name}`)

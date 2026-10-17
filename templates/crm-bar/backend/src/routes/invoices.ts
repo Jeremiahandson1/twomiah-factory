@@ -9,7 +9,8 @@ import { requirePermission, hasPermission, getExtraPermissions } from '../middle
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import emailService from '../services/email.ts'
-import commissionEarner from '../services/commissionEarner.ts'
+import { INVOICE_NUMBERING, syncEventInvoiceDueDate } from '../services/eventLedger.ts'
+import { bookOnDepositForInvoice } from '../services/eventBooking.ts'
 
 export default createInvoiceRoutes({
   db,
@@ -19,19 +20,25 @@ export default createInvoiceRoutes({
   // Says the right next step in a refusal ("refund them first" only to someone who may refund). (T60)
   canSee: async (role: string, permission: string, userId?: string) =>
     hasPermission(role, permission, await getExtraPermissions(userId)),
-  emitToCompany,
+  emitToCompany: (companyId, event, data) => {
+    emitToCompany(companyId, event, data)
+    // A payment, refund, void or edit on an event's invoice moves its due date to the next installment
+    // not yet covered (services/eventLedger.ts). A no-op for invoices that don't belong to an event.
+    const invoiceId = event === EVENTS.PAYMENT_RECEIVED ? data?.invoiceId : event === EVENTS.INVOICE_UPDATED ? data?.id : null
+    if (invoiceId) void syncEventInvoiceDueDate(invoiceId).catch((err) => console.error('[events] invoice due-date sync failed', err))
+  },
   EVENTS,
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
   // Money movements go in the audit log: create, edit, send, payment, void, refund, credit, delete.
   // Every write in this module used to log NOTHING — 1,889 rows and not one line about money. (T41)
   audit,
-  // minLineItems: an invoice needs at least one line — the invoice form already requires one, and the API created an empty $0 invoice when called directly (RV T19 L8; landscaping and events had it).
+  // The same numbering constant event invoices are raised with (the shared default, stated once).
+  // minLineItems: a hand-raised invoice needs a line — a $0 invoice with nothing on it saved as INV-00052 (T16 L6).
+  // Event invoices are raised by the ledger service, not this route, so they are unaffected.
+  // onPayment: money books the date — a deposit on an enquiry confirms it (and is refused while the room is
+  // held), inside the same transaction as the payment (T16 M8).
   // timeZoneFor: the business's own clock decides what "today" is, so an invoice or quote raised
   // in the evening is not stamped with tomorrow. Render runs UTC. (Field Service T28 M4)
-  options: {
-    timeZoneFor: (companyId: string) => companyTimeZone(db, companyId), minLineItems: 1,
-    // a payment, refund or credit recorded on the screen earns (or takes back) its automatic commissions at once
-    afterMoney: (invoiceId: string) => commissionEarner.earnForInvoice(invoiceId),
-  },
+  options: { timeZoneFor: (companyId: string) => companyTimeZone(db, companyId), numbering: INVOICE_NUMBERING, minLineItems: 1, onPayment: bookOnDepositForInvoice },
 })

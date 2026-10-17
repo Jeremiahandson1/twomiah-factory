@@ -65,6 +65,7 @@ export const EVENTS = {
   INVOICE_SENT: 'invoice:sent',
   INVOICE_PAID: 'invoice:paid',
   PAYMENT_RECEIVED: 'payment:received',
+  REFRESH: 'data:refresh',
   LEAD_CREATED: 'lead:created',
   LEAD_UPDATED: 'lead:updated',
 } as const

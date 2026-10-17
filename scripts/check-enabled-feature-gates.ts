@@ -48,8 +48,9 @@ const GATES: Record<string, Gate[]> = {
   // Everything FS does gate — fleet, locations, commissions, inventory, equipment, agreements,
   // maintenance contracts, warranties, recurring — is still mounted and still gated here.
   'crm-basic': [...FS, ...PHOTOS],
-  // crm-bar is crm-basic's clone: the same field-service modules are still mounted, gated and off.
-  'crm-bar': [...FS, ...PHOTOS],
+  // crm-bar is crm-basic's clone: the same field-service modules are still mounted, gated and off — plus the
+  // jobs and quotes a bar is never offered, and the private-party routes on their own features.
+  'crm-bar': [...FS, ...PHOTOS, ['/api/jobs', 'jobs'], ['/api/quotes', 'quotes'], ['/api/events', 'event_bookings'], ['/api/event-spaces', 'event_spaces'], ['/api/menu-packages', 'catering_menus']],
   'crm-landscaping': [...FS, ['/api/recurring-routes', 'recurring_routes'], ['/api/area-pricing', 'area_pricing'], ['/api/snow', 'snow_billing'], ...PHOTOS],
   'crm-rv': [['/api/warranties', 'warranties'], ['/api/inventory', ['inventory', 'parts_tracking']]],
   'crm-vet': [],
