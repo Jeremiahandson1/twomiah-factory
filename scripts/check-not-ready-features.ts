@@ -60,7 +60,11 @@ const admin = read('apps/api/src/routes/factory/admin.ts')
 const patch = admin.slice(admin.indexOf("factory.patch('/customers/:id/features'"))
 if (!/const notReady = features\.filter\([^\n]*\?\.hidden\)/.test(patch) || !/const newFeatures: string\[\] = features\.filter\([^\n]*!notReady\.includes\(f\)\)/.test(patch)) fail("apps/api admin: PATCH /customers/:id/features must drop not-ready features before saving and syncing")
 const gen = read('apps/api/src/services/generator.ts')
-if (!/\.filter\(\(id: string\) => !FEATURE_MAP\[id\]\?\.hidden\)/.test(gen.slice(gen.indexOf('function processCRM')))) fail('apps/api generator: processCRM must filter not-ready features out of the deployed list')
+// The lists processCRM seeds and ships come from resolveCrmFeatures (10/17), which filters both through `ready`.
+const resolver = gen.slice(gen.indexOf('export function resolveCrmFeatures'), gen.indexOf('function processCRM'))
+if (!/const ready = \(ids: string\[\]\) => \[\.\.\.new Set\(ids\)\]\.filter\(\(id\) => !FEATURE_MAP\[id\]\?\.hidden\)/.test(resolver)
+  || !/const seed = ready\(/.test(resolver) || !/code: ready\(/.test(resolver)) fail('apps/api generator: resolveCrmFeatures must filter not-ready features out of the seeded AND the shipped list')
+if (!/= resolveCrmFeatures\(templateName,/.test(gen.slice(gen.indexOf('function processCRM')))) fail('apps/api generator: processCRM must take its lists from resolveCrmFeatures')
 
 if (failed) { console.error(`\nnot-ready features: ${failed} check(s) FAILED`); process.exit(1) }
 console.log(`not-ready features: ${hidden.size} not-ready (${[...hidden].join(', ')}); ${resolved} plan resolutions + ${templates.length} defaults switch none on; owner + Factory saves filter them`)
