@@ -732,7 +732,7 @@ function Till() {
                   <div className="flex items-center gap-1 mt-1">
                     {product.strainType && product.strainType !== 'na' && (
                       <span className={`text-xs px-1.5 py-0.5 rounded ${
-                        product.strainType === 'sativa' ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40' :
+                        product.strainType === 'sativa' ? 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40' :
                         product.strainType === 'indica' ? 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40' :
                         product.strainType === 'cbd' ? 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40' :
                         'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40'

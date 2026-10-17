@@ -42,7 +42,7 @@ const STAGE_THRESHOLDS: Record<string, number> = {
 };
 
 const JOB_TYPE_COLORS: Record<string, string> = {
-  insurance: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  insurance: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
   retail: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
   commercial: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   new_construction: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
@@ -318,7 +318,7 @@ export default function PipelineBoard() {
 
                         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                           {job.jobType === 'insurance' ? (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40">
                               INS
                             </span>
                           ) : (

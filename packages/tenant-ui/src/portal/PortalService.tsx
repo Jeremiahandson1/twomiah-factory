@@ -223,7 +223,7 @@ export function PortalServiceRequest() {
       </div>
     )
   }
-  const choice = (active: boolean, tone: 'blue' | 'orange') => `p-4 rounded-xl border-2 text-center transition-colors ${active ? (tone === 'orange' ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-950/30' : 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30') : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:text-slate-300'}`
+  const choice = (active: boolean, tone: 'blue' | 'amber') => `p-4 rounded-xl border-2 text-center transition-colors ${active ? (tone === 'amber' ? 'border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300' : 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30') : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:text-slate-300'}`
   return (
     <div className="max-w-lg">
       <PageTitle title={config.labels.serviceRequest} subtitle="Tell us what you need help with." />
@@ -236,7 +236,7 @@ export function PortalServiceRequest() {
           <p className={labelCls}>How urgent is this?</p>
           <div className="grid grid-cols-2 gap-3">
             <button type="button" onClick={() => setForm((f) => ({ ...f, urgency: 'routine' }))} className={choice(form.urgency === 'routine', 'blue')}><Wrench className="w-5 h-5 mx-auto mb-1" /><p className="font-semibold text-sm">Routine</p><p className="text-xs mt-0.5">Within a few days</p></button>
-            <button type="button" onClick={() => setForm((f) => ({ ...f, urgency: 'urgent' }))} className={choice(form.urgency === 'urgent', 'orange')}><AlertTriangle className="w-5 h-5 mx-auto mb-1" /><p className="font-semibold text-sm">Urgent</p><p className="text-xs mt-0.5">Need help today</p></button>
+            <button type="button" onClick={() => setForm((f) => ({ ...f, urgency: 'urgent' }))} className={choice(form.urgency === 'urgent', 'amber')}><AlertTriangle className="w-5 h-5 mx-auto mb-1" /><p className="font-semibold text-sm">Urgent</p><p className="text-xs mt-0.5">Need help today</p></button>
           </div>
         </div>
         <div>

@@ -12,7 +12,7 @@ import api from '../../services/api'
 
 const DAMAGE_COLORS: Record<string, string> = {
   minor: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
-  moderate: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  moderate: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
   severe: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 }
 const STATUS_COLORS: Record<string, string> = {

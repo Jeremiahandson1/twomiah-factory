@@ -483,7 +483,7 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
       <td className="px-4 py-3">
         <div className="flex flex-wrap gap-1">
           {equipment.maintenanceDue && (
-            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs rounded-full dark:text-orange-300 dark:bg-orange-950/40">
+            <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-xs rounded-full dark:text-amber-300 dark:bg-amber-950/40">
               Maintenance Due
             </span>
           )}

@@ -488,7 +488,7 @@ export default function ReferralsPage() {
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
                         idx === 0 ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
                         idx === 1 ? 'bg-gray-200 text-gray-700 dark:text-slate-200 dark:bg-slate-700' :
-                        idx === 2 ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40' :
+                        idx === 2 ? 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40' :
                         'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                       } dark:text-slate-200`}>
                         {idx + 1}

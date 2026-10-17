@@ -220,7 +220,7 @@ function ItemModal({ api, toast, item, categories, itemWord, onClose, onSaved }:
           <Field label="Price ($)"><input className={inputCls} type="number" min={0} step="0.01" required value={f.price} onChange={set('price')} /></Field>
           <Field label="Cost ($)"><input className={inputCls} type="number" min={0} step="0.01" value={f.cost} onChange={set('cost')} /></Field>
           <Field label="Labor hours"><input className={inputCls} type="number" min={0} step="0.25" value={f.laborHours} onChange={set('laborHours')} /></Field>
-          <Field label="Margin" hint={margin === null ? 'Enter a cost to see the margin' : undefined}><div className={`px-3 py-2 rounded-lg font-medium ${margin === null ? 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300' : Number(margin) > 30 ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40'}`}>{margin === null ? '—' : `${margin}%`}</div></Field>
+          <Field label="Margin" hint={margin === null ? 'Enter a cost to see the margin' : undefined}><div className={`px-3 py-2 rounded-lg font-medium ${margin === null ? 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300' : Number(margin) > 30 ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40'}`}>{margin === null ? '—' : `${margin}%`}</div></Field>
         </div>
         <div className="flex flex-wrap gap-6 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" checked={f.taxable} onChange={set('taxable')} />Taxable</label>

@@ -13,7 +13,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   compliance: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
   product: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   sales: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
-  safety: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  safety: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
   onboarding: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
   general: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
 };
@@ -377,7 +377,7 @@ export default function TrainingPage() {
                               <Award className="w-3 h-3 text-gray-400" />
                               <span>{cert.name}</span>
                               {cert.expiring && (
-                                <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded flex items-center gap-1 dark:text-orange-300 dark:bg-orange-950/40">
+                                <span className="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded flex items-center gap-1 dark:text-amber-300 dark:bg-amber-950/40">
                                   <AlertTriangle className="w-3 h-3" />Expires {cert.expiresAt}
                                 </span>
                               )}

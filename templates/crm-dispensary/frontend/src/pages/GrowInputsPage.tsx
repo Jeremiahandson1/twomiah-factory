@@ -34,7 +34,7 @@ const typeColors: Record<string, string> = {
   soil: 'bg-amber-700/20 text-amber-800',
   amendment: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
   growth_regulator: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
-  fungicide: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  fungicide: 'bg-yellow-100 text-yellow-800 dark:text-yellow-300 dark:bg-yellow-950/40',
   insecticide: 'bg-rose-100 text-rose-700 dark:text-rose-300 dark:bg-rose-950/40',
   adjuvant: 'bg-cyan-100 text-cyan-700 dark:text-cyan-300 dark:bg-cyan-950/40',
   ipm: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',

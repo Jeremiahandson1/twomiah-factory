@@ -8,7 +8,7 @@ import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
 const strainColors: Record<string, string> = {
-  sativa: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  sativa: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
   indica: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
   hybrid: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   cbd: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',

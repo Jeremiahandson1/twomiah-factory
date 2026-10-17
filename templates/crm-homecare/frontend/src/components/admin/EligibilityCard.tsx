@@ -7,12 +7,12 @@ import { API_BASE_URL } from '../../config';
 const STATUS_META: Record<string, { label: string; icon: string; cls: string }> = {
   clear:          { label: 'Cleared',                            icon: '✅', cls: 'bg-green-50 text-green-900 border-green-600 dark:bg-green-900/30 dark:text-green-100 dark:border-green-500' },
   flagged_review: { label: 'Flagged — admin review needed',      icon: '⚠️', cls: 'bg-amber-50 text-amber-900 border-amber-600 dark:bg-amber-900/30 dark:text-amber-100 dark:border-amber-500' },
-  rehab_review:   { label: 'Requires DHS rehabilitation review', icon: '🔎', cls: 'bg-orange-50 text-orange-900 border-orange-600 dark:bg-orange-900/30 dark:text-orange-100 dark:border-orange-500' },
+  rehab_review:   { label: 'Requires DHS rehabilitation review', icon: '🔎', cls: 'bg-yellow-50 text-yellow-900 border-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-100 dark:border-yellow-500' },
   disqualified:   { label: 'Disqualified — cannot hire',         icon: '⛔', cls: 'bg-red-50 text-red-900 border-red-600 dark:bg-red-900/30 dark:text-red-100 dark:border-red-500' },
 };
 const SEVERITY_META: Record<string, { label: string; cls: string }> = {
   permanent_bar: { label: 'Permanent bar',         cls: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' },
-  rehab_review:  { label: 'Rehabilitation review', cls: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200' },
+  rehab_review:  { label: 'Rehabilitation review', cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200' },
   advisory:      { label: 'Advisory',              cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
 };
 

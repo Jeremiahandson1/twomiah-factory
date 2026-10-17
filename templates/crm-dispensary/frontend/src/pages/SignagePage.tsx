@@ -9,7 +9,7 @@ import { Modal } from '../components/ui/Modal';
 const screenTypeColors: Record<string, string> = {
   menu_board: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
   promo: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
-  wait_time: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  wait_time: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
   custom: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
 };
 

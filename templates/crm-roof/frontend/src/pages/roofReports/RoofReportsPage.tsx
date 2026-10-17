@@ -477,7 +477,7 @@ export default function RoofReportsPage() {
                   </td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">
                     {report.status === 'pending_review' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40">
                         <Loader2 className="w-3 h-3 animate-spin" /> Processing
                       </span>
                     ) : report.totalSquares ?? '-'}
@@ -487,7 +487,7 @@ export default function RoofReportsPage() {
                     <div className="flex items-center gap-1.5">
                       {report.imageryQuality ? qualityBadge(report.imageryQuality) : '-'}
                       {report.imageryDate && isSummerMonth(report.imageryDate) && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40" title="Summer imagery — trees may obscure roof">Summer</span>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40" title="Summer imagery — trees may obscure roof">Summer</span>
                       )}
                     </div>
                   </td>

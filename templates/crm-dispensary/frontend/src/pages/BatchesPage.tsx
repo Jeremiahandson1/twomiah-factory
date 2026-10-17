@@ -14,7 +14,7 @@ const statusBadge: Record<string, string> = {
   quarantine: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
   depleted: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800',
   recalled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
-  expired: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  expired: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
 };
 
 const initialBatchForm = {

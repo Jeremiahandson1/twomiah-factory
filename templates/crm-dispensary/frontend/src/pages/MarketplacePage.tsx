@@ -9,7 +9,7 @@ const categoryColors: Record<string, string> = {
   pos: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
   payments: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   compliance: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
-  delivery: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  delivery: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
   marketing: 'bg-pink-100 text-pink-700 dark:text-pink-300 dark:bg-pink-950/40',
   analytics: 'bg-indigo-100 text-indigo-700 dark:text-indigo-300 dark:bg-indigo-950/40',
   inventory: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',

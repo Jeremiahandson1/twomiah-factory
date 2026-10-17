@@ -578,7 +578,7 @@ function ScanHistoryTab() {
 
   const columns = [
     { key: 'epc', label: 'EPC', render: (val: string) => <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{val}</span> },
-    { key: 'scanType', label: 'Type', render: (val: string) => <StatusBadge status={val} statusColors={{ inventory_count: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', receiving: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', transfer: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40', sale: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40', audit: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' }} /> },
+    { key: 'scanType', label: 'Type', render: (val: string) => <StatusBadge status={val} statusColors={{ inventory_count: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', receiving: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', transfer: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40', sale: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', audit: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' }} /> },
     { key: 'locationName', label: 'Location', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'productName', label: 'Product', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
     // scannedBy is the raw user id; the readable name is scannedByName.

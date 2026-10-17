@@ -10,7 +10,7 @@ import { Button, PageHeader } from '../components/ui/DataTable';
 
 const TYPE_STYLES: Record<string, { bg: string; icon: any; label: string }> = {
   void: { bg: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', icon: XCircle, label: 'Void' },
-  discount: { bg: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40', icon: Percent, label: 'Discount' },
+  discount: { bg: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', icon: Percent, label: 'Discount' },
   refund: { bg: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40', icon: RotateCcw, label: 'Refund' },
   price_override: { bg: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', icon: Tag, label: 'Price Override' },
 };

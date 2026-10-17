@@ -17,7 +17,7 @@ const verificationColors: Record<string, string> = {
   verified: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   underage: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
   expired: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
-  flagged: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  flagged: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
   pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
   // A scan that could not be read is a refusal, not a warning — it is the case that used to pass. (T45 BL1)
   unreadable: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',

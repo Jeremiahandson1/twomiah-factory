@@ -750,7 +750,7 @@ function AnalyticsTab() {
               const total = stats?.thisMonth || 1;
               const percent = Math.round((item.count / total) * 100) || 0;
               const colors: Record<string, string> = {
-                pos_checkout: 'bg-orange-500',
+                pos_checkout: 'bg-amber-500',
                 inventory_count: 'bg-blue-500',
                 input_application: 'bg-green-500',
                 receiving: 'bg-purple-500',

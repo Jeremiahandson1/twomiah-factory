@@ -17,7 +17,7 @@ const STATUS_STYLES: Record<string, string> = {
   shipped: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
   received: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
-  partial: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  partial: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
 };
 
 export default function PurchaseOrdersPage() {

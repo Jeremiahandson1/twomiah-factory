@@ -95,7 +95,7 @@ interface TabItem {
 const CLAIM_STATUS: Record<string, { label: string; chip: string; icon: React.ComponentType<{ className?: string }> }> = {
   open: { label: 'Open', chip: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300', icon: Clock },
   scheduled: { label: 'Scheduled', chip: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300', icon: Calendar },
-  in_progress: { label: 'In Progress', chip: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300', icon: Clock },
+  in_progress: { label: 'In Progress', chip: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300', icon: Clock },
   completed: { label: 'Completed', chip: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300', icon: CheckCircle },
   denied: { label: 'Denied', chip: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300', icon: XCircle },
 };

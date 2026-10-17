@@ -39,14 +39,14 @@ const roomTypeColors: Record<string, string> = {
   vegetative: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   flowering: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
   drying: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
-  curing: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  curing: 'bg-yellow-100 text-yellow-800 dark:text-yellow-300 dark:bg-yellow-950/40',
   storage: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   mother: 'bg-pink-100 text-pink-700 dark:text-pink-300 dark:bg-pink-950/40',
 };
 
 const harvestStatuses: Record<string, string> = {
   drying: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
-  curing: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  curing: 'bg-yellow-100 text-yellow-800 dark:text-yellow-300 dark:bg-yellow-950/40',
   complete: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   packaged: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
 };

@@ -87,13 +87,13 @@ export const STATUS_CHIP: Record<string, string> = {
 };
 export const SEVERITY_CHIP: Record<string, string> = {
   critical: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
-  severe: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
+  severe: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
   moderate: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200',
   minor: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
 };
 export const SEVERITY_BORDER: Record<string, string> = {
   critical: 'border-red-500 dark:border-red-400',
-  severe: 'border-orange-500 dark:border-orange-400',
+  severe: 'border-amber-500 dark:border-amber-400',
   moderate: 'border-yellow-500 dark:border-yellow-400',
   minor: 'border-green-600 dark:border-green-400',
 };

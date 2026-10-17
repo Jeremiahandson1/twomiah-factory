@@ -370,7 +370,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
 
       {/* Alerts */}
       {hasAlert && (
-        <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-2 text-sm text-orange-700 dark:text-orange-300 dark:bg-orange-950/40">
+        <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2 text-sm text-amber-800 dark:text-amber-300 dark:bg-amber-950/40">
           <AlertTriangle className="w-4 h-4" />
           <span>Maintenance due soon</span>
         </div>

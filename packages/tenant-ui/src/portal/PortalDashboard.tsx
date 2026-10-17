@@ -17,7 +17,7 @@ const CARD_STYLE: Record<PortalSection, { color: string; value: string }> = {
   changeOrders: { color: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', value: 'Review' },
   selections: { color: 'bg-purple-100 text-purple-600 dark:text-purple-300 dark:bg-purple-950/40', value: 'Choose' },
   messages: { color: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800', value: 'Open' },
-  myJobs: { color: 'bg-orange-100 text-orange-600 dark:text-orange-300 dark:bg-orange-950/40', value: 'View' },
+  myJobs: { color: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', value: 'View' },
   pets: { color: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40', value: 'View' },
   lienWaivers: { color: 'bg-blue-100 text-blue-600 dark:text-blue-300 dark:bg-blue-950/40', value: 'Review & Sign' },
   submittals: { color: 'bg-purple-100 text-purple-600 dark:text-purple-300 dark:bg-purple-950/40', value: 'Review' },
@@ -25,7 +25,7 @@ const CARD_STYLE: Record<PortalSection, { color: string; value: string }> = {
   sharedDocuments: { color: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800', value: 'Browse' },
   equipment: { color: 'bg-blue-100 text-blue-600 dark:text-blue-300 dark:bg-blue-950/40', value: 'View' },
   agreements: { color: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40', value: 'View' },
-  serviceRequest: { color: 'bg-orange-100 text-orange-600 dark:text-orange-300 dark:bg-orange-950/40', value: 'Request' },
+  serviceRequest: { color: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40', value: 'Request' },
 }
 
 export function PortalDashboard() {
@@ -74,7 +74,7 @@ export function PortalDashboard() {
     }
     if (s === 'invoices') {
       const balance = summary?.outstandingBalance ?? 0
-      stats.push({ key: 'balance', label: 'Outstanding Balance', value: moneyShort(balance), icon: DollarSign, color: balance > 0 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800', link: link('invoices') })
+      stats.push({ key: 'balance', label: 'Outstanding Balance', value: moneyShort(balance), icon: DollarSign, color: balance > 0 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800', link: link('invoices') })
     }
   }
 

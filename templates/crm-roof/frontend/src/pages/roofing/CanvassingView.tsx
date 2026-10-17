@@ -16,7 +16,7 @@ const OUTCOME_CONFIG: Record<string, { label: string; emoji: string; color: stri
   not_interested: { label: 'Not Interested', emoji: '👋', color: 'text-red-700 dark:text-red-300', bgColor: 'bg-red-50 border-red-300' },
   interested: { label: 'Interested', emoji: '⭐', color: 'text-yellow-700 dark:text-yellow-300', bgColor: 'bg-yellow-50 border-yellow-300' },
   appointment_set: { label: 'Appointment Set', emoji: '📅', color: 'text-green-700 dark:text-green-300', bgColor: 'bg-green-50 border-green-300' },
-  already_has_contractor: { label: 'Has Contractor', emoji: '🔨', color: 'text-orange-700 dark:text-orange-300', bgColor: 'bg-orange-50 border-orange-300' },
+  already_has_contractor: { label: 'Has Contractor', emoji: '🔨', color: 'text-amber-800 dark:text-amber-300', bgColor: 'bg-amber-50 border-amber-300' },
   vacant: { label: 'Vacant', emoji: '🏚️', color: 'text-gray-500', bgColor: 'bg-gray-50 border-gray-300' },
 }
 

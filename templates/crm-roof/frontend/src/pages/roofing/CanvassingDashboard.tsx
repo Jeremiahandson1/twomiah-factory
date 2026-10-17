@@ -16,7 +16,7 @@ const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
   not_interested: { label: 'Not Interested', color: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' },
   interested: { label: 'Interested', color: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' },
   appointment_set: { label: 'Appointment', color: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' },
-  already_has_contractor: { label: 'Has Contractor', color: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40' },
+  already_has_contractor: { label: 'Has Contractor', color: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40' },
   vacant: { label: 'Vacant', color: 'bg-gray-100 text-gray-600' },
 }
 
@@ -421,7 +421,7 @@ export default function CanvassingDashboard() {
                       <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                         i === 0 ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
                         i === 1 ? 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' :
-                        i === 2 ? 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40' :
+                        i === 2 ? 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40' :
                         'bg-gray-50 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
                       }`}>{i + 1}</span>
                       <span className="text-sm font-medium truncate">{rep.name}</span>

@@ -34,7 +34,7 @@ const statusColors: Record<string, string> = {
   completed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
   refunded: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
-  partially_refunded: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  partially_refunded: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
   ready: 'bg-teal-100 text-teal-700 dark:text-teal-300 dark:bg-teal-950/40',
   walk_in: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40',
   delivery: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',

@@ -21,7 +21,7 @@ const categories = [
 
 const strainTypes = [
   // Each chip carries its dark pair — ground AND ink — or it stayed a light chip on a dark page. (T62)
-  { value: 'sativa', label: 'Sativa', color: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300' },
+  { value: 'sativa', label: 'Sativa', color: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300' },
   { value: 'indica', label: 'Indica', color: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300' },
   { value: 'hybrid', label: 'Hybrid', color: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' },
   { value: 'cbd', label: 'CBD', color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' },

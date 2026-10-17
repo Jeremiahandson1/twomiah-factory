@@ -40,7 +40,7 @@ export interface JobsConfig {
 
 export const DEFAULT_JOB_STATUSES = ['scheduled', 'dispatched', 'in_progress', 'completed', 'cancelled']
 export const DEFAULT_JOB_PRIORITIES = ['low', 'normal', 'high', 'urgent']
-export const PRIORITY_COLORS: Record<string, string> = { low: 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300', normal: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200', high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200', urgent: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200' }
+export const PRIORITY_COLORS: Record<string, string> = { low: 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-300', normal: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200', high: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200', urgent: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200' }
 
 export function resolveJobsConfig(c?: JobsConfig) {
   const cfg = c || {}

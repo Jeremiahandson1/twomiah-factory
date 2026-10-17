@@ -14,14 +14,14 @@ const PRIORITIES = ['emergency', 'high', 'normal', 'low'] as const;
 
 const PRIORITY_COLORS = {
   emergency: 'border-l-4 border-l-red-500 bg-red-50',
-  high: 'border-l-4 border-l-orange-500 bg-orange-50',
+  high: 'border-l-4 border-l-amber-500 bg-amber-50',
   normal: 'border-l-4 border-l-blue-500 bg-blue-50',
   low: 'border-l-4 border-l-gray-400 bg-gray-50',
 };
 
 const PRIORITY_BADGES = {
   emergency: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
-  high: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  high: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
   normal: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
   low: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
 };

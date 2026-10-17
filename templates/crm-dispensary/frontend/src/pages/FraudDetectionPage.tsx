@@ -18,7 +18,7 @@ const SEVERITY_STYLES: Record<string, string> = {
 
 const TYPE_STYLES: Record<string, string> = {
   void_pattern: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40',
-  discount_abuse: 'bg-orange-100 text-orange-700 dark:text-orange-300 dark:bg-orange-950/40',
+  discount_abuse: 'bg-amber-100 text-amber-800 dark:text-amber-300 dark:bg-amber-950/40',
   cash_variance: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
   inventory_shrinkage: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
   time_theft: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',

@@ -150,7 +150,7 @@ export default function TasksPage({ api }: TasksPageProps) {
   const priorityColors: Record<string, string> = {
     low: 'text-gray-400',
     medium: 'text-yellow-500',
-    high: 'text-orange-500',
+    high: 'text-amber-600',
     urgent: 'text-red-500',
   };
 

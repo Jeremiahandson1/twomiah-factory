@@ -24,7 +24,7 @@ const STATUS_COLORS: Record<string, string> = {
   measurement_ordered: 'bg-purple-700',
   proposal_sent: 'bg-yellow-600',
   signed: 'bg-green-700',
-  material_ordered: 'bg-orange-700',
+  material_ordered: 'bg-amber-700',
   in_production: 'bg-cyan-700',
   final_inspection: 'bg-teal-700',
   invoiced: 'bg-pink-700',
@@ -143,7 +143,7 @@ export default function PortalDashboard() {
                 </span>
               </div>
               {job.address && <p className="text-sm text-gray-300 mb-2">{job.address}</p>}
-              <p className="text-sm text-orange-200">
+              <p className="text-sm text-blue-400">
                 {STATUS_DESCRIPTIONS[job.status] || 'In progress'}
               </p>
             </Link>

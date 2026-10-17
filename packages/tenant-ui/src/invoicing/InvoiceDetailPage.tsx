@@ -106,7 +106,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
 
   const bigLabel = balance > 0 ? 'Balance Due' : credit > 0 ? 'Credit Balance' : invoice.status === 'refunded' ? 'Refunded' : invoice.status === 'void' ? 'Void' : Number(invoice.amountRefunded || 0) > 0 ? `Paid in Full · ${money(invoice.amountRefunded)} refunded` : Number(invoice.amountPaid || 0) > 0 ? 'Paid in Full' : 'Nothing collected yet'
   const bigAmount = balance > 0 ? balance : credit > 0 ? credit : closed ? 0 : Number(invoice.total)
-  const bigTone = balance > 0 ? (overdue ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-200' : 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-200') : 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-200'
+  const bigTone = balance > 0 ? (overdue ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-200' : 'bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200') : 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-200'
 
   return (
     <div className="space-y-6">

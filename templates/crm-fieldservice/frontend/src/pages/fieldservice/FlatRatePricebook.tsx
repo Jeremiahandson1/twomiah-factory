@@ -432,7 +432,7 @@ function RateFormModal({ item, categories, onSave, onClose }) {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Margin</label>
                   <div className={`px-3 py-2 rounded-lg font-medium ${
-                    Number(margin) > 30 ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400'
+                    Number(margin) > 30 ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300'
                   }`}>
                     {margin}%
                   </div>
