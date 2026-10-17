@@ -1010,6 +1010,7 @@ export async function deployCustomer(
   const isRv = vertical === 'rv' // RV + powersports dealership CRM
   const isVet = vertical === 'veterinary' // veterinary practice CRM
   const isSalon = vertical === 'salon' // salon / barber / spa CRM
+  const isBar = vertical === 'bar' // bar / tavern / pub CRM (crm-bar)
   const isEvents = vertical === 'events' // restaurant / caterer / venue private-events CRM
   const isStore = vertical === 'store' // e-commerce: crm-store back-office + website-store storefront
   // Everything with no vertical of its own: 'other', hotels, gyms, yoga, weddings, photographers,
@@ -1372,6 +1373,7 @@ export async function deployCustomer(
               const ok = await updateRenderEnvVars(siteId, [
                 { key: 'CRM_API_URL', value: backendUrl }, { key: 'WEBHOOK_SECRET', value: jwtSecret },
                 ...(isDispensary ? [{ key: 'CRM_MENU', value: '1' }] : []),
+                ...(isBar ? [{ key: 'CRM_BAR', value: '1' }] : []),
               ])
               await fetchWithTimeout(RENDER_API + '/services/' + siteId + '/deploys', { method: 'POST', headers: renderHeaders(), body: JSON.stringify({ clearCache: 'do_not_clear' }) })
               results.steps.push({ step: 'site_crm_link', status: ok ? 'ok' : 'warning', detail: siteId })
@@ -1593,6 +1595,8 @@ export async function deployCustomer(
           // the system of record) instead of the site's built-in engine.
           if (isSalon) siteEnvVars.push({ key: 'CRM_BOOKING_WIDGET', value: '1' })
           if (isDispensary) siteEnvVars.push({ key: 'CRM_MENU', value: '1' })
+          // A bar's site reads its live facts (menu, taps, hours, tonight's status) from crm-bar (website-premium-bar/lib/bar.ts).
+          if (isBar) siteEnvVars.push({ key: 'CRM_BAR', value: '1' })
           siteEnvVars.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
         }
         // Premium boot: bring the SQLite schema up to date (db/migrations, each applied once — a failure
@@ -1638,6 +1642,7 @@ export async function deployCustomer(
             siteEnvUpdates.push({ key: 'CRM_API_URL', value: results.apiUrl })
             if (isSalon) siteEnvUpdates.push({ key: 'CRM_BOOKING_WIDGET', value: '1' })
             if (isDispensary) siteEnvUpdates.push({ key: 'CRM_MENU', value: '1' })
+            if (isBar) siteEnvUpdates.push({ key: 'CRM_BAR', value: '1' })
             siteEnvUpdates.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
           }
           if (siteEnvUpdates.length > 0) await updateRenderEnvVars(siteSvc.id, siteEnvUpdates)
