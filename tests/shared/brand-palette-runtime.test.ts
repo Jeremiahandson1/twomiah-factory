@@ -97,7 +97,10 @@ try {
     check(`${t}: src/shared/brandPalette.js re-exports packages/tenant-ui's module`, existsSync(ROOT + shim)
       && /export \* from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\/tenant-ui\/src\/brandPalette\.js'/.test(read(shim)))
 
-    const families = t === 'crm-store' ? ['primary', 'brand'] : ['orange', 'primary', 'brand'] // store leaves orange semantic, on purpose
+    // EVERY template, the store included: packages/tenant-ui paints its brand controls orange-*, so a template that
+    // leaves orange stock shows the shared screens in stock orange — the store's two-factor buttons were white on
+    // #ea580c, 3.56:1, beside a blue shop.
+    const families = ['orange', 'primary', 'brand']
     for (const colour of SAMPLE) {
       const cfg = await loadConfig(t, colour)
       const colors = cfg?.theme?.extend?.colors || {}
@@ -122,6 +125,17 @@ try {
     }
   }
 } finally { rmSync(scratch, { recursive: true, force: true }) }
+
+// The store's own screens keep no orange-* of their own now that orange IS the shop's colour: a status chip that
+// changed hue with the brand would stop meaning "refunded". It is amber, which no template remaps.
+{
+  const { readdirSync, statSync } = await import('node:fs')
+  const hits: string[] = []
+  const walk = (d: string) => { for (const n of readdirSync(d)) { const p = join(d, n); if (n === 'shared' || n === 'node_modules') continue; if (statSync(p).isDirectory()) walk(p); else if (/\.(tsx?|css)$/.test(n) && /\b(bg|text|border|ring|from|to|via)-orange-\d/.test(readFileSync(p, 'utf8'))) hits.push(p.slice(ROOT.length)) } }
+  walk(ROOT + 'templates/crm-store/frontend/src')
+  check('crm-store: no screen of its own uses orange-* for a meaning other than the brand', hits.length === 0, hits)
+  check('crm-store: the "refunded" chip is amber, with its dark pair', /refunded: 'bg-amber-100 text-amber-800 dark:bg-amber-900\/30 dark:text-amber-200'/.test(read('templates/crm-store/frontend/src/lib/format.ts')))
+}
 
 // Nothing in the module is a Factory token: the generator injects tokens into every vendored file.
 check('brandPalette.js carries no {{TOKEN}} the vendoring would rewrite', !/\{\{[A-Z_]+\}\}/.test(read('packages/tenant-ui/src/brandPalette.js')))

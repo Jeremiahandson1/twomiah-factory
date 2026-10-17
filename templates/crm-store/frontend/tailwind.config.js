@@ -28,8 +28,12 @@ export default {
         // 500 swapped for the tenant — so a red-branded store had a red button whose hover (600, used
         // 18 times) was still blue. generatePalette is the same function every other CRM template uses.
         //
-        // `orange` is deliberately NOT remapped here, unlike the other templates: their chrome is
-        // orange-*, whereas store's only orange is a semantic status chip in lib/format.ts.
+        // `orange` IS the brand here too, as in every other template. It used to be left stock because the
+        // store's own only orange was the "refunded" status chip — but packages/tenant-ui paints its brand
+        // controls orange-* (58 files), so the shared two-factor card's primary buttons rendered stock orange in
+        // the store: off-brand next to a blue shop, and white on #ea580c is 3.56:1, under AA. The chip moved to
+        // amber-* (lib/format.ts), which keeps its meaning and is not remapped.
+        orange: brandPalette,
         primary: brandPalette,
         brand: brandPalette,
       },
