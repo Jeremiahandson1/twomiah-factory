@@ -676,7 +676,7 @@ export default function SOC2DashboardPage() {
                   value={retentionForm.category}
                   onChange={(e) => setRetentionForm(f => ({ ...f, category: e.target.value }))}
                   placeholder="e.g., Customer Data, Audit Logs, Sessions"
-                  className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 />
               </div>
               <div>
@@ -707,7 +707,7 @@ export default function SOC2DashboardPage() {
                   value={retentionForm.description}
                   onChange={(e) => setRetentionForm(f => ({ ...f, description: e.target.value }))}
                   rows={3}
-                  className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 />
               </div>
               <div className="flex justify-end gap-3">
@@ -820,7 +820,7 @@ export default function SOC2DashboardPage() {
                               onChange={(e) => updateReviewUser(ru.id || ru.userId, 'notes', e.target.value)}
                               disabled={activeReview.status === 'completed'}
                               placeholder="Add notes..."
-                              className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-600 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-50"
+                              className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded text-sm text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:opacity-50"
                             />
                           </td>
                         </tr>

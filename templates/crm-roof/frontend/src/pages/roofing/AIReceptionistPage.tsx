@@ -471,7 +471,7 @@ export default function AIReceptionistPage() {
               onChange={e => setSettings(s => ({ ...s, greetingText: e.target.value }))}
               rows={3}
               placeholder="Hello! Thank you for calling..."
-              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-slate-500"
+              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-600 dark:placeholder-slate-300"
             />
           </div>
 
@@ -483,7 +483,7 @@ export default function AIReceptionistPage() {
               value={settings.forwardingNumber}
               onChange={e => setSettings(s => ({ ...s, forwardingNumber: e.target.value }))}
               placeholder="+1 (555) 123-4567"
-              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-slate-500"
+              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-600 dark:placeholder-slate-300"
             />
           </div>
 
@@ -591,7 +591,7 @@ export default function AIReceptionistPage() {
                   onChange={e => setForm(f => ({ ...f, messageTemplate: e.target.value }))}
                   rows={3}
                   placeholder="Hi {{name}}, we noticed we missed your call..."
-                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-slate-500"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-600 dark:placeholder-slate-300"
                 />
               </div>
 

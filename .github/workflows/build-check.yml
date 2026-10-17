@@ -1233,6 +1233,8 @@ jobs:
         run: bun run scripts/check-portal-seat.ts
       - name: "Home care's two-factor is wired end to end"
         run: bun run scripts/check-homecare-mfa-wiring.ts
+      - name: "Placeholder text clears 4.5:1 on the field it sits in, in both themes"
+        run: bun run scripts/check-placeholder-contrast.ts
 
   help-page-theme:
     name: "Help page follows the theme"

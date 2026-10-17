@@ -20,9 +20,12 @@
        a white field — effectively invisible. Pull the field colours from the same set. (CC-36) */
     @apply dark:bg-slate-800 dark:border-slate-700;
   }
+  /* Placeholder ink for the STANDARD field grounds — white/gray-50 in light, slate-800…950 in dark — at 4.5:1 or
+     better on each (gray-500 4.83/4.63; slate-400 5.71–7.87). Tailwind's own default is gray-400, 2.54:1 on white.
+     A field on any other ground names its own pair; scripts/check-placeholder-contrast.ts holds both. */
   input::placeholder,
   textarea::placeholder {
-    @apply dark:text-slate-400;
+    @apply text-gray-500 dark:text-slate-400;
   }
 
   ::-webkit-scrollbar {
@@ -80,8 +83,8 @@
   }
 
   .input {
-    @apply w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all;
-    @apply dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500;
+    @apply w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all;
+    @apply dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100;
   }
 
   .label {

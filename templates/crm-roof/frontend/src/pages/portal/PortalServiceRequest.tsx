@@ -76,7 +76,7 @@ export default function PortalServiceRequest() {
             onChange={(e) => { setForm({ ...form, description: e.target.value }); setError(''); }}
             rows={4}
             placeholder="Describe the issue or service you need..."
-            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-blue-500 resize-none"
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 resize-none placeholder-gray-300"
           />
         </div>
 
@@ -97,7 +97,7 @@ export default function PortalServiceRequest() {
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
             placeholder="(555) 123-4567"
-            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-blue-500"
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 placeholder-gray-300"
           />
         </div>
 

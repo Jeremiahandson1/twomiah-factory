@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* Placeholder ink for the STANDARD field grounds — white/gray-50 in light, slate-800…950 in dark — at 4.5:1 or
+     better on each (gray-500 4.83/4.63; slate-400 5.71–7.87). Tailwind's own default is gray-400, 2.54:1 on white.
+     A field on any other ground names its own pair; scripts/check-placeholder-contrast.ts holds both. */
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-gray-500 dark:text-slate-400;
+  }
+}
+
 :root {
     /* The -dark / -light / -pale tokens are shades of the tenant's brand, not the brand itself. All six used to be
        the raw brand colour, so every pairing of two of them was ink on its own colour (1:1): the stat tiles' number

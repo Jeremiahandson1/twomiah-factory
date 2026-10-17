@@ -159,7 +159,7 @@ export default function HelpPage() {
           <div className="border-t border-gray-200 dark:border-gray-800 p-3 flex gap-2">
             <input value={chatInput} onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
-              placeholder="Ask a question..." className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none" />
+              placeholder="Ask a question..." className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none placeholder-gray-600 dark:placeholder-slate-400" />
             <button aria-label="Send message" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
               className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-sm">
               <Send size={16} />
@@ -217,12 +217,12 @@ export default function HelpPage() {
               </div>
               <div className="space-y-3">
                 <input value={editArticle.title || ''} onChange={e => setEditArticle({ ...editArticle, title: e.target.value })}
-                  placeholder="Title" className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none" />
+                  placeholder="Title" className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none placeholder-gray-600 dark:placeholder-slate-400" />
                 <textarea value={editArticle.content || ''} onChange={e => setEditArticle({ ...editArticle, content: e.target.value })}
-                  placeholder="Content" rows={8} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none resize-none" />
+                  placeholder="Content" rows={8} className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none resize-none placeholder-gray-600 dark:placeholder-slate-400" />
                 <div className="grid grid-cols-2 gap-3">
                   <input value={editArticle.category || ''} onChange={e => setEditArticle({ ...editArticle, category: e.target.value })}
-                    placeholder="Category" className="px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none" />
+                    placeholder="Category" className="px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none placeholder-gray-600 dark:placeholder-slate-400" />
                   <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 px-3 py-2">
                     <input type="checkbox" checked={editArticle.isFaq || false} onChange={e => setEditArticle({ ...editArticle, isFaq: e.target.checked })} />
                     Show as FAQ
@@ -266,7 +266,7 @@ export default function HelpPage() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search help articles..."
-            className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:border-gray-400 dark:focus:border-gray-600" />
+            className="w-full pl-10 pr-3 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm text-gray-900 dark:text-white focus:outline-none focus:border-gray-400 dark:focus:border-gray-600" />
         </div>
         {categories.length > 0 && (
           <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}

@@ -243,7 +243,7 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
 // names are written in. `${inputCls} w-auto` therefore rendered FULL width — which squeezed the search box
 // sitting beside it down to 54px (vet T12 M1, every CRM) — and `${inputCls} py-1.5` was quietly ignored.
 // Compose a control from the variants below instead of appending a width or a padding to one.
-const controlSkin = 'border rounded-lg bg-white text-gray-900 border-gray-300 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:placeholder-slate-500'
+const controlSkin = 'border rounded-lg bg-white text-gray-900 border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 '
 /** Fills its column — the usual form field. */
 export const inputCls = `w-full px-3 py-2 ${controlSkin}`
 /** Sizes to its content: a filter or dropdown standing next to something else. */

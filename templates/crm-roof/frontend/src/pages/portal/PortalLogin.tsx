@@ -80,7 +80,7 @@ export default function PortalLogin() {
                 onChange={(e) => { setEmail(e.target.value); setError(''); }}
                 placeholder="your@email.com"
                 autoFocus
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 text-sm focus:outline-none focus:border-blue-500"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-blue-500 placeholder-gray-300"
               />
               {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
               <button
@@ -105,7 +105,7 @@ export default function PortalLogin() {
                 placeholder="123456"
                 autoFocus
                 maxLength={6}
-                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 text-sm text-center tracking-[0.3em] text-lg font-mono focus:outline-none focus:border-blue-500"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white text-sm text-center tracking-[0.3em] text-lg font-mono focus:outline-none focus:border-blue-500 placeholder-gray-300"
               />
               {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
               <button

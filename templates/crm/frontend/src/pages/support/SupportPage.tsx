@@ -213,7 +213,7 @@ export default function SupportPage() {
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendChatMessage()}
               placeholder="Ask a question..."
-              className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none"
+              className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none placeholder-gray-600 dark:placeholder-slate-400"
             />
             <button aria-label="Send message" onClick={sendChatMessage} disabled={chatLoading || !chatInput.trim()}
               className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-sm">
@@ -302,7 +302,7 @@ export default function SupportPage() {
         {!['closed'].includes(selected.status) && (
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-3">
             <textarea value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Type a reply..."
-              className="w-full bg-transparent text-gray-900 dark:text-white text-sm resize-none outline-none min-h-[60px] placeholder-gray-400 dark:placeholder-gray-600" />
+              className="w-full bg-transparent text-gray-900 dark:text-white text-sm resize-none outline-none min-h-[60px] " />
             <div className="flex items-center justify-between mt-2">
               <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400 cursor-pointer">
                 <input type="checkbox" checked={isInternal} onChange={e => setIsInternal(e.target.checked)} />
@@ -353,7 +353,7 @@ export default function SupportPage() {
         <div className="relative flex-1 max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
-            className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none" />
+            className="w-full pl-8 pr-3 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none" />
         </div>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
           className="px-3 py-1.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg text-sm text-gray-700 dark:text-gray-300 focus:outline-none">
@@ -404,9 +404,9 @@ export default function SupportPage() {
             </div>
             <div className="space-y-3">
               <input value={newTicket.subject} onChange={e => setNewTicket({ ...newTicket, subject: e.target.value })}
-                placeholder="Subject" className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none" />
+                placeholder="Subject" className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none placeholder-gray-600 dark:placeholder-slate-400" />
               <textarea value={newTicket.description} onChange={e => setNewTicket({ ...newTicket, description: e.target.value })}
-                placeholder="Description (optional)" className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none min-h-[80px] resize-none" />
+                placeholder="Description (optional)" className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none min-h-[80px] resize-none placeholder-gray-600 dark:placeholder-slate-400" />
               <select value={newTicket.priority} onChange={e => setNewTicket({ ...newTicket, priority: e.target.value })}
                 className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none">
                 <option value="low">Low</option>

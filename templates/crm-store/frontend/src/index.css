@@ -13,6 +13,14 @@
    the fleet's: light by default, dark when the person chooses it (AppLayout's button, shell/hooks applyStoredTheme puts
    .dark on <html>). Every base style below carries its dark pair. (Store QA T1, B1; store sweep 10/12) */
 @layer base {
+  /* Placeholder ink for the STANDARD field grounds — white/gray-50 in light, slate-800…950 in dark — at 4.5:1 or
+     better on each (gray-500 4.83/4.63; slate-400 5.71–7.87). Tailwind's own default is gray-400, 2.54:1 on white.
+     A field on any other ground names its own pair; scripts/check-placeholder-contrast.ts holds both. */
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-gray-500 dark:text-slate-400;
+  }
+
   body {
     margin: 0;
     @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;

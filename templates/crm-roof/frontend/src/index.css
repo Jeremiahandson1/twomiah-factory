@@ -3,6 +3,14 @@
 @tailwind utilities;
 
 @layer base {
+  /* Placeholder ink for the STANDARD field grounds — white/gray-50 in light, slate-800…950 in dark — at 4.5:1 or
+     better on each (gray-500 4.83/4.63; slate-400 5.71–7.87). Tailwind's own default is gray-400, 2.54:1 on white.
+     A field on any other ground names its own pair; scripts/check-placeholder-contrast.ts holds both. */
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-gray-500 dark:text-slate-400;
+  }
+
   /* Tailwind's preflight already paints every border gray-200, so the light half of this is a no-op —
      only the dark half is new. Without it a bare `border` keeps that light hairline when the card
      behind it goes slate-900, which is 371 elements drawing pale lines across a dark UI. Borders that

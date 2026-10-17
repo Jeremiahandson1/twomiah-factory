@@ -123,7 +123,7 @@ export const settingsBody = (s: Settings) => ({
   forwardingNumber: s.forwardingNumber.trim() || null,
 })
 
-const inputCls = 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500 placeholder-gray-500 dark:placeholder-slate-400'
+const inputCls = 'bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500 '
 const cardCls = 'bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700'
 const primaryBtn = 'bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition'
 
