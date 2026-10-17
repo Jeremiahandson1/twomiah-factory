@@ -19,6 +19,7 @@ import QuotesPage from './pages/roofing/QuotesPage'
 import InvoicesPage from './pages/roofing/InvoicesPage'
 import ReportsPage from './pages/roofing/ReportsPage'
 import SettingsPage from './pages/settings/SettingsPage'
+import AccountPage from './pages/AccountPage';
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage'
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage'
 import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, BillingPage, meetsRole, PermissionsProvider } from './shared'
@@ -196,6 +197,8 @@ export default function App() {
                 <Route path="invoices" element={<InvoicesPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                {/* Every seat's own two-factor and password, with no role gate. (Launch list, 10/17) */}
+                <Route path="account" element={<AccountPage />} />
                 <Route path="contact-support" element={<ContactSupportPage />} />
                 <Route path="canvassing" element={<FeatureRoute feature="canvassing_tool"><CanvassingDashboard /></FeatureRoute>} />
                 <Route path="storm-leads" element={<FeatureRoute feature="storm_lead_gen"><StormLeadsPage /></FeatureRoute>} />

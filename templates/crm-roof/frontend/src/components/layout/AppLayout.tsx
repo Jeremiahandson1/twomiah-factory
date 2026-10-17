@@ -15,6 +15,7 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  UserCog,
   Sun,
   Moon,
   Menu,
@@ -188,6 +189,15 @@ export default function AppLayout() {
           >
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
           </button>
+          {/* My account: this person's own two-factor and password, offered to every role. */}
+          <NavLink
+            to="/crm/account"
+            className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition"
+            title="My account"
+            aria-label="My account"
+          >
+            <UserCog size={18} />
+          </NavLink>
           <button
             onClick={handleLogout}
             className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition"
