@@ -91,7 +91,8 @@ export function summarizeDay(day: string, tz: string, dayChecks: DayCheck[], ite
     sold.set(key, s)
   }
   const hours = new Map<number, { totalCents: number; checks: number }>()
-  const hourOf = (d: Date) => Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }).format(d))
+  // The hour on the bar's clock, as a number (arithmetic: read with formatToParts, never shown as it comes).
+  const hourOf = (d: Date) => Number(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }).formatToParts(d).find(p => p.type === 'hour')?.value)
   for (const c of paid) {
     if (!c.closedAt) continue
     const h = hourOf(c.closedAt)
