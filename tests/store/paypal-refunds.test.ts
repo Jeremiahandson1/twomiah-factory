@@ -440,6 +440,25 @@ const refundRes = (id: string, capture: string, cents: number, totalRefunded: nu
   await hook('PAYMENT.CAPTURE.REFUNDED', refundRes(held.refundId!, o.providerPaymentId!, 5519, 5519))
   check('held whole: the notice again restocks nothing more', (await stock()) === 12 && (await rowsOf(o.id)).length === 1)
 }
+// 13a. A held whole refund and the 5-minute resume: asked after by its id — never sent again — and PayPal not answering
+//      the lookup leaves it held; once PayPal completes it, the resume settles it.
+{
+  await setStock(); const { o } = await mkOrder()
+  mode = 'pending'; await MA('PATCH', `/${o.id}/status`, { status: 'refunded' }); mode = 'completed'
+  const held = await orderNow(o.id)
+  await db.update(orders).set({ refundPendingAt: new Date(Date.now() - 10 * 60_000) }).where(eq(orders.id, o.id))
+  const p0 = pp.length, l0 = lookups.length
+  await ordersModule.resumePendingRefunds()
+  const still = await orderNow(o.id)
+  check(`held whole, resume: PayPal asked by the refund's id (${lookups.slice(l0).join(',')}), nothing sent again, still held`, lookups.slice(l0).includes(held.refundId!) && pp.length === p0 && !!still.refundPendingAt && !still.refundError && (await stock()) === 10, still)
+  lookupMode = 'drop'; await ordersModule.resumePendingRefunds(); lookupMode = 'ok'
+  const after = await orderNow(o.id)
+  check('held whole, resume: a lookup PayPal does not answer leaves it held — no refusal written, nothing sent', !!after.refundPendingAt && !after.refundError && after.refundId === held.refundId && pp.length === p0, after)
+  paypalDecides(held.refundId!, 'COMPLETED')
+  await ordersModule.resumePendingRefunds()
+  const done = await orderNow(o.id)
+  check('held whole, resume: once PayPal completes it, settled — everything restocked, nothing sent again', !done.refundPendingAt && done.refundedCents === 5519 && (await stock()) === 12 && pp.length === p0, done)
+}
 // 13b. A held whole refund PayPal FAILS: kept on the order as refused (refundError), nothing restocked; Try again is a NEW
 //      request — the old request id would only hand back the failed refund.
 {
@@ -475,18 +494,22 @@ const refundRes = (id: string, capture: string, cents: number, totalRefunded: nu
   check(`dashboard part: $10.00 recorded as a dashboard refund, no units restocked, still paid (${a.status})`, a.status === 200 && rows.length === 1 && rows[0].amountCents === 1000 && rows[0].moneyBack === 'provider_dashboard' && (await orderNow(o.id)).refundedCents === 1000 && (await orderNow(o.id)).status === 'paid' && (await stock()) === 10, rows)
   await hook('PAYMENT.CAPTURE.REFUNDED', refundRes('DASH-1', o.providerPaymentId!, 1000, 1000))
   check('dashboard part: the same notice again records nothing more', (await rowsOf(o.id)).length === 1 && (await orderNow(o.id)).refundedCents === 1000)
+  // A second dashboard part: $5.00 this time, $15.00 in all — PayPal's running total, not this refund's own amount, is what counts.
+  refundedOn.set(o.providerPaymentId!, 1500)
+  await hook('PAYMENT.CAPTURE.REFUNDED', refundRes('DASH-1B', o.providerPaymentId!, 500, 1500))
+  check(`dashboard part 2: $5.00 more recorded — $15.00 back in all (${(await orderNow(o.id)).refundedCents})`, (await rowsOf(o.id)).length === 2 && (await orderNow(o.id)).refundedCents === 1500 && (await orderNow(o.id)).status === 'paid')
   refundedOn.set(o.providerPaymentId!, 5519)
   await hook('PAYMENT.CAPTURE.REFUNDED', refundRes('DASH-2', o.providerPaymentId!, 4519, 5519))
   rows = await rowsOf(o.id)
   const now = await orderNow(o.id)
-  check(`dashboard rest: the order is refunded in full, everything restocked once (mug ${await stock()})`, now.status === 'refunded' && now.refundedCents === 5519 && !now.refundPendingAt && (await stock()) === 12 && (await stock(shirtV.id)) === 11 && rows.length === 2, { now, rows })
+  check(`dashboard rest: the order is refunded in full, everything restocked once (mug ${await stock()})`, now.status === 'refunded' && now.refundedCents === 5519 && !now.refundPendingAt && (await stock()) === 12 && (await stock(shirtV.id)) === 11 && rows.length === 3, { now, rows })
   await hook('PAYMENT.CAPTURE.REFUNDED', refundRes('DASH-2', o.providerPaymentId!, 4519, 5519))
-  check('dashboard rest: again, nothing more', (await stock()) === 12 && (await rowsOf(o.id)).length === 2)
+  check('dashboard rest: again, nothing more', (await stock()) === 12 && (await rowsOf(o.id)).length === 3)
 }
-// 16. PayPal reverses the capture (PAYMENT.CAPTURE.REVERSED): all of it has gone back — the order is refunded.
+// 16. PayPal reverses the capture (PAYMENT.CAPTURE.REVERSED): all of it has gone back — the order is refunded. (The capture
+//     itself is left reading COMPLETED here: REVERSED is not one of its statuses, so the event alone has to say "all of it".)
 {
   await setStock(); const { o } = await mkOrder()
-  refundedOn.set(o.providerPaymentId!, 5519)
   const h = await hook('PAYMENT.CAPTURE.REVERSED', refundRes('REV-1', o.providerPaymentId!, 5519, null))
   const now = await orderNow(o.id)
   check(`reversal: the order is refunded in full and restocked (${now.status}, ${now.refundedCents})`, h.status === 200 && now.status === 'refunded' && now.refundedCents === 5519 && (await stock()) === 12, now)
