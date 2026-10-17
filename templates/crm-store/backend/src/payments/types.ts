@@ -78,7 +78,8 @@ export type ProviderCredentials = {
  * status — the shopper's money stayed taken. As Shopify does it, Refund now returns it through the provider.)
  */
 export type RefundInput = {
-  // The provider's id for the captured payment — Stripe's payment_intent — as finalizeOrder recorded it.
+  // The provider's id for the captured payment — Stripe's payment_intent, Square's payment id, PayPal's
+  // CAPTURE id (not its order id) — as finalizeOrder recorded it.
   providerPaymentId: string
   // One key per refund: a second press, a retry after a timeout, or two people at once all get the SAME refund back.
   idempotencyKey: string
@@ -112,7 +113,7 @@ export interface PaymentProvider {
   // Fetch a session's final state directly from the provider — used by the
   // success page to finalize an order even if the webhook never arrived.
   retrieveSession(sessionId: string): Promise<WebhookResult>
-  // Return part or all of an order's payment. Absent on a provider whose refunds have not been built and tested yet
-  // (PayPal): the refund is then only RECORDED, and the owner is told to refund in that dashboard.
-  refund?(input: RefundInput): Promise<RefundResult>
+  // Return part or all of an order's payment, through the provider. Every provider sends the money back (Stripe, Square,
+  // PayPal); an order paid through a provider that is NOT the one connected now is only recorded (routes/orders.ts).
+  refund(input: RefundInput): Promise<RefundResult>
 }

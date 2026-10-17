@@ -105,9 +105,10 @@ export const noParcelRefusal = (c: any, status: string) => c.json({
  *
  * 'Mark refunded' only ever changed the order's status: the order said refunded and the shopper's money stayed
  * taken. Shopify's Refund sends the money back through the payment provider, and so does this now — for a provider
- * whose refund is built and tested (Stripe). For any other, the owner is told plainly that this only RECORDS it:
+ * that is connected now (Stripe, Square or PayPal). For an order paid through any other, the owner is told plainly that
+ * this only RECORDS it:
  *   refunded      the provider sent it back (or it already had — refunded from the provider's own dashboard)
- *   manual        paid through a provider whose refund is not built here, or not the one connected now — refund there
+ *   manual        paid through a provider that is not the one connected now — refund there
  *   none_on_file  no card payment on record (an order marked paid by hand) — return it the way it was paid
  *   failed        the provider refused (refused: true — nothing was sent), or did not answer (refused: false — it may
  *                 have gone through, so a part refund stays pending and is asked again with the same key)
@@ -132,7 +133,7 @@ export async function returnPayment(order: typeof orders.$inferSelect, part?: { 
   }
   const label = PROVIDER_LABEL[order.provider] || order.provider
   const provider = await getActiveProvider().catch(() => null)
-  if (!provider || provider.name !== order.provider || !provider.refund) {
+  if (!provider || provider.name !== order.provider) {
     return { kind: 'manual', note: `This order was paid through ${label}. Refund it in your ${label} dashboard — here it is only recorded as refunded.` }
   }
   try {

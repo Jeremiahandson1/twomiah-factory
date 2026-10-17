@@ -57,7 +57,7 @@ export default function OrderDetailPage() {
   // order as it now stands rather than the buttons for a status it has left.
   const failed = (e: any) => { toast(e?.message || 'Failed', 'error'); if (e?.code === 'order_changed' || e?.code === 'no_parcel' || e?.code === 'refund_failed') load() }
   const setStatus = async (status: string) => {
-    // Refunding — or cancelling — a paid order sends the shopper's money back through the provider (Stripe), so it is
+    // Refunding — or cancelling — a paid order sends the shopper's money back through the provider (Stripe, Square or PayPal), so it is
     // asked once, with the amount, the way any refund screen asks. (Owner's decision, 10/12)
     const paid = !!order && COUNTED.includes(order.status) && (status === 'refunded' || status === 'cancelled')
     if (paid && order) {

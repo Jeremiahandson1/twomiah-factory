@@ -148,7 +148,8 @@ const O = as(owner), MA = as(managerA), MB = as(managerB), S = as(staff)
   const r = await MA('refunded', o.id)
   check('no card payment: recorded refunded, restocked, Stripe not asked, and told to return it the way it was paid', r.status === 200 && calls.length === c0 && (await stock()) === 12 && r.json?.refund?.kind === 'none_on_file' && /Return it the way it was paid/.test(r.json.refund.note), r.json)
 }
-// 9. Paid through a provider whose refund is not built (or not the one connected now): recorded, told where to refund.
+// 9. Paid through a provider that is not the one connected now (PayPal, while Stripe is): recorded, told where to refund.
+//    (PayPal's own refund, with PayPal connected, is tests/store/paypal-refunds.test.ts.)
 {
   const o = await mkOrder('paid', { provider: 'paypal', providerPaymentId: 'CAP-1' }); const c0 = calls.length
   const r = await MA('refunded', o.id)
