@@ -295,6 +295,13 @@
       "when": 1791601504009,
       "tag": "0041_bar_schedule",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791601504010,
+      "tag": "0042_bar_tap_sizes",
+      "breakpoints": true
     }
   ]
 }

@@ -43,7 +43,7 @@ import {
 import { actorOf, clearOwnPin, hasOwnPin, managerApproval, mayManage, PinError, setOwnPin, type Actor } from '../services/barManagers.ts'
 import { bumpTicket, kitchenState, recallTicket } from '../services/barKitchen.ts'
 import { barTimezone, closeDay, closeoutsFor, loadDay, loadRange } from '../services/barReports.ts'
-import { floorFor, saveFloor } from '../services/barFloor.ts'
+import { floorFor, floorIsStarter, saveFloor } from '../services/barFloor.ts'
 import { onTheClock, punchByPin, RotaError } from '../services/barSchedule.ts'
 import { addRegular, listRewards, loyaltyRunning, LoyaltyError, searchGuests } from '../services/barLoyalty.ts'
 import { businessDayOf, businessDayWindow } from '../services/barLive.ts'
@@ -203,9 +203,13 @@ registerRoutes.get('/day', ...ring, async (c) => {
   const actor = await actorOf(c)
   const q = c.req.query('day') || ''
   const day = /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : businessDayOf(new Date(), await barTimezone(actor.companyId))
-  const { summary, open, tz } = await loadDay(actor.companyId, day)
+  // A manager reads the whole night; anyone else their own checkout (services/barReports.ts loadDay). The drawer is
+  // the bar's, so the cash that should be in it is the whole night's either way: counting it needs the full figure.
+  const manages = await mayManage(actor)
+  const { summary, open, tz } = await loadDay(actor.companyId, day, manages ? undefined : actor.id)
+  const drawerInCents = manages ? summary.cash.inCents : (await loadDay(actor.companyId, day)).summary.cash.inCents
   c.header('Cache-Control', 'no-store')
-  return c.json({ day, timezone: tz, summary, open, closes: await closeoutsFor(actor.companyId, day), me: { mayManage: await mayManage(actor) } })
+  return c.json({ day, timezone: tz, scope: manages ? 'night' : 'mine', summary, open, drawerInCents, closes: await closeoutsFor(actor.companyId, day), me: { mayManage: manages } })
 })
 // The Reports page: sales, tips and voids over a run of nights. reports:read (owner, admin, manager) — a bartender
 // keeps the night's close-out, not the business's takings over months.
@@ -228,11 +232,12 @@ registerRoutes.post('/closeout', ...ring, async (c) => {
 // ── The floor ──
 registerRoutes.get('/floor', ...ring, async (c) => {
   const actor = await actorOf(c)
-  const [floor, open] = await Promise.all([floorFor(actor.companyId), listOpen(actor.companyId)])
+  const [floor, open, starter] = await Promise.all([floorFor(actor.companyId), listOpen(actor.companyId), floorIsStarter(actor.companyId)])
   c.header('Cache-Control', 'no-store')
   // A table's open checks are the ones on its spot (a table can hold more than one after a split).
   const bySpot = (name: string) => open.filter((o) => (o.spot || o.label).toLowerCase() === name.toLowerCase())
-  return c.json({ floor, tables: floor.tables.map((t) => ({ ...t, checks: bySpot(t.name) })) })
+  // starter: the room is still the starting layout (5 booths, 5 tables, 10 seats), so the screen says so (Bar Run 1).
+  return c.json({ floor, starter, tables: floor.tables.map((t) => ({ ...t, checks: bySpot(t.name) })) })
 })
 registerRoutes.put('/floor', requireEnabledFeature(FEATURE), requirePermission('bar:update'), async (c) => {
   const actor = await actorOf(c); const b = await body(c)

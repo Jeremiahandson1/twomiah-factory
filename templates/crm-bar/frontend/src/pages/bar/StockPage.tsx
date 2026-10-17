@@ -160,7 +160,7 @@ function VendorDialog({ vendor, onClose, onSaved }: { vendor: Partial<Vendor>; o
 
 interface BookSize { id: string; name: string; priceCents: number | null; costCents: number | null; missing: string[]; pct: number | null; hasRecipe: boolean }
 interface BookItem { id: string; name: string; lines: Array<{ id: string; sizeId: string | null; stockItemId: string; qty: number; name: string; unit: string }>; sizes: BookSize[] }
-interface Pour { tapId: string; line: number; beer: string; priceCents: number | null; stockItemId: string | null; stockName: string | null; pourOz: number; costCents: number | null; pct: number | null }
+interface Pour { tapId: string; line: number; beer: string; priceCents: number | null; stockItemId: string | null; stockName: string | null; pourOz: number; costCents: number | null; pct: number | null; sizes?: Array<{ id: string; name: string; oz: number; priceCents: number | null; costCents: number | null; pct: number | null }> }
 
 function RecipesTab() {
   const [data, setData] = useState<{ sections: Array<{ id: string; name: string; items: BookItem[] }>; pours: Pour[]; stock: Array<{ id: string; name: string; unitLabel: string; category: string }> } | null>(null);
@@ -198,7 +198,7 @@ function RecipesTab() {
           <ul className="divide-y divide-gray-200 dark:divide-slate-800">
             {data.pours.map((p) => (
               <li key={p.tapId} className="py-2 grid grid-cols-1 sm:grid-cols-[1fr_200px_90px_120px] gap-2 items-center text-gray-900 dark:text-slate-100">
-                <span><span className="font-semibold">{p.line}. {p.beer}</span><span className={`block text-xs ${MUTED}`}>{p.costCents === null ? 'Pick its keg to cost it' : `${money(p.costCents)} a pour · ${pct(p.pct)}`}</span></span>
+                <span><span className="font-semibold">{p.line}. {p.beer}</span><span className={`block text-xs ${MUTED}`}>{p.costCents === null ? 'Pick its keg to cost it' : (p.sizes && p.sizes.length > 1 ? p.sizes.map((z) => `${z.name} ${money(z.costCents)} · ${pct(z.pct)}`).join(' — ') : `${money(p.costCents)} a pour · ${pct(p.pct)}`)}</span></span>
                 <select aria-label={`Keg on line ${p.line}`} className={INPUT} value={p.stockItemId || ''} onChange={async (e) => { try { await api.patch(`/api/stock/taps/${p.tapId}`, { stockItemId: e.target.value || null }); load(); } catch (ex) { setErr(errorText(ex, 'That did not save.')); } }}>
                   <option value="">No keg</option>{kegs.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}
                 </select>

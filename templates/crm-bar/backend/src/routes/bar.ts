@@ -17,6 +17,7 @@ import audit from '../services/audit.ts'
 import { buildLiveState, endOfBusinessDay, hoursFor, ROOM_STATUSES, TAP_STATUSES } from '../services/barLive.ts'
 import { isHoursConfig, type HoursConfig } from '../services/barHours.ts'
 import { slugify, sizesFromLabel } from '../services/barMenuSizes.ts'
+import { tapSizesInput } from '../services/barTapSizes.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -314,6 +315,13 @@ function tapInput(body: any, creating: boolean): { ok: true; value: Record<strin
     else { const a = Number(body.abv); if (!Number.isFinite(a) || a < 0 || a > 70) return { ok: false, error: 'ABV is a percentage from 0 to 70' }; v.abv = a.toFixed(1) }
   }
   if (body.priceCents !== undefined || body.price !== undefined) { const p = priceIn(body); if (p === 'bad') return { ok: false, error: 'That price is not a price' }; v.priceCents = p }
+  if (body.sizes !== undefined) {
+    // Pour sizes (Bar Run 1: one price, no pitcher). The first is the usual pour: written to price_cents / pour_oz too,
+    // which stock costing and the website's price read.
+    const sz = tapSizesInput(body.sizes); if (!sz.ok) return { ok: false, error: sz.error }
+    v.sizes = sz.sizes
+    if (sz.sizes.length) { v.priceCents = sz.sizes[0].priceCents; v.pourOz = String(sz.sizes[0].oz) }
+  }
   if (body.status !== undefined) { if (!(TAP_STATUSES as readonly string[]).includes(body.status)) return { ok: false, error: 'Status: pouring, just tapped, last keg, or blown' }; v.status = body.status }
   if (body.isActive !== undefined) v.isActive = bool(body.isActive, true)
   if (body.sortOrder !== undefined) v.sortOrder = Math.max(0, Math.min(10000, Number(body.sortOrder) || 0))

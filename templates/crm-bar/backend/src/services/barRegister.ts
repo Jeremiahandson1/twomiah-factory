@@ -21,6 +21,7 @@ import type { Actor } from './barManagers.ts'
 import { BAR_WORDS, earnForPaidCheck, ensureMember, loyaltyRunning, LoyaltyError } from './barLoyalty.ts'
 import { canRedeem, rewardDiscountCents, type BasketLine, type Reward } from '../shared/index.ts'
 import { findCard, GiftCardError, issueCard, normalizeCode, cardPrefix, refundTo, spend, validAmount, MIN_CARD_CENTS, MAX_CARD_CENTS } from './barGiftCards.ts'
+import { tapSizes } from './barTapSizes.ts'
 
 type Tx = any
 
@@ -135,7 +136,8 @@ export async function menuForRegister(companyId: string) {
   ])
   const onTap = lines.filter(t => t.status !== 'blown').map(t => ({
     id: 'tap:' + t.id, name: t.beerName, is86ed: false,
-    sizes: [{ id: 'regular', name: 'Regular', priceCents: t.priceCents }],
+    // Its pour sizes (a pint, a pitcher); more than one and the register asks which, as it does for a menu item.
+    sizes: tapSizes(t).map(s => ({ id: s.id, name: s.name, priceCents: s.priceCents })),
   }))
   const menu: Array<{ id: string; name: string; kind: string; items: Array<{ id: string; name: string; is86ed: boolean; sizes: Array<{ id: string; name: string; priceCents: number | null }> }> }> = sections.map(s => ({
     id: s.id, name: s.name, kind: s.kind,
@@ -184,9 +186,12 @@ export async function addItem(actor: Actor, checkId: string, input: { menuItemId
       // on that line later must not change what this one was.
       const [t] = await tx.select().from(barTap).where(and(eq(barTap.id, ref.slice(4)), eq(barTap.companyId, companyId))).limit(1)
       if (!t || !t.isActive || t.status === 'blown') throw new CheckError('That keg is blown.')
-      const price = t.priceCents ?? typedPrice(input.priceCents, t.beerName)
+      const sizes = tapSizes(t)
+      const size = sizes.find(s => s.id === input.sizeId) || (sizes.length === 1 ? sizes[0] : null)
+      if (!size) throw new CheckError(`Which size of ${t.beerName}?`)
+      const price = size.priceCents ?? typedPrice(input.priceCents, t.beerName)
       // The keg and the ounces this pour took, as they are NOW: stock costing reads them, not the tap as it is later.
-      await tx.insert(barCheckItem).values({ checkId, tapId: t.id, stockItemId: t.stockItemId, stockQty: t.stockItemId ? String(t.pourOz) : null, name: t.beerName, size: null, qty: qtyOf(input.qty), unitPriceCents: price, note: clean(input.note, 140), seat: seatOf(input.seat), toKitchen: false, addedById: actor.id, addedByName: actor.name, companyId })
+      await tx.insert(barCheckItem).values({ checkId, tapId: t.id, stockItemId: t.stockItemId, stockQty: t.stockItemId ? String(size.oz) : null, name: t.beerName, size: sizes.length > 1 ? size.name : null, qty: qtyOf(input.qty), unitPriceCents: price, note: clean(input.note, 140), seat: seatOf(input.seat), toKitchen: false, addedById: actor.id, addedByName: actor.name, companyId })
     } else {
       const [row] = await tx.select({ item: barMenuItem, section: barMenuSection }).from(barMenuItem)
         .leftJoin(barMenuSection, eq(barMenuSection.id, barMenuItem.sectionId))

@@ -203,18 +203,25 @@ export async function barTimezone(companyId: string): Promise<string> {
   return (await hoursFor(companyId)).timezone
 }
 
-export async function loadDay(companyId: string, day: string): Promise<{ summary: DaySummary; open: OpenCheckRow[]; tz: string }> {
+/**
+ * The night's figures. With `onlyUserId`, ONE person's checkout — the way a server checks out on Toast: the checks
+ * they closed, the cash they took, their own open checks. The whole night is a manager's (Bar Run 1: a bartender
+ * opened Close-out and read everybody's sales and tips).
+ */
+export async function loadDay(companyId: string, day: string, onlyUserId?: string): Promise<{ summary: DaySummary; open: OpenCheckRow[]; tz: string }> {
   const tz = await barTimezone(companyId)
   const { from, to } = businessDayWindow(day, tz)
-  const dayChecks = await db.select().from(barCheck).where(and(eq(barCheck.companyId, companyId), or(eq(barCheck.status, 'paid'), eq(barCheck.status, 'void')), gte(barCheck.closedAt, from), lt(barCheck.closedAt, to)))
+  const dayChecks = await db.select().from(barCheck).where(and(eq(barCheck.companyId, companyId), or(eq(barCheck.status, 'paid'), eq(barCheck.status, 'void')), gte(barCheck.closedAt, from), lt(barCheck.closedAt, to), onlyUserId ? eq(barCheck.closedById, onlyUserId) : undefined))
   const ids = dayChecks.map(c => c.id)
-  const [items, payments, drawer, open] = await Promise.all([
+  const [items, payments, drawer, open, mineOpen] = await Promise.all([
     ids.length ? db.select().from(barCheckItem).where(and(eq(barCheckItem.companyId, companyId), inArray(barCheckItem.checkId, ids))) : Promise.resolve([]),
     ids.length ? db.select().from(barCheckPayment).where(and(eq(barCheckPayment.companyId, companyId), inArray(barCheckPayment.checkId, ids))) : Promise.resolve([]),
-    db.select().from(barCheckPayment).where(and(eq(barCheckPayment.companyId, companyId), eq(barCheckPayment.tender, 'cash'), gte(barCheckPayment.takenAt, from), lt(barCheckPayment.takenAt, to))),
+    db.select().from(barCheckPayment).where(and(eq(barCheckPayment.companyId, companyId), eq(barCheckPayment.tender, 'cash'), gte(barCheckPayment.takenAt, from), lt(barCheckPayment.takenAt, to), onlyUserId ? eq(barCheckPayment.takenById, onlyUserId) : undefined)),
     listOpen(companyId),
+    onlyUserId ? db.select({ id: barCheck.id }).from(barCheck).where(and(eq(barCheck.companyId, companyId), eq(barCheck.status, 'open'), eq(barCheck.openedById, onlyUserId))) : Promise.resolve(null),
   ])
-  return { summary: summarizeDay(day, tz, dayChecks as DayCheck[], items as DayItem[], payments as DayPayment[], drawer as DayPayment[]), open, tz }
+  const openShown = mineOpen ? open.filter(o => mineOpen.some(m => m.id === o.id)) : open
+  return { summary: summarizeDay(day, tz, dayChecks as DayCheck[], items as DayItem[], payments as DayPayment[], drawer as DayPayment[]), open: openShown, tz }
 }
 
 // ─── Closing the night ─────────────────────────────────────────────────────

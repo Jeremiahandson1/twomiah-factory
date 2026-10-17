@@ -12,6 +12,7 @@ import { db } from '../../db/index.ts'
 import { company, barSettings, barTap, barEvent, barMenuSection, barMenuItem } from '../../db/schema.ts'
 import { accountLockOf } from '../shared/index.ts'
 import { buildLiveState, formatPrice, hoursFor, PUBLIC_TAP_STATUSES } from '../services/barLive.ts'
+import { tapSizes } from '../services/barTapSizes.ts'
 
 const app = new Hono()
 
@@ -85,6 +86,8 @@ app.get('/taps', async (c) => {
     taps: shown.map((t) => ({
       lineNumber: t.lineNumber, beerName: t.beerName, brewery: t.brewery, style: t.style, abv: t.abv,
       originCountry: t.originCountry, description: t.description, badge: t.badge, price: formatPrice(t.priceCents), status: t.status,
+      // Every pour size, for a tap list that shows "Pint $5.50 · Pitcher $18" (price above stays the usual pour).
+      sizes: tapSizes(t).map((s) => ({ name: s.name, oz: s.oz, price: formatPrice(s.priceCents) })),
     })),
   })
 })

@@ -297,8 +297,14 @@ console.log('\n══════════ 9. voids and the till PIN ══�
 
 console.log('\n══════════ 10. the night ══════════')
 {
-  const day = (await B('GET', '/api/register/day')).json
-  check('the summary counts the paid checks and the void', day.summary.checksPaid >= 1 && day.summary.checksVoided >= 2 && day.summary.totalCents >= 5433, day.summary)
+  const day = (await M('GET', '/api/register/day')).json
+  check('the summary counts the paid checks and the void', day.scope === 'night' && day.summary.checksPaid >= 1 && day.summary.checksVoided >= 2 && day.summary.totalCents >= 5433, day.summary)
+  // A bartender reads their OWN checkout, as a server does on Toast (Bar Run 1: they read the whole night's sales
+  // and everyone's tips). The drawer is the bar's, so the cash it should hold is still the whole night's.
+  const own = (await B('GET', '/api/register/day')).json
+  check('a bartender gets their own checkout: only the checks they closed, only their tips',
+    own.scope === 'mine' && own.summary.checksVoided < day.summary.checksVoided && own.summary.tipsByStaff.every((t: any) => t.who === 'Jess T'), { own: own.summary, night: day.summary.checksVoided })
+  check('…while the drawer to count is the whole night\'s cash', own.drawerInCents === day.summary.cash.inCents && own.summary.cash.inCents <= day.summary.cash.inCents, { drawer: own.drawerInCents, mine: own.summary.cash.inCents })
   check('…and lists what is still open', day.open.length >= 2, day.open.map((o: any) => o.label))
   check('cash in the drawer = cash sales + cash tips (2000 + 300, and Dee’s 500)', day.summary.cash.inCents === 2800, day.summary.cash)
   const bart = await B('POST', '/api/register/closeout', { day: day.day, floatCents: 15000, countedCents: 17700 })

@@ -14,10 +14,17 @@ import { money } from './registerUi';
 interface Tap {
   id: string; lineNumber: number; beerName: string; brewery: string | null; style: string | null; abv: string | null;
   originCountry: string | null; description: string | null; badge: string | null; priceCents: number | null; status: string; isActive: boolean; pourOz: string | number;
+  sizes?: Array<{ id: string; name: string; oz: number; priceCents: number | null }>;
 }
+interface SizeRow { name: string; oz: string; price: string }
 
-/** "$5.50 · 16 oz pour" — what one pour rings up at on the register, and how big it is (set on Stock › Recipes & pours). */
-const pourLine = (t: Tap) => [t.priceCents === null ? 'No price yet' : money(t.priceCents), `${Number(t.pourOz) || 16} oz pour`].join(' · ');
+/**
+ * What a tap rings up at: "$5.50 · 16 oz pour", or its sizes — "Pint 16 oz $5.50 · Pitcher 60 oz $18.00"
+ * (services/barTapSizes.ts). Bar Run 1: one price and no pitcher.
+ */
+const pourLine = (t: Tap) => (t.sizes && t.sizes.length
+  ? t.sizes.map((z) => `${z.name} ${z.oz} oz ${z.priceCents === null ? '(no price)' : money(z.priceCents)}`).join(' · ')
+  : [t.priceCents === null ? 'No price yet' : money(t.priceCents), `${Number(t.pourOz) || 16} oz pour`].join(' · '));
 
 const STATUS_LABEL: Record<string, string> = { pouring: 'Pouring', just_tapped: 'Just tapped', last_keg: 'Last keg', blown: 'Blown' };
 const INPUT = 'w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100';
@@ -28,7 +35,9 @@ export default function TapsPage() {
   const [taps, setTaps] = useState<Tap[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
-  const [form, setForm] = useState<(Partial<Tap> & { price?: string }) | null>(null);
+  const [form, setForm] = useState<(Partial<Tap> & { price?: string; sizeRows?: SizeRow[] }) | null>(null);
+  const rowsOf = (t: Tap): SizeRow[] => (t.sizes || []).map((z) => ({ name: z.name, oz: String(z.oz), price: z.priceCents === null ? '' : (z.priceCents / 100).toFixed(2) }));
+  const setRow = (i: number, patch: Partial<SizeRow>) => setForm((f) => f && ({ ...f, sizeRows: (f.sizeRows || []).map((r, n) => (n === i ? { ...r, ...patch } : r)) }));
   const [formErr, setFormErr] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState('');
@@ -49,6 +58,8 @@ export default function TapsPage() {
         abv: form.abv === '' || form.abv === undefined ? null : form.abv, originCountry: form.originCountry ?? null,
         description: form.description ?? null, badge: form.badge ?? null, isActive: form.isActive !== false,
         price: form.price === undefined || form.price.trim() === '' ? null : form.price,
+        // Sizes when there are any; an empty list puts the tap back on its single pour.
+        sizes: (form.sizeRows || []).filter((r) => r.name.trim() || r.oz.trim() || r.price.trim()).map((r) => ({ name: r.name, oz: Number(r.oz), price: r.price.trim() === '' ? null : r.price })),
       };
       if (form.id) await api.put(`/api/bar/taps/${form.id}`, body); else await api.post('/api/bar/taps', body);
       setForm(null); await load();
@@ -89,7 +100,7 @@ export default function TapsPage() {
                 </div>
                 {mayEdit && (
                   <div className="flex items-center gap-1 shrink-0">
-                    <button onClick={() => { setFormErr(''); setForm({ ...t, price: t.priceCents === null ? '' : String(t.priceCents / 100) }) }} className="p-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100" aria-label={`Edit tap ${t.lineNumber}`}><Edit2 className="w-4 h-4" /></button>
+                    <button onClick={() => { setFormErr(''); setForm({ ...t, price: t.priceCents === null ? '' : String(t.priceCents / 100), sizeRows: rowsOf(t) }) }} className="p-2 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100" aria-label={`Edit tap ${t.lineNumber}`}><Edit2 className="w-4 h-4" /></button>
                     {confirmDelete === t.id
                       ? <><button onClick={() => remove(t.id)} className="px-2 py-1 text-sm font-semibold text-red-700 dark:text-red-300">Remove</button><button onClick={() => setConfirmDelete('')} className="px-2 py-1 text-sm text-gray-600 dark:text-slate-300">Keep</button></>
                       : <button onClick={() => setConfirmDelete(t.id)} className="p-2 text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300" aria-label={`Remove tap ${t.lineNumber}`}><Trash2 className="w-4 h-4" /></button>}
@@ -114,8 +125,30 @@ export default function TapsPage() {
               <div><label htmlFor="tap-style" className={LBL}>Style</label><input id="tap-style" className={INPUT} value={form.style || ''} onChange={(e) => setForm({ ...form, style: e.target.value })} /></div>
               <div><label htmlFor="tap-abv" className={LBL}>ABV %</label><input id="tap-abv" className={INPUT} inputMode="decimal" value={form.abv || ''} onChange={(e) => setForm({ ...form, abv: e.target.value })} /></div>
               <div><label htmlFor="tap-origin" className={LBL}>From</label><input id="tap-origin" className={INPUT} placeholder="Germany" value={form.originCountry || ''} onChange={(e) => setForm({ ...form, originCountry: e.target.value })} /></div>
-              <div><label htmlFor="tap-price" className={LBL}>Price of a pour</label><input id="tap-price" className={INPUT} inputMode="decimal" placeholder="5.50" aria-describedby="tap-price-hint" value={form.price || ''} onChange={(e) => setForm({ ...form, price: e.target.value })} />
-                <p id="tap-price-hint" className="text-xs text-gray-500 dark:text-slate-400 mt-1">What one pour rings up at. Its size ({Number(form.pourOz) || 16} oz) is set on Stock, under Recipes &amp; pours.</p></div>
+              {!(form.sizeRows && form.sizeRows.length) && (
+                <div><label htmlFor="tap-price" className={LBL}>Price of a pour</label><input id="tap-price" className={INPUT} inputMode="decimal" placeholder="5.50" aria-describedby="tap-price-hint" value={form.price || ''} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+                  <p id="tap-price-hint" className="text-xs text-gray-500 dark:text-slate-400 mt-1">What one pour rings up at. Its size ({Number(form.pourOz) || 16} oz) is set on Stock, under Recipes &amp; pours.</p></div>
+              )}
+            </div>
+            <div>
+              <p className={LBL}>Sizes</p>
+              {!(form.sizeRows && form.sizeRows.length)
+                ? <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">One pour at one price. Selling pints and pitchers, or a taster? Add each size: the register asks which.</p>
+                : <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">The first is the usual pour (stock costing and the website&rsquo;s price use it).</p>}
+              {(form.sizeRows || []).map((r, i) => (
+                <div key={i} className="grid grid-cols-[1fr_5rem_6rem_auto] gap-2 mb-2 items-center">
+                  <input aria-label={`Size ${i + 1} name`} className={INPUT} placeholder={i === 0 ? 'Pint' : 'Pitcher'} value={r.name} onChange={(e) => setRow(i, { name: e.target.value })} maxLength={30} />
+                  <input aria-label={`Size ${i + 1} ounces`} className={INPUT} inputMode="decimal" placeholder={i === 0 ? '16' : '60'} value={r.oz} onChange={(e) => setRow(i, { oz: e.target.value })} />
+                  <input aria-label={`Size ${i + 1} price`} className={INPUT} inputMode="decimal" placeholder={i === 0 ? '5.50' : '18.00'} value={r.price} onChange={(e) => setRow(i, { price: e.target.value })} />
+                  <button type="button" onClick={() => setForm({ ...form, sizeRows: (form.sizeRows || []).filter((_, n) => n !== i) })} className="p-2 text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300" aria-label={`Remove size ${i + 1}`}><Trash2 className="w-4 h-4" /></button>
+                </div>
+              ))}
+              {(form.sizeRows || []).length < 6 && (
+                <button type="button" className="text-sm font-semibold text-orange-700 dark:text-orange-300 underline"
+                  onClick={() => setForm({ ...form, sizeRows: (form.sizeRows && form.sizeRows.length) ? [...form.sizeRows, { name: '', oz: '', price: '' }] : [{ name: 'Pint', oz: String(Number(form.pourOz) || 16), price: form.price || '' }, { name: '', oz: '', price: '' }] })}>
+                  + Add a size
+                </button>
+              )}
             </div>
             <div><label htmlFor="tap-badge" className={LBL}>Badge (optional)</label><input id="tap-badge" className={INPUT} placeholder="House root beer, since 1920" value={form.badge || ''} onChange={(e) => setForm({ ...form, badge: e.target.value })} /></div>
             <div><label htmlFor="tap-desc" className={LBL}>Description</label><textarea id="tap-desc" className={INPUT} rows={2} value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>

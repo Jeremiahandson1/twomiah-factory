@@ -37,6 +37,13 @@ export function floorConfig(raw: unknown): FloorConfig {
   return tables.length ? { tables } : defaultFloor()
 }
 
+/** True until the bar saves its own room: what it sees is the starting layout, not its floor. */
+export async function floorIsStarter(companyId: string): Promise<boolean> {
+  const [s] = await db.select({ floor: barSettings.floor }).from(barSettings).where(eq(barSettings.companyId, companyId)).limit(1)
+  const list = s?.floor && typeof s.floor === 'object' && Array.isArray((s.floor as any).tables) ? (s.floor as any).tables : null
+  return !list || !list.length
+}
+
 export async function floorFor(companyId: string): Promise<FloorConfig> {
   const [s] = await db.select({ floor: barSettings.floor }).from(barSettings).where(eq(barSettings.companyId, companyId)).limit(1)
   return floorConfig(s?.floor)

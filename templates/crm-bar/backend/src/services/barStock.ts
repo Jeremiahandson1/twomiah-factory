@@ -12,6 +12,7 @@ import {
 } from '../../db/schema.ts'
 import { slugify, sizesOf } from './barMenuSizes.ts'
 import { CATEGORIES, UNITS, costOf, costPct, engineerMenu, linesForSize, num, packsToOrder, theoreticalUse, unitCostCents, variance, type Sold } from './barCosting.ts'
+import { tapSizes } from './barTapSizes.ts'
 
 type Tx = any
 export class StockError extends Error { constructor(message: string, public status = 400) { super(message) } }
@@ -184,7 +185,9 @@ export async function recipeBook(companyId: string) {
     const keg = t.stockItemId ? stockMap.get(t.stockItemId) : null
     const u = keg ? unitCostCents(keg) : null
     const costCents = u === null ? null : Math.round(u * num(t.pourOz))
-    return { tapId: t.id, line: t.lineNumber, beer: t.beerName, priceCents: t.priceCents, stockItemId: t.stockItemId, stockName: keg?.name || null, pourOz: num(t.pourOz), costCents, pct: costPct(costCents, t.priceCents) }
+    // Each pour size costed on its own ounces (a pitcher is not a pint); one entry when the tap has a single pour.
+    const sizes = tapSizes(t).map((z) => { const c = u === null ? null : Math.round(u * z.oz); return { id: z.id, name: z.name, oz: z.oz, priceCents: z.priceCents, costCents: c, pct: costPct(c, z.priceCents) } })
+    return { tapId: t.id, line: t.lineNumber, beer: t.beerName, priceCents: t.priceCents, stockItemId: t.stockItemId, stockName: keg?.name || null, pourOz: num(t.pourOz), costCents, pct: costPct(costCents, t.priceCents), sizes }
   })
   return { sections: out, pours }
 }
@@ -208,7 +211,12 @@ export async function setTapPour(companyId: string, tapId: string, b: { stockIte
     if (id) await ownStockIds(companyId, [id])
     set.stockItemId = id
   }
-  if (b.pourOz !== undefined) { const oz = qtyOf(b.pourOz, 'pour'); if (oz <= 0 || oz > 64) throw new StockError('A pour is 1 to 64 oz.'); set.pourOz = String(oz) }
+  if (b.pourOz !== undefined) {
+    const oz = qtyOf(b.pourOz, 'pour'); if (oz <= 0 || oz > 64) throw new StockError('A pour is 1 to 64 oz.'); set.pourOz = String(oz)
+    // pour_oz is the tap's FIRST size when it has sizes (services/barTapSizes.ts) — keep the two the same.
+    const [cur] = await db.select({ sizes: barTap.sizes }).from(barTap).where(and(eq(barTap.id, tapId), eq(barTap.companyId, companyId))).limit(1)
+    if (Array.isArray(cur?.sizes) && cur.sizes.length) set.sizes = (cur.sizes as any[]).map((z, i) => (i === 0 ? { ...z, oz } : z))
+  }
   const [row] = await db.update(barTap).set(set).where(and(eq(barTap.id, tapId), eq(barTap.companyId, companyId))).returning()
   if (!row) throw new StockError('That tap is gone.', 404)
   return row

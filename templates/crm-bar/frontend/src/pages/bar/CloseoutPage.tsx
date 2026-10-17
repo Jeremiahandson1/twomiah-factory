@@ -26,7 +26,7 @@ interface Summary {
   giftCardsSold: { count: number; cents: number }
 }
 interface Closeout { id: string; businessDay: string; cashExpectedCents: number; cashCountedCents: number | null; floatCents: number; overShortCents: number | null; note: string | null; closedByName: string | null; closedAt: string; emailedAt: string | null }
-interface Day { day: string; timezone: string; summary: Summary; open: Array<{ id: string; number: number; label: string; balanceCents: number }>; closes: Closeout[] }
+interface Day { day: string; timezone: string; scope?: 'night' | 'mine'; drawerInCents?: number; summary: Summary; open: Array<{ id: string; number: number; label: string; balanceCents: number }>; closes: Closeout[] }
 
 function shift(day: string, n: number): string {
   const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n);
@@ -73,7 +73,10 @@ export default function CloseoutPage() {
 
   if (!data) return <div className="flex justify-center py-16">{err ? <FormError message={err} /> : <Loader2 className="w-6 h-6 animate-spin text-gray-500 dark:text-slate-400" />}</div>;
   const s = data.summary;
-  const expected = (centsFrom(floatIn) ?? 0) + s.cash.inCents;
+  // The drawer is the bar's: the whole night's cash, even on a bartender's own checkout (drawerInCents).
+  const drawerIn = data.drawerInCents ?? s.cash.inCents;
+  const expected = (centsFrom(floatIn) ?? 0) + drawerIn;
+  const mine = data.scope === 'mine';
   const countedC = counted.trim() ? centsFrom(counted) : null;
 
   return (
@@ -81,12 +84,14 @@ export default function CloseoutPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button className={`${BTN} ${OFF} px-3`} aria-label="The night before" onClick={() => setParams({ day: shift(data.day, -1) })}><ChevronLeft className="w-4 h-4" /></button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Close-out · {data.day}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{mine ? 'My checkout' : 'Close-out'} · {data.day}</h1>
           <button className={`${BTN} ${OFF} px-3`} aria-label="The night after" onClick={() => setParams({ day: shift(data.day, 1) })}><ChevronRight className="w-4 h-4" /></button>
         </div>
         <Link to="/crm/register" className={`${BTN} ${OFF} inline-flex items-center`}>Register</Link>
       </div>
       <FormError message={err} onDismiss={() => setErr('')} />
+      {/* A bartender checks out their own night, as a server does on Toast; the whole night is a manager's. */}
+      {mine && <p className={`text-sm ${MUTED}`}>Your checks, your tips and the cash you took tonight. The whole night&rsquo;s figures are a manager&rsquo;s; closing the night needs a manager&rsquo;s till PIN.</p>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[['Total', money(s.totalCents)], ['Checks', String(s.checksPaid)], ['Average check', money(s.averageCheckCents)], ['Tips', money(s.tipsCents)]].map(([k, v]) => (
@@ -128,7 +133,8 @@ export default function CloseoutPage() {
           <div><label className={LABEL} htmlFor="co-note">Note</label><input id="co-note" className={`${INPUT} mt-1`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} /></div>
         </div>
         <dl className="text-sm space-y-1 mt-3">
-          <div className="flex justify-between"><dt className={MUTED}>Cash taken tonight + cash tips</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{money(s.cash.inCents)}</dd></div>
+          {mine && <div className="flex justify-between"><dt className={MUTED}>Cash you took + your cash tips</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{money(s.cash.inCents)}</dd></div>}
+          <div className="flex justify-between"><dt className={MUTED}>Cash taken tonight + cash tips{mine ? ' (everyone)' : ''}</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{money(drawerIn)}</dd></div>
           <div className="flex justify-between"><dt className={MUTED}>Should be in the drawer</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{money(expected)}</dd></div>
           {countedC !== null && <div className="flex justify-between font-semibold"><dt className="text-gray-900 dark:text-slate-100">Over / short</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{countedC === expected ? 'Even' : countedC > expected ? `Over ${money(countedC - expected)}` : `Short ${money(expected - countedC)}`}</dd></div>}
         </dl>

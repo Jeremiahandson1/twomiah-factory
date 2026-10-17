@@ -3161,6 +3161,8 @@ export const barTap = pgTable('bar_tap', {
   /** The keg on this line (a stock item) and one pour, in fl oz: each pour on the register records what it took. */
   stockItemId: text('stock_item_id').references(() => barStockItem.id, { onDelete: 'set null' }),
   pourOz: decimal('pour_oz', { precision: 6, scale: 2 }).default('16').notNull(),
+  /** Pour sizes [{ id, name, oz, priceCents }] — a pint, a pitcher (services/barTapSizes.ts). Empty = the one pour above. */
+  sizes: json('sizes').default([]).notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   tappedAt: timestamp('tapped_at'),
   blownAt: timestamp('blown_at'),

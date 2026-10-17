@@ -25,9 +25,10 @@ export default function FloorPage() {
   const [err, setErr] = useState('');
   const [pick, setPick] = useState<Table | null>(null);
   const [editing, setEditing] = useState(false);
+  const [starter, setStarter] = useState(false);
 
   const load = useCallback(async () => {
-    try { const r = await api.get('/api/register/floor'); setTables(r.tables); setErr(''); } catch (e) { setErr(errorText(e, 'Could not load the floor.')); }
+    try { const r = await api.get('/api/register/floor'); setTables(r.tables); setStarter(!!r.starter); setErr(''); } catch (e) { setErr(errorText(e, 'Could not load the floor.')); }
   }, []);
   useEffect(() => { load(); }, [load]);
   useLive('bar:register', load);
@@ -53,6 +54,14 @@ export default function FloorPage() {
         </div>
       </div>
       <FormError message={err} onDismiss={() => setErr('')} />
+      {/* The starting layout until the bar saves its own (Bar Run 1: a new bar found 5 booths, 5 tables and 10 seats
+          it never set up, with nothing saying they were a sample). */}
+      {starter && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100 p-4 text-sm">
+          <p className="font-semibold">This is a starting layout, not your room yet.</p>
+          <p className="mt-1">{mayEdit ? 'Use "Edit the room" to name your booths, tables and bar seats the way your staff say them. Checks opened on the register show on the table with the same name.' : 'A manager can set it up to match your room under "Edit the room".'}</p>
+        </div>
+      )}
       {GROUPS.map((g) => {
         const these = tables.filter((t) => t.kind === g.kind);
         if (!these.length) return null;
