@@ -221,5 +221,24 @@ console.log('\n══════════ 6 · scope ═══════�
   check('…and it is still enrolled', stillThere.length === 1, { rows: stillThere.length })
 }
 
+// ══════════ 7 · a seat switched off between the password and the code does not get in ═══════════
+console.log('\n══════════ 7 · disabled mid-sign-in ══════════')
+{
+  const stopped = await api('POST', '/api/auth/login', { email: pm.email, password: PASSWORD })
+  check('the manager is asked for a code', stopped.json?.mfaRequired === true, stopped.json)
+  await db.update(user).set({ isActive: false } as any).where(sql`id = ${pm.id}`)
+  const late = await api('POST', '/api/auth/mfa', { challengeId: stopped.json.challengeId, code: codeFor((await rows(sql`SELECT secret FROM mfa_devices WHERE user_id = ${pm.id} AND type = 'totp'`))[0].secret) })
+  check('…and, switched off before typing it, the right code does not sign them in', late.status === 401 && !late.json?.accessToken, { status: late.status })
+}
+
+// ══════════ 8 · the product mounts what this suite mounts ═════════════════════════════════════
+// The suite builds its own app; the tenant's is src/index.ts. Read it, so an unmounted route cannot pass here.
+{
+  const { readFileSync } = await import('node:fs')
+  const index = readFileSync(`${process.env.FACTORY_ROOT}/templates/crm-roof/backend/src/index.ts`, 'utf8')
+  check('the tenant mounts the enrolment routes under /api/auth/mfa-devices', /app\.route\('\/api\/auth\/mfa-devices', mfaRoutes\)/.test(index) && /import mfaRoutes from '\.\/routes\/mfa\.ts'/.test(index))
+  check('…and the sign-in routes, where POST /mfa lives, under /api/auth', /app\.route\('\/api\/auth', authRoutes\)/.test(index))
+}
+
 console.log(`\n  ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)
