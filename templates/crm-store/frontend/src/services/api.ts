@@ -88,7 +88,8 @@ export type Order = {
   labelUrl?: string | null; labelCostCents?: number | null; labelPurchasedAt?: string | null
 }
 export type MoneyBack =
-  | { kind: 'refunded'; refundId: string | null; status: string; amountCents: number | null; alreadyRefunded?: boolean }
+  // awaiting: the provider is holding it (PayPal's eCheck PENDING) — nothing restocked until it confirms.
+  | { kind: 'refunded'; refundId: string | null; status: string; amountCents: number | null; alreadyRefunded?: boolean; awaiting?: boolean }
   | { kind: 'manual'; note: string }
   | { kind: 'none_on_file'; note: string }
 export type OrderItem = {

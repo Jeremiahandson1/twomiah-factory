@@ -57,7 +57,7 @@ export default function OrderDetailPage() {
   // order as it now stands rather than the buttons for a status it has left.
   const failed = (e: any) => { toast(e?.message || 'Failed', 'error'); if (e?.code === 'order_changed' || e?.code === 'no_parcel' || e?.code === 'refund_failed') load() }
   const setStatus = async (status: string) => {
-    // Refunding — or cancelling — a paid order sends the shopper's money back through the provider (Stripe), so it is
+    // Refunding — or cancelling — a paid order sends the shopper's money back through the provider (Stripe, Square or PayPal), so it is
     // asked once, with the amount, the way any refund screen asks. (Owner's decision, 10/12)
     const paid = !!order && COUNTED.includes(order.status) && (status === 'refunded' || status === 'cancelled')
     if (paid && order) {
@@ -71,7 +71,7 @@ export default function OrderDetailPage() {
     try {
       const { order: o, refund } = await api.setOrderStatus(id!, status)
       setOrder((prev) => prev ? { ...prev, ...o } : prev)
-      if (refund?.kind === 'refunded') toast(refund.alreadyRefunded ? `Marked ${status} — the payment had already been refunded` : `${status === 'refunded' ? 'Refunded' : 'Cancelled and refunded'} ${money(refund.amountCents ?? (order ? order.totalCents - (order.refundedCents || 0) : o.totalCents), o.currency)} to the customer's card`)
+      if (refund?.kind === 'refunded') toast(refund.alreadyRefunded ? `Marked ${status} — the payment had already been refunded` : refund.awaiting ? `Marked ${status} — the payment provider is holding the refund, so nothing is restocked until it confirms it` : `${status === 'refunded' ? 'Refunded' : 'Cancelled and refunded'} ${money(refund.amountCents ?? (order ? order.totalCents - (order.refundedCents || 0) : o.totalCents), o.currency)} to the customer's card`)
       else if (refund) toast(`Marked ${status}. ${refund.note}`, 'error')
       else toast(`Marked ${status}`)
       // The refund history gained a row: read the order whole.
@@ -400,7 +400,8 @@ function RefundDialog({ order, onClose, onDone }: { order: Order; onClose: () =>
     setBusy(true)
     try {
       const r = await api.refundPart(order.id, { ...ask, amountCents: cents, ...(reason.trim() ? { reason: reason.trim() } : {}) })
-      if (r.refund?.kind === 'refunded') toast(`Refunded ${money(cents, order.currency)} to the customer's card${r.restocked ? ` — ${r.restocked} unit${r.restocked === 1 ? '' : 's'} back in stock` : ''}`)
+      if (r.refund?.kind === 'refunded' && r.refund.awaiting) toast(`${money(cents, order.currency)} sent — the payment provider is holding the refund, so nothing is restocked until it confirms it`)
+      else if (r.refund?.kind === 'refunded') toast(`Refunded ${money(cents, order.currency)} to the customer's card${r.restocked ? ` — ${r.restocked} unit${r.restocked === 1 ? '' : 's'} back in stock` : ''}`)
       else if (r.refund && 'note' in r.refund) toast(`Refund recorded. ${r.refund.note}`, 'error')
       onDone(r.order)
     } catch (e: any) {
@@ -489,7 +490,7 @@ function RefundHistory({ order, onChanged }: { order: Order; onChanged: (o: Orde
   if (!refunds.length) return null
   const names = new Map((order.items || []).map((i) => [i.id, i.productName]))
   const retry = async (refundId: string) => {
-    try { const r = await api.retryPartRefund(order.id, refundId); onChanged(r.order); toast(r.refund?.kind === 'refunded' ? 'Refund sent' : 'Refund recorded') }
+    try { const r = await api.retryPartRefund(order.id, refundId); onChanged(r.order); toast(r.refund?.kind === 'refunded' ? (r.refund.awaiting ? 'Still waiting on the payment provider' : 'Refund sent') : 'Refund recorded') }
     catch (e: any) { toast(e?.message || 'The refund still has not gone through', 'error'); onChanged(await api.getOrder(order.id)) }
   }
   return (

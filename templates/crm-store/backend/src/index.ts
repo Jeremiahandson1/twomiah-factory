@@ -273,7 +273,7 @@ import('./routes/orders.ts').then((m) => {
   setInterval(() => { void m.resumePendingRefunds() }, 5 * 60 * 1000)
   setTimeout(() => { void m.resumePendingRefunds() }, 90_000)
 }).catch(() => { /* orders module unavailable — nothing to resume */ })
-import('./routes/payments.ts').then((m) => { setTimeout(() => { void m.ensureStripeWebhookEvents() }, 30_000) })
+import('./routes/payments.ts').then((m) => { setTimeout(() => { void m.ensureStripeWebhookEvents(); void m.ensurePayPalWebhookEvents() }, 30_000) })
   .catch(() => { /* payments module unavailable */ })
 
 // Pull the subscription summary at boot, as every CRM does — a push missed while the service slept is caught up here.

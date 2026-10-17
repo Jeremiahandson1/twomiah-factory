@@ -295,7 +295,8 @@ const settle = () => new Promise((r) => setTimeout(r, 50))   // the shopper emai
   check(`racing past the total: one $30.00 refund, the other refused (${rs.map((r) => r.status).sort().join(',')}, ${now.refundedCents} back)`, rs.map((r) => r.status).sort().join(',') === '200,409' && now.refundedCents === 3000 && now.refundedCents <= now.totalCents)
 }
 
-// 13. A provider whose refund is not built here (PayPal): recorded only, nobody asked, nobody emailed.
+// 13. Paid through a provider that is not the one connected now (PayPal, while Square is): recorded only, nobody asked,
+//     nobody emailed. (PayPal's own refund, with PayPal connected, is tests/store/paypal-refunds.test.ts.)
 {
   const { o, mug } = await mkOrder({ provider: 'paypal', providerSessionId: 'pp_1', providerPaymentId: 'pp_cap_1' }); const c0 = sq.length, m0 = mails.length
   const r = await part(MA, o.id, { items: [{ orderItemId: mug.id, quantity: 1 }], restock: true })

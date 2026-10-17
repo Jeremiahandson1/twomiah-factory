@@ -11,7 +11,7 @@ import { eq, and, inArray, asc, sql } from 'drizzle-orm'
 import { getActiveProvider } from '../payments/index.ts'
 import type { WebhookResult } from '../payments/types.ts'
 import { sendOrderConfirmation, sendMerchantNewOrder } from '../services/email.ts'
-import { applyProviderRefund } from './orders.ts'
+import { applyProviderRefund, applyRefundUpdate } from './orders.ts'
 import logger from '../services/logger.ts'
 import { currentAccountLock } from '../shared/index.ts'
 
@@ -518,8 +518,16 @@ pub.post('/webhooks/payment', async (c) => {
     return c.json({ error: 'Invalid signature' }, 400)
   }
 
+  // A notice naming one refund is first matched to the store's own (its echo is never counted twice; a refund the
+  // provider was holding is settled, or given back on a failure). Anything else is a dashboard refund, by running total.
+  if (result.type === 'refund_failed') {
+    const outcome = result.providerRefundId ? await applyRefundUpdate(provider.name, result.providerRefundId, 'failed', result.refundFailureReason) : 'unknown'
+    logger.info('refund failure notification', { outcome })
+    return c.json({ received: true })
+  }
   if (result.type === 'refunded' && result.providerPaymentId) {
-    const outcome = await applyProviderRefund(provider.name, result.providerPaymentId, result.amountRefundedCents ?? 0, result.amountTotalCents ?? 0)
+    const ours = result.providerRefundId ? await applyRefundUpdate(provider.name, result.providerRefundId, 'completed') : 'unknown'
+    const outcome = ours !== 'unknown' ? ours : await applyProviderRefund(provider.name, result.providerPaymentId, result.amountRefundedCents ?? 0, result.amountTotalCents ?? 0)
     logger.info('refund notification', { outcome })
     return c.json({ received: true })
   }

@@ -49,10 +49,15 @@ export type WebhookVerifyInput = {
 // Normalized result of a verified webhook. `type: 'paid'` is the only event we
 // act on in Phase 1; everything else is 'ignored'.
 export type WebhookResult = {
-  // 'refunded': money sent back from the provider's own dashboard (routes/orders.ts applyProviderRefund).
-  type: 'paid' | 'refunded' | 'ignored'
+  // 'refunded': money sent back from the provider's own dashboard (routes/orders.ts applyProviderRefund), or the
+  // provider's notice of a refund the store made (matched by providerRefundId, never counted twice).
+  // 'refund_failed': a refund the provider had accepted as pending did not go through (PayPal PAYMENT.REFUND.FAILED).
+  type: 'paid' | 'refunded' | 'refund_failed' | 'ignored'
   // For 'refunded': how much of the charge has gone back so far, and the charge itself.
   amountRefundedCents?: number
+  // For 'refunded' / 'refund_failed': the provider's id for this one refund, and (failed) why.
+  providerRefundId?: string
+  refundFailureReason?: string
   providerSessionId?: string
   providerPaymentId?: string
   amountTotalCents?: number
@@ -78,7 +83,8 @@ export type ProviderCredentials = {
  * status — the shopper's money stayed taken. As Shopify does it, Refund now returns it through the provider.)
  */
 export type RefundInput = {
-  // The provider's id for the captured payment — Stripe's payment_intent — as finalizeOrder recorded it.
+  // The provider's id for the captured payment — Stripe's payment_intent, Square's payment id, PayPal's
+  // CAPTURE id (not its order id) — as finalizeOrder recorded it.
   providerPaymentId: string
   // One key per refund: a second press, a retry after a timeout, or two people at once all get the SAME refund back.
   idempotencyKey: string
@@ -96,6 +102,10 @@ export type RefundResult = {
   amountCents: number | null
   // The payment was already refunded at the provider (from its own dashboard, say): nothing more was sent.
   alreadyRefunded?: boolean
+  // The provider has the refund but has NOT sent the money yet, and it may still fail (PayPal's PENDING — an eCheck
+  // refund funded from the merchant's bank). The store holds it — reserved, nothing restocked — until the provider says
+  // it completed or failed (its webhook, or refundStatus). Square's PENDING is not this: a card refund in flight.
+  awaiting?: boolean
 }
 
 /**
@@ -112,7 +122,10 @@ export interface PaymentProvider {
   // Fetch a session's final state directly from the provider — used by the
   // success page to finalize an order even if the webhook never arrived.
   retrieveSession(sessionId: string): Promise<WebhookResult>
-  // Return part or all of an order's payment. Absent on a provider whose refunds have not been built and tested yet
-  // (PayPal): the refund is then only RECORDED, and the owner is told to refund in that dashboard.
-  refund?(input: RefundInput): Promise<RefundResult>
+  // Return part or all of an order's payment, through the provider. Every provider sends the money back (Stripe, Square,
+  // PayPal); an order paid through a provider that is NOT the one connected now is only recorded (routes/orders.ts).
+  refund(input: RefundInput): Promise<RefundResult>
+  // Where a refund the provider is holding (awaiting) stands now: completed → status 'succeeded'; still pending →
+  // awaiting; failed → RefundRefused; anything else thrown → unknown, ask again later. Only PayPal holds refunds.
+  refundStatus?(refundId: string): Promise<RefundResult>
 }

@@ -6,7 +6,8 @@ import { paymentConfig } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { encryptJSON, encrypt, decryptJSON } from '../lib/crypto.ts'
+import { encryptJSON, encrypt, decrypt, decryptJSON } from '../lib/crypto.ts'
+import { REFUND_EVENTS as PAYPAL_REFUND_EVENTS } from '../payments/paypal.ts'
 import logger from '../services/logger.ts'
 import audit from '../services/audit.ts'
 
@@ -90,6 +91,51 @@ export async function ensureStripeWebhookEvents(): Promise<'updated' | 'current'
   }
 }
 
+/**
+ * What the store listens to on PayPal: a completed capture (the order is paid) and every refund event PayPal documents
+ * for Payments v2 — a refund made here or in PayPal's dashboard (PAYMENT.CAPTURE.REFUNDED), a reversal
+ * (PAYMENT.CAPTURE.REVERSED), and a held eCheck refund pending or failing (PAYMENT.REFUND.PENDING / .FAILED).
+ * Applied in routes/public.ts → routes/orders.ts. The refund events joined on 10/17; a store connected before then is
+ * brought up to date by ensurePayPalWebhookEvents at startup.
+ */
+export const PAYPAL_WEBHOOK_EVENTS = ['PAYMENT.CAPTURE.COMPLETED', ...PAYPAL_REFUND_EVENTS] as const
+
+/**
+ * Add any missing event to the webhook this store already has on PayPal — PATCH /v1/notifications/webhooks/{id},
+ * replace /event_types. An UPDATE, never a re-create: the webhook id (what verification is checked against) stays the
+ * same. Best-effort, like the Stripe one.
+ */
+export async function ensurePayPalWebhookEvents(): Promise<'updated' | 'current' | 'skipped'> {
+  try {
+    const [cfg] = await db.select().from(paymentConfig).where(eq(paymentConfig.connected, true)).limit(1)
+    if (!cfg || cfg.provider !== 'paypal' || !cfg.webhookSecretEnc) return 'skipped'
+    const creds = decryptJSON<{ secretKey: string; publishableKey?: string }>(cfg.credentialsEnc)
+    const webhookId = decrypt(cfg.webhookSecretEnc)
+    const base = cfg.mode === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com'
+    const auth = Buffer.from(`${cfg.publishableKey ?? creds.publishableKey ?? ''}:${creds.secretKey}`).toString('base64')
+    const tok: any = await (await fetch(base + '/v1/oauth2/token', {
+      method: 'POST', headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'grant_type=client_credentials',
+    })).json().catch(() => ({}))
+    if (!tok.access_token) return 'skipped'
+    const H = { 'Authorization': `Bearer ${tok.access_token}`, 'Content-Type': 'application/json' }
+    const res = await fetch(base + '/v1/notifications/webhooks/' + encodeURIComponent(webhookId), { headers: H })
+    if (!res.ok) return 'skipped'
+    const hook: any = await res.json().catch(() => ({}))
+    const has = new Set<string>((hook?.event_types || []).map((e: any) => e?.name))
+    if (has.has('*') || PAYPAL_WEBHOOK_EVENTS.every((e) => has.has(e))) return 'current'
+    const names = [...new Set([...has, ...PAYPAL_WEBHOOK_EVENTS])]
+    const up = await fetch(base + '/v1/notifications/webhooks/' + encodeURIComponent(webhookId), {
+      method: 'PATCH', headers: H, body: JSON.stringify([{ op: 'replace', path: '/event_types', value: names.map((name) => ({ name })) }]),
+    })
+    if (!up.ok) { logger.warn('paypal webhook events not updated', { status: up.status }); return 'skipped' }
+    logger.info('paypal webhook events brought up to date', { events: names.join(',') })
+    return 'updated'
+  } catch (e: any) {
+    logger.warn('paypal webhook events not checked', { error: e?.message })
+    return 'skipped'
+  }
+}
+
 async function autoCreateWebhook(
   provider: 'stripe' | 'square' | 'paypal',
   mode: 'test' | 'live',
@@ -158,7 +204,7 @@ async function autoCreateWebhook(
     }
     const res = await fetch(base + '/v1/notifications/webhooks', {
       method: 'POST', headers: PH,
-      body: JSON.stringify({ url: webhookUrl, event_types: [{ name: 'PAYMENT.CAPTURE.COMPLETED' }] }),
+      body: JSON.stringify({ url: webhookUrl, event_types: PAYPAL_WEBHOOK_EVENTS.map((name) => ({ name })) }),
     })
     const data: any = await res.json().catch(() => ({}))
     if (!res.ok || !data.id) return { warning: 'PayPal webhook creation failed: ' + (data?.message || res.status) }
