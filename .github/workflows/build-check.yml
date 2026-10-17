@@ -2798,6 +2798,17 @@ jobs:
           bun-version: latest
       - name: "check composer facts"
         run: bun run scripts/check-composer-facts.ts
+
+  trade-detect-slugs:
+    name: "A stored industry slug (bar_and_grill) gets its trade's pages"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check trade detect slugs"
+        run: bun run scripts/check-trade-detect-slugs.ts
       - name: "check premium site origin"
         run: bun run scripts/check-premium-site-origin.ts
       - name: "check premium sqlite"
