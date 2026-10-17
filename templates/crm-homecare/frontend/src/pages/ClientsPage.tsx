@@ -41,7 +41,7 @@ export default function ClientsPage() {
       <div className="relative mb-4">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input type="text" placeholder="Search clients…" value={search} onChange={e => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-300 dark:border-slate-700" />
+          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-orange-300 dark:border-slate-700" />
       </div>
 
       {loading ? <div className="text-gray-400 py-8 text-center">Loading…</div> : (

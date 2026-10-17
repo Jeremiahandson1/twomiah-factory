@@ -24,7 +24,7 @@ const card = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-7
 const h4 = 'mb-2 text-base font-extrabold text-gray-900 dark:text-slate-100';
 const label = 'mb-1 block text-xs font-semibold text-gray-600 dark:text-slate-300';
 const input = 'w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100';
-const btn = 'rounded-md bg-blue-700 px-3 py-1.5 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500';
+const btn = 'rounded-md bg-orange-700 px-3 py-1.5 text-sm font-bold text-white hover:bg-orange-800 disabled:opacity-50 dark:bg-orange-600 dark:text-white dark:hover:bg-orange-500';
 const btnGhost = 'rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700';
 
 export default function SandataPanel({ token, visits = [], onChanged }: { token: string | null; visits?: any[]; onChanged?: () => void }) {

@@ -145,7 +145,7 @@ export default function CareTaskChecklist({ timeEntryId, compact = false, onChan
         <span className="text-xs text-gray-500 dark:text-slate-400">{done} of {items.length} done ({pct}%)</span>
       </div>
       <div className="h-1.5 rounded mb-2.5 overflow-hidden bg-gray-200 dark:bg-slate-700">
-        <div className={`h-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{ width: `${pct}%` }} />
       </div>
       {error && <div className="mb-2 px-3 py-2 rounded-md text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200">{error}</div>}
       {daily.length > 0 && (

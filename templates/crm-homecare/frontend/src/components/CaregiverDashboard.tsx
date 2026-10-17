@@ -1308,13 +1308,13 @@ const CaregiverDashboard = ({ onLogout }) => {
             {visitNeedsSandata(sandataClient(sessionClientId(activeSession)), sessionSandataRequired(activeSession)) && (
               <>
                 <button type="button" onClick={openSandata}
-                  className="mt-3 w-full rounded-xl border-2 border-blue-700 bg-white py-3 font-bold text-blue-700 dark:border-blue-400 dark:bg-slate-900 dark:text-blue-300">
+                  className="mt-3 w-full rounded-xl border-2 border-orange-700 bg-white py-3 font-bold text-orange-700 dark:border-orange-400 dark:bg-slate-900 dark:text-orange-200">
                   📲 Open the Sandata app (check in / check out)
                   <div className="mt-0.5 text-xs font-medium text-slate-600 dark:text-slate-400">Not installed yet? This takes you to the store to download it.</div>
                 </button>
                 <SandataIdBox client={sandataClient(sessionClientId(activeSession))} />
                 <button type="button" onClick={() => setShowSandataHelp(v => !v)}
-                  className="mt-1 bg-transparent text-sm text-blue-700 underline dark:text-blue-300">
+                  className="mt-1 bg-transparent text-sm text-orange-700 underline dark:text-orange-200">
                   {showSandataHelp ? 'Hide login help' : 'How do I log in to Sandata?'}
                 </button>
                 {showSandataHelp && <SandataHelp agencyId={sandataCtx?.sandataAgencyId || null} isWisconsin={!!sandataCtx?.isWisconsin} email={user?.email} />}
@@ -1342,7 +1342,7 @@ const CaregiverDashboard = ({ onLogout }) => {
             {(sandataCtx?.clients || []).some(needsSandata) && (
               <div className="mb-3 text-center">
                 <button type="button" onClick={() => setShowSandataHelp(v => !v)}
-                  className="bg-transparent text-sm text-blue-700 underline dark:text-blue-300">
+                  className="bg-transparent text-sm text-orange-700 underline dark:text-orange-200">
                   📲 {showSandataHelp ? 'Hide Sandata login help' : 'Set up Sandata (needed for your Sandata visits)'}
                 </button>
                 {showSandataHelp && <SandataHelp agencyId={sandataCtx?.sandataAgencyId || null} isWisconsin={!!sandataCtx?.isWisconsin} email={user?.email} />}

@@ -57,7 +57,7 @@ const BillingEngine = () => {
         {tabs.map(tab => (
           <button key={tab.id} role="tab" aria-selected={activeTab === tab.id} onClick={() => setActiveTab(tab.id)}
             className={`rounded-t-md border-b-[3px] px-5 py-2.5 text-sm ${activeTab === tab.id
-              ? 'border-blue-600 bg-blue-50 font-bold text-blue-700 dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-300'
+              ? 'border-orange-600 bg-orange-50 font-bold text-orange-700 dark:border-orange-400 dark:bg-orange-950/40 dark:text-orange-200'
               : 'border-transparent font-medium text-gray-600 dark:text-slate-400'}`}>
             {tab.label}
           </button>
@@ -450,7 +450,7 @@ const PaymentsTab = ({ token }) => {
                 <p className="mb-4 text-sm text-gray-600 dark:text-slate-400">Upload a photo of the check front. The payer, amount and check number are read from it and matched to open claims.</p>
                 <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center dark:border-slate-600">
                   <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && scanCheck(e.target.files[0])} className="hidden" id="check-upload" />
-                  <label htmlFor="check-upload" className="cursor-pointer font-semibold text-blue-700 dark:text-blue-300">{scanning ? 'Scanning...' : 'Click to upload check image'}</label>
+                  <label htmlFor="check-upload" className="cursor-pointer font-semibold text-orange-700 dark:text-orange-200">{scanning ? 'Scanning...' : 'Click to upload check image'}</label>
                 </div>
               </div>
             ) : (
@@ -563,7 +563,7 @@ const ManualPaymentForm = ({ token, onSubmit, onCancel }) => {
             {openClaims.slice(0, 50).map(c => {
               const on = form.claimMatches.some(m => m.claimId === c.id);
               return (
-                <label key={c.id} className={`flex cursor-pointer justify-between border-b border-gray-100 px-3 py-2 text-xs dark:border-slate-800 ${on ? 'bg-blue-50 dark:bg-blue-950/40' : ''}`}>
+                <label key={c.id} className={`flex cursor-pointer justify-between border-b border-gray-100 px-3 py-2 text-xs dark:border-slate-800 ${on ? 'bg-orange-50 dark:bg-orange-950/40' : ''}`}>
                   <span><input type="checkbox" checked={on} onChange={() => toggleMatch(c)} className="mr-2" />{c.claim_number} - {c.client_first_name} {c.client_last_name}</span>
                   <strong>{money(c.charge_amount)}</strong>
                 </label>

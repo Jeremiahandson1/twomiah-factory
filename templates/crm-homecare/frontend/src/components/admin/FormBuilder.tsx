@@ -233,7 +233,7 @@ export default function FormBuilder() {
                     {field.options.map(o => {
                       const on = Array.isArray(formData[field.id]) && formData[field.id].includes(o);
                       return (
-                        <label key={o} className={`flex items-center gap-1.5 cursor-pointer px-3 py-1 rounded-md border text-sm ${on ? 'border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-950 dark:text-blue-100' : 'border-gray-300 bg-white text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'}`}>
+                        <label key={o} className={`flex items-center gap-1.5 cursor-pointer px-3 py-1 rounded-md border text-sm ${on ? 'border-orange-500 bg-orange-50 text-orange-900 dark:border-orange-400 dark:bg-orange-950 dark:text-orange-100' : 'border-gray-300 bg-white text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'}`}>
                           <input type='checkbox' checked={on} onChange={() => toggleOption(field.id, o)} />
                           {o}
                         </label>

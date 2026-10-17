@@ -52,13 +52,13 @@ export function SandataIdBox({ client, withOpen = false }: { client: SandataClie
         <button type="button" onClick={() => copy(false)}
           className={copied
             ? 'rounded-md border border-green-700 bg-green-100 px-3 py-1.5 font-bold text-green-800 dark:border-green-500 dark:bg-green-900 dark:text-green-100'
-            : 'rounded-md border border-blue-700 bg-white px-3 py-1.5 font-bold text-blue-700 dark:border-blue-400 dark:bg-slate-900 dark:text-blue-300'}>
+            : 'rounded-md border border-orange-700 bg-white px-3 py-1.5 font-bold text-orange-700 dark:border-orange-400 dark:bg-slate-900 dark:text-orange-200'}>
           {copied ? '✓ Copied' : 'Copy'}
         </button>
       </div>
       {withOpen && (
         <button type="button" onClick={() => copy(true)}
-          className="mt-2 w-full rounded-lg bg-blue-700 py-2.5 text-base font-extrabold text-white hover:bg-blue-800 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500">
+          className="mt-2 w-full rounded-lg bg-orange-700 py-2.5 text-base font-extrabold text-white hover:bg-orange-800 dark:bg-orange-600 dark:text-white dark:hover:bg-orange-500">
           📋 Copy ID &amp; open Sandata
         </button>
       )}
@@ -84,7 +84,7 @@ export function SandataHelp({ agencyId, isWisconsin, email }: { agencyId: string
       <div className="mt-2 text-slate-600 dark:text-slate-400">
         No welcome email from Sandata at all? You haven't been added yet — tell the office.
         {isWisconsin
-          ? <> Login trouble: Wisconsin EVV Customer Care, <a className="font-semibold text-blue-700 underline dark:text-blue-300" href="tel:18339312035">833-931-2035</a> (weekdays 7–6).</>
+          ? <> Login trouble: Wisconsin EVV Customer Care, <a className="font-semibold text-orange-700 underline dark:text-orange-200" href="tel:18339312035">833-931-2035</a> (weekdays 7–6).</>
           : <> Login trouble: call your state's EVV customer care line (the office has the number).</>}
       </div>
     </div>
@@ -111,7 +111,7 @@ export function SandataPrompt({ prompt, client, ctx, email, onClose }: {
       <SandataIdBox client={client} withOpen />
       {!hasId && (
         <button type="button" onClick={() => { openSandata(); onClose(); }}
-          className="w-full rounded-lg bg-blue-700 py-3 text-base font-extrabold text-white hover:bg-blue-800 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500">
+          className="w-full rounded-lg bg-orange-700 py-3 text-base font-extrabold text-white hover:bg-orange-800 dark:bg-orange-600 dark:text-white dark:hover:bg-orange-500">
           Open the Sandata app
         </button>
       )}
@@ -119,7 +119,7 @@ export function SandataPrompt({ prompt, client, ctx, email, onClose }: {
         You need the free <strong>Sandata Mobile Connect</strong> app on your phone. Don't have it yet? This button takes you to the store to download it (one time).
       </div>
       <button type="button" onClick={onClose}
-        className="mt-2 w-full bg-transparent py-2 font-semibold text-blue-800 dark:text-blue-200">
+        className="mt-2 w-full bg-transparent py-2 font-semibold text-orange-900 dark:text-orange-200">
         I already did it
       </button>
       <button type="button" onClick={() => setShowHelp((v) => !v)}
@@ -169,11 +169,11 @@ export function SandataNotice({ userId, ctx, companyPhone, onSetup }: {
         </ol>
         {tel && (
           <p className="mb-4 text-[0.95rem] text-gray-900 dark:text-slate-100">
-            Questions? Call the office at <a className="font-bold text-blue-700 underline dark:text-blue-300" href={`tel:${tel}`}>{companyPhone}</a>.
+            Questions? Call the office at <a className="font-bold text-orange-700 underline dark:text-orange-200" href={`tel:${tel}`}>{companyPhone}</a>.
           </p>
         )}
         <button type="button" onClick={() => { dismiss(); onSetup(); }}
-          className="w-full rounded-lg bg-blue-700 py-3 text-base font-extrabold text-white hover:bg-blue-800 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500">
+          className="w-full rounded-lg bg-orange-700 py-3 text-base font-extrabold text-white hover:bg-orange-800 dark:bg-orange-600 dark:text-white dark:hover:bg-orange-500">
           I understand — show me how to set it up
         </button>
         <button type="button" onClick={dismiss}
