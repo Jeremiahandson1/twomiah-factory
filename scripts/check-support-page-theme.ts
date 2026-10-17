@@ -23,8 +23,9 @@ const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-bar', 'crm-lands
 // not a theme-blind surface. So does white on the BRAND (orange/primary/brand, which every template maps to
 // the company's palette): its 500/600/700 are clamped for white text at every hue, measured in
 // tests/shared/brand-palette-runtime.test.ts. The page's buttons are the brand now, not a fixed blue
-// (check-action-colour-is-brand.ts).
-const ON_A_COLOURED_BUTTON = /\bbg-(blue|purple|green|red|yellow)-\d|\bbg-(orange|primary|brand)-(500|600|700)\b|\bbg-gray-700\b/
+// (check-action-colour-is-brand.ts). Only a RESTING ground counts: `hover:bg-orange-700` is not under the text
+// until the pointer is, so a prefixed class does not make a button.
+const ON_A_COLOURED_BUTTON = /(?<![\w:-])bg-(blue|purple|green|red|yellow)-\d|(?<![\w:-])bg-(orange|primary|brand)-(500|600|700)\b|(?<![\w:-])bg-gray-700\b/
 
 for (const tpl of TEMPLATES) {
   const rel = 'templates/' + tpl + '/frontend/src/pages/support/SupportPage.tsx'
