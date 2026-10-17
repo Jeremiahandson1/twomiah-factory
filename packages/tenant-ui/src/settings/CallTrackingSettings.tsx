@@ -105,7 +105,7 @@ export function CallTrackingSettings(): React.ReactElement {
               type="button"
               disabled={busy || !key.trim()}
               onClick={() => save(key.trim())}
-              className="px-4 py-2 bg-orange-700 hover:bg-orange-800 disabled:bg-gray-300 disabled:text-gray-700 text-white rounded-md text-sm font-semibold"
+              className="px-4 py-2 bg-orange-700 hover:bg-orange-900 disabled:bg-gray-300 disabled:text-gray-700 text-white rounded-md text-sm font-semibold"
             >
               {busy ? 'Saving…' : 'Save key'}
             </button>

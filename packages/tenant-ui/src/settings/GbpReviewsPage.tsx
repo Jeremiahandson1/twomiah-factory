@@ -112,7 +112,7 @@ export function GbpReviewsPage(): React.ReactElement {
       {!status?.connected && (
         <div className="bg-white border rounded-lg p-6 dark:bg-slate-900">
           <p className="text-sm text-gray-600 mb-4 dark:text-slate-300">Connect the Google account that manages your business listing. You'll approve access on Google's own sign-in page — we never see your password.</p>
-          <button onClick={connect} className="px-5 py-2.5 bg-orange-700 hover:bg-orange-800 text-white rounded-lg text-sm font-semibold">Connect Google Business</button>
+          <button onClick={connect} className="px-5 py-2.5 bg-orange-700 hover:bg-orange-900 text-white rounded-lg text-sm font-semibold">Connect Google Business</button>
         </div>
       )}
 
@@ -158,12 +158,12 @@ export function GbpReviewsPage(): React.ReactElement {
                   <div className="mt-3">
                     <textarea className="w-full border rounded-md p-2 text-sm min-h-[80px]" value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Thank them, address concerns…" />
                     <div className="flex gap-2 mt-2">
-                      <button disabled={busy || !replyText.trim()} onClick={() => sendReply(r.name)} className="px-4 py-1.5 bg-orange-700 hover:bg-orange-800 disabled:bg-gray-300 text-white rounded-md text-xs font-semibold">{busy ? 'Sending…' : 'Post reply'}</button>
+                      <button disabled={busy || !replyText.trim()} onClick={() => sendReply(r.name)} className="px-4 py-1.5 bg-orange-700 hover:bg-orange-900 disabled:bg-gray-300 text-white rounded-md text-xs font-semibold">{busy ? 'Sending…' : 'Post reply'}</button>
                       <button onClick={() => { setReplyFor(null); setReplyText('') }} className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-md text-xs dark:bg-slate-800 dark:text-slate-100">Cancel</button>
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => { setReplyFor(r.name); setReplyText('') }} className="mt-2 text-xs font-semibold text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-300">Reply</button>
+                  <button onClick={() => { setReplyFor(r.name); setReplyText('') }} className="mt-2 text-xs font-semibold text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200">Reply</button>
                 )}
               </div>
             ))}

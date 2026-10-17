@@ -42,7 +42,7 @@ export default function LaborGuidePage() {
           <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Search operations</label>
           <div className="flex gap-2 mt-1">
             <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} placeholder="oil change, brake, CVT belt, winterize…" className="flex-1 p-2 border rounded-lg text-sm" />
-            <button onClick={run} disabled={loading} className="px-4 rounded-lg bg-orange-700 text-white font-medium hover:bg-orange-800 disabled:opacity-50 inline-flex items-center gap-1.5">{loading ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />} Search</button>
+            <button onClick={run} disabled={loading} className="px-4 rounded-lg bg-orange-700 text-white font-medium hover:bg-orange-900 disabled:opacity-50 inline-flex items-center gap-1.5">{loading ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />} Search</button>
           </div>
         </div>
         <div><label className="text-xs font-medium text-gray-600 dark:text-slate-400">Category</label>
