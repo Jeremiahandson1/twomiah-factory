@@ -289,7 +289,8 @@ for (const which of ['services', 'postgres', 'github'] as const) {
   check('deployCustomer runs the preflight BEFORE the first delete/create/push', dc.indexOf('await preflightDeploy(') > 0
     && ['deleteGitHubRepo(', 'createGitHubRepo(', 'deployIo.push', 'createRenderDatabase(', 'createRenderWebService(', 'deleteOwnedRenderService('].every((s) => dc.indexOf(s) > dc.indexOf('await preflightDeploy(')))
   check('no deploy path deletes by name any more', !/findAndDeleteRender|findExistingDatabase/.test(dep))
-  check('updateCustomerCode checks ownership before it extracts or pushes', (() => { const u = dep.slice(dep.indexOf('export async function updateCustomerCode')); return u.indexOf('checkUpdateOwnership(') > 0 && u.indexOf('checkUpdateOwnership(') < u.indexOf("'git', 'push'") && u.indexOf('checkUpdateOwnership(') < u.indexOf('carryCommittedEnvToRender(') })())
+  check('updateCustomerCode checks ownership before it extracts or pushes — and returns on a problem', (() => { const u = dep.slice(dep.indexOf('export async function updateCustomerCode')); return u.indexOf('checkUpdateOwnership(') > 0 && u.indexOf('checkUpdateOwnership(') < u.indexOf("'git', 'push'") && u.indexOf('checkUpdateOwnership(') < u.indexOf('carryCommittedEnvToRender(')
+    && /if \(gate\.length\) \{\s*steps\.push\(\{ step: 'ownership', status: 'error'[^\n]*\n\s*return \{ success: false, steps, errors: gate \}/.test(u) })())
   const route = read('apps/api/src/routes/factory/deploy.ts')
   check('the cleanup cron keeps the jobs that record what a tenant owns', /\.is\('github_repo', null\)\s*\.is\('render_service_ids', null\)/.test(route))
   check('a stopped run does not wipe the repo a previous run recorded on the job', /if \(result\.repoUrl\) jobUpdate\.github_repo = result\.repoUrl/.test(route) && !/github_repo: result\.repoUrl \|\| null/.test(route))
