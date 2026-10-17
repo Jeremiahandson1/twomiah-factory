@@ -6,7 +6,7 @@
 // parties (crm-restaurant's events), guests, and the shared office tools. crm-basic's field-service modules
 // (jobs, quotes, the job schedule, fleet, equipment, pricebook, agreements, warranties, recurring, job costing)
 // are still in the code, gated and never offered to a bar — so they have no menu entry and their URLs bounce.
-import { BarChart3, Beer, BookOpen, Bot, CalendarCheck, CalendarDays, Clock, CreditCard, DollarSign, Gift, DoorOpen, ExternalLink, FileText, Flame, FolderOpen, Home, Inbox, LifeBuoy, Mail, Megaphone, MessageSquare, Phone, Receipt, Settings, Star, Users, Utensils, ClipboardList } from 'lucide-react'
+import { BarChart3, Beer, BookOpen, Bot, CalendarCheck, CalendarDays, Clock, CreditCard, DollarSign, Gift, Package, DoorOpen, ExternalLink, FileText, Flame, FolderOpen, Home, Inbox, LifeBuoy, Mail, Megaphone, MessageSquare, Phone, Receipt, Settings, Star, Users, Utensils, ClipboardList } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared';
 
 const NAV: NavItem[] = [
@@ -17,6 +17,7 @@ const NAV: NavItem[] = [
   { to: '/crm/register', icon: CreditCard, label: 'Register', features: ['bar_register'], permission: 'bar:register' },
   { to: '/crm/gift-cards', icon: Gift, label: 'Gift Cards', features: ['gift_cards'], permission: 'bar:manage' },
   { to: '/crm/regulars', icon: Star, label: 'Regulars', features: ['loyalty_rewards'], permission: 'loyalty:read' },
+  { to: '/crm/stock', icon: Package, label: 'Stock', features: ['bar_stock'], permission: 'bar:update' },
   { to: '/crm/menu', icon: Utensils, label: 'Menu', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/taps', icon: Beer, label: 'Taps', features: ['bar_menu'], permission: 'bar:read' },
   { to: '/crm/whats-on', icon: CalendarDays, label: "What's on", features: ['bar_tonight'], permission: 'bar:read' },
@@ -58,6 +59,7 @@ export const SHELL: ShellConfig = {
   routePermissions: {
     '/crm/grill': 'bar:register',
     '/crm/floor': 'bar:register',
+    '/crm/count': 'bar:register',
     '/crm/closeout': 'bar:register',
   },
   routeGates: {
@@ -65,6 +67,7 @@ export const SHELL: ShellConfig = {
     // Opened from the register, so no sidebar entry of their own.
     '/crm/grill': ['bar_register'],
     '/crm/floor': ['bar_register'],
+    '/crm/count': ['bar_stock'],
     '/crm/closeout': ['bar_register'],
     // Reachable by typing the URL, with no sidebar entry to gate them: modules the registry does not offer a
     // bar at all, so gating on the real feature removes them without hardcoding "never". (Field Service T28 M1)
