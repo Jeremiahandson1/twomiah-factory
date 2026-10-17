@@ -362,7 +362,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
               {contact.email && (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center"><Mail className="w-5 h-5 text-blue-500 dark:text-blue-300" /></div>
-                  <div><p className="text-sm text-gray-500 dark:text-slate-400">Email</p><a href={`mailto:${contact.email}`} className="text-blue-600 dark:text-blue-400 hover:underline break-all">{contact.email}</a></div>
+                  <div><p className="text-sm text-gray-500 dark:text-slate-400">Email</p><a href={`mailto:${contact.email}`} className="text-orange-600 dark:text-orange-200 hover:underline break-all">{contact.email}</a></div>
                 </div>
               )}
               {contact.phone && (
@@ -544,7 +544,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 <h2 className={h2}>Locations</h2>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-500 dark:text-slate-400">{contact.sites?.length || 0}</span>
-                  {mayAddSite && <button type="button" onClick={() => setSiteModalOpen(true)} className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 flex items-center gap-1"><Plus className="w-3 h-3" />Add Location</button>}
+                  {mayAddSite && <button type="button" onClick={() => setSiteModalOpen(true)} className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 flex items-center gap-1"><Plus className="w-3 h-3" />Add Location</button>}
                 </div>
               </div>
               {contact.sites && contact.sites.length > 0 ? (
@@ -585,9 +585,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 {smsMessages.length === 0 && !smsLoading && <p className="text-center text-sm text-gray-500 dark:text-slate-400 py-6">No messages yet</p>}
                 {smsMessages.map((m: any) => (
                   <div key={m.message.id} className={`flex ${m.message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${m.message.direction === 'outbound' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100'}`}>
+                    <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${m.message.direction === 'outbound' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100'}`}>
                       <p>{m.message.body}</p>
-                      <p className={`text-[10px] mt-1 ${m.message.direction === 'outbound' ? 'text-blue-200' : 'text-gray-600 dark:text-slate-400'}`}>{dateTime(m.message.createdAt)}</p>
+                      <p className={`text-[10px] mt-1 ${m.message.direction === 'outbound' ? 'text-white' : 'text-gray-600 dark:text-slate-400'}`}>{dateTime(m.message.createdAt)}</p>
                     </div>
                   </div>
                 ))}
@@ -695,7 +695,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   {/* Not offered with no address to send to — the portal can be enabled through the
                       API without one, so this is checked here and not inferred from `enabled`. */}
                   {portalStatus?.enabled && !noEmail && mayManagePortal && (
-                    <button type="button" onClick={resendPortalInvite} disabled={portalLoading} className="w-full mt-2 px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 flex items-center justify-center gap-2 dark:bg-blue-900/30 dark:text-blue-200">
+                    <button type="button" onClick={resendPortalInvite} disabled={portalLoading} className="w-full mt-2 px-4 py-2 text-sm bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 flex items-center justify-center gap-2 dark:bg-orange-900/30 dark:text-orange-200">
                       {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}Resend Portal Invite
                     </button>
                   )}

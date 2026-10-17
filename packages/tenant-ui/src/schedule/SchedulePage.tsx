@@ -155,7 +155,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                 onDragOver={dragDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverKey(key) } : undefined}
                 onDragLeave={dragDrop ? () => { if (dragOverKey === key) setDragOverKey(null) } : undefined}
                 onDrop={dragDrop ? (e) => { e.preventDefault(); drop(day) } : undefined}
-                className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden transition ${isToday(day) ? 'ring-2 ring-orange-500' : ''} ${dragOverKey === key ? 'ring-2 ring-blue-400 bg-blue-50/40' : ''}`}
+                className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden transition ${isToday(day) ? 'ring-2 ring-orange-500' : ''} ${dragOverKey === key ? 'ring-2 ring-orange-400 bg-orange-50/40' : ''}`}
               >
                 <div className={`px-3 py-2 text-center border-b dark:border-slate-800 ${isToday(day) ? 'bg-orange-500 text-white' : 'bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100'}`}>
                   <p className="text-xs font-medium">{WEEKDAYS[i]}</p>

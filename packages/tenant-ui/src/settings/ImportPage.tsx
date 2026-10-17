@@ -81,7 +81,7 @@ export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportC
 
       <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 flex items-center justify-between gap-4">
         <div><p className="font-medium text-blue-900 dark:text-blue-300">Need a template?</p><p className="text-sm text-blue-700 dark:text-blue-400">Download a sample CSV with the correct format</p></div>
-        <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap"><Download className="w-4 h-4" />Download Template</button>
+        <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 whitespace-nowrap"><Download className="w-4 h-4" />Download Template</button>
       </div>
 
       <div className="bg-white rounded-xl border p-6 dark:bg-slate-900 dark:border-slate-800">

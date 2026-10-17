@@ -106,7 +106,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             // 503 "not enabled for this CRM yet" AFTER the click. The status endpoint has always carried
             // "configured" for exactly this and the card ignored it, so the one fact needed was already
             // on the page. Say it first, and offer the remedy the 503 names. (Salon T27 N15)
-            <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not available on your account yet. Email <a href="mailto:support@twomiah.com" className="text-blue-600 dark:text-blue-400 hover:underline">support@twomiah.com</a> and we will switch it on.</p>
+            <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not available on your account yet. Email <a href="mailto:support@twomiah.com" className="text-orange-600 dark:text-orange-200 hover:underline">support@twomiah.com</a> and we will switch it on.</p>
           ) : status.quickbooks.connected && (
             <div className="mt-2 text-sm space-y-1">
               <p className="text-green-700 dark:text-green-400 font-medium">Connected{status.quickbooks.companyName ? ` to ${status.quickbooks.companyName}` : ''}</p>

@@ -154,7 +154,7 @@ export function TechView({ api, toast, config }: TechViewProps) {
       </div>
       <div className="flex-1 overflow-y-auto pb-20">
         {loading ? (
-          <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-300" /></div>
+          <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-orange-600 dark:text-orange-200" /></div>
         ) : shown.length === 0 ? (
           <div className="text-center py-20 text-gray-600 dark:text-slate-400">
             <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-50" />
@@ -178,10 +178,10 @@ export function TechView({ api, toast, config }: TechViewProps) {
 
 function TabButton({ active, label, count, icon: Icon, onClick }: { active: boolean; label: string; count: number; icon: any; onClick: () => void }) {
   return (
-    <button onClick={onClick} aria-pressed={active} className={`flex-1 flex flex-col items-center py-3 text-xs font-medium ${active ? 'text-blue-700 bg-blue-50 dark:text-blue-300 dark:bg-blue-950/40' : 'text-gray-600 dark:text-slate-400'}`}>
+    <button onClick={onClick} aria-pressed={active} className={`flex-1 flex flex-col items-center py-3 text-xs font-medium ${active ? 'text-orange-700 bg-orange-50 dark:text-orange-200 dark:bg-orange-950/40' : 'text-gray-600 dark:text-slate-400'}`}>
       <Icon className="w-5 h-5 mb-0.5" />
       {label}
-      {count > 0 && <span className={`mt-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${active ? 'bg-blue-700 text-white' : 'bg-gray-200 text-gray-700 dark:text-slate-200 dark:bg-slate-700'}`}>{count}</span>}
+      {count > 0 && <span className={`mt-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${active ? 'bg-orange-700 text-white' : 'bg-gray-200 text-gray-700 dark:text-slate-200 dark:bg-slate-700'}`}>{count}</span>}
     </button>
   )
 }
@@ -209,7 +209,7 @@ function JobCard({ job, onTap, onNavigate }: { job: Job; onTap: () => void; onNa
         <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-2 dark:text-slate-400" />
       </button>
       {job.address && (
-        <button onClick={onNavigate} className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-blue-700 text-white rounded-lg font-medium text-sm">
+        <button onClick={onNavigate} className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-orange-700 text-white rounded-lg font-medium text-sm">
           <Navigation className="w-4 h-4" />Directions
         </button>
       )}
@@ -289,7 +289,7 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
           <div className={card}>
             <h3 className={heading}>Where</h3>
             <p className="text-gray-800 dark:text-slate-200">{addr}</p>
-            <button onClick={onNavigate} className="mt-3 w-full flex items-center justify-center gap-2 py-3 bg-blue-700 text-white rounded-lg font-semibold text-sm"><Navigation className="w-5 h-5" />Directions</button>
+            <button onClick={onNavigate} className="mt-3 w-full flex items-center justify-center gap-2 py-3 bg-orange-700 text-white rounded-lg font-semibold text-sm"><Navigation className="w-5 h-5" />Directions</button>
           </div>
         )}
         <div className={card}>
@@ -339,7 +339,7 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
               <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Caption (optional)" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600" />
               <div className="flex gap-2">
                 <button onClick={() => { setPreviewFile(null); setPreviewUrl('') }} className="flex-1 py-2 text-sm text-gray-800 bg-gray-100 rounded-lg dark:text-slate-200 dark:bg-slate-800">Cancel</button>
-                <button onClick={upload} disabled={uploading} className="flex-1 py-2 text-sm text-white bg-blue-700 rounded-lg disabled:opacity-50">{uploading ? 'Uploading…' : 'Add photo'}</button>
+                <button onClick={upload} disabled={uploading} className="flex-1 py-2 text-sm text-white bg-orange-700 rounded-lg disabled:opacity-50">{uploading ? 'Uploading…' : 'Add photo'}</button>
               </div>
             </div>
           ) : (
@@ -381,11 +381,11 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
         {mayMove && NOT_STARTED.includes(job.status) && (
           <div className="flex gap-2">
             <button onClick={onMyWay} disabled={acting} className="flex-1 flex items-center justify-center gap-2 py-4 bg-yellow-700 text-white rounded-xl font-bold text-lg disabled:opacity-50">{acting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Truck className="w-5 h-5" />}On my way</button>
-            <button onClick={onSite} disabled={acting} className="flex-1 flex items-center justify-center gap-2 py-4 bg-blue-700 text-white rounded-xl font-bold text-lg disabled:opacity-50"><Flag className="w-5 h-5" />On site</button>
+            <button onClick={onSite} disabled={acting} className="flex-1 flex items-center justify-center gap-2 py-4 bg-orange-700 text-white rounded-xl font-bold text-lg disabled:opacity-50"><Flag className="w-5 h-5" />On site</button>
           </div>
         )}
         {mayMove && job.status === 'dispatched' && (
-          <button onClick={onSite} disabled={acting} className="w-full flex items-center justify-center gap-2 py-4 bg-blue-700 text-white rounded-xl font-bold text-lg disabled:opacity-50">{acting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Flag className="w-5 h-5" />}Arrived — on site</button>
+          <button onClick={onSite} disabled={acting} className="w-full flex items-center justify-center gap-2 py-4 bg-orange-700 text-white rounded-xl font-bold text-lg disabled:opacity-50">{acting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Flag className="w-5 h-5" />}Arrived — on site</button>
         )}
         {mayMove && job.status === 'in_progress' && (
           <button onClick={() => setConfirmComplete(true)} disabled={acting} className="w-full flex items-center justify-center gap-2 py-4 bg-green-700 text-white rounded-xl font-bold text-lg disabled:opacity-50"><CheckCircle className="w-5 h-5" />Complete job</button>

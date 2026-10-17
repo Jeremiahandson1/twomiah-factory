@@ -163,7 +163,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
               {(mayUpdate || mayCreate || mayDelete) && (
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 flex items-center gap-1">
                   {mayUpdate && <button onClick={() => setEditing({ open: true, item })} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400 dark:hover:bg-slate-800"><Edit2 className="w-4 h-4" />Edit</button>}
-                  {mayUpdate && <button onClick={() => setTiersFor(item)} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg dark:text-blue-300"><Star className="w-4 h-4" />{config?.tiersButton || 'Options'}</button>}
+                  {mayUpdate && <button onClick={() => setTiersFor(item)} className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-orange-700 hover:bg-orange-50 rounded-lg dark:text-orange-200"><Star className="w-4 h-4" />{config?.tiersButton || 'Options'}</button>}
                   {mayCreate && <button onClick={() => duplicate(item)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Duplicate" aria-label="Duplicate"><Copy className="w-4 h-4" /></button>}
                   {mayDelete && <button onClick={() => setToDelete(item)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg dark:text-red-400" title="Delete" aria-label="Delete"><Trash2 className="w-4 h-4" /></button>}
                 </div>

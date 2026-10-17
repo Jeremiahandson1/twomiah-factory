@@ -113,7 +113,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {open && mayUpdate && job.status !== 'in_progress' && <Button onClick={() => act('start', `${cfg.labels.singular} started`)} className="bg-blue-500 hover:bg-blue-600"><Play className="w-4 h-4 inline mr-2" />Start</Button>}
+          {open && mayUpdate && job.status !== 'in_progress' && <Button onClick={() => act('start', `${cfg.labels.singular} started`)} className="bg-orange-500 hover:bg-orange-600"><Play className="w-4 h-4 inline mr-2" />Start</Button>}
           {open && mayUpdate && job.status === 'in_progress' && <Button variant="success" onClick={() => act('complete', `${cfg.labels.singular} completed`)}><CheckCircle className="w-4 h-4 inline mr-2" />Complete</Button>}
           {/*
             Invoicing the job. Gated on the vertical having the path AND the person holding
@@ -151,7 +151,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
                 */}
               {job.scheduledDate
                 ? <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p><p className="text-gray-900 dark:text-slate-100">{dateOnly(job.scheduledDate)} {job.scheduledTime}</p></div></div>
-                : open && <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p><p className="text-gray-500 dark:text-slate-400">Not scheduled yet — <NavLink to={`/crm/jobs?edit=${id}`} className="text-blue-600 dark:text-blue-400 hover:underline">pick a date</NavLink></p></div></div>}
+                : open && <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p><p className="text-gray-500 dark:text-slate-400">Not scheduled yet — <NavLink to={`/crm/jobs?edit=${id}`} className="text-orange-600 dark:text-orange-200 hover:underline">pick a date</NavLink></p></div></div>}
               {job.estimatedHours != null && job.estimatedHours !== '' && <div className="flex items-center gap-3"><Clock className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Estimated</p><p className="text-gray-900 dark:text-slate-100">{job.estimatedHours} hours</p></div></div>}
               {(job.address || job.city) && <div className="flex items-center gap-3"><MapPin className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Location</p><p className="text-gray-900 dark:text-slate-100">{[job.address, job.city, [job.state, job.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</p></div></div>}
               {(job as any).location && <div className="flex items-center gap-3"><MapPin className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Branch</p><p className="text-gray-900 dark:text-slate-100">{(job as any).location.name}</p></div></div>}

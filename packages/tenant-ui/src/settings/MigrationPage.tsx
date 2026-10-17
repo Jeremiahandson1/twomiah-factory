@@ -86,15 +86,15 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
           <h2 className="font-semibold text-gray-900 dark:text-white">Where are you migrating from?</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {providers.map((p) => (
-              <button key={p.id} onClick={() => selectProvider(p)} className="p-5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 text-left hover:border-blue-400 hover:shadow-md transition-all group">
+              <button key={p.id} onClick={() => selectProvider(p)} className="p-5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 text-left hover:border-orange-400 hover:shadow-md transition-all group">
                 <div className="flex items-start justify-between mb-3"><div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center"><Database className="w-5 h-5 text-blue-600 dark:text-blue-400" /></div>{p.hasApi && <span className="text-xs font-medium px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full">Auto-Migrate</span>}</div>
                 <p className="font-semibold text-gray-900 dark:text-white">{p.name}</p><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{p.description}</p>
-                <div className="flex items-center gap-1 mt-3 text-sm text-blue-600 dark:text-blue-400 font-medium opacity-0 group-hover:opacity-100 transition-opacity">Get started <ChevronRight className="w-4 h-4" /></div>
+                <div className="flex items-center gap-1 mt-3 text-sm text-orange-600 dark:text-orange-200 font-medium opacity-0 group-hover:opacity-100 transition-opacity">Get started <ChevronRight className="w-4 h-4" /></div>
               </button>
             ))}
           </div>
           <div className="pt-4 border-t dark:border-slate-700">
-            <button onClick={() => { selectProvider(GENERIC); setMode('csv') }} data-testid="migration-generic-csv" className="w-full p-5 bg-gray-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-gray-300 dark:border-slate-600 text-left hover:border-blue-400 transition-colors">
+            <button onClick={() => { selectProvider(GENERIC); setMode('csv') }} data-testid="migration-generic-csv" className="w-full p-5 bg-gray-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-gray-300 dark:border-slate-600 text-left hover:border-orange-400 transition-colors">
               <div className="flex items-center gap-4"><FileSpreadsheet className="w-8 h-8 text-gray-400" /><div><p className="font-semibold text-gray-900 dark:text-white">Other Platform / Generic CSV</p><p className="text-sm text-gray-500 dark:text-gray-400">Upload a CSV file from any source — we'll auto-detect the columns</p></div></div>
             </button>
           </div>
@@ -115,7 +115,7 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
                   <div className="flex items-center gap-1.5 mt-3 text-sm text-green-700 font-medium dark:text-green-300"><Shield className="w-4 h-4" /> Recommended</div>
                 </button>
               )}
-              <button onClick={() => setMode('csv')} className="p-5 border-2 border-gray-200 dark:border-slate-600 rounded-xl text-left hover:border-blue-400 transition-colors">
+              <button onClick={() => setMode('csv')} className="p-5 border-2 border-gray-200 dark:border-slate-600 rounded-xl text-left hover:border-orange-400 transition-colors">
                 <FileSpreadsheet className="w-8 h-8 text-blue-600 mb-3 dark:text-blue-300" /><p className="font-semibold text-gray-900 dark:text-white">CSV File Import</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Export your data from {selectedProvider.name} as CSV and upload here</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mt-3">We auto-detect {selectedProvider.name} column formats</p>
@@ -147,7 +147,7 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
                 {progress?.status === 'complete' && <span className="flex items-center gap-1.5 text-green-700 font-medium text-sm dark:text-green-300"><Check className="w-4 h-4" /> Complete</span>}
                 {progress?.status === 'error' && <span className="flex items-center gap-1.5 text-red-600 font-medium text-sm dark:text-red-400"><X className="w-4 h-4" /> Error</span>}</div>
               {progress && (<>
-                <div className="flex items-center gap-3">{['fetching', 'importing', 'connecting'].includes(progress.status) && <Loader2 className="w-5 h-5 animate-spin text-blue-600 dark:text-blue-300" />}<span className="text-gray-700 dark:text-gray-300">{progress.phase}</span></div>
+                <div className="flex items-center gap-3">{['fetching', 'importing', 'connecting'].includes(progress.status) && <Loader2 className="w-5 h-5 animate-spin text-orange-600 dark:text-orange-200" />}<span className="text-gray-700 dark:text-gray-300">{progress.phase}</span></div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg"><p className="text-2xl font-bold text-gray-900 dark:text-white">{progress.total}</p><p className="text-xs text-gray-500 dark:text-gray-400">Total Records</p></div>
                   <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg"><p className="text-2xl font-bold text-green-700 dark:text-green-400">{progress.imported}</p><p className="text-xs text-gray-500 dark:text-gray-400">Imported</p></div>
@@ -168,18 +168,18 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
           <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-6">
             <h2 className="font-semibold text-gray-900 dark:text-white mb-4">What are you importing?</h2>
             <div className="flex flex-wrap gap-2">{(selectedProvider.csvEntityTypes || GENERIC.csvEntityTypes).map((type) => (
-              <button key={type} onClick={() => { setCsvEntityType(type); clearCsv() }} aria-pressed={csvEntityType === type} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${csvEntityType === type ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>{labels[type] || type}</button>
+              <button key={type} onClick={() => { setCsvEntityType(type); clearCsv() }} aria-pressed={csvEntityType === type} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${csvEntityType === type ? 'bg-orange-600 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>{labels[type] || type}</button>
             ))}</div>
           </div>
           {selectedProvider.id !== 'generic' && (
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 flex items-center justify-between gap-4">
               <div><p className="font-medium text-blue-900 dark:text-blue-300">Exporting from {selectedProvider.name}?</p><p className="text-sm text-blue-700 dark:text-blue-400">We auto-detect {selectedProvider.name}'s column names — just export and upload</p></div>
-              <button onClick={() => window.open(`${api.baseUrl || ''}/api/import/template/${csvEntityType}`, '_blank')} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm whitespace-nowrap"><Download className="w-4 h-4" /> Sample CSV</button>
+              <button onClick={() => window.open(`${api.baseUrl || ''}/api/import/template/${csvEntityType}`, '_blank')} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm whitespace-nowrap"><Download className="w-4 h-4" /> Sample CSV</button>
             </div>
           )}
           <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-6">
             {!csvFile ? (
-              <label className="block border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 transition-colors">
+              <label className="block border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl p-8 text-center cursor-pointer hover:border-orange-400 transition-colors">
                 <Upload className="w-12 h-12 mx-auto text-gray-400 mb-3" /><p className="text-gray-600 dark:text-gray-300">Drop your CSV file here or click to browse</p><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Supports .csv files up to 10MB</p>
                 <input type="file" accept=".csv,text/csv" onChange={handleCsvUpload} className="hidden" data-testid="migration-file-input" />
               </label>
@@ -210,10 +210,10 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
           </div>
           {error && <div role="alert" className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 p-3 rounded-xl flex items-center gap-2 text-sm"><AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}</div>}
           {csvFile && csvPreview && !csvResults && (
-            <div className="flex justify-end"><button onClick={runCsvImport} disabled={importing} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-semibold">{importing ? <><Loader2 className="w-5 h-5 animate-spin" /> Importing...</> : <><Upload className="w-5 h-5" /> Import {csvPreview.rowCount} Records</>}</button></div>
+            <div className="flex justify-end"><button onClick={runCsvImport} disabled={importing} className="flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 font-semibold">{importing ? <><Loader2 className="w-5 h-5 animate-spin" /> Importing...</> : <><Upload className="w-5 h-5" /> Import {csvPreview.rowCount} Records</>}</button></div>
           )}
           {csvResults && (
-            <div className="flex gap-3"><button onClick={clearCsv} className="flex-1 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-900 dark:text-white font-medium">Import More</button><button onClick={resetAll} className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Done</button></div>
+            <div className="flex gap-3"><button onClick={clearCsv} className="flex-1 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-900 dark:text-white font-medium">Import More</button><button onClick={resetAll} className="flex-1 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium">Done</button></div>
           )}
         </div>
       )}

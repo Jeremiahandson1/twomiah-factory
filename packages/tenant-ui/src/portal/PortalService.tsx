@@ -241,7 +241,7 @@ export function PortalServiceRequest() {
         </div>
         <div>
           <p className={labelCls}>How should we reach you?</p>
-          <div className="flex gap-2">{(['call', 'text', 'email'] as const).map((m) => <button key={m} type="button" onClick={() => setForm((f) => ({ ...f, preferredContact: m }))} className={`flex-1 py-2.5 rounded-lg border text-sm font-medium capitalize transition-colors ${form.preferredContact === m ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:text-slate-300'}`}>{m}</button>)}</div>
+          <div className="flex gap-2">{(['call', 'text', 'email'] as const).map((m) => <button key={m} type="button" onClick={() => setForm((f) => ({ ...f, preferredContact: m }))} className={`flex-1 py-2.5 rounded-lg border text-sm font-medium capitalize transition-colors ${form.preferredContact === m ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-950/30 dark:text-orange-200' : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:text-slate-300'}`}>{m}</button>)}</div>
         </div>
         {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <button type="submit" disabled={submitting} className={`w-full justify-center py-3 font-bold ${btnPrimary}`}>{submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <LifeBuoy className="w-5 h-5" />} Submit Request</button>

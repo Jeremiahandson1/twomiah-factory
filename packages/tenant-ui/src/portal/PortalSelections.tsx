@@ -102,9 +102,9 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
         </div>
       </div>
       {selection.selected_option && (
-        <div className="mt-2 p-3 bg-blue-50 rounded-lg flex items-center gap-3 dark:bg-blue-950/30">
-          <Check className="w-5 h-5 text-blue-600 shrink-0 dark:text-blue-300" />
-          <div className="flex-1"><p className="text-sm font-medium text-blue-900 dark:text-blue-200">{selection.selected_option.name}{selection.selected_option.manufacturer && <span className="text-blue-600 font-normal dark:text-blue-300"> by {selection.selected_option.manufacturer}</span>}</p>{selection.client_notes && <p className="text-xs text-blue-700 mt-1 dark:text-blue-300">Note: {selection.client_notes}</p>}</div>
+        <div className="mt-2 p-3 bg-orange-50 rounded-lg flex items-center gap-3 dark:bg-orange-950/30">
+          <Check className="w-5 h-5 text-orange-600 shrink-0 dark:text-orange-200" />
+          <div className="flex-1"><p className="text-sm font-medium text-orange-900 dark:text-orange-200">{selection.selected_option.name}{selection.selected_option.manufacturer && <span className="text-orange-600 font-normal dark:text-orange-200"> by {selection.selected_option.manufacturer}</span>}</p>{selection.client_notes && <p className="text-xs text-orange-700 mt-1 dark:text-orange-200">Note: {selection.client_notes}</p>}</div>
           {selection.selected_option.image_url && <img src={selection.selected_option.image_url} alt="" className="w-12 h-12 rounded object-cover" />}
         </div>
       )}
@@ -121,14 +121,14 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
                   const isSelected = selection.selected_option_id === option.id
                   const totalPrice = Number(option.totalPrice || option.price * quantity), priceDiff = Number(option.priceDiff ?? (totalPrice - allowance))
                   return (
-                    <button type="button" key={option.id} disabled={submitting} onClick={() => choose(option.id)} className={`text-left border rounded-lg p-3 transition-all hover:shadow-md disabled:opacity-60 ${isSelected ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50 dark:bg-blue-950/30' : 'border-gray-200 hover:border-orange-300 dark:border-slate-700'}`}>
+                    <button type="button" key={option.id} disabled={submitting} onClick={() => choose(option.id)} className={`text-left border rounded-lg p-3 transition-all hover:shadow-md disabled:opacity-60 ${isSelected ? 'border-orange-500 ring-2 ring-orange-200 bg-orange-50 dark:bg-orange-950/30' : 'border-gray-200 hover:border-orange-300 dark:border-slate-700'}`}>
                       {option.image_url ? <img src={option.image_url} alt={option.name} className="w-full h-32 object-cover rounded mb-2" /> : <div className="w-full h-32 bg-gray-100 rounded mb-2 flex items-center justify-center dark:bg-slate-800"><ImageIcon className="w-8 h-8 text-gray-300" /></div>}
                       <p className="font-medium text-sm text-gray-900 dark:text-slate-100">{option.name}</p>
                       {option.manufacturer && <p className="text-xs text-gray-500 dark:text-slate-400">{option.manufacturer}{option.model ? ` - ${option.model}` : ''}</p>}
                       {option.description && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 line-clamp-2">{option.description}</p>}
                       <div className="mt-2 flex items-center justify-between"><p className="text-sm font-bold text-gray-900 dark:text-slate-100">{moneyShort(totalPrice)}</p>{allowance > 0 && <span className={`text-xs font-medium ${priceDiff > 0 ? 'text-red-600 dark:text-red-400' : priceDiff < 0 ? 'text-green-700 dark:text-green-300' : 'text-gray-500 dark:text-slate-400'}`}>{priceDiff !== 0 ? `${priceDiff > 0 ? '+' : ''}${moneyShort(priceDiff)}` : 'Within allowance'}</span>}</div>
                       {option.lead_time_days > 0 && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{option.lead_time_days} day lead time</p>}
-                      {isSelected && <div className="mt-2 flex items-center gap-1 text-blue-600 text-xs font-medium dark:text-blue-300"><Check className="w-3 h-3" /> Currently selected</div>}
+                      {isSelected && <div className="mt-2 flex items-center gap-1 text-orange-600 text-xs font-medium dark:text-orange-200"><Check className="w-3 h-3" /> Currently selected</div>}
                     </button>
                   )
                 })}
