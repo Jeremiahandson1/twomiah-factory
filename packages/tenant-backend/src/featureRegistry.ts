@@ -112,6 +112,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Bar (crm-bar) — what a bar changes every night and its website shows live (routes/bar.ts, barPublic.ts).
   { id: 'bar_menu', name: 'Menu & Taps', description: 'The menu with real prices and one-tap 86, and the tap list — shown live on your website', category: 'Bar', core: true, templates: ['crm-bar'] },
+  { id: 'bar_register', name: 'Register & Grill', description: "Tabs, tables and walk-ups; send food to the grill screen, which paces it; take cash or card; split; voids a manager OKs; the night's close-out with the drawer count", category: 'Bar', core: true, templates: ['crm-bar'] },
   { id: 'bar_tonight', name: 'Tonight', description: "Kitchen and bar open or closed, how busy, the note, tonight's special, the game and events — from a phone, live on your website", category: 'Bar', core: true, templates: ['crm-bar'] },
 
   // Private Events & Catering (crm-restaurant) — enquiry -> booking -> deposit

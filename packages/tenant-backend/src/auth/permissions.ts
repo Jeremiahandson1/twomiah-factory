@@ -305,7 +305,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'loyalty:read',
     // A bartender works the console: 86 an item, tap or blow a keg, how busy, the note, tonight's special.
     // Changing the menu, the taps on the lines, or the hours is a manager's.
-    'bar:read', 'bar:console',
+    // bar:register works the register and the grill (ring, send, pay, split, bump). Voiding what was sent,
+    // voiding a payment and closing the night are bar:manage (managers' bar:*), or a manager's till PIN.
+    'bar:read', 'bar:console', 'bar:register',
   ],
   viewer: [
     'contacts:read', 'projects:read', 'jobs:read', 'quotes:read', 'invoices:read',

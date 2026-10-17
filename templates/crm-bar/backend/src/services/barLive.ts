@@ -9,7 +9,7 @@ import { db } from '../../db/index.ts'
 import { barSettings, barStatus, barTap, barSpecial, barGame, company } from '../../db/schema.ts'
 import { companyRowTimeZone } from '../shared/index.ts'
 import {
-  describe, evaluate, formatCountdown, formatTime, isHoursConfig, localDateString, EMPTY_HOURS,
+  addDays, describe, evaluate, formatCountdown, formatTime, isHoursConfig, localDateString, localToUtc, EMPTY_HOURS,
   type DateOverride, type DepartmentStatus, type HoursConfig, type ManualOverride,
 } from './barHours.ts'
 import { formatPrice } from './barMenuSizes.ts'
@@ -185,24 +185,27 @@ export async function buildLiveState(companyId: string, now: Date = new Date()):
 }
 
 /**
+ * The bar's business day: 4 AM local to 4 AM local, so a 1 AM close still counts toward tonight. ONE rule for
+ * everything that asks "which night is this?": a console override lapses at its end (endOfBusinessDay), the
+ * register's recent checks and the close-out read its window (services/barReports.ts).
+ */
+export const BUSINESS_DAY_STARTS = '04:00'
+
+/** The night a moment belongs to, as YYYY-MM-DD: before 4 AM counts toward the night before. */
+export function businessDayOf(now: Date, tz: string): string {
+  const today = localDateString(now, tz)
+  return now.getTime() >= localToUtc(today, BUSINESS_DAY_STARTS, tz).getTime() ? today : addDays(today, -1)
+}
+
+/** The instants a night runs between (DST-safe: localToUtc decides each offset at its own instant). */
+export function businessDayWindow(day: string, tz: string): { from: Date; to: Date } {
+  return { from: localToUtc(day, BUSINESS_DAY_STARTS, tz), to: localToUtc(addDays(day, 1), BUSINESS_DAY_STARTS, tz) }
+}
+
+/**
  * When a console override lapses: the end of the bar's business day (4 AM local after the night it was set),
  * so a Friday-night "kitchen closed" can never leave the board wrong on Saturday.
  */
 export function endOfBusinessDay(now: Date, tz: string): Date {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(now)
-  const get = (t: string) => parts.find((p) => p.type === t)?.value || '00'
-  let ymd = `${get('year')}-${get('month')}-${get('day')}`
-  const hour = Number(get('hour'))
-  // Before 4 AM still belongs to last night: it lapses at 4 AM today. From 4 AM on, at 4 AM tomorrow.
-  if (hour >= 4) {
-    const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); ymd = d.toISOString().slice(0, 10)
-  }
-  // 04:00 local on `ymd`, found by stepping the offset (DST-safe: Intl decides the offset at that instant).
-  const guess = new Date(`${ymd}T04:00:00Z`)
-  const off = (d: Date) => {
-    const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(d)
-    const g = (t: string) => Number(p.find((x) => x.type === t)?.value)
-    return Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute')) - d.getTime()
-  }
-  return new Date(guess.getTime() - off(guess))
+  return businessDayWindow(businessDayOf(now, tz), tz).to
 }

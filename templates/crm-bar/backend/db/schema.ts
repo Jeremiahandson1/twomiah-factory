@@ -92,6 +92,9 @@ export const user = pgTable('user', {
   // rate limiting alone never stopped a credential-stuffing run that rotates addresses.
   failedLoginCount: integer('failed_login_count').default(0).notNull(),
   lockedUntil: timestamp('locked_until'),
+  // crm-bar's till PIN (bcrypt): a manager types it on the bartender's register to OK a void or the
+  // close-out (services/barManagers.ts). Never a sign-in by itself. Null = no PIN set.
+  pinHash: text('pin_hash'),
   // Grants the OWNER hands out on top of the role (Settings › Users), e.g. 'users:read' = may see the
   // login-user list. Roles stay the coarse model; this is the per-person exception list.
   extraPermissions: json('extra_permissions').default([]),
@@ -3105,6 +3108,12 @@ export const barSettings = pgTable('bar_settings', {
   speakeasyPasswordHash: text('speakeasy_password_hash'),
   /** What the password is good for ("$1 off a root beer"), shown only to someone who got it right. */
   speakeasyNote: text('speakeasy_note'),
+  /** The last check number handed out (services/barRegister.ts): numbers only go forwards, never MAX+1. */
+  checkSeq: integer('check_seq').default(0).notNull(),
+  /** The grill screen: a ticket turns "waiting" at warn, "late" at late; an item with no prep time takes the default. */
+  ticketWarnSeconds: integer('ticket_warn_seconds').default(600).notNull(),
+  ticketLateSeconds: integer('ticket_late_seconds').default(900).notNull(),
+  defaultPrepSeconds: integer('default_prep_seconds').default(480).notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 }, (t) => [
@@ -3240,6 +3249,12 @@ export const barMenuItem = pgTable('bar_menu_item', {
   isActive: boolean('is_active').default(true).notNull(),
   /** Every priced size: [{ id, name, priceCents }] (services/barMenuSizes.ts). */
   variations: json('variations').default([]).notNull(),
+  /** The grill: null = by its section (food goes, drinks don't); true/false = this item says so. */
+  toKitchen: boolean('to_kitchen'),
+  /** Seconds on the grill, as the owner set it; pacing learns the real time from bumps (services/barPacing.ts). */
+  prepSeconds: integer('prep_seconds'),
+  learnedPrepSeconds: integer('learned_prep_seconds'),
+  learnedSamples: integer('learned_samples').default(0).notNull(),
   sortOrder: integer('sort_order').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -3247,6 +3262,142 @@ export const barMenuItem = pgTable('bar_menu_item', {
 }, (t) => [
   uniqueIndex('bar_menu_item_company_slug_key').on(t.companyId, t.slug),
   index('bar_menu_item_section_idx').on(t.sectionId, t.sortOrder),
+])
+
+// ==================== THE REGISTER AND THE GRILL (services/barRegister.ts, barKitchen.ts) ====================
+// Every sale is a check: a tab ("Mike"), a table ("Booth 2") or a walk-up. Items sit on it as held until
+// Send fires the food to the grill as one ticket. Payments stack until the balance is zero (split evenly =
+// several payments; split by item = move items to a new check). A void always carries a reason and a name.
+// Ported from website-premium-bar's register (Amber Inn, 9/26) when the CRM became the bar's one database.
+// Money is integer cents throughout; a check's totals are frozen when it closes, so a later tax change never
+// rewrites history.
+export const barCheck = pgTable('bar_check', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: integer('number').notNull(),            // "#214" on the screen and the receipt (bar_settings.check_seq)
+  kind: text('kind').notNull(),                   // tab | table | walkup | online
+  label: text('label').notNull(),                 // "Mike", "Booth 2", "Walk-up"
+  spot: text('spot'),                             // where it's delivered: "Bar seat 6", "Booth 2"
+  note: text('note'),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),   // the guest, when known
+  status: text('status').default('open').notNull(), // open | paid | void
+  voidReason: text('void_reason'),
+  splitFromId: text('split_from_id'),
+  subtotalCents: integer('subtotal_cents'),
+  taxCents: integer('tax_cents'),
+  totalCents: integer('total_cents'),
+  tipCents: integer('tip_cents'),
+  taxRateBps: integer('tax_rate_bps'),            // the rate it closed at
+  openedAt: timestamp('opened_at').defaultNow().notNull(),
+  openedById: text('opened_by_id').references(() => user.id, { onDelete: 'set null' }),
+  openedByName: text('opened_by_name'),
+  closedAt: timestamp('closed_at'),
+  closedById: text('closed_by_id').references(() => user.id, { onDelete: 'set null' }),
+  closedByName: text('closed_by_name'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('bar_check_company_number_key').on(t.companyId, t.number),
+  index('bar_check_company_status_idx').on(t.companyId, t.status, t.openedAt),
+  index('bar_check_company_closed_idx').on(t.companyId, t.closedAt),
+])
+
+export const barCheckItem = pgTable('bar_check_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  checkId: text('check_id').notNull().references(() => barCheck.id, { onDelete: 'cascade' }),
+  menuItemId: text('menu_item_id').references(() => barMenuItem.id, { onDelete: 'set null' }),
+  tapId: text('tap_id').references(() => barTap.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),                   // a snapshot: renaming the item later never rewrites the check
+  size: text('size'),                             // "Platter"; null for a single-size item
+  qty: integer('qty').default(1).notNull(),
+  unitPriceCents: integer('unit_price_cents').notNull(),
+  note: text('note'),
+  seat: integer('seat'),
+  toKitchen: boolean('to_kitchen').default(true).notNull(),
+  kind: text('kind').default('item').notNull(),   // item | reward (negative) | giftcard (stored value, not taxed)
+  state: text('state').default('held').notNull(), // held | sent | void
+  ticketId: text('ticket_id'),
+  voidReason: text('void_reason'),
+  voidedByName: text('voided_by_name'),
+  addedById: text('added_by_id').references(() => user.id, { onDelete: 'set null' }),
+  addedByName: text('added_by_name'),
+  addedAt: timestamp('added_at').defaultNow().notNull(),
+  sentAt: timestamp('sent_at'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_check_item_check_idx').on(t.checkId, t.addedAt),
+])
+
+export const barCheckPayment = pgTable('bar_check_payment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  checkId: text('check_id').notNull().references(() => barCheck.id, { onDelete: 'cascade' }),
+  tender: text('tender').notNull(),               // cash | card_external (run on the card reader) | card_online | giftcard
+  amountCents: integer('amount_cents').notNull(), // toward the check; the tip is apart
+  tipCents: integer('tip_cents').default(0).notNull(),
+  cashTenderedCents: integer('cash_tendered_cents'),
+  changeCents: integer('change_cents'),
+  providerPaymentId: text('provider_payment_id'),
+  takenById: text('taken_by_id').references(() => user.id, { onDelete: 'set null' }),
+  takenByName: text('taken_by_name'),
+  takenAt: timestamp('taken_at').defaultNow().notNull(),
+  voidedAt: timestamp('voided_at'),
+  voidReason: text('void_reason'),
+  voidedByName: text('voided_by_name'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_check_payment_check_idx').on(t.checkId),
+  index('bar_check_payment_company_taken_idx').on(t.companyId, t.takenAt),
+])
+
+// One ticket per fire. The items are a snapshot of what the cook was asked for, with the prep time pacing used.
+export const barKitchenTicket = pgTable('bar_kitchen_ticket', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  label: text('label').notNull(),                 // "Bar seat 6 · Mike", "Booth 2", "Web · Pat · 7:40"
+  source: text('source').notNull(),               // bar | table | web
+  note: text('note'),
+  checkId: text('check_id').references(() => barCheck.id, { onDelete: 'set null' }),
+  firedAt: timestamp('fired_at').defaultNow().notNull(),
+  firedByName: text('fired_by_name'),
+  bumpedAt: timestamp('bumped_at'),
+  bumpedByName: text('bumped_by_name'),
+  recalledAt: timestamp('recalled_at'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_kitchen_ticket_company_open_idx').on(t.companyId, t.bumpedAt, t.firedAt),
+])
+
+export const barKitchenTicketItem = pgTable('bar_kitchen_ticket_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  ticketId: text('ticket_id').notNull().references(() => barKitchenTicket.id, { onDelete: 'cascade' }),
+  menuItemId: text('menu_item_id').references(() => barMenuItem.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  variation: text('variation'),
+  qty: integer('qty').default(1).notNull(),
+  note: text('note'),
+  seat: integer('seat'),
+  prepSeconds: integer('prep_seconds').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_kitchen_ticket_item_ticket_idx').on(t.ticketId),
+])
+
+// One row per night closed. The summary is frozen as it was at close, so a report never changes afterwards.
+export const barCloseout = pgTable('bar_closeout', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  businessDay: text('business_day').notNull(),    // YYYY-MM-DD the night started (4 AM to 4 AM local)
+  cashExpectedCents: integer('cash_expected_cents').notNull(),
+  cashCountedCents: integer('cash_counted_cents'),
+  floatCents: integer('float_cents').default(0).notNull(),
+  overShortCents: integer('over_short_cents'),
+  note: text('note'),
+  summary: json('summary').notNull(),
+  closedById: text('closed_by_id').references(() => user.id, { onDelete: 'set null' }),
+  closedByName: text('closed_by_name'),
+  closedAt: timestamp('closed_at').defaultNow().notNull(),
+  emailedAt: timestamp('emailed_at'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bar_closeout_company_day_idx').on(t.companyId, t.businessDay),
 ])
 
 // ==================== PRIVATE PARTIES (from crm-restaurant's Twomiah Events) ====================

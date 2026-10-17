@@ -83,6 +83,7 @@ import leadsRoutes from './routes/leads.ts'
 // The bar: staff records (menu, taps, the Tonight console) and what the bar's website reads live.
 import barRoutes from './routes/bar.ts'
 import barPublicRoutes from './routes/barPublic.ts'
+import { registerRoutes as barRegisterRoutes, kitchenRoutes as barKitchenRoutes } from './routes/barRegister.ts'
 import eventsRoutes from './routes/events.ts'
 import eventSpacesRoutes from './routes/eventSpaces.ts'
 import menuPackagesRoutes from './routes/menuPackages.ts'
@@ -373,6 +374,9 @@ app.route('/api/ads', adsRoutes)
 const adsPublicRoutes = (await import('./routes/adsPublic.ts')).default
 app.route('/api/public/ads-experiments', adsPublicRoutes)
 app.route('/api/bar', barRoutes)
+// The register and the grill screen (routes/barRegister.ts): checks, tabs, payments, the night's close-out.
+app.route('/api/register', barRegisterRoutes)
+app.route('/api/grill', barKitchenRoutes)
 // Private parties — enquiry, booking, deposit, the run of show (crm-restaurant's module, unchanged).
 app.route('/api/events', eventsRoutes)
 app.route('/api/event-spaces', eventSpacesRoutes)

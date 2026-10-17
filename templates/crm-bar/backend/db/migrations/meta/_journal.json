@@ -253,6 +253,13 @@
       "when": 1791601504003,
       "tag": "0035_party_events",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791601504004,
+      "tag": "0036_bar_register",
+      "breakpoints": true
     }
   ]
 }
