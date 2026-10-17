@@ -151,10 +151,15 @@
           <a href="<%= item.href %>"<%- currentPath && currentPath === ('/' + String(item.href || '').replace(/^\//, '')) ? ' aria-current="page"' : '' %>><%= item.label %></a>
         <% }) %>
       </nav>
+      <%/* A site with no menu items is a one-page site (a bar "opening soon"): no Visit button pointing at a page that
+           is not published, and no menu toggle opening an empty menu. (Amber Inn, 10/17) */%>
+      <% var onePage = !(settings.nav || []).length; %>
+      <% if (!onePage) { %>
       <a class="header-cta" href="<%= settings.contactHref || '/visit' %>"><%= settings.contactCtaLabel || 'Visit' %></a>
       <button class="mobile-nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-nav">
         <span></span><span></span><span></span>
       </button>
+      <% } %>
     </div>
     <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile primary" hidden>
       <% (settings.nav || []).forEach(function(item) { %>
