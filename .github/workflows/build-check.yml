@@ -2799,6 +2799,17 @@ jobs:
       - name: "check brand hex under white text"
         run: bun run scripts/check-brand-hex-under-white-text.ts
 
+  action-colour-is-brand:
+    name: "A CRM's buttons, links and focus rings wear the company's colour, not a fixed blue"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check action colour is brand"
+        run: bun run scripts/check-action-colour-is-brand.ts
+
   portal-token-never-ships:
     name: "A contact's portal credential never leaves the server on their record"
     runs-on: ubuntu-latest
