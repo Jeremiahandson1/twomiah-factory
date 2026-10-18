@@ -18,6 +18,7 @@ import {
   pricebookGoodBetterBest, commission, commissionPlan,
 } from '../db/schema/index.ts'
 import type { EmailService } from '../core/email.ts'
+import type { CrmSettings } from '../core/vertical.ts'
 import type { Logger } from '../core/logger.ts'
 import { crmEmail, crmTemplates } from './messages.ts'
 
@@ -27,10 +28,13 @@ export interface CrmServiceDeps {
   audit: any
   logger: Logger
   isFeatureEnabled: (companyId: string, feature: string | string[]) => Promise<boolean>
+  /** The vertical's switches (VerticalSettings.crm). */
+  settings: CrmSettings
 }
 
 export function createCrmServices(deps: CrmServiceDeps) {
-  const { db, email, audit, logger, isFeatureEnabled } = deps
+  const { db, email, audit, logger, isFeatureEnabled, settings } = deps
+  const sites = !!settings.serviceSites
   email.register(crmTemplates)
   // Every message the app sends is recorded, so Settings › Integrations can count them (the CRMs' T14 M23).
   email.setRecorder(createEmailLogger({ db, tables: { emailLog, company, user }, logger } as any))
@@ -40,7 +44,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
   const usage = { reportSmsUsage, walletSufficient }
 
   const commissionEarner = createCommissionEarner({
-    db, tables: { commission, commissionPlan, user, job, invoice, company }, invoiceJobLink: 'quoteId',
+    // The job an invoice names first (invoice.job_id, everyone's column now), then the job raised from its quote.
+    db, tables: { commission, commissionPlan, user, job, invoice, company }, invoiceJobLink: 'jobId',
   } as any)
   const stripeService = createStripeService({
     db, tables: { contact, invoice, payment, company },
@@ -71,18 +76,41 @@ export function createCrmServices(deps: CrmServiceDeps) {
     db, tables: { warrantyTemplate, projectWarranty, warrantyClaim, activityLog: activity, jobAssignment, job, project, contact },
   } as any)
   // Customer-asset tracking: the shared service keeps contactId only when told the column exists (the CRMs' T32 H9).
-  const equipmentService = createEquipmentService({ db, tables: { equipment, equipmentCategory, equipmentMaintenance, contact }, options: { contacts: true } } as any)
+  // Where the vertical has service sites, equipment records its site and the jobs done on it (field service et al).
+  const equipmentService = createEquipmentService({
+    db, tables: { equipment, equipmentCategory, equipmentMaintenance, contact, job, user },
+    options: { contacts: true, sites, linkedJobs: sites },
+  } as any)
   const pricebook = createPricebookService({ db, tables: { company, pricebookCategory, pricebookItem, pricebookGoodBetterBest } } as any)
   const tasks = createTasksService({ db } as any)
   const bulk = createBulkService({ db, tables: { contact, project, job, invoice, quote, timeEntry, payment } } as any)
   const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
 
-  /** Completing a job: a review request when the company asks for them (the CRMs' services/jobHooks.ts). */
-  const jobHooks: { onComplete: JobHook } = {
+  /**
+   * A job's moments (the CRMs' services/jobHooks.ts): on the way, on site and done are texted to the customer where the
+   * vertical says so; done asks for a review when the company has Google Reviews on, and makes the next visit of a
+   * recurring service agreement.
+   */
+  const textArrival = !!settings.jobs?.textArrival
+  const jobHooks: { onComplete: JobHook; onDispatch?: JobHook; onStart?: JobHook } = {
+    ...(textArrival ? {
+      onDispatch: async ({ job: j, companyId }) => { sms.sendJobUpdate(companyId, j.id, 'on_my_way').catch(() => {}) },
+      onStart: async ({ job: j, companyId }) => { sms.sendJobUpdate(companyId, j.id, 'on_site').catch(() => {}) },
+    } : {}),
     onComplete: async ({ job: done, companyId }) => {
+      if (textArrival) sms.sendJobUpdate(companyId, done.id, 'completed').catch(() => {})
       const [co] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
       if (((co?.enabledFeatures || []) as string[]).includes('google_reviews')) {
         reviews.scheduleReviewRequest(done.id).catch((err: any) => logger.warn('[jobs] review request not scheduled', { error: err?.message }))
+      }
+      // A visit of a recurring agreement makes the next one (the screen reads nextServiceDate either way).
+      if (!settings.agreements?.recurrence || !(done as any).serviceAgreementId) return { nextServiceDate: null }
+      try {
+        const next: any = await agreements.generateNextJob((done as any).serviceAgreementId, companyId)
+        return { nextServiceDate: next?.nextServiceDate ?? null }
+      } catch (err) {
+        logger.info('[jobs] next agreement visit left to the daily scan', { error: (err as Error).message })
+        return { nextServiceDate: null }
       }
     },
   }
@@ -97,6 +125,12 @@ export function createCrmServices(deps: CrmServiceDeps) {
       agreements.startBillingProcessor()
       recurring.startRecurringProcessor()
       commissionEarner.startCommissionEarner()
+      // Recurring service agreements make their next visits: at boot, then every 6 hours (the field-service CRMs' index.ts).
+      if (settings.agreements?.recurrence) {
+        const scan = () => (agreements as any).scanAndGenerateJobs().catch((err: any) => logger.error('[agreements] next-visit scan failed', { error: err?.message }))
+        setTimeout(scan, 60_000)
+        setInterval(scan, 6 * 60 * 60 * 1000)
+      }
     },
   }
 }

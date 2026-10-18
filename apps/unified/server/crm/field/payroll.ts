@@ -4,8 +4,8 @@
 // on the Time screen, which the sidebar gates on time_tracking (gate both sides). Every action checks payroll:read
 // (the template's T32 H1, on the mount). There is deliberately no GET /expenses (see the template).
 import { Hono } from 'hono'
-import { and, eq, gte, lte } from 'drizzle-orm'
-import { createStaffBalanceStore } from '@twomiah/tenant-backend'
+import { and, eq, gte, lt } from 'drizzle-orm'
+import { createStaffBalanceStore, companyTimeZone, storeDayRange } from '@twomiah/tenant-backend'
 import { timeEntry, user, staffAccountEntry } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
@@ -25,6 +25,10 @@ export function createPayrollRoutes(d: CrmDeps) {
     const startDate = c.req.query('startDate')
     const endDate = c.req.query('endDate')
     if (!startDate || !endDate) return fail(c, 400, 'startDate and endDate required')
+    // Whole days on the shop's clock, half-open (from the field-service copy, which had fixed it): the base CRM cut
+    // at UTC midnight, paying an evening shift on the next day and dropping almost all of a period's last day.
+    const payTz = await companyTimeZone(db, currentUser.companyId)
+    const payPeriod = { start: storeDayRange(payTz, startDate).start, end: storeDayRange(payTz, endDate).end }
 
     const entries = await db.select({
       entry: timeEntry,
@@ -36,8 +40,8 @@ export function createPayrollRoutes(d: CrmDeps) {
       .leftJoin(user, eq(timeEntry.userId, user.id))
       .where(and(
         eq(timeEntry.companyId, currentUser.companyId),
-        gte(timeEntry.date, new Date(startDate)),
-        lte(timeEntry.date, new Date(endDate)),
+        gte(timeEntry.date, payPeriod.start),
+        lt(timeEntry.date, payPeriod.end),
       ))
 
     // By person.

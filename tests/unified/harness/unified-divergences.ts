@@ -9,7 +9,36 @@ export interface Divergence {
   heldBy: string
 }
 
+/** The CRMs' booking module (/api/booking, bookable_service, online_booking) is replaced by the bookings layer. */
+const BOOKINGS_REPLACED = (what: string, heldBy: string): Divergence => ({
+  why: `Drives the CRM templates' own booking module (/api/booking and its tables), which the unified app replaces with one booking engine for site and CRM (server/booking, CUTOVER_LEDGER step 2d). What it guards: ${what}.`,
+  heldBy,
+})
+const WEBHOOK_REPLACED: Divergence = {
+  why: "Drives POST /api/webhooks/leads, the separate website's contact-form webhook. The website is the same app now; its enquiry goes straight into the CRM's routing (server/core/enquiry.ts).",
+  heldBy: 'apps/unified/tests/site-routes.test.ts (an enquiry lands in the Lead Inbox as new with it on, as a lead contact with it off)',
+}
+
 export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
+  fieldservice: {
+    't30-search-money.test.ts': {
+      assertions: [/^…and still returns the contact/, /^…with the contact and the job they need/],
+      why: 'Quick search and Recent are list replies; the test reads a bare array or { results }.',
+      heldBy: 'tests/unified/fieldservice/t30-search-money.test.ts',
+    },
+    't32-job-costing.test.ts': {
+      assertions: [/^this template really has no vendor_bill table/, /^…and reconciles with the roll-up above it/],
+      why: "The first asserts the template's own schema has no bills table (the unified schema has it for every vertical; with none recorded the costing is the same); the second reads by-category as a bare array.",
+      heldBy: 'tests/unified/fieldservice/t32-job-costing.test.ts',
+    },
+    't30-booking-config.test.ts': BOOKINGS_REPLACED('booking setup is company:update, not a manager\'s', 'apps/unified/tests/booking-routes.test.ts (a manager runs the book but not the services or switches; bookings:settings is admin/owner)'),
+    't30-deposit-hold.test.ts': BOOKINGS_REPLACED('an unpaid deposit hold is released past its window, by a direct booking too; a live one still blocks', 'apps/unified/tests/booking-engine.test.ts (a deposit holds the time as pending; unpaid past the hold the time is released — book() releases first; paid in time it becomes a booking)'),
+    't58-booking-keeps-service-name.test.ts': BOOKINGS_REPLACED('a booking keeps what it was for in the owner\'s list', "apps/unified/tests/booking-engine.test.ts (the owner's list keeps what each booking was for)"),
+    't58d-off-slot-wording.test.ts': BOOKINGS_REPLACED('a time that was never offered is refused as that, not as "no longer available"', 'apps/unified/tests/booking-engine.test.ts (each refusal says which thing is wrong: closed, not offered, taken, notice)'),
+    't59-require-address.test.ts': BOOKINGS_REPLACED("asking for the address is the owner's switch, unset the vertical's", "apps/unified/tests/booking-engine.test.ts (asking for the address is the owner's switch; unset, it is the vertical's answer)"),
+    't59-new-leads-inbox-on.test.ts': WEBHOOK_REPLACED,
+    't59-new-leads-inbox-off.test.ts': WEBHOOK_REPLACED,
+  },
   crm: {
     'calltracking-fields.test.ts': {
       assertions: [/^the tracking numbers answer/, /^a tracking number carries/, /^…its number, forward-to and call count/],

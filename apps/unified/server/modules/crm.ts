@@ -17,14 +17,17 @@ import {
   createQuickBooksRoutes, createIntegrationsRoutes, createReviewsRoutes, createAdsRoutes, createAdsPublicRoutes,
   createAdsConnector, createOnboardingRoutes, createMessagingBillingRoutes, createEmailDomainRoutes, createGbpAdminRoutes,
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
+  money,
 } from '@twomiah/tenant-backend'
+import { asc } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
   gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
-  documentShare, equipment, serviceAgreement, agreementVisit,
+  documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto,
 } from '../db/schema/index.ts'
+import type { CrmSettings } from '../core/vertical.ts'
 import type { Mount } from '../http/registry.ts'
 import { fail } from '../http/reply.ts'
 import type { Realtime } from '../core/realtime.ts'
@@ -50,10 +53,15 @@ export interface CrmModuleDeps {
   services: CrmServices
   /** Called when the owner or the Factory changes the switched-on features (the ads connector listens). */
   adsConnector: ReturnType<typeof createAdsConnector>
+  /** The vertical's switches (VerticalSettings.crm). */
+  settings: CrmSettings
 }
 
 export function createCrmModules(deps: CrmModuleDeps): Mount[] {
-  const { db, audit, logger, authenticate, permissions, features, realtime, services: s } = deps
+  const { db, audit, logger, authenticate, permissions, features, realtime, services: s, settings: v } = deps
+  // A customer's service sites and the equipment at them (field service, landscaping, basic, bar).
+  const sites = !!v.serviceSites
+  const blankToUndefined = z.string().optional().transform((x) => (x === '' ? undefined : x))
   const { requirePermission, requireRole } = permissions
   const canSee = async (role: string, permission: string, userId?: string) =>
     permissions.hasPermission(role, permission, await permissions.getExtraPermissions(userId))
@@ -75,21 +83,61 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
       extraFields: { optedOutSms: z.boolean().optional() },
-      relations: standardRelations({ project, quote, invoice, job }),
-      guards: standardGuards({ invoice, quote, job, project }),
+      relations: sites
+        ? [
+          ...standardRelations({ project, quote, invoice, job }),
+          { key: 'equipment', table: equipment, column: equipment.contactId, columns: { id: equipment.id, name: equipment.name, manufacturer: equipment.manufacturer, model: equipment.model, serialNumber: equipment.serialNumber, status: equipment.status, location: equipment.location, purchaseDate: equipment.purchaseDate, warrantyExpiry: equipment.warrantyExpiry, siteId: equipment.siteId } },
+          { key: 'sites', table: site, column: site.contactId, orderBy: asc(site.name) },
+        ]
+        : standardRelations({ project, quote, invoice, job }),
+      guards: sites
+        ? [...standardGuards({ invoice, quote, job, project }), { table: equipment, column: equipment.contactId, label: 'piece of equipment', plural: 'pieces of equipment' }]
+        : standardGuards({ invoice, quote, job, project }),
+      ...(sites ? { sites: { site, equipment, job } } : {}),
     },
   } as any)
 
   const jobs = createJobRoutes({
-    db, tables: { job, project, contact, user, timeEntry, teamMember, location }, authenticate, requirePermission, canSee, ...live, cleanText,
-    options: { onComplete: s.jobHooks.onComplete },
+    db,
+    tables: {
+      job, project, contact, user, timeEntry, teamMember, location,
+      ...(sites ? { equipment } : {}), ...(v.jobs?.photos ? { jobPhoto } : {}), ...(v.jobs?.billing ? { invoice, invoiceLineItem } : {}),
+    },
+    authenticate, requirePermission, canSee, ...live, cleanText,
+    options: {
+      // a job also points at a piece of equipment and a service site
+      ...(sites ? { extraFields: { equipmentId: blankToUndefined, siteId: blankToUndefined } } : {}),
+      // photos in the store, served at /media/photos/… (the website's media route serves the same prefix)
+      ...(v.jobs?.photos ? { storage: s.storage } : {}),
+      // a job billed on its own: POST /api/jobs/:id/invoice
+      ...(v.jobs?.billing ? { billing: { numbering: { prefix: v.jobs.billing.prefix, pad: v.jobs.billing.pad }, termsDays: v.jobs.billing.termsDays } } : {}),
+      ...(v.jobs?.defaultType ? { defaultJobType: v.jobs.defaultType } : {}),
+      onComplete: s.jobHooks.onComplete, onDispatch: s.jobHooks.onDispatch, onStart: s.jobHooks.onStart,
+    },
   } as any)
 
   const quotes = createQuoteRoutes({
-    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job }, authenticate, audit, requirePermission, ...live,
+    db, canSee, tables: { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, ...(sites ? { equipment, site } : {}) },
+    authenticate, audit, requirePermission, ...live,
     sendQuoteEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendQuote(to, data),
     loadPdf: loadQuotePdf,
-    options: { hasLineCost: true, timeZoneFor },
+    options: {
+      hasLineCost: true, timeZoneFor,
+      // Every vertical's quote records when it was declined and which job it became (the columns are everyone's now;
+      // the field-service copies had them, the base CRM didn't).
+      hasDeclinedAt: true, hasConvertedToJobId: true,
+      extraFields: sites ? ['siteId', 'equipmentId', 'customerMessage'] : ['customerMessage'],
+      ...(sites ? { jobHasSiteAndEquipment: true } : {}),
+      // Text the customer a link when a quote goes out.
+      ...(v.quotes?.textOnSend ? {
+        onSent: async ({ companyId, quote: q, contact: who, company: co }: any) => {
+          if (!who?.phone) return
+          const portalUrl = process.env.CUSTOMER_PORTAL_URL || process.env.FRONTEND_URL || ''
+          const msg = `Hi ${who.name?.split(' ')[0] || 'there'}, ${co?.name || 'we'} just sent you a quote (#${q.number}) for ${money(Number(q.total || 0))}. View it here: ${portalUrl}/quotes/${q.id}`
+          await s.sms.sendSMS(companyId, { contactId: who.id, message: msg })
+        },
+      } : {}),
+    },
   } as any)
 
   const invoices = createInvoiceRoutes({
@@ -136,21 +184,25 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/photos', access: 'user', feature: 'photo_capture', router: createPhotoRoutes({ db, tables: { document, user, project, job }, storage: s.storage, authenticate, requirePermission, audit: fileAudit } as any) },
     { path: '/api/recurring', access: 'user', feature: 'recurring_jobs', router: createRecurringRoutes({ service: s.recurring, authenticate, requirePermission, audit } as any) },
     { path: '/api/tech', access: 'user', feature: 'tech_mobile_view', router: createTechRoutes({
-      db, tables: { job, contact, formSubmission, formTemplate }, authenticate, requirePermission, ...live, hooks: s.jobHooks,
-      checklistType: 'site_checklist', checklistTitle: 'Site checklist',
+      db, tables: { job, contact, formSubmission, formTemplate, ...(sites ? { equipment } : {}) }, authenticate, requirePermission, ...live, hooks: s.jobHooks,
+      checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
     { path: '/api/commissions', access: 'user', feature: 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee } as any) },
     { path: '/api/locations', access: 'user', feature: 'multi_location', router: createLocationRoutes({ db, tables: { location, user }, authenticate, requirePermission } as any) },
     { path: '/api/equipment', access: 'user', feature: 'equipment_tracking', router: createEquipmentRoutes({ service: s.equipment, authenticate, requirePermission } as any) },
-    { path: '/api/inventory', access: 'user', feature: 'inventory', router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },
+    { path: '/api/inventory', access: 'user', feature: ['inventory', 'parts_tracking'], router: createInventoryRoutes({ service: s.inventory, authenticate, requirePermission, audit, canSee } as any) },
     { path: '/api/fleet', access: 'user', feature: 'fleet', router: createFleetRoutes({ service: s.fleet, authenticate, requirePermission } as any) },
     { path: '/api/warranties', access: 'user', feature: 'warranties', router: createWarrantiesRoutes({ service: s.warranties, authenticate, requirePermission } as any) },
-    { path: '/api/agreements', access: 'user', feature: 'service_agreements', router: createAgreementsRoutes({ service: s.agreements, authenticate, requirePermission, canSee } as any) },
+    { path: '/api/agreements', access: 'user', feature: ['service_agreements', 'maintenance_contracts'], router: createAgreementsRoutes({ service: s.agreements, authenticate, requirePermission, canSee, recurrence: !!v.agreements?.recurrence } as any) },
 
-    // Always on with the CRM, as in the template (their screens are reached from Settings and the record pages).
-    { path: '/api/documents', access: 'user', router: createDocumentRoutes({
-      db, tables: { document, documentVersion, project, contact, user, planMarkup }, storage: s.storage, authenticate, requirePermission, audit: fileAudit,
-      options: { types: ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'] },
+    // Documents are the registry's optional 'documents' feature for every CRM; the base template never gated them (the
+    // field-service copy did, on both sides). Cutover switches it on for every CRM business, which had it before.
+    { path: '/api/documents', access: 'user', feature: 'documents', router: createDocumentRoutes({
+
+      // planMarkup only where drawings are marked up (construction): the shared module registers /:id/markups only when
+      // the table is passed.
+      db, tables: { document, documentVersion, project, contact, user, ...(v.documents?.markup ? { planMarkup } : {}) }, storage: s.storage, authenticate, requirePermission, audit: fileAudit,
+      options: { types: v.documents?.types ?? ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'] },
     } as any) },
     { path: '/api/reports', access: 'user', router: createReportingRoutes({
       db, tables: { invoice, payment, job, project, quote, timeEntry, user, contact, teamMember, location }, authenticate, requirePermission,
@@ -189,7 +241,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // The owner's feature switches decide which sections the portal offers.
       enabledFeaturesFor: features.enabledFeaturesFor,
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
-      options: { disable: ['service'] },
+      options: { disable: v.portal.disable },
     } as any) },
     // The website's A/B script: anonymous, from the site's own origin.
     { path: '/api/public/ads-experiments', access: 'public', router: createAdsPublicRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion } } as any) },

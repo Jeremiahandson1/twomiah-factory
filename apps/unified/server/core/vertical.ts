@@ -28,6 +28,55 @@ export interface VerticalSettings {
    * frontend/src/*Config.ts, one copy per template.
    */
   screens: Record<string, unknown>
+  /**
+   * How the CRM's shared modules behave for this vertical: switches for what the engine can do, never code. Each was a
+   * difference between the CRM templates' copies of a routes/*.ts file (CUTOVER_LEDGER, step 3e). Absent = off / the
+   * base CRM's behaviour.
+   */
+  crm?: CrmSettings
+}
+
+/** The base CRM's behaviour: a vertical without its own `crm` settings gets this. */
+export const BASE_CRM: CrmSettings = {
+  documents: { markup: true, types: ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'] },
+  tech: { checklistType: 'site_checklist', checklistTitle: 'Site checklist' },
+  portal: { disable: ['service'] },
+}
+
+export interface CrmSettings {
+  /**
+   * A customer's service sites, and equipment at them: contacts list their sites and equipment, a job and a quote
+   * point at a site and a piece of equipment, equipment records its site and the jobs done on it. (field service,
+   * landscaping, basic, bar)
+   */
+  serviceSites?: boolean
+  jobs?: {
+    /** What a new job is when none is given (the database's default is 'service'). */
+    defaultType?: string
+    /** Photos on a job, kept in the private bucket and served by /api/media. */
+    photos?: boolean
+    /** A job can be billed on its own: POST /api/jobs/:id/invoice, numbered with this prefix and padding. */
+    billing?: { prefix: string; pad: number; termsDays: number }
+    /** Text the customer when a tech is on the way and when they arrive. */
+    textArrival?: boolean
+  }
+  quotes?: {
+    /** Text the customer a link when a quote is sent. */
+    textOnSend?: boolean
+  }
+  documents?: {
+    /** Plan markup (drawings annotated): construction only. */
+    markup?: boolean
+    types: string[]
+  }
+  agreements?: {
+    /** Service agreements recur and generate their own jobs. */
+    recurrence?: boolean
+  }
+  /** The field view's end-of-visit checklist. */
+  tech: { checklistType: string; checklistTitle: string; legacyChecklistTypes?: string[] }
+  /** Customer-portal sections this vertical doesn't offer. */
+  portal: { disable: string[] }
 }
 
 /**
@@ -66,6 +115,7 @@ export interface SiteSettings {
 export async function loadVertical(id = process.env.VERTICAL): Promise<VerticalSettings> {
   const known: Record<string, () => Promise<{ default: VerticalSettings }>> = {
     contractor: () => import('../../verticals/contractor/settings.ts'),
+    fieldservice: () => import('../../verticals/fieldservice/settings.ts'),
   }
   if (!id) {
     if (process.env.NODE_ENV === 'production') throw new Error('VERTICAL is not set')

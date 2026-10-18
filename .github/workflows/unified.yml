@@ -43,7 +43,7 @@ jobs:
   # or every assertion it fails is a documented divergence (tests/unified/harness/unified-divergences.ts) whose
   # behaviour is held elsewhere — the six reply-shape ones by their adapted copies, run after it.
   crm-suite:
-    name: base CRM suite on the unified app
+    name: CRM suites on the unified app
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,5 +54,7 @@ jobs:
         run: bun install
       - name: Base CRM suite (tests/crm) on the unified app
         run: bun tests/unified/harness/crm.ts
-      - name: Adapted copies (tests/unified/crm)
-        run: bun tests/unified/crm/harness/run.ts
+      - name: Field-service suite (tests/fieldservice) on the unified app, as fieldservice
+        run: bun tests/unified/harness/fieldservice.ts
+      - name: Adapted copies (tests/unified/<suite>)
+        run: bun tests/unified/harness/adapted.ts

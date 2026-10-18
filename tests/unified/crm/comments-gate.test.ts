@@ -1,4 +1,4 @@
-// ADAPTED COPY of tests/crm/comments-gate.test.ts, for the unified app (tests/unified/crm/harness/run.ts). Unchanged except the
+// ADAPTED COPY of tests/crm/comments-gate.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
 // 1 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // The comments router had no permission check on any route: any signed-in seat could post, edit and react, and read

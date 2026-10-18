@@ -219,3 +219,27 @@ describe('daylight saving', () => {
     clock = NOW
   })
 })
+
+// From the field-service CRM's suite (t58 booking-keeps-service-name, t59 require-address), whose bookings these are now.
+describe('what the owner reads back, and the address question', () => {
+  test("the owner's list keeps what each booking was for", async () => {
+    const { rows } = await engine().listBookings(companyId, { page: 1, limit: 100 })
+    const mowing = rows.filter((b: { serviceName?: string | null }) => b.serviceName === 'Lawn mowing')
+    expect(mowing.length).toBeGreaterThan(0)
+  })
+
+  test("asking for the address is the owner's switch; unset, it is the vertical's answer", async () => {
+    const e = engine()
+    const at = (date: string) => ({ service: 'lawn-mowing', date, time: '13:00', ...who })
+    // This vertical's answer is "no" (requireAddressDefault: false): no address needed.
+    expect((await e.book(companyId, at('2026-11-11'), { by: 'customer' })).booking.status).toBe('confirmed')
+    // The owner turns it on: the server refuses a booking without one, and takes one with it.
+    await e.updateSettings(companyId, { requireAddress: true })
+    expect((await refusal(e.book(companyId, at('2026-11-12'), { by: 'customer' })))?.message).toContain('address')
+    expect((await e.book(companyId, { ...at('2026-11-12'), address: '12 Main St', zip: '53593' }, { by: 'customer' })).booking.customerAddress).toBe('12 Main St')
+    // Unset again, a vertical whose answer is "yes" asks for it.
+    await e.updateSettings(companyId, { requireAddress: null })
+    const asks = createBookingEngine({ db: t.db, requireAddressDefault: true, now: () => clock })
+    expect((await refusal(asks.book(companyId, at('2026-11-13'), { by: 'customer' })))?.message).toContain('address')
+  })
+})

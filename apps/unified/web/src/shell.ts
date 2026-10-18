@@ -21,7 +21,7 @@ const NAV: NavItem[] = [
   { to: '/crm/schedule', icon: Calendar, label: 'Schedule', features: ['scheduling'] },
   { to: '/crm/time', icon: Clock, label: 'Time', features: ['time_tracking'] },
   { to: '/crm/expenses', icon: DollarSign, label: 'Expenses', features: ['expense_tracking'] },
-  { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['contacts'] },
+  { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['documents'] },
   { to: '/crm/team', icon: Users, label: 'Team', features: ['team'], permission: 'team:read' },
   { to: '/crm/locations', icon: MapPin, label: 'Locations', features: ['multi_location'], permission: 'locations:read' },
   { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['commission_tracking'], permission: 'commissions:read' },
@@ -92,10 +92,9 @@ export const SHELL: ShellConfig = {
   // '/' is the public website, not a portal.
   backToPortal: false,
   brand: { fallbackName: 'Admin' },
-  // Routes without a menu item, gated as the template gated them (templates/crm/frontend/src/shellConfig.ts).
-  routeGates: {
-    '/crm/pricebook-trial': ['pricebook'],
-  },
+  // Not '/crm/pricebook-trial': ['pricebook'] (the base CRM's): the page offers Pricebook to a business WITHOUT it, so
+  // gating it on pricebook refused everyone it was for. The field-service copy had fixed it (Field Service T28 H2).
+  routeGates: {},
   routeRoles: {
     // The company, billing, email addresses and the feature switches are requireAdmin on the server.
     '/crm/settings': 'admin',

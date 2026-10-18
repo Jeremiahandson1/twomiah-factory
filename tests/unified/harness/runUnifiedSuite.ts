@@ -145,6 +145,9 @@ import { requestScope } from '${rel}/../server/core/audit.ts'
 export { entityFromPath, actionFromPath, describeRequest }
 export const auditWrites = createWriteAuditFloor({ db, schema, log: services.audit.log, scope: requestScope } as any)
 `)
+  // The newer templates' name for the same write floor.
+  w('src/middleware/writeAudit.ts', `export { auditWrites as writeAudit } from './auditWrites.ts'\n`)
+  w('src/utils/sanitize.ts', `export * from '${rel}/../server/core/sanitize.ts'\n`)
   w('src/utils/errors.ts', `export { errorHandler } from '${rel}/../server/http/errors.ts'\nexport const notFound = (message = 'Not found') => Object.assign(new Error(message), { status: 404 })\n`)
   w('src/services/audit.ts', `
 import { services } from '../unified.ts'

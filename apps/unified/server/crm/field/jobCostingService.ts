@@ -154,9 +154,14 @@ export function createJobCostingService(d: CrmDeps) {
 
     const quoteIds = [...quoteToJobs.keys()]
     const projectIds = [...projectToJobs.keys()]
-    if (!quoteIds.length && !projectIds.length) return { byJob, distinct }
+    // The most direct link: an invoice raised FOR the job (invoice.job_id, POST /api/jobs/:id/invoice). Revenue reached a
+    // job only through its quote or project in the base CRM; a service call often has neither, so a billed call showed
+    // cost against no revenue. From the field-service copy (T41), for every vertical now that the column is everyone's.
+    const jobIds = universe.map((j) => j.id)
+    if (!quoteIds.length && !projectIds.length && !jobIds.length) return { byJob, distinct }
 
     const links = [
+      ...(jobIds.length ? [inArray(invoice.jobId, jobIds)] : []),
       ...(quoteIds.length ? [inArray(invoice.quoteId, quoteIds)] : []),
       ...(projectIds.length ? [inArray(invoice.projectId, projectIds)] : []),
     ]
@@ -164,7 +169,7 @@ export function createJobCostingService(d: CrmDeps) {
       id: invoice.id, number: invoice.number, status: invoice.status,
       total: invoice.total, taxAmount: invoice.taxAmount,
       amountPaid: invoice.amountPaid, amountRefunded: invoice.amountRefunded,
-      projectId: invoice.projectId, quoteId: invoice.quoteId,
+      projectId: invoice.projectId, quoteId: invoice.quoteId, jobId: invoice.jobId,
     })
       .from(invoice)
       .where(and(
@@ -180,7 +185,11 @@ export function createJobCostingService(d: CrmDeps) {
         amountPaid: num(r.amountPaid), amountRefunded: num(r.amountRefunded),
         projectId: r.projectId, quoteId: r.quoteId,
       }
-      const direct = inv.quoteId ? quoteToJobs.get(inv.quoteId) : undefined
+      // Most specific link wins: the job the invoice names (never shared across a project's other jobs), then the quote
+      // behind the job, then the project it sits on.
+      const billedJob = r.jobId && byJob.has(r.jobId) ? [r.jobId] : undefined
+      const viaQuote = inv.quoteId ? quoteToJobs.get(inv.quoteId) : undefined
+      const direct = billedJob?.length ? billedJob : viaQuote
       const targets = direct?.length ? direct : (inv.projectId ? projectToJobs.get(inv.projectId) || [] : [])
       if (!targets.length) continue
 

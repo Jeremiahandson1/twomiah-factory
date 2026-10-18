@@ -23,7 +23,7 @@ import { createSiteAdmin, type PhotoStore } from './site/admin.ts'
 import { createSiteRoutes } from './site/routes.ts'
 import { loadSiteContext } from './site/context.ts'
 import { createBookingPages } from './booking/pages.ts'
-import type { VerticalSettings } from './core/vertical.ts'
+import { BASE_CRM, type VerticalSettings } from './core/vertical.ts'
 import { mountAll, type Mount } from './http/registry.ts'
 import { createAdminScreens } from './http/adminScreens.ts'
 import { contentSecurityPolicy, sitePolicy, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
@@ -71,7 +71,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   const enquiryHandler = createEnquiryHandler({ db, vertical, enquiries })
   const realtime = createRealtime()
   const adsConnector = createCrmAdsConnector()
-  const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled })
+  const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled, settings: vertical.crm ?? BASE_CRM })
   const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler, realtime, adsConnector })
   // Card deposits and people's own calendars join with the CRM's payments and calendar sync (CUTOVER_LEDGER).
   const bookings = createBookingModule({ db, vertical, email, logger, permissions })
@@ -128,7 +128,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     // Bookings: the owner's book, the public booking API, the scheduled messages.
     ...bookingMounts(bookings, companyId),
     // The CRM: contacts, jobs, quotes, invoices and every module the shared code carries.
-    ...createCrmModules({ db, audit, logger, authenticate, permissions, features, realtime, services: crm, adsConnector }),
+    ...createCrmModules({ db, audit, logger, authenticate, permissions, features, realtime, services: crm, adsConnector, settings: vertical.crm ?? BASE_CRM }),
     // The website's admin: pages, settings, photos, blog, portfolio, visits.
     { path: '/api/site', access: 'user', router: createSiteAdmin({ db, permissions, store, vertical }) },
     // The admin screens: their page at /login and /crm/*, their files at /crm-assets/*. Before the website.

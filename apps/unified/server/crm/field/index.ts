@@ -26,7 +26,7 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/job-costing', access: 'user', feature: 'job_costing', router: createJobCostingRoutes(d) },
     { path: '/api/routing', access: 'user', router: createRoutingRoutes(d) },
     { path: '/api/maps', access: 'user', router: createMapsRoutes(d) },
-    { path: '/api/geofencing', access: 'user', router: createGeofencingRoutes(d) },
+    { path: '/api/geofencing', access: 'user', feature: 'gps_tracking', router: createGeofencingRoutes(d) },
     { path: '/api/weather', access: 'user', router: createWeatherRoutes(d) },
     { path: '/api/payroll', access: 'user', feature: 'time_tracking', router: createPayrollRoutes(d) },
   ]

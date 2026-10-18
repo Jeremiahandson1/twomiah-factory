@@ -39,6 +39,12 @@ export type JobHook = (ctx: { job: any; companyId: string; userId: string }) => 
 
 export interface JobOptions {
   numbering?: { prefix?: string; pad?: number }
+  /**
+   * A new job's type when none is given, on a job table with a job_type column. The templates each left it to their own
+   * database default ('service' in basic and bar, 'repair' in field service and landscaping); one shared database
+   * needs the vertical to say.
+   */
+  defaultJobType?: string
   /** extra writable columns on this vertical's job table (e.g. equipmentId, siteId) */
   extraFields?: z.ZodRawShape
   /** private object storage for job photos (with tables.jobPhoto) */
@@ -541,6 +547,7 @@ export function createJobRoutes(deps: JobDeps) {
       const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, currentUser.companyId, { prefix, pad })
       const [row] = await tx.insert(t.job).values({
         ...data,
+        ...(o.defaultJobType && t.job.jobType && !(data as any).jobType ? { jobType: o.defaultJobType } : {}),
         number,
         scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
         estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : null,
