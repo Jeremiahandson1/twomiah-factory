@@ -1,10 +1,11 @@
-// Sign-in page — one implementation for every CRM. The template passes its company name.
+// Sign-in page — one implementation for every CRM. The template passes its company name, and `home` where the app's
+// front page is not '/' (the unified app: '/' is the public website, the admin is /crm).
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import { NavLink as RouterLink } from '../invoicing/ui'
 
-export function LoginPage({ companyName }: { companyName: string }) {
+export function LoginPage({ companyName, home = '/' }: { companyName: string; home?: string }) {
   const navigate = useNavigate()
   const { login, completeMfa, error } = useAuth()
   const [formData, setFormData] = useState({ email: '', password: '' })
@@ -34,7 +35,7 @@ export function LoginPage({ companyName }: { companyName: string }) {
         })
         return
       }
-      navigate('/')
+      navigate(home)
     } catch (err) {
       setLocalError((err as Error).message || 'Login failed')
     } finally {
@@ -49,7 +50,7 @@ export function LoginPage({ companyName }: { companyName: string }) {
     setLocalError('')
     try {
       await completeMfa(challenge.id, code.trim())
-      navigate('/')
+      navigate(home)
     } catch (err) {
       setLocalError((err as Error).message || 'That code was not accepted')
       setCode('')

@@ -47,6 +47,11 @@ export interface LeadsDeps {
    * is handed the lead-source WEBHOOK SECRET. Not wired → shown, so an un-rewired template is unchanged.
    */
   canSee?: (role: string, permission: string, userId?: string) => Promise<boolean>
+  /**
+   * The lead_inbox feature gate, run after sign-in on the inbox routes (not the inbound ones, which carry their own
+   * secrets). Not wired → ungated, as every template has run it: their menu hid the inbox and the API still answered.
+   */
+  requireFeature?: any
   /** process.env by default: TENANT_ID (Factory tenant id → inbound prefix), FACTORY_SYNC_KEY (X-Factory-Key), FRONTEND_URL. */
   env?: Record<string, string | undefined>
   options?: LeadsOptions
@@ -190,6 +195,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
 
   // ─── Authenticated ──────────────────────────────────────────────────────────
   app.use('*', authenticate)
+  if (deps.requireFeature) app.use('*', deps.requireFeature)
 
   const sourceCreateSchema = z.object({
     platform: z.string().trim().regex(PLATFORM_RE, 'Invalid platform'),

@@ -20,11 +20,13 @@ what must happen to the original at cutover, so no second copy survives
 | `apps/unified/site/public/styles/main.css`, `site/designs/*.css` | each template's `build/styles/main.css` | The base plus every section's styles once; each design's site-wide flourishes on top. Dropped as dead: the old `.before-after`/`.ba-card` slider styles and roofing's pre-July `.trust` badges. Colours filled per request from the company row instead of at build. |
 | `apps/unified/server/site/*` (routes, render, context, inventory feed, enquiry handler) | `templates/website-premium-*/server-static.ts` public routes, `handleLead`, `markdownToHtml`, feed code | The enquiry goes straight into the CRM's routing (`core/enquiry.ts`) instead of a webhook. One address setting: `SITE_URL` (the site also read `SITE_ORIGIN`; the Factory sets only `SITE_URL` from cutover). |
 | `apps/unified/server/core/brandColour.ts` `accentOnLight` | `apps/api/src/services/generator.ts` `accentOnLight` | `{{ACCENT_COLOR_ON_LIGHT}}`. |
+| `apps/unified/web/src/site/**` (the website screens) | `templates/website-premium-*/admin/src/**` (identical in all eleven) | Pages, page editor with live preview, photos, blog, portfolio (was "projects"), website settings, the overview with visits. One list screen and one editor serve the blog and the portfolio (the site had a copy each); one "new item" dialog for all three. `confirm()` is the shared in-app dialog; every colour has its dark pair (measured, both themes). Not moved, replaced by the shared screens: sign-in, forgot/reset password, account, users, billing, email, audit, leads. Not moved yet: bookings (2d), the domain page (Factory step), email verification (see below). |
+| `apps/unified/web/src/index.css`, `web/tailwind.config.ts` | `templates/crm/frontend/src/index.css` + crm-restaurant's white-surface and page-title rules; `templates/crm*/frontend/tailwind.config.js` | The brand colour is CSS variables set from the company at runtime, not baked in at build. The white-surface rule is written `[class~="bg-white"]` — see the last section. |
 
 ## Website pieces that arrive in later steps (not lost)
 
 - Bookings (`/book`, `/booking/:token`, the iCal feed, calendar sync, deposits): step 2d, on the one booking engine.
-- The website admin and its API, `/customize/:token`, photo uploads and the `/media/*` proxy: step 2c.
+- The website admin and its API, photo uploads and the `/media/*` proxy: step 2c (done). `/customize/:token`: not yet.
 - The dispensary's live menu and pickup orders (`/menu`, `/api/order`): with the dispensary add-on (it is the CRM's own menu now).
 - The roofer's instant estimator (`/estimate`): with the roofing add-on.
 - A/B experiments (`scripts/ab.js`): with the CRM's ads module (step 3); until then the script isn't loaded.
@@ -63,3 +65,31 @@ what must happen to the original at cutover, so no second copy survives
   email-address verification. Decide whether the one app needs them.
 - Feature catalogue is keyed by the CRM template name (`vertical.featureSet`); re-key
   it by vertical when the CRMs move in.
+
+## Step 2c (admin screens)
+
+- One React app (`apps/unified/web`, built to `web/dist`) served by the server at the
+  sign-in paths and `/crm/*`, its files at `/crm-assets/*` (`server/http/adminScreens.ts`,
+  a registry mount of its own kind, before the website). **The Factory's Render build
+  command must run `bun run build:web`**; without the build the admin answers 503 and
+  says so.
+- The shared client takes its session mode from the build (`VITE_AUTH_MODE=cookie`), so
+  the shared screens that import the app-wide `api` work unchanged.
+- Shared screens the admin imports are listed in `web/src/shared.ts` (not the package
+  index, which pulls every CRM module and its third-party libraries).
+- Two optional calls answer 404 until their modules arrive in step 3, and the screens
+  leave the part out: Settings › Features asks `/api/integrations/status` (the "needs a
+  connection" note), Billing asks `/api/messaging-billing/status` (the texting wallet).
+- The header search box and the live-updates dot are off (`ShellConfig.search`, no
+  `connected`): no search endpoint or socket yet (step 3).
+- Lead Inbox: the server now refuses it with `lead_inbox` off, as the menu hides it
+  (the templates gated only the menu). Switching a feature on in Settings now clears the
+  server's feature cache at once (it waited up to 15 s).
+- The site designs are the seven distinct looks: `classic` (the contractor, RV and vet
+  templates all served the base alone) plus the six with their own stylesheet.
+- The editor's live preview is not counted as a visit (a same-origin frame).
+- **Found in the live templates, not fixed (fenced):** crm-restaurant and crm-rv write the
+  white-surface rule as `.bg-white:not([class*="dark:bg-"])`, and their `.card` does
+  `@apply bg-white` — Tailwind copies the rule onto `.card`, pinning gray-900 text on
+  every dark-mode card (measured 1.01:1 in the unified build before the fix). No live
+  customer runs either template.

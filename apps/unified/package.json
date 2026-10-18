@@ -7,18 +7,26 @@
   "scripts": {
     "start": "bun server/db/migrate.ts && bun server/index.ts",
     "dev": "bun --watch server/index.ts",
-    "db:generate": "bunx drizzle-kit generate"
+    "db:generate": "bunx drizzle-kit generate",
+    "build:web": "vite build --config web/vite.config.ts",
+    "dev:web": "vite --config web/vite.config.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.658.0",
     "@paralleldrive/cuid2": "^2.2.2",
     "@twomiah/tenant-backend": "workspace:*",
+    "@twomiah/tenant-ui": "workspace:*",
+    "clsx": "^2.1.1",
     "drizzle-orm": "^0.36.4",
     "ejs": "^3.1.9",
     "hono": "^4.6.14",
     "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.344.0",
     "nodemailer": "^6.9.12",
     "pg": "^8.13.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.22.1",
     "sharp": "^0.33.2",
     "stripe": "^20.3.0",
     "winston": "^3.11.0",
@@ -31,7 +39,14 @@
     "@types/jsonwebtoken": "^9.0.7",
     "@types/nodemailer": "^6.4.17",
     "@types/pg": "^8.11.10",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
     "drizzle-kit": "^0.28.1",
-    "typescript": "^5.6.3"
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.1.4"
   }
 }

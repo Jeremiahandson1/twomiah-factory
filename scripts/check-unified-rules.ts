@@ -100,10 +100,11 @@ export function checkUnified(root: string, opts: { drift?: boolean; repoRoot?: s
     if (keys !== ids) add('§5 ids', f, `a primary key other than the standard id (${keys} primary keys, ${ids} standard)`)
   }
 
-  // §6 Mounting only through server/http/registry.ts; no /api route declared by hand.
+  // §6 Mounting only through server/http/registry.ts; no /api route declared by hand. web/ is the browser: it CALLS
+  // routes (api.get('/api/…')) and declares none.
   for (const f of ts) {
     const r = rel(f)
-    if (r === 'server/http/registry.ts' || r.startsWith('tests/')) continue
+    if (r === 'server/http/registry.ts' || r.startsWith('tests/') || r.startsWith('web/')) continue
     const c = code(fs.readFileSync(f, 'utf8'))
     // A router may compose another at its own root (.route('/', inner)): that adds no path. Any other mount is the registry's.
     for (const m of c.matchAll(/\.\s*route\s*\(\s*(?!(['"`])\/\1\s*,)/g)) add('§6 mounting', f, `line ${lineOf(c, m.index!)}: mount routers through server/http/registry.ts`)

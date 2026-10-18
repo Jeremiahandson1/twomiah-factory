@@ -1,7 +1,7 @@
 name: Unified app
 
 # The unified app's own checks (docs/RULEBOOK.md), on every push to the engine branch. A push that breaks a rule,
-# reaches outside the fence, adds a type error or fails a test does not pass.
+# reaches outside the fence, adds a type error, fails a test or breaks the admin build does not pass.
 
 on:
   push:
@@ -35,3 +35,6 @@ jobs:
       - name: Tests — boot, rule mutations, fence
         working-directory: apps/unified
         run: bun test tests
+      - name: Admin screens build
+        working-directory: apps/unified
+        run: bun run build:web

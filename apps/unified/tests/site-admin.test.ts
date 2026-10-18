@@ -85,6 +85,23 @@ describe("the website's settings", () => {
     expect(await (await t.call('/styles/main.css')).text()).toContain('Season-aware delight')
   })
 
+  test('the designs on offer are the distinct looks, the vertical\'s marked as the default', async () => {
+    const body = await (await as('manager', '/api/site/designs')).json()
+    expect(body.data.map((d: any) => d.id)).toEqual(['classic', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase'])
+    expect(body.data.filter((d: any) => d.isDefault).map((d: any) => d.id)).toEqual(['classic'])
+    expect((await as('staff', '/api/site/designs')).status).toBe(403)
+  })
+
+  test('the preview in the editor is not counted as a visit; a real visit is', async () => {
+    const before = (await (await as('owner', '/api/site/analytics')).json()).viewsLast30
+    await t.call('/', { headers: { 'Sec-Fetch-Dest': 'iframe', 'Sec-Fetch-Site': 'same-origin' } })
+    await Bun.sleep(50)
+    expect((await (await as('owner', '/api/site/analytics')).json()).viewsLast30).toBe(before)
+    await t.call('/', { headers: { 'Sec-Fetch-Dest': 'document', 'Sec-Fetch-Site': 'none' } })
+    await Bun.sleep(50)
+    expect((await (await as('owner', '/api/site/analytics')).json()).viewsLast30).toBe(before + 1)
+  })
+
   test('an inventory feed must be https', async () => {
     expect((await as('owner', '/api/site/settings', { method: 'PATCH', json: { inventoryFeedUrl: 'http://feed.example/units.json' } })).status).toBe(400)
   })

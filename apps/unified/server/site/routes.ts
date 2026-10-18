@@ -87,9 +87,17 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     return items
   }
   const visionOrigin = () => { try { const u = new URL(String(vertical.visionUrl?.() || '')); return u.protocol === 'https:' ? u.origin : '' } catch { return '' } }
+  /**
+   * Count a visit — unless it is the admin's live preview: a same-origin frame (the browser sets both headers; a page
+   * can't). Every save reloads the preview, which counted the owner's own edits as traffic.
+   */
+  function count(c: Context, ctx: SiteContext, pathname: string) {
+    if (c.req.header('sec-fetch-dest') === 'iframe' && c.req.header('sec-fetch-site') === 'same-origin') return
+    countView(db, ctx.companyId, pathname)
+  }
   /** Render, count the visit, answer. */
   async function page200(c: Context, ctx: SiteContext, pathname: string, sections: any[], meta: PageMeta) {
-    countView(db, ctx.companyId, pathname)
+    count(c, ctx, pathname)
     return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx) }))
   }
 
@@ -286,7 +294,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
         </a>`
         }).join('') + '</div>'
     const body = '<section class="blog-section"><div class="container"><h1 class="blog-section__title">From the blog</h1>' + listHtml + '</div></section>'
-    countView(db, ctx.companyId, '/blog')
+    count(c, ctx, '/blog')
     return c.html(await renderBody(ctx, body, {
       siteOrigin: siteOrigin(c), homeHref: '/', contactHref: '/contact',
       seoTitle: 'Blog · ' + ctx.settings.companyName,
@@ -310,7 +318,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       <div class="blog-post__body">${markdownToHtml(p.body || '')}</div>
     </div>
   </article>`
-    countView(db, ctx.companyId, '/blog/' + p.slug)
+    count(c, ctx, '/blog/' + p.slug)
     return c.html(await renderBody(ctx, body, {
       siteOrigin: siteOrigin(c), homeHref: '/', contactHref: '/contact',
       seoTitle: p.metaTitle || p.title + ' — ' + ctx.settings.companyName,

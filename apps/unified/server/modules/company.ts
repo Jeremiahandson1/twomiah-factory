@@ -23,7 +23,7 @@ export interface CompanyModuleDeps {
   email: EmailService
   authenticate: any
   permissions: any
-  features: { forgetFeatures: (companyId?: string) => void }
+  features: { forgetFeatures: (companyId?: string) => void; requireEnabledFeature: (feature: string | string[]) => any }
   /** The public enquiry endpoint, answered before the lead inbox's own sign-in (site/enquiryHandler.ts). */
   enquiryHandler: (c: any) => Promise<Response>
 }
@@ -44,6 +44,8 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     requirePermission: permissions.requirePermission, requireAnyPermission: permissions.requireAnyPermission,
     canSee, invalidateExtraPermissions: permissions.invalidateExtraPermissions, roleLabel: permissions.roleLabel,
     audit, template: vertical.featureSet,
+    // The owner's switch takes effect on the next request, not after the gate's 15-second cache.
+    onFeaturesChanged: () => deps.features.forgetFeatures(),
     sendInvite: (to: string, data: any) => email.sendTeamInvite(to, { ...data, inviteLink: `${process.env.FRONTEND_URL || ''}/reset-password?token=${data.resetToken}` }),
   } as any)
 
@@ -62,6 +64,8 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     .post('/', (c) => deps.enquiryHandler(c))
     .route('/', createLeadsRoutes({
       db, tables: { lead, leadSource, contact }, authenticate, requirePermission: permissions.requirePermission, canSee,
+      // The inbox is the lead_inbox feature's, on the server as in the menu; the enquiry form above is everyone's.
+      requireFeature: deps.features.requireEnabledFeature('lead_inbox'),
       // No live updates yet (the CRM's socket server arrives with step 3); a new lead shows on the next load.
       emitToCompany: () => {}, EVENTS: { LEAD_CREATED: 'lead:created', LEAD_UPDATED: 'lead:updated', CONTACT_CREATED: 'contact:created' },
       audit, options: { platforms: TRADES_LEAD_PLATFORMS, contactType: 'lead' },

@@ -45,6 +45,8 @@ export interface ApiClientOptions {
    * Where the session lives. 'storage' (the default, every CRM template and the mobile app): the tokens come back in
    * the sign-in reply and are kept in localStorage. 'cookie' (the unified app): the server keeps them in httpOnly
    * cookies the page can't read, and this client never holds a credential (tenant-backend auth/cookieSession.ts).
+   * Default: the build's VITE_AUTH_MODE, so the app-wide `api` below — which the shared screens import directly — runs
+   * in the mode of the app that built it.
    */
   authMode?: 'storage' | 'cookie'
 }
@@ -130,7 +132,7 @@ export class ApiClient {
   constructor(options: ApiClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? ((import.meta as any).env?.VITE_API_URL || '')
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-    this.authMode = options.authMode ?? 'storage'
+    this.authMode = options.authMode ?? ((import.meta as any).env?.VITE_AUTH_MODE === 'cookie' ? 'cookie' : 'storage')
     this.memAccessToken = this.authMode === 'cookie' ? null : storage.get(ACCESS_KEY)
     this.memRefreshToken = this.authMode === 'cookie' ? null : storage.get(REFRESH_KEY)
   }

@@ -18,7 +18,9 @@ import type { SiteContext } from '../server/site/context.ts'
 import { accentOnLight, DEFAULT_ACCENT } from '../server/core/brandColour.ts'
 
 const TEMPLATES = path.resolve(import.meta.dir, '..', '..', '..', 'templates')
+// The template families compared (website-premium-<family>), and the design each one's look is in the unified app.
 const DESIGNS = ['contractor', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'rv', 'showcase', 'vet'] as const
+const designOf = (family: typeof DESIGNS[number]): SiteContext['design'] => (family === 'contractor' || family === 'rv' || family === 'vet' ? 'classic' : family)
 const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ejs', 'sections/contact/form-info.ejs'])
 
 /** Each template's words, as its own views and server said them. */
@@ -46,7 +48,7 @@ const SETTINGS = {
 
 function ctxFor(design: typeof DESIGNS[number]): SiteContext {
   return {
-    companyId: 'co_test', slug: 'westridge', settings: SETTINGS, design, words: WORDS[design],
+    companyId: 'co_test', slug: 'westridge', settings: SETTINGS, design: designOf(design), words: WORDS[design],
     options: { textSizeToggle: design === 'homecare' }, colours: { primary: SETTINGS.primaryColor, accent: SETTINGS.accentColor },
   }
 }

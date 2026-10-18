@@ -1,0 +1,267 @@
+/* The admin's stylesheet: templates/crm/frontend/src/index.css, plus crm-restaurant's two dark-mode rules (the white
+   surface and the page title, which the other templates never received), plus the website screens' colour names and
+   button sizes — each name with a light and a dark value, so the website screens read in both themes. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* The website screens' colours (tailwind.config.ts: ink, ink-soft, muted, line, paper), as RGB triples. Light:
+     slate-900/700/500 ink on white (muted 4.76:1); dark: slate-100/300/400 on slate-900 (muted 6.96:1). Paper is the
+     panel and hover ground: near-white in light, slate-800 in dark. */
+  :root {
+    --ui-ink: 15 23 42;
+    --ui-ink-soft: 51 65 85;
+    --ui-muted: 100 116 139;
+    --ui-line: 229 231 235;
+    --ui-paper: 250 250 247;
+  }
+  .dark {
+    --ui-ink: 241 245 249;
+    --ui-ink-soft: 203 213 225;
+    --ui-muted: 148 163 184;
+    --ui-line: 51 65 85;
+    --ui-paper: 30 41 59;
+  }
+
+  * {
+    @apply border-gray-200 dark:border-slate-700;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply dark:bg-slate-950 dark:text-slate-100;
+  }
+
+  /* Dark mode was half-applied: the page went dark but white cards stayed white, so any value on them with no
+     explicit color inherited the body's light text and vanished (H-04). White surfaces always carry dark text;
+     explicit text-* utilities still win since this is @layer base. Only a surface that STAYS white: an element
+     written `bg-white … dark:bg-slate-900` keeps the .bg-white class in dark mode, and pinning gray-900 ink on it
+     there is 1.01:1 (crm-restaurant T42, crm-rv's Accounting table).
+     Written as an attribute, not `.bg-white`: `@apply bg-white` (in .card below) copies every rule whose selector
+     names the class, so `.bg-white:not(…)` became `.card:not(…)` and pinned gray-900 on every dark card, beating its
+     own text-* classes — measured 1.01:1. */
+  [class~="bg-white"]:not([class*="dark:bg-"]) {
+    @apply text-gray-900;
+  }
+
+  /* Page titles sit on the page background, not a card — in dark mode a text-gray-900 heading rendered dark-on-dark
+     and vanished (H-04). Keep h1 light in dark mode; explicit dark:text-* on a heading still wins. */
+  h1 {
+    @apply dark:text-white;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply text-gray-900 dark:text-slate-100;
+    /* dark-mode field background so typed text isn't invisible (CC-36) */
+    @apply dark:bg-slate-800 dark:border-slate-700;
+  }
+  /* Placeholder ink for the STANDARD field grounds — white/gray-50 in light, slate-800…950 in dark — at 4.5:1 or
+     better on each (gray-500 4.83/4.63; slate-400 5.71–7.87). Tailwind's own default is gray-400, 2.54:1 on white. */
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-gray-500 dark:text-slate-400;
+  }
+
+  /* Dark-mode fallback for form fields. Many inputs hardcode `bg-white border-gray-300` inline, which beats the bare
+     element rule above and left them glaring white on the dark theme. `.dark input` (element+class) outranks a lone
+     `.bg-white`, so these apply — while any input that sets its own `dark:` utilities (two classes) still wins over
+     this. Checkboxes/radios keep their own styling. */
+  .dark input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  .dark select,
+  .dark textarea {
+    @apply bg-slate-800 border-slate-600 text-slate-100; /* placeholder ink: the base rule above */
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100 dark:bg-slate-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full dark:bg-slate-700;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-slate-600;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply bg-brand-500 text-white hover:bg-brand-600 focus:ring-brand-500 shadow-lg;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400;
+    @apply dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600 dark:focus:ring-slate-500;
+  }
+
+  .btn-ghost {
+    @apply bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:ring-gray-400;
+    @apply dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white dark:focus:ring-slate-500;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+
+  /* The website screens write a colour and a size ("btn-primary btn-md") and no .btn, so each size carries the
+     button's shape as well; the colours are the CRM's above. */
+  .btn-lg,
+  .btn-md,
+  .btn-sm {
+    @apply inline-flex items-center justify-center gap-1.5 font-semibold rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-900 disabled:cursor-not-allowed;
+  }
+
+  .btn-lg {
+    @apply px-5 py-2.5 text-[15px];
+  }
+
+  .btn-md {
+    @apply px-4 py-2 text-sm;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .card {
+    @apply bg-white border border-gray-200 rounded-xl;
+    @apply dark:bg-slate-900 dark:border-slate-800;
+  }
+
+  .card-header {
+    @apply px-6 py-4 border-b border-gray-200 dark:border-slate-800;
+  }
+
+  .card-body {
+    @apply p-6;
+  }
+
+  .card-padding {
+    @apply p-6;
+  }
+
+  .input {
+    @apply w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all;
+    @apply dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1.5;
+    @apply dark:text-slate-300;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400;
+  }
+
+  .badge-warning {
+    @apply bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400;
+  }
+
+  .badge-danger {
+    @apply bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400;
+  }
+
+  .badge-info {
+    @apply bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400;
+  }
+
+  .table-container {
+    @apply overflow-x-auto;
+  }
+
+  .table {
+    @apply w-full text-sm text-left;
+  }
+
+  .table th {
+    @apply px-4 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 bg-gray-50;
+    @apply dark:text-slate-400 dark:bg-slate-800/50;
+  }
+
+  .table td {
+    @apply px-4 py-3 border-t border-gray-200 dark:border-slate-800;
+  }
+
+  .table tr:hover td {
+    @apply bg-gray-50 dark:bg-slate-800/30;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-600 rounded-lg transition-colors hover:bg-gray-100 hover:text-gray-900;
+    @apply dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white;
+  }
+
+  .sidebar-link.active {
+    @apply bg-brand-50 text-brand-700 border-l-2 border-brand-500;
+    @apply dark:bg-brand-500/10 dark:text-brand-200;
+  }
+
+  .stat-card {
+    @apply card p-5;
+  }
+
+  .stat-value {
+    @apply text-2xl font-bold text-gray-900 dark:text-white;
+  }
+
+  .stat-label {
+    @apply text-sm text-gray-500 mt-1 dark:text-slate-400;
+  }
+
+  .feature-checkbox {
+    @apply w-5 h-5 rounded border-2 border-gray-300 bg-white checked:bg-brand-500 checked:border-brand-500 focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-white transition-colors cursor-pointer;
+    @apply dark:border-slate-600 dark:bg-slate-800 dark:focus:ring-offset-slate-900;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-400 to-amber-400 bg-clip-text text-transparent;
+  }
+
+  .glow-brand {
+    box-shadow: 0 0 40px -10px theme('colors.brand.500');
+  }
+}
+
+select, option { color: inherit; background-color: inherit; }
+
+/* Google Places autocomplete dropdown — dark theme (pac-container is appended to <body>) */
+.dark .pac-container {
+  background-color: #0f172a; /* slate-900 */
+  border-color: #334155; /* slate-700 */
+  color: #e2e8f0; /* slate-200 */
+}
+.dark .pac-item {
+  border-top-color: #334155;
+  color: #cbd5e1; /* slate-300 */
+}
+.dark .pac-item:hover,
+.dark .pac-item-selected {
+  background-color: #1e293b; /* slate-800 */
+}
+.dark .pac-item-query,
+.dark .pac-matched {
+  color: #f1f5f9; /* slate-100 */
+}
+.dark .pac-icon {
+  filter: invert(0.85);
+}

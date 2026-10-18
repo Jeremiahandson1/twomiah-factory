@@ -21,13 +21,13 @@ export function memoryStore() {
   }
 }
 
-export async function bootTenant(opts: { vertical?: string } = {}) {
+export async function bootTenant(opts: { vertical?: string; adminDist?: string } = {}) {
   const client = new PGlite()
   const db = drizzle(client, { schema })
   await migrate(db, { migrationsFolder: MIGRATIONS })
   const vertical = await loadVertical(opts.vertical ?? 'contractor')
   const store = memoryStore()
-  const { app, services } = createApp({ db, vertical, store })
+  const { app, services } = createApp({ db, vertical, store, adminDist: opts.adminDist })
   const call = (path: string, init: RequestInit & { json?: unknown } = {}) => {
     const headers = new Headers(init.headers)
     let body = init.body

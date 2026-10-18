@@ -1,8 +1,11 @@
 // The unified server boots on an empty database and its core holds: sign-in, the one API door, feature switches,
-// the Factory's key, paging, replies in the rulebook's shapes, and an audit row for a sign-in.
+// the Factory's key, paging, replies in the rulebook's shapes, an audit row for a sign-in, and the admin screens served.
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { bootTenant, seedOwner } from './harness.ts'
 import { mountAll } from '../server/http/registry.ts'
 import { one } from '../server/http/reply.ts'
@@ -191,5 +194,58 @@ describe('the one API door (registry)', () => {
       { path: '/api/twice', access: 'public', router: probe() },
       { path: '/api/twice', access: 'public', router: probe() },
     ], {} as any)).toThrow('declared twice')
+  })
+
+  test('the admin screens mount once, before the website, and the website and they share "/"', () => {
+    const site = { path: '/', site: true as const, access: 'public' as const, router: probe() }
+    const admin = { path: '/', admin: true as const, access: 'public' as const, router: probe() }
+    expect(() => mountAll(new Hono(), [admin, site], {} as any)).not.toThrow()
+    expect(() => mountAll(new Hono(), [site, admin], {} as any)).toThrow('before the website')
+    expect(() => mountAll(new Hono(), [admin, { ...admin }], {} as any)).toThrow('declared twice')
+  })
+})
+
+describe('the admin screens', () => {
+  const dist = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-dist-'))
+  fs.mkdirSync(path.join(dist, 'assets'))
+  fs.writeFileSync(path.join(dist, 'index.html'), '<!doctype html><html><head><title>Admin</title><script type="module" src="/crm-assets/assets/app-1a2b.js"></script></head><body><div id="root"></div></body></html>')
+  fs.writeFileSync(path.join(dist, 'assets', 'app-1a2b.js'), 'console.log(1)')
+  let a: Awaited<ReturnType<typeof bootTenant>>
+  beforeAll(async () => {
+    a = await bootTenant({ adminDist: dist })
+    await a.db.insert(a.schema.company).values({ name: 'Smith & Sons', slug: 'smith-sons' })
+  })
+
+  test('the sign-in pages and everything under /crm are the admin page, named for the business, never cached', async () => {
+    for (const p of ['/login', '/forgot-password', '/reset-password?token=x', '/crm', '/crm/website/pages/home']) {
+      const res = await a.call(p)
+      expect(res.status).toBe(200)
+      expect(res.headers.get('cache-control')).toBe('no-store')
+      const html = await res.text()
+      expect(html).toContain('<meta name="company-name" content="Smith &amp; Sons">')
+      expect(html).toContain('<title>Smith &amp; Sons · Admin</title>')
+    }
+  })
+
+  test('its built files are served for good; nothing outside the build, and not the page itself', async () => {
+    const js = await a.call('/crm-assets/assets/app-1a2b.js')
+    expect(js.status).toBe(200)
+    expect(js.headers.get('content-type')).toContain('text/javascript')
+    expect(js.headers.get('cache-control')).toContain('immutable')
+    expect((await a.call('/crm-assets/index.html')).status).toBe(404)
+    expect((await a.call('/crm-assets/..%2F..%2Fpackage.json')).status).toBe(404)
+    expect((await a.call('/crm-assets/assets/missing.js')).status).toBe(404)
+  })
+
+  test('the public website keeps its own paths', async () => {
+    expect((await a.call('/')).headers.get('content-type')).toContain('text/html')
+    expect(await (await a.call('/')).text()).not.toContain('company-name')
+  })
+
+  test('a server without the build says so instead of a blank page', async () => {
+    const bare = await bootTenant({ adminDist: path.join(dist, 'nope') })
+    const res = await bare.call('/crm')
+    expect(res.status).toBe(503)
+    expect(await res.text()).toContain('build:web')
   })
 })

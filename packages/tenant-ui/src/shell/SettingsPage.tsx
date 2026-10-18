@@ -44,7 +44,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   // behaviour. (T30 M-R1)
   const can = (auth as any).can as ((permission: string) => boolean) | undefined
   const editsCompany = can ? can('company:update') : true
-  const subPages = SUB_PAGES.filter((sp) => meetsRole((user as any)?.role, sp.needs))
+  const subPages = SUB_PAGES.filter((sp) => meetsRole((user as any)?.role, sp.needs) && (!config?.subPages || config.subPages.includes(sp.to)))
   const roles = config?.roles && config.roles.length ? config.roles : DEFAULT_ROLES
   /**
    * What this vertical calls a rung. The table used the fleet-wide ROLE_LABELS ("field" → "Staff") while

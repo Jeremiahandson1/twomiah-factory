@@ -19,6 +19,7 @@ import { createSiteAdmin, type PhotoStore } from './site/admin.ts'
 import { createSiteRoutes } from './site/routes.ts'
 import type { VerticalSettings } from './core/vertical.ts'
 import { mountAll, type Mount } from './http/registry.ts'
+import { createAdminScreens } from './http/adminScreens.ts'
 import { contentSecurityPolicy, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
 import { errorHandler } from './http/errors.ts'
 import { fail, one } from './http/reply.ts'
@@ -33,7 +34,7 @@ function sharedPhotoStore(): PhotoStore {
   return { put: (k, b, t) => s.put(k, b, t), getObject: (k) => s.getObject(k), remove: async (k) => { s.deleteFile(k) } }
 }
 
-export function createApp(deps: { db: any; vertical: VerticalSettings; store?: PhotoStore }) {
+export function createApp(deps: { db: any; vertical: VerticalSettings; store?: PhotoStore; adminDist?: string }) {
   const { db, vertical } = deps
   const store = deps.store ?? sharedPhotoStore()
 
@@ -101,7 +102,15 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     // The company, its people, billing, email addresses, the lead inbox (and the public enquiry), the audit log.
     ...companyModules.mounts,
     // The website's admin: pages, settings, photos, blog, portfolio, visits.
-    { path: '/api/site', access: 'user', router: createSiteAdmin({ db, permissions, store }) },
+    { path: '/api/site', access: 'user', router: createSiteAdmin({ db, permissions, store, vertical }) },
+    // The admin screens: their page at /login and /crm/*, their files at /crm-assets/*. Before the website.
+    {
+      path: '/', admin: true, access: 'public',
+      router: createAdminScreens({
+        distDir: deps.adminDist,
+        companyName: async () => (await db.select({ name: company.name }).from(company).orderBy(asc(company.createdAt)).limit(1))[0]?.name ?? null,
+      }),
+    },
     // The public website. Last: its /:slug catch-all must come after every other path.
     { path: '/', site: true, access: 'public', router: createSiteRoutes({ db, vertical, enquiries: enquiryHandler, store }) },
   ]

@@ -61,7 +61,7 @@ function RouterLink({ to, end, className, children, onClick, role, ...rest }: { 
 // 200 clears 4.5:1 for EVERY hue (worst 7.24:1, at hue 240); 300 does not (worst 3.33:1). (Salon T20 M6)
 const linkCls = (active: boolean) => `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-200' : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'}`
 
-export function AppShell({ api, auth, connected = false, config }: AppShellProps) {
+export function AppShell({ api, auth, connected, config }: AppShellProps) {
   const { user, company, logout, hasFeature } = auth
   // A template that has not been rewired hands us no `can`, and its whole menu must still render.
   const can = auth.can || (() => true)
@@ -298,10 +298,10 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
               <Menu className="w-6 h-6" />
             </button>
 
-            <div className="flex-1 max-w-md ml-4"><GlobalSearch api={api} placeholder={config.searchPlaceholder} /></div>
+            <div className="flex-1 max-w-md ml-4">{config.search !== false && <GlobalSearch api={api} placeholder={config.searchPlaceholder} />}</div>
 
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`} title={connected ? 'Connected' : 'Disconnected'} aria-label={connected ? 'Real-time updates connected' : 'Real-time updates disconnected'} />
+              {connected !== undefined && <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`} title={connected ? 'Connected' : 'Disconnected'} aria-label={connected ? 'Real-time updates connected' : 'Real-time updates disconnected'} />}
 
               <button type="button" onClick={() => setTheme(isDark ? 'light' : 'dark')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg" aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} title={isDark ? 'Light mode' : 'Dark mode'}>
                 {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-gray-600 dark:text-slate-400" />}

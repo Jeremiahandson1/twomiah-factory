@@ -9,7 +9,7 @@ const contractor: VerticalSettings = {
   // Exterior Visualizer: the screens open company.visionUrl when the feature is on.
   visionUrl: () => process.env.VISION_URL || null,
   site: {
-    design: 'contractor',
+    design: 'classic',
     words: {
       contactAddressLabel: 'Office',
       contactMessageLabel: "What you're working on",

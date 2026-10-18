@@ -23,9 +23,18 @@ export interface VerticalSettings {
   site: SiteSettings
 }
 
-/** The site designs: each premium template family's look (site/designs/<id>.css; contractor is the base alone). */
-export const SITE_DESIGNS = ['contractor', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'rv', 'showcase', 'vet'] as const
+/**
+ * The site designs: the distinct looks of the premium template families (site/designs/<id>.css on top of the base).
+ * 'classic' is the base alone — the contractor, RV and vet templates all served it, so it is one look, not three.
+ */
+export const SITE_DESIGNS = ['classic', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase'] as const
 export type SiteDesign = typeof SITE_DESIGNS[number]
+
+/** What the website settings call each design. */
+export const SITE_DESIGN_LABELS: Record<SiteDesign, string> = {
+  classic: 'Classic', dispensary: 'Dispensary', fieldservice: 'Field service', homecare: 'Home care',
+  landscaping: 'Landscaping', roofing: 'Roofing', showcase: 'Showcase',
+}
 
 export interface SiteSettings {
   /** The design a new site starts with; the owner's site row can choose another. */

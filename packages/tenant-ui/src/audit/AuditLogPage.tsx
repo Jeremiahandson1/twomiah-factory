@@ -32,7 +32,7 @@ import { Shield, Search, User } from 'lucide-react'
 import { field, who, whatChanged, humanise, asInstant } from './auditFields'
 
 export interface AuditLogApi {
-  get: (path: string, params?: Record<string, unknown>) => Promise<any>
+  get: (path: string, params?: Record<string, string | number | boolean | undefined | null>) => Promise<any>
 }
 export interface AuditLogPageProps {
   api: AuditLogApi
@@ -150,7 +150,7 @@ export function AuditLogPage({ api, toast, timeZone, canReadUsers = false }: Aud
   const loadLogs = useCallback(async () => {
     setLoading(true)
     try {
-      const params: Record<string, unknown> = { page, limit: 50 }
+      const params: Record<string, string | number> = { page, limit: 50 }
       if (actionFilter) params.action = actionFilter
       if (entityFilter) params.entity = entityFilter
       if (userFilter) params.userId = userFilter

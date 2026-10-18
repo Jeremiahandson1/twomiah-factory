@@ -14,7 +14,8 @@ export const CSP = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
   "connect-src 'self' https: wss:",
-  "frame-src blob: https://js.stripe.com https://hooks.stripe.com https://www.google.com https://maps.google.com",
+  // 'self': the website editor shows the site itself in a frame (web/src/site/pages/PageEditPage.tsx).
+  "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://www.google.com https://maps.google.com",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

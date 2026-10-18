@@ -13,7 +13,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
 import { site, page, post, portfolioItem, photo, pageView, lead, contact } from '../db/schema/index.ts'
-import { SITE_DESIGNS } from '../core/vertical.ts'
+import { SITE_DESIGNS, SITE_DESIGN_LABELS, type VerticalSettings } from '../core/vertical.ts'
 import { list, one, fail, done } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
 import { RESERVED_SLUGS, SLUG_RE } from './slugs.ts'
@@ -43,7 +43,7 @@ const SETTINGS_TEXT: Array<[keyof typeof site.$inferInsert, number]> = [
   ['googleTagManagerId', 40], ['googleAnalyticsId', 40], ['googleAdsId', 40], ['facebookPixelId', 40], ['microsoftClarityId', 40],
 ]
 
-export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoStore }) {
+export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoStore; vertical: VerticalSettings }) {
   const { db, store } = deps
   const may = deps.permissions.requirePermission as (p: string) => any
   const app = new Hono<AppEnv>()
@@ -130,6 +130,12 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
 
   // ── The website's settings ──────────────────────────────────────────────
   app.get('/settings', may('site:read'), async (c) => one(c, await siteRow(c.get('user').companyId)))
+
+  /** The looks the site can wear; `isDefault` is the vertical's, which an empty site.design means. */
+  app.get('/designs', may('site:read'), (c) => {
+    const rows = SITE_DESIGNS.map((id) => ({ id, label: SITE_DESIGN_LABELS[id], isDefault: id === deps.vertical.site.design }))
+    return list(c, rows, allOf(rows))
+  })
 
   app.patch('/settings', may('site:settings'), async (c) => {
     const body = await c.req.json().catch(() => ({})) as Record<string, unknown>

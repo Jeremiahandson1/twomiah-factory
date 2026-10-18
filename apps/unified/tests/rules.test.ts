@@ -97,6 +97,10 @@ describe('each rule fires on its violation', () => {
     expect(rules(plant((d) => write(d, 'server/core/m.ts', "export const m = (app: any) => app.post('/api/x', () => null)\n")))).toEqual(['§6 mounting'])
   })
 
+  test('§6 the admin screens calling a route are not declaring one', () => {
+    expect(plant((d) => write(d, 'web/src/x.ts', "export const x = (api: any) => api.get('/api/site/pages')\n"))).toEqual([])
+  })
+
   test('§7 drizzle-kit push in a script', () => {
     expect(rules(plant((d) => {
       const p = path.join(d, 'package.json')

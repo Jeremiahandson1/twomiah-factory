@@ -127,12 +127,14 @@ export interface ShellConfig {
   backToPortal?: boolean
   /** The header search box's placeholder in this vertical's words. Default "Search contacts, jobs, invoices...". */
   searchPlaceholder?: string
+  /** The header search box (GET /api/search). Default shown; false for an app with no search endpoint to answer it. */
+  search?: boolean
 }
 
 export interface AppShellProps {
   api: ShellApi
   auth: ShellAuth
-  /** realtime socket connected indicator */
+  /** realtime socket connected indicator; absent = an app with no socket, and no dot that would only ever say "Disconnected" */
   connected?: boolean
   config: ShellConfig
 }
@@ -147,6 +149,9 @@ export interface SettingsConfig {
   roles?: RoleOption[]
   /** Hide the license # field for verticals that are not licensed trades. Default shown. */
   licenseNumber?: boolean
+  /** The settings sub-pages this app serves (their `/crm/settings/...` paths). Default all — a link to a page the app
+   *  has no route for is a link to the 404. */
+  subPages?: string[]
 }
 
 export interface SettingsAuth {

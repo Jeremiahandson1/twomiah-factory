@@ -43,7 +43,8 @@ export function ProtectedRoute({ children, requiredRole }: { children: React.Rea
   return <>{children}</>
 }
 
-export function PublicRoute({ children }: { children: React.ReactNode }) {
+/** `home`: where a signed-in person goes from the sign-in pages when they weren't on their way somewhere. */
+export function PublicRoute({ children, home = '/' }: { children: React.ReactNode; home?: string }) {
   const { isAuthenticated, loading } = useAuth()
   const location = useLocation()
   // The shell applies the remembered theme once you are inside the app; the sign-in / forgot / reset pages
@@ -52,7 +53,7 @@ export function PublicRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) return <Spinner />
   if (isAuthenticated) {
-    const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/'
+    const from = (location.state as { from?: { pathname: string } })?.from?.pathname || home
     return <Redirect to={from} />
   }
   return <>{children}</>

@@ -21,6 +21,8 @@ export interface Mount {
   path: string
   /** The public website's pages (HTML at the site's own paths) rather than an API. Only at '/', only public. */
   site?: true
+  /** The admin screens' page and files (http/adminScreens.ts). Only at '/', only public: the screens sign in via /api. */
+  admin?: true
   router: Hono<any, any, any>
   access: Access
   /** The feature id (shared feature registry) that switches this module on; absent = always on. */
@@ -47,8 +49,17 @@ export const factoryOnly: MiddlewareHandler = async (c, next) => {
 export function mountAll(app: Hono<any, any, any>, mounts: Mount[], gates: Gates) {
   const seen = new Set<string>()
   for (const m of mounts) {
-    if (seen.has(m.path)) throw new Error(`Mount ${m.path}: declared twice`)
-    seen.add(m.path)
+    // The website and the admin both sit at '/', each with its own paths; any other mount has a path of its own.
+    const key = m.site ? 'the website' : m.admin ? 'the admin screens' : m.path
+    if (seen.has(key)) throw new Error(`Mount ${key}: declared twice`)
+    seen.add(key)
+    if (m.site && m.admin) throw new Error(`Mount ${m.path}: the website or the admin screens, not both`)
+    if (m.admin) {
+      if (m.path !== '/' || m.access !== 'public') throw new Error(`Mount ${m.path}: the admin screens are mounted once, at '/', public`)
+      if (seen.has('the website')) throw new Error("Mount the admin screens: before the website, whose /:slug would take their paths")
+      app.route('/', m.router)
+      continue
+    }
     if (m.site) {
       if (m.path !== '/' || m.access !== 'public') throw new Error(`Mount ${m.path}: the website is mounted once, at '/', public`)
       app.route('/', m.router)

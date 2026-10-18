@@ -66,6 +66,14 @@ describe('the audit log', () => {
 })
 
 describe('leads', () => {
+  test('the lead inbox is the lead_inbox feature\'s: refused while it is off, open once it is on', async () => {
+    const off = await as(owner, '/api/leads')
+    expect(off.status).toBe(403)
+    expect((await off.json()).code).toBe('FEATURE_NOT_ENABLED')
+    expect((await as(owner, '/api/company/features', { method: 'PUT', json: { features: ['lead_inbox'] } })).status).toBe(200)
+    expect((await as(owner, '/api/leads')).status).toBe(200)
+  })
+
   test('the lead inbox needs a session; the public enquiry beside it does not', async () => {
     expect((await t.call('/api/leads')).status).toBe(401)
     expect((await as(owner, '/api/leads')).status).toBe(200)
