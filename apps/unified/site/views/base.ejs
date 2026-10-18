@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <% var seoTitle = settings.seoTitle || settings.companyName || 'Website'; %>
+  <% var seoDescription = settings.seoDescription || ''; %>
+  <% var canonicalBase = (settings.siteOrigin || '').replace(/\/+$/, ''); %>
+  <% var canonical = canonicalBase ? canonicalBase + (currentPath || '/') : ''; %>
+  <%
+    // Social cards need an absolute URL, and Facebook/X ignore SVG — so an SVG
+    // logo (including the synthesized /images/logo.svg) gives way to the page's
+    // hero photo when there is one.
+    var _hero = typeof lcpImage !== 'undefined' && lcpImage ? lcpImage : '';
+    var _logo = settings.logoUrl || settings.heroPhotoUrl || '';
+    var ogImage = /\.svg(\?|$)/i.test(_logo) && _hero ? _hero : _logo;
+    if (ogImage && ogImage.charAt(0) === '/' && ogImage.charAt(1) !== '/' && canonicalBase) ogImage = canonicalBase + ogImage;
+  %>
+  <title><%= seoTitle %></title>
+  <meta name="description" content="<%= seoDescription %>">
+  <% if (canonical) { %><link rel="canonical" href="<%= canonical %>"><% } %>
+  <meta name="robots" content="index, follow">
+  <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><meta name="twomiah-crm-url" content="<%= crmApiUrl %>"><% } %>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="<%= seoTitle %>">
+  <meta property="og:description" content="<%= seoDescription %>">
+  <% if (canonical) { %><meta property="og:url" content="<%= canonical %>"><% } %>
+  <% if (ogImage) { %><meta property="og:image" content="<%= ogImage %>"><% } %>
+  <% if (settings.companyName) { %><meta property="og:site_name" content="<%= settings.companyName %>"><% } %>
+  <meta name="twitter:card" content="<%= ogImage ? 'summary_large_image' : 'summary' %>">
+  <meta name="twitter:title" content="<%= seoTitle %>">
+  <meta name="twitter:description" content="<%= seoDescription %>">
+  <% if (ogImage) { %><meta name="twitter:image" content="<%= ogImage %>"><% } %>
+  <% if (settings.faviconUrl) { %><link rel="icon" href="<%= settings.faviconUrl %>"><% } %>
+  <%
+    // Business markup for Google (schema.org LocalBusiness). Only the facts in
+    // the owner's settings — name, phone, email, area, logo — and nothing is
+    // filled in when a field is empty. The AREA only (city, state): the street
+    // in settings.address is often the owner's home, and the site itself never
+    // shows it, so the markup must not publish it either. Hours are free text on the contact
+    // section, not the opening-hours format schema.org needs, so they are left
+    // out rather than guessed. The synthesized /images/logo.svg is a
+    // placeholder, never the business's logo.
+    var _ld = null;
+    if (canonicalBase && settings.companyName) {
+      _ld = { '@context': 'https://schema.org', '@type': 'LocalBusiness', name: settings.companyName, url: canonicalBase + '/' };
+      if (settings.phone) _ld.telephone = settings.phone;
+      if (settings.email) _ld.email = settings.email;
+      var _areas = (Array.isArray(settings.serviceAreas) ? settings.serviceAreas : []).map(function (a) { return String((a && a.name) || a || '').trim(); }).filter(Boolean);
+      if (_areas.length) _ld.areaServed = _areas.map(function (n) { return { '@type': 'Place', name: n }; });
+      var _area = String(settings.address || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      if (_area.length >= 2) _ld.address = { '@type': 'PostalAddress', addressLocality: _area[_area.length - 2], addressRegion: _area[_area.length - 1] };
+      var _ldLogo = settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : '';
+      if (_ldLogo) { _ld.logo = _ldLogo.charAt(0) === '/' && _ldLogo.charAt(1) !== '/' ? canonicalBase + _ldLogo : _ldLogo; _ld.image = _ld.logo; }
+    }
+  %>
+  <% if (_ld) { %><script type="application/ld+json"><%- JSON.stringify(_ld).replace(/</g, '\\u003c') %></script><% } %>
+  <% if (typeof lcpImage !== 'undefined' && lcpImage) { %>
+    <link rel="preload" as="image" href="<%= lcpImage %>" fetchpriority="high">
+  <% } %>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
+  <link rel="stylesheet" href="/styles/main.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
+  <%
+    // Font CSS is loaded via the media-toggle pattern so it stops blocking
+    // the initial render — display=swap already keeps text visible while
+    // fonts download, but the stylesheet itself was still a critical-path
+    // request. Mobile LCP improves ~300-600ms in field testing.
+    var fontsHref = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:wght@400;600;700;900&display=swap';
+  %>
+  <link rel="stylesheet" href="<%= fontsHref %>" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="<%= fontsHref %>"></noscript>
+  <%/* Tracking — PLAIN standard snippets on purpose (Tag Assistant / Ads
+       verification detect these; the deferred loader is opt-in elsewhere). */%>
+  <% const _tGtm = settings.googleTagManagerId || ''; const _tGa = settings.googleAnalyticsId || ''; const _tAds = settings.googleAdsId || ''; const _tFb = settings.facebookPixelId || ''; const _tCl = settings.microsoftClarityId || ''; %>
+  <% if (_tGtm) { %>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','<%= _tGtm %>');</script>
+  <% } %>
+  <% if (_tGa || _tAds) { %>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=<%= _tGa || _tAds %>"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());<% if (_tGa) { %>gtag('config','<%= _tGa %>');<% } %><% if (_tAds) { %>gtag('config','<%= _tAds %>');<% } %></script>
+  <% } %>
+  <% if (_tFb) { %>
+  <script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','<%= _tFb %>');fbq('track','PageView');</script>
+  <% } %>
+  <% if (_tCl) { %>
+  <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","<%= _tCl %>");</script>
+  <% } %>
+</head>
+<body>
+<% if (settings.googleTagManagerId) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= settings.googleTagManagerId %>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript><% } %>
+  <%/* Skip link: the first thing a keyboard or screen-reader user reaches,
+       hidden until focused. Fixed colours so it reads on every theme. */%>
+  <style>.skip-link{position:absolute;left:8px;top:-100px;z-index:10000;padding:10px 16px;background:#111;color:#fff;font:600 15px/1.2 system-ui,sans-serif;border-radius:6px;text-decoration:none}.skip-link:focus{top:8px;outline:3px solid #fff;outline-offset:2px}#main:focus{outline:none}</style>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="container header-inner">
+      <%/* An uploaded logo replaces the text wordmark. /images/logo.svg is the
+           generator's synthesized placeholder (initial + name), never a real
+           logo, so it keeps the text wordmark. */%>
+      <% var headerLogo = settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : ''; %>
+      <a class="brand<%= headerLogo ? ' brand--logo' : '' %>" href="<%= settings.homeHref || '/' %>"><% if (headerLogo) { %><img src="<%= headerLogo %>" alt="<%= settings.companyName || 'Home' %>" style="display:block;height:44px;width:auto;max-width:min(340px,58vw);"><% } else { %><%= settings.companyName || 'Your Company' %><% } %></a>
+      <nav class="primary-nav" aria-label="Primary">
+        <% (settings.nav || []).forEach(function(item) { %>
+          <a href="<%= item.href %>"<%- currentPath && currentPath === ('/' + String(item.href || '').replace(/^\//, '')) ? ' aria-current="page"' : '' %>><%= item.label %></a>
+        <% }) %>
+      </nav>
+      <a class="header-cta" href="<%= settings.contactHref || '/contact' %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
+      <button class="mobile-nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-nav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile primary" hidden>
+      <% (settings.nav || []).forEach(function(item) { %>
+        <a href="<%= item.href %>"<%- currentPath && currentPath === ('/' + String(item.href || '').replace(/^\//, '')) ? ' aria-current="page"' : '' %>><%= item.label %></a>
+      <% }) %>
+      <a class="mobile-nav__cta" href="<%= settings.contactHref || '/contact' %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
+    </nav>
+  </header>
+  <script>
+    (function(){
+      var btn = document.querySelector('.mobile-nav-toggle');
+      var nav = document.getElementById('mobile-nav');
+      if (!btn || !nav) return;
+      btn.addEventListener('click', function(){
+        var open = nav.hasAttribute('hidden') ? false : true;
+        if (open) { nav.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); btn.classList.remove('is-open'); }
+        else { nav.removeAttribute('hidden'); btn.setAttribute('aria-expanded','true'); btn.classList.add('is-open'); }
+      });
+      // Close on link tap so SPA-like navigation feels right
+      nav.querySelectorAll('a').forEach(function(a){
+        a.addEventListener('click', function(){ nav.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); btn.classList.remove('is-open'); });
+      });
+    })();
+  </script>
+
+  <main id="main" tabindex="-1">
+    <%- body %>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <div class="footer-brand"><%= settings.companyName || 'Your Company' %></div>
+        <div class="footer-tagline"><%= settings.tagline || '' %></div>
+      </div>
+      <div class="footer-contact">
+        <% if (settings.phone) { %><a href="tel:<%= settings.phone %>"><%= settings.phone %></a><% } %>
+        <% if (settings.email) { %><a href="mailto:<%= settings.email %>"><%= settings.email %></a><% } %>
+      </div>
+    </div>
+    <% if (typeof settings !== 'undefined' && settings && Array.isArray(settings.photoCredits) && settings.photoCredits.length) { %>
+  <div class="photo-credits" style="padding:10px 16px;text-align:center;font-size:12px;line-height:1.6;opacity:.82;">
+    Photos:
+    <% settings.photoCredits.forEach(function (c, i) { %><%
+      %><% if (c.photographerUrl) { %><a href="<%= c.photographerUrl %>" rel="nofollow noopener" target="_blank" style="color:inherit;"><%= c.photographer %></a><% } else { %><%= c.photographer %><% } %><% if (c.count > 1) { %> (<%= c.count %> photos)<% } %><%
+      %> on <% if (c.sourceUrl) { %><a href="<%= c.sourceUrl %>" rel="nofollow noopener" target="_blank" style="color:inherit;"><%= c.source %></a><% } else if (c.source === 'Pexels') { %><a href="https://www.pexels.com" rel="nofollow noopener" target="_blank" style="color:inherit;">Pexels</a><% } else { %><%= c.source %><% } %><%
+      %><%= i < settings.photoCredits.length - 1 ? ', ' : '' %><%
+    %><% }) %>
+  </div>
+  <% } %>
+  </footer>
+  <%# A text-size control for readers who want larger type (home care sites; the vertical's settings switch it on). %>
+  <% if (typeof siteOptions !== 'undefined' && siteOptions.textSizeToggle) { %>
+  <div class="text-size-toggle" role="group" aria-label="Adjust text size">
+    <button type="button" data-size="default" aria-label="Default text size" title="Default size">Aa</button>
+    <button type="button" data-size="large" aria-label="Larger text" title="Larger">Aa+</button>
+    <button type="button" data-size="xlarge" aria-label="Largest text" title="Largest">Aa++</button>
+  </div>
+  <script>
+    // Aa+ toggle persists to localStorage so the size sticks across visits.
+    (function(){
+      var KEY = 'cf_text_size';
+      var btns = document.querySelectorAll('.text-size-toggle button');
+      function apply(size) {
+        document.documentElement.classList.remove('cf-text-large', 'cf-text-xlarge');
+        if (size === 'large') document.documentElement.classList.add('cf-text-large');
+        else if (size === 'xlarge') document.documentElement.classList.add('cf-text-xlarge');
+        btns.forEach(function(b){ b.classList.toggle('is-active', b.dataset.size === size); });
+        try { localStorage.setItem(KEY, size); } catch(e) {}
+      }
+      var saved;
+      try { saved = localStorage.getItem(KEY); } catch(e) {}
+      apply(saved || 'default');
+      btns.forEach(function(b){ b.addEventListener('click', function(){ apply(b.dataset.size); }); });
+    })();
+  </script>
+  <% } %>
+  <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><script src="/scripts/ab.js" defer></script><% } %>
+</body>
+</html>

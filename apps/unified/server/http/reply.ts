@@ -22,7 +22,7 @@ export function one<T extends object>(c: Context, record: T, status: ContentfulS
   return c.json(record, status)
 }
 
-/** An action with nothing to return. */
-export function done(c: Context) {
-  return c.json({ success: true as const })
+/** An action with nothing to return; `message` when the screen shows the person a sentence. */
+export function done(c: Context, message?: string) {
+  return c.json(message ? { success: true as const, message } : { success: true as const })
 }

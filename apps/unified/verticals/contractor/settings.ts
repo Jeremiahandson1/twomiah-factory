@@ -7,6 +7,14 @@ const contractor: VerticalSettings = {
   mfaIssuer: 'Twomiah Contractor',
   // Exterior Visualizer: the screens open company.visionUrl when the feature is on.
   visionUrl: () => process.env.VISION_URL || null,
+  site: {
+    design: 'contractor',
+    words: {
+      contactAddressLabel: 'Office',
+      contactMessageLabel: "What you're working on",
+      contactMessageRequired: 'Tell us a bit about your project.',
+    },
+  },
 }
 
 export default contractor

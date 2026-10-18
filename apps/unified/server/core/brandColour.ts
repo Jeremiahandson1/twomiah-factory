@@ -37,3 +37,13 @@ export function ensureDark(hex: string, maxLuminance = 0.16): string {
  * means luminance at most 1.05/4.5 - 0.05. A colour that already clears it comes back untouched.
  */
 export const colourOnWhite = (hex: string): string => ensureDark(hex, 1.05 / 4.5 - 0.05)
+
+/**
+ * The accent as text on the websites' light grounds (eyebrows, service numbers, team roles), measured against the
+ * darkest light ground the designs paint — foodtruck's #fdf8f0 paper, luminance 0.943 — so it reads on white and on
+ * both papers. A dark accent comes back untouched. (generator.ts accentOnLight, {{ACCENT_COLOR_ON_LIGHT}}.)
+ */
+export const accentOnLight = (hex: string): string => ensureDark(hex, (0.943 + 0.05) / 4.5 - 0.05)
+
+/** The websites' default accent when the owner hasn't chosen one (generator.ts). */
+export const DEFAULT_ACCENT = '#f59e0b'

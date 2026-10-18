@@ -1,0 +1,79 @@
+<%
+  // Filterable strain card grid. Each card: name, type chip (indica /
+  // sativa / hybrid), THC%, optional CBD%, top 2-3 effects, top 2
+  // terpenes, price per gram or eighth, optional image. Filter chips
+  // toggle a `data-hidden` attribute on cards client-side — no full
+  // page reload. Pure CSS could do it via `:has()` but JS is more
+  // resilient across older browsers.
+  const heading = data.heading || 'Strains'
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items.filter(s => s && s.name) : []
+  if (items.length === 0) return
+
+  function typeChip(t) {
+    const s = String(t || '').toLowerCase()
+    if (s.includes('indica')) return 'strain__type strain__type--indica'
+    if (s.includes('sativa')) return 'strain__type strain__type--sativa'
+    if (s.includes('hybrid')) return 'strain__type strain__type--hybrid'
+    if (s.includes('cbd')) return 'strain__type strain__type--cbd'
+    return 'strain__type'
+  }
+%>
+<section id="strains" class="strain strain--grid">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <div class="strain__filters" role="group" aria-label="Filter strains">
+      <button type="button" class="strain__filter is-active" data-filter="all">All</button>
+      <button type="button" class="strain__filter" data-filter="indica">Indica</button>
+      <button type="button" class="strain__filter" data-filter="sativa">Sativa</button>
+      <button type="button" class="strain__filter" data-filter="hybrid">Hybrid</button>
+    </div>
+    <ul class="strain__grid" role="list">
+      <% for (const it of items) { %>
+        <li class="strain-card" data-type="<%= String(it.type || '').toLowerCase() %>">
+          <% if (it.image) { %><div class="strain-card__image" style="background-image: url('<%= it.image %>')" role="img" aria-label="<%= it.name %>"></div><% } %>
+          <div class="strain-card__body">
+            <div class="strain-card__head">
+              <h3 class="strain-card__name"><%= it.name %></h3>
+              <% if (it.type) { %><span class="<%= typeChip(it.type) %>"><%= it.type %></span><% } %>
+            </div>
+            <div class="strain-card__stats">
+              <% if (it.thc) { %><div class="strain-card__stat"><span class="mono"><%= it.thc %></span><span class="strain-card__stat-label">THC</span></div><% } %>
+              <% if (it.cbd) { %><div class="strain-card__stat"><span class="mono"><%= it.cbd %></span><span class="strain-card__stat-label">CBD</span></div><% } %>
+              <% if (it.price) { %><div class="strain-card__stat strain-card__stat--price"><span class="mono"><%= it.price %></span></div><% } %>
+            </div>
+            <% if (it.description) { %><p class="strain-card__desc"><%= it.description %></p><% } %>
+            <% if (Array.isArray(it.effects) && it.effects.length) { %>
+              <ul class="strain-card__effects">
+                <% for (const e of it.effects.slice(0, 4)) { %><li class="strain-card__effect"><%= e %></li><% } %>
+              </ul>
+            <% } %>
+            <% if (Array.isArray(it.terpenes) && it.terpenes.length) { %>
+              <div class="strain-card__terps">Terpenes: <%= it.terpenes.slice(0, 3).join(', ') %></div>
+            <% } %>
+          </div>
+        </li>
+      <% } %>
+    </ul>
+  </div>
+</section>
+<script>
+(function(){
+  var sec = document.getElementById('strains');
+  if (!sec) return;
+  var filters = sec.querySelectorAll('.strain__filter');
+  var cards = sec.querySelectorAll('.strain-card');
+  filters.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var f = btn.dataset.filter;
+      filters.forEach(function(b){ b.classList.toggle('is-active', b === btn); });
+      cards.forEach(function(c){
+        c.hidden = f !== 'all' && c.dataset.type !== f;
+      });
+    });
+  });
+})();
+</script>

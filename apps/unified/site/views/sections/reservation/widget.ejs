@@ -1,0 +1,97 @@
+<%
+  // Reservation widget — party-size + date + time pickers that build
+  // a deep-link into Twomiah Bookings. NOT a full booking widget;
+  // just a smart CTA that pre-fills the booking page when clicked.
+  // Falls back to a generic "Reserve" button if Bookings isn't
+  // configured for this tenant yet (no bookingPath in settings).
+  var heading = data.heading || 'Reserve a table'
+  var intro = data.intro || ''
+  var partySizes = Array.isArray(data.partySizes) && data.partySizes.length
+    ? data.partySizes
+    : [1, 2, 3, 4, 5, 6, 7, 8]
+  var maxLeadDays = parseInt(data.maxLeadDays, 10) || 60
+  var note = data.note || 'Parties of 8+ — give us a call.'
+  var bookingPath = data.bookingPath || (settings && settings.bookingsPath) || '/book'
+  // Vocabulary is data-driven because this widget serves more than dinner
+  // reservations — a salon saying "Find a table" reads as a template bug.
+  // Defaults keep the original restaurant behavior.
+  var partyLabel = data.partyLabel || 'Party'
+  // guestNoun arrives as a string OR (from AI-composed pages) as
+  // { singular, plural } — accept both, never render [object Object].
+  var gn = data.guestNoun
+  var guestNoun, guestNounPlural
+  if (gn && typeof gn === 'object') {
+    guestNoun = typeof gn.singular === 'string' ? gn.singular : 'guest'
+    guestNounPlural = typeof gn.plural === 'string' ? gn.plural : guestNoun + 's'
+  } else {
+    guestNoun = typeof gn === 'string' && gn ? gn : 'guest'
+    guestNounPlural = typeof data.guestNounPlural === 'string' && data.guestNounPlural ? data.guestNounPlural : guestNoun + 's'
+  }
+  var submitLabel = data.submitLabel || 'Find a table'
+  var times = Array.isArray(data.times) && data.times.length ? data.times
+    : ['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30']
+  var defaultTime = data.defaultTime || (times.indexOf('18:00') !== -1 ? '18:00' : times[Math.floor(times.length / 2)])
+  function timeLabel(t) {
+    var m = String(t).match(/^(\d{1,2}):(\d{2})$/)
+    if (!m) return String(t)
+    var h = parseInt(m[1], 10)
+    var suffix = h >= 12 ? 'PM' : 'AM'
+    var h12 = h % 12 === 0 ? 12 : h % 12
+    return h12 + ':' + m[2] + ' ' + suffix
+  }
+
+  // Sensible default date/time bounds
+  var today = new Date()
+  var minDate = today.toISOString().slice(0, 10)
+  var maxDate = new Date(today.getTime() + maxLeadDays * 86400000).toISOString().slice(0, 10)
+%>
+<section id="reservations" class="reservation reservation--widget">
+  <div class="container">
+    <div class="reservation__card">
+      <div class="reservation__head">
+        <h2 class="reservation__heading"><%= heading %></h2>
+        <% if (intro) { %><p class="reservation__intro"><%= intro %></p><% } %>
+      </div>
+      <form class="rw-form" id="rw-form" data-booking-path="<%= bookingPath %>" autocomplete="off">
+        <div class="rw-fields">
+          <label class="rw-field">
+            <span class="rw-label"><%= partyLabel %></span>
+            <select name="party" id="rw-party">
+              <% for (var i = 0; i < partySizes.length; i++) { %>
+                <option value="<%= partySizes[i] %>" <%= partySizes[i] === (partySizes.indexOf(2) !== -1 ? 2 : partySizes[0]) ? 'selected' : '' %>><%= partySizes[i] %> <%= partySizes[i] === 1 ? guestNoun : guestNounPlural %></option>
+              <% } %>
+            </select>
+          </label>
+          <label class="rw-field">
+            <span class="rw-label">Date</span>
+            <input name="date" id="rw-date" type="date" min="<%= minDate %>" max="<%= maxDate %>" value="<%= minDate %>">
+          </label>
+          <label class="rw-field">
+            <span class="rw-label">Time</span>
+            <select name="time" id="rw-time">
+              <% for (var j = 0; j < times.length; j++) { %>
+                <option value="<%= times[j] %>" <%= times[j] === defaultTime ? 'selected' : '' %>><%= timeLabel(times[j]) %></option>
+              <% } %>
+            </select>
+          </label>
+        </div>
+        <button type="submit" class="btn btn--xl btn--primary rw-submit"><%= submitLabel %></button>
+        <% if (note) { %><div class="rw-note"><%= note %></div><% } %>
+      </form>
+    </div>
+  </div>
+</section>
+<script>
+(function(){
+  var f = document.getElementById('rw-form');
+  if (!f) return;
+  f.addEventListener('submit', function(e){
+    e.preventDefault();
+    var base = f.dataset.bookingPath || '/book';
+    var fd = new FormData(f);
+    var qs = new URLSearchParams();
+    fd.forEach(function(v, k){ qs.set(k, String(v)); });
+    location.href = base + '?' + qs.toString();
+  });
+})();
+</script>

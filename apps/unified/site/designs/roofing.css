@@ -1,0 +1,19 @@
+/* The roofing design: what it adds to the whole site. */
+
+/* Subtle rain on financing card — gated by reduced-motion */
+.financing__rain { position: absolute; inset: 0; pointer-events: none; overflow: hidden; opacity: 0.45; mix-blend-mode: screen; }
+.financing__rain::before, .financing__rain::after {
+  content: '';
+  position: absolute;
+  inset: -40% 0;
+  background-image:
+    repeating-linear-gradient(75deg, transparent 0 9px, rgba(255,255,255,0.15) 9px 10px),
+    repeating-linear-gradient(75deg, transparent 0 12px, rgba(255,255,255,0.07) 12px 13px);
+  animation: rain-fall 1.7s linear infinite;
+}
+.financing__rain::after { animation-duration: 2.4s; animation-delay: -0.6s; opacity: 0.7; }
+@keyframes rain-fall {
+  from { transform: translate3d(0, -30%, 0); }
+  to   { transform: translate3d(0,  30%, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .financing__rain { display: none; } }

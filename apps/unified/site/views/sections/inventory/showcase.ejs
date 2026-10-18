@@ -1,0 +1,61 @@
+<%
+  // Featured-inventory grid for an RV / marine / powersports dealership.
+  //
+  // Renders units supplied by the page composition. This is deliberately NOT a
+  // live DMS/inventory feed — the dealer's real feed lives in the CRM, and
+  // pretending otherwise on a marketing site produces stale listings and angry
+  // customers. Each unit: { title, year, make, model, type, price, payment,
+  // mileage, length, image, url, status }.
+  var heading = data.heading || 'Featured inventory'
+  var intro = data.intro || ''
+  var units = Array.isArray(data.units) ? data.units : []
+  var ctaLabel = data.ctaLabel || 'See all inventory'
+  var ctaUrl = data.ctaUrl || '/contact'
+  var disclaimer = data.disclaimer || 'Availability changes daily — call to confirm a unit is still on the lot.'
+
+  function money(v) {
+    if (v === null || v === undefined || v === '') return ''
+    var n = Number(String(v).replace(/[^0-9.]/g, ''))
+    if (!isFinite(n) || n <= 0) return String(v)
+    return '$' + n.toLocaleString('en-US')
+  }
+%>
+<section class="inventory" aria-label="<%= heading %>">
+  <div class="inventory__head">
+    <h2 class="inventory__heading"><%= heading %></h2>
+    <% if (intro) { %><p class="inventory__intro"><%= intro %></p><% } %>
+  </div>
+
+  <% if (units.length) { %>
+    <ul class="inventory__grid">
+      <% units.forEach(function (u) { %>
+        <li class="inventory__card">
+          <% if (u.image) { %>
+            <div class="inventory__media">
+              <img src="<%= u.image %>" alt="<%= [u.year, u.make, u.model].filter(Boolean).join(' ') || u.title || 'Unit' %>" loading="lazy">
+              <% if (u.status) { %><span class="inventory__badge"><%= u.status %></span><% } %>
+            </div>
+          <% } %>
+          <div class="inventory__body">
+            <p class="inventory__title"><%= u.title || [u.year, u.make, u.model].filter(Boolean).join(' ') %></p>
+            <% if (u.type) { %><p class="inventory__type"><%= u.type %></p><% } %>
+            <ul class="inventory__specs">
+              <% if (u.length) { %><li><%= u.length %></li><% } %>
+              <% if (u.mileage) { %><li><%= u.mileage %></li><% } %>
+            </ul>
+            <p class="inventory__price">
+              <% if (u.price) { %><span class="inventory__price-main"><%= money(u.price) %></span><% } %>
+              <% if (u.payment) { %><span class="inventory__price-sub">or <%= money(u.payment) %>/mo</span><% } %>
+            </p>
+            <% if (u.url) { %><a class="inventory__link" href="<%= u.url %>">View details</a><% } %>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+
+  <div class="inventory__foot">
+    <a class="inventory__cta" href="<%= ctaUrl %>"><%= ctaLabel %></a>
+    <p class="inventory__disclaimer"><%= disclaimer %></p>
+  </div>
+</section>

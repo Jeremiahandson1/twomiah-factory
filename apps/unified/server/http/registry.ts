@@ -17,8 +17,10 @@ export type Access =
   | 'user'
 
 export interface Mount {
-  /** Where it lives, e.g. '/api/contacts'. */
+  /** Where it lives, e.g. '/api/contacts'; '/' for the public website. */
   path: string
+  /** The public website's pages (HTML at the site's own paths) rather than an API. Only at '/', only public. */
+  site?: true
   router: Hono<any, any, any>
   access: Access
   /** The feature id (shared feature registry) that switches this module on; absent = always on. */
@@ -45,9 +47,14 @@ export const factoryOnly: MiddlewareHandler = async (c, next) => {
 export function mountAll(app: Hono<any, any, any>, mounts: Mount[], gates: Gates) {
   const seen = new Set<string>()
   for (const m of mounts) {
-    if (!m.path.startsWith('/api/')) throw new Error(`Mount ${m.path}: API paths start with /api/`)
     if (seen.has(m.path)) throw new Error(`Mount ${m.path}: declared twice`)
     seen.add(m.path)
+    if (m.site) {
+      if (m.path !== '/' || m.access !== 'public') throw new Error(`Mount ${m.path}: the website is mounted once, at '/', public`)
+      app.route('/', m.router)
+      continue
+    }
+    if (!m.path.startsWith('/api/')) throw new Error(`Mount ${m.path}: API paths start with /api/`)
 
     const guards: MiddlewareHandler[] = []
     if (m.access === 'factory') guards.push(factoryOnly)

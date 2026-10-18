@@ -12,11 +12,18 @@ import { company, user } from './db/schema/index.ts'
 import logger from './core/logger.ts'
 import { createAudit, requestScope } from './core/audit.ts'
 import { createEmailService } from './core/email.ts'
+import { createEnquiries, enquiryTemplates } from './core/enquiry.ts'
+import { createEnquiryHandler, createLeadsApi } from './site/enquiryHandler.ts'
+import { createSiteRoutes } from './site/routes.ts'
 import type { VerticalSettings } from './core/vertical.ts'
 import { mountAll, type Mount } from './http/registry.ts'
 import { contentSecurityPolicy, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
 import { errorHandler } from './http/errors.ts'
 import { fail, one } from './http/reply.ts'
+
+const NOT_FOUND_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found</title>' +
+  '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f7f5;color:#1a1a1a}main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}</style></head>' +
+  '<body><main><h1>That page isn’t here.</h1><p>It may have moved, or the link may be wrong.</p><p><a href="/">Go to the home page</a></p></main></body></html>'
 
 export function createApp(deps: { db: any; vertical: VerticalSettings }) {
   const { db, vertical } = deps
@@ -30,6 +37,9 @@ export function createApp(deps: { db: any; vertical: VerticalSettings }) {
     extraRolePermissions: vertical.extraRolePermissions,
   })
   const features = createEnabledFeatureGate({ db, tables: { company } })
+  email.register(enquiryTemplates)
+  const enquiries = createEnquiries({ db, email, logger, isFeatureEnabled: features.isFeatureEnabled })
+  const enquiryHandler = createEnquiryHandler({ db, vertical, enquiries })
 
   /** One company per tenant database (SPEC §2): the oldest row is the business. */
   async function companyId(): Promise<string | null> {
@@ -78,6 +88,10 @@ export function createApp(deps: { db: any; vertical: VerticalSettings }) {
       }),
     },
     { path: '/api/auth/mfa-devices', access: 'user', router: createMfaRoutes({ db, authenticate, audit, issuer: vertical.mfaIssuer }) },
+    // Every website form that asks to be contacted.
+    { path: '/api/leads', access: 'public', router: createLeadsApi(enquiryHandler) },
+    // The public website. Last: its /:slug catch-all must come after every other path.
+    { path: '/', site: true, access: 'public', router: createSiteRoutes({ db, vertical, enquiries: enquiryHandler }) },
   ]
   mountAll(app, mounts, {
     authenticate,
@@ -87,8 +101,10 @@ export function createApp(deps: { db: any; vertical: VerticalSettings }) {
   })
 
   app.onError(errorHandler)
-  // An unknown API path is a JSON 404, never the screen's HTML with a 200.
-  app.notFound((c) => fail(c, 404, `Route not found: ${c.req.method} ${c.req.path}`))
+  // An unknown API path is a JSON 404, never a page with a 200; an unknown web page is a page saying so.
+  app.notFound((c) => c.req.path.startsWith('/api/')
+    ? fail(c, 404, `Route not found: ${c.req.method} ${c.req.path}`)
+    : c.html(NOT_FOUND_PAGE, 404))
 
-  return { app, services: { audit, email, permissions, features, authenticate, companyId } }
+  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries } }
 }

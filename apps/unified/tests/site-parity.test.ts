@@ -1,0 +1,164 @@
+// The website moved into the unified app renders what the premium site templates render (step 2b's "done when").
+// Compares against templates/website-premium-*, which stay on this branch until cutover; this file goes with them.
+//
+//   1. The section library is the templates' own files: each one byte-identical to every template copy, except the
+//      three merged on purpose (before/after slider, contact form, base layout).
+//   2. Each design's sample pages, through the templates' views and through the unified app: the same HTML.
+//   3. The contact form says each vertical's words and posts `message`, as the vertical's template did.
+//   4. Each design's stylesheet keeps every rule its template served, except the ones styling markup no longer
+//      rendered (the old before/after cards, roofing's pre-July trust badges).
+import { describe, test, expect } from 'bun:test'
+import fs from 'node:fs'
+import path from 'node:path'
+import crypto from 'node:crypto'
+import ejs from 'ejs'
+import { renderSections, VIEWS, absolutizeHrefs } from '../server/site/render.ts'
+import { siteStylesheet } from '../server/site/routes.ts'
+import type { SiteContext } from '../server/site/context.ts'
+import { accentOnLight, DEFAULT_ACCENT } from '../server/core/brandColour.ts'
+
+const TEMPLATES = path.resolve(import.meta.dir, '..', '..', '..', 'templates')
+const DESIGNS = ['contractor', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'rv', 'showcase', 'vet'] as const
+const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ejs', 'sections/contact/form-info.ejs'])
+
+/** Each template's words, as its own views and server said them. */
+const WORDS: Record<string, SiteContext['words']> = {
+  contractor: { contactAddressLabel: 'Office', contactMessageLabel: "What you're working on", contactMessageRequired: 'Tell us a bit about your project.' },
+  landscaping: { contactAddressLabel: 'Office', contactMessageLabel: "What you're working on", contactMessageRequired: 'Tell us a bit about your project.' },
+  roofing: { contactAddressLabel: 'Office', contactMessageLabel: "What you're working on", contactMessageRequired: 'Tell us a bit about your project.' },
+  fieldservice: { contactAddressLabel: 'Office', contactMessageLabel: 'What do you need help with?', contactMessageRequired: 'Tell us what you need help with.' },
+  homecare: { contactAddressLabel: 'Office', contactMessageLabel: 'How can we help?', contactMessageRequired: 'Please write a short message.' },
+  dispensary: { contactAddressLabel: 'Address', contactMessageLabel: 'Your message', contactMessageRequired: 'Please write a short message.' },
+  showcase: { contactAddressLabel: 'Address', contactMessageLabel: 'Your message', contactMessageRequired: 'Please write a short message.' },
+  rv: { contactAddressLabel: 'Address', contactMessageLabel: 'How can we help?', contactMessageRequired: 'Please write a short message.' },
+  vet: { contactAddressLabel: 'Address', contactMessageLabel: 'How can we help?', contactMessageRequired: 'Please write a short message.' },
+}
+
+const SETTINGS = {
+  companyName: 'Westridge Builders', tagline: 'Custom homes across the Driftless region', phone: '608-555-0142', email: 'build@westridge.example',
+  address: '12 Main St, Verona, WI 53593', logoUrl: '', primaryColor: '#b45309', secondaryColor: '#1e3a5f',
+  seoTitle: 'Westridge Builders', seoDescription: 'Custom homes and renovations.',
+  nav: [{ label: 'Services', href: 'services' }, { label: 'About', href: 'about' }, { label: 'Contact', href: 'contact' }],
+  photoCredits: [{ photographer: 'Ana Lens', photographerUrl: 'https://example.com/ana', source: 'Pexels', count: 2 }],
+  contentGaps: [], serviceAreas: ['Verona', 'Madison'], inventoryFeedUrl: '', contactCtaLabel: 'Start a project', accentColor: '#0e7490',
+  faviconUrl: '', googleTagManagerId: 'GTM-TEST1', googleAnalyticsId: '', googleAdsId: '', facebookPixelId: '', microsoftClarityId: '',
+}
+
+function ctxFor(design: typeof DESIGNS[number]): SiteContext {
+  return {
+    companyId: 'co_test', slug: 'westridge', settings: SETTINGS, design, words: WORDS[design],
+    options: { textSizeToggle: design === 'homecare' }, colours: { primary: SETTINGS.primaryColor, accent: SETTINGS.accentColor },
+  }
+}
+
+/** The page as the template's own server built it (server-static.ts renderSections), from the template's views. */
+async function renderOld(design: string, sections: any[], currentPath: string, origin: string) {
+  const views = path.join(TEMPLATES, 'website-premium-' + design, 'views')
+  const settings = { ...SETTINGS, siteOrigin: origin, seoTitle: SETTINGS.seoTitle, seoDescription: SETTINGS.seoDescription }
+  const firstHero = sections.find((s) => s && s.type === 'hero')
+  const lcpImage = typeof firstHero?.data?.image === 'string' ? firstHero.data.image : ''
+  const body = await ejs.renderFile(path.join(views, 'home.ejs'), { homepage: { sections }, settings }) as string
+  const html = await ejs.renderFile(path.join(views, 'base.ejs'), { body, assetV: 'V', settings, crmApiUrl: '', currentPath, lcpImage }) as string
+  return absolutizeHrefs(html)
+}
+
+const sameAssetVersion = (html: string) => html.replace(/\/styles\/main\.css\?v=[^"]*/g, '/styles/main.css?v=V')
+/** The contact form's one intended change: the message box posts as `message` (the server reads both). */
+const messageField = (html: string) => html.replace(/for="cf-project"/g, 'for="cf-message"').replace(/id="cf-project" name="project"/g, 'id="cf-message" name="message"')
+/** Whitespace between tags differs where EJS control flow moved, and an apostrophe from the vertical's words is escaped as &#39;; the text does not differ. */
+const squash = (html: string) => html.replace(/&#39;/g, "'").replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim()
+
+describe('the section library is the templates\' own files', () => {
+  const hash = (p: string) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex')
+  const files: string[] = []
+  const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else files.push(path.relative(VIEWS, p).split(path.sep).join('/')) } }
+  walk(VIEWS)
+
+  test('every file not merged on purpose is byte-identical to every template that has it', () => {
+    const mismatches: string[] = []
+    let compared = 0
+    for (const rel of files.filter((f) => !MERGED.has(f))) {
+      const mine = hash(path.join(VIEWS, rel))
+      for (const d of DESIGNS) {
+        const theirs = path.join(TEMPLATES, 'website-premium-' + d, 'views', rel)
+        if (!fs.existsSync(theirs)) continue
+        compared++
+        if (hash(theirs) !== mine) mismatches.push(`${rel} ≠ ${d}`)
+      }
+    }
+    expect(mismatches).toEqual([])
+    expect(compared).toBeGreaterThan(100)
+  })
+
+  test('no template section is missing from the library', () => {
+    const missing: string[] = []
+    for (const d of DESIGNS) {
+      const root = path.join(TEMPLATES, 'website-premium-' + d, 'views')
+      const w = (dir: string) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) w(p); else { const rel = path.relative(root, p).split(path.sep).join('/'); if (!files.includes(rel)) missing.push(d + ':' + rel) } } }
+      w(root)
+    }
+    expect(missing).toEqual([])
+  })
+})
+
+describe('each design\'s sample pages render as the template rendered them', () => {
+  for (const design of DESIGNS) {
+    for (const sample of ['composition-a.json', 'composition-b.json']) {
+      const file = path.join(TEMPLATES, 'website-premium-' + design, 'data', 'samples', sample)
+      if (!fs.existsSync(file)) continue
+      test(`${design} ${sample}`, async () => {
+        const sections = JSON.parse(fs.readFileSync(file, 'utf8')).sections
+        const origin = 'https://westridge.example'
+        const errors: Array<{ section: string; error: string }> = []
+        const mine = await renderSections(ctxFor(design), sections, { title: 'Home' }, { currentPath: '/', origin, sectionErrors: errors })
+        const theirs = await renderOld(design, sections, '/', origin)
+        expect(errors).toEqual([])
+        expect(squash(sameAssetVersion(mine))).toBe(squash(sameAssetVersion(messageField(theirs))))
+      })
+    }
+  }
+})
+
+describe('the contact form in each vertical\'s words', () => {
+  const data = { heading: 'Start a conversation', intro: 'Tell us about it.', phone: '608-555-0142', email: 'build@westridge.example', address: '12 Main St, Verona, WI', hours: ['Mon–Fri 7–5'], responsePromise: 'We reply within a day.' }
+  for (const design of DESIGNS) {
+    test(design, async () => {
+      const mine = await ejs.renderFile(path.join(VIEWS, 'sections/contact/form-info.ejs'), { data, settings: SETTINGS, words: WORDS[design] }) as string
+      const theirs = await ejs.renderFile(path.join(TEMPLATES, 'website-premium-' + design, 'views/sections/contact/form-info.ejs'), { data, settings: SETTINGS }) as string
+      // Their copies differ only in the comments that explain them; what renders must match.
+      expect(squash(mine)).toBe(squash(messageField(theirs)))
+      expect(mine).toContain('name="message"')
+      expect(mine).toContain(WORDS[design].contactMessageLabel.replace(/'/g, '&#39;'))
+    })
+  }
+})
+
+describe('each design\'s stylesheet keeps every rule its template served', () => {
+  /** Selector → every declaration block given for it (a selector can appear more than once, e.g. in a media query). */
+  const rules = (css: string) => {
+    const out = new Map<string, string[]>()
+    const flat = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    for (const m of flat.matchAll(/([^{}@]+)\{([^{}]*)\}/g)) {
+      const k = m[1].trim().replace(/\s+/g, ' ')
+      out.set(k, [...(out.get(k) || []), m[2].trim().replace(/\s+/g, ' ')])
+    }
+    return out
+  }
+  // Rules for markup no longer rendered: the old before/after cards (the slider was merged into the contractor
+  // one, which styles itself) and roofing's .trust badges (the trust section was rewritten on 2026-07-13).
+  const DEAD = /^(\.before-after|\.ba-card|\.ba-chip|\.trust\b|\.trust__|\.trust-badge)/
+  for (const design of DESIGNS) {
+    test(design, () => {
+      const accent = SETTINGS.accentColor || DEFAULT_ACCENT
+      const theirs = fs.readFileSync(path.join(TEMPLATES, 'website-premium-' + design, 'build/styles/main.css'), 'utf8')
+        .replaceAll('{{PRIMARY_COLOR}}', SETTINGS.primaryColor).replaceAll('{{ACCENT_COLOR_ON_LIGHT}}', accentOnLight(accent)).replaceAll('{{ACCENT_COLOR}}', accent)
+      const mine = rules(siteStylesheet(ctxFor(design)))
+      const lost: string[] = []
+      for (const [selector, blocks] of rules(theirs)) {
+        if (DEAD.test(selector)) continue
+        for (const decl of blocks) if (!(mine.get(selector) || []).includes(decl)) lost.push(selector + ' { ' + decl.slice(0, 80) + ' }')
+      }
+      expect(lost).toEqual([])
+    })
+  }
+})

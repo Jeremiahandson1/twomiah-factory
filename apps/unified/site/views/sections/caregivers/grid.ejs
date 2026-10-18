@@ -1,0 +1,86 @@
+<%
+  // Caregiver profile cards. Anonymized first-name-only or composite
+  // names. Each card: photo (warm duotone, color on hover), years of
+  // experience, certifications (CNA / HHA / RN), specialties chips,
+  // languages, short blurb. Filterable by specialty or language.
+  var heading = data.heading || 'Meet some of our caregivers'
+  var intro = data.intro || ''
+  var items = Array.isArray(data.items) ? data.items.filter(function(i){ return i && i.name }) : []
+  if (items.length === 0) return
+
+  // Collect filterable specialties + languages.
+  var specialties = new Set(), languages = new Set()
+  items.forEach(function(it){
+    (it.specialties || []).forEach(function(s){ if (s) specialties.add(String(s)) });
+    (it.languages || []).forEach(function(l){ if (l) languages.add(String(l)) });
+  })
+%>
+<section id="caregivers" class="caregivers caregivers--grid">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <% if (specialties.size > 0 || languages.size > 0) { %>
+      <div class="cg-filters" role="group" aria-label="Filter caregivers">
+        <button type="button" class="cg-chip is-active" data-key="all" data-value="">All caregivers</button>
+        <% Array.from(specialties).sort().forEach(function(s) { %>
+          <button type="button" class="cg-chip" data-key="specialty" data-value="<%= s %>"><%= s %></button>
+        <% }) %>
+        <% Array.from(languages).sort().forEach(function(l) { %>
+          <button type="button" class="cg-chip cg-chip--lang" data-key="language" data-value="<%= l %>"><%= l %></button>
+        <% }) %>
+      </div>
+    <% } %>
+    <ul class="cg-grid" role="list">
+      <% items.forEach(function(it) { %>
+        <li class="cg-card" data-specialties="<%= (it.specialties || []).join('|') %>" data-languages="<%= (it.languages || []).join('|') %>">
+          <% if (it.photo) { %>
+            <div class="cg-card__photo" style="background-image: url('<%= it.photo %>')" role="img" aria-label="<%= it.name %>"></div>
+          <% } else { %>
+            <div class="cg-card__photo cg-card__photo--placeholder" aria-hidden="true"></div>
+          <% } %>
+          <div class="cg-card__body">
+            <div class="cg-card__head">
+              <h3 class="cg-card__name"><%= it.name %></h3>
+              <% if (it.yearsExperience) { %><span class="cg-card__years mono"><%= it.yearsExperience %> yrs</span><% } %>
+            </div>
+            <% if (Array.isArray(it.certifications) && it.certifications.length) { %>
+              <div class="cg-card__certs"><%= it.certifications.join(' · ') %></div>
+            <% } %>
+            <% if (it.blurb) { %><p class="cg-card__blurb"><%= it.blurb %></p><% } %>
+            <% if (Array.isArray(it.specialties) && it.specialties.length) { %>
+              <ul class="cg-card__spec-list" aria-label="Specialties">
+                <% it.specialties.slice(0, 4).forEach(function(s) { %><li class="cg-card__spec"><%= s %></li><% }) %>
+              </ul>
+            <% } %>
+            <% if (Array.isArray(it.languages) && it.languages.length) { %>
+              <div class="cg-card__lang">Speaks: <%= it.languages.join(', ') %></div>
+            <% } %>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+</section>
+<script>
+(function(){
+  var sec = document.getElementById('caregivers');
+  if (!sec) return;
+  var chips = sec.querySelectorAll('.cg-chip');
+  var cards = sec.querySelectorAll('.cg-card');
+  var active = { key: 'all', value: '' };
+  chips.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      chips.forEach(function(b){ b.classList.toggle('is-active', b === btn); });
+      active = { key: btn.dataset.key, value: btn.dataset.value };
+      cards.forEach(function(c){
+        var ok = active.key === 'all'
+          || (active.key === 'specialty' && (c.dataset.specialties || '').split('|').indexOf(active.value) >= 0)
+          || (active.key === 'language' && (c.dataset.languages || '').split('|').indexOf(active.value) >= 0);
+        c.hidden = !ok;
+      });
+    });
+  });
+})();
+</script>

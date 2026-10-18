@@ -36,7 +36,7 @@ TypeScript, front and back. No `.js`, `.jsx`, `.mjs` or `.cjs` source files.
 | Error | `{ error: string, code?: string, fields?: { [field]: message } }` with a 4xx/5xx status; `fields` only on a validation failure, so a form can mark each wrong box |
 | List | `{ data: T[], pagination: { page, limit, total, pages } }` |
 | One record | the record object |
-| An action with nothing to return | `{ success: true }` |
+| An action with nothing to return | `{ success: true, message?: string }`; `message` only when the screen shows the person a sentence |
 
 Code in `apps/unified/server` replies only through `server/http/reply.ts`
 (`fail`, `list`, `one`, `done`). Calling `c.json(` anywhere else in the server

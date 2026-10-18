@@ -1,0 +1,27 @@
+<%
+  // Section composition renderer.
+  //
+  // homepage.sections is an array of { type, variant, data }. Each entry renders
+  // views/sections/<type>/<variant>.ejs with { data, settings, words }.
+  //
+  // A section that doesn't exist is skipped, so a composition naming a section this site lacks still renders the
+  // rest. Any OTHER failure inside a section is logged and recorded on `sectionErrors` (the tests read it): the
+  // template this came from swallowed every error, so a section that broke simply vanished from the page.
+  const sections = Array.isArray(homepage.sections) ? homepage.sections : []
+%>
+<% for (const section of sections) { %>
+  <%
+    const type = (section && section.type) ? String(section.type).replace(/[^a-z0-9_-]/gi, '') : ''
+    const variant = (section && section.variant) ? String(section.variant).replace(/[^a-z0-9_-]/gi, '') : 'default'
+    const data = (section && section.data) || {}
+    if (!type) { continue }
+  %>
+  <% try { %>
+    <%- include('sections/' + type + '/' + variant, { data: data, settings: settings, words: words }) %>
+  <% } catch (e) {
+       if (!/Could not find the include file/.test(String(e && e.message))) {
+         console.error('[site] section ' + type + '/' + variant + ' failed: ' + (e && e.message));
+         if (typeof sectionErrors !== 'undefined') sectionErrors.push({ section: type + '/' + variant, error: String(e && e.message) });
+       }
+     } %>
+<% } %>

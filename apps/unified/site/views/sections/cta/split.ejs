@@ -1,0 +1,29 @@
+<%
+  // CTA split: image on one side, copy + form/button on the other.
+  // Used as the page's closing argument — leaves customers with a face
+  // or a job site and a way to act on it.
+  const heading = data.heading || ''
+  const subtitle = data.subtitle || ''
+  const image = data.image || ''
+  const primaryCta = data.primaryCta || { label: 'Get in touch', href: '#contact' }
+  const phone = data.phone || ''
+  const bullets = Array.isArray(data.bullets) ? data.bullets : []
+%>
+<section class="cta cta--split" id="<%= data.id || 'contact' %>">
+  <div class="cta__split-grid">
+    <div class="cta__split-image" style="background-image: url('<%= image %>')"></div>
+    <div class="cta__split-copy">
+      <h2 class="cta__heading"><%= heading %></h2>
+      <% if (subtitle) { %><p class="cta__subtitle"><%= subtitle %></p><% } %>
+      <% if (bullets.length) { %>
+        <ul class="cta__bullets">
+          <% for (const b of bullets) { %><li><%= b %></li><% } %>
+        </ul>
+      <% } %>
+      <div class="cta__actions">
+        <a class="btn btn--primary btn--xl" href="<%= primaryCta.href %>"><%= primaryCta.label %></a>
+        <% if (phone) { %><a class="cta__phone" href="tel:<%= phone %>"><%= phone %></a><% } %>
+      </div>
+    </div>
+  </div>
+</section>

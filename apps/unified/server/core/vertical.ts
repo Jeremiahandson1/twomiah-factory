@@ -14,6 +14,28 @@ export interface VerticalSettings {
   mfaIssuer: string
   /** Exterior Visualizer address, for the verticals that offer it. */
   visionUrl?: () => string | null
+  /** The public website. */
+  site: SiteSettings
+}
+
+/** The site designs: each premium template family's look (site/designs/<id>.css; contractor is the base alone). */
+export const SITE_DESIGNS = ['contractor', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'rv', 'showcase', 'vet'] as const
+export type SiteDesign = typeof SITE_DESIGNS[number]
+
+export interface SiteSettings {
+  /** The design a new site starts with; the owner's site row can choose another. */
+  design: SiteDesign
+  /** The words that differ between verticals on the public site. */
+  words: {
+    /** The contact section's label for the address: "Office" for the trades, "Address" elsewhere. */
+    contactAddressLabel: string
+    /** What the contact form's message box asks. */
+    contactMessageLabel: string
+    /** The reply when the message box is sent empty. */
+    contactMessageRequired: string
+  }
+  /** A text-size control in the corner of every page (home care: readers who want larger type). */
+  textSizeToggle?: boolean
 }
 
 /**

@@ -1,0 +1,16 @@
+/* The homecare design: what it adds to the whole site. */
+
+/* ── Home care accessibility baseline (WCAG 2.2 AAA target) ────────── */
+/* Body type bumps to 18px+, no fast animations, real focus rings. */
+body { font-size: 18px; line-height: 1.6; }
+.section-intro, p { font-size: 17px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+/* When user dials up text via the Aa+ toggle we apply --text-scale */
+html { --text-scale: 1; }
+body { font-size: calc(18px * var(--text-scale)); }
+html.cf-text-large { --text-scale: 1.15; }
+html.cf-text-xlarge { --text-scale: 1.3; }

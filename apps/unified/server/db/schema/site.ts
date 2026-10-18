@@ -40,6 +40,12 @@ export const site = pgTable('site', {
   microsoftClarityId: text('microsoft_clarity_id'),
   /** The show-first customizer link: /customize/<token> gives the customer a session limited to page sections. */
   customizerToken: text('customizer_token'),
+  /**
+   * The site's design (site/designs/<design>.css on top of the base): the look a premium template family had.
+   * Empty = the vertical's default. Set per tenant because one vertical can wear another's look ('basic' takes the
+   * one matching the business's trade).
+   */
+  design: text('design'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

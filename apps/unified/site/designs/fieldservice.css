@@ -1,0 +1,22 @@
+/* The fieldservice design: what it adds to the whole site. */
+
+/* Scroll-driven pipe-fill background behind the hero — gated */
+.hero--full-bleed { position: relative; overflow: hidden; }
+.hero--full-bleed::before {
+  content: ''; position: absolute; left: 10%; top: 0; bottom: 0; width: 4px; background: rgba(255,255,255,0.18);
+  pointer-events: none;
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .hero--full-bleed::before {
+      background: linear-gradient(180deg, var(--brand) 0%, var(--accent) 50%, var(--brand) 100%);
+      background-size: 100% 200%;
+      background-position: 0 100%;
+      animation: pipe-fill linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 60%;
+      opacity: 0.6;
+    }
+    @keyframes pipe-fill { to { background-position: 0 0%; } }
+  }
+}

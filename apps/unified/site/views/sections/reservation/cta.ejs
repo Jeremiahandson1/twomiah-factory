@@ -1,0 +1,27 @@
+<%
+  // Bookings CTA — single headline + intro + button that deep-links into
+  // Twomiah Bookings (or a configured /book path). For service businesses
+  // where the customer picks a real availability slot, not a dinner time.
+  // Falls back gracefully if bookingPath isn't configured — the button still
+  // routes to /book which the renderer can later wire to the actual
+  // Bookings widget.
+  var heading = data.heading || 'Book a time'
+  var intro = data.intro || ''
+  var buttonLabel = data.buttonLabel || 'Schedule now'
+  var note = data.note || ''
+  var bookingPath = data.bookingPath || (settings && settings.bookingsPath) || '/book'
+%>
+<section id="reservations" class="reservation reservation--cta">
+  <div class="container">
+    <div class="reservation__card reservation__card--cta">
+      <div class="reservation__head">
+        <h2 class="reservation__heading"><%= heading %></h2>
+        <% if (intro) { %><p class="reservation__intro"><%= intro %></p><% } %>
+      </div>
+      <a class="btn btn--xl btn--primary reservation__cta-btn" href="<%= bookingPath %>">
+        <%= buttonLabel %>
+      </a>
+      <% if (note) { %><div class="reservation__note"><%= note %></div><% } %>
+    </div>
+  </div>
+</section>
