@@ -1858,7 +1858,47 @@ app.get('/audit', authMiddleware, requireAdmin, async (c) => {
 // support@theirdomain.com for a tenant with no CRM. Every write is mirrored to
 // the factory, which owns the Cloudflare Email Routing rules; a sync failure is
 // recorded on the row rather than rolling back — local data is authoritative
-// and the owner can retry.
+// and the owner can retry. The Factory also reads this table back (GET
+// /api/internal/email-aliases in server-static.ts) and reconciles Cloudflare
+// hourly, so an address saved before the domain is active is set up once it is.
+//
+// ONE place per business: a site paired with a CRM keeps no addresses here. The
+// Factory reads only the CRM's list once there is a CRM, and deletes the rules of
+// addresses that list lacks — an address made here would be wiped within the
+// hour. So with a CRM these writes are refused and the Email page sends the
+// owner to the CRM's address page instead.
+
+/** The CRM's address page, on the CRM this site is paired with. */
+export const CRM_EMAIL_PAGE_PATH = '/crm/settings/email'
+
+/**
+ * The origin of the CRM this site is paired with, or null. settings.crmUrl is set
+ * by the CRM add-on (POST /api/internal/set-crm-url); CRM_API_URL is set on the
+ * site by every deploy that builds a CRM with or for it (a fresh deploy of both,
+ * the add-on, the flip) — a site built together with its CRM never had
+ * settings.crmUrl, and was offered a CRM it already had. One answer for Billing's
+ * "Open CRM" (GET /api/admin/crm-status) and for the Email page.
+ */
+export function pairedCrmUrl(s: { crmUrl?: string | null } | null | undefined): string | null {
+  for (const v of [s?.crmUrl, process.env.CRM_API_URL]) {
+    try {
+      const u = new URL(String(v || '').trim())
+      if (u.protocol === 'https:') return u.origin
+    } catch { /* not a URL — try the next */ }
+  }
+  return null
+}
+
+async function currentCrmUrl(): Promise<string | null> {
+  const [s] = await db.select().from(settingsTbl).limit(1)
+  return pairedCrmUrl(s)
+}
+
+const crmOwnsEmail = (crmUrl: string) => ({
+  error: 'Your email addresses are managed in your CRM',
+  crmEmailUrl: crmUrl + CRM_EMAIL_PAGE_PATH,
+})
+
 async function syncAliasToFactory(alias: {
   localPart: string; routingMode: string; forwardTo: string | null; enabled: boolean
 }): Promise<{ ok: boolean; error?: string }> {
@@ -1890,13 +1930,62 @@ function validAlias(body: any): { ok: true; localPart: string; forwardTo: string
   return { ok: true, localPart, forwardTo }
 }
 
-app.get('/email-aliases', authMiddleware, async (c) => {
+// Admin-only on the server too, like the nav item (AdminLayout adminOnly).
+app.get('/email-aliases', authMiddleware, requireAdmin, async (c) => {
   const rows = await db.select().from(emailAlias).orderBy(asc(emailAlias.localPart))
-  const [s] = await db.select().from(settings).limit(1)
-  return c.json({ data: rows, domain: s?.domain || null })
+  const crmUrl = await currentCrmUrl()
+  return c.json({ data: rows, crmEmailUrl: crmUrl ? crmUrl + CRM_EMAIL_PAGE_PATH : null })
 })
 
-app.post('/email-aliases', authMiddleware, async (c) => {
+// Where each address stands on the domain — the Factory's answer, which also sets them up on the way
+// (lifecycle.ts GET /customers/:id/email-alias-status). Never a 500 for the page: an unreachable
+// Factory is a state the page names.
+app.get('/email-aliases/status', authMiddleware, requireAdmin, async (c) => {
+  const base = (process.env.FACTORY_URL || '').replace(/\/$/, '')
+  const tenantId = process.env.TENANT_ID
+  const key = process.env.FACTORY_SYNC_KEY
+  if (!base || !tenantId || !key) return c.json({ state: 'error', domain: null, aliases: [], detail: 'Factory sync is not configured' })
+  try {
+    const res = await fetch(`${base}/api/v1/factory/customers/${tenantId}/email-alias-status`, {
+      headers: { 'X-Factory-Key': key },
+      signal: AbortSignal.timeout(30_000),
+    })
+    const body: any = await res.json().catch(() => null)
+    if (!res.ok || !body) return c.json({ state: 'error', domain: null, aliases: [], detail: body?.error || `The Factory answered ${res.status}` })
+    return c.json(body)
+  } catch (err: any) {
+    return c.json({ state: 'error', domain: null, aliases: [], detail: 'Could not reach the Factory: ' + (err?.message || 'network error') })
+  }
+})
+
+// Cloudflare's confirmation email for a forward-to inbox, sent again (lifecycle.ts
+// POST /customers/:id/email-alias-confirmation — only an inbox one of this site's addresses uses).
+app.post('/email-aliases/resend-confirmation', authMiddleware, requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const destination = typeof body?.destination === 'string' ? body.destination.trim().toLowerCase() : ''
+  if (!destination.includes('@')) return c.json({ error: 'Which inbox?' }, 400)
+  const base = (process.env.FACTORY_URL || '').replace(/\/$/, '')
+  const tenantId = process.env.TENANT_ID
+  const key = process.env.FACTORY_SYNC_KEY
+  if (!base || !tenantId || !key) return c.json({ error: 'Factory sync is not configured' }, 503)
+  try {
+    const res = await fetch(`${base}/api/v1/factory/customers/${tenantId}/email-alias-confirmation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': key },
+      body: JSON.stringify({ destination }),
+      signal: AbortSignal.timeout(20_000),
+    })
+    const data: any = await res.json().catch(() => ({}))
+    if (!res.ok) return c.json({ error: data?.error || `The Factory answered ${res.status}` }, 502)
+    return c.json(data)
+  } catch (err: any) {
+    return c.json({ error: 'Could not reach the Factory: ' + (err?.message || 'network error') }, 502)
+  }
+})
+
+app.post('/email-aliases', authMiddleware, requireAdmin, async (c) => {
+  const crmUrl = await currentCrmUrl()
+  if (crmUrl) return c.json(crmOwnsEmail(crmUrl), 409)
   const body = await c.req.json().catch(() => ({}))
   const check = validAlias(body)
   if (!check.ok) return c.json({ error: check.error }, 400)
@@ -1918,7 +2007,9 @@ app.post('/email-aliases', authMiddleware, async (c) => {
   return c.json({ alias: created, synced: sync.ok, syncError: sync.error ?? null }, 201)
 })
 
-app.patch('/email-aliases/:id', authMiddleware, async (c) => {
+app.patch('/email-aliases/:id', authMiddleware, requireAdmin, async (c) => {
+  const crmUrl = await currentCrmUrl()
+  if (crmUrl) return c.json(crmOwnsEmail(crmUrl), 409)
   const body = await c.req.json().catch(() => ({}))
   const [existing] = await db.select().from(emailAlias).where(eq(emailAlias.id, c.req.param('id'))).limit(1)
   if (!existing) return c.json({ error: 'Address not found' }, 404)
@@ -1940,7 +2031,9 @@ app.patch('/email-aliases/:id', authMiddleware, async (c) => {
   return c.json({ alias: updated, synced: sync.ok, syncError: sync.error ?? null })
 })
 
-app.delete('/email-aliases/:id', authMiddleware, async (c) => {
+app.delete('/email-aliases/:id', authMiddleware, requireAdmin, async (c) => {
+  const crmUrl = await currentCrmUrl()
+  if (crmUrl) return c.json(crmOwnsEmail(crmUrl), 409)
   const [existing] = await db.select().from(emailAlias).where(eq(emailAlias.id, c.req.param('id'))).limit(1)
   if (!existing) return c.json({ error: 'Address not found' }, 404)
   // Disable at the factory first so mail stops flowing even if the row lingers.
@@ -1952,7 +2045,9 @@ app.delete('/email-aliases/:id', authMiddleware, async (c) => {
 })
 
 // Retry a failed mirror without changing anything.
-app.post('/email-aliases/:id/resync', authMiddleware, async (c) => {
+app.post('/email-aliases/:id/resync', authMiddleware, requireAdmin, async (c) => {
+  const crmUrl = await currentCrmUrl()
+  if (crmUrl) return c.json(crmOwnsEmail(crmUrl), 409)
   const [existing] = await db.select().from(emailAlias).where(eq(emailAlias.id, c.req.param('id'))).limit(1)
   if (!existing) return c.json({ error: 'Address not found' }, 404)
   const sync = await syncAliasToFactory({

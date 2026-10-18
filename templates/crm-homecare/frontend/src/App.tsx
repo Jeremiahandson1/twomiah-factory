@@ -90,6 +90,10 @@ const App = () => {
         <Route path="settings/email" element={<EmailAliasesPage />} />
         <Route path="settings/email-domain" element={<EmailDomainPage />} />
         <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
+        {/* The address page every other CRM has at /crm/settings/email — where a paired premium website's Email
+            page sends the owner (CRM_EMAIL_PAGE_PATH in each premium site's routes/admin.ts). Home care's admin keeps it
+            as a dashboard section, deep-linked by hash (AdminDashboard M-04). */}
+        <Route path="/crm/settings/email" element={<Navigate to="/crm#branded-email" replace />} />
 
         {/* Customer Portal — unified hub after login */}
         <Route path="/" element={<AuthProvider><ProtectedRoute><CustomerPortal /></ProtectedRoute></AuthProvider>} />

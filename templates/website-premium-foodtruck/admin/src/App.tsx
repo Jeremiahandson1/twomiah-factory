@@ -12,6 +12,7 @@ import { UsersPage } from './pages/UsersPage'
 import { AccountPage } from './pages/AccountPage'
 import { BillingPage } from './pages/BillingPage'
 import { DomainPage } from './pages/DomainPage'
+import { EmailPage } from './pages/EmailPage'
 import { PostsListPage } from './pages/PostsListPage'
 import { PostEditPage } from './pages/PostEditPage'
 import { ProjectsListPage } from './pages/ProjectsListPage'
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="/account" element={<AccountPage />} />
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/domain" element={<DomainPage />} />
+          <Route path="/email" element={<EmailPage />} />
           <Route path="/posts" element={<PostsListPage />} />
           <Route path="/posts/:slug" element={<PostEditPage />} />
           <Route path="/projects" element={<ProjectsListPage />} />

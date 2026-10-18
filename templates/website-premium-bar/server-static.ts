@@ -31,7 +31,7 @@ import path from 'path'
 import crypto from 'crypto'
 import { db } from './db'
 import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl, posts as postsTbl, projects as projectsTbl, pageViews as pageViewsTbl } from './db/schema'
-import adminRoutes, { authMiddleware, requireAdmin } from './routes/admin'
+import adminRoutes, { authMiddleware, requireAdmin, pairedCrmUrl } from './routes/admin'
 // The same check every route in routes/admin.ts uses: the admin app's httpOnly session cookie (or a
 // Bearer token), verified and checked against revoked sessions. The billing, domain and CRM routes
 // below used to accept ANY "Bearer ..." header — anyone could open the owner's billing portal — and
@@ -2267,6 +2267,27 @@ app.post('/api/internal/set-crm-url', async (c) => {
   return c.json({ success: true })
 })
 
+// Factory internal: this site's branded email addresses, for a website-only tenant (no CRM). The
+// Factory reads them back (apps/api/src/services/emailAliasSync.ts readTenantAliases) and makes
+// Cloudflare match — so an address saved before the domain was active is set up once it is, and the
+// hourly sweep keeps it so. Same contract as the CRM's GET /api/internal/email-aliases
+// (packages/tenant-backend createEmailAliasesInternalRoute): X-Factory-Key against FACTORY_SYNC_KEY,
+// checked before the table is read; 503 when the key is not set — never an open list.
+app.get('/api/internal/email-aliases', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  const got = String(c.req.header('X-Factory-Key') || '')
+  if (got.length !== syncKey.length || !crypto.timingSafeEqual(Buffer.from(got), Buffer.from(syncKey))) return c.json({ error: 'Unauthorized' }, 401)
+  const { emailAlias: emailAliasTbl } = await import('./db/schema')
+  const rows = await db.select().from(emailAliasTbl)
+  return c.json({
+    aliases: rows.map((r) => ({
+      localPart: r.localPart, routingMode: 'forward',
+      forwardTo: r.forwardTo ?? null, enabled: r.enabled !== false,
+    })),
+  })
+})
+
 // Path A++ — surfaces CRM availability to the admin SPA. Powers the
 // /admin/billing UI's choice between "Add CRM" tile and "Open CRM →"
 // button. Public endpoint shape (returns booleans + URL, never the
@@ -2274,11 +2295,12 @@ app.post('/api/internal/set-crm-url', async (c) => {
 // behind the admin gate.
 app.get('/api/admin/crm-status', adminAuth, async (c: any) => {
   const s = (await db.select().from(settingsTbl).limit(1))[0]
-  const ready = !!(s as any)?.crmUrl
+  // settings.crmUrl (the add-on) or CRM_API_URL (every deploy that pairs a CRM) — routes/admin.ts pairedCrmUrl.
+  const crmUrl = pairedCrmUrl(s)
   return c.json({
-    ready,
-    crmUrl: ready ? (s as any).crmUrl : null,
-    readyAt: ready ? (s as any).crmReadyAt : null,
+    ready: !!crmUrl,
+    crmUrl,
+    readyAt: crmUrl ? (s?.crmReadyAt ?? null) : null,
   })
 })
 
