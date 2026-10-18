@@ -60,3 +60,22 @@ private-pay billing for visits. It is a different thing from the CRM's invoices 
    divergence held by a unified test. Then measured in a browser, every role, both themes, phone and desktop.
 
 Roofing, the store and the dispensary follow the same pattern after home care (SPEC §0 build order).
+
+## How the code moves
+
+Home care's routes lean on a common set of helpers and services (the agency's clock `services/agencyTime.ts`
+in 31 routes, schedule occurrences in 24, schedule rows, visit notices, self-service, caregiver access, care
+audit, authorization checks, punch rules, invoice money …). So:
+
+1. **The foundation first, by one hand:** `templates/crm-homecare/backend/src/{helpers,services,jobs,middleware}`
+   that more than one route uses → `apps/unified/server/crm/homecare/core/`, each a factory taking `CrmDeps`
+   (or a pure module where it has no state), raw SQL in `server/data/homecare*.ts`. Its timers (`jobs/*`,
+   shift reminders, overtime alerts, visit jobs, the WORCS poll) start from `startJobs`, never at import.
+   The sign-in context is already the unified one: home care's routes read `user.userId` and
+   `user.companyId` (agency id → company id), which `server/http/env.ts` provides.
+2. **Then the routes, in the groups of the plan above, in parallel**, each group in its own folder under
+   `server/crm/homecare/`, using the foundation, following `docs/UNIFIED_MOVE_GUIDE.md` (replies, raw SQL,
+   mounts behind the registry's home-care features). Every insert sets `companyId` from the signed-in person.
+3. **Screens** the same way, under `web/src/crm/pages/homecare/`.
+4. **The suite** (`tests/homecare`, its own auth stub today: `tests/harness/fixtures/middleware-auth.crm-homecare.ts`)
+   runs against the unified app as `homecare`.
