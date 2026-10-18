@@ -1,6 +1,6 @@
 // ADAPTED COPY of tests/crm/calltracking-fields.test.ts, for the unified app (tests/unified/crm/harness/run.ts). Unchanged except the
 // 1 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
-// running against the template; tests/harness/unified-divergences.ts names the assertions this copy stands in for.
+// running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // The call-tracking screen is answered under the names it reads. (Launch list, 10/17; crm-bar/crm-basic T57)
 //
 // The service read call_log and tracking_number with raw SQL and handed the snake_case rows straight out, while

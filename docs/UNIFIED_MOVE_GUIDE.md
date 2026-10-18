@@ -75,7 +75,7 @@ From the worktree root (`C:/ALL TWOMIAH PRODUCTS/engine-wt`):
 - `bun scripts/check-unified-rules.ts`: the rules, including no `c.json(` and no raw SQL
   outside `server/data/`.
 - `bun scripts/check-unified-types.ts`: 0 type errors in the app. Shared baseline unchanged.
-- `bun tests/crm/harness/run-unified.ts <filter>`: the base CRM's own behaviour suite against
+- `bun tests/unified/harness/crm.ts <filter>`: the base CRM's own behaviour suite against
   the unified app, filtered by file name (e.g. `bids`, `t32-`). Each run gets its own sandbox.
 - `cd apps/unified && bun test tests`: the app's own tests.
 

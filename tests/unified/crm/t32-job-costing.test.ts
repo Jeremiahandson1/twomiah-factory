@@ -1,6 +1,6 @@
 // ADAPTED COPY of tests/crm/t32-job-costing.test.ts, for the unified app (tests/unified/crm/harness/run.ts). Unchanged except the
 // 3 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
-// running against the template; tests/harness/unified-divergences.ts names the assertions this copy stands in for.
+// running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // T32 B3 — job costing was wrong in six different directions at once, and every one of them
 // pointed the owner at a profit figure that did not exist.
 //

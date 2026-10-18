@@ -41,7 +41,7 @@ function sharedPhotoStore(): PhotoStore {
 }
 
 /**
- * Test seams, used only by the behaviour-suite harness (tests/harness/runUnifiedSuite.ts), which runs the CRM
+ * Test seams, used only by the behaviour-suite harness (tests/unified/harness/runUnifiedSuite.ts), which runs the CRM
  * templates' own tests against this app: they sign in with an x-test-user header, and, like those templates' route
  * files, reach a module without the feature gate the template's index.ts put in front of it.
  */

@@ -3,7 +3,7 @@
 //
 //   bun tests/unified/crm/harness/run.ts [filter]
 import { fileURLToPath } from 'node:url'
-import { runUnifiedSuite } from '../../../harness/runUnifiedSuite.ts'
+import { runUnifiedSuite } from '../../harness/runUnifiedSuite.ts'
 
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\\/g, '/')
 process.exit(await runUnifiedSuite({

@@ -1,6 +1,6 @@
 // ADAPTED COPY of tests/crm/t43-side-endpoints.test.ts, for the unified app (tests/unified/crm/harness/run.ts). Unchanged except the
 // 3 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
-// running against the template; tests/harness/unified-divergences.ts names the assertions this copy stands in for.
+// running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // The signing record and the activity feed, which went to the wrong seat. (T42 contractor)
 //
 //   "Project endpoint gives viewer the CO signature image, signer IP and user agent (field gets a

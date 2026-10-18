@@ -1,6 +1,6 @@
 // ADAPTED COPY of tests/crm/t32-po-commitment.test.ts, for the unified app (tests/unified/crm/harness/run.ts). Unchanged except the
 // 4 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
-// running against the template; tests/harness/unified-divergences.ts names the assertions this copy stands in for.
+// running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // T32 M3 — "PO commitments are never relieved."
 //
 // PO-00001 for $723.72 was sent and received, then billed $723.72, then a FURTHER $5,000 against the

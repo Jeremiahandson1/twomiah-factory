@@ -1,6 +1,6 @@
 // ADAPTED COPY of tests/crm/t32-site-records.test.ts, for the unified app (tests/unified/crm/harness/run.ts). Unchanged except the
 // 1 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
-// running against the template; tests/harness/unified-divergences.ts names the assertions this copy stands in for.
+// running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // T32 H10 and H11 — two site records that could be silently rewritten after the fact.
 //
 // H10  A log for 30 September was PUT with new text and date = 1 October. It saved: 30 September's
