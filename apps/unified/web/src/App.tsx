@@ -1,5 +1,6 @@
 // The admin: the website's screens and the shared company screens, under /crm. The public website ('/' and every
 // page of it) is the server's; this app owns /crm/*, the sign-in pages, and nothing else.
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, ConfirmProvider, ErrorBoundary, PermissionsProvider, ProtectedRoute, PublicRoute, ToastProvider } from './shared'
 import { api } from './api'
@@ -21,38 +22,34 @@ import { BookingDetailPage } from './booking/BookingDetailPage'
 import { BookingCalendarPage } from './booking/BookingCalendarPage'
 import { BookingSettingsPage } from './booking/BookingSettingsPage'
 import { BookingInsightsPage, BookingWaitlistPage, BookingSeriesPage } from './booking/BookingExtrasPages'
-import * as Crm from './crm/screens'
-import ProjectsPage from './crm/pages/ProjectsPage'
-import ProjectDetailPage from './crm/pages/ProjectDetailPage'
-import RFIsPage from './crm/pages/RFIsPage'
-import SubmittalsPage from './crm/pages/SubmittalsPage'
-import DailyLogsPage from './crm/pages/DailyLogsPage'
-import PunchListsPage from './crm/pages/PunchListsPage'
-import InspectionsPage from './crm/pages/InspectionsPage'
-import ChangeOrdersPage from './crm/pages/ChangeOrdersPage'
-import GanttChartsPage from './crm/pages/GanttChartsPage'
-import BidsPage from './crm/pages/BidsPage'
-import PurchaseOrdersPage from './crm/pages/PurchaseOrdersPage'
-import BillsPage from './crm/pages/BillsPage'
-import LienWaiversPage from './crm/pages/LienWaiversPage'
-import DrawSchedulesPage from './crm/pages/DrawSchedulesPage'
-import AiaFormsPage from './crm/pages/AiaFormsPage'
-import TakeoffsPage from './crm/pages/TakeoffsPage'
-import SelectionsPage from './crm/pages/SelectionsPage'
-import CallTrackingPage from './crm/pages/CallTrackingPage'
-import { AIReceptionistPage } from './crm/pages/AIReceptionistPage'
-import SupportPage from './crm/pages/SupportPage'
-import ContactSupportPage from './crm/pages/ContactSupportPage'
-import HelpPage from './crm/pages/HelpPage'
-import VendorPortalPage from './crm/pages/VendorPortalPage'
-import PricebookTrialPage from './crm/pages/PricebookTrialPage'
-import VisualizerPage from './crm/pages/VisualizerPage'
-import {
-  PortalLayout, PortalDashboard, PortalProjects, PortalProjectDetail, PortalProjectFiles, PortalQuotes, PortalQuoteDetail, PortalInvoices,
-  PortalInvoiceDetail, PortalPaymentMethods, PortalChangeOrders, PortalChangeOrderDetail, PortalSelections, PortalMessages, PortalMyJobs,
-  PortalLienWaivers, PortalSubmittalReview, PortalAssignedRfis, PortalSharedDocuments, PortalEquipment, PortalEquipmentDetail,
-  PortalAgreements, PortalServiceRequest,
-} from './shared'
+import { Crm, page, named } from './crm/lazy'
+// The customer portal is its own bundle (crm/portal.tsx: Stripe stays out of the admin).
+const PortalApp = lazy(() => import('./crm/portal'))
+const ProjectsPage = page(() => import('./crm/pages/ProjectsPage'))
+const ProjectDetailPage = page(() => import('./crm/pages/ProjectDetailPage'))
+const RFIsPage = page(() => import('./crm/pages/RFIsPage'))
+const SubmittalsPage = page(() => import('./crm/pages/SubmittalsPage'))
+const DailyLogsPage = page(() => import('./crm/pages/DailyLogsPage'))
+const PunchListsPage = page(() => import('./crm/pages/PunchListsPage'))
+const InspectionsPage = page(() => import('./crm/pages/InspectionsPage'))
+const ChangeOrdersPage = page(() => import('./crm/pages/ChangeOrdersPage'))
+const GanttChartsPage = page(() => import('./crm/pages/GanttChartsPage'))
+const BidsPage = page(() => import('./crm/pages/BidsPage'))
+const PurchaseOrdersPage = page(() => import('./crm/pages/PurchaseOrdersPage'))
+const BillsPage = page(() => import('./crm/pages/BillsPage'))
+const LienWaiversPage = page(() => import('./crm/pages/LienWaiversPage'))
+const DrawSchedulesPage = page(() => import('./crm/pages/DrawSchedulesPage'))
+const AiaFormsPage = page(() => import('./crm/pages/AiaFormsPage'))
+const TakeoffsPage = page(() => import('./crm/pages/TakeoffsPage'))
+const SelectionsPage = page(() => import('./crm/pages/SelectionsPage'))
+const CallTrackingPage = page(() => import('./crm/pages/CallTrackingPage'))
+const AIReceptionistPage = named(() => import('./crm/pages/AIReceptionistPage'), 'AIReceptionistPage')
+const SupportPage = page(() => import('./crm/pages/SupportPage'))
+const ContactSupportPage = page(() => import('./crm/pages/ContactSupportPage'))
+const HelpPage = page(() => import('./crm/pages/HelpPage'))
+const VendorPortalPage = page(() => import('./crm/pages/VendorPortalPage'))
+const PricebookTrialPage = page(() => import('./crm/pages/PricebookTrialPage'))
+const VisualizerPage = page(() => import('./crm/pages/VisualizerPage'))
 
 function NotFound() {
   return (
@@ -180,30 +177,7 @@ export default function App() {
                     </Route>
 
                     {/* The customer's portal, by their private link (no sign-in). */}
-                    <Route path="/portal/:token" element={<Crm.Portal><PortalLayout /></Crm.Portal>}>
-                      <Route index element={<PortalDashboard />} />
-                      <Route path="projects" element={<PortalProjects />} />
-                      <Route path="projects/:projectId" element={<PortalProjectDetail />} />
-                      <Route path="projects/:projectId/files" element={<PortalProjectFiles />} />
-                      <Route path="quotes" element={<PortalQuotes />} />
-                      <Route path="quotes/:quoteId" element={<PortalQuoteDetail />} />
-                      <Route path="invoices" element={<PortalInvoices />} />
-                      <Route path="invoices/:invoiceId" element={<PortalInvoiceDetail />} />
-                      <Route path="payment-methods" element={<PortalPaymentMethods />} />
-                      <Route path="change-orders" element={<PortalChangeOrders />} />
-                      <Route path="change-orders/:changeOrderId" element={<PortalChangeOrderDetail />} />
-                      <Route path="selections" element={<PortalSelections />} />
-                      <Route path="messages" element={<PortalMessages />} />
-                      <Route path="my-jobs" element={<PortalMyJobs />} />
-                      <Route path="lien-waivers" element={<PortalLienWaivers />} />
-                      <Route path="submittal-review" element={<PortalSubmittalReview />} />
-                      <Route path="rfis-assigned" element={<PortalAssignedRfis />} />
-                      <Route path="shared-documents" element={<PortalSharedDocuments />} />
-                      <Route path="equipment" element={<PortalEquipment />} />
-                      <Route path="equipment/:equipmentId" element={<PortalEquipmentDetail />} />
-                      <Route path="agreements" element={<PortalAgreements />} />
-                      <Route path="service-request" element={<PortalServiceRequest />} />
-                    </Route>
+                    <Route path="/portal/:token/*" element={<Suspense fallback={null}><PortalApp /></Suspense>} />
 
                     {/* A vendor's portal, by their private link (no sign-in, no shell). */}
                     <Route path="/vendor/:token" element={<VendorPortalPage />} />

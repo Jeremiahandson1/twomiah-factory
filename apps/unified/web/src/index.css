@@ -265,3 +265,10 @@ select, option { color: inherit; background-color: inherit; }
 .dark .pac-icon {
   filter: invert(0.85);
 }
+
+/*
+ * A visually hidden label (sr-only: position absolute, 1px) sits where it would have flowed — inside a table, at the
+ * table's far edge — and when its scroll box isn't its positioning container it widens the whole page on a phone
+ * (bookings, commissions). Pinned to its container's top-left, it can't; screen readers read it the same.
+ */
+.sr-only { left: 0; top: 0; }

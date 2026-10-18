@@ -12,8 +12,10 @@ export function createEmailDomainRoutes(deps: EmailDomainDeps): Hono {
   // A missing/unconfigured domain is a client-state condition, not a server fault — e.g.
   // "No SendGrid domain auth to verify" when the tenant has no branded domain set up. Return
   // 4xx for those (and honour any 4xx the factory propagated) rather than a blanket 500.
-  const errStatus = (err: any): 400 | 404 | 424 | 500 => {
+  const errStatus = (err: any): 400 | 404 | 424 | 500 | 503 => {
     const s = Number(err?.status || err?.statusCode)
+    // Not connected to the Factory at all: the tenant's setup, said as "not available" (factoryClient.ts).
+    if (s === 503) return 503
     // The factory refusing this tenant's key/id is a tenant-configuration state, not a
     // server fault — 424 Failed Dependency, never a 500 on an auth condition. (QA F-10)
     if (s === 401 || s === 403) return 424

@@ -12,7 +12,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
-import { site, page, post, portfolioItem, photo, pageView, lead, contact } from '../db/schema/index.ts'
+import { website, page, post, portfolioItem, photo, pageView, lead, contact } from '../db/schema/index.ts'
 import { SITE_DESIGNS, SITE_DESIGN_LABELS, type VerticalSettings } from '../core/vertical.ts'
 import { list, one, fail, done } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
@@ -38,7 +38,7 @@ const optText = (v: unknown, max: number) => (typeof v === 'string' ? (v.trim() 
 const allOf = <T>(rows: T[]) => ({ page: 1, limit: Math.max(rows.length, 1), total: rows.length })
 
 /** The website's own settings a person may change (the company's facts live in /api/company). */
-const SETTINGS_TEXT: Array<[keyof typeof site.$inferInsert, number]> = [
+const SETTINGS_TEXT: Array<[keyof typeof website.$inferInsert, number]> = [
   ['tagline', 300], ['seoTitle', 200], ['seoDescription', 400], ['contactCtaLabel', 60], ['accentColor', 20], ['faviconUrl', 2000],
   ['googleTagManagerId', 40], ['googleAnalyticsId', 40], ['googleAdsId', 40], ['facebookPixelId', 40], ['microsoftClarityId', 40],
 ]
@@ -50,9 +50,9 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
 
   /** The website's settings row, made the first time it's needed. */
   async function siteRow(companyId: string) {
-    const [s] = await db.select().from(site).where(eq(site.companyId, companyId)).limit(1)
+    const [s] = await db.select().from(website).where(eq(website.companyId, companyId)).limit(1)
     if (s) return s
-    const [created] = await db.insert(site).values({ companyId }).returning()
+    const [created] = await db.insert(website).values({ companyId }).returning()
     return created
   }
 
@@ -162,7 +162,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     }
     if (!Object.keys(patch).length) return fail(c, 400, 'Nothing to change')
     const row = await siteRow(c.get('user').companyId)
-    const [updated] = await db.update(site).set({ ...patch, updatedAt: new Date() }).where(eq(site.id, row.id)).returning()
+    const [updated] = await db.update(website).set({ ...patch, updatedAt: new Date() }).where(eq(website.id, row.id)).returning()
     return one(c, updated)
   })
 
@@ -289,7 +289,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     const s = await siteRow(companyId)
     const nav = Array.isArray(s.nav) ? s.nav as Array<{ label: string; href: string }> : []
     if (nav.some((n) => /^\/?projects\/?$/.test(String(n?.href || '')))) return
-    await db.update(site).set({ nav: [...nav, { label: 'Projects', href: '/projects' }], updatedAt: new Date() }).where(eq(site.id, s.id))
+    await db.update(website).set({ nav: [...nav, { label: 'Projects', href: '/projects' }], updatedAt: new Date() }).where(eq(website.id, s.id))
   }
 
   app.get('/portfolio', may('site:read'), async (c) => {

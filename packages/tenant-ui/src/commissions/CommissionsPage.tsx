@@ -201,7 +201,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           {statement && <Button variant="secondary" onClick={printStatement}><Printer className="w-4 h-4" />Print</Button>}
         </div>
         {statement && (
-          <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto dark:bg-slate-900 dark:border-slate-700">
+          <div className="relative bg-white border border-gray-200 rounded-lg overflow-x-auto dark:bg-slate-900 dark:border-slate-700">
             <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700">
               <h2 className="font-semibold text-gray-900 dark:text-slate-100">{statement.person.name}</h2>
               <p className="text-sm text-gray-600 dark:text-slate-400">{statement.from || 'From the start'} to {statement.to || 'today'}</p>
@@ -253,7 +253,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
       {tab === 'statements' ? (
         statementView()
       ) : tab === 'records' ? (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto dark:bg-slate-900 dark:border-slate-700">
+        <div className="relative bg-white border border-gray-200 rounded-lg overflow-x-auto dark:bg-slate-900 dark:border-slate-700">
           <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 border-b border-gray-200 dark:bg-slate-800 dark:border-slate-700">
               <tr className="text-left text-xs font-semibold uppercase text-gray-600 dark:text-slate-300">

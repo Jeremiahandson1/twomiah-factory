@@ -74,7 +74,7 @@ export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportC
             <button key={type.id} onClick={() => { setSelectedType(type.id); reset() }} aria-pressed={active} className={`p-4 rounded-lg border-2 text-left transition-all ${active ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10' : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'}`}>
               <Icon className={`w-6 h-6 mb-2 ${active ? 'text-orange-600 dark:text-orange-200' : 'text-gray-400'}`} />
               <p className="font-medium text-gray-900 dark:text-slate-100">{type.label}</p>
-              <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{type.description}</p>
+              <p className="text-xs text-gray-600 mt-1 dark:text-slate-400">{type.description}</p>
             </button>) })}
         </div>
       </div>

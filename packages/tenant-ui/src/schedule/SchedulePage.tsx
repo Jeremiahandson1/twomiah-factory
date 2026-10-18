@@ -59,9 +59,9 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
     const from = localKey(start) + 'T00:00:00.000Z', to = end.toISOString()
     const [j, b, x, e] = await Promise.all([
       api.get('/api/jobs', { startDate: from, endDate: to, limit: 500 }).then((r: any) => r?.data || []).catch((err: unknown) => { toast.error(errMsg(err, 'Failed to load jobs')); return [] }),
-      api.get('/api/booking', { from, to, limit: 500 }).then((r: any) => (r?.data || []).map((row: any): ScheduleBooking => ({ id: row.id, startAt: row.scheduledDate, status: row.status, customerName: row.customerName, serviceName: row.serviceName, customerAddress: row.customerAddress ?? null, calendarId: row.calendar?.id ?? null, source: 'crm' }))).catch(() => []),
+      cfg.loadBookings ? cfg.loadBookings(from, to).catch(() => []) : api.get('/api/booking', { from, to, limit: 500 }).then((r: any) => (r?.data || []).map((row: any): ScheduleBooking => ({ id: row.id, startAt: row.scheduledDate, status: row.status, customerName: row.customerName, serviceName: row.serviceName, customerAddress: row.customerAddress ?? null, calendarId: row.calendar?.id ?? null, source: 'crm' }))).catch(() => []),
       // Bookings taken on the connected premium website — empty when no site is connected.
-      cfg.externalBookings ? api.get('/api/bookings/external', { from, to }).then((r: any) => (r?.bookings || []).map((row: any): ScheduleBooking => ({ ...row, source: 'website' }))).catch(() => []) : Promise.resolve([]),
+      !cfg.loadBookings && cfg.externalBookings ? api.get('/api/bookings/external', { from, to }).then((r: any) => (r?.bookings || []).map((row: any): ScheduleBooking => ({ ...row, source: 'website' }))).catch(() => []) : Promise.resolve([]),
       cfg.events ? api.get('/api/schedule-events', { from, to }).then((r: any) => r?.data || []).catch((err: unknown) => { toast.error(errMsg(err, 'Failed to load appointments')); return [] }) : Promise.resolve([]),
     ])
     setJobs(j); setBookings([...b, ...x]); setEvents(e)
@@ -212,7 +212,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                   {cfg.events ? (
                     mayBook && <button type="button" onClick={() => setNewFor(day)} className="w-full text-xs text-gray-500 dark:text-slate-400 hover:text-orange-500 dark:hover:text-orange-200 py-1">+ Add</button>
                   ) : (
-                    dragDrop && jobsFor(day).length === 0 && bookingsFor(day).length === 0 && <p className="text-[11px] text-gray-300 dark:text-slate-400 text-center pt-4 select-none">Drop a {cfg.jobLabel.toLowerCase()} here</p>
+                    dragDrop && jobsFor(day).length === 0 && bookingsFor(day).length === 0 && <p className="text-[11px] text-gray-500 dark:text-slate-400 text-center pt-4 select-none">Drop a {cfg.jobLabel.toLowerCase()} here</p>
                   )}
                 </div>
               </div>

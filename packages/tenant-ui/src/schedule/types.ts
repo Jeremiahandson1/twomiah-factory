@@ -15,6 +15,11 @@ export interface ScheduleConfig {
   jobLabel?: string
   /** Bookings from the connected premium website (/api/bookings/external). Default true. */
   externalBookings?: boolean
+  /**
+   * Where the week's bookings come from, in place of the CRM's /api/booking and the website's /api/bookings/external.
+   * The unified app has one booking engine for site and CRM; it reads its own bookings here.
+   */
+  loadBookings?: (from: string, to: string) => Promise<ScheduleBooking[]>
 }
 
 export const DEFAULT_EVENT_TYPES = [
@@ -33,6 +38,7 @@ export function resolveScheduleConfig(c?: ScheduleConfig) {
     dragDrop: cfg.dragDrop !== false,
     jobLabel: cfg.jobLabel || 'Job',
     externalBookings: cfg.externalBookings !== false,
+    loadBookings: cfg.loadBookings,
   }
 }
 

@@ -19,7 +19,7 @@ beforeAll(async () => {
     address: '12 Main St', city: 'Verona', state: 'WI', zip: '53593', primaryColor: '#b45309',
   }).returning()
   companyId = co.id
-  await t.db.insert(t.schema.site).values({
+  await t.db.insert(t.schema.website).values({
     companyId, tagline: 'Custom homes', seoDescription: 'Custom homes and renovations in Verona.',
     nav: [{ label: 'About', href: 'about' }], serviceAreas: ['Verona', 'Madison', 'Fitchburg'], accentColor: '#0e7490',
   })
@@ -96,9 +96,9 @@ describe('the stylesheet', () => {
 
   test('the site\'s design adds its own look, and only its own', async () => {
     expect((await html('/styles/main.css')).body).not.toContain('Home care accessibility baseline')
-    await t.db.update(t.schema.site).set({ design: 'homecare' }).where(eq(t.schema.site.companyId, companyId))
+    await t.db.update(t.schema.website).set({ design: 'homecare' }).where(eq(t.schema.website.companyId, companyId))
     expect((await html('/styles/main.css')).body).toContain('Home care accessibility baseline')
-    await t.db.update(t.schema.site).set({ design: null }).where(eq(t.schema.site.companyId, companyId))
+    await t.db.update(t.schema.website).set({ design: null }).where(eq(t.schema.website.companyId, companyId))
   })
 })
 

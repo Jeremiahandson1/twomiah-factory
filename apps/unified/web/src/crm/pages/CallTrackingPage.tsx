@@ -146,7 +146,7 @@ export default function CallTrackingPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b">
+      <div className="flex gap-2 border-b overflow-x-auto">
         {[
           { id: 'calls', label: 'Call Log', icon: Phone },
           { id: 'attribution', label: 'Attribution', icon: BarChart3 },
@@ -156,7 +156,7 @@ export default function CallTrackingPage() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px whitespace-nowrap shrink-0 ${
               tab === t.id
                 ? 'border-orange-500 text-orange-600 dark:text-orange-200'
                 : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'

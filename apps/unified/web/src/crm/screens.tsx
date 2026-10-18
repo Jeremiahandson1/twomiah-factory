@@ -1,7 +1,6 @@
 // The CRM's shared screens (packages/tenant-ui), each handed this app's client, toasts, session and the vertical's
 // settings. Every CRM template kept a wrapper file per screen (templates/crm/frontend/src/pages/*, components/detail/*)
 // and a config file per area; here one file, and the settings come from the vertical (./vertical.ts).
-import type { ReactNode } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import {
   ContactsPage, ContactDetailPage, JobsPage, JobDetailPage, QuotesPage, QuoteDetailPage, InvoicesPage, InvoiceDetailPage,
@@ -9,7 +8,7 @@ import {
   CommissionsPage, TechView, FleetPage, InventoryPage, EquipmentPage, AgreementsPage, WarrantiesPage, RecurringForm,
   RecurringList, TasksPage, ReviewsPage, MarketingPage, MessagesPage, AdsPage, PricebookPage, LeadSourcesPage,
   leadSourceGuides, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, IntegrationsPage, ImportPage, MigrationPage,
-  PortalProvider, useAuth, useToast,
+  useAuth, useToast,
 } from '../shared'
 import { api } from '../api'
 import { verticalScreens } from './vertical'
@@ -57,7 +56,16 @@ export function InvoiceDetail() {
 }
 export function Schedule() {
   const { hasFeature } = useAuth()
-  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar') }} />
+  // The week's bookings are the app's own (one booking engine for site and CRM), when the business takes bookings.
+  const loadBookings = async (from: string, to: string) => {
+    if (!hasFeature('online_booking')) return []
+    const r: any = await client.get('/api/booking/bookings', { from, to, limit: 500 })
+    return (r?.data || []).filter((b: any) => b.status !== 'cancelled').map((b: any) => ({
+      id: b.id, startAt: b.startAt, status: b.status, customerName: b.customerName, serviceName: b.serviceName ?? null,
+      customerAddress: b.customerAddress ?? null, calendarId: null, source: b.source === 'public' ? 'website' as const : 'crm' as const,
+    }))
+  }
+  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings }} />
 }
 export const Time = () => <TimePage api={client} toast={useToast()} config={v().time as any} />
 export const Expenses = () => <ExpensesPage api={client} toast={useToast()} config={v().expenses as any} />
@@ -101,8 +109,6 @@ export const Integrations = () => <IntegrationsPage api={client} config={{ leadS
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />
 
-/** The customer portal's provider, with the vertical's portal settings. */
-export const Portal = ({ children }: { children: ReactNode }) => <PortalProvider config={v().portal as any}>{children}</PortalProvider>
 
 /**
  * The CRM's first-run wizard, before its screens. The template wrapped its whole /crm in OnboardingGate

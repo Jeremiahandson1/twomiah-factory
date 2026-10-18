@@ -190,7 +190,7 @@ export default function ProjectDetailPage() {
           {can('projects:delete') && (
             <button
               onClick={() => setDeleteOpen(true)}
-              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2 dark:text-red-400 dark:bg-red-950/40"
+              className="px-4 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 flex items-center gap-2 dark:text-red-400 dark:bg-red-950/40"
             >
               <Trash2 className="w-4 h-4" />
               Delete

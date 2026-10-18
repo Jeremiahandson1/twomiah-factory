@@ -67,10 +67,3 @@ export { GbpReviewsPage } from '@twomiah/tenant-ui/src/settings/GbpReviewsPage'
 export { IntegrationsPage } from '@twomiah/tenant-ui/src/settings/IntegrationsPage'
 export { ImportPage } from '@twomiah/tenant-ui/src/settings/ImportPage'
 export { MigrationPage } from '@twomiah/tenant-ui/src/settings/MigrationPage'
-// The customer's portal (their private link).
-export {
-  PortalProvider, PortalLayout, PortalDashboard, PortalProjects, PortalProjectDetail, PortalProjectFiles, PortalQuotes,
-  PortalQuoteDetail, PortalInvoices, PortalInvoiceDetail, PortalPaymentMethods, PortalChangeOrders, PortalChangeOrderDetail,
-  PortalSelections, PortalMessages, PortalMyJobs, PortalLienWaivers, PortalSubmittalReview, PortalAssignedRfis,
-  PortalSharedDocuments, PortalEquipment, PortalEquipmentDetail, PortalAgreements, PortalServiceRequest,
-} from '@twomiah/tenant-ui/src/portal'

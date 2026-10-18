@@ -29,7 +29,9 @@ interface FullFactoryApiClient extends FactoryApiClient {
 
 function env(name: string): string {
   const v = process.env[name]
-  if (!v) throw new Error('Missing env var: ' + name)
+  // A tenant with no link to the Factory is "not connected" (503), not a server fault: a route that lets this through
+  // answered 500 for every call (Settings › Email domain on a tenant without TENANT_ID).
+  if (!v) throw Object.assign(new Error(`This account is not connected to Twomiah yet (${name} is not configured)`), { status: 503 })
   return v
 }
 

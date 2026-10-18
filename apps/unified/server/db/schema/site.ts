@@ -13,7 +13,9 @@ import { createId } from '@paralleldrive/cuid2'
 import { company } from './core.ts'
 
 /** The website's own settings: one row per company. */
-export const site = pgTable('site', {
+// Named website, not site: the CRMs' own  table is a customer's service location (bar, basic, field service,
+// landscaping), and its rows move across under that name.
+export const website = pgTable('website', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   tagline: text('tagline'),
@@ -49,7 +51,7 @@ export const site = pgTable('site', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
-  uniqueIndex('site_company_id_key').on(t.companyId),
+  uniqueIndex('website_company_id_key').on(t.companyId),
 ])
 
 export const page = pgTable('page', {

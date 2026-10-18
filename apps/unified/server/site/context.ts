@@ -2,7 +2,7 @@
 // settings.logoUrl, …), built from the app's company and site rows. The views moved across unchanged; this is the one
 // place that knows the premium site kept these in its own settings table.
 import { asc, eq } from 'drizzle-orm'
-import { company, site } from '../db/schema/index.ts'
+import { company, website } from '../db/schema/index.ts'
 import type { VerticalSettings, SiteDesign } from '../core/vertical.ts'
 import { SITE_DESIGNS } from '../core/vertical.ts'
 
@@ -30,7 +30,7 @@ function addressLine(c: { address: string | null; city: string | null; state: st
 export async function loadSiteContext(db: any, vertical: VerticalSettings): Promise<SiteContext | null> {
   const [co] = await db.select().from(company).orderBy(asc(company.createdAt)).limit(1)
   if (!co) return null
-  const [s] = await db.select().from(site).where(eq(site.companyId, co.id)).limit(1)
+  const [s] = await db.select().from(website).where(eq(website.companyId, co.id)).limit(1)
   const design = (SITE_DESIGNS as readonly string[]).includes(s?.design) ? (s.design as SiteDesign) : vertical.site.design
   return {
     companyId: co.id,
