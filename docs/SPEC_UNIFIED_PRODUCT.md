@@ -1,11 +1,81 @@
 # Twomiah Unified Product — Design Spec
 
-**Status:** Design — not yet under construction
-**Author:** Claude, 2026-06-06
+**Status:** Approved 2026-10-18; under construction on branch `engine`
+**Author:** Claude, 2026-06-06; updated 2026-10-18
 **Reviewers:** Jeremiah
 **Built as:** A standalone parallel codebase. Does not modify existing
 factory, website-premium, or CRM templates. When ready, existing
 customers migrate forward; new signups switch over.
+
+---
+
+## 0. October 2026 update (read first; it overrides the sections below where they differ)
+
+This design was written in June and not built. From June to October the
+copied templates kept growing instead. What changed, measured on
+`main` @ deaedc317:
+
+- **12 CRM copies, not 6.** Base `crm` (148 tables). Near-copies sharing
+  139–141 of its tables: bar, basic, fieldservice, landscaping,
+  restaurant, rv, salon, vet. Built separately: homecare (20 shared
+  tables, `agencies`/`users`), dispensary (11 shared, 1,222 raw SQL
+  calls), roof (53 tables + `packages/roof-core`), store (23 tables,
+  uuid ids). About 430,000 lines in the copies.
+- **10 premium site copies,** each about 95% identical to
+  `website-premium-contractor`, plus 11 older non-premium site
+  templates still routable.
+- **Shared code exists and is tested:** `packages/tenant-backend` (29k
+  lines) and `packages/tenant-ui` (27k), 12 behaviour suites (over 18,000
+  checks) and 269 guard scripts.
+- **Premium sites moved to SQLite** on 10/13 to drop the $7/mo database
+  per site.
+
+### Decisions 2026-10-18
+
+1. **Assemble from the existing tested code; don't rewrite.** June said
+   greenfield (§14). The unified app is built from the base CRM, the
+   shared packages and the premium-site code, moved into the layered
+   structure of §4–§7. The behaviour suites and guards are pointed at
+   it, so "done" is measured against the same 18,000+ checks, not
+   re-tested from zero.
+2. **One database type, Postgres, with no $7 database for a site that
+   doesn't need one.** Each tenant keeps its own database (data
+   isolation, per-tenant migrations and backups, as §2 says), but
+   tenants share pooled Render Postgres instances: one instance holds
+   many databases (`CREATE DATABASE` per tenant; supported by Render
+   Postgres). A website-only tenant costs a fraction of an instance. The
+   SQLite layer for premium sites is retired when sites move to the
+   unified app. Per-tenant restore uses the nightly per-database logical
+   backups (instance point-in-time recovery restores the whole
+   instance).
+3. **Every vertical is a setting** (§8), including the four built
+   separately. Their unique parts become feature layers (add-ons):
+   homecare visits/EVV/care plans, dispensary compliance and register,
+   roof reports and measurements, store catalog and checkout, the bar
+   register and stock, vet patients and vaccinations, rv inventory and
+   deals, salon book and formulas.
+4. **The Factory builds every tenant.** No hand-built tenants. One
+   Render service per tenant (§3), provisioned by the Factory, so
+   Update Code works for every tenant.
+5. **Rulebook first** (`docs/RULEBOOK.md`), enforced by build checks on
+   branch `engine`. A check also fences the branch: it may not change
+   live code paths (`templates/`, the live Factory deploy path) until
+   cutover.
+
+### Build order (replaces §9 phases; estimates from measured size)
+
+| Weeks | Step | Done when |
+|---|---|---|
+| 1 | Rulebook + build checks; unified skeleton (server, core schema, auth, feature gates) assembled from base CRM + shared packages | checks fail a planted violation of each rule; skeleton boots against a pooled test database |
+| 2–3 | CMS + bookings layer from the premium site code; site vertical settings | every vertical's site renders from the one app and matches today's pages; website-only signup works |
+| 3–6 | CRM layer (base CRM) + the 8 near-copy verticals as settings/add-ons | each vertical's existing suite passes on the unified app |
+| 2–5 (alongside) | Factory: one service per tenant, pooled database provisioning, Update Code for all | a test signup builds, deploys and updates through the Factory |
+| 6–10 | homecare, roof, store, dispensary as add-ons (in that order) | each suite passes on the unified app |
+| 10–11 | Rebuild Higgs and 547 through the Factory; move Amber Inn once, before opening; one real signup run per vertical | 0 blockers per vertical |
+
+First sellable: website-only about week 3; contractor and bar about week
+6; home care about week 8; all verticals about week 11. Claflin is not
+touched.
 
 ---
 
@@ -513,6 +583,11 @@ properly.
   tenant DB) — preserves data isolation, blast radius, simpler audit.
 - **2026-06-06:** Decided vertical = setting, not template — eliminates
   the "propagate to 6 siblings" overhead from every change.
+- **2026-10-18:** Approved for construction (§0). Assemble from existing
+  tested code instead of greenfield. One database type (Postgres); each
+  tenant its own database on pooled instances, so a website-only tenant
+  never pays for a whole instance. The four separately built CRMs become
+  vertical add-ons. The Factory builds every tenant.
 
 ---
 
