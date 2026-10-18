@@ -624,6 +624,13 @@ export function createBookingEngine(deps: EngineDeps) {
     return row
   }
 
+  /** A booking as the owner's screens show it: with its service's name and the assigned person's. */
+  async function withNames(b: BookingRow) {
+    const [svc] = b.serviceId ? await db.select({ name: bookingService.name }).from(bookingService).where(eq(bookingService.id, b.serviceId)).limit(1) : []
+    const [who] = b.assignedUserId ? await db.select({ first: user.firstName, last: user.lastName }).from(user).where(eq(user.id, b.assignedUserId)).limit(1) : []
+    return { ...b, serviceName: svc?.name ?? null, assignedName: who ? [who.first, who.last].filter(Boolean).join(' ') || null : null }
+  }
+
   // ── The owner's list ──────────────────────────────────────────────────────
   async function listBookings(companyId: string, q: { from?: Date; to?: Date; status?: string; assignedUserId?: string; contactId?: string; seriesId?: string; page: number; limit: number }) {
     const conds: any[] = [eq(booking.companyId, companyId)]
@@ -635,11 +642,13 @@ export function createBookingEngine(deps: EngineDeps) {
     if (q.seriesId) conds.push(eq(booking.seriesId, q.seriesId))
     const where = and(...conds)
     const [rows, [{ total }]] = await Promise.all([
-      db.select({ b: booking, serviceName: bookingService.name }).from(booking).leftJoin(bookingService, eq(booking.serviceId, bookingService.id))
+      db.select({ b: booking, serviceName: bookingService.name, first: user.firstName, last: user.lastName }).from(booking).leftJoin(bookingService, eq(booking.serviceId, bookingService.id))
+        .leftJoin(user, eq(booking.assignedUserId, user.id))
         .where(where).orderBy(q.from ? asc(booking.startAt) : desc(booking.startAt), asc(booking.id)).limit(q.limit).offset((q.page - 1) * q.limit),
       db.select({ total: count() }).from(booking).where(where),
     ])
-    return { rows: rows.map((r: any) => ({ ...r.b, serviceName: r.serviceName ?? null })), total: Number(total) }
+    // The person's name comes with the booking, so a seat that can't read the team list still sees who is doing it.
+    return { rows: rows.map((r: any) => ({ ...r.b, serviceName: r.serviceName ?? null, assignedName: r.b.assignedUserId ? [r.first, r.last].filter(Boolean).join(' ') || null : null })), total: Number(total) }
   }
 
   return {
@@ -647,7 +656,7 @@ export function createBookingEngine(deps: EngineDeps) {
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService,
     getHours, setHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
     availableDates, availableTimes, expireHolds,
-    book, depositPaid, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings,
+    book, depositPaid, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
     isBanned, emit,
   }
 }

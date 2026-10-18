@@ -89,20 +89,21 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   admin.post('/bookings', may('bookings:create'), (c) => guard(c, async () => {
     const b = await body(c)
     const r = await engine.book(co(c), { ...b, service: String(b.serviceId || b.service || '') } as any, { by: 'staff', assignedUserId: b.assignedUserId || null, override: b.override === true })
-    return one(c, r.booking, 201)
+    return one(c, await engine.withNames(r.booking), 201)
   }))
   admin.get('/bookings/:id', may('bookings:read'), async (c) => {
     const b = await engine.getBooking(co(c), c.req.param('id'))
-    return b ? one(c, b) : fail(c, 404, 'Booking not found')
+    return b ? one(c, await engine.withNames(b)) : fail(c, 404, 'Booking not found')
   })
   /** Move it (date + time), change its status, or edit its details — one at a time, each with its own rules. */
   admin.patch('/bookings/:id', may('bookings:update'), (c) => guard(c, async () => {
     const b = await engine.getBooking(co(c), c.req.param('id'))
     if (!b) return fail(c, 404, 'Booking not found')
     const input = await body(c)
-    if (input.date || input.time) return one(c, await engine.reschedule(co(c), b, String(input.date || ''), String(input.time || ''), { by: 'staff', override: input.override === true }))
-    if (input.status) return one(c, input.status === 'cancelled' ? await engine.cancel(co(c), b, { by: 'staff', reason: input.reason }) : await engine.setStatus(co(c), b, String(input.status)))
-    return one(c, await engine.updateDetails(co(c), b, input))
+    const u = input.date || input.time ? await engine.reschedule(co(c), b, String(input.date || ''), String(input.time || ''), { by: 'staff', override: input.override === true })
+      : input.status ? (input.status === 'cancelled' ? await engine.cancel(co(c), b, { by: 'staff', reason: input.reason }) : await engine.setStatus(co(c), b, String(input.status)))
+      : await engine.updateDetails(co(c), b, input)
+    return one(c, await engine.withNames(u))
   }))
 
   admin.get('/series', may('bookings:read'), async (c) => { const rows = await extras.listSeries(co(c)); return list(c, rows, allOf(rows)) })

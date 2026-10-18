@@ -1,7 +1,7 @@
 // The admin's menu and URL gates for the shared shell (packages/tenant-ui/src/shell). Items without `features` are
 // core; with `features`, shown when any is on. A `permission` is the one the page's API asks for, so the menu never
 // offers a page that would refuse. `routeRoles` is only for pages whose server gate is a rank (requireAdmin).
-import { Briefcase, FileText, Globe, Image, Inbox, Newspaper, ScrollText, Settings2 } from 'lucide-react'
+import { BarChart3, Briefcase, CalendarCheck, CalendarDays, FileText, Globe, Hourglass, Image, Inbox, Newspaper, ScrollText, Settings2, SlidersHorizontal } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared'
 
 const NAV: NavItem[] = [
@@ -11,6 +11,12 @@ const NAV: NavItem[] = [
   { to: '/crm/website/blog', icon: Newspaper, label: 'Blog', permission: 'site:read' },
   { to: '/crm/website/portfolio', icon: Briefcase, label: 'Portfolio', permission: 'site:read' },
   { to: '/crm/website/settings', icon: Settings2, label: 'Website settings', permission: 'site:settings' },
+  // Bookings: the online_booking feature, behind the same permissions as /api/booking.
+  { to: '/crm/bookings', icon: CalendarCheck, label: 'Bookings', section: 'Bookings', features: ['online_booking'], permission: 'bookings:read', exact: true },
+  { to: '/crm/bookings/calendar', icon: CalendarDays, label: 'Calendar', features: ['online_booking'], permission: 'bookings:read' },
+  { to: '/crm/bookings/waitlist', icon: Hourglass, label: 'Waitlist', features: ['online_booking'], permission: 'bookings:read' },
+  { to: '/crm/bookings/insights', icon: BarChart3, label: 'Insights', features: ['online_booking'], permission: 'bookings:read' },
+  { to: '/crm/bookings/settings', icon: SlidersHorizontal, label: 'Booking settings', features: ['online_booking'], permission: 'bookings:update' },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', section: 'Business', features: ['lead_inbox'], permission: 'contacts:read' },
   // Who changed what — owners and admins (audit:read, the permission /api/audit asks for).
   { to: '/crm/audit', icon: ScrollText, label: 'Audit Log', permission: 'audit:read' },

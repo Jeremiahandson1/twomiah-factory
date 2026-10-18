@@ -16,6 +16,11 @@ import { PhotosPage } from './site/pages/PhotosPage'
 import { ArticlesListPage, BLOG, PORTFOLIO } from './site/pages/ArticlesListPage'
 import { ArticleEditPage } from './site/pages/ArticleEditPage'
 import { SiteSettingsPage } from './site/pages/SiteSettingsPage'
+import { BookingsPage } from './booking/BookingsPage'
+import { BookingDetailPage } from './booking/BookingDetailPage'
+import { BookingCalendarPage } from './booking/BookingCalendarPage'
+import { BookingSettingsPage } from './booking/BookingSettingsPage'
+import { BookingInsightsPage, BookingWaitlistPage, BookingSeriesPage } from './booking/BookingExtrasPages'
 
 function NotFound() {
   return (
@@ -52,6 +57,13 @@ export default function App() {
                       <Route path="website/portfolio" element={<ArticlesListPage kind={PORTFOLIO} />} />
                       <Route path="website/portfolio/:slug" element={<ArticleEditPage kind="portfolio" />} />
                       <Route path="website/settings" element={<SiteSettingsPage />} />
+                      <Route path="bookings" element={<BookingsPage />} />
+                      <Route path="bookings/calendar" element={<BookingCalendarPage />} />
+                      <Route path="bookings/waitlist" element={<BookingWaitlistPage />} />
+                      <Route path="bookings/insights" element={<BookingInsightsPage />} />
+                      <Route path="bookings/settings" element={<BookingSettingsPage />} />
+                      <Route path="bookings/series/:id" element={<BookingSeriesPage />} />
+                      <Route path="bookings/:id" element={<BookingDetailPage />} />
                       <Route path="leads" element={<LeadInbox />} />
                       <Route path="audit" element={<AuditLog />} />
                       <Route path="account" element={<MyAccount />} />
