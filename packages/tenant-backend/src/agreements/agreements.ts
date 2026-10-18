@@ -395,7 +395,12 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const [agreement] = await db.select().from(serviceAgreement)
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
     if (!agreement) throw Object.assign(new Error('Agreement not found'), { status: 404 })
-    const metadata = agreement.notes ? JSON.parse(agreement.notes).stripeSubscriptionId : null
+    // notes is free text a person types; only an older row that stored JSON there carries a Stripe subscription id.
+    // JSON.parse on plain notes threw, so cancelling any agreement with a note answered 500.
+    const metadata = (() => {
+      if (!agreement.notes) return null
+      try { const n = JSON.parse(agreement.notes); return n && typeof n === 'object' && typeof n.stripeSubscriptionId === 'string' ? n.stripeSubscriptionId : null } catch { return null }
+    })()
     if (metadata && process.env.STRIPE_SECRET_KEY) {
       try {
         const Stripe = (await import('stripe')).default

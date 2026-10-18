@@ -143,7 +143,8 @@ export default function MaintenanceContracts() {
   const handleCancel = async (contractId: string) => {
     if (!(await confirm('The contract is marked cancelled.', { title: 'Cancel this maintenance contract?', confirmText: 'Cancel contract' }))) return;
     try {
-      await api.put(`/api/agreements/${contractId}`, { status: 'cancelled' });
+      // The cancel route, not a status edit: it also stops the agreement's Stripe subscription.
+      await api.post(`/api/agreements/${contractId}/cancel`, {});
       toast.success('Contract cancelled');
       loadData();
     } catch (error) {
