@@ -11,8 +11,12 @@ import { spawnSync } from 'node:child_process'
 export interface Change { status: 'A' | 'M' | 'D' | 'R' | string; path: string; from?: string }
 export interface FenceViolation { path: string; detail: string }
 
-/** Where new files may go. */
-const ADD_ALLOWED = [/^apps\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
+/**
+ * Where new files may go. apps/api/src/unified/ is the Factory's side of the unified app (pooled databases, its service
+ * per tenant, Update Code), added beside the Factory and wired in at cutover (owner's yes, 2026-10-18). No existing
+ * Factory file may change (MODIFY_ALLOWED has none), so nothing live can import it before then.
+ */
+const ADD_ALLOWED = [/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
 /** Existing files that may change: the shared code (the engine), its manifests, the lockfile, the spec, build-check's trigger. */
 const MODIFY_ALLOWED = [/^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/]
 const DEP_KEYS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']

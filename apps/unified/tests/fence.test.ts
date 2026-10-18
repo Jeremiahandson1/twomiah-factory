@@ -23,6 +23,7 @@ describe('allowed', () => {
       { status: 'A', path: 'scripts/check-unified-rules.ts' },
       { status: 'A', path: '.github/workflows/unified.yml' },
       { status: 'A', path: 'docs/RULEBOOK.md' },
+      { status: 'A', path: 'apps/api/src/unified/provision.ts' },
     ])).toEqual([])
   })
 
@@ -62,6 +63,9 @@ describe('refused', () => {
 
   test('a new file dropped into live code', () => {
     expect(run([{ status: 'A', path: 'templates/crm/backend/src/routes/new.ts' }]).length).toBe(1)
+    // The Factory takes new files only in its unified/ folder, and none of its existing files may change to use them.
+    expect(run([{ status: 'A', path: 'apps/api/src/services/newDeploy.ts' }]).length).toBe(1)
+    expect(run([{ status: 'M', path: 'apps/api/src/routes/factory.ts' }]).length).toBe(1)
   })
 
   test('deleting anything, shared code included', () => {

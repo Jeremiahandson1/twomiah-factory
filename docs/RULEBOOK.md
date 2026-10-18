@@ -87,7 +87,10 @@ Factory can rebuild and update every tenant the same way.
 ## 10. The live system is not touched during construction **[checked]**
 
 The `engine` branch adds files in `apps/unified/`, `tests/unified/`,
-`scripts/check-unified-*.ts`, `.github/workflows/unified.yml` and `docs/`. The
+`scripts/check-unified-*.ts`, `.github/workflows/unified.yml`, `docs/`, and
+`apps/api/src/unified/` — the Factory's side of the unified app (pooled databases, a service per tenant,
+Update Code), added beside the Factory and wired in at cutover (owner's yes, 2026-10-18); no existing
+Factory file changes, so nothing live imports it before then. The
 templates and the Factory (`templates/`, `apps/api/`, `apps/platform/`) are not
 modified or deleted. The existing files it may change:
 
