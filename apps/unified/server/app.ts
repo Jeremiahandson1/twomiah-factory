@@ -16,6 +16,9 @@ import { createEnquiries, enquiryTemplates } from './core/enquiry.ts'
 import { createEnquiryHandler } from './site/enquiryHandler.ts'
 import { createCompanyModules } from './modules/company.ts'
 import { createBookingModule, bookingMounts } from './modules/booking.ts'
+import { createCrmModules, createCrmAdsConnector } from './modules/crm.ts'
+import { createCrmServices } from './crm/services.ts'
+import { createRealtime } from './core/realtime.ts'
 import { createSiteAdmin, type PhotoStore } from './site/admin.ts'
 import { createSiteRoutes } from './site/routes.ts'
 import { loadSiteContext } from './site/context.ts'
@@ -53,7 +56,10 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   email.register(enquiryTemplates)
   const enquiries = createEnquiries({ db, email, logger, isFeatureEnabled: features.isFeatureEnabled })
   const enquiryHandler = createEnquiryHandler({ db, vertical, enquiries })
-  const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler })
+  const realtime = createRealtime()
+  const adsConnector = createCrmAdsConnector()
+  const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled })
+  const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler, realtime, adsConnector })
   // Card deposits and people's own calendars join with the CRM's payments and calendar sync (CUTOVER_LEDGER).
   const bookings = createBookingModule({ db, vertical, email, logger, permissions })
 
@@ -108,6 +114,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     ...companyModules.mounts,
     // Bookings: the owner's book, the public booking API, the scheduled messages.
     ...bookingMounts(bookings, companyId),
+    // The CRM: contacts, jobs, quotes, invoices and every module the shared code carries.
+    ...createCrmModules({ db, audit, logger, authenticate, permissions, features, realtime, services: crm, adsConnector }),
     // The website's admin: pages, settings, photos, blog, portfolio, visits.
     { path: '/api/site', access: 'user', router: createSiteAdmin({ db, permissions, store, vertical }) },
     // The admin screens: their page at /login and /crm/*, their files at /crm-assets/*. Before the website.
@@ -141,5 +149,5 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     ? fail(c, 404, `Route not found: ${c.req.method} ${c.req.path}`)
     : c.html(NOT_FOUND_PAGE, 404))
 
-  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings } }
+  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings, crm, realtime } }
 }

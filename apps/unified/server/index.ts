@@ -12,7 +12,9 @@ process.on('unhandledRejection', (reason) => logger.error('Unhandled rejection',
 
 const { db } = createDb()
 const vertical = await loadVertical()
-const { app } = createApp({ db, vertical })
+const { app, services } = createApp({ db, vertical })
+// The CRM's timed work: review requests, campaigns, agreement billing, recurring invoices, commissions.
+services.crm.startJobs()
 const port = Number(process.env.PORT) || 3001
 
 Bun.serve({ port, fetch: app.fetch })

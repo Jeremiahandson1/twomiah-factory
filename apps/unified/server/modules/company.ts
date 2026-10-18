@@ -15,6 +15,7 @@ import type { EmailService } from '../core/email.ts'
 import { queryAudit, auditFilterOptions } from '../data/audit.ts'
 import { list, one, fail, done } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
+import type { Realtime } from '../core/realtime.ts'
 
 export interface CompanyModuleDeps {
   db: any
@@ -26,6 +27,10 @@ export interface CompanyModuleDeps {
   features: { forgetFeatures: (companyId?: string) => void; requireEnabledFeature: (feature: string | string[]) => any }
   /** The public enquiry endpoint, answered before the lead inbox's own sign-in (site/enquiryHandler.ts). */
   enquiryHandler: (c: any) => Promise<Response>
+  /** Live updates (a new lead shows in an open inbox). */
+  realtime: Realtime
+  /** Told when the switched-on features change: registers the business with Twomiah Ads when paid_ads goes on. */
+  adsConnector: { onFeaturesChanged: (features: string[]) => unknown }
 }
 
 export function createCompanyModules(deps: CompanyModuleDeps) {
@@ -45,7 +50,7 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     canSee, invalidateExtraPermissions: permissions.invalidateExtraPermissions, roleLabel: permissions.roleLabel,
     audit, template: vertical.featureSet,
     // The owner's switch takes effect on the next request, not after the gate's 15-second cache.
-    onFeaturesChanged: () => deps.features.forgetFeatures(),
+    onFeaturesChanged: (features: string[]) => { deps.features.forgetFeatures(); void deps.adsConnector.onFeaturesChanged(features) },
     sendInvite: (to: string, data: any) => email.sendTeamInvite(to, { ...data, inviteLink: `${process.env.FRONTEND_URL || ''}/reset-password?token=${data.resetToken}` }),
   } as any)
 
@@ -66,8 +71,7 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       db, tables: { lead, leadSource, contact }, authenticate, requirePermission: permissions.requirePermission, canSee,
       // The inbox is the lead_inbox feature's, on the server as in the menu; the enquiry form above is everyone's.
       requireFeature: deps.features.requireEnabledFeature('lead_inbox'),
-      // No live updates yet (the CRM's socket server arrives with step 3); a new lead shows on the next load.
-      emitToCompany: () => {}, EVENTS: { LEAD_CREATED: 'lead:created', LEAD_UPDATED: 'lead:updated', CONTACT_CREATED: 'contact:created' },
+      emitToCompany: deps.realtime.emitToCompany, EVENTS: deps.realtime.EVENTS,
       audit, options: { platforms: TRADES_LEAD_PLATFORMS, contactType: 'lead' },
     } as any))
 
@@ -93,6 +97,7 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     if (!co) return fail(c, 404, 'No company found')
     await db.update(company).set({ enabledFeatures: body.features, updatedAt: new Date() }).where(eq(company.id, co.id))
     deps.features.forgetFeatures(co.id)
+    void deps.adsConnector.onFeaturesChanged(body.features as string[])
     return done(c)
   })
 
