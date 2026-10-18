@@ -244,7 +244,8 @@ export function createStripeService(deps: StripeServiceDeps) {
    * Retrieve payment intent
    */
   async function getPaymentIntent(paymentIntentId: string, stripeAccount: string | null = null) {
-    return stripe!.paymentIntents.retrieve(paymentIntentId, requestOpts(stripeAccount))
+    if (!stripe) throw Object.assign(new Error('Stripe is not configured'), { status: 503 })
+    return stripe.paymentIntents.retrieve(paymentIntentId, requestOpts(stripeAccount))
   }
 
   // ============================================
@@ -319,7 +320,7 @@ export function createStripeService(deps: StripeServiceDeps) {
     contactRow: any
     description?: string
   }) {
-    if (!stripe) throw new Error('Stripe is not configured')
+    if (!stripe) throw Object.assign(new Error('Stripe is not configured'), { status: 503 })
     const stripeAccount = await connectedAccountFor(params.companyId)
     const customer = await getOrCreateCustomer(params.contactRow, stripeAccount)
 
@@ -351,7 +352,7 @@ export function createStripeService(deps: StripeServiceDeps) {
    * billing could not exist.
    */
   async function createSetupIntent(contactRow: any) {
-    if (!stripe) throw new Error('Stripe is not configured')
+    if (!stripe) throw Object.assign(new Error('Stripe is not configured'), { status: 503 })
     const stripeAccount = await connectedAccountFor(contactRow.companyId)
     const customer = await getOrCreateCustomer(contactRow, stripeAccount)
     const intent = await stripe.setupIntents.create({
@@ -392,7 +393,7 @@ export function createStripeService(deps: StripeServiceDeps) {
    * cannot double-count it.
    */
   async function chargeInvoiceOffSession(invoiceRow: any, contactRow: any, paymentMethodId: string) {
-    if (!stripe) throw new Error('Stripe is not configured')
+    if (!stripe) throw Object.assign(new Error('Stripe is not configured'), { status: 503 })
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const customer = await getOrCreateCustomer(contactRow, stripeAccount)
     const balance = invoiceOwed(invoiceRow)

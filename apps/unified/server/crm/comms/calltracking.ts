@@ -6,13 +6,25 @@
 // needs Call Tracking switched on — here, inside the router, as the template ordered it, so a tenant with Call
 // Tracking off still logs the calls its providers send.
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { parseTwilioBody, verifyTwilioRequest, twilioConfigFor, verifyCallRailSignature, refuseUnverifiedWebhook } from '@twomiah/tenant-backend'
 import { company } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, done } from '../../http/reply.ts'
+import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createCalltrackingService } from './calltrackingService.ts'
+
+const trackingNumberSchema = z.object({
+  phoneNumber: z.string().trim().min(1, 'The tracking phone number is required'),
+  forwardTo: z.string().optional(),
+  source: z.string().optional(),
+  campaign: z.string().optional(),
+  medium: z.string().optional(),
+  name: z.string().optional(),
+  providerId: z.string().optional(),
+})
 
 export function createCalltrackingRoutes(d: CrmDeps) {
   const { db, logger } = d
@@ -78,8 +90,10 @@ export function createCalltrackingRoutes(d: CrmDeps) {
 
   app.post('/numbers', requirePermission('calltracking:create'), async (c) => {
     const user = c.get('user')
-    const body = await c.req.json()
-    const number = await calltracking.createTrackingNumber(user.companyId, body)
+    // The number is required (the template inserted whatever came, and a missing one broke the INSERT: a 500).
+    const parsed = trackingNumberSchema.safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) return invalid(c, parsed.error)
+    const number = await calltracking.createTrackingNumber(user.companyId, parsed.data)
     return one(c, number, 201)
   })
 

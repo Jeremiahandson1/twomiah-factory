@@ -394,7 +394,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   async function cancelAgreement(agreementId: string, companyId: string, _reason?: string) {
     const [agreement] = await db.select().from(serviceAgreement)
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
-    if (!agreement) throw new Error('Agreement not found')
+    if (!agreement) throw Object.assign(new Error('Agreement not found'), { status: 404 })
     const metadata = agreement.notes ? JSON.parse(agreement.notes).stripeSubscriptionId : null
     if (metadata && process.env.STRIPE_SECRET_KEY) {
       try {
@@ -411,7 +411,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   async function renewAgreement(agreementId: string, companyId: string) {
     const agreement = await getAgreement(agreementId, companyId)
-    if (!agreement) throw new Error('Agreement not found')
+    if (!agreement) throw Object.assign(new Error('Agreement not found'), { status: 404 })
     const startDate = agreement.endDate ? new Date(agreement.endDate) : new Date()
     const endDate = new Date(startDate); endDate.setFullYear(endDate.getFullYear() + 1)
     const [renewed] = await db.update(serviceAgreement)
@@ -423,7 +423,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   // ---- visits ----
   async function scheduleVisit(agreementId: string, companyId: string, data: any) {
     const agreement = await getAgreement(agreementId, companyId)
-    if (!agreement) throw new Error('Agreement not found')
+    if (!agreement) throw Object.assign(new Error('Agreement not found'), { status: 404 })
     const [visit] = await db.insert(agreementVisit).values({
       agreementId, scheduledDate: new Date(data.scheduledDate), notes: data.notes, status: 'scheduled',
     }).returning()
@@ -450,10 +450,10 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   async function completeVisit(visitId: string, companyId: string, _data: { technicianNotes?: string }) {
     const [visit] = await db.select().from(agreementVisit).where(eq(agreementVisit.id, visitId)).limit(1)
-    if (!visit) throw new Error('Visit not found')
+    if (!visit) throw Object.assign(new Error('Visit not found'), { status: 404 })
     const [agr] = await db.select().from(serviceAgreement)
       .where(and(eq(serviceAgreement.id, visit.agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
-    if (!agr) throw new Error('Visit not found')
+    if (!agr) throw Object.assign(new Error('Visit not found'), { status: 404 })
     const [updated] = await db.update(agreementVisit).set({ status: 'completed', completedAt: new Date() })
       .where(eq(agreementVisit.id, visitId)).returning()
     return updated
@@ -627,7 +627,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   async function setAgreementAutopay(agreementId: string, companyId: string, { enabled, paymentMethodId }: { enabled: boolean; paymentMethodId?: string | null }) {
     const agreement = await getAgreement(agreementId, companyId)
-    if (!agreement) throw new Error('Agreement not found')
+    if (!agreement) throw Object.assign(new Error('Agreement not found'), { status: 404 })
     let methodId = paymentMethodId ?? agreement.paymentMethodId ?? null
     if (enabled && !methodId) {
       const [contactRow] = await db.select().from(contact).where(eq(contact.id, agreement.contactId))
@@ -643,7 +643,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   async function processAgreementBilling(agreementId: string, companyId: string) {
     const agreement = await getAgreement(agreementId, companyId)
-    if (!agreement) throw new Error('Agreement not found')
+    if (!agreement) throw Object.assign(new Error('Agreement not found'), { status: 404 })
     // An agreement invoice is an invoice: it belongs in the INV- sequence with the rest.
     //
     // `INV-AGR-<timestamp>` put a number in the customer's list that no one can read aloud, that sorts
@@ -835,7 +835,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   async function generateNextJob(agreementId: string, companyId: string) {
     const [agr] = await db.select().from(serviceAgreement)
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
-    if (!agr) throw new Error('Agreement not found')
+    if (!agr) throw Object.assign(new Error('Agreement not found'), { status: 404 })
     if (!agr.nextServiceDate || !agr.recurrenceRule) throw new Error('No recurrence configured')
     if (agr.lastGeneratedJobId) {
       const [lastJob] = await db.select({ status: job.status }).from(job).where(eq(job.id, agr.lastGeneratedJobId)).limit(1)

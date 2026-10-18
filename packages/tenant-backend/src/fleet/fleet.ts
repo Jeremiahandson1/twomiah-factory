@@ -149,7 +149,7 @@ export function createFleetService(deps: FleetServiceDeps) {
   async function startTrip(vehicleId: string, companyId: string, data: any) {
     if (!gps) return { id: 'stub', vehicleId, startTime: new Date(), status: 'active' }
     const [v] = await db.select({ id: vehicle.id, assignedUserId: vehicle.assignedUserId }).from(vehicle).where(and(eq(vehicle.id, vehicleId), eq(vehicle.companyId, companyId)))
-    if (!v) throw new Error('Vehicle not found')
+    if (!v) throw Object.assign(new Error('Vehicle not found'), { status: 404 })
     const [trip] = await db.insert(vehicleTrip).values({
       vehicleId, companyId, userId: data.userId || v.assignedUserId || null, status: 'active', startTime: new Date(),
       startLat: Number.isFinite(data.lat) ? data.lat : null, startLng: Number.isFinite(data.lng) ? data.lng : null, purpose: data.purpose || null,
@@ -160,7 +160,7 @@ export function createFleetService(deps: FleetServiceDeps) {
   async function endTrip(tripId: string, companyId: string, data: any) {
     if (!gps) return { id: tripId, status: 'completed', endTime: new Date() }
     const [trip] = await db.select().from(vehicleTrip).where(and(eq(vehicleTrip.id, tripId), eq(vehicleTrip.companyId, companyId)))
-    if (!trip) throw new Error('Trip not found')
+    if (!trip) throw Object.assign(new Error('Trip not found'), { status: 404 })
     if (trip.status === 'completed') return trip
     const endTime = new Date()
     let distanceMeters = 0
@@ -207,7 +207,7 @@ export function createFleetService(deps: FleetServiceDeps) {
   }
 
   async function addMaintenance(vehicleId: string, companyId: string, data: any) {
-    if (!(await ownedVehicle(vehicleId, companyId))) throw new Error('Vehicle not found')
+    if (!(await ownedVehicle(vehicleId, companyId))) throw Object.assign(new Error('Vehicle not found'), { status: 404 })
     const [record] = await db.insert(vehicleMaintenance).values({
       vehicleId, type: data.type, description: data.description || null,
       cost: data.cost != null ? String(data.cost) : null,
@@ -237,7 +237,7 @@ export function createFleetService(deps: FleetServiceDeps) {
 
   // ---- fuel ----
   async function addFuelEntry(vehicleId: string, companyId: string, data: any) {
-    if (!(await ownedVehicle(vehicleId, companyId))) throw new Error('Vehicle not found')
+    if (!(await ownedVehicle(vehicleId, companyId))) throw Object.assign(new Error('Vehicle not found'), { status: 404 })
     const gallons = Number(data.gallons || 0)
     const pricePerGallon = Number(data.pricePerGallon || 0)
     const totalCost = data.totalCost != null ? Number(data.totalCost) : gallons * pricePerGallon

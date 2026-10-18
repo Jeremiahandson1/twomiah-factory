@@ -404,7 +404,7 @@ async function createClaim(companyId: string, data: {
     .where(and(eq(projectWarranty.id, data.warrantyId), eq(projectWarranty.companyId, companyId)))
     .limit(1);
 
-  if (!warranty) throw new Error('Warranty not found');
+  if (!warranty) throw Object.assign(new Error('Warranty not found'), { status: 404 });
   if (warranty.status === 'expired') throw new Error('Warranty has expired');
   if (warranty.status === 'voided') throw new Error('Warranty has been voided');
 
@@ -633,7 +633,7 @@ async function scheduleWarrantyWork(
     .where(and(eq(warrantyClaim.id, claimId), eq(warrantyClaim.companyId, companyId)))
     .limit(1);
 
-  if (!claimRow) throw new Error('Claim not found');
+  if (!claimRow) throw Object.assign(new Error('Claim not found'), { status: 404 });
 
   const claim = claimRow.claim;
   const jobDescription = `Warranty claim repair:\n\n${claim.description || ''}\n\nNotes: ${notes || 'N/A'}`;
@@ -886,6 +886,7 @@ export function createWarrantiesRoutes(deps: WarrantiesRoutesDeps) {
   app.post('/from-templates', requirePermission('warranties:create'), async (c) => {
     const user = c.get('user') as any;
     const { projectId, contactId, startDate, templateIds } = await c.req.json();
+    if (!projectId || !Array.isArray(templateIds) || !templateIds.length) return c.json({ error: 'Choose the project and at least one warranty template.' }, 400);
     const created = await service.createWarrantiesFromTemplates(
       user.companyId,
       projectId,

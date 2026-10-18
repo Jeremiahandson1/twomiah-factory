@@ -515,7 +515,13 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     if (!body?.name || !body?.message) return c.json({ error: 'name and message are required' }, 400)
     return c.json(await sms.createTemplate(((c as any).get('user')).companyId, body), 201)
   })
-  app.put('/templates/:id', writesTheScript, async (c) => { await sms.updateTemplate(c.req.param('id'), ((c as any).get('user')).companyId, await c.req.json().catch(() => ({}))); return c.json({ success: true }) })
+  app.put('/templates/:id', writesTheScript, async (c) => {
+    const body = await c.req.json().catch(() => ({}))
+    // An edit that changes nothing is the caller's mistake, not a server failure (drizzle refuses an empty SET).
+    if (body?.name === undefined && body?.message === undefined && body?.category === undefined) return c.json({ error: 'Nothing to change: send a name, message or category.' }, 400)
+    await sms.updateTemplate(c.req.param('id'), ((c as any).get('user')).companyId, body)
+    return c.json({ success: true })
+  })
   app.delete('/templates/:id', writesTheScript, async (c) => { await sms.deleteTemplate(c.req.param('id'), ((c as any).get('user')).companyId); return c.json({ success: true }) })
 
   app.get('/auto-responders', async (c) => c.json(await sms.getAutoResponders(((c as any).get('user')).companyId)))
