@@ -8,9 +8,9 @@ name: Build check
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, engine]
   push:
-    branches: [main]
+    branches: [main, engine]
 
 permissions:
   contents: read

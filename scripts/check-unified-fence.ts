@@ -1,6 +1,7 @@
 /**
- * RULEBOOK §10: while the unified app is under construction, the `engine` branch only ADDS files in its own places
- * and never changes the live system. Compares the branch with where it left main (the merge base).
+ * RULEBOOK §10: while the unified app is under construction, the `engine` branch adds files in its own places, may
+ * improve the shared code (packages/*\/src, guarded by every existing check running on engine too), and never
+ * changes the templates or the Factory. Compares the branch with where it left main (the merge base).
  *
  *   bun run scripts/check-unified-fence.ts [base-ref]     default base: origin/main
  *   checkFence(changes, read)                             the rule itself (apps/unified/tests/fence.test.ts)
@@ -11,9 +12,9 @@ export interface Change { status: 'A' | 'M' | 'D' | 'R' | string; path: string; 
 export interface FenceViolation { path: string; detail: string }
 
 /** Where new files may go. */
-const ADD_ALLOWED = [/^apps\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//]
-/** Existing files that may change. */
-const MODIFY_ALLOWED = [/^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/]
+const ADD_ALLOWED = [/^apps\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
+/** Existing files that may change: the shared code (the engine), its manifests, the lockfile, the spec, build-check's trigger. */
+const MODIFY_ALLOWED = [/^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/]
 const DEP_KEYS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
 
 export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path: string) => string | null): FenceViolation[] {
@@ -23,9 +24,13 @@ export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path:
     if (s === 'A') {
       if (!ADD_ALLOWED.some((r) => r.test(ch.path))) out.push({ path: ch.path, detail: 'a new file outside the unified app\'s places' })
     } else if (s === 'M') {
-      if (!MODIFY_ALLOWED.some((r) => r.test(ch.path))) { out.push({ path: ch.path, detail: 'an existing file changed; the live system is not touched during construction' }); continue }
+      if (!MODIFY_ALLOWED.some((r) => r.test(ch.path))) { out.push({ path: ch.path, detail: 'an existing file changed; the templates and the Factory are not touched during construction' }); continue }
       if (/^packages\/[^/]+\/package\.json$/.test(ch.path)) {
         const why = onlyDeclaresMore(read('base', ch.path), read('head', ch.path))
+        if (why) out.push({ path: ch.path, detail: why })
+      }
+      if (ch.path === '.github/workflows/build-check.yml') {
+        const why = onlyTriggerChanged(read('base', ch.path), read('head', ch.path))
         if (why) out.push({ path: ch.path, detail: why })
       }
     } else if (s === 'D') {
@@ -35,6 +40,18 @@ export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path:
     }
   }
   return out
+}
+
+/** build-check.yml may only change its `on:` block (so the existing checks also run on engine); every job stays as it is. */
+function onlyTriggerChanged(baseText: string | null, headText: string | null): string | null {
+  if (baseText == null || headText == null) return 'could not read both versions'
+  const jobs = (t: string) => {
+    const i = t.search(/^jobs:/m)
+    return i < 0 ? null : t.slice(i).split(/\r?\n/).join('\n')
+  }
+  const a = jobs(baseText), b = jobs(headText)
+  if (a == null || b == null) return 'no jobs: block'
+  return a === b ? null : 'a job changed; only the trigger may change'
 }
 
 /** A shared package's manifest may only gain library declarations: everything else, and every existing entry, unchanged. */

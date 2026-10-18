@@ -84,19 +84,24 @@ Factory can rebuild and update every tenant the same way.
 
 ## 10. The live system is not touched during construction **[checked]**
 
-The `engine` branch only adds files, in `apps/unified/`, `tests/unified/`,
-`scripts/check-unified-*.ts`, `.github/workflows/unified.yml` and `docs/`. It never
-modifies or deletes an existing file, with three exceptions:
+The `engine` branch adds files in `apps/unified/`, `tests/unified/`,
+`scripts/check-unified-*.ts`, `.github/workflows/unified.yml` and `docs/`. The
+templates and the Factory (`templates/`, `apps/api/`, `apps/platform/`) are not
+modified or deleted. The existing files it may change:
 
+- **The shared code, `packages/*/src`.** It is the engine: the unified app improves
+  it in place instead of copying it (owner's yes, 2026-10-18). The CRM templates use
+  the same code, so every existing check (`build-check.yml`: the guards and every
+  CRM behaviour suite) runs on every push to `engine`; a change that breaks a
+  template fails there. Nothing reaches a live customer before cutover.
+- `.github/workflows/build-check.yml`, only its `on:` trigger, so it runs on `engine`.
+- `packages/*/package.json`, only to declare libraries the shared code imports.
 - `docs/SPEC_UNIFIED_PRODUCT.md`, the design this branch builds.
-- `bun.lock`, which the install regenerates when the app joins the workspace.
-- `packages/*/package.json`, only to declare libraries the shared code already
-  imports. The Factory copies only a package's `src/` into a live CRM, so a live CRM
-  never sees this file.
+- `bun.lock`, which the install regenerates.
 
-Existing shared code in `packages/*/src` is used as it is, read-only. Anything moved
-out of existing code (rather than imported) is listed in `docs/CUTOVER_LEDGER.md`,
-so the original is deleted at cutover and no second copy survives.
+Anything moved out of existing code (rather than imported) is listed in
+`docs/CUTOVER_LEDGER.md`, so the original is deleted at cutover and no second copy
+survives.
 
 ## 11. No new convention without a yes
 
