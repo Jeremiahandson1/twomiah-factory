@@ -48,6 +48,8 @@ export interface AuthApi {
   forgotPassword: (email: string) => Promise<any>
   resetPassword: (token: string, password: string) => Promise<any>
   clearTokens: () => void
+  /** Whether a session may exist to ask the server about (api/client.ts); absent = a stored token decides. */
+  mayHaveSession?: () => boolean
 }
 
 export interface AuthContextValue {

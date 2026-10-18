@@ -26,7 +26,9 @@ const absolute = (api: FilesApi, url: string) => (url.startsWith('http') ? url :
  * client's normal expiry handling takes it from there. (Salon T22 M3)
  */
 export async function authedFetch(api: FilesApi, url: string, init: RequestInit = {}, retried = false): Promise<Response> {
-  const res = await fetch(absolute(api, url), { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token()}` } })
+  // The session's own headers (a bearer token, or a cookie session's marker); the stored token for an older client.
+  const sessionHeaders = typeof api.authHeaders === 'function' ? api.authHeaders() : { Authorization: `Bearer ${token()}` }
+  const res = await fetch(absolute(api, url), { ...init, credentials: 'same-origin', headers: { ...(init.headers || {}), ...sessionHeaders } })
   if (res.status === 401 && !retried && typeof api.refreshAccessToken === 'function') {
     const outcome = await api.refreshAccessToken()
     if (outcome === 'ok') return authedFetch(api, url, init, true)

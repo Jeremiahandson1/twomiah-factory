@@ -77,6 +77,66 @@ describe('sign-in', () => {
   })
 })
 
+describe('the browser session in cookies (SPEC §5.3)', () => {
+  const cookieLogin = () => t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: seeded.password }, headers: { 'X-Auth-Mode': 'cookie' } })
+  /** name=value pairs from a response's Set-Cookie headers, plus each cookie's attributes. */
+  const cookiesOf = (res: Response) => {
+    const out: Record<string, { value: string; attrs: string }> = {}
+    for (const line of res.headers.getSetCookie()) {
+      const [pair, ...attrs] = line.split(';')
+      const i = pair.indexOf('=')
+      out[pair.slice(0, i).trim()] = { value: pair.slice(i + 1).trim(), attrs: attrs.join(';') }
+    }
+    return out
+  }
+
+  test('sign-in sets both tokens as httpOnly, SameSite=Strict cookies and leaves them out of the reply', async () => {
+    const res = await cookieLogin()
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.accessToken).toBeUndefined()
+    expect(body.refreshToken).toBeUndefined()
+    expect(body.user.email).toBe('owner@test.example')
+    const c = cookiesOf(res)
+    expect(c.tw_access.value.length).toBeGreaterThan(20)
+    expect(c.tw_access.attrs).toMatch(/HttpOnly/i)
+    expect(c.tw_access.attrs).toMatch(/SameSite=Strict/i)
+    expect(c.tw_refresh.attrs).toMatch(/Path=\/api\/auth/i)
+  })
+
+  test('the cookie signs a request in; a change it signs without X-Auth-Mode is refused', async () => {
+    const c = cookiesOf(await cookieLogin())
+    const cookie = `tw_access=${c.tw_access.value}`
+    expect((await t.call('/api/auth/me', { headers: { Cookie: cookie } })).status).toBe(200)
+    const bare = await t.call('/api/auth/logout', { method: 'POST', json: {}, headers: { Cookie: cookie } })
+    expect(bare.status).toBe(403)
+    expect((await bare.json()).code).toBe('auth_mode_required')
+  })
+
+  test('refresh renews the access cookie from the refresh cookie; sign-out clears both and revokes the device', async () => {
+    const c = cookiesOf(await cookieLogin())
+    const both = `tw_access=${c.tw_access.value}; tw_refresh=${c.tw_refresh.value}`
+    const refreshed = await t.call('/api/auth/refresh', { method: 'POST', json: {}, headers: { Cookie: `tw_refresh=${c.tw_refresh.value}`, 'X-Auth-Mode': 'cookie' } })
+    expect(refreshed.status).toBe(200)
+    expect(await refreshed.json()).toEqual({ refreshed: true })
+    expect(cookiesOf(refreshed).tw_access.value.length).toBeGreaterThan(20)
+
+    const out = await t.call('/api/auth/logout', { method: 'POST', json: {}, headers: { Cookie: both, 'X-Auth-Mode': 'cookie' } })
+    expect(out.status).toBe(200)
+    const cleared = cookiesOf(out)
+    expect(cleared.tw_access.attrs).toMatch(/Max-Age=0/i)
+    expect(cleared.tw_refresh.attrs).toMatch(/Max-Age=0/i)
+    const again = await t.call('/api/auth/refresh', { method: 'POST', json: {}, headers: { Cookie: `tw_refresh=${c.tw_refresh.value}`, 'X-Auth-Mode': 'cookie' } })
+    expect(again.status).toBe(401)
+  })
+
+  test('without the header, sign-in answers with the tokens as it always has (the mobile app, scripts)', async () => {
+    const body = await (await login(seeded.password)).json()
+    expect(typeof body.accessToken).toBe('string')
+    expect(typeof body.refreshToken).toBe('string')
+  })
+})
+
 describe('the one API door (registry)', () => {
   // A small app with three probe modules mounted the only way the rulebook allows.
   const probe = () => new Hono().get('/', (c) => one(c, { reached: true }))

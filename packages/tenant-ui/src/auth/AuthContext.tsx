@@ -25,8 +25,9 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
   const [error, setError] = useState<string | null>(null)
 
   const checkAuth = useCallback(async () => {
-    const token = localStorage.getItem('accessToken')
-    if (!token) { setLoading(false); return }
+    // Nothing to ask about: no token in storage. A cookie session is invisible to the page, so only the server can say.
+    const maySignedIn = typeof api.mayHaveSession === 'function' ? api.mayHaveSession() : !!localStorage.getItem('accessToken')
+    if (!maySignedIn) { setLoading(false); return }
     // Retry once on a transient failure (timeout / network / server waking up) before giving up —
     // a cold start or a brief stall must not end the session.
     for (let attempt = 0; attempt < 2; attempt++) {

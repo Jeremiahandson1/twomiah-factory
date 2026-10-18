@@ -41,6 +41,12 @@ export interface ApiClientOptions {
   baseUrl?: string
   /** Per-request abort timeout. Default 45 s — long enough for a Render cold start, short enough to not hang. */
   timeoutMs?: number
+  /**
+   * Where the session lives. 'storage' (the default, every CRM template and the mobile app): the tokens come back in
+   * the sign-in reply and are kept in localStorage. 'cookie' (the unified app): the server keeps them in httpOnly
+   * cookies the page can't read, and this client never holds a credential (tenant-backend auth/cookieSession.ts).
+   */
+  authMode?: 'storage' | 'cookie'
 }
 
 const DEFAULT_TIMEOUT_MS = 45_000
@@ -83,6 +89,7 @@ export type RefreshOutcome = 'ok' | 'revoked' | 'retry'
 
 export class ApiClient {
   readonly baseUrl: string
+  readonly authMode: 'storage' | 'cookie'
   private readonly timeoutMs: number
   // The session's tokens are the ones in storage, read when a request goes — not a copy taken when this module loaded.
   // A template that signs in through a client of its own (home care, dispensary, roof, the store) writes the same two
@@ -95,23 +102,42 @@ export class ApiClient {
   private _refreshPromise: Promise<RefreshOutcome> | null = null
 
   private get accessToken(): string | null {
+    if (this.authMode === 'cookie') return null
     const stored = storage.read(ACCESS_KEY)
     return stored === undefined ? this.memAccessToken : stored
   }
 
   private get refreshToken(): string | null {
+    if (this.authMode === 'cookie') return null
     const stored = storage.read(REFRESH_KEY)
     return stored === undefined ? this.memRefreshToken : stored
+  }
+
+  /** The headers that carry the session on a request made without this client (a raw file fetch). */
+  authHeaders(): Record<string, string> {
+    if (this.authMode === 'cookie') return { 'X-Auth-Mode': 'cookie' }
+    return this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}
+  }
+
+  /**
+   * Whether there may be a session to ask the server about. With tokens in storage: whether one is there. With a
+   * cookie session the page can't see it, so only the server can say (GET /api/auth/me).
+   */
+  mayHaveSession(): boolean {
+    return this.authMode === 'cookie' ? true : !!this.accessToken
   }
 
   constructor(options: ApiClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? ((import.meta as any).env?.VITE_API_URL || '')
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
-    this.memAccessToken = storage.get(ACCESS_KEY)
-    this.memRefreshToken = storage.get(REFRESH_KEY)
+    this.authMode = options.authMode ?? 'storage'
+    this.memAccessToken = this.authMode === 'cookie' ? null : storage.get(ACCESS_KEY)
+    this.memRefreshToken = this.authMode === 'cookie' ? null : storage.get(REFRESH_KEY)
   }
 
   setTokens(accessToken: string, refreshToken: string): void {
+    // A cookie session has nothing to keep: the server set the cookies.
+    if (this.authMode === 'cookie') return
     this.memAccessToken = accessToken
     this.memRefreshToken = refreshToken
     storage.set(ACCESS_KEY, accessToken)
@@ -158,20 +184,22 @@ export class ApiClient {
     const { timeoutMs = this.timeoutMs, ...fetchOptions } = options
     const headers: Record<string, string> = {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-      ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
+      ...this.authHeaders(),
       ...options.headers,
     }
 
-    const response = await this.fetchWithTimeout(url, { ...fetchOptions, headers }, timeoutMs)
+    const response = await this.fetchWithTimeout(url, { ...fetchOptions, headers, credentials: 'same-origin' }, timeoutMs)
 
-    if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/refresh')) {
+    // A wrong password is a 401 too: only a request made WITH a session gets the refresh-and-retry.
+    const signingIn = endpoint.includes('/auth/login') || endpoint.includes('/auth/mfa') || endpoint.includes('/auth/refresh')
+    if (response.status === 401 && !signingIn && (this.refreshToken || this.authMode === 'cookie')) {
       if (!this._refreshPromise) {
         this._refreshPromise = this.refreshAccessToken().finally(() => { this._refreshPromise = null })
       }
       const outcome = await this._refreshPromise
       if (outcome === 'ok') {
-        headers.Authorization = `Bearer ${this.accessToken}`
-        return noticeAccountLock(await this.fetchWithTimeout(url, { ...fetchOptions, headers }, timeoutMs))
+        Object.assign(headers, this.authHeaders())
+        return noticeAccountLock(await this.fetchWithTimeout(url, { ...fetchOptions, headers, credentials: 'same-origin' }, timeoutMs))
       }
       if (outcome === 'revoked') {
         // Genuine revocation — the only case that ends the session. The shared AuthContext listens for this.
@@ -206,14 +234,17 @@ export class ApiClient {
   async refreshAccessToken(): Promise<RefreshOutcome> {
     for (let attempt = 0; attempt < REFRESH_ATTEMPTS; attempt++) {
       try {
+        const cookie = this.authMode === 'cookie'
         const response = await this.fetchWithTimeout(`${this.baseUrl}/api/auth/refresh`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken: this.refreshToken }),
+          headers: { 'Content-Type': 'application/json', ...(cookie ? { 'X-Auth-Mode': 'cookie' } : {}) },
+          // A cookie session's refresh token is a cookie the server reads; the body carries nothing.
+          body: JSON.stringify(cookie ? {} : { refreshToken: this.refreshToken }),
+          credentials: 'same-origin',
         }, this.timeoutMs)
         if (response.ok) {
           const data = await response.json()
-          this.setTokens(data.accessToken, data.refreshToken)
+          if (!cookie) this.setTokens(data.accessToken, data.refreshToken)
           return 'ok'
         }
         if (response.status === 401 || response.status === 403) return 'revoked'
@@ -258,7 +289,8 @@ export class ApiClient {
   }
 
   async logout(): Promise<void> {
-    await this.request('/api/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: this.refreshToken }) }).catch(() => {})
+    // A cookie session sends no token: the server signs out the device whose cookie it is, and clears it.
+    await this.request('/api/auth/logout', { method: 'POST', body: JSON.stringify(this.authMode === 'cookie' ? {} : { refreshToken: this.refreshToken }) }).catch(() => {})
     this.clearTokens()
   }
 

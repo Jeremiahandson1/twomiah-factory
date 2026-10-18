@@ -18,6 +18,7 @@ import { companyRowTimeZone } from '../time/businessDay'
 // The same one-line heal GET /api/company uses — see company/logoAddress.ts for how the column came
 // to hold "https:///logo.svg" in the first place.
 import { healLogo } from '../company/logoAddress'
+import { withSession, wantsCookieSession, refreshCookie, setSessionCookies, clearSessionCookies } from './cookieSession'
 
 export interface AuthTables { user: any; company: any }
 export interface AuthOptions {
@@ -323,13 +324,13 @@ export function createAuthRoutes(deps: AuthDeps) {
      * The same `effectivePermissions` /me uses, so the two answers cannot disagree. Adding a field
      * breaks no caller, and the client already reads it when present.
      */
-    return c.json({
+    // The tokens in the body, or — for a browser that asked for a cookie session — in httpOnly cookies only.
+    return c.json(withSession(c, {
       user: userPayload(foundUser, foundUser.role),
       company: companyPayload(foundCompany, permissions.normalizeRole(foundUser.role)),
       permissions: await effectivePermissions(foundUser.id, foundUser.role),
       ...(gate.enrolmentRequired ? { mfaEnrolmentRequired: true } : {}),
-      ...tokens,
-    })
+    }, tokens))
   })
 
   /**
@@ -367,19 +368,19 @@ export function createAuthRoutes(deps: AuthDeps) {
     logAuth(c, deps.audit?.ACTIONS?.LOGIN ?? 'login',
       { id: mfaUser.id, email: mfaUser.email, companyId: mfaUser.companyId }, 'Signed in with two-factor',
       { role: mfaUser.role, secondFactor: true })
-    return c.json({
+    return c.json(withSession(c, {
       user: userPayload(mfaUser, mfaUser.role),
       company: companyPayload(mfaCompany, permissions.normalizeRole(mfaUser.role)),
       permissions: await effectivePermissions(mfaUser.id, mfaUser.role),
       // So a screen can tell somebody they have one fewer recovery code than they did.
       ...(outcome.usedRecoveryCode ? { usedRecoveryCode: true } : {}),
-      ...tokens,
-    })
+    }, tokens))
   })
 
   app.post('/refresh', async (c) => {
     const body = await c.req.json().catch(() => ({} as any))
-    const refreshToken = body?.refreshToken
+    // A cookie-session browser holds its refresh token in a cookie it can't read; everyone else sends it.
+    const refreshToken = body?.refreshToken || (wantsCookieSession(c) ? refreshCookie(c) : undefined)
     if (!refreshToken || typeof refreshToken !== 'string') return c.json({ error: 'Refresh token required' }, 401)
 
     let decoded: any
@@ -391,16 +392,23 @@ export function createAuthRoutes(deps: AuthDeps) {
       return c.json({ error: 'Invalid refresh token' }, 401)
     }
     const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
+    if (wantsCookieSession(c)) {
+      setSessionCookies(c, { accessToken: tokens.accessToken })
+      return c.json({ refreshed: true })
+    }
     return c.json({ accessToken: tokens.accessToken, refreshToken })
   })
 
   app.post('/logout', authenticate, async (c) => {
     const currentUser = c.get('user') as any
     const body = await c.req.json().catch(() => ({} as any))
-    await revokeRefreshToken(currentUser.userId, typeof body?.refreshToken === 'string' ? body.refreshToken : null)
+    // This device's refresh token: from the body, or a cookie-session browser's cookie. None = every device.
+    const deviceToken = typeof body?.refreshToken === 'string' ? body.refreshToken : (wantsCookieSession(c) ? refreshCookie(c) ?? null : null)
+    await revokeRefreshToken(currentUser.userId, deviceToken)
+    if (wantsCookieSession(c)) clearSessionCookies(c)
     logAuth(c, deps.audit?.ACTIONS?.LOGOUT ?? 'logout',
       { id: currentUser.userId, email: currentUser.email, companyId: currentUser.companyId },
-      typeof body?.refreshToken === 'string' ? 'Signed out of this device' : 'Signed out of every device')
+      deviceToken ? 'Signed out of this device' : 'Signed out of every device')
     return c.json({ message: 'Logged out' })
   })
 

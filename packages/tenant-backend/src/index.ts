@@ -268,3 +268,4 @@ export type { LoyaltyConfig, PunchCardConfig, LoyaltyDefaults } from './loyalty/
 export { pointsForSale, punchCardProgress, visitQualifies, inBirthdayMonth, rewardDiscountCents, canRedeem } from './loyalty/engine'
 export type { Reward, RewardType, BasketLine, PunchCardState, PunchCardProgress, RedeemCheck, RedeemVocabulary } from './loyalty/engine'
 export { redactCompanySettings, isPrivilegedRole, SECRET_SETTING_PATHS, PRIVATE_SETTING_KEYS } from './auth/redactSettings'
+export { AUTH_MODE_HEADER, ACCESS_COOKIE, REFRESH_COOKIE, wantsCookieSession, withSession, setSessionCookies, clearSessionCookies, requestToken } from './auth/cookieSession'

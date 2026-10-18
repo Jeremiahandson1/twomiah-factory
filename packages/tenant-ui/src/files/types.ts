@@ -7,7 +7,7 @@ import type { InvoicingApi, InvoicingToast } from '../invoicing/types'
  * standing up a second refresh of their own. Optional, so a template passing a plain object still works —
  * it simply gets the old behaviour. (Salon T22 M3)
  */
-export type FilesApi = InvoicingApi & { baseUrl?: string; refreshAccessToken?: () => Promise<'ok' | 'revoked' | 'retry'> }
+export type FilesApi = InvoicingApi & { baseUrl?: string; refreshAccessToken?: () => Promise<'ok' | 'revoked' | 'retry'>; /** The session's headers for a raw fetch (api/client.ts). */ authHeaders?: () => Record<string, string> }
 export type FilesToast = InvoicingToast
 
 export interface DocumentsConfig {

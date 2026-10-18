@@ -5,6 +5,7 @@ import type { Context, Next } from 'hono'
 import jwt from 'jsonwebtoken'
 import { eq } from 'drizzle-orm'
 import { refuseWhileLocked } from './accountLock'
+import { requestToken } from './cookieSession'
 
 export interface AuthMiddlewareDeps {
   db: any
@@ -18,11 +19,12 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
   const { db, tables: { user, company } } = deps
 
   const authenticate = async (c: Context, next: Next) => {
-    const authHeader = c.req.header('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return c.json({ error: 'No token provided' }, 401)
-    }
-    const token = authHeader.split(' ')[1]
+    // The Authorization header (the mobile app, the templates' screens, scripts) or the browser's session cookie
+    // (auth/cookieSession.ts); a cookie-signed change must also carry X-Auth-Mode.
+    const presented = requestToken(c)
+    if (!presented) return c.json({ error: 'No token provided' }, 401)
+    if ('refused' in presented) return c.json({ error: presented.refused, code: 'auth_mode_required' }, 403)
+    const token = presented.token
     let decoded: any
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET!)
