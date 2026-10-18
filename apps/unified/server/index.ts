@@ -15,6 +15,10 @@ const vertical = await loadVertical()
 const { app, services } = createApp({ db, vertical })
 // The CRM's timed work: review requests, campaigns, agreement billing, recurring invoices, commissions.
 services.crm.startJobs()
+// The subscription from the Factory, in case a push was missed while the server was down. (The CRMs also filled an
+// empty feature list from the plan at boot; not here: the Factory sets every tenant's features when it builds it,
+// and a fill from a CRM plan would switch the CRM on for a website-only business.)
+void services.refreshSubscription()
 const port = Number(process.env.PORT) || 3001
 
 Bun.serve({ port, fetch: app.fetch })

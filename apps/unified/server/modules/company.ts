@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import {
   createCompanyRoutes, createBillingRoutes, createSubscriptionSyncRoute, createAccountRoutes, createFactoryApiClient,
-  createEmailAliasesRoutes, createEmailAliasesInternalRoute, createLeadsRoutes, TRADES_LEAD_PLATFORMS,
+  createEmailAliasesRoutes, createEmailAliasesInternalRoute, createLeadsRoutes, TRADES_LEAD_PLATFORMS, refreshSubscriptionFromFactory,
 } from '@twomiah/tenant-backend'
 import { asc, eq } from 'drizzle-orm'
 import { company, user, emailAlias, lead, leadSource, contact } from '../db/schema/index.ts'
@@ -102,6 +102,8 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
   })
 
   return {
+    /** Pull the subscription from the Factory (at boot), so the mirror is right even if a push was missed. */
+    refreshSubscription: () => refreshSubscriptionFromFactory(billingDeps as any),
     mounts: [
       { path: '/api/company', access: 'user' as const, router: companyRoutes },
       { path: '/api/billing', access: 'user' as const, router: billing },

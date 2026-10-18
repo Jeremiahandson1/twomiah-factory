@@ -41,6 +41,13 @@ import { fieldMounts } from '../crm/field/index.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { officeMounts } from '../crm/office/index.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
+import { basicMounts } from '../crm/basic/index.ts'
+import { landscapingMounts } from '../crm/landscaping/index.ts'
+import { barMounts } from '../crm/bar/index.ts'
+import { restaurantMounts } from '../crm/restaurant/index.ts'
+import { rvMounts } from '../crm/rv/index.ts'
+import { salonMounts } from '../crm/salon/index.ts'
+import { vetMounts } from '../crm/vet/index.ts'
 
 export interface CrmModuleDeps {
   db: any
@@ -252,6 +259,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
 
     // The CRM's own modules (moved from the template, not shared code).
     ...siteRecordsMounts(own), ...projectMounts(own), ...fieldMounts(own), ...commsMounts(own), ...officeMounts(own),
+    // The near-copy CRMs' own modules (step 3e), each behind its features.
+    ...basicMounts(own), ...landscapingMounts(own), ...barMounts(own), ...restaurantMounts(own), ...rvMounts(own), ...salonMounts(own), ...vetMounts(own),
   ]
 }
 

@@ -163,5 +163,5 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     ? fail(c, 404, `Route not found: ${c.req.method} ${c.req.path}`)
     : c.html(NOT_FOUND_PAGE, 404))
 
-  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings, crm, realtime, mounts } }
+  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings, crm, realtime, mounts, refreshSubscription: companyModules.refreshSubscription } }
 }
