@@ -127,6 +127,52 @@ export const mfaChallenge = pgTable('mfa_challenges', {
   index('mfa_challenge_user_idx').on(t.userId),
 ])
 
+/**
+ * Every photo: a job's, a contact's, and the website's library (SPEC §4.1, one library shared by site and CRM).
+ * The base CRM's photo table, plus three columns for the website's: a CRM photo is private (served to a signed-in
+ * person through /api/photos/:id/file); a website photo is public, at `publicUrl`, and carries its alt text.
+ */
+export const photo = pgTable('photo', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id),
+  entityType: text('entity_type'),
+  entityId: text('entity_id'),
+  /** The storage key. */
+  filename: text('filename').notNull(),
+  originalName: text('original_name'),
+  mimeType: text('mime_type').default('image/jpeg').notNull(),
+  size: integer('size'),
+  width: integer('width'),
+  height: integer('height'),
+  thumbnailPath: text('thumbnail_path'),
+  caption: text('caption'),
+  tags: json('tags'),
+  /** On the public website (true) or only for signed-in people (false). */
+  isPublic: boolean('is_public').default(false).notNull(),
+  /** Where the public website loads it from; set only when isPublic. */
+  publicUrl: text('public_url'),
+  /** Describes the picture for someone who can't see it. */
+  alt: text('alt'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('photo_company_id_idx').on(t.companyId),
+  index('photo_entity_type_entity_id_idx').on(t.entityType, t.entityId),
+])
+
+/** The company's email addresses at its own domain (the base CRM's table; the Factory reads them back to Cloudflare). */
+export const emailAlias = pgTable('email_alias', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  localPart: text('local_part').notNull(),
+  routingMode: text('routing_mode').notNull().default('forward'), // 'forward' | 'crm'
+  forwardTo: text('forward_to'),
+  enabled: boolean('enabled').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('email_alias_local_part_idx').on(t.localPart),
+])
+
 export const auditLog = pgTable('audit_log', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   action: text('action').notNull(),

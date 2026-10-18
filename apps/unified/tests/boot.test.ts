@@ -20,7 +20,10 @@ const login = (password: string) => t.call('/api/auth/login', { method: 'POST', 
 describe('boot', () => {
   test('every migration applies to an empty database', async () => {
     const r: any = await t.client.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1`)
-    expect(r.rows.map((x: any) => x.table_name)).toEqual(['audit_log', 'company', 'mfa_challenges', 'mfa_devices', 'user'])
+    expect(r.rows.map((x: any) => x.table_name)).toEqual([
+      'audit_log', 'company', 'contact', 'email_alias', 'lead', 'lead_source', 'mfa_challenges', 'mfa_devices',
+      'page', 'page_view', 'photo', 'portfolio_item', 'post', 'site', 'user',
+    ])
   })
 
   test('health answers', async () => {

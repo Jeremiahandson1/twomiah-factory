@@ -87,6 +87,8 @@ export function checkUnified(root: string, opts: { drift?: boolean; repoRoot?: s
       if (!/^[a-z][a-z0-9_]*$/.test(name)) add('§4 names', f, `table '${name}' is not snake_case`)
       if (FORBIDDEN.has(name)) add('§4 names', f, `table '${name}' forks company/user; use the one name`)
     }
+    for (const m of c.matchAll(/\bjsonb\s*\(/g)) add('§2 column types', f, `line ${lineOf(c, m.index!)}: json, not jsonb`)
+    for (const m of c.matchAll(/withTimezone\s*:\s*true/g)) add('§2 column types', f, `line ${lineOf(c, m.index!)}: timestamp without a time zone, holding UTC`)
     for (const m of c.matchAll(COLUMN)) {
       if (!/^[a-z][a-zA-Z0-9]*$/.test(m[1])) add('§2 naming', f, `line ${lineOf(c, m.index!)}: property '${m[1]}' is not camelCase`)
       if (!/^[a-z][a-z0-9_]*$/.test(m[4])) add('§2 naming', f, `line ${lineOf(c, m.index!)}: column '${m[4]}' is not snake_case`)

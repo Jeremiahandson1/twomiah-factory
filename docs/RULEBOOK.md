@@ -17,6 +17,13 @@ TypeScript, front and back. No `.js`, `.jsx`, `.mjs` or `.cjs` source files.
 
 - Database tables and columns are `snake_case`: `audit_log`, `company_id`.
 - TypeScript names and API JSON keys are `camelCase`: `auditLog`, `companyId`.
+- New tables are singular nouns (`contact`, `page`, `portfolio_item`), as 140 of the
+  base CRM's 148 tables are. Names inherited from existing tables keep their spelling
+  so tenant data moves across unchanged.
+- One set of column types: JSON is `json`, never `jsonb` (60 to 0 in the base CRM);
+  a timestamp is `timestamp` without a time zone and holds UTC (395 to 6). A
+  top-level record carries `company_id`; a child row (a line item) reaches its
+  company through its parent.
 - The Drizzle schema is the only place the two meet. Raw SQL (`sql\`...\``,
   `.execute(`) is allowed only in files under `apps/unified/server/data/`, and those
   functions return camelCase objects. A database row in snake_case never reaches a

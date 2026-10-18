@@ -73,6 +73,14 @@ describe('each rule fires on its violation', () => {
     expect(rules(plant((d) => append(d, 'server/db/schema/core.ts', `\nexport const thing = pgTable('thing', {\n${STANDARD_ID}  firstName: text('firstName'),\n})\n`)))).toEqual(['§2 naming'])
   })
 
+  test('§2 a jsonb column', () => {
+    expect(rules(plant((d) => append(d, 'server/db/schema/core.ts', `\nexport const thing = pgTable('thing', {\n${STANDARD_ID}  data: jsonb('data'),\n})\n`)))).toEqual(['§2 column types'])
+  })
+
+  test('§2 a timestamp with a time zone', () => {
+    expect(rules(plant((d) => append(d, 'server/db/schema/core.ts', `\nexport const thing = pgTable('thing', {\n${STANDARD_ID}  at: timestamp('at', { withTimezone: true }),\n})\n`)))).toEqual(['§2 column types'])
+  })
+
   test('§5 a primary key that is not the standard id', () => {
     expect(rules(plant((d) => append(d, 'server/db/schema/core.ts', `\nexport const thing = pgTable('thing', {\n  id: text('id').primaryKey(),\n})\n`)))).toEqual(['§5 ids'])
   })
