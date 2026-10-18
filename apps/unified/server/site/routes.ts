@@ -14,14 +14,14 @@ import { loadSiteContext, type SiteContext } from './context.ts'
 import { renderSections, renderBody, homePlaceholder, markdownToHtml, siteOrigin, escHtml, escXml, type PageMeta } from './render.ts'
 import { feedUnits, feedUrlOk, unitSpecs } from './inventoryFeed.ts'
 import type { createEnquiryHandler } from './enquiryHandler.ts'
+import { RESERVED_SLUGS } from './slugs.ts'
+import { PUBLIC_PHOTO_PREFIX, type PhotoStore } from './admin.ts'
 
 const SITE_DIR = path.join(import.meta.dir, '..', '..', 'site')
 const BASE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'main.css'), 'utf8')
 const DESIGN_CSS = new Map<string, string>()
 for (const f of fs.readdirSync(path.join(SITE_DIR, 'designs'))) DESIGN_CSS.set(f.replace(/\.css$/, ''), fs.readFileSync(path.join(SITE_DIR, 'designs', f), 'utf8'))
 
-/** Paths a page may never take: the sitemap and friends, and every path the app itself serves. */
-const RESERVED = new Set(['api', 'admin', 'crm', 'uploads', 'media', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'llms.txt', 'blog', 'book', 'booking', 'customize', 'login', 'auth'])
 
 function areaSlug(name: string): string {
   return name.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/&/g, ' and ')
@@ -60,7 +60,7 @@ export function siteStylesheet(ctx: SiteContext): string {
     .replaceAll('{{ACCENT_COLOR}}', accent)
 }
 
-export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; enquiries: ReturnType<typeof createEnquiryHandler> }) {
+export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; enquiries: ReturnType<typeof createEnquiryHandler>; store: PhotoStore }) {
   const { db, vertical } = deps
   const app = new Hono()
 
@@ -99,6 +99,22 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     if (!ctx) return c.text('/* no site yet */', 200, { 'Content-Type': 'text/css' })
     // Long-lived: the page links it with the deploy and colours in the query (render.ts assetVersion).
     return c.body(siteStylesheet(ctx), 200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'public, max-age=31536000, immutable' })
+  })
+
+  // The website's own photos, by the address they were saved with. Only the public prefix: private CRM files share the
+  // store, and /media must never be a way to reach them.
+  app.get('/media/*', async (c) => {
+    const key = decodeURIComponent(c.req.path.replace(/^\/media\//, ''))
+    if (!key.startsWith(PUBLIC_PHOTO_PREFIX) || key.includes('..')) return c.notFound()
+    const obj = await deps.store.getObject(key)
+    if (!obj) return c.notFound()
+    const safe = /^image\/(jpeg|png|webp|gif)$/.test(obj.contentType)
+    return c.body(obj.body as any, 200, {
+      'Content-Type': safe ? obj.contentType : 'application/octet-stream',
+      'X-Content-Type-Options': 'nosniff',
+      ...(safe ? {} : { 'Content-Disposition': 'attachment' }),
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    })
   })
 
   // RFC 9116: every tenant points at the one coordinated disclosure page.
@@ -380,7 +396,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   // Any other single-segment path is a page of the owner's, if it exists and is published.
   app.get('/:slug', async (c) => {
     const slug = c.req.param('slug')
-    if (RESERVED.has(slug)) return c.notFound()
+    if (RESERVED_SLUGS.has(slug)) return c.notFound()
     const ctx = await ctxOf()
     if (!ctx) return c.notFound()
     const p = await loadPage(ctx.companyId, slug)

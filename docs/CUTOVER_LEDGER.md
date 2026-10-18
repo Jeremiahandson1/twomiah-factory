@@ -44,3 +44,22 @@ what must happen to the original at cutover, so no second copy survives
   (`c.json(rows)` and the like) instead of `{ data, pagination }`. Each is conformed
   when its module is mounted in the unified app, together with the screen that reads
   it.
+
+## Step 2c (server side)
+
+- Website admin API (`apps/unified/server/site/admin.ts`, `/api/site`) moved from
+  `templates/website-premium-*/routes/admin.ts`: pages, section types, the website's
+  settings, photos, blog, portfolio, analytics. Every action now checks a permission
+  (`site:read` / `site:update` / `site:delete` / `site:settings`, added to the shared
+  matrix: admin `site:*`, manager content only). The company's own facts are edited
+  only in company settings. Not yet moved: the customize link (with the admin
+  screens), bookings (2d), domain buy/attach, CRM hand-off (gone: one app).
+- `/media/*` serves only the public `photos/` prefix (the site's served any key; the
+  one app's store also holds private CRM files).
+- The site's own sign-in (cookie sessions table, email verification, TOTP on the
+  user) is replaced by the shared sign-in with httpOnly cookie sessions (opt-in,
+  `X-Auth-Mode: cookie`). Not carried over: the site's list of active sessions and
+  "sign out everywhere" by session (shared sign-out revokes per device or all), and
+  email-address verification. Decide whether the one app needs them.
+- Feature catalogue is keyed by the CRM template name (`vertical.featureSet`); re-key
+  it by vertical when the CRMs move in.

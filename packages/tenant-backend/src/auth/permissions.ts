@@ -18,6 +18,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // fails the build on exactly that). Reads in those routes stay open, so field/viewer need no grant.
     'submittals:*', 'aia-forms:*', 'draw-schedules:*', 'lien-waivers:*',
     'company:update', 'dashboard:*', 'schedule:*', 'pricebook:*', 'marketing:*',
+    // The public website (unified app): its pages, posts, portfolio, photos and settings. (2026-10-18)
+    'site:*',
     /**
      * The audit log is the owner's and the admins'. (Owner's decision, 2026-10-09)
      *
@@ -224,6 +226,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'submittals:*', 'aia-forms:*', 'draw-schedules:*', 'lien-waivers:*',
     'bids:read', 'team:read', 'company:read', 'dashboard:*', 'schedule:*', 'pricebook:*',
     'marketing:read', 'marketing:create', 'marketing:update',
+    // The website's content (pages, posts, portfolio, photos), not its settings. (2026-10-18)
+    'site:read', 'site:update',
     'ads:read', 'ads:update',
     'tasks:*',
     // operational modules (writes gated in their routes; reads are open) + read-only reports

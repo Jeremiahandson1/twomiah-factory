@@ -10,19 +10,31 @@ import { loadVertical } from '../server/core/vertical.ts'
 process.env.JWT_SECRET ||= 'test-access-secret'
 process.env.JWT_REFRESH_SECRET ||= 'test-refresh-secret'
 
+/** An in-memory file store standing in for R2. */
+export function memoryStore() {
+  const objects = new Map<string, { body: Buffer; contentType: string }>()
+  return {
+    objects,
+    put: async (key: string, body: Buffer, contentType: string) => { objects.set(key, { body, contentType }) },
+    getObject: async (key: string) => objects.get(key) ?? null,
+    remove: async (key: string) => { objects.delete(key) },
+  }
+}
+
 export async function bootTenant(opts: { vertical?: string } = {}) {
   const client = new PGlite()
   const db = drizzle(client, { schema })
   await migrate(db, { migrationsFolder: MIGRATIONS })
   const vertical = await loadVertical(opts.vertical ?? 'contractor')
-  const { app, services } = createApp({ db, vertical })
+  const store = memoryStore()
+  const { app, services } = createApp({ db, vertical, store })
   const call = (path: string, init: RequestInit & { json?: unknown } = {}) => {
     const headers = new Headers(init.headers)
     let body = init.body
     if (init.json !== undefined) { headers.set('content-type', 'application/json'); body = JSON.stringify(init.json) }
     return app.request(path, { ...init, headers, body })
   }
-  return { client, db, app, services, call, schema }
+  return { client, db, app, services, call, schema, store }
 }
 
 /** The company and its owner, as the Factory provisions them. */

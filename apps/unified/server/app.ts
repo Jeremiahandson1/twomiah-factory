@@ -5,7 +5,7 @@ import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
 import { asc } from 'drizzle-orm'
 import {
-  createAuthMiddleware, createPermissions, createEnabledFeatureGate, createWriteAuditFloor, createAuthRoutes, createMfaRoutes,
+  createAuthMiddleware, createPermissions, createEnabledFeatureGate, createWriteAuditFloor, createAuthRoutes, createMfaRoutes, createFileStorage,
 } from '@twomiah/tenant-backend'
 import * as schema from './db/schema/index.ts'
 import { company, user } from './db/schema/index.ts'
@@ -15,6 +15,7 @@ import { createEmailService } from './core/email.ts'
 import { createEnquiries, enquiryTemplates } from './core/enquiry.ts'
 import { createEnquiryHandler } from './site/enquiryHandler.ts'
 import { createCompanyModules } from './modules/company.ts'
+import { createSiteAdmin, type PhotoStore } from './site/admin.ts'
 import { createSiteRoutes } from './site/routes.ts'
 import type { VerticalSettings } from './core/vertical.ts'
 import { mountAll, type Mount } from './http/registry.ts'
@@ -26,8 +27,15 @@ const NOT_FOUND_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-
   '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f7f5;color:#1a1a1a}main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}</style></head>' +
   '<body><main><h1>That page isn’t here.</h1><p>It may have moved, or the link may be wrong.</p><p><a href="/">Go to the home page</a></p></main></body></html>'
 
-export function createApp(deps: { db: any; vertical: VerticalSettings }) {
+/** The shared R2 file storage, as the photo store the website uses. */
+function sharedPhotoStore(): PhotoStore {
+  const s = createFileStorage()
+  return { put: (k, b, t) => s.put(k, b, t), getObject: (k) => s.getObject(k), remove: async (k) => { s.deleteFile(k) } }
+}
+
+export function createApp(deps: { db: any; vertical: VerticalSettings; store?: PhotoStore }) {
   const { db, vertical } = deps
+  const store = deps.store ?? sharedPhotoStore()
 
   const audit = createAudit({ db })
   const email = createEmailService({ db, logger })
@@ -92,8 +100,10 @@ export function createApp(deps: { db: any; vertical: VerticalSettings }) {
     { path: '/api/auth/mfa-devices', access: 'user', router: createMfaRoutes({ db, authenticate, audit, issuer: vertical.mfaIssuer }) },
     // The company, its people, billing, email addresses, the lead inbox (and the public enquiry), the audit log.
     ...companyModules.mounts,
+    // The website's admin: pages, settings, photos, blog, portfolio, visits.
+    { path: '/api/site', access: 'user', router: createSiteAdmin({ db, permissions, store }) },
     // The public website. Last: its /:slug catch-all must come after every other path.
-    { path: '/', site: true, access: 'public', router: createSiteRoutes({ db, vertical, enquiries: enquiryHandler }) },
+    { path: '/', site: true, access: 'public', router: createSiteRoutes({ db, vertical, enquiries: enquiryHandler, store }) },
   ]
   mountAll(app, mounts, {
     authenticate,
