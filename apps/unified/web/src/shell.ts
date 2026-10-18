@@ -9,6 +9,13 @@ import {
   BookMarked,
 } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared'
+import { nav as basicNav } from './crm/verticals/basic'
+import { nav as landscapingNav } from './crm/verticals/landscaping'
+import { nav as barNav } from './crm/verticals/bar'
+import { nav as restaurantNav } from './crm/verticals/restaurant'
+import { nav as rvNav } from './crm/verticals/rv'
+import { nav as salonNav } from './crm/verticals/salon'
+import { nav as vetNav } from './crm/verticals/vet'
 
 const NAV: NavItem[] = [
   // The CRM (templates/crm/frontend/src/shellConfig.ts): core items need the CRM's own features, so a website-only
@@ -90,6 +97,14 @@ const NAV: NavItem[] = [
   // the help center, and the line to Twomiah about the software itself, on every business's menu.
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
   { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
+  // Each near-copy vertical's own items (crm/verticals/<v>.tsx), gated by its features.
+  ...basicNav,
+  ...landscapingNav,
+  ...barNav,
+  ...restaurantNav,
+  ...rvNav,
+  ...salonNav,
+  ...vetNav,
 ]
 
 export const SHELL: ShellConfig = {

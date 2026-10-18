@@ -23,6 +23,13 @@ import { BookingCalendarPage } from './booking/BookingCalendarPage'
 import { BookingSettingsPage } from './booking/BookingSettingsPage'
 import { BookingInsightsPage, BookingWaitlistPage, BookingSeriesPage } from './booking/BookingExtrasPages'
 import { Crm, page, named } from './crm/lazy'
+import * as basicScreens from './crm/verticals/basic'
+import * as landscapingScreens from './crm/verticals/landscaping'
+import * as barScreens from './crm/verticals/bar'
+import * as restaurantScreens from './crm/verticals/restaurant'
+import * as rvScreens from './crm/verticals/rv'
+import * as salonScreens from './crm/verticals/salon'
+import * as vetScreens from './crm/verticals/vet'
 // The customer portal is its own bundle (crm/portal.tsx: Stripe stays out of the admin).
 const PortalApp = lazy(() => import('./crm/portal'))
 const ProjectsPage = page(() => import('./crm/pages/ProjectsPage'))
@@ -157,6 +164,14 @@ export default function App() {
                         <Route path="maintenance" element={<MaintenanceContracts />} />
                         <Route path="parts" element={<PartsInventory />} />
                         <Route path="geofences" element={<GeofencesPage />} />
+                        {/* Each near-copy vertical's own screens (crm/verticals/<v>.tsx). */}
+                        {basicScreens.routes}
+                        {landscapingScreens.routes}
+                        {barScreens.routes}
+                        {restaurantScreens.routes}
+                        {rvScreens.routes}
+                        {salonScreens.routes}
+                        {vetScreens.routes}
                       </Route>
                       <Route path="help" element={<HelpPage />} />
                       <Route path="contact-support" element={<ContactSupportPage />} />
