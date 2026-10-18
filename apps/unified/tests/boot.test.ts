@@ -2,7 +2,9 @@
 // the Factory's key, paging, replies in the rulebook's shapes, an audit row for a sign-in, and the admin screens served.
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { eq, getTableName, is } from 'drizzle-orm'
+import { PgTable } from 'drizzle-orm/pg-core'
+import * as schema from '../server/db/schema/index.ts'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -21,14 +23,14 @@ beforeAll(async () => {
 const login = (password: string) => t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password } })
 
 describe('boot', () => {
-  test('every migration applies to an empty database', async () => {
+  test('every migration applies to an empty database, and builds exactly the schema', async () => {
     const r: any = await t.client.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1`)
-    expect(r.rows.map((x: any) => x.table_name)).toEqual([
-      'audit_log', 'booking', 'booking_ban', 'booking_blackout', 'booking_hours', 'booking_series', 'booking_service',
-      'booking_settings', 'booking_waitlist', 'booking_webhook', 'booking_zone', 'calendar_connection', 'company', 'contact',
-      'email_alias', 'lead', 'lead_source', 'mfa_challenges', 'mfa_devices', 'page', 'page_view', 'photo', 'portfolio_item',
-      'post', 'site', 'user',
-    ])
+    const declared = Object.values(schema).filter((x) => is(x, PgTable)).map((x) => getTableName(x as PgTable)).sort()
+    expect(r.rows.map((x: any) => x.table_name)).toEqual(declared)
+    // Every layer: 15 core, website and enquiry tables, 11 bookings, and the base CRM's other 135 (the CRM's own
+    // three booking tables are replaced by the bookings layer).
+    expect(declared.length).toBe(161)
+    for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket']) expect(declared).toContain(name)
   })
 
   test('health answers', async () => {

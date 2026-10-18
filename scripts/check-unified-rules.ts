@@ -165,6 +165,8 @@ export function schemaDrift(root: string): string | null {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'unified-drift-'))
   try {
     fs.cpSync(path.join(root, 'server/db/schema'), path.join(tmp, 'server/db/schema'), { recursive: true })
+    // The schema's partial-index conditions live in server/data/indexWhere.ts (raw SQL stays in server/data/).
+    fs.cpSync(path.join(root, 'server/data'), path.join(tmp, 'server/data'), { recursive: true })
     if (fs.existsSync(path.join(root, 'server/db/migrations'))) fs.cpSync(path.join(root, 'server/db/migrations'), path.join(tmp, 'server/db/migrations'), { recursive: true })
     fs.copyFileSync(path.join(root, 'drizzle.config.ts'), path.join(tmp, 'drizzle.config.ts'))
     const modules = fs.realpathSync(path.join(root, 'node_modules'))

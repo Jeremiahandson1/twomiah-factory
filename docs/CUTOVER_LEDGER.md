@@ -118,3 +118,9 @@ what must happen to the original at cutover, so no second copy survives
 - The premium sites' reschedule page never worked: `book-flow.js` sets a field only the new-booking form has, and stops.
 - The premium sites show a booking's email and address at `/book/thanks?id=<id>`.
 - The CRMs' engine cancels a booking 30 minutes after a deposit fails to start (status left `pending`, then expired).
+
+## Step 3 (the CRM layer)
+
+| Unified app | Original | Notes |
+|---|---|---|
+| `apps/unified/server/db/schema/{crm,construction,field,marketing,account}.ts`, migration `0004_crm` | `templates/crm/backend/db/schema.ts`, every table not already moved (135) | Column for column and index for index (checked by script against the original). Four differences, each for the rulebook or the spec: `job.booking_id` added (SPEC §4.7, a job made from a booking); `ai_receptionist_settings` gets the standard `id` with `company_id` unique (RULEBOOK §5; a moved row is given an id); the three `ads_experiment*` tables' timestamps lose their zone (RULEBOOK §2; the moved values convert as UTC); the commission partial-index conditions live in `server/data/indexWhere.ts` (RULEBOOK §2). The CRM's `booking_settings`, `bookable_service` and `online_booking` are replaced by the bookings layer. The drizzle `relations()` blocks are not moved: no code reads them (no `db.query.*`). |
