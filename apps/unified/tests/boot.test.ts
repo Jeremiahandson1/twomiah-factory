@@ -239,6 +239,19 @@ describe('the admin screens', () => {
     expect((await a.call('/crm-assets/assets/missing.js')).status).toBe(404)
   })
 
+  test("the website gets the website's policy (its inline scripts and tracking run); the admin keeps the strict one", async () => {
+    const site = (await a.call('/')).headers.get('content-security-policy') || ''
+    expect(site).toContain("script-src 'self' 'unsafe-inline'")
+    expect(site).toContain('https://www.googletagmanager.com')
+    expect(site).toContain("frame-ancestors 'self'")
+    const admin = (await a.call('/crm')).headers.get('content-security-policy') || ''
+    const adminScripts = admin.split('; ').find((d) => d.startsWith('script-src')) || ''
+    expect(adminScripts).toMatch(/^script-src 'self' https:\/\/js\.stripe\.com/)
+    expect(adminScripts).not.toContain('unsafe-inline')
+    const api = (await a.call('/api/nothing')).headers.get('content-security-policy') || ''
+    expect(api).not.toContain("'unsafe-inline' https://www.googletagmanager")
+  })
+
   test('the public website keeps its own paths', async () => {
     expect((await a.call('/')).headers.get('content-type')).toContain('text/html')
     expect(await (await a.call('/')).text()).not.toContain('company-name')

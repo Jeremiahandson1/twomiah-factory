@@ -24,6 +24,37 @@ export const CSP = [
   'upgrade-insecure-requests',
 ].join('; ')
 
+/**
+ * The public website's own policy (its pages, the booking pages). The admin's policy above refused every inline
+ * script, and the site's layout and sections are built on them — the mobile menu, the sliders, the forms, the
+ * tracking snippets — so on the website they all stopped. This is the premium site's policy (server-static.ts
+ * pagePolicy), plus the hosts its tracking snippets load from: the site printed Google Tag Manager, Analytics, Ads,
+ * the Facebook pixel and Clarity and then refused to load any of them. Framed only by itself (the editor's preview).
+ * Moving the inline scripts to nonces is in docs/CUTOVER_LEDGER.md.
+ */
+const TRACKING_SCRIPTS = 'https://www.googletagmanager.com https://www.google-analytics.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net https://www.clarity.ms https://*.clarity.ms'
+const TRACKING_CONNECT = 'https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://stats.g.doubleclick.net https://www.facebook.com https://*.clarity.ms'
+export const SITE_CSP = [
+  "default-src 'self'",
+  "img-src 'self' data: https:",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  `script-src 'self' 'unsafe-inline' ${TRACKING_SCRIPTS}`,
+  `connect-src 'self' ${TRACKING_CONNECT}`,
+  "frame-src 'self' https://www.googletagmanager.com https://td.doubleclick.net https://www.facebook.com",
+  "frame-ancestors 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ')
+
+/** The website's pages get the website's policy (unless a page set its own, like the Visualizer). */
+export const sitePolicy: MiddlewareHandler = async (c, next) => {
+  await next()
+  if (!c.res.headers.has('Content-Security-Policy') && (c.res.headers.get('content-type') || '').includes('text/html')) {
+    c.res.headers.set('Content-Security-Policy', SITE_CSP)
+  }
+}
+
 /** Sets the policy on any response that didn't set its own. */
 export const contentSecurityPolicy: MiddlewareHandler = async (c, next) => {
   await next()

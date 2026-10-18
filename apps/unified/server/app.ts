@@ -15,12 +15,15 @@ import { createEmailService } from './core/email.ts'
 import { createEnquiries, enquiryTemplates } from './core/enquiry.ts'
 import { createEnquiryHandler } from './site/enquiryHandler.ts'
 import { createCompanyModules } from './modules/company.ts'
+import { createBookingModule, bookingMounts } from './modules/booking.ts'
 import { createSiteAdmin, type PhotoStore } from './site/admin.ts'
 import { createSiteRoutes } from './site/routes.ts'
+import { loadSiteContext } from './site/context.ts'
+import { createBookingPages } from './booking/pages.ts'
 import type { VerticalSettings } from './core/vertical.ts'
 import { mountAll, type Mount } from './http/registry.ts'
 import { createAdminScreens } from './http/adminScreens.ts'
-import { contentSecurityPolicy, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
+import { contentSecurityPolicy, sitePolicy, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
 import { errorHandler } from './http/errors.ts'
 import { fail, one } from './http/reply.ts'
 
@@ -51,6 +54,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   const enquiries = createEnquiries({ db, email, logger, isFeatureEnabled: features.isFeatureEnabled })
   const enquiryHandler = createEnquiryHandler({ db, vertical, enquiries })
   const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler })
+  // Card deposits and people's own calendars join with the CRM's payments and calendar sync (CUTOVER_LEDGER).
+  const bookings = createBookingModule({ db, vertical, email, logger, permissions })
 
   /** One company per tenant database (SPEC §2): the oldest row is the business. */
   async function companyId(): Promise<string | null> {
@@ -101,6 +106,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     { path: '/api/auth/mfa-devices', access: 'user', router: createMfaRoutes({ db, authenticate, audit, issuer: vertical.mfaIssuer }) },
     // The company, its people, billing, email addresses, the lead inbox (and the public enquiry), the audit log.
     ...companyModules.mounts,
+    // Bookings: the owner's book, the public booking API, the scheduled messages.
+    ...bookingMounts(bookings, companyId),
     // The website's admin: pages, settings, photos, blog, portfolio, visits.
     { path: '/api/site', access: 'user', router: createSiteAdmin({ db, permissions, store, vertical }) },
     // The admin screens: their page at /login and /crm/*, their files at /crm-assets/*. Before the website.
@@ -112,7 +119,14 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
       }),
     },
     // The public website. Last: its /:slug catch-all must come after every other path.
-    { path: '/', site: true, access: 'public', router: createSiteRoutes({ db, vertical, enquiries: enquiryHandler, store }) },
+    // The booking pages (/book, /booking/<token>) are part of it, ahead of its pages by slug.
+    {
+      path: '/', site: true, access: 'public',
+      router: new Hono()
+        .use('*', sitePolicy)
+        .route('/', createBookingPages({ engine: bookings.engine, ctxOf: () => loadSiteContext(db, vertical), isFeatureEnabled: features.isFeatureEnabled }))
+        .route('/', createSiteRoutes({ db, vertical, enquiries: enquiryHandler, store })),
+    },
   ]
   mountAll(app, mounts, {
     authenticate,
@@ -127,5 +141,5 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     ? fail(c, 404, `Route not found: ${c.req.method} ${c.req.path}`)
     : c.html(NOT_FOUND_PAGE, 404))
 
-  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries } }
+  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings } }
 }

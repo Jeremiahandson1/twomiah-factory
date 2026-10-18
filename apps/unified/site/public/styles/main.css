@@ -876,3 +876,21 @@ html.age-gate-on, html.age-gate-on body { overflow: hidden; }
 .text-size-toggle button { background: transparent; border: 0; padding: 6px 12px; border-radius: 999px; cursor: pointer; font-family: inherit; font-weight: 600; color: var(--ink-soft); }
 .text-size-toggle button.is-active { background: var(--brand); color: var(--white); }
 .text-size-toggle button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* ── Booking pages added in the unified app (server/booking/pages.ts) ── */
+.book-services__subtitle { color: var(--ink-soft); font-size: 17px; margin: -24px 0 36px; }
+.book-chosen { font-weight: 600; color: var(--ink); margin: 0 0 14px; }
+.book-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.book-tip__label { display: block; font-size: 14px; color: var(--ink-soft); margin-bottom: 6px; }
+.book-ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+.book-actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 0 0 24px; }
+.book-actions form { margin: 0; }
+.book-submit { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.book-submit--secondary { background: transparent; color: var(--brand); border: 1px solid var(--brand); }
+.book-submit--danger { background: #b91c1c; }
+.book-waitlist-link { text-align: center; margin: 8px 0 0; }
+.book-linkbtn { background: none; border: none; padding: 4px; color: var(--ink-soft); text-decoration: underline; font: inherit; font-size: 14px; cursor: pointer; }
+.book-linkbtn:hover { color: var(--ink); }
+#book-waitlist { display: flex; flex-direction: column; gap: 14px; }
+#book-waitlist label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink-soft); }
+#book-waitlist input[type="text"], #book-waitlist input[type="email"], #book-waitlist input[type="date"] { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; font-family: inherit; }
