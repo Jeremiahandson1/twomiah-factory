@@ -352,6 +352,31 @@ jobs:
       - name: every CRM mounts the read-back; the Factory reconciles on attach, buy, deploy, activation and hourly
         run: bun run scripts/check-email-alias-readback.ts
 
+  premium-admin-nav-routes:
+    name: Every premium admin sidebar item opens its page
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      # The Email item had no <Route> for two months; the catch-all quietly sent the owner to Pages.
+      - name: every NAV item has a <Route> rendering an imported page, in all 11 premium admins
+        run: bun run scripts/check-premium-admin-nav-routes.ts
+
+  premium-site-email:
+    name: A premium site's email addresses live in one place (the site, or its CRM)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: install the premium template's own dependencies (the test runs its real server)
+        run: cd templates/website-premium-contractor && bun install
+      - name: the Factory read-back, admin-only, the Factory's status, and a CRM-paired site refusing writes
+        run: bun run tests/shared/premium-site-email.test.ts
+
   events-ledger:
     name: Events money lives on the invoice (one ledger)
     runs-on: ubuntu-latest
