@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { formatDate } from '../date'
 import { Plus, Edit, Trash2, Ban, HandCoins, Receipt } from 'lucide-react'
 import { api } from '../../api'
-import { useToast } from '../../shared'
+import { useToast, useConfirm } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
@@ -113,6 +113,8 @@ export default function BillsPage() {
     setModalOpen(true);
   };
 
+  const confirm = useConfirm();
+
   const handleSave = async () => {
     if (!form.vendorId || !form.amount) { toast.error('Vendor and amount are required'); return; }
     setSaving(true);
@@ -128,7 +130,18 @@ export default function BillsPage() {
         notes: form.notes || undefined,
       };
       if (editing) { await api.bills.update(editing.id as string, payload); toast.success('Updated'); }
-      else { await api.bills.create(payload); toast.success('Bill recorded'); }
+      else {
+        try { await api.bills.create(payload) }
+        catch (err) {
+          // More than the purchase order has left: the server says by how much; the person decides. (The template's
+          // screen showed the refusal and offered no way on.)
+          const data = (err as { data?: { code?: string } }).data
+          if (data?.code !== 'exceeds_purchase_order') throw err
+          if (!(await confirm((err as Error).message, { title: 'Bill more than the purchase order?', confirmText: 'Record it anyway' }))) return
+          await api.bills.create({ ...payload, allowOverage: true })
+        }
+        toast.success('Bill recorded')
+      }
       setModalOpen(false); load();
     } catch (err) { toast.error((err as Error).message); }
     finally { setSaving(false); }

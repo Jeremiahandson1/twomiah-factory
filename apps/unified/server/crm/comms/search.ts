@@ -9,7 +9,12 @@ import { createSearchService } from './searchService.ts'
 // Search only shows what this tenant can open: a result type whose module is switched off — or that this CRM does
 // not have at all (false) — is left out of search, quick search and Recent, and cannot be asked for with ?types=.
 // Types not listed are always shown.
-const TYPE_FEATURES: Record<string, string[] | false> = { project: ['projects'], rfi: ['rfis'] }
+// The core records need their own features too: a website-only business keeps website enquiries as contacts, and
+// has no CRM to open them in. Documents live with the CRM's records, so they follow contacts.
+const TYPE_FEATURES: Record<string, string[] | false> = {
+  project: ['projects'], rfi: ['rfis'], contact: ['contacts'], job: ['jobs'], quote: ['quotes'], invoice: ['invoices'],
+  team: ['team'], document: ['contacts'],
+}
 
 // …and what the SEARCHER may read: each pair is the permission that type's own list route requires, so a result
 // is never a door the API will refuse to open. A type whose list route asks for nothing has no entry.

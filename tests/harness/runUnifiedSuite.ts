@@ -20,6 +20,7 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
+import { UNIFIED_DIVERGENCES } from './unified-divergences.ts'
 
 export interface UnifiedSuiteOptions {
   /** Repo root, with a trailing slash. */
@@ -209,7 +210,8 @@ export default svc
   for (const f of tests) cpSync(`${o.suiteDir}/${f}`, `${SB}/${f}`)
   if (!tests.length) { console.error(`FAIL: no test files${o.filter ? ` matching "${o.filter}"` : ''} in ${o.suiteDir}`); return 1 }
 
-  let failedFiles = 0, assertions = 0
+  let failedFiles = 0, assertions = 0, divergentFiles = 0
+  const divergences = UNIFIED_DIVERGENCES[o.label] || {}
   const failedNames: string[] = []
   console.log(`running ${tests.length} file(s) of ${o.label} against the unified app (${o.vertical})\n`)
   for (const f of tests) {
@@ -223,6 +225,18 @@ export default svc
     const failed = Number(/(\d+) failed/.exec(line)?.[1] || 0)
     assertions += passed
     const ok = r.status === 0 && failed === 0 && !!line
+    // A documented divergence (unified-divergences.ts): accepted only if EVERY failed assertion in the file is one it
+    // names (or it names the whole file). Anything else failing beside them fails the run as usual.
+    const d = divergences[f]
+    const failedHere = out.split(/\r?\n/).map((l) => /^\s*FAIL (.+?)(\s+[\[{]|\s*$)/.exec(l)?.[1]?.trim()).filter(Boolean) as string[]
+    const covered = !!d && (!d.assertions || (!!line && failedHere.length === failed && failedHere.every((n) => d.assertions!.some((re) => re.test(n)))))
+    if (!ok && covered) {
+      divergentFiles++
+      console.log(`div  ${f}  ${line || '(whole file)'}`)
+      console.log(`     documented: ${d!.why}`)
+      console.log(`     held by: ${d!.heldBy}`)
+      continue
+    }
     if (!ok) {
       failedFiles++; failedNames.push(f)
       console.log(`FAIL ${f}  ${line || '(no summary — the file did not finish)'}`)
@@ -233,7 +247,7 @@ export default svc
       console.log(`ok   ${f}  ${line}`)
     }
   }
-  console.log(`\n${o.label} on unified: ${tests.length} file(s), ${assertions} assertions, ${failedFiles} file(s) failed`)
+  console.log(`\n${o.label} on unified: ${tests.length} file(s), ${assertions} assertions, ${failedFiles} file(s) failed, ${divergentFiles} documented divergence(s)`)
   if (failedNames.length) console.log('failed: ' + failedNames.join(' '))
   return failedFiles ? 1 : 0
 }

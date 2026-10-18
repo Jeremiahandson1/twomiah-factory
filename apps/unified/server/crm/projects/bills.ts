@@ -203,8 +203,8 @@ export function createBillRoutes(d: CrmDeps) {
       if (data.amount > headroom + 0.005 && !data.allowOverage) {
         return fail(c, 409,
           already > 0.005
-            ? `${po.number} is for ${poTotal.toFixed(2)} and ${already.toFixed(2)} has already been billed against it, so only ${Math.max(0, headroom).toFixed(2)} is left. This bill is ${data.amount.toFixed(2)}.`
-            : `${po.number} is for ${poTotal.toFixed(2)} and this bill is ${data.amount.toFixed(2)}.`,
+            ? `${po.number} is for ${poTotal.toFixed(2)} and ${already.toFixed(2)} has already been billed against it, so only ${Math.max(0, headroom).toFixed(2)} is left. This bill is ${data.amount.toFixed(2)}, ${(data.amount - Math.max(0, headroom)).toFixed(2)} over. Record it anyway to bill more than the order.`
+            : `${po.number} is for ${poTotal.toFixed(2)} and this bill is ${data.amount.toFixed(2)}, ${(data.amount - poTotal).toFixed(2)} over. Record it anyway to bill more than the order.`,
           'exceeds_purchase_order')
       }
     }

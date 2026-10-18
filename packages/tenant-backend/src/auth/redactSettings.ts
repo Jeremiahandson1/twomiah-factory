@@ -121,6 +121,20 @@ export function redactCompanySettings(settings: any, options: RedactOptions = {}
   return out
 }
 
+/**
+ * Settings a screen is about to SAVE, without the keys redaction ADDED: accountLock and each secret's
+ * `<name>Configured` flag are facts the server works out when it sends settings, not settings. A screen that posts
+ * back the whole object it was given (Settings, the onboarding wizard) stored them, and a stored
+ * stripeSecretKeyConfigured: true would go on saying configured after the key was removed.
+ */
+export function withoutDisplayKeys(settings: any): any {
+  if (!settings || typeof settings !== 'object') return settings
+  const out = typeof structuredClone === 'function' ? structuredClone(settings) : JSON.parse(JSON.stringify(settings))
+  delete (out as any).accountLock
+  for (const path of SECRET_SETTING_PATHS) clearPath(out, path + 'Configured')
+  return out
+}
+
 /** Does this role settle the bill? Kept here so the two lists travel together. */
 export const isPrivilegedRole = (role: unknown): boolean =>
   role === 'owner' || role === 'admin'

@@ -102,7 +102,7 @@ export function createSearchService(db: any) {
         .limit(perType)
         .then((items: any[]) => items.map((item) => ({
           type: 'document', subtype: item.type, id: item.id, name: item.name,
-          description: item.mimeType || '', url: `/crm/documents/${item.id}`, icon: 'file',
+          description: item.mimeType || '', url: '/crm/documents', icon: 'file',
         }))))
     }
 
@@ -115,7 +115,7 @@ export function createSearchService(db: any) {
         .limit(perType)
         .then((items: any[]) => items.map((item) => ({
           type: 'team', subtype: item.role, id: item.id, name: item.name,
-          description: item.role || item.email || '', url: `/crm/team/${item.id}`, icon: 'users',
+          description: item.role || item.email || '', url: '/crm/team', icon: 'users',
         }))))
     }
 
@@ -128,7 +128,7 @@ export function createSearchService(db: any) {
         .limit(perType)
         .then((items: any[]) => items.map((item) => ({
           type: 'rfi', subtype: item.status, id: item.id, name: item.subject,
-          description: item.number, url: `/crm/rfis/${item.id}`, icon: 'help-circle',
+          description: item.number, url: '/crm/rfis', icon: 'help-circle',
         }))))
     }
 
@@ -151,6 +151,8 @@ export function createSearchService(db: any) {
     return { results, query: searchTerm, count: results.length }
   }
 
+  // Documents, team members and RFIs have no page of their own: their results open the list they are on. Every link
+  // is under /crm, where the screens are (the template's Recent links had no prefix and opened the home page).
   /** Lighter: names and links only. */
   async function quickSearch(companyId: string, query: string | undefined, limit = 10) {
     if (!query || query.length < 2) return []
@@ -166,9 +168,9 @@ export function createSearchService(db: any) {
       db.select({ id: job.id, title: job.title, number: job.number }).from(job).where(eq(job.companyId, companyId)).orderBy(desc(job.updatedAt)).limit(4),
     ])
     return [
-      ...contacts.map((c: any) => ({ type: 'contact', id: c.id, name: c.name, url: `/contacts/${c.id}` })),
-      ...projects.map((p: any) => ({ type: 'project', id: p.id, name: p.name, url: `/projects/${p.id}` })),
-      ...jobs.map((j: any) => ({ type: 'job', id: j.id, name: j.title, url: `/jobs/${j.id}` })),
+      ...contacts.map((c: any) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/contacts/${c.id}` })),
+      ...projects.map((p: any) => ({ type: 'project', id: p.id, name: p.name, url: `/crm/projects/${p.id}` })),
+      ...jobs.map((j: any) => ({ type: 'job', id: j.id, name: j.title, url: `/crm/jobs/${j.id}` })),
     ].slice(0, limit)
   }
 

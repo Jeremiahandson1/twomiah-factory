@@ -2,6 +2,7 @@
 // settings. Every CRM template kept a wrapper file per screen (templates/crm/frontend/src/pages/*, components/detail/*)
 // and a config file per area; here one file, and the settings come from the vertical (./vertical.ts).
 import type { ReactNode } from 'react'
+import { Navigate, Outlet } from 'react-router-dom'
 import {
   ContactsPage, ContactDetailPage, JobsPage, JobDetailPage, QuotesPage, QuoteDetailPage, InvoicesPage, InvoiceDetailPage,
   JobsDashboardPage, ReportsPage, JobCostingPage, SchedulePage, TimePage, ExpensesPage, TeamPage, DocumentsPage, LocationsPage,
@@ -12,6 +13,7 @@ import {
 } from '../shared'
 import { api } from '../api'
 import { verticalScreens } from './vertical'
+import OnboardingWizard from './pages/OnboardingWizard'
 
 const v = verticalScreens
 const client = api as any
@@ -101,3 +103,32 @@ export const Migration = () => <MigrationPage api={client} config={v().migration
 
 /** The customer portal's provider, with the vertical's portal settings. */
 export const Portal = ({ children }: { children: ReactNode }) => <PortalProvider config={v().portal as any}>{children}</PortalProvider>
+
+/**
+ * The CRM's first-run wizard, before its screens. The template wrapped its whole /crm in OnboardingGate
+ * (templates/crm/frontend/src/App.tsx): a company whose settings.onboardingComplete is not true was sent to
+ * /crm/onboarding. Here /crm is also the website's and the account's, so the gate wraps only the CRM's routes, and
+ * it sends only the people the wizard is for:
+ *  - a business with the CRM (the core 'dashboard' feature, as Home decides): a website-only business never sees it;
+ *  - an owner or admin, the people whose save the server accepts (PUT /api/company is owner/admin). The template
+ *    sent everyone, so a technician who signed in before the owner had finished was held on a wizard whose last
+ *    step the server refused, with no way into the CRM.
+ * The website, bookings, the lead inbox, settings, the account, Help and Contact Twomiah stay open either way.
+ */
+function needsOnboarding(company: unknown, hasFeature: (id: string) => boolean, isAdmin: boolean): boolean {
+  const settings = (company as { settings?: { onboardingComplete?: unknown } } | null)?.settings
+  return !!company && hasFeature('dashboard') && isAdmin && settings?.onboardingComplete !== true
+}
+
+export function OnboardingGate() {
+  const { company, hasFeature, isAdmin } = useAuth()
+  if (needsOnboarding(company, hasFeature, isAdmin)) return <Navigate to="/crm/onboarding" replace />
+  return <Outlet />
+}
+
+/** The wizard itself, outside the shell as in the template; only for those the gate would send. */
+export function Onboarding() {
+  const { company, hasFeature, isAdmin } = useAuth()
+  if (company && (!hasFeature('dashboard') || !isAdmin)) return <Navigate to="/crm" replace />
+  return <OnboardingWizard />
+}

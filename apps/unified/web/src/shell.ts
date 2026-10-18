@@ -5,7 +5,7 @@ import {
   BarChart3, Briefcase, Calculator, Calendar, CalendarCheck, CalendarDays, CheckSquare, Clock, CreditCard, DollarSign, ExternalLink, FileText,
   FolderOpen, Globe, Home, Hourglass, Image, Inbox, ListTodo, Mail, MapPin, Megaphone, MessageSquare, Newspaper, Receipt, Repeat, ScrollText,
   Settings2, ShieldCheck, SlidersHorizontal, Smartphone, Star, Target, Truck, Users, Warehouse, Wrench, FolderKanban, FileQuestion,
-  ClipboardList, BookOpen, ClipboardCheck, ShoppingCart, Wallet,
+  ClipboardList, BookOpen, ClipboardCheck, ShoppingCart, Wallet, Phone, Bot, Scissors, LifeBuoy,
 } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared'
 
@@ -38,12 +38,17 @@ const NAV: NavItem[] = [
   // The inbox and Google Business are requireAdmin on the server: a rank, so the menu asks the same rank.
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'], minRole: 'admin' },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'], minRole: 'admin' },
+  { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'], permission: 'calltracking:read' },
+  { to: '/crm/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: ['ai_receptionist'], permission: 'ai-receptionist:read' },
   { to: '/crm/recurring', icon: Repeat, label: 'Recurring', features: ['recurring_jobs'], permission: 'invoices:read' },
+  { to: '/crm/takeoffs', icon: Scissors, label: 'Takeoffs', features: ['takeoff_tools'], permission: 'takeoffs:read' },
   { to: '/crm/tasks', icon: ListTodo, label: 'Tasks', features: ['projects'] },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
   { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
+  { to: '/crm/selections', icon: CheckSquare, label: 'Selections', features: ['selections'], permission: 'selections:read' },
+  { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
   { to: '/crm/projects', icon: FolderKanban, label: 'Projects', section: 'Projects', features: ['projects'] },
   { to: '/crm/rfis', icon: FileQuestion, label: 'RFIs', features: ['rfis'] },
   { to: '/crm/submittals', icon: FileText, label: 'Submittals', features: ['submittals'], permission: 'submittals:read' },
@@ -73,15 +78,24 @@ const NAV: NavItem[] = [
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'], permission: 'contacts:read' },
   // Who changed what — owners and admins (audit:read, the permission /api/audit asks for).
   { to: '/crm/audit', icon: ScrollText, label: 'Audit Log', permission: 'audit:read' },
+  // Ungated in the template and on the server (/api/support's knowledge base and AI chat, /api/platform-support):
+  // the help center, and the line to Twomiah about the software itself, on every business's menu.
+  { to: '/crm/help', icon: BookOpen, label: 'Help' },
+  { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ]
 
 export const SHELL: ShellConfig = {
   nav: NAV,
-  // No search endpoint yet (it arrives with the CRM's records), and no live socket.
-  search: false,
+  // The header search: /api/search (server/crm/comms/search.ts). The shared GlobalSearch reads its Recent list in
+  // either shape. No live socket.
+  search: true,
   // '/' is the public website, not a portal.
   backToPortal: false,
   brand: { fallbackName: 'Admin' },
+  // Routes without a menu item, gated as the template gated them (templates/crm/frontend/src/shellConfig.ts).
+  routeGates: {
+    '/crm/pricebook-trial': ['pricebook'],
+  },
   routeRoles: {
     // The company, billing, email addresses and the feature switches are requireAdmin on the server.
     '/crm/settings': 'admin',

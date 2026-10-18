@@ -1,0 +1,771 @@
+// Moved from templates/crm/frontend/src/pages/selections/SelectionsPage.tsx.
+import { useState, useEffect } from 'react'
+import { formatDate } from '../date'
+import {
+  Palette, Plus, Check, Clock, Package, Truck,
+  DollarSign, AlertTriangle, ChevronRight, Search,
+  Loader2, Image, ArrowUpRight, ArrowDownRight, Filter
+} from 'lucide-react';
+import { api } from '../../api'
+import { usePrompt, useToast } from '../../shared'
+
+interface SelectionsPageProps {
+  projectId?: string;
+}
+
+interface SelectionSummary {
+  total: number;
+  pending: number;
+  overdue: number;
+  totalAllowance: number;
+  totalSelected: number;
+  netDifference: number;
+}
+
+interface SelectionOption {
+  id: string;
+  name: string;
+  imageUrl?: string;
+  manufacturer?: string;
+  model?: string;
+  price: number;
+}
+
+interface SelectionItem {
+  id: string;
+  name: string;
+  status: string;
+  location?: string;
+  allowance?: number;
+  priceDifference?: number;
+  dueDate?: string;
+  quantity: number;
+  unit: string;
+  categoryId?: string;
+  category?: { name: string };
+  selectedOption?: SelectionOption;
+}
+
+interface CategoryItem {
+  id: string;
+  name: string;
+}
+
+interface ProjectItem {
+  id: string;
+  name: string;
+}
+
+// Chip classes in full, not a colour name assembled into the utility at the call site — Tailwind
+// only emits classes it can read as literal text, so an assembled one is in the stylesheet by
+// coincidence or not at all. See the note on CLAIM_STATUS in the shared WarrantiesPage. (T58d)
+const STATUS_CONFIG: Record<string, { label: string; chip: string; icon: React.ComponentType<{ className?: string }> }> = {
+  pending: { label: 'Pending', chip: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', icon: Clock },
+  selected: { label: 'Selected', chip: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300', icon: Check },
+  approved: { label: 'Approved', chip: 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300', icon: Check },
+  ordered: { label: 'Ordered', chip: 'bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300', icon: Package },
+  received: { label: 'Received', chip: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300', icon: Truck },
+};
+
+/**
+ * Project Selections Page
+ */
+export default function SelectionsPage({ projectId: propProjectId }: SelectionsPageProps) {
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [projectId, setProjectId] = useState<string>(propProjectId || '');
+  const [selections, setSelections] = useState<SelectionItem[]>([]);
+  const [summary, setSummary] = useState<SelectionSummary | null>(null);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [filter, setFilter] = useState<string>('all');
+  const [showOptionPicker, setShowOptionPicker] = useState<SelectionItem | null>(null);
+  const [showAddSelection, setShowAddSelection] = useState<boolean>(false);
+  const toast = useToast();
+
+  // Whether the project list has come back yet. Without it the empty state below announced
+  // "No projects found. Create a project first." during the fetch — on a tenant that has projects.
+  // Telling somebody their work is missing while you are still looking for it is worse than a
+  // spinner. (T32 L1)
+  const [projectsLoaded, setProjectsLoaded] = useState<boolean>(!!propProjectId);
+
+  // Load projects for standalone route (no projectId prop)
+  useEffect(() => {
+    if (!propProjectId) {
+      api.get('/api/projects?limit=100').then((res: Record<string, unknown>) => {
+        const data = (res?.data || res || []) as ProjectItem[];
+        setProjects(data);
+        /**
+         * ONE project selects itself. TWO OR MORE is a choice. (T32 M4)
+         *
+         * This took `data[0].id` whatever the list held, so the chooser below never appeared and
+         * the page opened on a project nobody picked — and a sheet created there was attached to
+         * it silently. With a single project there is nothing to choose and making somebody pick
+         * from a list of one is worse, so that case still selects itself.
+         */
+        if (data.length === 1 && !projectId) setProjectId(data[0].id);
+      }).catch(() => {}).finally(() => setProjectsLoaded(true));
+    }
+  }, [propProjectId]);
+
+  useEffect(() => {
+    if (propProjectId) setProjectId(propProjectId);
+  }, [propProjectId]);
+
+  useEffect(() => {
+    if (projectId) loadData();
+  }, [projectId]);
+
+  const loadData = async () => {
+    if (!projectId) return;
+    setLoading(true);
+    try {
+      const [selectionsRes, summaryRes, categoriesRes] = await Promise.all([
+        api.get(`/api/selections/project/${projectId}`),
+        api.get(`/api/selections/project/${projectId}/summary`),
+        api.get('/api/selections/categories'),
+      ]);
+      // The project's selections and the categories are lists ({ data, pagination }); the summary is one record.
+      setSelections(((selectionsRes as { data?: SelectionItem[] })?.data || []) as SelectionItem[]);
+      setSummary(summaryRes as SelectionSummary);
+      setCategories(((categoriesRes as { data?: CategoryItem[] })?.data || []) as CategoryItem[]);
+    } catch (error: unknown) {
+      console.error('Failed to load selections:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredSelections = selections.filter((sel: SelectionItem) => {
+    if (filter === 'all') return true;
+    if (filter === 'pending') return sel.status === 'pending';
+    if (filter === 'upgrades') return (sel.priceDifference ?? 0) > 0;
+    if (filter === 'credits') return (sel.priceDifference ?? 0) < 0;
+    return true;
+  });
+
+  // Group by category
+  const grouped = filteredSelections.reduce((acc: Record<string, SelectionItem[]>, sel: SelectionItem) => {
+    const cat = sel.category?.name || 'Other';
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(sel);
+    return acc;
+  }, {} as Record<string, SelectionItem[]>);
+
+  if (!projectId && !propProjectId) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center p-8">
+          <Palette className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+          <p className="text-gray-500 mb-4 dark:text-slate-400">
+            {projectsLoaded ? 'Select a project to view selections' : 'Loading projects…'}
+          </p>
+          {!projectsLoaded ? null : projects.length > 0 ? (
+            <select
+              value={projectId}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProjectId(e.target.value)}
+              className="px-4 py-2 border rounded-lg text-sm"
+            >
+              <option value="">Choose a project...</option>
+              {projects.map((p: ProjectItem) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-slate-400">No projects found. Create a project first.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Project selector (standalone mode) */}
+      {!propProjectId && projects.length > 1 && (
+        <div className="px-4 py-2 border rounded-lg bg-white flex items-center gap-2 dark:bg-slate-900">
+          <span className="text-sm text-gray-500 dark:text-slate-400">Project:</span>
+          <select
+            value={projectId}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProjectId(e.target.value)}
+            className="px-3 py-1.5 border rounded-lg text-sm font-medium"
+          >
+            {projects.map((p: ProjectItem) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Selections</h2>
+          <p className="text-gray-500 dark:text-slate-400">Client finish and fixture selections</p>
+        </div>
+        <button
+          onClick={() => setShowAddSelection(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+        >
+          <Plus className="w-4 h-4" />
+          Add Selection
+        </button>
+      </div>
+
+      {/* Summary Cards */}
+      {summary && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <SummaryCard
+            label="Total"
+            value={summary.total}
+            icon={Palette}
+          />
+          <SummaryCard
+            label="Pending"
+            value={summary.pending}
+            icon={Clock}
+            color={summary.overdue > 0 ? 'orange' : 'gray'}
+            subtitle={summary.overdue > 0 ? `${summary.overdue} overdue` : null}
+          />
+          <SummaryCard
+            label="Allowance"
+            value={`$${summary.totalAllowance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            icon={DollarSign}
+            color="blue"
+          />
+          <SummaryCard
+            label="Selected"
+            value={`$${summary.totalSelected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            icon={Check}
+            color="green"
+          />
+          <SummaryCard
+            label="Net Change"
+            value={`${summary.netDifference >= 0 ? '+' : ''}$${summary.netDifference.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            icon={summary.netDifference >= 0 ? ArrowUpRight : ArrowDownRight}
+            color={summary.netDifference > 0 ? 'orange' : summary.netDifference < 0 ? 'green' : 'gray'}
+          />
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex items-center gap-2">
+        {['all', 'pending', 'upgrades', 'credits'].map((f: string) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-4 py-2 rounded-lg text-sm capitalize ${
+              filter === f
+                ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-200'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+            }`}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {/* Selections by Category */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      ) : Object.keys(grouped).length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
+          <Palette className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+          <p className="text-gray-500 dark:text-slate-400">No selections yet</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([category, items]: [string, SelectionItem[]]) => (
+            <div key={category} className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+              <div className="px-4 py-3 bg-gray-50 border-b dark:bg-slate-900">
+                <h3 className="font-medium text-gray-900 dark:text-slate-100">{category}</h3>
+              </div>
+              <div className="divide-y">
+                {items.map((selection: SelectionItem) => (
+                  <SelectionRow
+                    key={selection.id}
+                    selection={selection}
+                    onSelect={() => setShowOptionPicker(selection)}
+                    onRefresh={loadData}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Option Picker Modal */}
+      {showOptionPicker && (
+        <OptionPickerModal
+          selection={showOptionPicker}
+          onSelect={(optionId: string) => handleSelectOption(showOptionPicker.id, optionId)}
+          onClose={() => setShowOptionPicker(null)}
+        />
+      )}
+
+      {/* Add Selection Modal */}
+      {showAddSelection && (
+        <AddSelectionModal
+          projectId={projectId}
+          categories={categories}
+          onSave={() => { setShowAddSelection(false); loadData(); }}
+          onClose={() => setShowAddSelection(false)}
+        />
+      )}
+    </div>
+  );
+
+  async function handleSelectOption(selectionId: string, optionId: string) {
+    try {
+      await api.post(`/api/selections/${selectionId}/select`, { optionId });
+      setShowOptionPicker(null);
+      loadData();
+    } catch (error: unknown) {
+      toast.error('Failed to save selection');
+    }
+  }
+}
+
+interface SummaryCardProps {
+  label: string;
+  value: string | number;
+  icon: React.ComponentType<{ className?: string }>;
+  color?: string;
+  subtitle?: string | null;
+}
+
+/**
+ * T32 M14 · the stat tiles never had a dark-mode partner.
+ *
+ * Each entry set only `bg-X-50 text-X-700`, so on a dark page these stayed four near-white cards —
+ * legible in themselves, and wrong beside everything around them. The tile is the ONLY thing
+ * carrying a colour here, so the pair has to be declared here too; there is no ancestor to inherit
+ * a dark ground from. (feedback: a contrast fix is the pair)
+ */
+function SummaryCard({ label, value, icon: Icon, color = 'gray', subtitle }: SummaryCardProps) {
+  const colors: Record<string, string> = {
+    gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-200',
+    blue: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+    green: 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-200',
+  };
+
+  return (
+    <div className={`p-4 rounded-xl ${colors[color]}`}>
+      <Icon className="w-5 h-5 mb-2" />
+      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-sm">{label}</p>
+      {subtitle && <p className="text-xs mt-1 font-medium">{subtitle}</p>}
+    </div>
+  );
+}
+
+interface SelectionRowProps {
+  selection: SelectionItem;
+  onSelect: () => void;
+  onRefresh: () => void;
+}
+
+function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
+  const [showActions, setShowActions] = useState<boolean>(false);
+  const status = STATUS_CONFIG[selection.status] || STATUS_CONFIG.pending;
+  const StatusIcon = status.icon;
+  const toast = useToast();
+  const askText = usePrompt();
+
+  const isOverdue = selection.dueDate &&
+    new Date(selection.dueDate) < new Date() &&
+    selection.status === 'pending';
+
+  const handleApprove = async () => {
+    try {
+      await api.post(`/api/selections/${selection.id}/approve`);
+      onRefresh();
+    } catch (error: unknown) {
+      toast.error('Failed to approve');
+    }
+  };
+
+  const handleMarkOrdered = async () => {
+    // The app's own prompt. Backing out (null) now leaves the selection as it was; the browser prompt's Cancel
+    // marked it ordered anyway. An empty answer still marks it ordered with no number.
+    const orderNumber = await askText('Enter order/PO number (optional):', { title: 'Mark ordered', confirmText: 'Mark ordered' });
+    if (orderNumber === null) return;
+    try {
+      await api.post(`/api/selections/${selection.id}/ordered`, { orderNumber });
+      onRefresh();
+    } catch (error: unknown) {
+      toast.error('Failed to update');
+    }
+  };
+
+  const handleMarkReceived = async () => {
+    try {
+      await api.post(`/api/selections/${selection.id}/received`, {});
+      onRefresh();
+    } catch (error: unknown) {
+      toast.error('Failed to update');
+    }
+  };
+
+  return (
+    <div className="p-4 hover:bg-gray-50 dark:hover:bg-slate-800">
+      <div className="flex items-start gap-4">
+        {/* Image or placeholder */}
+        <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden dark:bg-slate-800">
+          {selection.selectedOption?.imageUrl ? (
+            <img
+              src={selection.selectedOption.imageUrl}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Palette className="w-6 h-6 text-gray-400" />
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="font-medium text-gray-900 dark:text-slate-100">{selection.name}</p>
+              {selection.location && (
+                <p className="text-sm text-gray-500 dark:text-slate-400">{selection.location}</p>
+              )}
+            </div>
+            <span className={`px-2 py-1 text-xs rounded-full ${status.chip}`}>
+              {status.label}
+            </span>
+          </div>
+
+          {/* Selected option */}
+          {selection.selectedOption ? (
+            <div className="mt-2 p-2 bg-gray-50 rounded-lg dark:bg-slate-900">
+              <p className="text-sm font-medium">{selection.selectedOption.name}</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">
+                {selection.selectedOption.manufacturer} {selection.selectedOption.model}
+              </p>
+            </div>
+          ) : (
+            <button
+              onClick={onSelect}
+              className="mt-2 text-sm text-orange-700 hover:text-orange-800 dark:text-orange-200 dark:hover:text-orange-200"
+            >
+              + Select an option
+            </button>
+          )}
+
+          {/* Pricing */}
+          <div className="mt-2 flex items-center gap-4 text-sm">
+            <span className="text-gray-500 dark:text-slate-400">
+              Allowance: ${selection.allowance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 0}
+            </span>
+            {selection.priceDifference !== 0 && selection.priceDifference !== undefined && (
+              <span className={(selection.priceDifference ?? 0) > 0 ? 'text-orange-700 dark:text-orange-200' : 'text-green-700 dark:text-green-400'}>
+                {(selection.priceDifference ?? 0) > 0 ? '+' : ''}${(selection.priceDifference ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {(selection.priceDifference ?? 0) > 0 ? ' upgrade' : ' credit'}
+              </span>
+            )}
+          </div>
+
+          {/* Due date */}
+          {selection.dueDate && (
+            <p className={`mt-1 text-xs ${isOverdue ? 'text-red-600 font-medium dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>
+              {isOverdue ? 'Overdue: ' : 'Due: '}
+              {formatDate(selection.dueDate)}
+            </p>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          {selection.status === 'pending' && (
+            <button
+              onClick={onSelect}
+              className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg"
+            >
+              Select
+            </button>
+          )}
+          {selection.status === 'selected' && (
+            <button
+              onClick={handleApprove}
+              className="px-3 py-1.5 text-sm bg-green-700 text-white rounded-lg"
+            >
+              Approve
+            </button>
+          )}
+          {selection.status === 'approved' && (
+            <button
+              onClick={handleMarkOrdered}
+              className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+            >
+              Mark Ordered
+            </button>
+          )}
+          {selection.status === 'ordered' && (
+            <button
+              onClick={handleMarkReceived}
+              className="px-3 py-1.5 text-sm bg-emerald-700 text-white rounded-lg"
+            >
+              Mark Received
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface OptionPickerModalProps {
+  selection: SelectionItem;
+  onSelect: (optionId: string) => void;
+  onClose: () => void;
+}
+
+function OptionPickerModal({ selection, onSelect, onClose }: OptionPickerModalProps) {
+  const [options, setOptions] = useState<SelectionOption[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [search, setSearch] = useState<string>('');
+
+  useEffect(() => {
+    loadOptions();
+  }, []);
+
+  const loadOptions = async () => {
+    try {
+      const data = await api.get(`/api/selections/options?categoryId=${selection.categoryId}`);
+      setOptions(((data as { data?: SelectionOption[] })?.data || []) as SelectionOption[]);
+    } catch (error: unknown) {
+      console.error('Failed to load options:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = options.filter((opt: SelectionOption) =>
+    opt.name.toLowerCase().includes(search.toLowerCase()) ||
+    opt.manufacturer?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-center justify-center p-4">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col dark:bg-slate-900">
+          {/* Header */}
+          <div className="p-4 border-b">
+            <h2 className="text-lg font-bold">Select {selection.name}</h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              Allowance: ${selection.allowance?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || 0} •
+              Qty: {selection.quantity} {selection.unit}
+            </p>
+          </div>
+
+          {/* Search */}
+          <div className="p-4 border-b">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
+                placeholder="Search options..."
+                className="w-full pl-10 pr-4 py-2 border rounded-lg"
+              />
+            </div>
+          </div>
+
+          {/* Options Grid */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-12 text-gray-500 dark:text-slate-400">
+                No options found
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {filtered.map((option: SelectionOption) => {
+                  const totalPrice = option.price * selection.quantity;
+                  const diff = totalPrice - (selection.allowance || 0);
+
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => onSelect(option.id)}
+                      className="p-4 border rounded-xl text-left hover:border-orange-500 hover:bg-orange-50 transition-colors"
+                    >
+                      {option.imageUrl ? (
+                        <img
+                          src={option.imageUrl}
+                          alt=""
+                          className="w-full h-32 object-cover rounded-lg mb-3"
+                        />
+                      ) : (
+                        <div className="w-full h-32 bg-gray-100 rounded-lg mb-3 flex items-center justify-center dark:bg-slate-800">
+                          <Image className="w-8 h-8 text-gray-400" />
+                        </div>
+                      )}
+                      <p className="font-medium text-gray-900 truncate dark:text-slate-100">{option.name}</p>
+                      <p className="text-sm text-gray-500 truncate dark:text-slate-400">
+                        {option.manufacturer} {option.model}
+                      </p>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="font-bold">${totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        {diff !== 0 && (
+                          <span className={`text-sm ${diff > 0 ? 'text-orange-700 dark:text-orange-200' : 'text-green-700 dark:text-green-400'}`}>
+                            {diff > 0 ? '+' : ''}${diff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t">
+            <button onClick={onClose} className="w-full px-4 py-2 border rounded-lg">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface AddSelectionModalProps {
+  projectId: string;
+  categories: CategoryItem[];
+  onSave: () => void;
+  onClose: () => void;
+}
+
+function AddSelectionModal({ projectId, categories, onSave, onClose }: AddSelectionModalProps) {
+  const [form, setForm] = useState({
+    categoryId: '',
+    name: '',
+    location: '',
+    allowance: '',
+    quantity: '1',
+    unit: 'each',
+    dueDate: '',
+  });
+  const [saving, setSaving] = useState<boolean>(false);
+  const toast = useToast();
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      // quantity holds text while it is typed; it becomes a number here, once
+      // The project id goes IN THE PATH. (T32 B1)
+      //
+      // This posted to the literal `/api/selections/project/` with the id left out, so every attempt
+      // answered 404 and the screen said "Failed to create selection" — a module that could not be
+      // used at all from the UI, while the same body posted to /api/selections/project/<id> worked.
+      // The id was already here as a prop; it just never reached the URL.
+      await api.post(`/api/selections/project/${projectId}`, { ...form, quantity: Number(form.quantity) || 0 });
+      onSave();
+    } catch (error: unknown) {
+      toast.error('Failed to create selection');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-center justify-center p-4">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
+          <h2 className="text-lg font-bold mb-4">Add Selection</h2>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category</label>
+              <select
+                value={form.categoryId}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, categoryId: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                required
+              >
+                <option value="">Select category...</option>
+                {categories.map((cat: CategoryItem) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="e.g., Kitchen Countertops"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
+              <input
+                type="text"
+                value={form.location}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, location: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="e.g., Master Bath, Kitchen"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Allowance ($)</label>
+                <input
+                  type="number"
+                  value={form.allowance}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, allowance: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quantity</label>
+                <input
+                  type="number"
+                  value={form.quantity}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Due Date</label>
+              <input
+                type="date"
+                value={form.dueDate}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, dueDate: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg">
+                {saving ? 'Adding...' : 'Add Selection'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

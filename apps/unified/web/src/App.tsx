@@ -37,6 +37,16 @@ import BillsPage from './crm/pages/BillsPage'
 import LienWaiversPage from './crm/pages/LienWaiversPage'
 import DrawSchedulesPage from './crm/pages/DrawSchedulesPage'
 import AiaFormsPage from './crm/pages/AiaFormsPage'
+import TakeoffsPage from './crm/pages/TakeoffsPage'
+import SelectionsPage from './crm/pages/SelectionsPage'
+import CallTrackingPage from './crm/pages/CallTrackingPage'
+import { AIReceptionistPage } from './crm/pages/AIReceptionistPage'
+import SupportPage from './crm/pages/SupportPage'
+import ContactSupportPage from './crm/pages/ContactSupportPage'
+import HelpPage from './crm/pages/HelpPage'
+import VendorPortalPage from './crm/pages/VendorPortalPage'
+import PricebookTrialPage from './crm/pages/PricebookTrialPage'
+import VisualizerPage from './crm/pages/VisualizerPage'
 import {
   PortalLayout, PortalDashboard, PortalProjects, PortalProjectDetail, PortalProjectFiles, PortalQuotes, PortalQuoteDetail, PortalInvoices,
   PortalInvoiceDetail, PortalPaymentMethods, PortalChangeOrders, PortalChangeOrderDetail, PortalSelections, PortalMessages, PortalMyJobs,
@@ -68,65 +78,80 @@ export default function App() {
                     {/* Not behind PublicRoute: an invite or reset link opened while signed in must still show its form. */}
                     <Route path="/reset-password" element={<ResetPassword />} />
 
+                    {/* The CRM's first-run wizard: full screen, outside the shell, as in the template. */}
+                    <Route path="/crm/onboarding" element={<ProtectedRoute><Crm.Onboarding /></ProtectedRoute>} />
+
                     <Route path="/crm" element={<ProtectedRoute><Shell /></ProtectedRoute>}>
                       <Route index element={<Home />} />
-                      <Route path="dashboard" element={<Crm.Dashboard />} />
-                      <Route path="contacts" element={<Crm.Contacts />} />
-                      <Route path="contacts/:id" element={<Crm.ContactDetail />} />
-                      <Route path="jobs" element={<Crm.Jobs />} />
-                      <Route path="jobs/:id" element={<Crm.JobDetail />} />
-                      <Route path="quotes" element={<Crm.Quotes />} />
-                      <Route path="quotes/:id" element={<Crm.QuoteDetail />} />
-                      <Route path="invoices" element={<Crm.Invoices />} />
-                      <Route path="invoices/:id" element={<Crm.InvoiceDetail />} />
-                      <Route path="schedule" element={<Crm.Schedule />} />
-                      <Route path="time" element={<Crm.Time />} />
-                      <Route path="expenses" element={<Crm.Expenses />} />
-                      <Route path="documents" element={<Crm.Documents />} />
-                      <Route path="team" element={<Crm.Team />} />
-                      <Route path="locations" element={<Crm.Locations />} />
-                      <Route path="commissions" element={<Crm.Commissions />} />
-                      <Route path="tech" element={<Crm.Tech />} />
-                      <Route path="fleet" element={<Crm.Fleet />} />
-                      <Route path="inventory" element={<Crm.Inventory />} />
-                      <Route path="equipment" element={<Crm.Equipment />} />
-                      <Route path="reviews" element={<Crm.Reviews />} />
-                      <Route path="marketing" element={<Crm.Marketing />} />
-                      <Route path="ads" element={<Crm.Ads />} />
-                      <Route path="pricebook" element={<Crm.Pricebook />} />
-                      <Route path="agreements" element={<Crm.Agreements />} />
-                      <Route path="warranties" element={<Crm.Warranties />} />
-                      <Route path="recurring" element={<Crm.Recurring />} />
-                      <Route path="recurring/new" element={<Crm.RecurringEdit />} />
-                      <Route path="recurring/:id/edit" element={<Crm.RecurringEdit />} />
-                      <Route path="tasks" element={<Crm.Tasks />} />
-                      <Route path="messages" element={<Crm.Messages />} />
-                      <Route path="reports" element={<Crm.Reports />} />
-                      <Route path="job-costing" element={<Crm.JobCosting />} />
-                      <Route path="lead-sources" element={<Crm.LeadSources />} />
-                      <Route path="email" element={<Crm.EmailInbox />} />
-                      <Route path="google-reviews" element={<Crm.GoogleReviews />} />
-                      <Route path="settings/email-domain" element={<Crm.EmailDomain />} />
-                      <Route path="settings/email-inbox" element={<Crm.EmailInbox />} />
-                      <Route path="settings/integrations" element={<Crm.Integrations />} />
-                      <Route path="settings/migration" element={<Crm.Migration />} />
-                      <Route path="settings/import" element={<Crm.Import />} />
-                      <Route path="projects" element={<ProjectsPage />} />
-                      <Route path="projects/:id" element={<ProjectDetailPage />} />
-                      <Route path="rfis" element={<RFIsPage />} />
-                      <Route path="submittals" element={<SubmittalsPage />} />
-                      <Route path="daily-logs" element={<DailyLogsPage />} />
-                      <Route path="punch-lists" element={<PunchListsPage />} />
-                      <Route path="inspections" element={<InspectionsPage />} />
-                      <Route path="change-orders" element={<ChangeOrdersPage />} />
-                      <Route path="change-orders/:changeOrderId" element={<ChangeOrdersPage />} />
-                      <Route path="gantt" element={<GanttChartsPage />} />
-                      <Route path="bids" element={<BidsPage />} />
-                      <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
-                      <Route path="bills" element={<BillsPage />} />
-                      <Route path="lien-waivers" element={<LienWaiversPage />} />
-                      <Route path="draw-schedules" element={<DrawSchedulesPage />} />
-                      <Route path="aia-forms" element={<AiaFormsPage />} />
+                      {/* The CRM's screens, behind its first-run wizard (crm/screens.tsx OnboardingGate). */}
+                      <Route element={<Crm.OnboardingGate />}>
+                        <Route path="dashboard" element={<Crm.Dashboard />} />
+                        <Route path="contacts" element={<Crm.Contacts />} />
+                        <Route path="contacts/:id" element={<Crm.ContactDetail />} />
+                        <Route path="jobs" element={<Crm.Jobs />} />
+                        <Route path="jobs/:id" element={<Crm.JobDetail />} />
+                        <Route path="quotes" element={<Crm.Quotes />} />
+                        <Route path="quotes/:id" element={<Crm.QuoteDetail />} />
+                        <Route path="invoices" element={<Crm.Invoices />} />
+                        <Route path="invoices/:id" element={<Crm.InvoiceDetail />} />
+                        <Route path="schedule" element={<Crm.Schedule />} />
+                        <Route path="time" element={<Crm.Time />} />
+                        <Route path="expenses" element={<Crm.Expenses />} />
+                        <Route path="documents" element={<Crm.Documents />} />
+                        <Route path="team" element={<Crm.Team />} />
+                        <Route path="locations" element={<Crm.Locations />} />
+                        <Route path="commissions" element={<Crm.Commissions />} />
+                        <Route path="tech" element={<Crm.Tech />} />
+                        <Route path="fleet" element={<Crm.Fleet />} />
+                        <Route path="inventory" element={<Crm.Inventory />} />
+                        <Route path="equipment" element={<Crm.Equipment />} />
+                        <Route path="reviews" element={<Crm.Reviews />} />
+                        <Route path="marketing" element={<Crm.Marketing />} />
+                        <Route path="ads" element={<Crm.Ads />} />
+                        <Route path="pricebook" element={<Crm.Pricebook />} />
+                        <Route path="agreements" element={<Crm.Agreements />} />
+                        <Route path="warranties" element={<Crm.Warranties />} />
+                        <Route path="recurring" element={<Crm.Recurring />} />
+                        <Route path="recurring/new" element={<Crm.RecurringEdit />} />
+                        <Route path="recurring/:id/edit" element={<Crm.RecurringEdit />} />
+                        <Route path="tasks" element={<Crm.Tasks />} />
+                        <Route path="messages" element={<Crm.Messages />} />
+                        <Route path="reports" element={<Crm.Reports />} />
+                        <Route path="job-costing" element={<Crm.JobCosting />} />
+                        <Route path="lead-sources" element={<Crm.LeadSources />} />
+                        <Route path="email" element={<Crm.EmailInbox />} />
+                        <Route path="google-reviews" element={<Crm.GoogleReviews />} />
+                        <Route path="settings/email-domain" element={<Crm.EmailDomain />} />
+                        <Route path="settings/email-inbox" element={<Crm.EmailInbox />} />
+                        <Route path="settings/integrations" element={<Crm.Integrations />} />
+                        <Route path="settings/migration" element={<Crm.Migration />} />
+                        <Route path="settings/import" element={<Crm.Import />} />
+                        <Route path="projects" element={<ProjectsPage />} />
+                        <Route path="projects/:id" element={<ProjectDetailPage />} />
+                        <Route path="rfis" element={<RFIsPage />} />
+                        <Route path="submittals" element={<SubmittalsPage />} />
+                        <Route path="daily-logs" element={<DailyLogsPage />} />
+                        <Route path="punch-lists" element={<PunchListsPage />} />
+                        <Route path="inspections" element={<InspectionsPage />} />
+                        <Route path="change-orders" element={<ChangeOrdersPage />} />
+                        <Route path="change-orders/:changeOrderId" element={<ChangeOrdersPage />} />
+                        <Route path="gantt" element={<GanttChartsPage />} />
+                        <Route path="bids" element={<BidsPage />} />
+                        <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+                        <Route path="bills" element={<BillsPage />} />
+                        <Route path="lien-waivers" element={<LienWaiversPage />} />
+                        <Route path="draw-schedules" element={<DrawSchedulesPage />} />
+                        <Route path="aia-forms" element={<AiaFormsPage />} />
+                        <Route path="takeoffs" element={<TakeoffsPage />} />
+                        <Route path="selections" element={<SelectionsPage />} />
+                        <Route path="call-tracking" element={<CallTrackingPage />} />
+                        <Route path="ai-receptionist" element={<AIReceptionistPage />} />
+                        <Route path="support" element={<SupportPage />} />
+                        <Route path="pricebook-trial" element={<PricebookTrialPage />} />
+                        <Route path="visualizer" element={<VisualizerPage />} />
+                      </Route>
+                      <Route path="help" element={<HelpPage />} />
+                      <Route path="contact-support" element={<ContactSupportPage />} />
                       <Route path="website" element={<WebsiteOverviewPage />} />
                       <Route path="website/pages" element={<PagesListPage />} />
                       <Route path="website/pages/:slug" element={<PageEditPage />} />
@@ -179,6 +204,9 @@ export default function App() {
                       <Route path="agreements" element={<PortalAgreements />} />
                       <Route path="service-request" element={<PortalServiceRequest />} />
                     </Route>
+
+                    {/* A vendor's portal, by their private link (no sign-in, no shell). */}
+                    <Route path="/vendor/:token" element={<VendorPortalPage />} />
 
                     <Route path="*" element={<Navigate to={HOME} replace />} />
                   </Routes>

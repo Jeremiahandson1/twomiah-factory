@@ -44,7 +44,8 @@ export function GlobalSearch({ api, placeholder = DEFAULT_SEARCH_PLACEHOLDER }: 
   useEffect(() => {
     if (!isOpen) return
     inputRef.current?.focus()
-    api.get('/api/search/recent').then((items: any) => setRecentItems(Array.isArray(items) ? items : [])).catch(() => {})
+    // A bare array from the CRM templates, { data, pagination } from the unified app: read both.
+    api.get('/api/search/recent').then((items: any) => setRecentItems(Array.isArray(items) ? items : Array.isArray(items?.data) ? items.data : [])).catch(() => {})
   }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

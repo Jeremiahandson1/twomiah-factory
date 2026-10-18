@@ -287,6 +287,9 @@ export function createSupportRoutes(d: CrmDeps) {
       content: body.content,
       category: body.category,
       tags: body.tags || [],
+      // The Help screen's "Show as FAQ" and order: the template dropped both, so neither ever saved.
+      isFaq: body.isFaq === true,
+      sortOrder: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 0,
       companyId: u.companyId,
       createdById: u.userId,
     }).returning()
@@ -302,6 +305,8 @@ export function createSupportRoutes(d: CrmDeps) {
       category: body.category,
       tags: body.tags,
       published: body.published,
+      isFaq: typeof body.isFaq === 'boolean' ? body.isFaq : undefined,
+      sortOrder: body.sortOrder !== undefined && Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : undefined,
       updatedAt: new Date(),
     }).where(and(eq(supportKnowledgeBase.id, c.req.param('id')), eq(supportKnowledgeBase.companyId, u.companyId))).returning()
     if (!article) return fail(c, 404, 'Article not found')

@@ -108,7 +108,8 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
         setTotals(s?.totals || null)
         setCount(typeof s?.count === "number" ? s.count : (s?.jobs || []).length)
         setTruncated(!!s?.truncated)
-        setTrend(Array.isArray(t) ? t : [])
+        // A bare array from the CRM templates, { data, pagination } from the unified app: read both.
+        setTrend(Array.isArray(t) ? t : Array.isArray(t?.data) ? t.data : [])
       })
       .catch((e: any) => { if (!cancelled) setError(e?.message || 'Could not load costing') })
       .finally(() => { if (!cancelled) setLoading(false) })

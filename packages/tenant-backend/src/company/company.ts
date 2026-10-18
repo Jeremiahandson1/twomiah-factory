@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { eq, and, inArray } from 'drizzle-orm'
 import { getFeaturesForTemplate, FEATURE_MAP } from '../featureRegistry'
 import { HAS_SCHEME, looksLikeWebAddress, healLogo, normalizeLogo } from './logoAddress'
-import { COMPANY_COMMERCIAL, redactCompanyCommercial } from '../auth/redactSettings'
+import { COMPANY_COMMERCIAL, redactCompanyCommercial, withoutDisplayKeys } from '../auth/redactSettings'
 export { healLogo, normalizeLogo, isLogoAddress, looksLikeWebAddress } from './logoAddress'
 
 export interface CompanyDeps {
@@ -339,6 +339,8 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     // CHANGED, which needs something to compare against. One read on a settings save. (T58k)
     const [before] = await db.select().from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1)
     if (data.settings && typeof data.settings === 'object') {
+      // What redaction added on the way out (accountLock, …Configured) is not saved back.
+      data.settings = withoutDisplayKeys(data.settings)
       const merged: Record<string, unknown> = { ...((before?.settings as any) || {}), ...data.settings }
       /**
        * A UI ROUND-TRIP MUST NOT DELETE THE SHOP'S COMMERCIAL STATE. (T58k)
