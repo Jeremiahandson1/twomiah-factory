@@ -172,8 +172,13 @@ export function schemaDrift(root: string): string | null {
     const modules = fs.realpathSync(path.join(root, 'node_modules'))
     fs.symlinkSync(modules, path.join(tmp, 'node_modules'), 'junction')
     const before = new Set(fs.existsSync(path.join(tmp, 'server/db/migrations')) ? fs.readdirSync(path.join(tmp, 'server/db/migrations')) : [])
-    const run = spawnSync(process.execPath, ['x', 'drizzle-kit', 'generate'], { cwd: tmp, encoding: 'utf8' })
+    const run = spawnSync(process.execPath, ['x', 'drizzle-kit', 'generate'], { cwd: tmp, encoding: 'utf8', timeout: 120_000 })
     if (run.status !== 0) return 'could not generate migrations to compare: ' + (run.stderr || run.stdout || '').trim().split('\n').pop()
+    // drizzle-kit stops to ask when it can't tell a rename from a drop-and-create, writes nothing, and exits 0 — which
+    // read as "no changes", so any schema change at all passed this check while a rename was pending.
+    if (/created or renamed|renamed from another/i.test((run.stdout || '') + (run.stderr || ''))) {
+      return 'drizzle-kit cannot tell whether a table or column was renamed: write that migration by hand, and its snapshot (as 0005_website_rename did)'
+    }
     const added = fs.readdirSync(path.join(tmp, 'server/db/migrations')).filter((f) => !before.has(f) && f.endsWith('.sql'))
     return added.length ? `the schema has changes no migration records (generated ${added.join(', ')}); run bun run db:generate and commit it` : null
   } finally {

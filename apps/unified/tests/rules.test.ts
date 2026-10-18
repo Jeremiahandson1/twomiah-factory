@@ -119,6 +119,15 @@ describe('each rule fires on its violation', () => {
     expect(v[0].detail).toContain('no migration records')
   })
 
+  test('§7 a table renamed with no migration (drizzle-kit stops to ask, and writes nothing)', () => {
+    const v = plant((d) => {
+      const p = path.join(d, 'server/db/schema/site.ts')
+      fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace("pgTable('page',", "pgTable('site_page',"))
+    }, true)
+    expect(rules(v)).toEqual(['§7 migrations'])
+    expect(v[0].detail).toContain('renamed')
+  })
+
   test('§8 a file in a vertical that is not settings or an add-on', () => {
     expect(rules(plant((d) => write(d, 'verticals/contractor/extra.ts', 'export const x = 1\n')))).toEqual(['§8 verticals'])
   })
