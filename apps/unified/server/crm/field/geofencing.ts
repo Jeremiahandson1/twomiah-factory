@@ -4,6 +4,8 @@
 // feature and no web screen calls it (the mobile app posts /location), so it is ungated. Permissions are the
 // template's, action by action.
 import { Hono } from 'hono'
+import { and, eq, ne } from 'drizzle-orm'
+import { geofence, job } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { done, fail, list, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -24,10 +26,24 @@ export function createGeofencingRoutes(d: CrmDeps) {
     return all(c, await geofencing.getGeofences(user.companyId, { active: active === 'false' ? false : active === 'all' ? null : true }))
   })
 
+  /**
+   * A fence may name a job of this company that has no fence yet (geofence.job_id is unique): said plainly, instead
+   * of the database's refusal. The template's edit never read the job or the address at all, so changing either on
+   * the Geofences screen saved nothing.
+   */
+  const jobProblem = async (companyId: string, jobId: string, exceptFenceId?: string) => {
+    const [j] = await d.db.select({ id: job.id }).from(job).where(and(eq(job.id, jobId), eq(job.companyId, companyId))).limit(1)
+    if (!j) return 'That job was not found.'
+    const [other] = await d.db.select({ id: geofence.id, name: geofence.name }).from(geofence)
+      .where(and(eq(geofence.jobId, jobId), ...(exceptFenceId ? [ne(geofence.id, exceptFenceId)] : []))).limit(1)
+    return other ? `That job already has a geofence ("${other.name}"); edit that one instead.` : null
+  }
+
   app.post('/', requirePermission('settings:update'), async (c) => {
     const user = c.get('user')
     const { name, lat, lng, radius, jobId, projectId, address } = await c.req.json()
     if (!lat || !lng) return fail(c, 400, 'lat and lng are required')
+    if (jobId) { const p = await jobProblem(user.companyId, jobId); if (p) return fail(c, 409, p, 'geofence_job') }
     const geofence = await geofencing.createGeofence({
       companyId: user.companyId,
       name: name || 'Job Site',
@@ -51,8 +67,13 @@ export function createGeofencingRoutes(d: CrmDeps) {
 
   app.put('/:id', requirePermission('settings:update'), async (c) => {
     const user = c.get('user')
-    const { name, lat, lng, radius, active } = await c.req.json()
+    const { name, lat, lng, radius, active, address, jobId } = await c.req.json()
     const updates: any = {}
+    if (address !== undefined) updates.address = address || null
+    if (jobId !== undefined) {
+      if (jobId) { const p = await jobProblem(user.companyId, jobId, c.req.param('id')); if (p) return fail(c, 409, p, 'geofence_job') }
+      updates.jobId = jobId || null
+    }
     if (name !== undefined) updates.name = name
     if (lat !== undefined) updates.lat = parseFloat(lat)
     if (lng !== undefined) updates.lng = parseFloat(lng)
