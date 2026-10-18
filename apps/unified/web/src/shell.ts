@@ -4,7 +4,8 @@
 import {
   BarChart3, Briefcase, Calculator, Calendar, CalendarCheck, CalendarDays, CheckSquare, Clock, CreditCard, DollarSign, ExternalLink, FileText,
   FolderOpen, Globe, Home, Hourglass, Image, Inbox, ListTodo, Mail, MapPin, Megaphone, MessageSquare, Newspaper, Receipt, Repeat, ScrollText,
-  Settings2, ShieldCheck, SlidersHorizontal, Smartphone, Star, Target, Truck, Users, Warehouse, Wrench,
+  Settings2, ShieldCheck, SlidersHorizontal, Smartphone, Star, Target, Truck, Users, Warehouse, Wrench, FolderKanban, FileQuestion,
+  ClipboardList, BookOpen, ClipboardCheck, ShoppingCart, Wallet,
 } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared'
 
@@ -43,6 +44,20 @@ const NAV: NavItem[] = [
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
   { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
+  { to: '/crm/projects', icon: FolderKanban, label: 'Projects', section: 'Projects', features: ['projects'] },
+  { to: '/crm/rfis', icon: FileQuestion, label: 'RFIs', features: ['rfis'] },
+  { to: '/crm/submittals', icon: FileText, label: 'Submittals', features: ['submittals'], permission: 'submittals:read' },
+  { to: '/crm/change-orders', icon: ClipboardList, label: 'Change Orders', features: ['change_orders'], permission: 'change-orders:read' },
+  { to: '/crm/punch-lists', icon: CheckSquare, label: 'Punch Lists', features: ['punch_lists'] },
+  { to: '/crm/daily-logs', icon: BookOpen, label: 'Daily Logs', features: ['daily_logs'] },
+  { to: '/crm/inspections', icon: ClipboardCheck, label: 'Inspections', features: ['inspections'] },
+  { to: '/crm/bids', icon: Target, label: 'Bids', features: ['bid_management'], permission: 'bids:read' },
+  { to: '/crm/purchase-orders', icon: ShoppingCart, label: 'Purchase Orders', features: ['purchase_orders'], permission: 'purchase-orders:read' },
+  { to: '/crm/bills', icon: Wallet, label: 'Bills', features: ['vendor_bills'], permission: 'bills:read' },
+  { to: '/crm/lien-waivers', icon: ShieldCheck, label: 'Lien Waivers', features: ['lien_waivers'], permission: 'lien-waivers:read' },
+  { to: '/crm/draw-schedules', icon: DollarSign, label: 'Draw Schedules', features: ['draw_schedules'], permission: 'draw-schedules:read' },
+  { to: '/crm/aia-forms', icon: FileText, label: 'AIA G702/G703', features: ['aia_forms'], permission: 'aia-forms:read' },
+  { to: '/crm/gantt', icon: BarChart3, label: 'Gantt Chart', features: ['gantt_charts'] },
   { to: '/crm/website', icon: Globe, label: 'Website', section: 'Website', permission: 'site:read', exact: true },
   { to: '/crm/website/pages', icon: FileText, label: 'Pages', permission: 'site:read' },
   { to: '/crm/website/photos', icon: Image, label: 'Photos', permission: 'site:read' },

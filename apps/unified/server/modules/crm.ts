@@ -16,13 +16,14 @@ import {
   createInventoryRoutes, createFleetRoutes, createWarrantiesRoutes, createAgreementsRoutes, createMarketingRoutes,
   createQuickBooksRoutes, createIntegrationsRoutes, createReviewsRoutes, createAdsRoutes, createAdsPublicRoutes,
   createAdsConnector, createOnboardingRoutes, createMessagingBillingRoutes, createEmailDomainRoutes, createGbpAdminRoutes,
-  createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient,
+  createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
 } from '@twomiah/tenant-backend'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
-  gbpConnection, inboundMessage,
+  gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
+  documentShare, equipment, serviceAgreement, agreementVisit,
 } from '../db/schema/index.ts'
 import type { Mount } from '../http/registry.ts'
 import { fail } from '../http/reply.ts'
@@ -36,6 +37,7 @@ import { projectMounts } from '../crm/projects/index.ts'
 import { fieldMounts } from '../crm/field/index.ts'
 import { commsMounts } from '../crm/comms/index.ts'
 import { officeMounts } from '../crm/office/index.ts'
+import { createSelectionsService } from '../crm/field/selectionsService.ts'
 
 export interface CrmModuleDeps {
   db: any
@@ -169,6 +171,26 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/quickbooks', access: 'public', router: createQuickBooksRoutes({ service: s.quickbooks, db, tables: { contact, invoice, invoiceLineItem, payment }, authenticate, requirePermission, audit } as any) },
     { path: '/api/reviews', access: 'public', router: createReviewsRoutes({ service: s.reviews, db, tables: { reviewRequest }, authenticate, requireRole, requirePermission, audit, requireEnabledFeature: features.requireEnabledFeature } as any) },
     { path: '/api/integrations', access: 'public', router: createIntegrationsRoutes({ db, tables: { company, emailLog }, authenticate, requireAdmin: isAdmin, quickbooks: s.quickbooks, stripe: s.stripe, factoryApiClient } as any) },
+    // The customer portal: a customer's own pages by their private link (/p/:token), and the staff switches that hand
+    // the link out, which sign people in themselves (portal:share).
+    { path: '/api/portal', access: 'public', router: createPortalRoutes({
+      db,
+      tables: {
+        contact, company, user, quote, quoteLineItem, invoice, invoiceLineItem, payment, message, auditLog, activity,
+        project, job, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal, document, documentShare,
+        equipment, serviceAgreement, agreementVisit, formSubmission,
+      },
+      authenticate, audit, requirePermission,
+      sendEmail: (to: string, template: string, data: Record<string, unknown>) => s.emailService.send(to, template, data),
+      loadInvoicePdf, loadQuotePdf,
+      selections: createSelectionsService(own),
+      fileService: s.storage,
+      ...live, logger,
+      // The owner's feature switches decide which sections the portal offers.
+      enabledFeaturesFor: features.enabledFeaturesFor,
+      // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
+      options: { disable: ['service'] },
+    } as any) },
     // The website's A/B script: anonymous, from the site's own origin.
     { path: '/api/public/ads-experiments', access: 'public', router: createAdsPublicRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion } } as any) },
 

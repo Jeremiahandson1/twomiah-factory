@@ -167,6 +167,28 @@ export default e
   for (const [name, expr] of Object.entries({ sms: 'services.crm.sms', commissionEarner: 'services.crm.commissionEarner', stripe: 'services.crm.stripeService', reviews: 'services.crm.reviews', inventory: 'services.crm.inventory' })) {
     w(`src/services/${name}.ts`, `import { services } from '../unified.ts'\nconst s = ${expr}\nexport default s\n`)
   }
+  // Services the CRM's own modules build (server/crm/<group>/*Service.ts), made from the app's own dependencies.
+  w('src/services/crmDeps.ts', `
+import { db } from '../../db/index.ts'
+import { services as s } from '../unified.ts'
+import logger from '${rel}/../server/core/logger.ts'
+export const crmDeps: any = { db, audit: s.audit, logger, authenticate: s.authenticate, permissions: s.permissions, features: s.features, realtime: s.realtime, services: s.crm }
+`)
+  w('src/services/import.ts', `
+import { crmDeps } from './crmDeps.ts'
+import { createImportService } from '${rel}/../server/crm/office/importService.ts'
+const svc: any = createImportService(crmDeps)
+export const { importContacts, importProjects, importJobs, importProducts, importInvoices } = svc
+export default svc
+`)
+  w('src/services/aiReceptionist.ts', `
+import { crmDeps } from './crmDeps.ts'
+import { createAiReceptionistService } from '${rel}/../server/crm/comms/aiReceptionistService.ts'
+export * from '${rel}/../server/crm/comms/aiReceptionistService.ts'
+const svc: any = createAiReceptionistService(crmDeps)
+export const { getRules, createRule, updateRule, deleteRule, getSettings, upsertSettings, transcribeRecording, transcribeExistingCall, summarizeAndGenerateReply, evaluateRules, processRecordingWebhook } = svc
+export default svc
+`)
   // The shared package, by the paths the template vendors it at — re-exported, never copied: a copy is a second
   // module with its own state (the account-lock cache a test clears would not be the one the app reads).
   const SHARED = `${o.root}packages/tenant-backend/src`

@@ -16,6 +16,9 @@ export function createDb(connectionString = process.env.DATABASE_URL) {
     keepAlive: true,
     statement_timeout: 30_000,
     query_timeout: 30_000,
+    // Every session on UTC, so the database's own now() lands in a zone-less timestamp as UTC (RULEBOOK §2), whatever
+    // the instance's default zone.
+    options: '-c TimeZone=UTC',
   })
   // Without this an idle client's error crashes the process.
   pool.on('error', (err) => console.error('[db] idle pool client error:', err?.message || err))

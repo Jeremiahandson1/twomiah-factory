@@ -22,6 +22,21 @@ import { BookingCalendarPage } from './booking/BookingCalendarPage'
 import { BookingSettingsPage } from './booking/BookingSettingsPage'
 import { BookingInsightsPage, BookingWaitlistPage, BookingSeriesPage } from './booking/BookingExtrasPages'
 import * as Crm from './crm/screens'
+import ProjectsPage from './crm/pages/ProjectsPage'
+import ProjectDetailPage from './crm/pages/ProjectDetailPage'
+import RFIsPage from './crm/pages/RFIsPage'
+import SubmittalsPage from './crm/pages/SubmittalsPage'
+import DailyLogsPage from './crm/pages/DailyLogsPage'
+import PunchListsPage from './crm/pages/PunchListsPage'
+import InspectionsPage from './crm/pages/InspectionsPage'
+import ChangeOrdersPage from './crm/pages/ChangeOrdersPage'
+import GanttChartsPage from './crm/pages/GanttChartsPage'
+import BidsPage from './crm/pages/BidsPage'
+import PurchaseOrdersPage from './crm/pages/PurchaseOrdersPage'
+import BillsPage from './crm/pages/BillsPage'
+import LienWaiversPage from './crm/pages/LienWaiversPage'
+import DrawSchedulesPage from './crm/pages/DrawSchedulesPage'
+import AiaFormsPage from './crm/pages/AiaFormsPage'
 import {
   PortalLayout, PortalDashboard, PortalProjects, PortalProjectDetail, PortalProjectFiles, PortalQuotes, PortalQuoteDetail, PortalInvoices,
   PortalInvoiceDetail, PortalPaymentMethods, PortalChangeOrders, PortalChangeOrderDetail, PortalSelections, PortalMessages, PortalMyJobs,
@@ -96,6 +111,22 @@ export default function App() {
                       <Route path="settings/integrations" element={<Crm.Integrations />} />
                       <Route path="settings/migration" element={<Crm.Migration />} />
                       <Route path="settings/import" element={<Crm.Import />} />
+                      <Route path="projects" element={<ProjectsPage />} />
+                      <Route path="projects/:id" element={<ProjectDetailPage />} />
+                      <Route path="rfis" element={<RFIsPage />} />
+                      <Route path="submittals" element={<SubmittalsPage />} />
+                      <Route path="daily-logs" element={<DailyLogsPage />} />
+                      <Route path="punch-lists" element={<PunchListsPage />} />
+                      <Route path="inspections" element={<InspectionsPage />} />
+                      <Route path="change-orders" element={<ChangeOrdersPage />} />
+                      <Route path="change-orders/:changeOrderId" element={<ChangeOrdersPage />} />
+                      <Route path="gantt" element={<GanttChartsPage />} />
+                      <Route path="bids" element={<BidsPage />} />
+                      <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+                      <Route path="bills" element={<BillsPage />} />
+                      <Route path="lien-waivers" element={<LienWaiversPage />} />
+                      <Route path="draw-schedules" element={<DrawSchedulesPage />} />
+                      <Route path="aia-forms" element={<AiaFormsPage />} />
                       <Route path="website" element={<WebsiteOverviewPage />} />
                       <Route path="website/pages" element={<PagesListPage />} />
                       <Route path="website/pages/:slug" element={<PageEditPage />} />

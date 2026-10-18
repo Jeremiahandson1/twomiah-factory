@@ -1,0 +1,175 @@
+// Moved from templates/crm/frontend/src/pages/BidsPage.tsx.
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { formatDate } from '../date'
+import { Plus, Edit, Trash2, Send, Trophy, XCircle, FolderPlus } from 'lucide-react'
+import { api } from '../../api'
+import { useToast } from '../../shared'
+import { useAuth } from '../../shared'
+import { DataTable, StatusBadge, PageHeader, Button } from '../ui/DataTable'
+import { Modal, ConfirmModal } from '../ui/Modal'
+
+/**
+ * The lifecycle, kept in step with routes/bids.ts. (T32 H6)
+ *
+ * Before this, every action was offered on every row: the report walked Won → Lost → Submitted
+ * because the menu offered all three and the server accepted all three. The server now refuses the
+ * wrong ones, so the menu has to stop offering them — a button that can only answer 400 is a button
+ * that never works.
+ */
+const LIVE = ['draft', 'submitted', 'under_review'];
+const DECIDABLE = ['submitted', 'under_review'];
+
+interface BidForm {
+  projectName: string;
+  client: string;
+  bidType: string;
+  dueDate: string;
+  estimatedValue: string;
+  bidAmount: string;
+  bondRequired: boolean;
+  scope: string;
+  notes: string;
+}
+
+interface BidStats {
+  total: number;
+  submitted?: number;
+  won?: number;
+  pipelineValue?: number;
+  winRate?: number;
+}
+
+interface PaginationData {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+const bidTypes = ['lump_sum', 'unit_price', 'cost_plus', 'gmp', 'design_build'];
+
+export default function BidsPage() {
+  const toast = useToast();
+  const { can } = useAuth();
+  const [data, setData] = useState<Record<string, unknown>[]>([]);
+  const [stats, setStats] = useState<BidStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState<PaginationData | null>(null);
+  const [page, setPage] = useState(1);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const navigate = useNavigate();
+  const [form, setForm] = useState<BidForm>({ projectName: '', client: '', bidType: 'lump_sum', dueDate: '', estimatedValue: '', bidAmount: '', bondRequired: false, scope: '', notes: '' });
+  const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [resRaw, statsRes] = await Promise.all([api.bids.list({ page, limit: 25 }), api.bids.stats()]);
+      const res = resRaw as Record<string, unknown>;
+      setData(res.data as Record<string, unknown>[]); setPagination(res.pagination as PaginationData | null); setStats(statsRes as BidStats | null);
+    } catch (err) { toast.error('Failed to load bids'); }
+    finally { setLoading(false); }
+  }, [page]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleSave = async () => {
+    if (!form.projectName) { toast.error('Project name required'); return; }
+    setSaving(true);
+    try {
+      const payload = { ...form, estimatedValue: form.estimatedValue ? Number(form.estimatedValue) : undefined, bidAmount: form.bidAmount ? Number(form.bidAmount) : undefined };
+      if (editing) { await api.bids.update(editing.id as string, payload); toast.success('Updated'); }
+      else { await api.bids.create(payload); toast.success('Created'); }
+      setModalOpen(false); load();
+    } catch (err) { toast.error((err as Error).message); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => { try { await api.bids.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
+  const handleSubmit = async (bid: Record<string, unknown>) => { try { await api.bids.submit(bid.id as string); toast.success('Submitted'); load(); } catch (err) { toast.error((err as Error).message); } };
+  const handleWon = async (bid: Record<string, unknown>) => { try { await api.bids.won(bid.id as string); toast.success('Marked as won!'); load(); } catch (err) { toast.error((err as Error).message); } };
+  const handleLost = async (bid: Record<string, unknown>) => { try { await api.bids.lost(bid.id as string); toast.success('Marked as lost'); load(); } catch (err) { toast.error((err as Error).message); } };
+  /**
+   * Won → project. (T32 H6)
+   *
+   * The server's answer carries the project number and says whether the bid's contact came with it,
+   * so the toast tells the user what to do next instead of just "Converted". Navigating straight to
+   * the new project is the point of the action.
+   */
+  const handleConvert = async (bid: Record<string, unknown>) => {
+    try {
+      const res = await api.bids.convert(bid.id as string) as Record<string, any>;
+      toast.success(res?.message || 'Project created');
+      if (res?.project?.id) navigate(`/crm/projects/${res.project.id}`);
+      else load();
+    } catch (err) { toast.error((err as Error).message); }
+  };
+
+  const openCreate = () => { setEditing(null); setForm({ projectName: '', client: '', bidType: 'lump_sum', dueDate: '', estimatedValue: '', bidAmount: '', bondRequired: false, scope: '', notes: '' }); setModalOpen(true); };
+  const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ projectName: item.projectName as string, client: (item.client as string) || '', bidType: item.bidType as string, dueDate: (item.dueDate as string)?.split('T')[0] || '', estimatedValue: item.estimatedValue?.toString() || '', bidAmount: item.bidAmount?.toString() || '', bondRequired: item.bondRequired as boolean, scope: (item.scope as string) || '', notes: (item.notes as string) || '' }); setModalOpen(true); };
+
+  const columns = [
+    { key: 'number', label: '#', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
+    { key: 'projectName', label: 'Project', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.client && <p className="text-sm text-gray-500 dark:text-slate-400">{r.client as string}</p>}</div> },
+    { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} statusColors={{ draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800', submitted: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', under_review: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', won: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', lost: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }} /> },
+    { key: 'bidAmount', label: 'Bid Amount', render: (v: unknown) => v ? `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-' },
+    { key: 'dueDate', label: 'Due Date', render: (v: unknown) => v ? formatDate(v as string) : '-' },
+    { key: 'bondRequired', label: 'Bond', render: (v: unknown) => v ? <span className="text-orange-600 dark:text-orange-200">Yes</span> : '-' },
+  ];
+
+  return (
+    <div>
+      <PageHeader title="Bids" action={can('bids:create') ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New Bid</Button> : undefined} />
+
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold">{stats.total}</p><p className="text-sm text-gray-500 dark:text-slate-400">Total Bids</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-blue-600 dark:text-blue-300">{stats.submitted || 0}</p><p className="text-sm text-gray-500 dark:text-slate-400">Submitted</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.won || 0}</p><p className="text-sm text-gray-500 dark:text-slate-400">Won</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-orange-600 dark:text-orange-200">${(stats.pipelineValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p><p className="text-sm text-gray-500 dark:text-slate-400">Pipeline</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold">{stats.winRate || 0}%</p><p className="text-sm text-gray-500 dark:text-slate-400">Win Rate</p></div>
+        </div>
+      )}
+
+      <DataTable data={data} emptyMessage="No bids yet. Log one to track what you quoted and what you won — a won bid becomes a project." columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[
+        // Each action is offered only where the state machine allows it — a menu item that can
+        // only ever answer 400 is an item that never works. (T32 H6)
+        // …and only to someone the route will let through. A manager holds bids:read and nothing
+        // else, which the matrix does on purpose; the screen offered every action anyway. "Open
+        // project" is navigation, not a write, so it stays. (T32 M9)
+        { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => LIVE.includes(r.status as string) && can('bids:update') },
+        { label: 'Submit', icon: Send, onClick: handleSubmit, show: (r: Record<string, unknown>) => r.status === 'draft' && can('bids:update') },
+        { label: 'Won', icon: Trophy, onClick: handleWon, show: (r: Record<string, unknown>) => DECIDABLE.includes(r.status as string) && can('bids:update') },
+        { label: 'Lost', icon: XCircle, onClick: handleLost, show: (r: Record<string, unknown>) => DECIDABLE.includes(r.status as string) && can('bids:update') },
+        { label: 'Create project', icon: FolderPlus, onClick: handleConvert, show: (r: Record<string, unknown>) => r.status === 'won' && !r.projectId && can('bids:update') },
+        { label: 'Open project', icon: FolderPlus, onClick: (r: Record<string, unknown>) => navigate(`/crm/projects/${r.projectId}`), show: (r: Record<string, unknown>) => !!r.projectId },
+        { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('bids:delete') },
+      ]} />
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Bid' : 'New Bid'} size="lg">
+        <div className="space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium mb-1">Project Name *</label><input value={form.projectName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, projectName: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">Client</label><input value={form.client} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, client: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div><label className="block text-sm font-medium mb-1">Bid Type</label><select value={form.bidType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, bidType: e.target.value})} className="w-full px-3 py-2 border rounded-lg">{bidTypes.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}</select></div>
+            <div><label className="block text-sm font-medium mb-1">Due Date</label><input type="date" value={form.dueDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, dueDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div className="flex items-end"><label className="flex items-center gap-2"><input type="checkbox" checked={form.bondRequired} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, bondRequired: e.target.checked})} className="rounded" /><span className="text-sm">Bond Required</span></label></div>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium mb-1">Estimated Value</label><input type="number" value={form.estimatedValue} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, estimatedValue: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">Bid Amount</label><input type="number" value={form.bidAmount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, bidAmount: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+          </div>
+          <div><label className="block text-sm font-medium mb-1">Scope</label><textarea value={form.scope} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, scope: e.target.value})} rows={3} className="w-full px-3 py-2 border rounded-lg" /></div>
+          <div><label className="block text-sm font-medium mb-1">Notes</label><textarea value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, notes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
+      </Modal>
+      <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete Bid" message={`Delete ${toDelete?.number as string}?`} confirmText="Delete" />
+    </div>
+  );
+}

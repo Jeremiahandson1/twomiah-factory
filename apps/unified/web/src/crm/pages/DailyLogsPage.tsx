@@ -1,0 +1,166 @@
+// Moved from templates/crm/frontend/src/pages/DailyLogsPage.tsx.
+import { useState, useEffect, useCallback } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { formatDate } from '../date'
+import { Plus, Edit, Trash2 } from 'lucide-react'
+import { api } from '../../api'
+import { useToast } from '../../shared'
+import { useAuth } from '../../shared'
+import { DataTable, PageHeader, Button } from '../ui/DataTable'
+import { Modal, ConfirmModal } from '../ui/Modal'
+
+interface DailyLogForm {
+  date: string;
+  projectId: string;
+  weather: string;
+  temperature: string;
+  crewSize: string;
+  hoursWorked: string;
+  workPerformed: string;
+  materials: string;
+  delays: string;
+  safetyNotes: string;
+}
+
+interface PaginationData {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export default function DailyLogsPage() {
+  const toast = useToast();
+  // Every write on this page asks daily-logs:create|update|delete on the server (routes/dailyLogs.ts); the
+  // read-only seat was offered all of them. Same `can` the Change Orders and Bids pages ask. (T43 viewer round, T68)
+  const { can } = useAuth();
+  const [data, setData] = useState<Record<string, unknown>[]>([]);
+  const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState<PaginationData | null>(null);
+  const [page, setPage] = useState(1);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
+  const [form, setForm] = useState<DailyLogForm>({ date: new Date().toISOString().split('T')[0], projectId: '', weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' });
+  const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
+
+  /**
+   * THE PROJECT THE LINK CAME FROM. (T51)
+   *
+   * ProjectDetailPage's Quick Action links to `/crm/daily-logs?projectId=<id>&new=true` and this
+   * page read neither parameter. GET /api/daily-logs has filtered on projectId since it was written
+   * (dailyLogs.ts:71) — a site diary is a per-project document, so the whole-company list is the
+   * least useful answer of the two.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const projectFilter = searchParams.get('projectId') || '';
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Projects is its own module; switched off it answers 403 and the page simply offers no project.
+      const [resRaw, projResRaw] = await Promise.all([
+        api.dailyLogs.list({ page, limit: 25, ...(projectFilter ? { projectId: projectFilter } : {}) }),
+        api.projects.list({ limit: 100 }).catch(() => ({ data: [] })),
+      ]);
+      const res = resRaw as Record<string, unknown>; const projRes = projResRaw as Record<string, unknown>;
+      // Backend returns nested {dailyLog: {...}, project: {...}, user: {...}} — flatten it
+      const items = (res.data as Record<string, unknown>[]).map((d: Record<string, unknown>) => d.dailyLog ? { ...(d.dailyLog as Record<string, unknown>), project: d.project, user: d.user } : d);
+      setData(items); setPagination(res.pagination as PaginationData | null); setProjects(projRes.data as Record<string, unknown>[]);
+    } catch (err) { toast.error('Failed to load daily logs'); }
+    finally { setLoading(false); }
+  }, [page, projectFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  /** Arriving on page 3 of the whole company and then filtering to one project would show nothing. */
+  useEffect(() => { setPage(1); }, [projectFilter]);
+
+  const filteredProjectName = projectFilter
+    ? String((projects.find((p: Record<string, unknown>) => p.id === projectFilter)?.name as string) || '')
+    : '';
+
+  const handleSave = async () => {
+    if (!form.projectId) { toast.error('Project required'); return; }
+    setSaving(true);
+    try {
+      const payload = { ...form, temperature: form.temperature ? Number(form.temperature) : undefined, crewSize: form.crewSize ? Number(form.crewSize) : undefined, hoursWorked: form.hoursWorked ? Number(form.hoursWorked) : undefined };
+      if (editing) { await api.dailyLogs.update(editing.id as string, payload); toast.success('Updated'); }
+      else { await api.dailyLogs.create(payload); toast.success('Created'); }
+      setModalOpen(false); load();
+    } catch (err) { toast.error((err as Error).message); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => { try { await api.dailyLogs.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
+
+  const openCreate = (projectId = '') => { setEditing(null); setForm({ date: new Date().toISOString().split('T')[0], projectId, weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' }); setModalOpen(true); };
+
+  /** `&new=true` opens the form with that project already chosen; the parameter is then dropped so
+   *  the browser's Back button does not reopen the dialog. (T51) */
+  useEffect(() => {
+    if (searchParams.get('new') !== 'true' || !can('daily-logs:create')) return;
+    openCreate(projectFilter);
+    const next = new URLSearchParams(searchParams); next.delete('new');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, projectFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ date: (item.date as string)?.split('T')[0] || '', projectId: item.projectId as string, weather: (item.weather as string) || '', temperature: item.temperature?.toString() || '', crewSize: item.crewSize?.toString() || '', hoursWorked: item.hoursWorked?.toString() || '', workPerformed: (item.workPerformed as string) || '', materials: (item.materials as string) || '', delays: (item.delays as string) || '', safetyNotes: (item.safetyNotes as string) || '' }); setModalOpen(true); };
+
+  const columns = [
+    { key: 'date', label: 'Date', render: (v: unknown) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
+    { key: 'project', label: 'Project', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
+    { key: 'user', label: 'Created By', render: (v: unknown) => v ? `${(v as Record<string, unknown>).firstName} ${(v as Record<string, unknown>).lastName}` : '-' },
+    { key: 'weather', label: 'Weather' },
+    { key: 'crewSize', label: 'Crew' },
+    { key: 'hoursWorked', label: 'Hours' },
+  ];
+
+  return (
+    <div>
+      {/* () => openCreate(), not openCreate — the handler now takes a projectId, and passing the
+          click event straight in would put a React SyntheticEvent in the form's project field. */}
+      <PageHeader title="Daily Logs" action={can('daily-logs:create') ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>New Log</Button> : undefined} />
+      {/* A filter that is applied and not shown is indistinguishable from a project with no diary. */}
+      {projectFilter && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg bg-orange-50 px-3 py-2 text-sm text-orange-900 dark:bg-orange-950 dark:text-orange-100">
+          <span>
+            Showing the site diary for <span className="font-semibold">{filteredProjectName || 'this project'}</span>
+            {pagination ? ` — ${pagination.total} entr${pagination.total === 1 ? 'y' : 'ies'}` : ''}
+          </span>
+          <Link to="/crm/daily-logs" className="font-semibold underline underline-offset-2 hover:no-underline">
+            Show all logs
+          </Link>
+        </div>
+      )}
+      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
+        emptyMessage='No daily logs yet'
+        emptyHint="Record each day on site — crew, weather, work done and any delays."
+        emptyAction={can('daily-logs:create') ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>New Log</Button> : undefined}
+        actions={[{ label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('daily-logs:update') }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('daily-logs:delete') }]} />
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Log' : 'New Daily Log'} size="lg">
+        <div className="space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium mb-1">Date</label><input type="date" value={form.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, date: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">Project *</label><select value={form.projectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{projects.map((p: Record<string, unknown>) => <option key={p.id as string} value={p.id as string}>{p.name as string}</option>)}</select></div>
+          </div>
+          <div className="grid md:grid-cols-4 gap-4">
+            <div><label className="block text-sm font-medium mb-1">Weather</label><input value={form.weather} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, weather: e.target.value})} placeholder="Sunny, Rainy..." className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">Temp (°F)</label><input type="number" value={form.temperature} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, temperature: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">Crew Size</label><input type="number" value={form.crewSize} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, crewSize: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">Hours Worked</label><input type="number" value={form.hoursWorked} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, hoursWorked: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+          </div>
+          <div><label className="block text-sm font-medium mb-1">Work Performed</label><textarea value={form.workPerformed} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, workPerformed: e.target.value})} rows={3} className="w-full px-3 py-2 border rounded-lg" /></div>
+          <div><label className="block text-sm font-medium mb-1">Materials Used</label><textarea value={form.materials} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, materials: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div><label className="block text-sm font-medium mb-1">Delays/Issues</label><textarea value={form.delays} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, delays: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">Safety Notes</label><textarea value={form.safetyNotes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, safetyNotes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
+      </Modal>
+      <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete Log" message="Delete this daily log?" confirmText="Delete" />
+    </div>
+  );
+}
