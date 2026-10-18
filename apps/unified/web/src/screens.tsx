@@ -7,6 +7,8 @@ import {
 } from './shared'
 import { api } from './api'
 import { SHELL, SETTINGS_SUB_PAGES } from './shell'
+import { verticalScreens } from './crm/vertical'
+import type { ShellConfig } from './shared'
 
 /** Where the admin opens. */
 export const HOME = '/crm'
@@ -14,7 +16,21 @@ export const HOME = '/crm'
 /** The company's name for the sign-in page: the server writes it into the page (server/admin.ts). */
 const companyName = () => document.querySelector('meta[name="company-name"]')?.getAttribute('content') || ''
 
-export const Shell = () => <AppShell api={api} auth={useAuth()} config={SHELL} />
+/**
+ * The shell, in this vertical's words: a menu item's label renamed where the vertical says (VerticalSettings.screens.nav,
+ * keyed by the page's address — 'Service Calls' for /crm/jobs in field service), and its search box prompt.
+ */
+const verticalShell = (): ShellConfig => {
+  const sc = verticalScreens() as unknown as { nav?: Record<string, string>; searchPlaceholder?: string }
+  const names = sc.nav || {}
+  return {
+    ...SHELL,
+    nav: SHELL.nav.map((item) => (names[item.to] ? { ...item, label: names[item.to] } : item)),
+    ...(sc.searchPlaceholder ? { searchPlaceholder: sc.searchPlaceholder } : {}),
+  }
+}
+const SHELL_HERE = verticalShell()
+export const Shell = () => <AppShell api={api} auth={useAuth()} config={SHELL_HERE} />
 
 /** The admin's front page: the CRM's dashboard where the business has one; else the website for those who look after it; else their account. */
 export function Home() {

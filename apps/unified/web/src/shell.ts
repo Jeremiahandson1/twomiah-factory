@@ -5,7 +5,8 @@ import {
   BarChart3, Briefcase, Calculator, Calendar, CalendarCheck, CalendarDays, CheckSquare, Clock, CreditCard, DollarSign, ExternalLink, FileText,
   FolderOpen, Globe, Home, Hourglass, Image, Inbox, ListTodo, Mail, MapPin, Megaphone, MessageSquare, Newspaper, Receipt, Repeat, ScrollText,
   Settings2, ShieldCheck, SlidersHorizontal, Smartphone, Star, Target, Truck, Users, Warehouse, Wrench, FolderKanban, FileQuestion,
-  ClipboardList, BookOpen, ClipboardCheck, ShoppingCart, Wallet, Phone, Bot, Scissors, LifeBuoy,
+  ClipboardList, BookOpen, ClipboardCheck, ShoppingCart, Wallet, Phone, Bot, Scissors, LifeBuoy, Radio, FileSignature, Box,
+  BookMarked,
 } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared'
 
@@ -49,6 +50,13 @@ const NAV: NavItem[] = [
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/selections', icon: CheckSquare, label: 'Selections', features: ['selections'], permission: 'selections:read' },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
+  // Field service's own screens (templates/crm-fieldservice/frontend/src/shellConfig.ts). The registry offers these
+  // features to field service only. Dispatch reads GET /api/jobs, so it asks jobs:read like Jobs above; the other three
+  // pages' list routes ask only for a session, so they carry no permission.
+  { to: '/crm/dispatch', icon: Radio, label: 'Dispatch Board', section: 'Field Service', features: ['dispatch_board'], permission: 'jobs:read' },
+  { to: '/crm/maintenance', icon: FileSignature, label: 'Maintenance Contracts', section: 'Field Service', features: ['maintenance_contracts'] },
+  { to: '/crm/parts', icon: Box, label: 'Parts Inventory', section: 'Field Service', features: ['parts_tracking'] },
+  { to: '/crm/pricebook-rates', icon: BookMarked, label: 'Flat Rate Pricebook', section: 'Field Service', features: ['flat_rate_pricebook'] },
   { to: '/crm/projects', icon: FolderKanban, label: 'Projects', section: 'Projects', features: ['projects'] },
   { to: '/crm/rfis', icon: FileQuestion, label: 'RFIs', features: ['rfis'] },
   { to: '/crm/submittals', icon: FileText, label: 'Submittals', features: ['submittals'], permission: 'submittals:read' },
@@ -94,7 +102,10 @@ export const SHELL: ShellConfig = {
   brand: { fallbackName: 'Admin' },
   // Not '/crm/pricebook-trial': ['pricebook'] (the base CRM's): the page offers Pricebook to a business WITHOUT it, so
   // gating it on pricebook refused everyone it was for. The field-service copy had fixed it (Field Service T28 H2).
-  routeGates: {},
+  routeGates: {
+    // No menu item: reachable by URL only, so the gate is here (/api/geofencing is gps_tracking on the server).
+    '/crm/geofences': ['gps_tracking'],
+  },
   routeRoles: {
     // The company, billing, email addresses and the feature switches are requireAdmin on the server.
     '/crm/settings': 'admin',

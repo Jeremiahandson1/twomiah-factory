@@ -50,6 +50,12 @@ const HelpPage = page(() => import('./crm/pages/HelpPage'))
 const VendorPortalPage = page(() => import('./crm/pages/VendorPortalPage'))
 const PricebookTrialPage = page(() => import('./crm/pages/PricebookTrialPage'))
 const VisualizerPage = page(() => import('./crm/pages/VisualizerPage'))
+// Field service's own screens (templates/crm-fieldservice/frontend/src/pages/fieldservice).
+const DispatchBoard = page(() => import('./crm/pages/fieldservice/DispatchBoard'))
+const FlatRatePricebook = page(() => import('./crm/pages/fieldservice/FlatRatePricebook'))
+const MaintenanceContracts = page(() => import('./crm/pages/fieldservice/MaintenanceContracts'))
+const PartsInventory = page(() => import('./crm/pages/fieldservice/PartsInventory'))
+const GeofencesPage = page(() => import('./crm/pages/fieldservice/GeofencesPage'))
 
 function NotFound() {
   return (
@@ -146,6 +152,11 @@ export default function App() {
                         <Route path="support" element={<SupportPage />} />
                         <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                         <Route path="visualizer" element={<VisualizerPage />} />
+                        <Route path="dispatch" element={<DispatchBoard />} />
+                        <Route path="pricebook-rates" element={<FlatRatePricebook />} />
+                        <Route path="maintenance" element={<MaintenanceContracts />} />
+                        <Route path="parts" element={<PartsInventory />} />
+                        <Route path="geofences" element={<GeofencesPage />} />
                       </Route>
                       <Route path="help" element={<HelpPage />} />
                       <Route path="contact-support" element={<ContactSupportPage />} />

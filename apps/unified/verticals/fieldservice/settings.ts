@@ -25,7 +25,8 @@ const fieldservice: VerticalSettings = {
   },
   // templates/crm-fieldservice/frontend/src/*Config.ts
   screens: {
-    labels: { jobs: 'Service Calls', job: 'Service Call', jobCosting: 'Service Call Costing', tech: 'Tech View' },
+    // The menu in this trade's words, by page address.
+    nav: { '/crm/jobs': 'Service Calls', '/crm/job-costing': 'Service Call Costing', '/crm/tech': 'Tech View' },
     searchPlaceholder: 'Search contacts, service calls, invoices...',
     contacts: { sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true }, portalGate: false },
     jobs: { labels: { singular: 'Service Call', plural: 'Service Calls', add: 'New Service Call' }, equipment: true, sites: true, photos: true, billing: true },
