@@ -41,7 +41,7 @@ export function createDailyLogRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
 
-  app.get('/', async (c) => {
+  app.get('/', requirePermission('daily-logs:read'), async (c) => {
     const { projectId, startDate, endDate, page = '1', limit = '50' } = c.req.query() as any
     const currentUser = c.get('user') as any
     const conditions: any[] = [eq(dailyLog.companyId, currentUser.companyId)]
@@ -71,7 +71,7 @@ export function createDailyLogRoutes(d: CrmDeps) {
     return list(c, data, { page: pageNum, limit: limitNum, total: Number(total) })
   })
 
-  app.get('/:id', async (c) => {
+  app.get('/:id', requirePermission('daily-logs:read'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     const [log] = await db.select({

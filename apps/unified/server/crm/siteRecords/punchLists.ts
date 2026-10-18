@@ -36,7 +36,7 @@ export function createPunchListRoutes(d: CrmDeps) {
 
   const app = new Hono<AppEnv>()
 
-  app.get('/', async (c) => {
+  app.get('/', requirePermission('punch-lists:read'), async (c) => {
     const { status, projectId, page = '1', limit = '50' } = c.req.query() as any
     const me = c.get('user') as any
     const conditions = [eq(punchListItem.companyId, me.companyId)]
@@ -63,7 +63,7 @@ export function createPunchListRoutes(d: CrmDeps) {
     return list(c, data, { page: pageNum, limit: limitNum, total: Number(total) })
   })
 
-  app.get('/:id', async (c) => {
+  app.get('/:id', requirePermission('punch-lists:read'), async (c) => {
     const me = c.get('user') as any
     const id = c.req.param('id')
     const [item] = await db.select({

@@ -37,7 +37,7 @@ export function createRfiRoutes(d: CrmDeps) {
 
   const app = new Hono<AppEnv>()
 
-  app.get('/', async (c) => {
+  app.get('/', requirePermission('rfis:read'), async (c) => {
     const currentUser = c.get('user') as any
     const status = c.req.query('status')
     const projectId = c.req.query('projectId')
@@ -66,7 +66,7 @@ export function createRfiRoutes(d: CrmDeps) {
     return list(c, dataWithRelations, { page, limit, total: Number(total) })
   })
 
-  app.get('/:id', async (c) => {
+  app.get('/:id', requirePermission('rfis:read'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
 

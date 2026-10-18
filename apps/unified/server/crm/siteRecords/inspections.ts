@@ -51,7 +51,7 @@ export function createInspectionRoutes(d: CrmDeps) {
 
   const app = new Hono<AppEnv>()
 
-  app.get('/', async (c) => {
+  app.get('/', requirePermission('inspections:read'), async (c) => {
     const { status, projectId, page = '1', limit = '50' } = c.req.query() as any
     const me = c.get('user') as any
     const conditions: any[] = [eq(inspection.companyId, me.companyId)]
