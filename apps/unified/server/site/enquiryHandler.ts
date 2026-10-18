@@ -3,7 +3,6 @@
 // handleLead: a per-address limit, a honeypot and a minimum time on the page stop bots; every answer the form asked
 // for is kept; the enquiry is saved where the business works its leads (core/enquiry.ts) and the owner is emailed.
 import type { Context } from 'hono'
-import { Hono } from 'hono'
 import { asc } from 'drizzle-orm'
 import { company } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
@@ -93,5 +92,3 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
   }
 }
 
-/** POST /api/leads: the enquiry endpoint every form posts to. */
-export const createLeadsApi = (handle: ReturnType<typeof createEnquiryHandler>) => new Hono().post('/', (c) => handle(c))

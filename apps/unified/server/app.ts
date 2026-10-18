@@ -13,7 +13,8 @@ import logger from './core/logger.ts'
 import { createAudit, requestScope } from './core/audit.ts'
 import { createEmailService } from './core/email.ts'
 import { createEnquiries, enquiryTemplates } from './core/enquiry.ts'
-import { createEnquiryHandler, createLeadsApi } from './site/enquiryHandler.ts'
+import { createEnquiryHandler } from './site/enquiryHandler.ts'
+import { createCompanyModules } from './modules/company.ts'
 import { createSiteRoutes } from './site/routes.ts'
 import type { VerticalSettings } from './core/vertical.ts'
 import { mountAll, type Mount } from './http/registry.ts'
@@ -40,6 +41,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings }) {
   email.register(enquiryTemplates)
   const enquiries = createEnquiries({ db, email, logger, isFeatureEnabled: features.isFeatureEnabled })
   const enquiryHandler = createEnquiryHandler({ db, vertical, enquiries })
+  const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler })
 
   /** One company per tenant database (SPEC §2): the oldest row is the business. */
   async function companyId(): Promise<string | null> {
@@ -88,8 +90,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings }) {
       }),
     },
     { path: '/api/auth/mfa-devices', access: 'user', router: createMfaRoutes({ db, authenticate, audit, issuer: vertical.mfaIssuer }) },
-    // Every website form that asks to be contacted.
-    { path: '/api/leads', access: 'public', router: createLeadsApi(enquiryHandler) },
+    // The company, its people, billing, email addresses, the lead inbox (and the public enquiry), the audit log.
+    ...companyModules.mounts,
     // The public website. Last: its /:slug catch-all must come after every other path.
     { path: '/', site: true, access: 'public', router: createSiteRoutes({ db, vertical, enquiries: enquiryHandler }) },
   ]

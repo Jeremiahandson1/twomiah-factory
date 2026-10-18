@@ -12,6 +12,11 @@ export interface VerticalSettings {
   extraRolePermissions?: Record<string, string[]>
   /** What the authenticator app lists two-factor under. */
   mfaIssuer: string
+  /**
+   * The vertical's feature list in the shared feature registry (packages/tenant-backend featureRegistry), which is
+   * keyed by the CRM template name it grew up with ('crm', 'crm-salon'…). Until the registry is keyed by vertical.
+   */
+  featureSet: string
   /** Exterior Visualizer address, for the verticals that offer it. */
   visionUrl?: () => string | null
   /** The public website. */

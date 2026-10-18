@@ -105,7 +105,8 @@ export function checkUnified(root: string, opts: { drift?: boolean; repoRoot?: s
     const r = rel(f)
     if (r === 'server/http/registry.ts' || r.startsWith('tests/')) continue
     const c = code(fs.readFileSync(f, 'utf8'))
-    for (const m of c.matchAll(/\.\s*route\s*\(/g)) add('§6 mounting', f, `line ${lineOf(c, m.index!)}: mount routers through server/http/registry.ts`)
+    // A router may compose another at its own root (.route('/', inner)): that adds no path. Any other mount is the registry's.
+    for (const m of c.matchAll(/\.\s*route\s*\(\s*(?!(['"`])\/\1\s*,)/g)) add('§6 mounting', f, `line ${lineOf(c, m.index!)}: mount routers through server/http/registry.ts`)
     for (const m of c.matchAll(/\.\s*(get|post|put|patch|delete|all|on)\s*\(\s*(['"`])\/api/g)) add('§6 mounting', f, `line ${lineOf(c, m.index!)}: an /api route declared outside a registered router`)
   }
 

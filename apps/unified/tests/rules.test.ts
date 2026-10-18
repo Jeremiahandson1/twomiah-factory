@@ -89,6 +89,10 @@ describe('each rule fires on its violation', () => {
     expect(rules(plant((d) => write(d, 'server/core/m.ts', "export const m = (app: any, r: any) => app.route('/api/x', r)\n")))).toEqual(['§6 mounting'])
   })
 
+  test('§6 composing a router at its own root is allowed', () => {
+    expect(plant((d) => write(d, 'server/core/m.ts', ["import { Hono } from 'hono'", "export const m = (inner: any) => new Hono().route('/', inner)", ''].join(String.fromCharCode(10))))).toEqual([])
+  })
+
   test('§6 an /api route declared by hand', () => {
     expect(rules(plant((d) => write(d, 'server/core/m.ts', "export const m = (app: any) => app.post('/api/x', () => null)\n")))).toEqual(['§6 mounting'])
   })

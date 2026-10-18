@@ -62,7 +62,9 @@ Every table's primary key is `id: text('id').primaryKey().$defaultFn(() => creat
   entry declares its `access` (`public`, `factory` or `user`) and, for an optional
   module, its `feature` id from the shared feature registry.
 - The registry applies sign-in and the feature gate. Nothing mounts an `/api` route
-  by hand, so a module can't be reachable with its feature switched off.
+  by hand, so a module can't be reachable with its feature switched off. A module's
+  router may compose another at its own root (`.route('/', inner)`, e.g. to put an
+  admin gate in front of a shared router); that adds no path.
 - Inside a router, each action checks its permission with `requirePermission`.
 
 ## 7. One way to change the database **[checked]**

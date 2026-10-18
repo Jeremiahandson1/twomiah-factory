@@ -105,6 +105,26 @@ const coreTemplates: Record<string, Template> = {
     `,
     text: `Hi ${data.firstName}, your password reset code is: ${data.resetCode}\n\nOr visit: ${appUrl}/reset-password?token=${encodeURIComponent(String(data.resetToken ?? ''))}\n\nExpires in 1 hour.`,
   }),
+
+  // A new teammate chooses their own password from this link (shared company routes, Settings › Users).
+  teamInvite: (data, b) => ({
+    subject: `You're invited to join ${data.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">You're Invited!</h1></div>
+        <div class="content">
+          <p>Hi ${escHtml(data.firstName || 'there')},</p>
+          <p><strong>${escHtml(data.inviterName)}</strong> has invited you to join <strong>${escHtml(data.companyName)}</strong>. Choose your password to sign in.</p>
+          <p>Your role: <strong>${escHtml(data.role)}</strong></p>
+          <p style="text-align:center;"><a href="${escHtml(data.inviteLink)}" class="button">Accept Invitation</a></p>
+          <p>This invitation expires in 7 days.</p>
+        </div>
+        <div class="footer">${escHtml(b.companyName)}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.firstName || 'there'},\n\n${data.inviterName} invited you to join ${data.companyName}. Choose your password to sign in: ${data.inviteLink}\n\nThis invitation expires in 7 days.`,
+  }),
 }
 
 type EmailRecord = { to: string; subject: string; status: 'sent' | 'failed'; errorMessage?: string }
@@ -194,6 +214,7 @@ export function createEmailService(deps: { db: any; logger: Logger }) {
     },
     setRecorder(fn: ((e: EmailRecord) => Promise<void>) | null) { recordEmail = fn },
     sendPasswordReset: (to: string, data: Record<string, unknown>) => send(to, 'passwordReset', data),
+    sendTeamInvite: (to: string, data: Record<string, unknown>) => send(to, 'teamInvite', data),
   }
 }
 
