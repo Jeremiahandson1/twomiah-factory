@@ -17,7 +17,7 @@ import { spawnSync } from 'node:child_process'
 
 export interface Violation { rule: string; file: string; detail: string }
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo'])
+const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', '.suite'])
 
 function walk(dir: string, out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out

@@ -1,6 +1,6 @@
 // The unified server (SPEC §3, §7): every service wired once, every API mounted through the registry. Takes its
 // database and vertical as arguments, so a test can boot the real thing against a throwaway database.
-import { Hono } from 'hono'
+import { Hono, type MiddlewareHandler } from 'hono'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
 import { asc } from 'drizzle-orm'
@@ -40,13 +40,26 @@ function sharedPhotoStore(): PhotoStore {
   return { put: (k, b, t) => s.put(k, b, t), getObject: (k) => s.getObject(k), remove: async (k) => { s.deleteFile(k) } }
 }
 
-export function createApp(deps: { db: any; vertical: VerticalSettings; store?: PhotoStore; adminDist?: string }) {
+/**
+ * Test seams, used only by the behaviour-suite harness (tests/harness/runUnifiedSuite.ts), which runs the CRM
+ * templates' own tests against this app: they sign in with an x-test-user header, and, like those templates' route
+ * files, reach a module without the feature gate the template's index.ts put in front of it.
+ */
+export interface TestSeams {
+  /** Wraps the real sign-in check (the suites' header bridge falls back to it). */
+  authenticate?: (real: MiddlewareHandler) => MiddlewareHandler
+  /** false: the registry mounts every module without its feature gate. */
+  featureGates?: boolean
+}
+
+export function createApp(deps: { db: any; vertical: VerticalSettings; store?: PhotoStore; adminDist?: string; testing?: TestSeams }) {
   const { db, vertical } = deps
   const store = deps.store ?? sharedPhotoStore()
 
   const audit = createAudit({ db })
   const email = createEmailService({ db, logger })
-  const { authenticate } = createAuthMiddleware({ db, tables: { user, company } })
+  const realAuth = createAuthMiddleware({ db, tables: { user, company } }).authenticate as MiddlewareHandler
+  const authenticate = deps.testing?.authenticate ? deps.testing.authenticate(realAuth) : realAuth
   const permissions = createPermissions({
     db, tables: { user },
     roleLabels: vertical.roleLabels,
@@ -138,7 +151,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   ]
   mountAll(app, mounts, {
     authenticate,
-    requireEnabledFeature: features.requireEnabledFeature,
+    requireEnabledFeature: deps.testing?.featureGates === false ? () => (async (_c, next) => { await next() }) as MiddlewareHandler : features.requireEnabledFeature,
     isFeatureEnabled: features.isFeatureEnabled,
     companyId,
   })
@@ -149,5 +162,5 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     ? fail(c, 404, `Route not found: ${c.req.method} ${c.req.path}`)
     : c.html(NOT_FOUND_PAGE, 404))
 
-  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings, crm, realtime } }
+  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings, crm, realtime, mounts } }
 }
