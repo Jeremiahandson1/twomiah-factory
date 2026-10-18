@@ -153,7 +153,8 @@ unified app as `<v>`. Make it pass. A failure that is a deliberate difference â€
 replaced, the replaced booking module or website webhook, a test reading the template's own source â€” is
 registered in `tests/unified/harness/unified-divergences.ts` under `<v>`, naming the assertions, why, and the
 test that holds the behaviour on the unified app (write that test if none exists). Reply-shape ones get an
-adapted copy (entries in the adaptation script; ask for it). Nothing is registered to make a real defect go
+adapted copy: add its entries to `tests/unified/harness/adapt.ts`, run it, add the suite to `SUITES` in
+`tests/unified/harness/adapted.ts`, and run that. Nothing is registered to make a real defect go
 away.
 
 ## Working beside others
