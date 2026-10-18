@@ -47,3 +47,11 @@ export const errorHandler = (err: Error, c: Context) => {
 
 /** A not-found a service can throw and a route can let bubble: the handler above makes it a 404 with its message. */
 export const notFound = (message = 'Not found') => Object.assign(new Error(message), { status: 404 })
+
+/** A failed zod parse as the rulebook's validation reply: one sentence, and `fields` naming each wrong box. */
+export function invalid(c: Context, error: { issues: { path: (string | number)[]; message: string }[] }) {
+  const fields: Record<string, string> = {}
+  for (const i of error.issues) { const k = i.path.join('.'); if (k && !fields[k]) fields[k] = i.message }
+  const sentence = error.issues.map((i) => (i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message)).join('; ')
+  return fail(c, 400, sentence || 'Invalid input', 'validation_failed', fields)
+}

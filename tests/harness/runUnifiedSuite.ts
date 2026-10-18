@@ -36,7 +36,8 @@ export interface UnifiedSuiteOptions {
 
 export async function runUnifiedSuite(o: UnifiedSuiteOptions): Promise<number> {
   const APP = `${o.root}apps/unified`
-  const SB = `${APP}/.suite/${o.label}`
+  // One sandbox per run, so several runs can go at once.
+  const SB = `${APP}/.suite/${o.label}-${process.pid}`
   const rel = '../../..' // from SB/<one dir> back to apps/unified
   rmSync(SB, { recursive: true, force: true })
   mkdirSync(`${SB}/db`, { recursive: true })

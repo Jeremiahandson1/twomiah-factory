@@ -30,6 +30,12 @@ import type { Realtime } from '../core/realtime.ts'
 import type { Logger } from '../core/logger.ts'
 import { cleanText, escapeHtml } from '../core/sanitize.ts'
 import type { CrmServices } from '../crm/services.ts'
+import type { CrmDeps } from '../crm/deps.ts'
+import { siteRecordsMounts } from '../crm/siteRecords/index.ts'
+import { projectMounts } from '../crm/projects/index.ts'
+import { fieldMounts } from '../crm/field/index.ts'
+import { commsMounts } from '../crm/comms/index.ts'
+import { officeMounts } from '../crm/office/index.ts'
 
 export interface CrmModuleDeps {
   db: any
@@ -55,6 +61,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     await next()
   }
   const live = { emitToCompany: realtime.emitToCompany, EVENTS: realtime.EVENTS }
+  const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, services: s }
   const timeZoneFor = (companyId: string) => companyTimeZone(db, companyId)
   const loadInvoicePdf = () => import('../crm/pdf.ts').then((m) => m.generateInvoicePDF)
   const loadQuotePdf = () => import('../crm/pdf.ts').then((m) => m.generateQuotePDF)
@@ -168,6 +175,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // The Factory.
     { path: '/api/internal/gbp', access: 'factory', router: createGbpInternalRoutes({ db, gbpConnectionTable: gbpConnection } as any) },
     { path: '/api/internal/inbound-email', access: 'factory', router: createInboundParseRoute({ db, inboundMessageTable: inboundMessage } as any) },
+
+    // The CRM's own modules (moved from the template, not shared code).
+    ...siteRecordsMounts(own), ...projectMounts(own), ...fieldMounts(own), ...commsMounts(own), ...officeMounts(own),
   ]
 }
 
