@@ -2,13 +2,17 @@
 import { useState, useEffect } from 'react'
 import {
   BookOpen, Plus, Search, DollarSign, Clock, Package,
-  Loader2, Edit2, X, FolderTree, Percent,
+  Loader2, Edit2, Trash2, X, FolderTree, Percent,
   type LucideIcon,
 } from 'lucide-react';
 import type { FormEvent } from 'react'
 import { api } from '../../../api'
-import { useToast } from '../../../shared'
+import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
+
+/** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
+const serverMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
 
 /** A row of GET /api/pricebook/items (tenant-backend pricebook.ts `shape`). Money and hours are decimal columns, so
  *  they arrive as strings ("125.00"); cost/totalCost/margin are withheld from a seat without margin:read. */
@@ -50,6 +54,9 @@ export default function FlatRatePricebook() {
   // A rate is POST/PUT /api/pricebook/items — pricebook:create / pricebook:update. Crew hold neither. (T63)
   const mayAdd = useMayWrite('pricebook:create');
   const mayEdit = useMayWrite('pricebook:update');
+  // Remove is DELETE /api/pricebook/items/:id — pricebook:delete (tenant-backend pricebook.ts).
+  const mayDelete = useMayWrite('pricebook:delete');
+  const confirm = useConfirm();
 
   useEffect(() => {
     loadData();
@@ -79,13 +86,13 @@ export default function FlatRatePricebook() {
   };
 
   const handleDelete = async (itemId: string) => {
-    if (!confirm('Remove this rate from the pricebook?')) return;
+    if (!(await confirm('It is taken out of the pricebook for good.', { title: 'Remove this rate?', confirmText: 'Remove rate' }))) return;
     try {
       await api.delete(`/api/pricebook/items/${itemId}`);
       toast.success('Rate removed');
       loadData();
     } catch (error) {
-      toast.error('Failed to delete rate');
+      toast.error(serverMessage(error, 'Failed to remove rate'));
     }
   };
 
@@ -242,13 +249,24 @@ export default function FlatRatePricebook() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {mayEdit && <button
-                          onClick={() => { setSelectedItem(item); setShowForm(true); }}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded"
-                          title="Edit"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>}
+                        <div className="flex items-center justify-end gap-1">
+                          {mayEdit && <button
+                            onClick={() => { setSelectedItem(item); setShowForm(true); }}
+                            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded"
+                            title="Edit"
+                            aria-label="Edit rate"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>}
+                          {mayDelete && <button
+                            onClick={() => handleDelete(item.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded"
+                            title="Remove"
+                            aria-label="Remove rate"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -296,6 +314,7 @@ function RateFormModal({ item, categories, onSave, onClose }: {
   onSave: () => void;
   onClose: () => void;
 }) {
+  const toast = useToast();
   const [form, setForm] = useState({
     name: item?.name || '',
     code: item?.code || '',
@@ -334,7 +353,7 @@ function RateFormModal({ item, categories, onSave, onClose }: {
       }
       onSave();
     } catch (error) {
-      alert('Failed to save rate');
+      toast.error(serverMessage(error, 'Failed to save rate'));
     } finally {
       setSaving(false);
     }

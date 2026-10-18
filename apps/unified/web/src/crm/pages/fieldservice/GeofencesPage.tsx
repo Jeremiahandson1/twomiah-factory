@@ -6,7 +6,11 @@ import {
 } from 'lucide-react';
 import type { FormEvent } from 'react'
 import { api } from '../../../api'
-import { useMayWrite } from '../../../shared'
+import { useMayWrite, useToast, useConfirm } from '../../../shared'
+
+/** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
+const serverMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
 
 /** A row of GET /api/geofencing (server/crm/field/geofencingService.ts getGeofences): the fence and its job/project. */
 interface Geofence {
@@ -59,6 +63,8 @@ export default function GeofencesPage() {
   // Adding, editing, switching off and deleting a fence are settings:update on the server (geofencing.ts); the
   // controls ask the same question, so a seat that would be refused is not offered them.
   const mayManage = useMayWrite('settings:update');
+  const toast = useToast();
+  const confirm = useConfirm();
 
   useEffect(() => {
     loadGeofences();
@@ -72,18 +78,20 @@ export default function GeofencesPage() {
       setGeofences(Array.isArray(res?.data) ? (res.data as Geofence[]) : []);
     } catch (error) {
       console.error('Failed to load geofences:', error);
+      toast.error(serverMessage(error, 'Failed to load geofences'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this geofence?')) return;
+    if (!(await confirm('Team members are no longer clocked in or out automatically at this site.', { title: 'Delete this geofence?', confirmText: 'Delete geofence' }))) return;
     try {
       await api.delete(`/api/geofencing/${id}`);
+      toast.success('Geofence deleted');
       loadGeofences();
     } catch (error) {
-      alert('Failed to delete geofence');
+      toast.error(serverMessage(error, 'Failed to delete geofence'));
     }
   };
 
@@ -92,7 +100,7 @@ export default function GeofencesPage() {
       await api.put(`/api/geofencing/${id}`, { active: !active });
       loadGeofences();
     } catch (error) {
-      alert('Failed to update geofence');
+      toast.error(serverMessage(error, 'Failed to update geofence'));
     }
   };
 
@@ -107,7 +115,7 @@ export default function GeofencesPage() {
       setEditing(null);
       loadGeofences();
     } catch (error) {
-      alert('Failed to save geofence');
+      toast.error(serverMessage(error, 'Failed to save geofence'));
     }
   };
 
@@ -202,7 +210,7 @@ function GeofenceCard({ geofence, mayManage, onEdit, onDelete, onToggle }: {
   onToggle: () => void;
 }) {
   return (
-    <div className={`bg-white dark:bg-slate-900 rounded-xl border p-4 ${!geofence.active ? 'opacity-60' : ''}`}>
+    <div className={`bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-700 p-4${!geofence.active ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
@@ -255,7 +263,7 @@ function GeofenceCard({ geofence, mayManage, onEdit, onDelete, onToggle }: {
       )}
 
       {/* Actions */}
-      {mayManage && <div className="flex gap-2 pt-3 border-t">
+      {mayManage && <div className="flex gap-2 pt-3 border-t dark:border-slate-700">
         <button
           onClick={onEdit}
           className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg dark:text-slate-400"
@@ -280,6 +288,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }: {
   onSave: (data: GeofenceInput) => void;
   onClose: () => void;
 }) {
+  const toast = useToast();
   // Coordinates and radius are held as the inputs' text and parsed on submit.
   const [form, setForm] = useState({
     name: geofence?.name || '',
@@ -320,7 +329,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }: {
         setGettingLocation(false);
       },
       (err) => {
-        alert('Could not get location: ' + err.message);
+        toast.error('Could not get location: ' + err.message);
         setGettingLocation(false);
       },
       { enableHighAccuracy: true }
@@ -348,7 +357,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }: {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!form.lat || !form.lng) {
-      alert('Location coordinates are required');
+      toast.error('Location coordinates are required');
       return;
     }
     onSave({
@@ -372,12 +381,12 @@ function GeofenceFormModal({ geofence, onSave, onClose }: {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
+              <label className="label">Name</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg"
+                className="input"
                 placeholder="Job Site Name"
                 required
               />
@@ -385,11 +394,11 @@ function GeofenceFormModal({ geofence, onSave, onClose }: {
 
             {/* Link to Job */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Link to Job (optional)</label>
+              <label className="label">Link to Job (optional)</label>
               <select
                 value={form.jobId}
                 onChange={(e) => handleJobSelect(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
+                className="input"
               >
                 <option value="">No job</option>
                 {jobs.map(job => (
@@ -405,12 +414,12 @@ function GeofenceFormModal({ geofence, onSave, onClose }: {
 
             {/* Address */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Address</label>
+              <label className="label">Address</label>
               <input
                 type="text"
                 value={form.address}
                 onChange={(e) => setForm({ ...form, address: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg"
+                className="input"
                 placeholder="123 Main St, City, ST"
               />
             </div>
@@ -418,25 +427,25 @@ function GeofenceFormModal({ geofence, onSave, onClose }: {
             {/* Coordinates */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Latitude</label>
+                <label className="label">Latitude</label>
                 <input
                   type="number"
                   step="any"
                   value={form.lat}
                   onChange={(e) => setForm({ ...form, lat: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="input"
                   placeholder="41.8781"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Longitude</label>
+                <label className="label">Longitude</label>
                 <input
                   type="number"
                   step="any"
                   value={form.lng}
                   onChange={(e) => setForm({ ...form, lng: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="input"
                   placeholder="-87.6298"
                   required
                 />
@@ -448,7 +457,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }: {
               type="button"
               onClick={getCurrentLocation}
               disabled={gettingLocation}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 rounded-lg dark:text-orange-200"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950/40 rounded-lg dark:text-orange-200"
             >
               {gettingLocation ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -460,7 +469,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }: {
 
             {/* Radius */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
+              <label className="label">
                 Radius: {form.radius}m
               </label>
               <input

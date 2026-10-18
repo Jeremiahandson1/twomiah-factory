@@ -9,7 +9,8 @@
     "dev": "bun --watch server/index.ts",
     "db:generate": "bunx drizzle-kit generate",
     "build:web": "vite build --config web/vite.config.ts",
-    "dev:web": "vite --config web/vite.config.ts"
+    "dev:web": "vite --config web/vite.config.ts",
+    "test": "bun test --timeout 60000 tests"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.658.0",

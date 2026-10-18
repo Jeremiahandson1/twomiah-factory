@@ -9,10 +9,13 @@ import {
 } from 'lucide-react';
 import type { FormEvent } from 'react'
 import { api } from '../../../api'
-import { useToast } from '../../../shared'
+import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
 
-const PLAN_TYPES = ['annual', 'semi-annual', 'quarterly'] as const;
+/** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
+const serverMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 const BILLING_FREQUENCIES = ['monthly', 'quarterly', 'semi-annual', 'annual'] as const;
 const CONTRACT_STATUSES = ['active', 'expired', 'cancelled', 'pending'] as const;
 
@@ -56,19 +59,6 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
 };
 
-const INCLUDED_SERVICES = [
-  'AC Tune-Up',
-  'Heating Tune-Up',
-  'Filter Replacement',
-  'Duct Inspection',
-  'Refrigerant Check',
-  'Electrical Inspection',
-  'Thermostat Calibration',
-  'Coil Cleaning',
-  'Drain Line Flush',
-  'Safety Inspection',
-];
-
 /**
  * Maintenance Contracts — Recurring maintenance contract management
  */
@@ -87,6 +77,7 @@ export default function MaintenanceContracts() {
   const mayCreate = useMayWrite('agreements:create');
   const mayUpdate = useMayWrite('agreements:update');
   const maySeeMoney = useMayWrite('invoices:read');
+  const confirm = useConfirm();
 
   useEffect(() => {
     loadData();
@@ -139,24 +130,24 @@ export default function MaintenanceContracts() {
   };
 
   const handleRenew = async (contractId: string) => {
-    if (!confirm('Renew this contract for another term?')) return;
+    if (!(await confirm('It runs for another year from its current end date.', { title: 'Renew this contract?', confirmText: 'Renew', danger: false }))) return;
     try {
       await api.post(`/api/agreements/${contractId}/renew`);
       toast.success('Contract renewed');
       loadData();
     } catch (error) {
-      toast.error('Failed to renew contract');
+      toast.error(serverMessage(error, 'Failed to renew contract'));
     }
   };
 
   const handleCancel = async (contractId: string) => {
-    if (!confirm('Cancel this maintenance contract?')) return;
+    if (!(await confirm('The contract is marked cancelled.', { title: 'Cancel this maintenance contract?', confirmText: 'Cancel contract' }))) return;
     try {
       await api.put(`/api/agreements/${contractId}`, { status: 'cancelled' });
       toast.success('Contract cancelled');
       loadData();
     } catch (error) {
-      toast.error('Failed to cancel contract');
+      toast.error(serverMessage(error, 'Failed to cancel contract'));
     }
   };
 
@@ -371,29 +362,31 @@ function ContractFormModal({ contract, onSave, onClose }: {
   onSave: () => void;
   onClose: () => void;
 }) {
+  const toast = useToast();
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [plans, setPlans] = useState<AgreementPlan[]>([]);
-  // planType and includedServices are not agreement fields — the server keeps only the ones it names
-  // (agreements.ts agreementFields) and ignores these, so they are never read back on an edit.
+  // Only fields the server stores (agreements.ts agreementFields: contactId, planId, name, amount, billingFrequency,
+  // startDate, endDate, renewalType/autoRenew, terms, notes, status). The template also had a "Plan Type" select and
+  // an "Included Services" checklist; neither is an agreement field, the server dropped both, and an edit never
+  // showed them again — so they are gone rather than pretending to save. What a contract includes is its plan's.
   const [form, setForm] = useState<{
     contactId: string;
     planId: string;
-    planType: string;
     startDate: string;
     billingFrequency: string;
     amount: string;
-    includedServices: string[];
     autoRenew: boolean;
   }>({
     contactId: contract?.contactId || '',
     planId: contract?.planId || '',
-    planType: 'annual',
     startDate: contract?.startDate?.split('T')[0] || new Date().toISOString().split('T')[0],
     billingFrequency: contract?.billingFrequency || 'monthly',
     amount: contract?.amount != null ? String(contract.amount) : '', // the agreement's billed amount (API field `amount`)
-    includedServices: [],
     autoRenew: contract?.renewalType ? contract.renewalType === 'auto' : true, // the API stores renewalType
   });
+  // A seat without invoices:read is never sent `amount` (agreements.ts withholds it), so on an edit its blank box
+  // means "not shown", not "blank": the box is left off the form and `amount` out of the request.
+  const amountHidden = !!contract && contract.amount === undefined;
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -414,27 +407,23 @@ function ContractFormModal({ contract, onSave, onClose }: {
     }
   };
 
-  const toggleService = (service: string) => {
-    setForm(prev => ({
-      ...prev,
-      includedServices: prev.includedServices.includes(service)
-        ? prev.includedServices.filter(s => s !== service)
-        : [...prev.includedServices, service],
-    }));
-  };
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
+      // A blank amount is never a value the server takes ('' is refused with a 400). Left out, an edit keeps the
+      // stored amount (or takes a newly picked plan's), and a new contract takes its plan's price — or the server
+      // says, in its own words, that it needs one.
+      const { amount, ...rest } = form;
+      const payload = amountHidden || amount.trim() === '' ? rest : { ...rest, amount };
       if (contract) {
-        await api.put(`/api/agreements/${contract.id}`, form);
+        await api.put(`/api/agreements/${contract.id}`, payload);
       } else {
-        await api.post('/api/agreements', form);
+        await api.post('/api/agreements', payload);
       }
       onSave();
     } catch (error) {
-      alert(error instanceof Error && error.message ? error.message : 'Failed to save contract');
+      toast.error(serverMessage(error, 'Failed to save contract'));
     } finally {
       setSaving(false);
     }
@@ -491,7 +480,8 @@ function ContractFormModal({ contract, onSave, onClose }: {
                   <option value="">Select a plan...</option>
                   {plans.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name} - ${(Number(p.price) || 0).toFixed(0)}/{p.billingFrequency}
+                      {/* `price` is withheld without invoices:read — the name alone then, not a "$0". */}
+                      {p.price !== undefined ? `${p.name} - $${(Number(p.price) || 0).toFixed(0)}/${p.billingFrequency}` : p.name}
                     </option>
                   ))}
                 </select>
@@ -499,20 +489,6 @@ function ContractFormModal({ contract, onSave, onClose }: {
             )}
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Plan Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Plan Type</label>
-                <select
-                  value={form.planType}
-                  onChange={(e) => setForm({ ...form, planType: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
-                >
-                  {PLAN_TYPES.map(t => (
-                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                  ))}
-                </select>
-              </div>
-
               {/* Start Date */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Start Date</label>
@@ -539,46 +515,23 @@ function ContractFormModal({ contract, onSave, onClose }: {
                 </select>
               </div>
 
-              {/* Price */}
-              <div>
+              {/* Price — left off an edit whose amount this seat was never sent (see amountHidden). Not `required`:
+                  a picked plan supplies it, and the server names what is missing when neither does. */}
+              {!amountHidden && <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Price</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400">$</span>
                   <input
                     type="number"
                     step="0.01"
+                    min="0"
                     value={form.amount}
                     onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     className="w-full pl-7 pr-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
-                    required
+                    placeholder={form.planId ? "Plan's price" : ''}
                   />
                 </div>
-              </div>
-            </div>
-
-            {/* Included Services */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Included Services</label>
-              <div className="grid grid-cols-2 gap-2">
-                {INCLUDED_SERVICES.map(service => (
-                  <label
-                    key={service}
-                    className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
-                      form.includedServices.includes(service)
-                        ? 'border-orange-300 bg-orange-50 dark:border-orange-500 dark:bg-orange-500/10'
-                        : 'border-gray-200 hover:bg-gray-50 dark:border-slate-600 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form.includedServices.includes(service)}
-                      onChange={() => toggleService(service)}
-                      className="w-4 h-4 rounded text-orange-500 dark:text-orange-200"
-                    />
-                    <span className="text-sm text-gray-700 dark:text-slate-300">{service}</span>
-                  </label>
-                ))}
-              </div>
+              </div>}
             </div>
 
             {/* Auto-Renew */}

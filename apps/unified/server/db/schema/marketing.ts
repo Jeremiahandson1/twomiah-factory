@@ -4,6 +4,7 @@
 // their zone (RULEBOOK §2: every other timestamp in the CRM is zone-less UTC).
 import { pgTable, text, boolean, integer, decimal, timestamp, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
+import { clients } from './homecare.ts'
 import { company, user } from './core.ts'
 import { contact, invoice, job, quote } from './crm.ts'
 
@@ -352,6 +353,8 @@ export const callLog = pgTable('call_log', {
   aiSummary: text('ai_summary'),
   aiResponseSent: boolean('ai_response_sent').default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  // Home care's (templates/crm-homecare call_log).
+  clientId: text('client_id').references(() => clients.id),
 }, (t) => [
   index('call_log_company_id_idx').on(t.companyId),
   index('call_log_contact_id_idx').on(t.contactId),

@@ -138,20 +138,30 @@ export default function DispatchBoard() {
    * through one helper (assigneeOf, above) so the two can never drift — testing the object happened
    * to work and reads like a mistake.
    */
-  const completed = jobs.filter(j => j.status === 'completed');
-  const inProgress = jobs.filter(j => j.status === 'in_progress');
-  const scheduled = jobs.filter(j => j.status !== 'completed' && j.status !== 'in_progress' && !!assigneeOf(j));
-  const unassigned = jobs.filter(j => j.status !== 'completed' && j.status !== 'in_progress' && !assigneeOf(j));
+  // A CANCELLED job is not work on the day — it is off the board altogether. The partition above left it to the
+  // catch-all, so a cancelled call sat in Scheduled or Unassigned waiting for a tech. Every column and the Total
+  // tile read `onBoard`, so the tiles still add up to the total.
+  const onBoard = jobs.filter(j => j.status !== 'cancelled');
+  const completed = onBoard.filter(j => j.status === 'completed');
+  const inProgress = onBoard.filter(j => j.status === 'in_progress');
+  const scheduled = onBoard.filter(j => j.status !== 'completed' && j.status !== 'in_progress' && !!assigneeOf(j));
+  const unassigned = onBoard.filter(j => j.status !== 'completed' && j.status !== 'in_progress' && !assigneeOf(j));
 
   const handleAssign = async (jobId: string, techId: string) => {
     try {
       // assignedToId — the job schema has no `assignedTo` and drops it, so the old body changed the status and
       // assigned nobody. The server takes a login user's or a roster member's id in this field (jobs.ts resolveAssignee).
-      await api.put(`/api/jobs/${jobId}`, { assignedToId: techId, status: 'scheduled' });
+      // The status moves to `scheduled` only for a job nobody had and that was still `pending` (not yet scheduled).
+      // Reassigning work that is dispatched, in progress, confirmed or on hold changes who, not where it stands —
+      // this used to send `status: 'scheduled'` every time and knocked a running job back to the start.
+      const job = jobs.find(j => j.id === jobId);
+      const body: { assignedToId: string; status?: 'scheduled' } = { assignedToId: techId };
+      if (job && !assigneeOf(job) && job.status === 'pending') body.status = 'scheduled';
+      await api.put(`/api/jobs/${jobId}`, body);
       toast.success('Technician assigned');
       loadData();
     } catch (error) {
-      toast.error('Failed to assign technician');
+      toast.error(error instanceof Error && error.message ? error.message : 'Failed to assign technician');
     }
   };
 
@@ -161,7 +171,7 @@ export default function DispatchBoard() {
       toast.success(`Service call ${status === 'in_progress' ? 'started' : 'completed'}`);
       loadData();
     } catch (error) {
-      toast.error('Failed to update job status');
+      toast.error(error instanceof Error && error.message ? error.message : 'Failed to update job status');
     }
   };
 
@@ -221,7 +231,7 @@ export default function DispatchBoard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        <StatCard icon={ClipboardList} label="Total Jobs" value={jobs.length} />
+        <StatCard icon={ClipboardList} label="Total Jobs" value={onBoard.length} />
         <StatCard icon={AlertTriangle} label="Unassigned" value={unassigned.length} color="orange" />
         {/* Scheduled is counted too, so the four tiles add up to Total Jobs. They did not before:
             unassigned + in progress + completed left the assigned-but-not-started work out, which is

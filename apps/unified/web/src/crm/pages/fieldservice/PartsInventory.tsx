@@ -2,13 +2,17 @@
 import { useState, useEffect } from 'react'
 import {
   Package, Plus, Search, AlertTriangle, Warehouse, BarChart3,
-  Edit2, Loader2, X, DollarSign,
+  Edit2, Trash2, Loader2, X, DollarSign,
   type LucideIcon,
 } from 'lucide-react';
 import type { FormEvent } from 'react'
 import { api } from '../../../api'
-import { useToast } from '../../../shared'
+import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
+
+/** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
+const serverMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
 
 const CATEGORIES = [
   'Filters',
@@ -52,6 +56,9 @@ export default function PartsInventory() {
   // Add is POST /api/inventory/items (inventory:create), Edit is PUT (inventory:update) — technicians hold neither. (T63)
   const mayAdd = useMayWrite('inventory:create');
   const mayEdit = useMayWrite('inventory:update');
+  // Remove is DELETE /api/inventory/items/:id — inventory:delete (tenant-backend inventory.ts).
+  const mayDelete = useMayWrite('inventory:delete');
+  const confirm = useConfirm();
   // What the company paid for a part is margin:read — the server strips unitCost for a seat without it (the
   // inventory module's canSee), so the tile summed to $0.00 and the column printed $0.00 per part. Left out instead,
   // the way Agreements leaves out its price. (T67)
@@ -82,13 +89,13 @@ export default function PartsInventory() {
   };
 
   const handleDelete = async (partId: string) => {
-    if (!confirm('Delete this part from inventory?')) return;
+    if (!(await confirm('The part is taken out of inventory for good.', { title: 'Remove this part?', confirmText: 'Remove part' }))) return;
     try {
       await api.delete(`/api/inventory/items/${partId}`);
-      toast.success('Part deleted');
+      toast.success('Part removed');
       loadParts();
     } catch (error) {
-      toast.error('Failed to delete part');
+      toast.error(serverMessage(error, 'Failed to remove part'));
     }
   };
 
@@ -229,13 +236,24 @@ export default function PartsInventory() {
                       {(part.stockLevels || []).filter(sl => sl.quantity > 0 && sl.location).map(sl => sl.location!.name).join(', ') || '-'}
                     </td>
                     <td className="px-4 py-3">
-                      {mayEdit && <button
-                        onClick={() => { setSelectedPart(part); setShowForm(true); }}
-                        className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded"
-                        title="Edit"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>}
+                      <div className="flex items-center justify-end gap-1">
+                        {mayEdit && <button
+                          onClick={() => { setSelectedPart(part); setShowForm(true); }}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 rounded"
+                          title="Edit"
+                          aria-label="Edit part"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>}
+                        {mayDelete && <button
+                          onClick={() => handleDelete(part.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded"
+                          title="Remove"
+                          aria-label="Remove part"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -292,6 +310,7 @@ function PartFormModal({ part, onSave, onClose }: {
   onSave: () => void;
   onClose: () => void;
 }) {
+  const toast = useToast();
   const [form, setForm] = useState({
     name: part?.name || '',
     sku: part?.sku || '',
@@ -321,7 +340,7 @@ function PartFormModal({ part, onSave, onClose }: {
       }
       onSave();
     } catch (error) {
-      alert('Failed to save part');
+      toast.error(serverMessage(error, 'Failed to save part'));
     } finally {
       setSaving(false);
     }

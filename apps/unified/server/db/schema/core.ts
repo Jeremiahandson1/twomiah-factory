@@ -4,7 +4,7 @@
 // across unchanged. The one difference is primaryColor's default: the template's was a build-time placeholder
 // ('{{PRIMARY_COLOR}}'); the unified app has no build step for its schema, so the default is the shared UI's own
 // fallback (packages/tenant-ui/src/brandPalette.js DEFAULT_BRAND_HEX) and the Factory sets the real colour.
-import { pgTable, text, boolean, integer, decimal, timestamp, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, decimal, timestamp, json, uniqueIndex, index, date } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 
 export const company = pgTable('company', {
@@ -53,6 +53,17 @@ export const company = pgTable('company', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   // From the near-copy CRMs (see each column): company's columns they added.
   feedToken: text('feed_token'), // public marketplace syndication feed token (marketplaces pull /api/syndication/public/:token/feed)
+  // Home care's (templates/crm-homecare agencies): nullable where the template allowed it.
+  legalName: text('legal_name'),
+  npi: text('npi'),
+  medicaidId: text('medicaid_id'),
+  sandataUsername: text('sandata_username'),
+  sandataPasswordEncrypted: text('sandata_password_encrypted'),
+  sandataAccountId: text('sandata_account_id'),
+  sandataApiUrl: text('sandata_api_url'),
+  sandataAgencyId: text('sandata_agency_id'),
+  timezone: text('timezone'),
+  mileageRate: decimal('mileage_rate', { precision: 6, scale: 3 }).default('0.67').notNull(),
 })
 
 export const user = pgTable('user', {
@@ -84,6 +95,23 @@ export const user = pgTable('user', {
   // crm-bar's till PIN (bcrypt): a manager types it on the bartender's register to OK a void or the
   // close-out (services/barManagers.ts). Never a sign-in by itself. Null = no PIN set.
   pinHash: text('pin_hash'),
+  // Home care's (templates/crm-homecare users): nullable where the template allowed it.
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  latitude: decimal('latitude', { precision: 10, scale: 8 }),
+  longitude: decimal('longitude', { precision: 11, scale: 8 }),
+  certifications: json('certifications').default([]).notNull(),
+  certificationsExpiry: json('certifications_expiry').default([]).notNull(),
+  defaultPayRate: decimal('default_pay_rate', { precision: 8, scale: 2 }),
+  hireDate: date('hire_date'),
+  emergencyContactName: text('emergency_contact_name'),
+  emergencyContactPhone: text('emergency_contact_phone'),
+  lastLogoutAt: timestamp('last_logout_at'),
+  status: text('status').default('active'),
+  resetTokenExpires: timestamp('reset_token_expires'),
+  ivrPin: text('ivr_pin').unique(),
 }, (t) => [
   uniqueIndex('user_email_company_id_key').on(t.email, t.companyId),
   index('user_company_id_idx').on(t.companyId),

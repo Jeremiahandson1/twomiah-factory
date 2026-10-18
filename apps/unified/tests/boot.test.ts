@@ -28,8 +28,9 @@ describe('boot', () => {
     const declared = Object.values(schema).filter((x) => is(x, PgTable)).map((x) => getTableName(x as PgTable)).sort()
     expect(r.rows.map((x: any) => x.table_name)).toEqual(declared)
     // Every layer: 15 core, website and enquiry tables, 11 bookings, the base CRM's other 135 (the CRM's own three
-    // booking tables are replaced by the bookings layer), and the 65 the near-copy CRMs add (migration 0006).
-    expect(declared.length).toBe(226)
+    // booking tables are replaced by the bookings layer), the 65 the near-copy CRMs add (migration 0006), and home care's
+    // 123 (0007).
+    expect(declared.length).toBe(349)
     for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket']) expect(declared).toContain(name)
   })
 

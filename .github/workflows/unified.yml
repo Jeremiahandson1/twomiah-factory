@@ -34,7 +34,7 @@ jobs:
         run: bun run scripts/check-unified-types.ts
       - name: Tests — boot, rule mutations, fence
         working-directory: apps/unified
-        run: bun test tests
+        run: bun run test
       - name: Admin screens build
         working-directory: apps/unified
         run: bun run build:web

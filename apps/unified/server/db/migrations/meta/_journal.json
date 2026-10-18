@@ -50,6 +50,13 @@
       "when": 1792358253472,
       "tag": "0006_verticals",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792360993990,
+      "tag": "0007_homecare",
+      "breakpoints": true
     }
   ]
 }
