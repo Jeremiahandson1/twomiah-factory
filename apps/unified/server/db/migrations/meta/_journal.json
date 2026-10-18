@@ -43,6 +43,13 @@
       "when": 1792356688383,
       "tag": "0005_website_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792358253472,
+      "tag": "0006_verticals",
+      "breakpoints": true
     }
   ]
 }

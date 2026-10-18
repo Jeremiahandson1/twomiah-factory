@@ -3,6 +3,7 @@
 // tenant's rows move across unchanged.
 import { type AnyPgColumn, pgTable, text, boolean, integer, decimal, real, timestamp, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
+import { site } from './trades.ts'
 import { company, user } from './core.ts'
 import { contact, job, project } from './crm.ts'
 
@@ -268,6 +269,12 @@ export const serviceAgreement = pgTable('service_agreement', {
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  // From the near-copy CRMs (see each column): service_agreement's columns they added.
+  recurrenceRule: json('recurrence_rule'),
+  nextServiceDate: timestamp('next_service_date'),
+  autoSchedule: boolean('auto_schedule').default(false).notNull(),
+  reminderDaysBefore: integer('reminder_days_before').default(7).notNull(),
+  lastGeneratedJobId: text('last_generated_job_id'),
 }, (t) => [
   index('service_agreement_company_id_idx').on(t.companyId),
 ])
@@ -313,6 +320,9 @@ export const equipment = pgTable('equipment', {
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  // From the near-copy CRMs (see each column): equipment's columns they added.
+  locationId: text('location_id'),
+  siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
 }, (t) => [
   index('equipment_company_id_idx').on(t.companyId),
   index('equipment_contact_id_idx').on(t.contactId),

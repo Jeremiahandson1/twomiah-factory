@@ -5,6 +5,10 @@
 // without the CRM switched on (SPEC §4.7). New here: job.booking_id, the booking a job was made from (SPEC §4.7).
 import { type AnyPgColumn, pgTable, text, boolean, integer, decimal, real, timestamp, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
+import { equipment } from './field.ts'
+import { site } from './trades.ts'
+import { event } from './events.ts'
+import { patient } from './vet.ts'
 import { booking } from './booking.ts'
 import { company, user } from './core.ts'
 import { commissionIsAuto, commissionIsReversal } from '../../data/indexWhere.ts'
@@ -40,6 +44,10 @@ export const contact = pgTable('contact', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  // From the near-copy CRMs (see each column): contact's columns they added.
+  // When this client was last chased — the win-back list's equivalent of the vaccination stamp, so a
+  // lapsed client is not texted again the next morning by whoever opens the page. (Vet T12 M9)
+  lastRemindedAt: timestamp('last_reminded_at'),
 }, (t) => [
   index('contact_company_id_idx').on(t.companyId),
   index('contact_type_idx').on(t.type),
@@ -165,6 +173,12 @@ export const job = pgTable('job', {
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   quoteId: text('quote_id').references(() => quote.id, { onDelete: 'set null' }),
   subcontractorId: text('subcontractor_id').references(() => contact.id, { onDelete: 'set null' }),
+  // From the near-copy CRMs (see each column): job's columns they added.
+  // job.job_type: see the note at its first use (verticals differ on the default)
+  jobType: text('job_type').default('service').notNull(),
+  equipmentId: text('equipment_id').references(() => equipment.id, { onDelete: 'set null' }),
+  siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
+  serviceAgreementId: text('service_agreement_id'),
 }, (t) => [
   index('job_company_id_idx').on(t.companyId),
   index('job_status_idx').on(t.status),
@@ -203,6 +217,12 @@ export const quote = pgTable('quote', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+  // From the near-copy CRMs (see each column): quote's columns they added.
+  customerMessage: text('customer_message'),
+  declinedAt: timestamp('declined_at'),
+  siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
+  equipmentId: text('equipment_id').references(() => equipment.id, { onDelete: 'set null' }),
+  convertedToJobId: text('converted_to_job_id'),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
   index('quote_status_idx').on(t.status),
@@ -260,6 +280,13 @@ export const invoice = pgTable('invoice', {
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   quoteId: text('quote_id').unique().references(() => quote.id, { onDelete: 'set null' }),
+  // From the near-copy CRMs (see each column): invoice's columns they added.
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  // Private parties: the one invoice that carries a party's money (deposits, balance). One per event.
+  eventId: text('event_id').references(() => event.id, { onDelete: 'set null' }),
+  appointmentId: text('appointment_id'),                     // salon: the visit this sale closed (services/salonCheckout.ts)
+  // The owner pays it, but the bill is FOR an animal. (Vet T12 M6)
+  patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_status_idx').on(t.status),
@@ -289,6 +316,8 @@ export const payment = pgTable('payment', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 
   invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+  // From the near-copy CRMs (see each column): payment's columns they added.
+  tipAmount: decimal('tip_amount', { precision: 12, scale: 2 }).default('0').notNull(), // gratuity, on top of `amount` (never counts toward the invoice)
 }, (t) => [
   index('payment_invoice_id_idx').on(t.invoiceId),
 ])
@@ -383,6 +412,9 @@ export const document = pgTable('document', {
   jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
   invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
   uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
+  // From the near-copy CRMs (see each column): document's columns they added.
+  // A file belongs to the animal, not only to the person who pays the bill. (Vet T12 M6)
+  patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
 }, (t) => [
   index('document_company_id_idx').on(t.companyId),
   index('document_project_id_idx').on(t.projectId),

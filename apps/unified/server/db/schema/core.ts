@@ -51,6 +51,8 @@ export const company = pgTable('company', {
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  // From the near-copy CRMs (see each column): company's columns they added.
+  feedToken: text('feed_token'), // public marketplace syndication feed token (marketplaces pull /api/syndication/public/:token/feed)
 })
 
 export const user = pgTable('user', {
@@ -78,6 +80,10 @@ export const user = pgTable('user', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  // From the near-copy CRMs (see each column): user's columns they added.
+  // crm-bar's till PIN (bcrypt): a manager types it on the bartender's register to OK a void or the
+  // close-out (services/barManagers.ts). Never a sign-in by itself. Null = no PIN set.
+  pinHash: text('pin_hash'),
 }, (t) => [
   uniqueIndex('user_email_company_id_key').on(t.email, t.companyId),
   index('user_company_id_idx').on(t.companyId),

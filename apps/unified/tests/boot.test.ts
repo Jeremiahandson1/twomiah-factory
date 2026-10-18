@@ -27,9 +27,9 @@ describe('boot', () => {
     const r: any = await t.client.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1`)
     const declared = Object.values(schema).filter((x) => is(x, PgTable)).map((x) => getTableName(x as PgTable)).sort()
     expect(r.rows.map((x: any) => x.table_name)).toEqual(declared)
-    // Every layer: 15 core, website and enquiry tables, 11 bookings, and the base CRM's other 135 (the CRM's own
-    // three booking tables are replaced by the bookings layer).
-    expect(declared.length).toBe(161)
+    // Every layer: 15 core, website and enquiry tables, 11 bookings, the base CRM's other 135 (the CRM's own three
+    // booking tables are replaced by the bookings layer), and the 65 the near-copy CRMs add (migration 0006).
+    expect(declared.length).toBe(226)
     for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket']) expect(declared).toContain(name)
   })
 
