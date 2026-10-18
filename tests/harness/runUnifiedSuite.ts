@@ -50,6 +50,8 @@ export async function runUnifiedSuite(o: UnifiedSuiteOptions): Promise<number> {
 
   const w = (p: string, s: string) => writeFileSync(`${SB}/${p}`, s.trimStart())
 
+  // The template's own migrations, for the tests that read a data heal from them and apply it here.
+  cpSync(`${o.root}templates/${o.template}/backend/db/migrations`, `${SB}/db/migrations`, { recursive: true })
   w('db/schema.ts', `export * from '${rel}/server/db/schema/index.ts'\n`)
   w('db/index.ts', `
 import { PGlite } from '@electric-sql/pglite'
@@ -152,12 +154,13 @@ export default services.audit
   w('src/services/email.ts', `
 import { services } from '../unified.ts'
 import { crmTemplates } from '${rel}/../server/crm/messages.ts'
-import { inlineButtonColours as inline } from '${rel}/../server/core/email.ts'
-const e = services.crm.emailService
-export const send = e.send, sendRaw = e.sendRaw
+import { coreTemplates, inlineButtonColours as inline } from '${rel}/../server/core/email.ts'
+// The app's one email service (core senders and the CRM's named ones on the same object).
+const e = services.email
+export const send = (...a: any[]) => e.send(...(a as [any, any, any, any])), sendRaw = (m: any) => e.sendRaw(m)
 const brand = { companyName: 'Test Company', colourOnWhite: '#c2410c' }
 /** The messages as the template exposed them: one argument, the company filled in. */
-export const templates: any = Object.fromEntries(Object.entries(crmTemplates).map(([k, t]) => [k, (d: any) => t(d, brand, process.env.FRONTEND_URL || '')]))
+export const templates: any = Object.fromEntries(Object.entries({ ...coreTemplates, ...crmTemplates }).map(([k, t]) => [k, (d: any) => (t as any)(d, brand, process.env.FRONTEND_URL || '')]))
 export const inlineButtonColours = (html: string) => inline(html, brand)
 export default e
 `)

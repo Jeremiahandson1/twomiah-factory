@@ -21,6 +21,13 @@ export interface VerticalSettings {
   visionUrl?: () => string | null
   /** The public website. */
   site: SiteSettings
+  /**
+   * The CRM screens' settings for this vertical: what each shared screen (packages/tenant-ui) is configured with —
+   * labels, which sections a record shows, presets. Plain data, handed to the browser in the admin page
+   * (http/adminScreens.ts) and typed there (web/src/crm/vertical.ts). The CRM templates kept these as
+   * frontend/src/*Config.ts, one copy per template.
+   */
+  screens: Record<string, unknown>
 }
 
 /**

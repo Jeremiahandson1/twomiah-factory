@@ -85,7 +85,7 @@ export interface TemplateResult { subject: string; html: string; text: string }
 export type Template = (data: any, b: Brand, appUrl: string) => TemplateResult
 
 /** The core messages. A module adds its own with `register`. */
-const coreTemplates: Record<string, Template> = {
+export const coreTemplates: Record<string, Template> = {
   passwordReset: (data, b, appUrl) => ({
     subject: 'Reset Your Password',
     html: `
@@ -213,8 +213,8 @@ export function createEmailService(deps: { db: any; logger: Logger }) {
       }
     },
     setRecorder(fn: ((e: EmailRecord) => Promise<void>) | null) { recordEmail = fn },
-    sendPasswordReset: (to: string, data: Record<string, unknown>) => send(to, 'passwordReset', data),
-    sendTeamInvite: (to: string, data: Record<string, unknown>) => send(to, 'teamInvite', data),
+    sendPasswordReset(to: string, data: Record<string, unknown>) { return send(to, 'passwordReset', data) },
+    sendTeamInvite(to: string, data: Record<string, unknown>) { return send(to, 'teamInvite', data) },
   }
 }
 

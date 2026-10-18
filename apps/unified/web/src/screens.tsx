@@ -16,11 +16,12 @@ const companyName = () => document.querySelector('meta[name="company-name"]')?.g
 
 export const Shell = () => <AppShell api={api} auth={useAuth()} config={SHELL} />
 
-/** The admin's front page: the website for those who look after it; otherwise their account. */
+/** The admin's front page: the CRM's dashboard where the business has one; else the website for those who look after it; else their account. */
 export function Home() {
   const { known, can } = usePermissions()
+  const { hasFeature } = useAuth()
   if (!known) return null
-  return <Navigate to={can('site:read') ? '/crm/website' : '/crm/account'} replace />
+  return <Navigate to={hasFeature('dashboard') ? '/crm/dashboard' : can('site:read') ? '/crm/website' : '/crm/account'} replace />
 }
 
 export const Login = () => <LoginPage companyName={companyName()} home={HOME} />

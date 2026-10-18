@@ -9,7 +9,8 @@ import { escHtml } from '../core/email.ts'
 export const ADMIN_DIST = path.resolve(import.meta.dir, '..', '..', 'web', 'dist')
 
 /** The paths that open the admin's page (react-router takes it from there). */
-export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*']
+// /portal/<token> and /vendor/<token> are a customer's and a vendor's own pages, reached by their private link.
+export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*']
 
 const TYPES: Record<string, string> = {
   '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
@@ -19,7 +20,7 @@ const TYPES: Record<string, string> = {
 const NOT_BUILT = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Admin</title></head>' +
   '<body style="font:16px system-ui,sans-serif;padding:2rem">The admin screens haven’t been built on this server (bun run build:web).</body></html>'
 
-export function createAdminScreens(deps: { companyName: () => Promise<string | null>; distDir?: string }) {
+export function createAdminScreens(deps: { companyName: () => Promise<string | null>; screens: () => Record<string, unknown>; distDir?: string }) {
   const dist = deps.distDir ?? ADMIN_DIST
   const app = new Hono()
 
@@ -29,7 +30,11 @@ export function createAdminScreens(deps: { companyName: () => Promise<string | n
     let html: string
     try { html = fs.readFileSync(path.join(dist, 'index.html'), 'utf8') } catch { return c.html(NOT_BUILT, 503) }
     const name = (await deps.companyName()) || ''
-    const head = `<title>${escHtml(name ? name + ' · Admin' : 'Admin')}</title><meta name="company-name" content="${escHtml(name)}">`
+    // The vertical's screen settings (VerticalSettings.screens) as data the page reads: not run, and < escaped so no
+    // value can close the element.
+    const screens = JSON.stringify(deps.screens()).replace(/</g, '\\u003c')
+    const head = `<title>${escHtml(name ? name + ' · Admin' : 'Admin')}</title><meta name="company-name" content="${escHtml(name)}">` +
+      `<script type="application/json" id="vertical-screens">${screens}</script>`
     c.header('Cache-Control', 'no-store')
     return c.html(html.replace(/<title>[^<]*<\/title>/, head))
   }

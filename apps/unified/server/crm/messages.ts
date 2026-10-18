@@ -374,14 +374,13 @@ export const crmTemplates: Record<string, Template> = {
   }),
 }
 
-/** The named senders the CRM's shared modules call (emailService.sendInvoice and the rest). */
+/**
+ * The named senders the CRM's shared modules call (emailService.sendInvoice and the rest), added to the app's one email
+ * service rather than kept on a second object: a caller (or a test) that replaces a sender replaces it for everyone.
+ */
 export function crmEmail(email: EmailService) {
   const send = (name: string) => (to: string, data: Record<string, unknown>) => email.send(to, name, data)
-  return {
-    send: email.send,
-    sendRaw: email.sendRaw,
-    sendPasswordReset: email.sendPasswordReset,
-    sendTeamInvite: email.sendTeamInvite,
+  return Object.assign(email, {
     sendWelcome: send('welcome'),
     sendInvoice: send('invoiceSent'),
     sendInvoiceReminder: send('invoiceReminder'),
@@ -392,6 +391,6 @@ export function crmEmail(email: EmailService) {
     sendJobAssigned: send('jobAssigned'),
     sendJobStatusChanged: send('jobStatusChanged'),
     sendDailyDigest: send('dailyDigest'),
-  }
+  })
 }
 export type CrmEmail = ReturnType<typeof crmEmail>

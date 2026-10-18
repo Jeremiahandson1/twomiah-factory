@@ -136,6 +136,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
       path: '/', admin: true, access: 'public',
       router: createAdminScreens({
         distDir: deps.adminDist,
+        screens: () => vertical.screens,
         companyName: async () => (await db.select({ name: company.name }).from(company).orderBy(asc(company.createdAt)).limit(1))[0]?.name ?? null,
       }),
     },
