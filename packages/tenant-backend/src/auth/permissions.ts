@@ -20,6 +20,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'company:update', 'dashboard:*', 'schedule:*', 'pricebook:*', 'marketing:*',
     // The public website (unified app): its pages, posts, portfolio, photos and settings. (2026-10-18)
     'site:*',
+    // Bookings (unified app): the bookings themselves, and bookings:settings — services, prices and deposits, bans,
+    // webhooks, the booking switches. (2026-10-18)
+    'bookings:*',
     /**
      * The audit log is the owner's and the admins'. (Owner's decision, 2026-10-09)
      *
@@ -228,6 +231,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'marketing:read', 'marketing:create', 'marketing:update',
     // The website's content (pages, posts, portfolio, photos), not its settings. (2026-10-18)
     'site:read', 'site:update',
+    // The book and everyone's hours and days off; not the services, prices or booking switches. (2026-10-18)
+    'bookings:read', 'bookings:create', 'bookings:update',
     'ads:read', 'ads:update',
     'tasks:*',
     // operational modules (writes gated in their routes; reads are open) + read-only reports
@@ -302,6 +307,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'documents:create', 'rfis:read', 'rfis:create', 'punch-lists:read', 'punch-lists:create',
     'punch-lists:update', 'daily-logs:read', 'daily-logs:create', 'inspections:read',
     'company:read', 'dashboard:read', 'schedule:read',
+    // Sees the bookings (their day); changing them is the office's. (2026-10-18)
+    'bookings:read',
     // create + read any; update/delete gated to own tasks (assignee or creator) in the routes
     'tasks:read', 'tasks:create', 'tasks:update',
     // Sees a balance and a card. Spending and correcting are widened per-vertical, because who works
@@ -320,6 +327,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'team:read', 'company:read', 'dashboard:read', 'schedule:read',
     'tasks:read',
     'loyalty:read',
+    'bookings:read',
     // Sees revenue, not cost (owner's decision) — what it read before revenue:read existed. (T62; note on admin)
     'revenue:read',
     'bar:read',

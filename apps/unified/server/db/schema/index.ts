@@ -3,3 +3,4 @@
 export * from './core.ts'
 export * from './crm.ts'
 export * from './site.ts'
+export * from './booking.ts'
