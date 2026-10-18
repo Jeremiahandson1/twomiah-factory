@@ -11,7 +11,7 @@ import { restartRefusal } from '../../services/subscriptionRestart'
 import { ownerFirstName } from '../../services/tenantOwner'
 import { registrantGaps } from '../../services/domainRegistrant'
 import { ourPremiumSiteOrigin } from '../../services/premiumSiteUrl'
-import { reconcileAliasesInBackground } from '../../services/emailAliasSync'
+import { reconcileAliasesInBackground, ALIAS_TENANT_COLUMNS } from '../../services/emailAliasSync'
 import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
 
 export function registerLifecycleRoutes(factory: FactoryApp) {
@@ -489,7 +489,7 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
     if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
 
     const { data: tenant, error: tErr } = await supabase.from('tenants')
-      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, sendgrid_domain_auth_id, render_backend_url')
+      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, sendgrid_domain_auth_id, render_backend_url, products, website_url')
       .eq('id', tenantId).single()
     if (tErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
@@ -558,7 +558,7 @@ factory.get('/internal/domain/status/:tenantId', async (c) => {
     const tenantId = c.req.param('tenantId')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
     const { data: tenant } = await supabase.from('tenants')
-      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, render_backend_url')
+      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, render_backend_url, products, website_url')
       .eq('id', tenantId).single()
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
     if (!tenant.domain) return c.json({ status: 'unconfigured', domain: null, nameservers: [] })
@@ -1510,13 +1510,13 @@ factory.post('/customers/:id/email-alias-sync', async (c) => {
   }
 })
 
-// Where each of the tenant's addresses stands — and a reconcile on the way, so the CRM's address page
-// asking is also "set them up now". Auth: X-Factory-Key.
+// Where each of the tenant's addresses stands — and a reconcile on the way, so the address page asking (the
+// CRM's, or a website-only premium site's Email page) is also "set them up now". Auth: X-Factory-Key.
 factory.get('/customers/:id/email-alias-status', async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
-    const { data: tenant } = await supabase.from('tenants').select('id, domain, factory_sync_key, cloudflare_zone_id, render_backend_url').eq('id', tenantId).single()
+    const { data: tenant } = await supabase.from('tenants').select(ALIAS_TENANT_COLUMNS).eq('id', tenantId).single()
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
     const { reconcileTenantAliases } = await import('../../services/emailAliasSync')
     return c.json(await reconcileTenantAliases(tenant))
@@ -1526,12 +1526,13 @@ factory.get('/customers/:id/email-alias-status', async (c) => {
 })
 
 // Send Cloudflare's confirmation email to one of the tenant's destinations again. Only a destination one
-// of the tenant's own addresses forwards to (read back from the CRM). Auth: X-Factory-Key.
+// of the tenant's own addresses forwards to (read back from where they are kept — the CRM, or a
+// website-only tenant's premium site). Auth: X-Factory-Key.
 factory.post('/customers/:id/email-alias-confirmation', async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
-    const { data: tenant } = await supabase.from('tenants').select('id, domain, factory_sync_key, cloudflare_zone_id, render_backend_url').eq('id', tenantId).single()
+    const { data: tenant } = await supabase.from('tenants').select(ALIAS_TENANT_COLUMNS).eq('id', tenantId).single()
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
     const body = await c.req.json().catch(() => ({}))
     const destination = String(body?.destination || '').trim().toLowerCase()
@@ -1539,8 +1540,8 @@ factory.post('/customers/:id/email-alias-confirmation', async (c) => {
     const sync = await import('../../services/emailAliasSync')
     const deps = sync.defaultDeps()
     if (!deps.cf.isCloudflareConfigured()) return c.json({ error: 'Cloudflare not configured' }, 503)
-    const read = await sync.readCrmAliases(tenant, deps)
-    if (!('aliases' in read)) return c.json({ error: 'Could not read the CRM\'s addresses' }, 502)
+    const read = await sync.readTenantAliases(tenant, deps)
+    if (!('aliases' in read)) return c.json({ error: 'Could not read this company\'s addresses' }, 502)
     const ours = read.aliases.some((a) => a.enabled && 'destination' in sync.aliasDestination(tenantId, a, deps.parseHost) && (sync.aliasDestination(tenantId, a, deps.parseHost) as any).destination === destination)
     if (!ours) return c.json({ error: 'None of this company\'s addresses forwards to ' + destination }, 404)
     return c.json(await sync.resendDestinationConfirmation(destination, deps))
@@ -1551,11 +1552,12 @@ factory.post('/customers/:id/email-alias-confirmation', async (c) => {
 })
 
 // Hourly (services/scheduler.ts): every tenant with a domain on Cloudflare is brought in line with its
-// CRM's addresses — the moment a customer's nameservers go active, the addresses saved before it work.
+// addresses (its CRM's, or a website-only premium site's) — the moment a customer's nameservers go active,
+// the addresses saved before it work.
 factory.post('/internal/email-alias-sweep', async (c) => {
   if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
   const { data: tenants, error } = await supabase.from('tenants')
-    .select('id, slug, domain, factory_sync_key, cloudflare_zone_id, render_backend_url, status')
+    .select(`${ALIAS_TENANT_COLUMNS}, status` as const)
     .not('domain', 'is', null).not('cloudflare_zone_id', 'is', null).neq('status', 'offboarded')
   if (error) return c.json({ error: error.message }, 500)
   const { reconcileTenantAliases } = await import('../../services/emailAliasSync')

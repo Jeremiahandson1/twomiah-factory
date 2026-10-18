@@ -1,12 +1,14 @@
 // A tenant's branded email addresses (support@, admin@ …) on Cloudflare Email Routing.
 //
-// The CRM's email_alias table is the truth. Every change there is pushed one at a time
+// The addresses live in ONE place per business (aliasSource): the CRM's email_alias table when the tenant has a
+// CRM, otherwise — a website-only premium tenant — the premium site's own email_alias table (its admin's Email
+// page). Every change there is pushed one at a time
 // (POST /customers/:id/email-alias-sync), but a push is lost whenever it cannot apply: the onboarding
 // wizard saves the addresses before there is any domain, so every new signup's pushes answered 400 and
 // nothing ever replayed them (E2E Run 5, 10/16). Mail to support@<their domain> would have gone nowhere.
 //
-// reconcileTenantAliases() closes that: it reads the CRM's addresses back (GET /api/internal/email-aliases,
-// X-Factory-Key) and makes Cloudflare match — Email Routing on, one rule per enabled address, each
+// reconcileTenantAliases() closes that: it reads the addresses back from that one place (GET
+// /api/internal/email-aliases on the CRM or on the premium site, X-Factory-Key) and makes Cloudflare match — Email Routing on, one rule per enabled address, each
 // destination registered, rules for removed or switched-off addresses deleted. It is idempotent and runs
 //   - when a domain is attached, bought or wired at deploy,
 //   - when the Email Domain page sees the zone active,
@@ -17,6 +19,7 @@
 //   2. Email Routing enabled on the zone (it writes the MX records);
 //   3. the destination address CONFIRMED — a rule forwarding to an unconfirmed address stays off.
 import * as cloudflareService from './cloudflare'
+import { ourPremiumSiteOrigin } from './premiumSiteUrl'
 
 export const LOCAL_PART_RE = /^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/
 /** Rules this module owns are named alias_<localPart>; nothing else on the zone is touched. */
@@ -40,7 +43,14 @@ export interface TenantForAliases {
   cloudflare_zone_id?: string | null
   render_backend_url?: string | null
   factory_sync_key?: string | null
+  /** With slug + website_url, lets a website-only premium tenant's addresses be read from its site (aliasSource). */
+  products?: string[] | null
+  slug?: string | null
+  website_url?: string | null
 }
+
+/** What every caller selects so aliasSource can decide — scripts/check-email-alias-readback.ts holds each select to it. */
+export const ALIAS_TENANT_COLUMNS = 'id, slug, domain, products, website_url, factory_sync_key, cloudflare_zone_id, render_backend_url'
 
 type Cf = Pick<typeof cloudflareService,
   'isCloudflareConfigured' | 'getCloudflareZoneStatus' | 'getEmailRoutingSettings' | 'enableEmailRouting' |
@@ -77,20 +87,48 @@ const localPartOf = (matcher: string, domain: string) => {
   return m.endsWith('@' + domain.toLowerCase()) ? m.slice(0, -(domain.length + 1)) : null
 }
 
-/** The CRM's addresses. null + reason when it cannot be read; 'missing' when the CRM predates the endpoint. */
-export async function readCrmAliases(tenant: TenantForAliases, deps: AliasSyncDeps): Promise<{ aliases: CrmAlias[] } | { missing: true } | { error: string }> {
-  if (!tenant.render_backend_url || !tenant.factory_sync_key) return { error: 'The CRM is not provisioned yet' }
+const hasCrmProduct = (products: string[]) => products.some((p) => p === 'crm' || String(p).startsWith('crm-'))
+
+/**
+ * Where this tenant's addresses are kept — ONE place per business, never both:
+ *   - a CRM (render_backend_url) → the CRM. Its address page is where the owner manages them; the premium
+ *     site's Email page sends the owner there.
+ *   - products include a CRM but no CRM URL is recorded → nothing (an error). Reading the site instead
+ *     would delete, as "removed", every rule the CRM's addresses made.
+ *   - no CRM, a premium website → the site we serve (ourPremiumSiteOrigin; never the intake's old website_url).
+ * products unknown (a caller that did not select it) → the CRM or nothing, as before.
+ */
+export function aliasSource(tenant: TenantForAliases): { kind: 'crm' | 'site'; origin: string } | { error: string } {
+  if (tenant.render_backend_url) return { kind: 'crm', origin: tenant.render_backend_url.replace(/\/+$/, '') }
+  const products = Array.isArray(tenant.products) ? tenant.products : null
+  if (!products || hasCrmProduct(products)) return { error: 'The CRM is not provisioned yet' }
+  if (!products.includes('website-premium')) return { error: 'This company has no CRM or premium website to keep addresses in' }
+  const site = ourPremiumSiteOrigin(tenant)
+  if (!site) return { error: 'The website is not deployed yet' }
+  return { kind: 'site', origin: site }
+}
+
+/**
+ * The tenant's addresses, read from aliasSource. A reason when they cannot be read; 'missing' when that CRM
+ * or site predates the endpoint.
+ */
+export async function readTenantAliases(tenant: TenantForAliases, deps: AliasSyncDeps): Promise<{ aliases: CrmAlias[]; source: 'crm' | 'site' } | { missing: true; source: 'crm' | 'site' } | { error: string }> {
+  const src = aliasSource(tenant)
+  if ('error' in src) return src
+  const who = src.kind === 'crm' ? 'The CRM' : 'The website'
+  if (!tenant.factory_sync_key) return { error: who + ' has no Factory key yet' }
   try {
-    const res = await deps.fetch(tenant.render_backend_url.replace(/\/$/, '') + '/api/internal/email-aliases', {
+    const res = await deps.fetch(src.origin + '/api/internal/email-aliases', {
       headers: { 'X-Factory-Key': tenant.factory_sync_key },
       signal: AbortSignal.timeout(15_000),
     })
-    if (res.status === 404) return { missing: true }
-    if (!res.ok) return { error: 'The CRM answered ' + res.status }
+    if (res.status === 404) return { missing: true, source: src.kind }
+    if (!res.ok) return { error: who + ' answered ' + res.status }
     const body: any = await res.json().catch(() => null)
     const list = Array.isArray(body?.aliases) ? body.aliases : null
-    if (!list) return { error: 'The CRM sent no address list' }
+    if (!list) return { error: who + ' sent no address list' }
     return {
+      source: src.kind,
       aliases: list
         .map((a: any) => ({
           localPart: String(a?.localPart || '').trim().toLowerCase(),
@@ -101,7 +139,7 @@ export async function readCrmAliases(tenant: TenantForAliases, deps: AliasSyncDe
         .filter((a: CrmAlias) => LOCAL_PART_RE.test(a.localPart)),
     }
   } catch (e: any) {
-    return { error: 'The CRM did not answer: ' + (e?.message || 'network error') }
+    return { error: who + ' did not answer: ' + (e?.message || 'network error') }
   }
 }
 
@@ -150,9 +188,14 @@ async function ensureDestination(deps: AliasSyncDeps, known: Map<string, { id: s
 /** Bring Cloudflare in line with the CRM's addresses and say where each one stands. Never throws. */
 export async function reconcileTenantAliases(tenant: TenantForAliases, deps: AliasSyncDeps = defaultDeps()): Promise<AliasStatusReport> {
   const domain = tenant.domain ? String(tenant.domain).trim().toLowerCase() : null
-  const read = await readCrmAliases(tenant, deps)
+  const read = await readTenantAliases(tenant, deps)
   if ('missing' in read) {
-    return { state: 'crm_needs_update', domain, aliases: [], detail: 'This CRM was built before addresses could be read back; update it from the Factory to set them up' }
+    return {
+      state: 'crm_needs_update', domain, aliases: [],
+      detail: read.source === 'site'
+        ? 'This website was built before addresses could be read back; update it from the Factory to set them up'
+        : 'This CRM was built before addresses could be read back; update it from the Factory to set them up',
+    }
   }
   const crmAliases = 'aliases' in read ? read.aliases : []
   const rows = (state: AliasState, detail?: string) => crmAliases.map((a) => ({

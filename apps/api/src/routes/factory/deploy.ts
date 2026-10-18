@@ -708,6 +708,8 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
           cloudflare_zone_id: domainResult.cloudflareZoneId || tenant.cloudflare_zone_id,
           render_backend_url: result.apiUrl || tenant.render_backend_url,
           factory_sync_key: result.factorySyncKey || tenant.factory_sync_key,
+          // A website-only premium tenant keeps its addresses on the site (emailAliasSync.ts aliasSource).
+          products: tenant.products, website_url: result.siteUrl || tenant.website_url,
         })
       } catch (domErr: any) {
         console.error('[Deploy] Domain infra wiring threw:', domErr.message)

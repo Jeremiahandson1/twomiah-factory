@@ -12,6 +12,10 @@
 //   4. a second run changes nothing; a duplicate rule collapses to one; a changed forward-to updates
 //   5. a CRM built before the read-back → "crm_needs_update"; a CRM that errors → "error"; never throws
 //   6. resend: a confirmed inbox is left alone; an unconfirmed one is removed and added again
+//   7. a website-only premium tenant (no CRM): the addresses are read back from ITS SITE (the site we serve,
+//      never the intake's old website_url) and set up; a tenant whose products include a CRM but whose CRM URL
+//      was never recorded is NOT read from the site (that would delete the CRM's rules) — nothing is touched;
+//      a CRM, when there is one, always wins; a site built before the read-back says "update it"
 // The CRM side (the internal list, /status, resend) runs in the home care suite against the real routes
 // and table: tests/homecare/email-alias-readback.test.ts.
 //   bun tests/shared/email-alias-sync.test.ts
@@ -156,6 +160,74 @@ const T = tenant({ domain: 'pat-care.com', cloudflare_zone_id: 'z1' })
   check('a confirmed inbox is left alone', a.ok && a.alreadyConfirmed === true && st.writes.length === 0, { a, writes: st.writes })
   const b = await sync.resendDestinationConfirmation('office@pat-care-mail.com', { cf, fetch: fakeFetch, parseHost: PARSE })
   check('an unconfirmed one is removed and added again (Cloudflare re-sends)', b.ok && st.writes.join() === 'destination-delete no1,destination office@pat-care-mail.com', st.writes)
+}
+
+// ── 7. a website-only premium tenant: the addresses live on its site ─────────────────────────────────────
+{
+  const SITE = 'https://pat-care-site.onrender.com'
+  const siteTenant = (o: Record<string, unknown> = {}) => tenant({
+    render_backend_url: null, products: ['website-premium'], website_url: SITE + '/',
+    domain: 'pat-care.com', cloudflare_zone_id: 'z9', ...o,
+  })
+  crmAliases = [{ localPart: 'support', routingMode: 'forward', forwardTo: 'Pat@Gmail.com', enabled: true }]
+  crmStatus = 200
+  const { st, cf } = fakeCloudflare({ zone: 'active', routingOn: true })
+  st.destinations.push({ id: 'pg', email: 'pat@gmail.com', verified: true })
+  st.rules.push({ tag: 'stale', name: 'alias_old', matcherValue: 'old@pat-care.com', forwardTo: ['pat@gmail.com'] })
+  crmCalls.length = 0
+  const r = await sync.reconcileTenantAliases(siteTenant(), { cf, fetch: fakeFetch, parseHost: PARSE })
+  check("no CRM: the site we serve is asked, with the tenant's key", crmCalls.length === 1 && crmCalls[0].url === SITE + '/api/internal/email-aliases' && crmCalls[0].key === 'k-123', crmCalls)
+  check(`…and its address is set up and live (${r.state})`, r.state === 'live' && st.rules.some((x) => x.matcherValue === 'support@pat-care.com' && x.forwardTo[0] === 'pat@gmail.com' && x.name === 'alias_support'), { r, rules: st.rules })
+  check('…a stale alias_ rule the site no longer lists is removed', !st.rules.some((x) => x.tag === 'stale'), st.rules)
+
+  // Before the domain exists: listed as waiting — the replay this fallback exists for.
+  crmCalls.length = 0
+  const early = await sync.reconcileTenantAliases(siteTenant({ domain: null, cloudflare_zone_id: null }), { cf, fetch: fakeFetch, parseHost: PARSE })
+  check(`no domain yet: the site's address is listed as waiting (${early.state})`, early.state === 'waiting_for_domain' && early.aliases.length === 1 && early.aliases[0].state === 'waiting_for_domain' && crmCalls.length === 1, early)
+
+  // The intake's OLD website is never sent the key.
+  crmCalls.length = 0
+  st.writes = []
+  const old = await sync.reconcileTenantAliases(siteTenant({ website_url: 'https://patcare-wordpress.com' }), { cf, fetch: fakeFetch, parseHost: PARSE })
+  check(`website_url still the old site: nobody is asked (${old.state})`, crmCalls.length === 0 && old.state === 'error' && /website is not deployed/.test(old.detail || ''), { old, crmCalls })
+  check('…and nothing on Cloudflare changes', st.writes.length === 0, st.writes)
+
+  // A CRM bought but its URL never recorded (the add-on did not record it before 10/17): never the site.
+  st.rules.push({ tag: 'crm-made', name: 'alias_billing', matcherValue: 'billing@pat-care.com', forwardTo: ['books@example.com'] })
+  crmCalls.length = 0
+  st.writes = []
+  const noUrl = await sync.reconcileTenantAliases(siteTenant({ products: ['website-premium', 'crm'] }), { cf, fetch: fakeFetch, parseHost: PARSE })
+  check(`a CRM with no recorded URL: the site is NOT read (${noUrl.state})`, crmCalls.length === 0 && noUrl.state === 'error' && /CRM is not provisioned/.test(noUrl.detail || ''), { noUrl, crmCalls })
+  check('…so the CRM\'s rules are left alone', st.writes.length === 0 && st.rules.some((x) => x.tag === 'crm-made'), st.writes)
+  const vertical = await sync.reconcileTenantAliases(siteTenant({ products: ['website-premium', 'crm-homecare'] }), { cf, fetch: fakeFetch, parseHost: PARSE })
+  check('…a vertical CRM product (crm-homecare) counts as a CRM too', vertical.state === 'error' && crmCalls.length === 0, vertical)
+
+  // A CRM, when recorded, wins over the site.
+  crmCalls.length = 0
+  await sync.reconcileTenantAliases(siteTenant({ products: ['website-premium', 'crm'], render_backend_url: 'https://pat-care-api.onrender.com/' }), { cf, fetch: fakeFetch, parseHost: PARSE })
+  check('with a CRM URL the CRM is read, not the site', crmCalls.length === 1 && crmCalls[0].url === 'https://pat-care-api.onrender.com/api/internal/email-aliases', crmCalls)
+
+  // A caller that did not select products: the old rule (CRM or nothing).
+  crmCalls.length = 0
+  const unknown = await sync.reconcileTenantAliases(siteTenant({ products: undefined }), { cf, fetch: fakeFetch, parseHost: PARSE })
+  check('products not selected: nothing is read (no guessing)', crmCalls.length === 0 && unknown.state === 'error', unknown)
+
+  // A standard (non-premium) website has no address book.
+  const std = await sync.reconcileTenantAliases(siteTenant({ products: ['website'] }), { cf, fetch: fakeFetch, parseHost: PARSE })
+  check('a standard website: nothing read, said why', crmCalls.length === 0 && std.state === 'error' && /no CRM or premium website/.test(std.detail || ''), std)
+
+  // A site built before the read-back: "update it", in the website's words.
+  crmStatus = 404
+  const before = await sync.reconcileTenantAliases(siteTenant(), { cf, fetch: fakeFetch, parseHost: PARSE })
+  check(`a site built before the read-back: "crm_needs_update", naming the website (${before.state})`, before.state === 'crm_needs_update' && /This website was built before/.test(before.detail || ''), before)
+  crmStatus = 500
+  const bad = await sync.reconcileTenantAliases(siteTenant(), { cf, fetch: fakeFetch, parseHost: PARSE })
+  check('a site that errors: "error", naming the website', bad.state === 'error' && /The website answered 500/.test(bad.detail || ''), bad)
+  crmStatus = 200
+
+  // aliasSource itself: one decision, every caller.
+  check('aliasSource: the site origin, normalised', JSON.stringify(sync.aliasSource(siteTenant())) === JSON.stringify({ kind: 'site', origin: SITE }), sync.aliasSource(siteTenant()))
+  check('ALIAS_TENANT_COLUMNS carries what aliasSource reads', ['slug', 'products', 'website_url', 'domain', 'render_backend_url', 'factory_sync_key', 'cloudflare_zone_id'].every((c) => sync.ALIAS_TENANT_COLUMNS.split(/\s*,\s*/).includes(c)), sync.ALIAS_TENANT_COLUMNS)
 }
 
 console.log(`\nemail-alias-sync: ${passed} passed, ${failed} failed`)

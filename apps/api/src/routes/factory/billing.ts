@@ -398,7 +398,7 @@ async function handleDomainRegistration(opts: {
   console.log('[Domain] Processing registration:', domain, 'for tenant', tenantId, paymentIntent ? '(paid)' : '(operator, at cost)')
 
   const { data: tenant, error: tErr } = await supabase.from('tenants')
-    .select('id, slug, name, email, admin_email, phone, address, city, state, zip, factory_sync_key, website_url, render_backend_url, cloudflare_zone_id')
+    .select('id, slug, name, email, admin_email, phone, address, city, state, zip, factory_sync_key, website_url, render_backend_url, cloudflare_zone_id, products')
     .eq('id', tenantId).single()
   if (tErr || !tenant) {
     console.error('[Domain] Tenant not found during registration:', tenantId)

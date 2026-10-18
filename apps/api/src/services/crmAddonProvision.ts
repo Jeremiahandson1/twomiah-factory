@@ -240,11 +240,16 @@ async function doProvision(tenantId: string): Promise<{ success: boolean; crmUrl
     console.warn('[CrmAddon] No factory_sync_key — skipping seed; customer must use forgot-password')
   }
 
-  // 6. Record the product + tell the premium site where its CRM lives
+  // 6. Record the product + the CRM's address + tell the premium site where its CRM lives.
+  // render_backend_url is how the Factory reaches this CRM (the hourly email-address reconcile in
+  // services/emailAliasSync.ts, feature sync, backups) — the add-on never recorded it, so every one of those
+  // treated the tenant as having no CRM. Same columns flipWebsiteToCrm records.
   const newProducts = Array.from(new Set([...(tenant.products || []), 'crm']))
   await supabase.from('tenants').update({
     products: newProducts,
     factory_sync_key: factorySyncKey || tenant.factory_sync_key,
+    render_backend_url: result.apiUrl,
+    ...(result.dbConnectionString ? { database_url: result.dbConnectionString } : {}),
   }).eq('id', tenant.id)
   console.log('[CrmAddon] Updated tenants.products →', JSON.stringify(newProducts))
 

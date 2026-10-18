@@ -27,6 +27,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
+import { ourPremiumSiteOrigin } from '../src/services/premiumSiteUrl.ts'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const envPath = path.join(__dirname, '..', '.env')
 if (fs.existsSync(envPath)) {
@@ -298,11 +299,14 @@ if (!factorySyncKey) {
   }
 }
 
-// Update tenants.products
+// Update tenants.products + the CRM's address (render_backend_url: how the Factory reaches this CRM — the
+// email-address reconcile, feature sync, backups; services/crmAddonProvision.ts records the same).
 const newProducts = Array.from(new Set([...(tenant.products || []), 'crm']))
 await supabase.from('tenants').update({
   products: newProducts,
   factory_sync_key: factorySyncKey || tenant.factory_sync_key,
+  render_backend_url: result.apiUrl,
+  ...(result.dbConnectionString ? { database_url: result.dbConnectionString } : {}),
 }).eq('id', tenant.id)
 console.log('Updated tenants.products →', JSON.stringify(newProducts))
 
@@ -311,9 +315,12 @@ console.log('Updated tenants.products →', JSON.stringify(newProducts))
 // destination. We POST through the premium's own internal endpoint
 // (gated by FACTORY_SYNC_KEY) so this works even on existing tenants
 // whose deploy.ts wasn't yet aware of this column.
-if (factorySyncKey && tenant.website_url) {
+// Only a site we serve (services/premiumSiteUrl.ts): website_url starts as the business's OLD website, and this
+// call carries the tenant's key.
+const premiumSite = ourPremiumSiteOrigin(tenant)
+if (factorySyncKey && premiumSite) {
   try {
-    const r = await fetch(tenant.website_url.replace(/\/+$/, '') + '/api/internal/set-crm-url', {
+    const r = await fetch(premiumSite + '/api/internal/set-crm-url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Factory-Key': factorySyncKey },
       body: JSON.stringify({ crmUrl: result.apiUrl })
