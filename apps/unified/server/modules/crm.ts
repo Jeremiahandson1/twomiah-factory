@@ -193,7 +193,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       hasDeclinedAt: true, hasConvertedToJobId: true,
       // A converted quote's invoice is numbered as every invoice is (CrmSettings.invoices.numbering; templates/crm-rv routes/quotes.ts).
       ...(v.invoices?.numbering ? { numbering: { invoice: v.invoices.numbering } } : {}),
-      extraFields: sites ? ['siteId', 'equipmentId', 'customerMessage'] : ['customerMessage'],
+      // A roofing proposal belongs to its job (quote.job_id; CrmSettings.roof).
+      extraFields: [...(sites ? ['siteId', 'equipmentId'] : []), 'customerMessage', ...(v.roof ? ['jobId'] : [])],
       ...(sites ? { jobHasSiteAndEquipment: true } : {}),
       // Text the customer a link when a quote goes out.
       ...(v.quotes?.textOnSend ? {

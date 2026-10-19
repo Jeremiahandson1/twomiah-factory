@@ -147,7 +147,12 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
       path: '/', admin: true, access: 'public',
       router: createAdminScreens({
         distDir: deps.adminDist,
-        screens: () => vertical.screens,
+        // The vertical's screen settings, and the browser's Google Maps key at run time (address search, satellite tiles):
+        // its OWN key, restricted to the tenant's web addresses — never the server's GOOGLE_MAPS_API_KEY, which can't be
+        // restricted that way and which the templates baked into every page (CUTOVER_LEDGER, Roofing). Absent: the
+        // address box is a plain box.
+        // And the switch the call log rides (CrmSettings.callTrackingSwitch), for the AI Receptionist page.
+        screens: () => ({ ...vertical.screens, mapsBrowserKey: process.env.GOOGLE_MAPS_BROWSER_KEY || '', callTrackingSwitch: vertical.crm?.callTrackingSwitch ?? 'call_tracking' }),
         extraPages: vertical.crm?.homecare ? HOMECARE_PAGES : [],
         brand: async () => (await db.select({ primaryColor: company.primaryColor, secondaryColor: company.secondaryColor, email: company.email }).from(company).orderBy(asc(company.createdAt)).limit(1))[0] ?? null,
         companyName: async () => (await db.select({ name: company.name }).from(company).orderBy(asc(company.createdAt)).limit(1))[0]?.name ?? null,

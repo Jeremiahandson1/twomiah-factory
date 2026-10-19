@@ -247,7 +247,7 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
                     key={a}
                     type="button"
                     onClick={() => toggleAmenity(a)}
-                    className={`text-xs px-2 py-1 rounded-full border ${amenities.includes(a) ? 'bg-orange-600 text-white border-orange-600' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'} dark:text-slate-300`}
+                    className={`text-xs px-2 py-1 rounded-full border ${amenities.includes(a) ? 'bg-orange-600 text-white border-orange-600' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'}`}
                   >
                     {a}
                   </button>

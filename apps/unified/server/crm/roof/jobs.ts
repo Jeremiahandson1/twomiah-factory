@@ -166,6 +166,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
     if (q.assignedSalesRepId) conditions.push(eq(job.assignedSalesRepId, q.assignedSalesRepId))
     if (q.assignedCrewId) conditions.push(eq(job.assignedCrewId, q.assignedCrewId))
     if (q.mine === '1') conditions.push(eq(job.assignedSalesRepId, me.userId))
+    // One customer's jobs (the quote form's Job picker, a contact's page).
+    if (q.contactId) conditions.push(eq(job.contactId, q.contactId))
     if (q.search) {
       // Case-insensitive, and the homeowner's name too — looking a job up by who it's for is how a roofer finds it.
       const pattern = `%${q.search}%`

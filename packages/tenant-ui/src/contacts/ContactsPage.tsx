@@ -255,7 +255,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
               className={`p-4 rounded-lg border text-left transition-colors ${typeFilter === t.value ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'bg-white hover:border-gray-300 dark:bg-slate-900 dark:border-slate-800'}`}
             >
               <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats[t.value] || 0}</p>
-              <p className="text-sm text-gray-500 dark:text-slate-400">{plural(t.label)}</p>
+              <p className="text-sm text-gray-600 dark:text-slate-400">{plural(t.label)}</p>
             </button>
           ))}
         </div>

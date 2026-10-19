@@ -32,6 +32,11 @@ export interface InvoicingConfig {
   quoteEquipment?: boolean
   quoteCustomerMessage?: boolean
   quoteDecline?: boolean
+  /**
+   * A quote is for one of the customer's jobs (roofing: a proposal belongs to its job — quote.job_id): the form offers
+   * the chosen customer's jobs and sends jobId; /crm/quotes?new=1&contactId=&jobId= opens it filled in.
+   */
+  quoteJobs?: boolean
   /** Extra invoice statuses this vertical stores (salon adds 'open'). */
   extraInvoiceStatuses?: string[]
   /** Placeholder for the quote name field. */
@@ -73,7 +78,7 @@ export interface InvoicingPageProps {
   config?: InvoicingConfig
 }
 
-export const defaultConfig: Required<Pick<InvoicingConfig, 'clientLabel' | 'clientPath' | 'jobPath' | 'projects' | 'jobs' | 'tips' | 'quoteSites' | 'quoteEquipment' | 'quoteCustomerMessage' | 'quoteDecline' | 'extraInvoiceStatuses' | 'quoteNamePlaceholder' | 'quickbooks'>> = {
+export const defaultConfig: Required<Pick<InvoicingConfig, 'clientLabel' | 'clientPath' | 'jobPath' | 'projects' | 'jobs' | 'tips' | 'quoteSites' | 'quoteEquipment' | 'quoteCustomerMessage' | 'quoteDecline' | 'quoteJobs' | 'extraInvoiceStatuses' | 'quoteNamePlaceholder' | 'quickbooks'>> = {
   clientLabel: 'Client',
   clientPath: (id) => `/crm/contacts/${id}`,
   jobPath: (id) => `/crm/jobs/${id}`,
@@ -84,6 +89,7 @@ export const defaultConfig: Required<Pick<InvoicingConfig, 'clientLabel' | 'clie
   quoteEquipment: false,
   quoteCustomerMessage: false,
   quoteDecline: false,
+  quoteJobs: false,
   extraInvoiceStatuses: [],
   quoteNamePlaceholder: 'e.g. Spring service package',
   quickbooks: false,

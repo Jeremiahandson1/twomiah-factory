@@ -19,6 +19,9 @@ import { PUBLIC_PHOTO_PREFIX, type PhotoStore } from './admin.ts'
 
 const SITE_DIR = path.join(import.meta.dir, '..', '..', 'site')
 const BASE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'main.css'), 'utf8')
+// The roofer's instant-estimate widget (site/public/scripts/estimator.ts, made browser JavaScript once at start), embedded
+// on this site or any other.
+const ESTIMATOR_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', 'estimator.ts'), 'utf8'))
 const DESIGN_CSS = new Map<string, string>()
 for (const f of fs.readdirSync(path.join(SITE_DIR, 'designs'))) DESIGN_CSS.set(f.replace(/\.css$/, ''), fs.readFileSync(path.join(SITE_DIR, 'designs', f), 'utf8'))
 
@@ -357,6 +360,11 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`
     return c.body(xml, 200, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=3600' })
   })
+
+  // The instant-estimate widget: public, so a roofer can put it on any page (the CRM's Estimator settings give the
+  // snippet). It asks /api/estimator on its own script's origin — gated there by instant_estimator and the company's
+  // estimator switch.
+  app.get('/estimator.js', (c) => c.body(ESTIMATOR_JS, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }))
 
   app.get('/robots.txt', (c) => {
     // The admin, the API, and customers' own booking pages stay out of search engines.

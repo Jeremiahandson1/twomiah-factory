@@ -1,11 +1,11 @@
 <%
-  // The CRM's instant roof estimator (crm-roof /estimator.js), mounted for this company. Shown only
-  // when the roofer has it switched on in the CRM; prices are the ones they set there. The route
-  // sends a page-specific policy that allows exactly the CRM's origin.
+  // The CRM's instant roof estimator (/estimator.js), mounted for this company. The site and the CRM are one app, so
+  // the widget loads from this site's own origin ('' — server/site/routes.ts serves it) unless a page names another;
+  // it shows nothing when the roofer has the estimator off (its /api/estimator/config answers an error).
   const crm = data.crmOrigin || ''
   const slug = data.slug || ''
 %>
-<% if (crm && slug) { %>
+<% if (slug) { %>
 <section class="tool-estimator" aria-label="Instant estimate">
   <div class="container">
     <div id="twomiah-estimator" data-slug="<%= slug %>"></div>

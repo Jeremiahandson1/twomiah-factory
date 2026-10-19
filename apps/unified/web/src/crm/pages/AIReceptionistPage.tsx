@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Plus, Phone, MessageSquare, Bot, Edit2, Trash2, Check, PhoneIncoming, VoicemailIcon, Zap, Loader2 } from 'lucide-react'
 import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, StatusBadge, EmptyState, ConfirmDialog, Tabs, TabsList, TabsTrigger, TabsContent } from '../ui'
-import { PageError, errorText, ModuleNotEnabled, featureNotEnabled, usePermissions } from '../../shared'
+import { PageError, errorText, ModuleNotEnabled, featureNotEnabled, usePermissions, CallTrackingSettings } from '../../shared'
+import { verticalScreens } from '../vertical'
 import { api as client } from '../../api'
 
 // The template read a token from localStorage and did nothing without one. This app's session is the server's
@@ -146,6 +147,13 @@ export function AIReceptionistPage() {
   const mayCreate = !known || can('ai-receptionist:create');
   const mayEdit = !known || can('ai-receptionist:update');
   const mayDelete = !known || can('ai-receptionist:delete');
+  /**
+   * Where the vertical sells no Call Tracking (roofing), the call log and the CallRail key ride this page's switch
+   * (verticalScreens().callTrackingSwitch) and the key is set here, as roofing's page did: the owner and admins
+   * (integrations:update, the API's own right).
+   */
+  const callsRideThisPage = verticalScreens().callTrackingSwitch === 'ai_receptionist';
+  const maySetUpCallRail = callsRideThisPage && known && can('integrations:update');
 
   const fetchRules = useCallback(async () => {
     try {
@@ -346,6 +354,7 @@ export function AIReceptionistPage() {
             <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Default Greeting</label><Textarea value={settings.greetingText || ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateSettings({ greetingText: e.target.value })} disabled={!mayEdit} placeholder="Hi, thanks for calling! We're currently away but will get back to you soon." rows={3} /></div>
             <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Forwarding Number</label><Input value={settings.forwardingNumber || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ forwardingNumber: e.target.value })} disabled={!mayEdit} placeholder="(555) 123-4567" /></div>
           </CardBody></Card>
+          {maySetUpCallRail && <div className="mt-6"><CallTrackingSettings /></div>}
         </TabsContent>
       </Tabs>
 

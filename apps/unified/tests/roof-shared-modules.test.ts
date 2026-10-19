@@ -23,7 +23,7 @@ beforeAll(async () => {
   companyId = seeded.company.id
   ids.owner = seeded.owner.id
   tokens.owner = await login('owner@test.example', seeded.password)
-  await t.db.update(t.schema.company).set({ enabledFeatures: ['jobs', 'contacts', 'invoices', 'google_reviews', 'two_way_texting'] } as any).where(eq(t.schema.company.id, companyId))
+  await t.db.update(t.schema.company).set({ enabledFeatures: ['jobs', 'contacts', 'invoices', 'quotes', 'google_reviews', 'two_way_texting'] } as any).where(eq(t.schema.company.id, companyId))
   const hash = await Bun.password.hash(PASS, 'bcrypt')
   for (const [key, role] of [['crew', 'field'], ['mgr', 'manager'], ['admin', 'admin'], ['spare', 'admin']] as const) {
     const [u] = await t.db.insert(t.schema.user).values({ email: `${key}@test.example`, passwordHash: hash, firstName: key, lastName: 'Seat', role, companyId } as any).returning()
@@ -63,5 +63,36 @@ describe('roofing on the shared modules', () => {
     expect(((await r.json()) as any).data.map((row: any) => row.conversation.id)).toEqual([conv.id])
     const [after] = await t.db.select().from(t.schema.smsConversation).where(eq(t.schema.smsConversation.id, conv.id))
     expect(after.contactId).toBe(who.id)
+  })
+})
+
+describe('a roofing quote belongs to its job', () => {
+  test("a quote names its job — this company's only — and the quote list filters by it", async () => {
+    const [ct] = await t.db.insert(t.schema.contact).values({ companyId, name: 'Pat Gable' } as any).returning()
+    const [j] = await t.db.insert(t.schema.job).values({ companyId, contactId: ct.id, number: 'ROOF-0900', title: '9 Gable Ct', address: '9 Gable Ct' } as any).returning()
+    const [other] = await t.db.insert(t.schema.company).values({ name: 'Other Roofing', slug: 'other-roofing-q' }).returning()
+    const [theirs] = await t.db.insert(t.schema.job).values({ companyId: other.id, number: 'ROOF-0001', title: 'x', address: 'x' } as any).returning()
+    const made = await as('owner')('/api/quotes', { method: 'POST', json: { name: 'Re-roof', contactId: ct.id, jobId: j.id, lineItems: [{ description: 'Tear-off', quantity: 1, unitPrice: 100 }] } })
+    expect(made.status).toBe(201)
+    const q = await made.json() as any
+    expect(q.jobId).toBe(j.id)
+    expect((await as('owner')('/api/quotes', { method: 'POST', json: { name: 'Nope', contactId: ct.id, jobId: theirs.id } })).status).toBe(404)
+    await as('owner')('/api/quotes', { method: 'POST', json: { name: 'Gutters', contactId: ct.id, lineItems: [{ description: 'Gutters', quantity: 1, unitPrice: 50 }] } })
+    const listed = await (await as('owner')(`/api/quotes?jobId=${j.id}`)).json() as any
+    expect(listed.data.map((r: any) => r.id)).toEqual([q.id])
+  })
+})
+
+describe('the instant-estimate widget is served', () => {
+  test('/estimator.js answers browser JavaScript that reads its API from its own origin', async () => {
+    const r = await t.call('/estimator.js')
+    expect(r.status).toBe(200)
+    expect(r.headers.get('content-type')).toMatch(/javascript/)
+    const js = await r.text()
+    expect(js).toContain('twomiah-estimator')
+    expect(js).toContain('/api/estimator/config/')
+    expect(js).not.toMatch(/:\s*(string|number|boolean)\b\s*[,)=]/) // no TypeScript left in it
+    // The brand colour goes into the stylesheet only when it is one.
+    expect(js).toContain('#[0-9a-fA-F]{6}')
   })
 })

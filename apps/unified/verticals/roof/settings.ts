@@ -72,6 +72,8 @@ const roof: VerticalSettings = {
     roof: true,
     // The roofer's own /api/dashboard (server/crm/roof/field/dashboard.ts).
     dashboard: 'roof',
+    // Roofing sells no Call Tracking: the call log and the CallRail key are the AI Receptionist page's, on its switch.
+    callTrackingSwitch: 'ai_receptionist',
     documents: { markup: true, types: DOC_TYPES },
     tech: { checklistType: 'site_checklist', checklistTitle: 'Site checklist' },
     // A homeowner's portal (templates/crm-roof routes/portal.ts): their jobs, quotes to sign, invoices to pay, and a
@@ -82,6 +84,10 @@ const roof: VerticalSettings = {
   },
   // The screens' settings are filled as roofing's screens land (plan step 4).
   screens: {
+    // The roofer's own home and screens (web/src/crm/verticals/roof.tsx).
+    home: 'roofing',
+    // A quote is for one of the homeowner's jobs (quote.job_id): the shared quote form offers them.
+    invoicing: { clientLabel: 'Homeowner', projects: false, quoteJobs: true, quoteNamePlaceholder: 'e.g. Full roof replacement' },
     documents: { projects: false, markup: true, types: DOC_TYPES },
   },
   // templates/website-premium-roofing views/sections/contact/form-info.ejs

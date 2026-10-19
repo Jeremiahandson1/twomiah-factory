@@ -79,5 +79,14 @@ runs clean on the unified app: every file passes or is a divergence held by a na
 files, about 400 checks) pass. `docs/CUTOVER_LEDGER.md` "Roofing" lists what moved, what changed and why, the cutover data
 steps, and what the owner decides before roof reports, the estimator and storm alerts are offered.
 
-Next: step 4, the screens (roofing's own pages under `web/src/crm/pages/roof/`; its jobs pages over the CRM's job; the
-CRM's quote, invoice, contact, team and portal screens for roofers), then the browser check.
+## Screens landed (2026-10-19)
+
+Steps 4 and 5 are in: roofing's own pages under `web/src/crm/pages/roof/{jobs,insurance,reports,field}` (the guide is
+`docs/UNIFIED_ROOF_SCREENS.md`), the CRM's contacts, quotes (a quote names its job), invoices, portal, leads and settings
+for everything else, and a roofer's menu in roofing's order. The map and 3D libraries load only on the pages that use
+them. The browser check ran every seat (owner, admin, manager, crew rep, read-only) through every page in its menu and
+every control that opens something, light at 1440 and dark at 390 — about 760 openings; what it found is fixed and listed
+in `docs/CUTOVER_LEDGER.md` "Roofing's screens". Roofing's suite and its adapted copies pass on the unified app.
+
+Left for cutover (step 6 and the ledger): the data steps, the Factory's `roofing` vertical id and
+`GOOGLE_MAPS_BROWSER_KEY`, and the owner's decisions before roof reports, the estimator and storm alerts are offered.

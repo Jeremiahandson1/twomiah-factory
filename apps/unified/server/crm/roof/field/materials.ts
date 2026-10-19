@@ -14,7 +14,8 @@
 //     edit's '' date clears it (the template handed '' to the timestamp column, a 500).
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, count, desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq, gte, lt } from 'drizzle-orm'
+import { companyTimeZone, isIsoDate, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
 import { job, material } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -87,6 +88,20 @@ export function createMaterialRoutes(d: CrmDeps) {
     if (supplier) conditions.push(eq(material.supplier, supplier))
     if (orderStatus) conditions.push(eq(material.orderStatus, orderStatus))
     if (jobId) conditions.push(eq(material.jobId, jobId))
+    // The order date from / to, whole days on the company's clock (the screen sends YYYY-MM-DD). The template's screen
+    // sent them and no server read them, so the filter did nothing (found moving the screens, 2026-10-19).
+    const dateFrom = c.req.query('dateFrom'), dateTo = c.req.query('dateTo')
+    for (const [name, v] of [['dateFrom', dateFrom], ['dateTo', dateTo]] as const) {
+      if (v && !isIsoDate(v)) return fail(c, 400, `${name} must be a date (YYYY-MM-DD)`)
+    }
+    if (dateFrom || dateTo) {
+      const tz = await companyTimeZone(db, companyId)
+      if (dateFrom) conditions.push(gte(material.orderDate, zonedWallTimeToUtc(dateFrom, '00:00', tz)))
+      if (dateTo) {
+        const next = new Date(`${dateTo}T12:00:00Z`); next.setUTCDate(next.getUTCDate() + 1)
+        conditions.push(lt(material.orderDate, zonedWallTimeToUtc(next.toISOString().slice(0, 10), '00:00', tz)))
+      }
+    }
     const where = and(...conditions)
     const [rows, [{ value: total }]] = await Promise.all([
       db.select({ material, jobNumber: job.number }).from(material)

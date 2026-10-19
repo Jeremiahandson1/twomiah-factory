@@ -30,7 +30,7 @@ export interface QuoteTables {
   site?: any
 }
 
-export type QuoteExtraField = 'siteId' | 'equipmentId' | 'customerMessage'
+export type QuoteExtraField = 'siteId' | 'equipmentId' | 'customerMessage' | 'jobId'
 
 export interface QuoteOptions {
   /** Extra quote columns this vertical has (siteId, equipmentId, customerMessage). */
@@ -231,6 +231,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     ...(extra.has('siteId') ? { siteId: optionalId } : {}),
     ...(extra.has('equipmentId') ? { equipmentId: optionalId } : {}),
     ...(extra.has('customerMessage') ? { customerMessage: z.string().optional() } : {}),
+    // The job a quote is for (roofing: a proposal belongs to its job — quote.job_id, migration 0012).
+    ...(extra.has('jobId') ? { jobId: optionalId } : {}),
     expiryDate: z.union([z.string(), z.null()]).optional(),
     taxRate: z.number().min(0).max(100).optional(),
     discount: z.number().min(0, 'Discount cannot be negative').default(0),
@@ -239,7 +241,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     lineItems: z.array(lineItemSchema).default([]),
     status: z.enum(QUOTE_STATUSES).optional(),
   })
-  const COPY_FIELDS = ['name', 'contactId', 'projectId', 'notes', 'terms', ...(extra.has('siteId') ? ['siteId'] : []), ...(extra.has('equipmentId') ? ['equipmentId'] : []), ...(extra.has('customerMessage') ? ['customerMessage'] : [])] as const
+  const COPY_FIELDS = ['name', 'contactId', 'projectId', 'notes', 'terms', ...(extra.has('siteId') ? ['siteId'] : []), ...(extra.has('equipmentId') ? ['equipmentId'] : []), ...(extra.has('customerMessage') ? ['customerMessage'] : []), ...(extra.has('jobId') ? ['jobId'] : [])] as const
 
   const app = new Hono()
   app.use('*', authenticate)
@@ -250,6 +252,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   }
   const ownContact = async (companyId: string, id: string) => (await db.select({ id: t.contact.id }).from(t.contact).where(and(eq(t.contact.id, id), eq(t.contact.companyId, companyId))).limit(1))[0]
   const ownProject = async (companyId: string, id: string) => (await db.select({ id: t.project.id }).from(t.project).where(and(eq(t.project.id, id), eq(t.project.companyId, companyId))).limit(1))[0]
+  const ownJob = async (companyId: string, id: string) => (await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.id, id), eq(t.job.companyId, companyId))).limit(1))[0]
   const findOwn = async (companyId: string, id: string) => (await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, companyId))).limit(1))[0]
   const lineRows = (id: string) => db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
 
@@ -258,6 +261,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const currentUser = c.get('user') as any
     const status = c.req.query('status')
     const contactId = c.req.query('contactId')
+    const jobId = extra.has('jobId') ? c.req.query('jobId') : undefined
     const search = c.req.query('search')
     const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1)
     const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') || '50', 10) || 50), maxLimit)
@@ -267,6 +271,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const conditions: any[] = [eq(t.quote.companyId, currentUser.companyId)]
     if (status) conditions.push(eq(t.quote.status, status))
     if (contactId) conditions.push(eq(t.quote.contactId, contactId))
+    if (jobId) conditions.push(eq(t.quote.jobId, jobId))
     if (search) { const p = `%${search}%`; conditions.push(or(ilike(t.quote.number, p), ilike(t.quote.name, p))) }
     const where = and(...conditions)
     const [data, [{ value: total }]] = await Promise.all([
@@ -329,6 +334,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const data = quoteSchema.parse(await c.req.json()) as any
     if (data.contactId && !(await ownContact(cid, data.contactId))) return c.json({ error: 'That client does not exist.' }, 404)
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
+    if ((data as any).jobId && !(await ownJob(cid, (data as any).jobId))) return c.json({ error: 'That job does not exist.' }, 404)
     const subtotalRaw = rawSubtotal(data.lineItems)
     if (data.discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
     // A quote is a priced offer: it needs something on it, and an expiry date that hasn't already passed — a $0.00
@@ -390,6 +396,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (!EDITABLE.includes(existing.status)) return c.json({ error: 'Only draft or sent quotes can be edited' }, 400)
     if (data.contactId && !(await ownContact(cid, data.contactId))) return c.json({ error: 'That client does not exist.' }, 404)
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
+    if ((data as any).jobId && !(await ownJob(cid, (data as any).jobId))) return c.json({ error: 'That job does not exist.' }, 404)
     const exp = normalizeDateInput(data.expiryDate)
     if (exp.error) return c.json({ error: `Expiry date: ${exp.error}` }, 400)
     const update: Record<string, any> = { updatedAt: new Date() }

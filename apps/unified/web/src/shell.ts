@@ -16,6 +16,7 @@ import { nav as restaurantNav } from './crm/verticals/restaurant'
 import { nav as rvNav } from './crm/verticals/rv'
 import { nav as salonNav } from './crm/verticals/salon'
 import { nav as vetNav } from './crm/verticals/vet'
+import { nav as roofNav, routePermissions as roofRoutePermissions, isRoofing, roofingMenu } from './crm/verticals/roof'
 import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN, SETTINGS_HIDDEN, banner as homecareBanner, headerActions as homecareHeaderActions } from './crm/verticals/homecare'
 
 const SHARED_NAV: NavItem[] = [
@@ -109,11 +110,15 @@ const SHARED_NAV: NavItem[] = [
   ...rvNav,
   ...salonNav,
   ...vetNav,
+  ...roofNav,
 ]
 
 const NAV: NavItem[] = [
   // An agency's menu is the shared items it has, then its own under its headings (crm/verticals/homecare.tsx).
-  ...(isHomecare ? SHARED_NAV.filter((item) => !SHARED_HIDDEN.includes(item.to)) : SHARED_NAV),
+  ...(isHomecare ? SHARED_NAV.filter((item) => !SHARED_HIDDEN.includes(item.to))
+    // A roofer's: in roofing's order, its own pages in place of the shared ones at the same addresses.
+    : isRoofing ? roofingMenu(SHARED_NAV)
+    : SHARED_NAV),
   ...homecareNav,
 ]
 
@@ -133,7 +138,7 @@ export const SHELL: ShellConfig = {
     // The bar register's other screens (grill, floor, close-out, count, clock), opened from it.
     ...barRouteGates,
   },
-  routePermissions: { ...barRoutePermissions, ...homecareRoutePermissions },
+  routePermissions: { ...barRoutePermissions, ...homecareRoutePermissions, ...roofRoutePermissions },
   // An agency's View As: the header's button and, while one is open, the strip that says whose app this is.
   ...(isHomecare ? { headerActions: homecareHeaderActions, banner: homecareBanner } : {}),
   routeRoles: {

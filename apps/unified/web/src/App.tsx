@@ -31,6 +31,7 @@ import * as rvScreens from './crm/verticals/rv'
 import * as salonScreens from './crm/verticals/salon'
 import * as vetScreens from './crm/verticals/vet'
 import * as homecareScreens from './crm/verticals/homecare'
+import * as roofScreens from './crm/verticals/roof'
 // The customer portal is its own bundle (crm/portal.tsx: Stripe stays out of the admin).
 const PortalApp = lazy(() => import('./crm/portal'))
 const ProjectsPage = page(() => import('./crm/pages/ProjectsPage'))
@@ -91,6 +92,8 @@ export default function App() {
 
                     {/* The CRM's first-run wizard: full screen, outside the shell, as in the template. */}
                     <Route path="/crm/onboarding" element={<ProtectedRoute><Crm.Onboarding /></ProtectedRoute>} />
+                    {/* Roofing's canvasser view: full screen, outside the shell, for a roofer only (crm/verticals/roof.tsx). */}
+                    {roofScreens.isRoofing && <Route path="/crm/canvass" element={<ProtectedRoute><roofScreens.CanvassView /></ProtectedRoute>} />}
 
                     <Route path="/crm" element={<ProtectedRoute><Shell /></ProtectedRoute>}>
                       <Route index element={<Home />} />
@@ -99,6 +102,8 @@ export default function App() {
                         {/* Home care's first: where it and the CRM name the same path (/crm/documents, /crm/reports…) the
                             server's API is home care's for that vertical, so the page is too (crm/verticals/homecare.tsx). */}
                         {homecareScreens.routes}
+                        {/* Roofing's the same way: its jobs pages are the page for its /api/jobs (crm/verticals/roof.tsx). */}
+                        {roofScreens.routes}
                         <Route path="dashboard" element={<Crm.Dashboard />} />
                         <Route path="contacts" element={<Crm.Contacts />} />
                         <Route path="contacts/:id" element={<Crm.ContactDetail />} />

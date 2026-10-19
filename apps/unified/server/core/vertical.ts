@@ -214,6 +214,12 @@ export interface CrmSettings {
    * services/calltracking.ts, services/aiReceptionist.ts). Absent: contacts, and the Lead Inbox where it is on. (homecare)
    */
   callers?: 'clients'
+  /**
+   * The switch the call log, the tracking numbers and the CallRail key (/api/calltracking) ride. 'ai_receptionist': the
+   * vertical sells no Call Tracking, so the AI Receptionist page is their only screen and its switch opens them, its
+   * Settings tab holding the CallRail key (templates/crm-roof index.ts, AIReceptionistPage.tsx). Absent: 'call_tracking'. (roof)
+   */
+  callTrackingSwitch?: 'ai_receptionist'
   /** The expense categories this trade buys in, and the words for the ones whose id isn't enough. Absent: the shared list. (salon) */
   expenses?: { categories: string[]; categoryLabels?: Record<string, string> }
   reports?: {

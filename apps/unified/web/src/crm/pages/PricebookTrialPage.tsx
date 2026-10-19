@@ -27,7 +27,9 @@ export default function PricebookTrialPage() {
     setStarting(true);
     setError('');
     try {
-      await api.post('/api/support/tickets', {
+      // To Twomiah, who switches the add-on on: /api/platform-support ("Contact Twomiah"). /api/support/tickets is the
+      // business's OWN help desk, where Twomiah never sees it (found beside roofing's estimator trial, 2026-10-19).
+      await api.post('/api/platform-support/tickets', {
         subject: 'Pricebook — 30-Day Free Trial Request',
         description: `${company?.name || 'Customer'} is requesting a 30-day free trial of the Pricebook add-on.`,
         category: 'feature_request',

@@ -38,7 +38,11 @@ for (const [project, baseline] of Object.entries(PACKAGES_BASELINE)) {
 // Factory is live code the fence keeps read-only; its own errors are not this check's.
 {
   const api = path.resolve(import.meta.dir, '..', 'apps', 'api')
-  const run = spawnSync(process.execPath, ['x', 'tsc', '-p', 'tsconfig.json', '--noEmit'], { cwd: api, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  // The repo's own TypeScript (the unified app's devDependency), not `bun x tsc`: apps/api has none, so bun x fetched
+  // typescript@latest into a temp folder each run — an unpinned compiler, and on this machine a half-written download
+  // ("lib.d.ts does not exist") three times in one day. (2026-10-19)
+  const tsc = path.resolve(import.meta.dir, '..', 'apps', 'unified', 'node_modules', 'typescript', 'bin', 'tsc')
+  const run = spawnSync(process.execPath, [tsc, '-p', 'tsconfig.json', '--noEmit'], { cwd: api, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
   const lines = (run.stdout + run.stderr).split('\n').filter((l) => /error TS\d+/.test(l))
   if (run.status !== 0 && lines.length === 0) {
     console.log('apps/api: ' + ((run.stdout + run.stderr).trim() || `tsc exited ${run.status} with no output`))

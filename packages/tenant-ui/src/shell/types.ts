@@ -156,6 +156,11 @@ export interface SettingsConfig {
   /** The settings sub-pages this app serves (their `/crm/settings/...` paths). Default all — a link to a page the app
    *  has no route for is a link to the 404. */
   subPages?: string[]
+  /**
+   * The vertical's own settings pages, after the shared ones (roofing's estimator widget): each shown to whoever holds
+   * `permission` (when given) and has `feature` on (when given) — a permission, never a rank.
+   */
+  extraSubPages?: Array<{ to: string; label: string; icon: import('react').ComponentType<{ className?: string }>; permission?: string; feature?: string }>
 }
 
 export interface SettingsAuth {

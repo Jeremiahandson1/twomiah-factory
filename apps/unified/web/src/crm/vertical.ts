@@ -57,6 +57,16 @@ export interface VerticalScreens {
    */
   home?: string
   /**
+   * The browser's Google Maps key (address search, satellite tiles), served at run time by the server
+   * (GOOGLE_MAPS_BROWSER_KEY, restricted to the tenant's web addresses). Empty: no key — the screens fall back.
+   */
+  mapsBrowserKey?: string
+  /**
+   * The switch the call log and the CallRail key ride (server CrmSettings.callTrackingSwitch, served at run time):
+   * 'ai_receptionist' puts the CallRail key in the AI Receptionist page's Settings tab, there being no Call Tracking page.
+   */
+  callTrackingSwitch?: 'call_tracking' | 'ai_receptionist'
+  /**
    * The vertical whose own figures sit above the shared Reports page ('bar': the register's nights, crm/verticals/bar.tsx
    * `reportsAbove`). Absent: the shared page alone. Read it with `typeof … === 'string'`.
    */

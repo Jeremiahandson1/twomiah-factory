@@ -1,0 +1,213 @@
+// Moved from templates/crm-roof/frontend/src/pages/settings/EstimatorSettingsPage.tsx (Settings › Instant Estimator
+// Widget). Changes: it reads the company from GET /api/company (the template's /api/settings/company is the CRM's own
+// company record here — server/crm/roof/reports/estimator.ts); Save is offered to whoever holds company:update, the
+// permission PUT /api/settings/estimator asks (the template checked the owner/admin rank), and a refusal says the
+// server's sentence; the switch's track has its own dark ground (its `dark:bg-slate-900` sat on the track, not the
+// knob, so in dark mode the switch was the card's colour and vanished).
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Save, Copy, CheckCircle } from 'lucide-react';
+import { useMayWrite, useToast, errorText } from '../../../../shared';
+import { api } from '../../../../api';
+
+/** The estimator's columns on the company, and its slug (GET /api/company). */
+interface EstimatorSettings {
+  estimatorEnabled: boolean;
+  pricePerSquareLow: string;
+  pricePerSquareHigh: string;
+  estimatorHeadline: string;
+  estimatorDisclaimer: string;
+}
+
+const DEFAULT_HEADLINE = 'Get Your Free Roof Estimate';
+const DEFAULT_DISCLAIMER = 'This is an automated estimate based on satellite data. Final pricing may vary after on-site inspection.';
+
+export default function EstimatorSettingsPage() {
+  const toast = useToast();
+  const navigate = useNavigate();
+  // PUT /api/settings/estimator asks company:update — so don't offer a Save button to anyone else. (T27)
+  const maySave = useMayWrite('company:update');
+
+  const [settings, setSettings] = useState<EstimatorSettings>({
+    estimatorEnabled: false,
+    pricePerSquareLow: '350.00',
+    pricePerSquareHigh: '550.00',
+    estimatorHeadline: DEFAULT_HEADLINE,
+    estimatorDisclaimer: DEFAULT_DISCLAIMER,
+  });
+  const [companySlug, setCompanySlug] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const data: Partial<EstimatorSettings> & { slug?: string } = await api.get('/api/company');
+      setCompanySlug(data.slug || '');
+      setSettings({
+        estimatorEnabled: data.estimatorEnabled ?? false,
+        pricePerSquareLow: data.pricePerSquareLow || '350.00',
+        pricePerSquareHigh: data.pricePerSquareHigh || '550.00',
+        estimatorHeadline: data.estimatorHeadline || DEFAULT_HEADLINE,
+        estimatorDisclaimer: data.estimatorDisclaimer || DEFAULT_DISCLAIMER,
+      });
+    } catch {
+      toast.error('Failed to load settings');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.put('/api/settings/estimator', settings);
+      toast.success('Estimator settings saved');
+    } catch (err) {
+      toast.error(errorText(err, 'Failed to save settings'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const embedSnippet = `<div id="twomiah-estimator" data-slug="${companySlug}"></div>
+<script src="${window.location.origin}/estimator.js"></script>`;
+
+  const copyEmbed = () => {
+    navigator.clipboard.writeText(embedSnippet);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast.success('Embed code copied');
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
+        <div>
+          <button onClick={() => navigate('/crm/settings')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 mb-3 dark:text-slate-400">
+            <ArrowLeft className="w-4 h-4" /> Back to Settings
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Instant Estimator</h1>
+          <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">
+            Embed a roof cost estimator on your website. Visitors enter their address and instantly see an estimated price range.
+          </p>
+        </div>
+
+        {/* Enable toggle */}
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Enable Estimator</h2>
+              <p className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">Allow your website to serve instant estimates</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.estimatorEnabled}
+                onChange={(e) => setSettings({ ...settings, estimatorEnabled: e.target.checked })}
+                className="sr-only peer"
+                aria-label="Enable Estimator"
+              />
+              <div className="w-11 h-6 bg-gray-200 dark:bg-slate-600 peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:bg-purple-600 dark:peer-checked:bg-purple-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all" />
+            </label>
+          </div>
+        </div>
+
+        {/* Pricing */}
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-gray-900 mb-4 dark:text-slate-100">Pricing Range</h2>
+          <p className="text-xs text-gray-500 mb-3 dark:text-slate-400">Set the per-square price range shown to homeowners.</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Low ($/square)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={settings.pricePerSquareLow}
+                onChange={(e) => setSettings({ ...settings, pricePerSquareLow: e.target.value })}
+                className="w-full text-sm border rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">High ($/square)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={settings.pricePerSquareHigh}
+                onChange={(e) => setSettings({ ...settings, pricePerSquareHigh: e.target.value })}
+                className="w-full text-sm border rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+            Example: A 25-square roof at ${settings.pricePerSquareLow}–${settings.pricePerSquareHigh}/sq = ${(25 * Number(settings.pricePerSquareLow)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}–${(25 * Number(settings.pricePerSquareHigh)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+        </div>
+
+        {/* Customization */}
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-gray-900 mb-4 dark:text-slate-100">Customization</h2>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Headline</label>
+              <input
+                value={settings.estimatorHeadline}
+                onChange={(e) => setSettings({ ...settings, estimatorHeadline: e.target.value })}
+                className="w-full text-sm border rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Disclaimer</label>
+              <textarea
+                value={settings.estimatorDisclaimer}
+                onChange={(e) => setSettings({ ...settings, estimatorDisclaimer: e.target.value })}
+                rows={3}
+                className="w-full text-sm border rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Embed Code */}
+        {settings.estimatorEnabled && companySlug && (
+          <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Embed Code</h2>
+            <p className="text-xs text-gray-500 mb-3 dark:text-slate-400">Paste this snippet into your website HTML where you want the estimator to appear.</p>
+            <div className="relative">
+              <pre className="bg-gray-900 text-green-400 text-xs rounded-lg p-4 overflow-x-auto">
+                {embedSnippet}
+              </pre>
+              <button
+                onClick={copyEmbed}
+                className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-gray-700 text-white text-xs rounded hover:bg-gray-600"
+              >
+                {copied ? <CheckCircle className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Save button */}
+        <div className="flex items-center justify-end gap-3">
+          {!maySave && <span className="text-xs text-gray-500 dark:text-slate-400">Only an owner or administrator can change the estimator settings.</span>}
+          {maySave && (
+            <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-5 py-2.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50">
+              <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Settings'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

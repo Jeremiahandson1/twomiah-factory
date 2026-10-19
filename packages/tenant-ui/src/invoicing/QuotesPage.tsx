@@ -8,7 +8,7 @@ import { todayKey } from '../time/day'
 import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, quoteSentMessage, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
-interface QuoteForm { name: string; contactId: string; projectId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[] }
+interface QuoteForm { name: string; contactId: string; projectId: string; jobId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[] }
 const blankLine = (): LineItemInput => ({ description: '', quantity: 1, unitPrice: 0 })
 const EDITABLE = ['draft', 'sent']
 
@@ -33,13 +33,15 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const mayInvoice = useMayWrite('invoices:create')
   const mayJob = useMayWrite('jobs:create')
   const statuses = ['draft', 'sent', 'approved', cfg.quoteDecline ? 'declined' : 'rejected', 'expired']
-  const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()] })
+  const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', jobId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()] })
 
   const [data, setData] = useState<Row[]>([])
   const [contacts, setContacts] = useState<Row[]>([])
   const [projects, setProjects] = useState<Row[]>([])
   const [sites, setSites] = useState<Row[]>([])
   const [equipment, setEquipment] = useState<Row[]>([])
+  /** The chosen customer's jobs, where a quote is for a job (cfg.quoteJobs). */
+  const [customerJobs, setCustomerJobs] = useState<Row[]>([])
   /** The catalogue, when this vertical prices quotes from it. Empty everywhere else. (T41) */
   const [pricebook, setPricebook] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
@@ -85,13 +87,14 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   useEffect(() => { load() }, [load])
 
   const loadCustomerExtras = (contactId: string) => {
+    if (cfg.quoteJobs) { if (contactId) api.get('/api/jobs', { contactId, limit: 100 }).then((r: any) => setCustomerJobs(r?.data || [])).catch(() => setCustomerJobs([])); else setCustomerJobs([]) }
     if (cfg.quoteEquipment) { if (contactId) api.get('/api/equipment', { contactId, limit: 100 }).then((r: any) => setEquipment(r?.data || [])).catch(() => setEquipment([])); else setEquipment([]) }
     if (cfg.quoteSites) { if (contactId) api.get(`/api/contacts/${contactId}/sites`).then((r: any) => setSites(Array.isArray(r) ? r : r?.data || [])).catch(() => setSites([])); else setSites([]) }
   }
   const openCreate = () => { setEditing(null); setForm(emptyForm()); setSites([]); setEquipment([]); setModalOpen(true) }
   const openEdit = useCallback((item: Row) => {
     setEditing(item)
-    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', lineItems: item.lineItems?.length ? item.lineItems.map((li: any) => ({
+    setForm({ name: item.name || '', contactId: item.contactId || '', projectId: item.projectId || '', jobId: item.jobId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate ? String(item.expiryDate).slice(0, 10) : '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', lineItems: item.lineItems?.length ? item.lineItems.map((li: any) => ({
       description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice),
       /*
        * The cost fields have to survive a round trip. PUT replaces the whole line set, so reading a
@@ -105,6 +108,15 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     loadCustomerExtras(item.contactId || '')
     setModalOpen(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (searchParams.get('new') !== '1' || !mayCreate) return
+    const contactId = searchParams.get('contactId') || ''
+    const jobId = cfg.quoteJobs ? searchParams.get('jobId') || '' : ''
+    setEditing(null); setForm({ ...emptyForm(), contactId, jobId }); setSites([]); setEquipment([]); loadCustomerExtras(contactId); setModalOpen(true)
+    for (const k of ['new', 'contactId', 'jobId']) searchParams.delete(k)
+    setSearchParams(searchParams, { replace: true })
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const editId = searchParams.get('edit')
@@ -133,6 +145,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       const payload: any = { name: form.name.trim(), contactId: form.contactId, expiryDate: form.expiryDate || null, taxRate: form.taxRate, discount: form.discount, notes: form.notes, terms: form.terms, lineItems: linesForSave }
       if (cfg.projects) payload.projectId = form.projectId
       if (cfg.quoteSites) payload.siteId = form.siteId
+      if (cfg.quoteJobs) payload.jobId = form.jobId
       if (cfg.quoteEquipment) payload.equipmentId = form.equipmentId
       if (cfg.quoteCustomerMessage) payload.customerMessage = form.customerMessage
       let saved: any
@@ -184,7 +197,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
         <div className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div className="md:col-span-2"><Field label="Name *"><input value={form.name} onChange={e => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} placeholder={cfg.quoteNamePlaceholder} /></Field></div>
-            <Field label={cfg.clientLabel}><select value={form.contactId} onChange={e => { setForm((f) => ({ ...f, contactId: e.target.value, siteId: '', equipmentId: '' })); loadCustomerExtras(e.target.value) }} className={inputCls}><option value="">Select…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+            <Field label={cfg.clientLabel}><select value={form.contactId} onChange={e => { setForm((f) => ({ ...f, contactId: e.target.value, jobId: '', siteId: '', equipmentId: '' })); loadCustomerExtras(e.target.value) }} className={inputCls}><option value="">Select…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+            {cfg.quoteJobs && <Field label="Job"><select value={form.jobId} onChange={e => setForm((f) => ({ ...f, jobId: e.target.value }))} className={inputCls} disabled={!form.contactId}><option value="">{form.contactId ? 'No job' : 'Pick the customer first'}</option>{customerJobs.map(j => <option key={j.id} value={j.id}>{j.number}{j.address ? ` — ${j.address}` : ''}</option>)}</select></Field>}
             {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => setForm((f) => ({ ...f, projectId: e.target.value }))} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
             {cfg.quoteSites && sites.length > 0 && <Field label="Location"><select value={form.siteId} onChange={e => setForm((f) => ({ ...f, siteId: e.target.value }))} className={inputCls}><option value="">No specific location</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}</select></Field>}
             {cfg.quoteEquipment && equipment.length > 0 && <Field label="Equipment"><select value={form.equipmentId} onChange={e => setForm((f) => ({ ...f, equipmentId: e.target.value }))} className={inputCls}><option value="">No specific unit</option>{equipment.map(eq => <option key={eq.id} value={eq.id}>{eq.name}{eq.manufacturer ? ` — ${eq.manufacturer}` : ''}{eq.model ? ` ${eq.model}` : ''}</option>)}</select></Field>}

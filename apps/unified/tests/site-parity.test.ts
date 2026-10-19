@@ -2,7 +2,8 @@
 // Compares against templates/website-premium-*, which stay on this branch until cutover; this file goes with them.
 //
 //   1. The section library is the templates' own files: each one byte-identical to every template copy, except the
-//      three merged on purpose (before/after slider, contact form, base layout).
+//      ones merged on purpose (before/after slider, contact form, base layout, and the instant-estimator section: the
+//      site and the CRM are one app, so the widget loads from the site's own /estimator.js and needs no CRM origin).
 //   2. Each design's sample pages, through the templates' views and through the unified app: the same HTML.
 //   3. The contact form says each vertical's words and posts `message`, as the vertical's template did.
 //   4. Each design's stylesheet keeps every rule its template served, except the ones styling markup no longer
@@ -21,7 +22,7 @@ const TEMPLATES = path.resolve(import.meta.dir, '..', '..', '..', 'templates')
 // The template families compared (website-premium-<family>), and the design each one's look is in the unified app.
 const DESIGNS = ['contractor', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'rv', 'showcase', 'vet'] as const
 const designOf = (family: typeof DESIGNS[number]): SiteContext['design'] => (family === 'contractor' || family === 'rv' || family === 'vet' ? 'classic' : family)
-const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ejs', 'sections/contact/form-info.ejs'])
+const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ejs', 'sections/contact/form-info.ejs', 'sections/tools/estimator.ejs'])
 
 /** Each template's words, as its own views and server said them. */
 const WORDS: Record<string, SiteContext['words']> = {

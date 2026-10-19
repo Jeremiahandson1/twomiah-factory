@@ -3,8 +3,9 @@
 //
 // Mounted public: the two provider webhooks answer without a session and prove they ARE the provider (signature
 // checked before anything is read or written; unsigned/forged → 403). Everything after them signs the person in and
-// needs Call Tracking switched on — here, inside the router, as the template ordered it, so a tenant with Call
-// Tracking off still logs the calls its providers send.
+// needs Call Tracking switched on (or, where the vertical sells no Call Tracking, the AI Receptionist —
+// CrmSettings.callTrackingSwitch) — here, inside the router, as the template ordered it, so a tenant with the switch
+// off still logs the calls its providers send.
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
@@ -73,9 +74,9 @@ export function createCalltrackingRoutes(d: CrmDeps) {
     return c.body(null, 200)
   })
 
-  // ── Signed in, and Call Tracking on ──
+  // ── Signed in, and Call Tracking on (the AI Receptionist, where that is the switch) ──
   app.use('*', d.authenticate)
-  app.use('*', d.features.requireEnabledFeature('call_tracking'))
+  app.use('*', d.features.requireEnabledFeature(d.settings?.callTrackingSwitch ?? 'call_tracking'))
 
   // Tracking numbers
   app.get('/numbers', requirePermission('calltracking:read'), async (c) => {

@@ -11,7 +11,7 @@
 //   · matching an event twice no longer lists every contact twice (stormRadarService.ts).
 import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
-import { stormRadarEvent, stormRadarEventMatch } from '../../../db/schema/index.ts'
+import { contact, stormRadarEvent, stormRadarEventMatch } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
@@ -76,7 +76,11 @@ export function createStormRadarRoutes(d: CrmDeps, radar: StormRadar = createSto
     const status = c.req.query('status')
     const conditions: any[] = [eq(stormRadarEventMatch.companyId, companyId)]
     if (status) conditions.push(eq(stormRadarEventMatch.status, status))
-    const matches = await db.select().from(stormRadarEventMatch).where(and(...conditions)).orderBy(desc(stormRadarEventMatch.createdAt), desc(stormRadarEventMatch.id))
+    // With the contact's name, so a match reads as who it is (it carried the id alone).
+    const rows = await db.select({ match: stormRadarEventMatch, contactName: contact.name }).from(stormRadarEventMatch)
+      .leftJoin(contact, and(eq(contact.id, stormRadarEventMatch.contactId), eq(contact.companyId, companyId)))
+      .where(and(...conditions)).orderBy(desc(stormRadarEventMatch.createdAt), desc(stormRadarEventMatch.id))
+    const matches = rows.map((r: any) => ({ ...r.match, contactName: r.contactName ?? null }))
     return list(c, matches, { page: 1, limit: matches.length, total: matches.length })
   })
 

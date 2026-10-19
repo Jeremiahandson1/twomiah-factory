@@ -9,7 +9,7 @@
 //   · an edit and a delete are scoped to the company in the write itself, not only in the lookup before it.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, desc, eq, notInArray } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, notInArray } from 'drizzle-orm'
 import { crew, job } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -28,6 +28,9 @@ const crewSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
+/** A crew's job is active until it is finished (invoiced, collected) or closed (lost, cancelled). */
+const ACTIVE_EXCLUDES = ['invoiced', 'collected', 'lost', 'cancelled']
+
 export function createCrewRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission } = d.permissions
@@ -37,8 +40,18 @@ export function createCrewRoutes(d: CrmDeps) {
 
   // GET / — every crew. Read by the Reports page to name its revenue-by-crew rows, so no permission beyond signing in.
   app.get('/', async (c) => {
-    const crews = await db.select().from(crew).where(eq(crew.companyId, c.get('user').companyId)).orderBy(desc(crew.createdAt), desc(crew.id))
-    return list(c, crews, { page: 1, limit: crews.length, total: crews.length })
+    const companyId = c.get('user').companyId
+    const crews = await db.select().from(crew).where(eq(crew.companyId, companyId)).orderBy(desc(crew.createdAt), desc(crew.id))
+    // Each crew's active-job count (the same rule as GET /:id's activeJobs), so the list need not open every crew: the
+    // template's screen read an activeJobCount no reply ever carried, and every crew read "0 active".
+    const counts = crews.length
+      ? await db.select({ crewId: job.assignedCrewId, n: count() }).from(job)
+        .where(and(eq(job.companyId, companyId), inArray(job.assignedCrewId, crews.map((r: any) => r.id)), notInArray(job.status, ACTIVE_EXCLUDES)))
+        .groupBy(job.assignedCrewId)
+      : []
+    const byCrew = new Map(counts.map((r: any) => [r.crewId, Number(r.n)]))
+    const rows = crews.map((r: any) => ({ ...r, activeJobCount: byCrew.get(r.id) ?? 0 }))
+    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
   })
 
   app.post('/', requirePermission('crews:create'), async (c) => {
@@ -58,7 +71,7 @@ export function createCrewRoutes(d: CrmDeps) {
     const activeJobs = await db.select({
       id: job.id, number: job.number, jobType: job.jobType, status: job.status,
       address: job.address, city: job.city, state: job.state, installDate: job.installDate,
-    }).from(job).where(and(eq(job.assignedCrewId, id), eq(job.companyId, companyId), notInArray(job.status, ['invoiced', 'collected', 'lost', 'cancelled']))).orderBy(desc(job.createdAt), desc(job.id))
+    }).from(job).where(and(eq(job.assignedCrewId, id), eq(job.companyId, companyId), notInArray(job.status, ACTIVE_EXCLUDES))).orderBy(desc(job.createdAt), desc(job.id))
     return one(c, { ...found, activeJobs })
   })
 

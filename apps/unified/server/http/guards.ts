@@ -13,7 +13,9 @@ export const CSP = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
-  "connect-src 'self' https: wss:",
+  // data: — MapLibre fetch()es the roof-report preview's satellite image, which is a data: URL; without it the editor's
+  // canvas stayed blank (templates/crm-roof T61). A data: URL carries nothing out.
+  "connect-src 'self' https: wss: data:",
   // 'self': the website editor shows the site itself in a frame (web/src/site/pages/PageEditPage.tsx).
   "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://www.google.com https://maps.google.com",
   "worker-src 'self' blob:",

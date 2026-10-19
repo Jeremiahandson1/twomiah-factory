@@ -8,6 +8,7 @@ import {
 import { api } from './api'
 import { SHELL, SETTINGS_SUB_PAGES } from './shell'
 import { verticalScreens } from './crm/vertical'
+import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import type { ShellConfig } from './shared'
 
 /** Where the admin opens. */
@@ -57,7 +58,7 @@ export const ResetPassword = () => <ResetPasswordPage api={api} />
 
 export function Settings() {
   const auth = useAuth()
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, subPages: SETTINGS_SUB_PAGES }} />
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, subPages: SETTINGS_SUB_PAGES, extraSubPages: ROOF_SETTINGS_EXTRA }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />
