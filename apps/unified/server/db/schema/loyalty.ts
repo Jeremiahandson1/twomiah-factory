@@ -49,6 +49,8 @@ export const loyaltyReward = pgTable('loyalty_rewards', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   // The service this reward pays for, when type is free_item.
   serviceId: text('service_id').references(() => serviceMenu.id, { onDelete: 'set null' }),
+  // The store's: the basket a reward needs before it can be spent, in cents (0 = any).
+  minSubtotalCents: integer('min_subtotal_cents').default(0).notNull(),
 }, (t) => [
   index('loyalty_reward_company_id_idx').on(t.companyId),
 ])
@@ -71,8 +73,13 @@ export const loyaltyTransaction = pgTable('loyalty_transactions', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   appointmentId: text('appointment_id'),
   invoiceId: text('invoice_id'),
+  // The store's: the order it was earned or spent on (templates/crm-store loyalty_transactions.order_id).
+  orderId: text('order_id'),
 }, (t) => [
   index('loyalty_tx_member_idx').on(t.memberId, t.createdAt),
+  // The store's: earning and spending are each keyed to the order, so a webhook that fires twice, a success page racing
+  // it, or a replayed event lands here instead of paying (or charging) twice (templates/crm-store schema.ts).
+  uniqueIndex('loyalty_tx_once_per_order').on(t.memberId, t.type, t.orderId),
   uniqueIndex('loyalty_tx_earn_per_check').on(t.memberId, t.earnCheckId),
   // The salon's: completing the same visit twice (a status flip, a retry) cannot award its points again
   // (templates/crm-salon schema.ts; the salon's award relies on this refusal).

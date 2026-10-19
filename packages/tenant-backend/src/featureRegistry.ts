@@ -26,13 +26,13 @@ export type FeatureDef = {
 
 export const FEATURE_REGISTRY: FeatureDef[] = [
   // Core
-  { id: 'contacts', name: 'Contacts', description: 'Clients, leads and suppliers in one place', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
+  { id: 'contacts', name: 'Contacts', description: 'Clients, leads and suppliers in one place', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar', 'crm-store'] },
   { id: 'jobs', name: 'Jobs', description: 'Job tracking and management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-automotive', 'crm-roof', 'crm-rv'] },
   { id: 'quotes', name: 'Quotes', description: 'Professional estimates and quotes', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-automotive', 'crm-roof', 'crm-rv'] },
   { id: 'invoices', name: 'Invoices', description: 'Invoice generation and tracking', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar', 'crm-rv'] },
   { id: 'scheduling', name: 'Scheduling', description: 'Calendar and job scheduling', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-dispensary', 'crm-rv'] },
-  { id: 'team', name: 'Team', description: 'Team member management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
-  { id: 'dashboard', name: 'Dashboard', description: 'Overview dashboard', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
+  { id: 'team', name: 'Team', description: 'Team member management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar', 'crm-store'] },
+  { id: 'dashboard', name: 'Dashboard', description: 'Overview dashboard', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar', 'crm-store'] },
 
   // Construction
   { id: 'projects', name: 'Projects', description: 'Multi-phase project management', category: 'Construction', core: false, templates: ['crm'] },
@@ -60,7 +60,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'recurring_routes', name: 'Recurring Route Board', description: 'Weekly mow routes grouped into per-day crew routes', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
   { id: 'area_pricing', name: 'Area-Based Pricing', description: 'Price services by measured property square footage', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
   { id: 'snow_billing', name: 'Snow & Ice Billing', description: 'Per-push, per-event, per-inch, and seasonal snow billing', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
-  { id: 'pricebook', name: 'Pricebook', description: 'Standardized pricing catalog', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof'] },
+  { id: 'pricebook', name: 'Pricebook', description: 'Standardized pricing catalog', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] /* not crm-homecare: an agency has no quotes or invoices to price (owner, 2026-10-19) */ },
 
   // Field Service
   { id: 'dispatch_board', name: 'Dispatch Board', description: 'Real-time tech dispatch and scheduling', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
@@ -149,7 +149,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'two_way_texting', name: 'Two-Way Texting', description: 'Unified SMS inbox — every customer conversation logged', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
   { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-bar'] /* not crm-roof: no call-tracking screen there — the API is consumed by the AI receptionist page, so it rides that switch */ },
   { id: 'google_business', name: 'Google Reviews', description: 'Connect your Google Business Profile — see your rating and reply to reviews from the CRM', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-basic', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare', 'crm-store', 'crm-bar'] },
-  { id: 'branded_email', name: 'Branded Email', description: 'support@yourdomain addresses — forward anywhere or receive replies in the CRM email inbox', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-basic', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare', 'crm-bar'] },
+  { id: 'branded_email', name: 'Branded Email', description: 'support@yourdomain addresses — forward anywhere or receive replies in the CRM email inbox', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-basic', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare', 'crm-bar', 'crm-store'] },
   { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] },
   { id: 'lead_inbox', name: 'Lead Inbox', description: 'Every enquiry in one inbox — marketplaces, ads, booking apps and your website', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
 
@@ -191,8 +191,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Dispensary — POS & Sales
   { id: 'pos', name: 'Point of Sale', description: 'POS terminal for walk-in and pickup orders', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
-  { id: 'products', name: 'Product Catalog', description: 'Product management with strain data, THC/CBD, pricing', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
-  { id: 'orders', name: 'Orders', description: 'Order management and history', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
+  { id: 'products', name: 'Product Catalog', description: 'Your products, their variants, prices and stock', category: 'POS & Sales', core: true, templates: ['crm-dispensary', 'crm-store'] },
+  { id: 'orders', name: 'Orders', description: 'Order management and history', category: 'POS & Sales', core: true, templates: ['crm-dispensary', 'crm-store'] },
   { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
 
   // Dispensary — Inventory & Compliance
@@ -493,7 +493,7 @@ export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
       'contacts', 'invoices', 'scheduling', 'team', 'dashboard', 'time_tracking', 'documents',
     ],
     pro: [
-      'two_way_texting', 'pricebook', 'lead_inbox', 'gps_tracking',
+      'two_way_texting', 'lead_inbox', 'gps_tracking',
     ],
     business: [
       'quickbooks', 'reports', 'call_tracking',

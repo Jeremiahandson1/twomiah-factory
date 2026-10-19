@@ -66,6 +66,8 @@ import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
 import { createRoofJobRoutes } from '../crm/roof/jobs.ts'
 import { roofMounts } from '../crm/roof/index.ts'
+import { storeMounts } from '../crm/store/index.ts'
+import { storeOrder } from '../db/schema/store.ts'
 import { createRoofDashboardRoutes } from '../crm/roof/field/dashboard.ts'
 import { createHomecareCore } from '../crm/homecare/core/index.ts'
 import { portalsInFront } from '../crm/homecare/portals/index.ts'
@@ -156,6 +158,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         ...(v.contacts?.guards?.includes('appointment') ? [{ table: appointment, column: appointment.contactId, label: 'appointment' }] : []),
         ...(v.contacts?.guards?.includes('serviceRecord') ? [{ table: serviceRecord, column: serviceRecord.contactId, label: 'service record' }] : []),
         ...(v.contacts?.guards?.includes('membershipEnrollment') ? [{ table: membershipEnrollment, column: membershipEnrollment.contactId, label: 'membership' }] : []),
+        // A shop's customer with an order is kept: the order keeps its own copy of who bought it, but the customer's
+        // history is the record of what they bought (docs/UNIFIED_STORE_PLAN.md decision 2).
+        ...(v.contacts?.guards?.includes('storeOrder') ? [{ table: storeOrder, column: storeOrder.contactId, label: 'order' }] : []),
       ],
       // A property's route stops and snow contracts hold it (crm/landscaping/inUse.ts).
       ...(sites ? { sites: { site, equipment, job, guards: propertyHolders(db).bySite } } : {}),
@@ -428,6 +433,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Home care's add-on (docs/UNIFIED_HOMECARE_PLAN.md).
     ...homecareMounts(own),
     ...roofMounts(own),
+    ...storeMounts(own),
   ]
 }
 

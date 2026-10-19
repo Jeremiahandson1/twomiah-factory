@@ -154,7 +154,7 @@ export interface CrmSettings {
    * 'appointment', 'serviceRecord', 'membershipEnrollment' (salon, templates/crm-salon routes/contacts.ts).
    */
   contacts?: {
-    guards?: Array<'appointment' | 'serviceRecord' | 'membershipEnrollment' | 'repairOrder' | 'salesLead'>
+    guards?: Array<'appointment' | 'serviceRecord' | 'membershipEnrollment' | 'repairOrder' | 'salesLead' | 'storeOrder'>
     /**
      * The types a contact can be, in place of the shared four (lead, client, subcontractor, vendor): a dealership sells
      * to customers — ['lead', 'customer', 'vendor'] (templates/crm-rv routes/contacts.ts). Absent: the shared four.
@@ -207,6 +207,12 @@ export interface CrmSettings {
    * module at /api/jobs, over the CRM's job table, in place of the shared one. (roof)
    */
   roof?: boolean
+  /**
+   * The store add-on (server/crm/store; templates/crm-store; docs/UNIFIED_STORE_PLAN.md): the catalogue, orders and
+   * refunds, the storefront's public API and checkout, the merchant's payment, shipping and supplier connections,
+   * discount codes, product reviews and the store's loyalty over the shared programme. (store)
+   */
+  store?: boolean
   /**
    * Who a phone call is about, for call tracking and the AI receptionist: 'clients' matches the caller to a home-care
    * client by phone (call_log.client_id), makes a client on a first call instead of a contact or an inbox lead, and
@@ -299,6 +305,7 @@ export async function loadVertical(id = process.env.VERTICAL): Promise<VerticalS
     bar: () => import('../../verticals/bar/settings.ts'),
     homecare: () => import('../../verticals/homecare/settings.ts'),
     roofing: () => import('../../verticals/roof/settings.ts'),
+    store: () => import('../../verticals/store/settings.ts'),
   }
   if (!id) {
     if (process.env.NODE_ENV === 'production') throw new Error('VERTICAL is not set')
