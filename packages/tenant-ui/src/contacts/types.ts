@@ -33,6 +33,11 @@ export interface ContactSections {
   sms?: boolean
   /** vet: the owner's patients */
   patients?: boolean
+  /**
+   * store: the shopper's orders, newest first (the server's `orders` relation). Shown only when the reply carries the
+   * list — a seat without orders:read is not sent it.
+   */
+  orders?: boolean
   /** customer portal access panel (needs an email) */
   portal?: boolean
 }

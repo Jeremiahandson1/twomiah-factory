@@ -22,6 +22,7 @@ import { createCrmServices } from './crm/services.ts'
 import { createRealtime } from './core/realtime.ts'
 import { createSiteAdmin, type PhotoStore } from './site/admin.ts'
 import { createSiteRoutes } from './site/routes.ts'
+import { createStorefront } from './crm/store/index.ts'
 import { loadSiteContext } from './site/context.ts'
 import { createBookingPages } from './booking/pages.ts'
 import { BASE_CRM, type VerticalSettings } from './core/vertical.ts'
@@ -165,7 +166,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
       router: new Hono()
         .use('*', sitePolicy)
         .route('/', createBookingPages({ engine: bookings.engine, ctxOf: () => loadSiteContext(db, vertical), isFeatureEnabled: features.isFeatureEnabled }))
-        .route('/', createSiteRoutes({ db, vertical, enquiries: enquiryHandler, store })),
+        // A store's website reads its shop through the store add-on (crm/store createStorefront).
+        .route('/', createSiteRoutes({ db, vertical, enquiries: enquiryHandler, store, shop: vertical.crm?.store ? createStorefront({ db, logger, services: crm }) : null })),
     },
   ]
   mountAll(app, mounts, {

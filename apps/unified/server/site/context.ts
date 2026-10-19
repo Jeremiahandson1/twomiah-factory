@@ -14,7 +14,8 @@ export interface SiteContext {
   settings: Record<string, any>
   design: SiteDesign
   words: VerticalSettings['site']['words']
-  options: { textSizeToggle: boolean }
+  /** textSizeToggle: the reader's text-size buttons (home care). shop: a store's cart in the header, its script and its pages. */
+  options: { textSizeToggle: boolean; shop: boolean }
   colours: { primary: string; accent: string | null }
 }
 
@@ -37,7 +38,7 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     slug: co.slug,
     design,
     words: vertical.site.words,
-    options: { textSizeToggle: !!vertical.site.textSizeToggle },
+    options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store },
     colours: { primary: co.primaryColor, accent: s?.accentColor ?? null },
     settings: {
       companyName: co.name,

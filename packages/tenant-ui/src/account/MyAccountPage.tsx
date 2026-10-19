@@ -30,8 +30,9 @@ export function MyAccountPage({ api, toast }: { api: any; toast: { success: (m: 
     if (pw.newPassword.length < 8) { toast.error('Password must be at least 8 characters'); return }
     setSaving(true)
     try {
-      await api.put('/api/auth/password', { currentPassword: pw.currentPassword, newPassword: pw.newPassword })
-      toast.success('Password changed')
+      // The server says what happened, e.g. that every other device was signed out (shared auth PUT /password).
+      const res: any = await api.put('/api/auth/password', { currentPassword: pw.currentPassword, newPassword: pw.newPassword })
+      toast.success(typeof res?.message === 'string' && res.message ? res.message : 'Password changed')
       setPw({ currentPassword: '', newPassword: '', confirmPassword: '' })
     } catch (err) { toast.error(errMsg(err, 'Failed to change password')) } finally { setSaving(false) }
   }

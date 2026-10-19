@@ -99,6 +99,13 @@
       "when": 1792440888723,
       "tag": "0013_store",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792444599087,
+      "tag": "0014_sessions_valid_from",
+      "breakpoints": true
     }
   ]
 }

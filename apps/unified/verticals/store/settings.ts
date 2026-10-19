@@ -41,9 +41,20 @@ const store: VerticalSettings = {
     store: true,
     // A shopper is a customer (decision 2): checkout makes the contact a 'customer', and one with orders is kept.
     contacts: { types: ['customer', 'lead', 'vendor'], customerType: 'customer', guards: ['storeOrder'] },
+    // The logins the owner hands out: manager or staff (the field rung) — a shop has no admin seat, and its one owner is
+    // provisioned, never a button (templates/crm-store routes/users.ts ASSIGNABLE_ROLES). A login given no role is staff.
+    team: { roles: ['manager', 'field'] },
   },
-  // Filled as the store's screens land (plan step 4).
-  screens: {},
+  screens: {
+    // The store's own home and screens (web/src/crm/verticals/store.tsx).
+    home: 'store',
+    // Its customers are shoppers (decision 2). A shopper's page lists their store orders (the server's `orders` relation,
+    // server/modules/crm.ts); a store has no projects or quotes, so those lists and their counts are off.
+    contacts: {
+      types: [{ value: 'customer', label: 'Customer' }, { value: 'lead', label: 'Lead' }, { value: 'vendor', label: 'Vendor' }],
+      sections: { orders: true, projects: false, quotes: false, portal: true },
+    },
+  },
   site: {
     design: 'classic',
     words: {

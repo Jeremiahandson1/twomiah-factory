@@ -32,6 +32,7 @@ import * as salonScreens from './crm/verticals/salon'
 import * as vetScreens from './crm/verticals/vet'
 import * as homecareScreens from './crm/verticals/homecare'
 import * as roofScreens from './crm/verticals/roof'
+import * as storeScreens from './crm/verticals/store'
 // The customer portal is its own bundle (crm/portal.tsx: Stripe stays out of the admin).
 const PortalApp = lazy(() => import('./crm/portal'))
 const ProjectsPage = page(() => import('./crm/pages/ProjectsPage'))
@@ -104,6 +105,8 @@ export default function App() {
                         {homecareScreens.routes}
                         {/* Roofing's the same way: its jobs pages are the page for its /api/jobs (crm/verticals/roof.tsx). */}
                         {roofScreens.routes}
+                        {/* The store's (crm/verticals/store.tsx). */}
+                        {storeScreens.routes}
                         <Route path="dashboard" element={<Crm.Dashboard />} />
                         <Route path="contacts" element={<Crm.Contacts />} />
                         <Route path="contacts/:id" element={<Crm.ContactDetail />} />

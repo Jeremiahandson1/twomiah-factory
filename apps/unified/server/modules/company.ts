@@ -18,6 +18,7 @@ import { list, one, fail, done } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
 import type { Realtime } from '../core/realtime.ts'
 import { createProvisionRoute } from './provision.ts'
+import { createDomainRoutes } from './domain.ts'
 import { homecareCompanyFields, describeAgency } from '../crm/homecare/office/companyFields.ts'
 
 export interface CompanyModuleDeps {
@@ -82,6 +83,11 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     // Home care's own company columns (time zone, mileage rate, legal name, NPI, Medicaid id) and the zone its reports
     // count days on (server/crm/homecare/office/companyFields.ts; templates/crm-homecare routes/company.ts).
     ...(vertical.crm?.homecare ? { fields: homecareCompanyFields, describe: describeAgency } : {}),
+    // The roles a login may hold here (CrmSettings.team.roles; the store's manager and staff). 'user' is the old
+    // spelling of field — the shared POST /users defaults to it and stores it as field — so it rides along with field.
+    ...(vertical.crm?.team?.roles?.length
+      ? { options: { roles: vertical.crm.team.roles.includes('field') ? [...vertical.crm.team.roles, 'user'] : vertical.crm.team.roles } }
+      : {}),
   } as any)
 
   const billingDeps = { db, companyTable: company, userTable: user, factoryApiClient, seatLimitEnv: process.env.SEAT_LIMIT }
@@ -144,6 +150,9 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       ...(vertical.crm?.homecare ? [] : [{ path: '/api/billing', access: 'user' as const, router: billing }]),
       { path: '/api/account', access: 'user' as const, router: account },
       { path: '/api/email-aliases', access: 'user' as const, router: emailAliases },
+      // The business's own web address: buy one through the Factory or connect one it owns (modules/domain.ts, from the
+      // store; the premium sites' Domain page used the same paths). Every tenant has the website, so every vertical.
+      { path: '/api/admin/domain', access: 'user' as const, router: createDomainRoutes({ permissions, factoryApiClient }) },
       { path: '/api/audit', access: 'user' as const, router: auditLogRoutes },
       { path: '/api/leads', access: 'public' as const, router: leads },
       { path: '/api/internal/email-aliases', access: 'factory' as const, router: createEmailAliasesInternalRoute({ db, emailAliasesTable: emailAlias } as any) },

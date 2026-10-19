@@ -16,12 +16,17 @@ import { feedUnits, feedUrlOk, unitSpecs } from './inventoryFeed.ts'
 import type { createEnquiryHandler } from './enquiryHandler.ts'
 import { RESERVED_SLUGS } from './slugs.ts'
 import { PUBLIC_PHOTO_PREFIX, type PhotoStore } from './admin.ts'
+import type { Storefront } from '../crm/store/index.ts'
+import { servesWhileClosed, unavailablePage } from './shop.ts'
 
 const SITE_DIR = path.join(import.meta.dir, '..', '..', 'site')
 const BASE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'main.css'), 'utf8')
 // The roofer's instant-estimate widget (site/public/scripts/estimator.ts, made browser JavaScript once at start), embedded
 // on this site or any other.
 const ESTIMATOR_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', 'estimator.ts'), 'utf8'))
+// A store's own (CrmSettings.store): the shop pages' stylesheet, added to the site's, and the cart (sections/shop/*).
+const STORE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'store.css'), 'utf8')
+const CART_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', 'cart.ts'), 'utf8'))
 const DESIGN_CSS = new Map<string, string>()
 for (const f of fs.readdirSync(path.join(SITE_DIR, 'designs'))) DESIGN_CSS.set(f.replace(/\.css$/, ''), fs.readFileSync(path.join(SITE_DIR, 'designs', f), 'utf8'))
 
@@ -56,16 +61,26 @@ const projectCard = (p: any) => {
 /** The stylesheet: the base, then the site's design, with the company's colours filled in. */
 export function siteStylesheet(ctx: SiteContext): string {
   const accent = ctx.colours.accent || DEFAULT_ACCENT
-  const css = BASE_CSS + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '')
+  const css = BASE_CSS + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (ctx.options.shop ? '\n' + STORE_CSS : '')
   return css
     .replaceAll('{{PRIMARY_COLOR}}', ctx.colours.primary)
     .replaceAll('{{ACCENT_COLOR_ON_LIGHT}}', accentOnLight(accent))
     .replaceAll('{{ACCENT_COLOR}}', accent)
 }
 
-export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; enquiries: ReturnType<typeof createEnquiryHandler>; store: PhotoStore }) {
+export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; enquiries: ReturnType<typeof createEnquiryHandler>; store: PhotoStore; shop?: Storefront | null }) {
   const { db, vertical } = deps
   const app = new Hono()
+  const shop = deps.shop ?? null
+
+  // A store whose subscription has ended is closed to shoppers: its pages answer one plain page instead of a shop with a
+  // checkout that fails (templates/website-store storeStatus.ts). The order-received page, the API, the admin and the
+  // files stay (shop.ts servesWhileClosed).
+  if (shop) app.use('*', async (c, next) => {
+    if (c.req.method !== 'GET' || servesWhileClosed(c.req.path) || !(await shop.isClosed())) return next()
+    const ctx = await ctxOf()
+    return c.html(unavailablePage(ctx?.settings.companyName ?? null), 503, { 'Retry-After': '3600', 'Cache-Control': 'no-store' })
+  })
 
   const ctxOf = async () => loadSiteContext(db, vertical)
   const loadPage = async (companyId: string, slug: string) =>
@@ -82,11 +97,12 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     }
     return null
   }
-  /** Nav items the site adds when the owner's nav lacks them: the dealer's Inventory, the Visualizer. */
+  /** Nav items the site adds when the owner's nav lacks them: the dealer's Inventory, the Visualizer, a store's Shop. */
   function toolNav(ctx: SiteContext) {
     const items: Array<{ label: string; href: string }> = []
     if (feedUrlOk(ctx.settings.inventoryFeedUrl)) items.push({ label: 'Inventory', href: '/inventory' })
     if (visionOrigin()) items.push({ label: 'Visualizer', href: '/visualize' })
+    if (shop) items.push({ label: 'Shop', href: '/shop' })
     return items
   }
   const visionOrigin = () => { try { const u = new URL(String(vertical.visionUrl?.() || '')); return u.protocol === 'https:' ? u.origin : '' } catch { return '' } }
@@ -119,7 +135,9 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     if (!key.startsWith(PUBLIC_PHOTO_PREFIX) || key.includes('..')) return c.notFound()
     const obj = await deps.store.getObject(key)
     if (!obj) return c.notFound()
-    const safe = /^image\/(jpeg|png|webp|gif)$/.test(obj.contentType)
+    // AVIF too: a store's product photos are uploaded as they are (crm/store/catalog/products.ts, the template's
+    // routes/media.ts served AVIF inline); the website's own uploads are re-encoded to JPEG or PNG.
+    const safe = /^image\/(jpeg|png|webp|gif|avif)$/.test(obj.contentType)
     return c.body(obj.body as any, 200, {
       'Content-Type': safe ? obj.contentType : 'application/octet-stream',
       'X-Content-Type-Options': 'nosniff',
@@ -219,6 +237,42 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     sections.push(contact || contactCta(ctx))
     return page200(c, ctx, '/projects/' + p.slug, sections, { title: p.title, metaTitle: p.metaTitle || alt + ' | ' + name, metaDescription: p.metaDescription || p.summary || '' })
   })
+
+  // ── A store's shop (CrmSettings.store; sections/shop/*) ───────────────────
+  // From templates/website-store server-static.ts, which fetched these from the store's API over HTTP; here they read
+  // the store's own catalogue and order summary. The cart is the browser's (/scripts/cart.js).
+  if (shop) {
+    app.get('/shop', async (c) => {
+      const ctx = await ctxOf()
+      if (!ctx) return c.notFound()
+      const products = await shop.catalogue(ctx.companyId)
+      const name = ctx.settings.companyName
+      return page200(c, ctx, '/shop', [{ type: 'shop', variant: 'grid', data: { products } }], { title: 'Shop', metaTitle: 'Shop | ' + name, metaDescription: 'Browse products from ' + name + '.' })
+    })
+    app.get('/product/:slug', async (c) => {
+      const ctx = await ctxOf()
+      if (!ctx) return c.notFound()
+      const p = await shop.product(ctx.companyId, c.req.param('slug'))
+      if (!p) return c.notFound()
+      const name = ctx.settings.companyName
+      return page200(c, ctx, '/product/' + p.slug, [{ type: 'shop', variant: 'product', data: { product: p } }], {
+        title: p.name, metaTitle: (p.seoTitle || p.name) + ' | ' + name, metaDescription: (p.seoDescription || p.tagline || p.name || '').slice(0, 300),
+      })
+    })
+    app.get('/cart', async (c) => {
+      const ctx = await ctxOf()
+      if (!ctx) return c.notFound()
+      return page200(c, ctx, '/cart', [{ type: 'shop', variant: 'cart', data: {} }], { title: 'Your Cart', metaTitle: 'Your Cart | ' + ctx.settings.companyName, metaDescription: 'Review the items in your cart.' })
+    })
+    // Stripe returns ?session_id=; Square and PayPal ?ref=<order id>. An order whose payment notice is late is finished here.
+    app.get('/checkout/success', async (c) => {
+      const ctx = await ctxOf()
+      if (!ctx) return c.notFound()
+      const sessionId = c.req.query('session_id') || '', ref = c.req.query('ref') || ''
+      const order = sessionId || ref ? await shop.orderSummary(ctx.companyId, { sessionId: sessionId || null, ref: ref || null }).catch(() => null) : null
+      return page200(c, ctx, '/checkout/success', [{ type: 'shop', variant: 'receipt', data: { order } }], { title: 'Order received', metaTitle: 'Order received | ' + ctx.settings.companyName, metaDescription: 'Thank you for your order.' })
+    })
+  }
 
   // ── Dealer inventory ─────────────────────────────────────────────────────
   app.get('/inventory', async (c, next) => {
@@ -351,6 +405,11 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
         urls.push(`  <url><loc>${escXml(origin + '/service-areas')}</loc></url>`)
         for (const a of areas) urls.push(`  <url><loc>${escXml(origin + '/service-areas/' + a.slug)}</loc></url>`)
       }
+      if (shop) {
+        const products = await shop.catalogue(ctx.companyId)
+        urls.push(`  <url><loc>${escXml(origin + '/shop')}</loc></url>`)
+        for (const p of products) urls.push(`  <url><loc>${escXml(origin + '/product/' + encodeURIComponent(p.slug))}</loc><lastmod>${iso(p.updatedAt)}</lastmod></url>`)
+      }
       const posts = await db.select().from(post).where(and(eq(post.companyId, ctx.companyId), eq(post.status, 'published'))).orderBy(desc(post.publishedAt))
       if (posts.length) {
         urls.push(`  <url><loc>${escXml(origin + '/blog')}</loc></url>`)
@@ -365,6 +424,12 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   // snippet). It asks /api/estimator on its own script's origin — gated there by instant_estimator and the company's
   // estimator switch.
   app.get('/estimator.js', (c) => c.body(ESTIMATOR_JS, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }))
+  // The store's cart: only a store's site has one.
+  app.get('/scripts/cart.js', async (c) => {
+    const ctx = await ctxOf()
+    if (!ctx?.options.shop) return c.notFound()
+    return c.body(CART_JS, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=31536000, immutable' })
+  })
 
   app.get('/robots.txt', (c) => {
     // The admin, the API, and customers' own booking pages stay out of search engines.

@@ -50,7 +50,7 @@ const SETTINGS = {
 function ctxFor(design: typeof DESIGNS[number]): SiteContext {
   return {
     companyId: 'co_test', slug: 'westridge', settings: SETTINGS, design: designOf(design), words: WORDS[design],
-    options: { textSizeToggle: design === 'homecare' }, colours: { primary: SETTINGS.primaryColor, accent: SETTINGS.accentColor },
+    options: { textSizeToggle: design === 'homecare', shop: false }, colours: { primary: SETTINGS.primaryColor, accent: SETTINGS.accentColor },
   }
 }
 

@@ -320,3 +320,81 @@ search, price a quote line from it, the crew rep's read-only view: 16 checks). F
 catalogue nothing uses. And the customer "presentation" page (`/api/pricebook-present/:id`, Good/Better/Best shown full
 screen) has no link from any screen, shows items that are switched off or hidden from customers, and relabels the
 tiers "Sign Today / Within 30 Days / Valid 1 Year" — not what Good/Better/Best means. Neither is changed here.
+
+## Dispensary — not in the unified app (owner, 2026-10-19)
+
+"Lets just not put dispensaries in for now." The dispensary (`templates/crm-dispensary`, `website-premium-dispensary`)
+is not moved: the build order is home care, roofing, store, then cutover. There are no dispensary customers, so nothing
+moves and nothing is kept running for one. What the owner decides before cutover: whether a dispensary signup is
+refused until it is built, or still built from the template. Already in the unified app and left as they are: the
+site's `dispensary` design and its sections (strain, age gate, deals — part of the site library the parity test holds),
+and the registry's dispensary features, which no unified vertical offers.
+
+## Changing a password signs out every other device (owner, 2026-10-19: "do it the right way")
+
+As Google, Microsoft and Shopify do: a password change ends every other session at once — refresh and access tokens
+alike, not 15 minutes later — and keeps the device that changed it (given a new session in the reply: cookies for the
+browser, the body for everyone else). A reset by email ends every session. The shared code had ended none on a change
+(the store's template ended all, this device too). `user.sessions_valid_from` (migration 0014) carries the cut-off;
+shared auth applies it only where the column exists, so a template keeps its old behaviour until it moves.
+`apps/unified/tests/password-sessions.test.ts` (mutation-checked). The password screens show the server's sentence
+("You have been signed out everywhere else").
+
+## The store (step 6, `docs/UNIFIED_STORE_PLAN.md`)
+
+**Moved** — originals to delete at cutover: `templates/crm-store` (back office) and `templates/website-store`
+(storefront, and its copy of `templates/cms`).
+- Server: `apps/unified/server/crm/store/` — `core.ts` (the shop, its settings, the merchant's payment / shipping /
+  supplier accounts, dropship forwarding, a shopper as a customer, loyalty over the shared programme, the store's
+  emails), `checkout/` (the storefront's public API, checkout, payment and supplier webhooks, order summary, cart
+  recovery, reviews, the payment connection, the pending / abandoned-cart / review-request sweeps), `orders/` (orders,
+  refunds, the label carrier, suppliers, the refund resume), `catalog/` (products, discounts, review moderation, loyalty,
+  settings); raw SQL in `server/data/store{Core,Checkout,Orders,Catalog}.ts`; the payment, shipping and supplier adapters
+  moved as they are. `server/modules/domain.ts` — the store's domain purchase, now the engine's for every vertical.
+- Screens: `apps/unified/web/src/crm/pages/store/{orders,catalog}`, `crm/verticals/store.tsx`; a shopper's contact page
+  lists their orders.
+- Storefront: the site's `sections/shop/{grid,product,cart,receipt}.ejs`, `site/public/styles/store.css`,
+  `site/public/scripts/cart.ts` (/scripts/cart.js), `server/site/shop.ts` (the closed-store page) — the same app, so no
+  second service, no open CORS, no proxy. The JSON-file CMS and its separate admin login are not moved.
+- Tests: `apps/unified/tests/store-{core,checkout,orders,catalog,site,contact-orders}.test.ts` (~100 checks), and the
+  browser check — owner, manager and staff, every page and control, light 1440 and dark 390 — clean.
+
+**Changes in what people see or may do** (each is the store matching the engine, or how the big platforms do it):
+- A shopper is a customer record (owner's decision): checkout finds or makes the contact (type `customer`, source
+  `online_store`), the order carries `contact_id`, and a customer with orders is kept. Loyalty is the shared programme by
+  contact; the punch card counts orders in `qualifying_visits`.
+- The store's seats: a manager can't create an admin login (only Manager and Staff can be given); payments stay the
+  owner's — reading the payment account too (the template's GET asked nothing; found in the browser check); loyalty pages
+  ask `loyalty:read` (every store seat holds it).
+- Deleting something already gone is a 404, not "done".
+- The store's settings page is `/crm/store-settings` (a manager may change shipping, and `/crm/settings` is the owner's);
+  product reviews are `/crm/product-reviews` and the store's loyalty `/crm/store-loyalty` (the shared and salon pages
+  hold the old addresses).
+- For every vertical, from the store: team changes are written to the audit log in words (login added, role changed,
+  access revoked or restored, invite re-sent); an expired invitation says so; a revoked login's sign-in attempt is
+  recorded.
+
+**Template defects fixed on the way** (not changed in the live templates): recovered carts and review requests linked to
+pages the storefront doesn't have; abandoned-cart emails went to the placeholder `pending@checkout`; two sweeps at once
+could send an email twice; Printful could never be connected (an empty email the server refused); a connected carrier's
+address could never be changed; Hold / disconnect / auto-forward showed success on a refusal; a dashboard read failing
+blanked every figure; pending orders couldn't be filtered; prices parsed with float maths could land a cent off; a
+discount code expired at UTC midnight (the evening before in the US); photo controls were hover-only (unusable on a
+phone); deletes used the browser's own confirm; image delete removed any file it was given; loyalty reads asked no
+permission; several faint greys and dark-mode colours under 4.5:1.
+
+**Cutover data steps (store):**
+- `store_settings`: the business's name and support email → `company.name` / `company.email`; `onboarding_completed_at`
+  → `company`; `subscription` and `loyalty` → `company.settings`; the commerce settings stay on `store_settings` with the
+  company's id. `storefront_origin` is dropped (the storefront is the same app).
+- `users` → `user`: `name` split into first and last, `staff` kept (read as `field`), ids kept.
+- Every row gains the one company's id; uuids move across as text ids; `timestamptz` → `timestamp` (UTC), `jsonb` →
+  `json`; the template's enums become text.
+- `loyalty_members` (by email) → a contact for each email (found or made, as checkout does) and a shared member row;
+  `qualifying_orders` → `qualifying_visits`; `loyalty_rewards.used_count` → `usage_count`; transactions keep `order_id`.
+- `orders.contact_id`: filled from each order's email, as checkout does.
+- Product photos: the template stored absolute `BACKEND_URL/media/...` addresses; rewrite to the app's own `/media/...`.
+
+**Open, for the owner:** the store's onboarding had two extra steps (connect payments, add a first product); the
+engine's wizard covers the rest — add them as `screens.onboarding.extra` when the store's signup is run. The domain page
+exists only on a store's menu, though `/api/admin/domain` now serves every vertical.

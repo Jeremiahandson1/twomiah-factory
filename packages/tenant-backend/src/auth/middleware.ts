@@ -15,6 +15,16 @@ export interface AuthMiddlewareDeps {
 
 export interface AuthUserContext { userId: string; companyId: string; email: string; role: string }
 
+/**
+ * Was this token signed before the account's sessions were ended (a password change or reset)? A JWT's iat is in whole
+ * seconds, so the cut-off is compared in whole seconds: the new session given in the same second stays valid.
+ */
+export function sessionEnded(validFrom: Date | string | null | undefined, iat: number | undefined): boolean {
+  if (!validFrom) return false
+  const from = Math.floor(new Date(validFrom).getTime() / 1000)
+  return !Number.isFinite(from) ? false : typeof iat !== 'number' || iat < from
+}
+
 export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
   const { db, tables: { user, company } } = deps
 
@@ -40,9 +50,15 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
       email: user.email,
       role: user.role,
       isActive: user.isActive,
+      // Only where the user table has it (the unified app); a template without the column keeps its old behaviour.
+      ...(user.sessionsValidFrom ? { sessionsValidFrom: user.sessionsValidFrom } : {}),
     }).from(user).where(eq(user.id, decoded.userId)).limit(1)
     if (!found || !found.isActive) {
       return c.json({ error: 'User not found or inactive' }, 401)
+    }
+    // A session signed before the password was changed or reset is over (auth.ts endOtherSessions).
+    if (sessionEnded((found as any).sessionsValidFrom, decoded.iat)) {
+      return c.json({ error: 'Your password was changed — please sign in again.', code: 'session_ended' }, 401)
     }
     c.set('user', { userId: found.id, companyId: found.companyId, email: found.email, role: found.role } as AuthUserContext)
     const locked = await refuseWhileLocked(c, db, company)

@@ -19,7 +19,7 @@ import {
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
   money, createAccountBalanceStore,
 } from '@twomiah/tenant-backend'
-import { asc } from 'drizzle-orm'
+import { asc, desc } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
@@ -134,6 +134,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         ...(v.events ? [{ key: 'events', table: event, column: event.contactId, columns: { id: event.id, name: event.name, status: event.status, eventDate: event.eventDate } }] : []),
         // An owner's page lists their pets (templates/crm-vet routes/contacts.ts; CrmSettings.patients).
         ...(v.patients ? [{ key: 'patients', table: patient, column: patient.ownerId, columns: { id: patient.id, name: patient.name, species: patient.species, breed: patient.breed, deceased: patient.deceased }, orderBy: asc(patient.name) }] : []),
+        // A shopper's page lists their store orders, newest first (docs/UNIFIED_STORE_PLAN.md decision 2: a shopper is a
+        // contact). Only to a seat that may open the orders (orders:read), as each row links to /crm/orders/:id.
+        ...(v.store ? [{ key: 'orders', table: storeOrder, column: storeOrder.contactId, columns: { id: storeOrder.id, orderNumber: storeOrder.orderNumber, status: storeOrder.status, totalCents: storeOrder.totalCents, createdAt: storeOrder.createdAt }, orderBy: desc(storeOrder.createdAt), permission: 'orders:read' }] : []),
       ],
       guards: [
         // A client owns patients, and every patient's visits, vaccinations, prescriptions and lab results cascade with

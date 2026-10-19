@@ -86,6 +86,10 @@ export const user = pgTable('user', {
   // never stopped a credential-stuffing run that rotates addresses.
   failedLoginCount: integer('failed_login_count').default(0).notNull(),
   lockedUntil: timestamp('locked_until'),
+  // Sessions signed before this are over (shared auth): a password change or reset moves it to now, so every other device
+  // is signed out on its next request — its access token too, not 15 minutes later — and the device that changed it is
+  // given a new session. How the big providers do it (Google, Microsoft, Shopify). Null: none ended.
+  sessionsValidFrom: timestamp('sessions_valid_from'),
   // Grants the OWNER hands out on top of the role (Settings › Users), e.g. 'users:read'.
   extraPermissions: json('extra_permissions').default([]),
   refreshToken: text('refresh_token'),

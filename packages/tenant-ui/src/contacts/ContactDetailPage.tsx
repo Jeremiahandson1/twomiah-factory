@@ -18,7 +18,9 @@ type Related = { id: string; name?: string; number?: string; title?: string; tot
 type Equipment = { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null; purchaseDate?: string | null; warrantyExpiry?: string | null }
 type Site = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; accessNotes?: string | null; equipment?: Equipment[]; jobs?: any[] }
 type Patient = { id: string; name: string; species?: string | null; breed?: string | null; deceased?: boolean | null }
-type ContactDetail = ContactRow & { projects?: Related[]; quotes?: Related[]; invoices?: Related[]; jobs?: Related[]; events?: Related[]; patients?: Patient[]; equipment?: Equipment[]; sites?: Site[] }
+/** A store order on its shopper's page: money in integer cents. */
+type StoreOrder = { id: string; orderNumber?: string | null; status: string; totalCents: number; createdAt: string }
+type ContactDetail = ContactRow & { projects?: Related[]; quotes?: Related[]; invoices?: Related[]; jobs?: Related[]; events?: Related[]; patients?: Patient[]; equipment?: Equipment[]; sites?: Site[]; orders?: StoreOrder[] }
 
 const ACTION_ICONS: Record<QuickActionIcon, React.ComponentType<{ className?: string }>> = {
   quote: FileText, job: Briefcase, invoice: Receipt, event: CalendarDays, patients: PawPrint, appointment: CalendarDays,
@@ -287,6 +289,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   const hasQuotes = 'quotes' in contact
   const quotes = sections.quotes && gated('quotes') && hasQuotes ? (contact.quotes || []) : []
   const events = sections.events && hasFeature('event_bookings') ? (contact.events || []) : []
+  // A store's shopper: their orders, when the server sent them (absent for a seat without orders:read — no section).
+  const storeOrders = sections.orders && 'orders' in contact ? (contact.orders || []) : null
   const showInvoices = gated('invoices') && 'invoices' in contact
   const invoices = showInvoices ? (contact.invoices || []) : []
   const jobs = contact.jobs || []
@@ -412,6 +416,36 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 {r.status && <StatusBadge status={r.status} />}
               </div>
             )} />
+          )}
+
+          {storeOrders && (
+            <div className={card}>
+              <div className="p-4 border-b dark:border-slate-800 flex items-center justify-between">
+                <h2 className={h2}>Orders</h2>
+                <span className="text-sm text-gray-500 dark:text-slate-400">{storeOrders.length}</span>
+              </div>
+              {storeOrders.length > 0 ? (
+                <div className="divide-y dark:divide-slate-800">
+                  {storeOrders.map((o) => (
+                    <NavLink key={o.id} to={`/crm/orders/${o.id}`} className={rowLink}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Receipt className="w-5 h-5 text-gray-400 dark:text-slate-400 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-slate-100 truncate">{o.orderNumber || 'Pending order'}</p>
+                          <p className="text-sm text-gray-500 dark:text-slate-400">{instantDay(o.createdAt)}</p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{money(Number(o.totalCents) / 100)}</p>
+                        <StatusBadge status={o.status} />
+                      </div>
+                    </NavLink>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 text-center text-gray-500 dark:text-slate-400"><Receipt className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">No orders yet</p></div>
+              )}
+            </div>
           )}
 
           {sections.patients && (
@@ -608,6 +642,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             <h2 className={`${h2} mb-4`}>Summary</h2>
             <div className="space-y-4">
               {sections.events && hasFeature('event_bookings') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Events</span><span className="font-medium">{contact.events?.length || 0}</span></div>}
+              {storeOrders && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Orders</span><span className="font-medium">{storeOrders.length}</span></div>}
               {sections.patients && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Patients</span><span className="font-medium">{contact.patients?.length || 0}</span></div>}
               {sections.projects && gated('projects') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Projects</span><span className="font-medium">{contact.projects?.length || 0}</span></div>}
               {sections.quotes && gated('quotes') && hasQuotes && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Quotes</span><span className="font-medium">{contact.quotes?.length || 0}</span></div>}

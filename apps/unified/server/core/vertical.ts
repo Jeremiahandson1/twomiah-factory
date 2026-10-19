@@ -167,8 +167,17 @@ export interface CrmSettings {
      */
     customerType?: string
   }
-  /** Work a team member holds besides jobs, unassigned when they're removed: 'appointment' (a stylist's chair). (salon) */
-  team?: { assignedWork?: Array<'appointment'> }
+  team?: {
+    /** Work a team member holds besides jobs, unassigned when they're removed: 'appointment' (a stylist's chair). (salon) */
+    assignedWork?: Array<'appointment'>
+    /**
+     * The roles a login may be given or moved to (company module POST / PUT /api/company/users): ['manager', 'field'] —
+     * a shop's three seats are owner, manager and staff, and it has no admin seat (templates/crm-store routes/users.ts
+     * ASSIGNABLE_ROLES; owner's decision 2026-10-10). The owner is never assignable anywhere. Absent: the shared list
+     * (admin, manager, field, viewer). (store)
+     */
+    roles?: string[]
+  }
   invoices?: {
     /** A tip line on an invoice (salon). */
     tips?: boolean

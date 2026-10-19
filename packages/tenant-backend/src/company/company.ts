@@ -193,6 +193,25 @@ export function createCompanyRoutes(deps: CompanyDeps) {
 
   const readBody = async (c: any) => (await c.req.json().catch(() => null)) ?? ({} as any)
 
+  /** A role in the vertical's own word, lower case for a sentence ('staff', 'manager'). */
+  const roleWord = (role: unknown) => String(roleLabel ? roleLabel(String(role || '')) : role || '').toLowerCase()
+  /**
+   * A change to who gets in, on the record in words: a login added (and as what, and whether by invite), a role moved
+   * (its own action, role_change, so the log can be filtered to it), access revoked or restored, an invite sent again.
+   * Taken from templates/crm-store routes/users.ts (store T3, "check the audit log"): the write floor's row said only
+   * "Updated — user", which cannot tell a promotion from a typo fixed in a name. Never throws.
+   */
+  const logSeat = (c: any, action: string, who: any, changes: Record<string, unknown> | null, description: string | null) => {
+    if (!deps.audit?.log) return
+    try {
+      const name = [who?.firstName, who?.lastName].filter(Boolean).join(' ') || who?.email || null
+      deps.audit.log({
+        action, entity: deps.audit.ENTITIES?.USER ?? 'user', entityId: who?.id ?? null, entityName: name,
+        changes, metadata: description ? { description } : null, req: c,
+      })
+    } catch { /* an audit row is never the reason a change fails */ }
+  }
+
   /**
    * What of the company row this reader gets. (T41; Contractor admin pass, 10/12)
    *   · below company:update — no commercial terms at all (redactCompanyCommercial);
@@ -606,6 +625,10 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       const [created] = await tx.insert(t.user).values({ ...rest, ...inviteFields, passwordHash, companyId: currentUser.companyId }).returning(USER_COLUMNS(t.user))
       return { status: 201 as const, body: created, companyName: companyRow?.name as string | undefined }
     })
+    if (outcome.status === 201) {
+      const made = outcome.body as any
+      logSeat(c, deps.audit?.ACTIONS?.CREATE ?? 'create', made, null, `Login added — ${made.email}, as ${roleWord(made.role)}${invite ? ' (invited by email)' : ''}`)
+    }
     if (outcome.status !== 201 || !invite) return c.json(outcome.body as any, outcome.status)
     // Sent after the row is committed. A failed send leaves the seat in place, says so, and Resend invite retries it.
     const inviteSent = await emailInvite(currentUser, { email: rest.email, firstName: rest.firstName, role: rest.role }, (inviteFields as any).resetToken, outcome.companyName)
@@ -645,6 +668,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     const resetToken = crypto.randomUUID()
     await db.update(t.user).set({ resetToken, resetTokenExp: new Date(Date.now() + INVITE_TTL_MS), updatedAt: new Date() }).where(eq(t.user.id, target.id))
     const inviteSent = await emailInvite(currentUser, { email: target.email, firstName: target.firstName, role: target.role }, resetToken)
+    logSeat(c, deps.audit?.ACTIONS?.UPDATE ?? 'update', target, null, `Invite sent again — ${target.email}`)
     return c.json({ invited: true, inviteSent })
   })
 
@@ -706,6 +730,17 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (losingAdmin && (await isLastAdmin(target, currentUser.companyId))) return c.json({ error: 'This is the only administrator left — promote someone else first.' }, 400)
     if (data.extraPermissions !== undefined) invalidateExtraPermissions?.(id)
     const [row] = await db.update(t.user).set({ ...data, updatedAt: new Date() }).where(and(eq(t.user.id, id), eq(t.user.companyId, currentUser.companyId))).returning(USER_COLUMNS(t.user))
+    if (row) {
+      const changes: Record<string, { old: unknown; new: unknown }> = {}
+      for (const k of Object.keys(data)) {
+        const was = k === 'role' ? canonicalRole(target.role) : target[k]
+        if (JSON.stringify(was ?? null) !== JSON.stringify((data as any)[k] ?? null)) changes[k] = { old: was ?? null, new: (data as any)[k] ?? null }
+      }
+      const access = data.isActive !== undefined && data.isActive !== target.isActive
+      logSeat(c, changes.role ? (deps.audit?.ACTIONS?.ROLE_CHANGE ?? 'role_change') : (deps.audit?.ACTIONS?.UPDATE ?? 'update'), { ...target, ...row },
+        Object.keys(changes).length ? changes : null,
+        access ? (data.isActive ? `Access restored — ${target.email}` : `Access revoked — ${target.email}`) : null)
+    }
     // An edit that does not touch the role still returns the stored one, which may be the legacy word.
     return c.json(withCanonicalRole(row as any))
   })

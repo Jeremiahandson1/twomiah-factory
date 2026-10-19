@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "sessions_valid_from" timestamp;

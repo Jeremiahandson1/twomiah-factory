@@ -189,6 +189,10 @@ const STATUS_STYLES: Record<string, string> = {
   en_route: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
   on_hold: 'bg-gray-200 text-gray-600 dark:bg-slate-700 dark:text-slate-300',
   active: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+  // store orders (a shopper's orders on their contact page)
+  fulfilled: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
+  shipped: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
+  delivered: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
   // contact types
   lead: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200',
   client: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',

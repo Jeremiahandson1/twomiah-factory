@@ -19,6 +19,7 @@ import { companyRowTimeZone } from '../time/businessDay'
 // to hold "https:///logo.svg" in the first place.
 import { healLogo } from '../company/logoAddress'
 import { withSession, wantsCookieSession, refreshCookie, setSessionCookies, clearSessionCookies } from './cookieSession'
+import { sessionEnded } from './middleware'
 
 export interface AuthTables { user: any; company: any }
 export interface AuthOptions {
@@ -253,7 +254,14 @@ export function createAuthRoutes(deps: AuthDeps) {
 
     const [foundUser] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
     if (!foundUser) return c.json({ error: 'Invalid email or password' }, 401)
-    if (!foundUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
+    if (!foundUser.isActive) {
+      // A revoked login trying to sign in is on the record, naming the account — the first thing anybody asks after
+      // taking someone's access away is whether they tried to come back. (templates/crm-store routes/auth.ts, store T3:
+      // "a sign-in, a wrong password and a revoked login are three rows".) The reply is unchanged.
+      logAuth(c, deps.audit?.ACTIONS?.LOGIN_FAILED ?? 'login_failed',
+        { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId }, 'Sign-in refused — this login has been revoked')
+      return c.json({ error: 'Account is disabled' }, 401)
+    }
 
     // Per-account lockout: N consecutive failures → timed lock. The per-IP limiter alone never stopped a
     // run that rotates addresses. Same message for a locked account whether or not the password is right,
@@ -388,7 +396,7 @@ export function createAuthRoutes(deps: AuthDeps) {
     catch { return c.json({ error: 'Invalid refresh token' }, 401) }
 
     const [foundUser] = await db.select().from(user).where(eq(user.id, decoded.userId)).limit(1)
-    if (!foundUser || !foundUser.isActive || !parseTokenList(foundUser.refreshToken).includes(refreshToken)) {
+    if (!foundUser || !foundUser.isActive || !parseTokenList(foundUser.refreshToken).includes(refreshToken) || sessionEnded(foundUser.sessionsValidFrom, decoded.iat)) {
       return c.json({ error: 'Invalid refresh token' }, 401)
     }
     const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
@@ -473,6 +481,24 @@ export function createAuthRoutes(deps: AuthDeps) {
     const valid = await Bun.password.verify(data.currentPassword, foundUser.passwordHash)
     if (!valid) return c.json({ error: 'Current password is incorrect' }, 400)
     const passwordHash = await Bun.password.hash(data.newPassword, 'bcrypt')
+    /**
+     * A PASSWORD CHANGE SIGNS OUT EVERY OTHER DEVICE, and keeps this one. (Owner, 2026-10-19: "do it the right way" —
+     * as Google, Microsoft and Shopify do.) Changing a password is what someone does when they think another person has
+     * it; leaving that person's sessions open made the change pointless. The store's template signed out every device,
+     * this one too; the shared code signed out none.
+     *
+     * Where the user table has sessions_valid_from (the unified app): every session signed before now — refresh and
+     * access tokens alike — is refused from its next request, and this device is given a new session in the reply
+     * (cookies for a browser, the body for everyone else). A template without the column keeps its old behaviour.
+     */
+    if (user.sessionsValidFrom) {
+      const now = new Date(Math.floor(Date.now() / 1000) * 1000)
+      const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
+      await db.update(user).set({ passwordHash, sessionsValidFrom: now, refreshToken: JSON.stringify([tokens.refreshToken]), updatedAt: new Date() }).where(eq(user.id, foundUser.id))
+      logAuth(c, deps.audit?.ACTIONS?.PASSWORD_CHANGE ?? 'password_change',
+        { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId }, 'Changed their own password; signed out of every other device')
+      return c.json(withSession(c, { message: 'Password changed. You have been signed out everywhere else.' }, tokens))
+    }
     await db.update(user).set({ passwordHash, updatedAt: new Date() }).where(eq(user.id, foundUser.id))
     logAuth(c, deps.audit?.ACTIONS?.PASSWORD_CHANGE ?? 'password_change',
       { id: foundUser.id, email: foundUser.email, companyId: foundUser.companyId }, 'Changed their own password')
@@ -506,11 +532,19 @@ export function createAuthRoutes(deps: AuthDeps) {
   app.post('/reset-password', async (c) => {
     const data = z.object({ token: z.string(), password: passwordSchema }).parse(await c.req.json().catch(() => ({})))
     const [foundUser] = await db.select().from(user).where(and(eq(user.resetToken, data.token), gt(user.resetTokenExp, new Date()))).limit(1)
-    if (!foundUser) return c.json({ error: 'Invalid or expired reset token' }, 400)
+    if (!foundUser) {
+      // An invitation that ran out is the inviter's to send again — Forgot password is for someone with an account, and
+      // this person has never signed in. (templates/crm-store routes/auth.ts, 10/14; there an invite token carried a
+      // prefix because its users table had no lastLogin — here never having signed in is what an invite is.)
+      const [lapsed] = await db.select({ lastLogin: user.lastLogin }).from(user).where(eq(user.resetToken, data.token)).limit(1)
+      if (lapsed && !lapsed.lastLogin) return c.json({ error: 'This invitation has expired. Ask whoever invited you to send it again.', code: 'invite_expired' }, 400)
+      return c.json({ error: 'Invalid or expired reset token' }, 400)
+    }
     const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
     // A password reset also ends every existing session and clears any lockout — the person proved
     // control of the mailbox, so whoever was hammering the old password is out.
-    await db.update(user).set({ passwordHash, resetToken: null, resetTokenExp: null, refreshToken: null, failedLoginCount: 0, lockedUntil: null, updatedAt: new Date() }).where(eq(user.id, foundUser.id))
+    // …and, where the table has it, the access tokens already handed out too (sessions_valid_from; see PUT /password).
+    await db.update(user).set({ passwordHash, resetToken: null, resetTokenExp: null, refreshToken: null, failedLoginCount: 0, lockedUntil: null, updatedAt: new Date(), ...(user.sessionsValidFrom ? { sessionsValidFrom: new Date(Math.floor(Date.now() / 1000) * 1000) } : {}) }).where(eq(user.id, foundUser.id))
     return c.json({ message: 'Password reset successfully' })
   })
 
