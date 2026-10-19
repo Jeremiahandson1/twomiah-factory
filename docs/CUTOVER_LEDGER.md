@@ -398,3 +398,33 @@ permission; several faint greys and dark-mode colours under 4.5:1.
 **Open, for the owner:** the store's onboarding had two extra steps (connect payments, add a first product); the
 engine's wizard covers the rest — add them as `screens.onboarding.extra` when the store's signup is run. The domain page
 exists only on a store's menu, though `/api/admin/domain` now serves every vertical.
+
+**The store's payments, proven against the providers' own test systems (2026-10-19)** — through the local store, a
+shopper checking out from the storefront's API and paying on the provider's own page, then the order page, the back
+office and the provider's records: Square sandbox (its Testing Panel; Twomiah's sandbox app) 9/9 + 7/7 setup checks;
+Stripe test mode (Checkout, card 4242; Twomiah's test account) 12/12; PayPal sandbox (guest card on PayPal's page;
+the owner's BreakReturns sandbox app) 9/9 — each: connected (the key checked first), paid for exactly the order's
+total, the order paid with its number, stock moved once, the shopper a customer contact, loyalty earned, a return
+visit changing nothing, and a part refund through the provider that the provider's own records show. Found and fixed:
+the order page said "Thank you … is confirmed" for an order never paid — it now says the payment hasn't come through
+and keeps the cart. Not run: the providers' webhooks to a public address (a local server has none) — held by the
+signed-webhook tests in `store-checkout.test.ts` and the converted suite. The loyalty row lock is proven on a real
+Postgres with concurrent connections (`apps/unified/tests/store-loyalty-lock.test.ts`, runs when TEST_PG_URL is set;
+fails with the lock removed).
+
+**The store's own suite on the unified app:** `tests/store` runs as `store` (`tests/unified/harness/store.ts`, its store
+mode in `runUnifiedSuite.ts`): square-orders passes unchanged; the other 18 seed the template's single-business tables and
+are each held by a converted copy in `tests/unified/store` (18 files, 694 checks, every changed line marked `unified:`).
+Found and fixed while converting: the audit log's "to" date dropped everything done that day (a bare end date is now the
+end of that day on the company's clock, `server/data/audit.ts`); a field a seat may read but not save looked editable (the
+template's disabled-field style, lost in the move, is app-wide again in `web/src/index.css`; the store settings page's
+locked inputs carry their own `disabled`).
+Decided on the way (the big platforms' way):
+- an invite can't be sent to the owner's account, signed in or not (`owner_account`; the engine refused only after a
+  sign-in) — `apps/unified/tests/owner-invite.test.ts`;
+- a manager sees the team's names and roles (no emails, sign-ins or grants), as in every vertical — the store's template
+  refused the whole list; the audit log stays the owner's and admins';
+- staff and managers are no longer told on the dashboard that payments aren't connected: the payment account is the
+  owner's to read, and the owner's dashboard says it.
+**Cutover data step (store):** a saved punch-card reward named "Free service" (the service businesses' default that the
+template's Loyalty screen used to save) becomes "Free item"; any other name is the owner's and stays.

@@ -91,6 +91,12 @@ describe("a store's shop pages", () => {
     expect(r.text).toContain('data-cart-clear')
     // No order to show: still a thank-you, still empties the cart.
     expect((await get('/checkout/success')).text).toContain('data-cart-clear')
+    // Not paid yet: never "confirmed", and the cart is kept for another try (found in the Square sandbox check).
+    const [pending] = await (t.db as any).insert(t.schema.storeOrder).values({ companyId, orderNumber: 'ORD-WAIT1', provider: 'square', providerSessionId: 'sq_wait', status: 'pending', customerEmail: 'w@example.com', subtotalCents: 1000, totalCents: 1000 }).returning()
+    const w = await get('/checkout/success?ref=' + pending.id)
+    expect(w.text).toContain('We haven&#39;t received your payment yet')
+    expect(w.text).not.toContain('is confirmed')
+    expect(w.text).not.toContain('data-cart-clear')
   })
 
   test("a store whose subscription has ended is closed: shop pages answer the unavailable page, the order page still opens", async () => {

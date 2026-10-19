@@ -1,7 +1,8 @@
 // Reading the audit log (the recording half is core/audit.ts). The CRM templates read it with raw SQL, so rows
 // reached the screen as created_at / user_email with a zone-less time the browser read as local (the T58c five-hour
 // shift). Here the query builder returns camelCase rows with real instants; the shared AuditLogPage reads either.
-import { and, count, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, lt, lte, sql } from 'drizzle-orm'
+import { companyTimeZone, storeDayStart } from '@twomiah/tenant-backend'
 import { auditLog } from '../db/schema/index.ts'
 
 export interface AuditQuery {
@@ -17,6 +18,8 @@ export interface AuditQuery {
 }
 
 const date = (v?: string) => { if (!v) return null; const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d }
+const BARE_DAY = /^\d{4}-\d{2}-\d{2}$/
+const nextDay = (ymd: string) => { const d = new Date(`${ymd}T00:00:00.000Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10) }
 
 export async function queryAudit(db: any, q: AuditQuery) {
   const conds = [eq(auditLog.companyId, q.companyId)]
@@ -24,9 +27,17 @@ export async function queryAudit(db: any, q: AuditQuery) {
   if (q.entityId) conds.push(eq(auditLog.entityId, q.entityId))
   if (q.action) conds.push(eq(auditLog.action, q.action))
   if (q.userId) conds.push(eq(auditLog.userId, q.userId))
-  const from = date(q.startDate), to = date(q.endDate)
+  // A bare date (the screen's date pickers send YYYY-MM-DD) is a whole day on the COMPANY's clock — the page shows each
+  // row's time in the company's zone. Read as an instant, an end date was that day's UTC midnight, so "to today" left
+  // out everything that happened today (templates/crm-store services/audit.ts covered the whole day; the move lost it —
+  // tests/unified/store/audit-and-shipping-rates). An end date is the start of the next day, exclusive.
+  const bare = BARE_DAY.test(q.startDate || '') || BARE_DAY.test(q.endDate || '')
+  const tz = bare ? await companyTimeZone(db, q.companyId) : 'UTC'
+  const from = BARE_DAY.test(q.startDate || '') ? storeDayStart(q.startDate!, tz) : date(q.startDate)
+  const endBare = BARE_DAY.test(q.endDate || '')
+  const to = endBare ? storeDayStart(nextDay(q.endDate!), tz) : date(q.endDate)
   if (from) conds.push(gte(auditLog.createdAt, from))
-  if (to) conds.push(lte(auditLog.createdAt, to))
+  if (to) conds.push(endBare ? lt(auditLog.createdAt, to) : lte(auditLog.createdAt, to))
   const where = and(...conds)
   const rows = await db.select().from(auditLog).where(where).orderBy(desc(auditLog.createdAt)).limit(q.limit).offset((q.page - 1) * q.limit)
   const [{ total }] = await db.select({ total: count() }).from(auditLog).where(where)

@@ -8,10 +8,11 @@ import { runUnifiedSuite } from './runUnifiedSuite.ts'
 import { SALON_SANDBOX } from './salonSandbox.ts'
 import { HOMECARE_SANDBOX } from './homecareSandbox.ts'
 import { ROOF_SANDBOX } from './roofSandbox.ts'
+import { STORE_SANDBOX } from './storeSandbox.ts'
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\\/g, '/')
 /** suite directory → the template its files name, and the vertical the app runs as. */
-const SUITES: Record<string, { template: string; vertical: string; sandboxFiles?: Record<string, string>; homecare?: boolean }> = {
+const SUITES: Record<string, { template: string; vertical: string; sandboxFiles?: Record<string, string>; homecare?: boolean; store?: boolean }> = {
   crm: { template: 'crm', vertical: 'contractor' },
   fieldservice: { template: 'crm-fieldservice', vertical: 'fieldservice' },
   basic: { template: 'crm-basic', vertical: 'basic' },
@@ -22,12 +23,13 @@ const SUITES: Record<string, { template: string; vertical: string; sandboxFiles?
   salon: { template: 'crm-salon', vertical: 'salon', sandboxFiles: SALON_SANDBOX },
   homecare: { template: 'crm-homecare', vertical: 'homecare', homecare: true, sandboxFiles: HOMECARE_SANDBOX },
   roof: { template: 'crm-roof', vertical: 'roofing', sandboxFiles: ROOF_SANDBOX },
+  store: { template: 'crm-store', vertical: 'store', sandboxFiles: STORE_SANDBOX, store: true },
 }
 const only = process.argv[2]
 let failed = 0
 for (const [suite, s] of Object.entries(SUITES)) {
   if (only && suite !== only) continue
   if (!existsSync(ROOT + 'tests/unified/' + suite)) continue
-  failed += await runUnifiedSuite({ root: ROOT, suiteDir: ROOT + 'tests/unified/' + suite, template: s.template, vertical: s.vertical, label: suite + '-adapted', filter: process.argv[3] || '', sandboxFiles: s.sandboxFiles, homecare: s.homecare })
+  failed += await runUnifiedSuite({ root: ROOT, suiteDir: ROOT + 'tests/unified/' + suite, template: s.template, vertical: s.vertical, label: suite + '-adapted', filter: process.argv[3] || '', sandboxFiles: s.sandboxFiles, homecare: s.homecare, store: s.store })
 }
 process.exit(failed ? 1 : 0)

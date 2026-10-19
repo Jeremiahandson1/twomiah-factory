@@ -55,6 +55,14 @@ export interface UnifiedSuiteOptions {
    *   · x-test-user signs in with x-test-role / x-test-company (or x-test-agency), as home care's stub did.
    */
   homecare?: boolean
+  /**
+   * The store's own model (templates/crm-store): one business per database with no company table — `store_settings` was
+   * the business and `users` its people — uuid ids, and the tables named in the plural. In the sandbox:
+   *   · the template's table names are the unified ones (users → user, orders → storeOrder, products → storeProduct …);
+   *   · the database has its one company before a test runs, and a row written without company_id gets it — exactly how
+   *     the cutover data move fills it (docs/UNIFIED_STORE_PLAN.md decision 1), as home care's does.
+   */
+  store?: boolean
 }
 
 export async function runUnifiedSuite(o: UnifiedSuiteOptions): Promise<number> {
@@ -75,7 +83,8 @@ export async function runUnifiedSuite(o: UnifiedSuiteOptions): Promise<number> {
 
   // The template's own migrations, for the tests that read a data heal from them and apply it here.
   cpSync(`${o.root}templates/${o.template}/backend/db/migrations`, `${SB}/db/migrations`, { recursive: true })
-  w('db/schema.ts', `export * from '${rel}/server/db/schema/index.ts'\n` + (o.homecare ? `export { company as agencies, user as users } from '${rel}/server/db/schema/index.ts'\n` : ''))
+  w('db/schema.ts', `export * from '${rel}/server/db/schema/index.ts'\n` + (o.homecare ? `export { company as agencies, user as users } from '${rel}/server/db/schema/index.ts'\n` : '')
+    + (o.store ? `export { user as users, storeOrder as orders, storeOrderItem as orderItems, storeOrderRefund as orderRefunds, storeProduct as products, storeProductVariant as productVariants, storeProductImage as productImages, discountCode as discountCodes, productReview as productReviews, loyaltyReward as loyaltyRewards, loyaltyMember as loyaltyMembers, loyaltyTransaction as loyaltyTransactions } from '${rel}/server/db/schema/index.ts'\n` : ''))
   w('db/index.ts', `
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
@@ -91,12 +100,14 @@ import { db } from './db/index.ts'
 import { MIGRATIONS } from '${'..'}/../server/db/migrate.ts'
 /** The unified migrations, in order, as a boot applies them. A failed one fails the suite. */
 export async function setupSchema() {
-  await migrate(db as any, { migrationsFolder: MIGRATIONS })${o.homecare ? `
+  await migrate(db as any, { migrationsFolder: MIGRATIONS })${o.homecare || o.store ? `
   await oneAgency()` : ''}
-}${o.homecare ? `
+}${o.homecare || o.store ? `
 import { sql } from 'drizzle-orm'
 /** One agency per database: a row written without company_id gets the one company (see runUnifiedSuite homecare). */
-async function oneAgency() {
+async function oneAgency() {${o.store ? `
+  // The store's one business: the template's database WAS the business (store_settings), so its tests never made one.
+  await db.execute(sql.raw("INSERT INTO company (id, name, slug) SELECT 'store-co', 'Test Store', 'test-store' WHERE NOT EXISTS (SELECT 1 FROM company)"))` : ''}
   await db.execute(sql.raw("CREATE OR REPLACE FUNCTION sandbox_one_company() RETURNS text LANGUAGE sql AS $$ SELECT id FROM company ORDER BY created_at, id LIMIT 1 $$"))
   const cols: any = await db.execute(sql.raw("SELECT table_name FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'company_id' AND column_default IS NULL"))
   for (const r of (cols.rows ?? cols)) await db.execute(sql.raw('ALTER TABLE "' + r.table_name + '" ALTER COLUMN company_id SET DEFAULT sandbox_one_company()'))

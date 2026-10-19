@@ -663,6 +663,9 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (!sendInvite) return c.json({ error: 'Invites are not available here — set their password instead.' }, 400)
     const [target] = await db.select().from(t.user).where(and(eq(t.user.id, c.req.param('id')), eq(t.user.companyId, currentUser.companyId))).limit(1)
     if (!target) return c.json({ error: 'User not found' }, 404)
+    // The owner's account is the owner's: nobody else sends a set-your-password link for it, whether or not the owner
+    // has signed in yet (templates/crm-store routes/users.ts refused it always; the engine refused only after a sign-in).
+    if (target.role === 'owner') return c.json({ error: "The owner's account can't be sent an invite. The owner signs in with their own password, or uses Forgot password.", code: 'owner_account' }, 409)
     if (!target.isActive) return c.json({ error: 'Restore their access first — a suspended account cannot sign in.' }, 409)
     if (target.lastLogin) return c.json({ error: 'They have already signed in. If they have lost their password, Forgot password on the sign-in page sends them a new link.' }, 409)
     const resetToken = crypto.randomUUID()

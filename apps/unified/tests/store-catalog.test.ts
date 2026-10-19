@@ -17,6 +17,8 @@
 //     the store's seats are the roles a login may hold; the domain route (status, check, buy, attach), the owner's.
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { and, eq } from 'drizzle-orm'
+import { readFileSync } from 'node:fs'
+import { storeDateString } from '@twomiah/tenant-backend'
 import { bootTenant, seedOwner } from './harness.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
@@ -420,6 +422,14 @@ describe('settings', () => {
     expect(said).toMatch(/Shipping zones edited \(0 zones → 1 zone\)/)
   })
 
+  test('a field a seat may read but not save LOOKS read-only: the disabled fieldset is the store form, and a disabled field has its own ground and ink in both themes (Store QA T3 L2)', () => {
+    // `.input` paints every field white; without the disabled rule a manager saw the owner's settings as editable fields.
+    const page = readFileSync(new URL('../web/src/crm/pages/store/catalog/StoreSettingsPage.tsx', import.meta.url), 'utf8')
+    expect(page).toMatch(/<fieldset disabled=\{!maySaveSettings\}/)
+    const css = readFileSync(new URL('../web/src/index.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+    expect(css).toMatch(/input:disabled,\s*select:disabled,\s*textarea:disabled \{\s*@apply cursor-not-allowed bg-gray-100 text-gray-600 dark:bg-slate-900 dark:text-slate-400;/)
+  })
+
   test('the business\'s own fields are the company\'s: the manager is refused them, the owner is told where they live', async () => {
     expect((await M('PATCH', '/api/admin/settings', { companyName: 'Mine Now' })).status).toBe(403)
     const owner = await O('PATCH', '/api/admin/settings', { companyName: 'Fern & Field', flatShippingCents: 1 })
@@ -430,6 +440,19 @@ describe('settings', () => {
     // …and the company module is where they are written.
     expect((await O('PUT', '/api/company', { name: 'Fern & Field' })).status).toBe(200)
     expect((await O('GET', '/api/company')).body.name).toBe('Fern & Field')
+  })
+
+  test('the settings page: every control in a locked section carries its section\'s rule as its own disabled', () => {
+    // A disabled fieldset leaves each control's `.disabled` false — the store's T3 retest read that as "still editable"
+    // (tests/store/audit-and-shipping-rates). The template gave each control its section's flag; the move had lost it.
+    const page = readFileSync(new URL('../web/src/crm/pages/store/catalog/StoreSettingsPage.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+    const sections = [...page.matchAll(/<fieldset disabled=\{(![a-zA-Z]+)\}[^>]*>([\s\S]*?)<\/fieldset>/g)]
+    expect(sections.length).toBeGreaterThan(0)
+    const loose = sections.flatMap(([, cond, body]) => [
+      ...[...body.matchAll(/<input(?![^>]*disabled=\{[^}]*\})[^>]*>/g)].map((m) => m[0].slice(0, 60)),
+      ...[...body.matchAll(/<input disabled=\{([^}]*)\}/g)].filter((m) => m[1] !== cond).map((m) => `wrong flag: ${m[1]}`),
+    ])
+    expect(loose).toEqual([])
   })
 })
 
@@ -460,6 +483,29 @@ describe('the shared modules\' fixes, now the engine\'s', () => {
     expect(p.changes).toEqual({ role: { old: 'field', new: 'manager' } })
     expect(r.action).toBe('update')
     expect((r.metadata as any).description).toBe('Access revoked — newhire@test.example')
+  })
+
+  test('the audit log: a bare end date covers the whole of that day, on the company\'s clock', async () => {
+    // The screen's date pickers send YYYY-MM-DD. Read as an instant, "to today" stopped at today's UTC midnight and left
+    // out everything done today (tests/store/audit-and-shipping-rates; the template covered the whole day).
+    const tz = 'America/Chicago'
+    await t.db.update(t.schema.company).set({ timezone: tz } as any).where(eq(t.schema.company.id, companyId))
+    try {
+      expect((await O('PATCH', '/api/admin/settings', { reviewRequestDays: 8 })).status).toBe(200) // a row written now
+      const total = (await auditRows()).length
+      const today = storeDateString(new Date(), tz)
+      const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - 1)
+      const yesterday = d.toISOString().slice(0, 10)
+      const toToday = await O('GET', `/api/audit?startDate=2000-01-01&endDate=${today}`)
+      expect(toToday.status).toBe(200)
+      expect(toToday.body.pagination.total).toBe(total)
+      const onlyToday = await O('GET', `/api/audit?startDate=${today}&endDate=${today}`)
+      expect(onlyToday.body.data.some((r: any) => r.entity === 'store_settings')).toBe(true)
+      const toYesterday = await O('GET', `/api/audit?startDate=2000-01-01&endDate=${yesterday}`)
+      expect(toYesterday.body.data.some((r: any) => +new Date(r.createdAt) > Date.now() - 60_000)).toBe(false)
+    } finally {
+      await t.db.update(t.schema.company).set({ timezone: null } as any).where(eq(t.schema.company.id, companyId))
+    }
   })
 
   test('a revoked login trying to sign in is on the record; the reply is unchanged', async () => {

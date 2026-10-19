@@ -19,7 +19,37 @@ const WEBHOOK_REPLACED: Divergence = {
   heldBy: 'apps/unified/tests/site-routes.test.ts (an enquiry lands in the Lead Inbox as new with it on, as a lead contact with it off)',
 }
 
+/** The store's single-business template shape (no company, `users`, store_settings as the business), replaced in the unified app. */
+const STORE_SHAPES = (heldBy: string): Divergence => ({
+  why: "Seeds the store template's single-business tables: `users` with one `name` (the unified `user` has first and last), the shop's name and support email on store_settings (the company row's — decision 1), loyalty members by email (by contact — decision 2); and reads the template's reply shapes (RULEBOOK §3).",
+  heldBy,
+})
+
 export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
+  // The store (tests/store, run by harness/store.ts). Every file but square-orders seeds the template's single-business
+  // shape — `users` with one `name`, the shop's name on store_settings, loyalty members by email — which the unified
+  // schema doesn't have (docs/UNIFIED_STORE_PLAN.md decisions 1–3), so it stops at its first insert. Each is held by its
+  // converted copy, every changed line marked `unified:` (run by adapted.ts store).
+  store: {
+    'account-lock.test.ts': STORE_SHAPES('tests/unified/store/account-lock.test.ts (26 of 26)'),
+    'admin-concurrency.test.ts': STORE_SHAPES('tests/unified/store/admin-concurrency.test.ts (31 of 31)'),
+    'audit-and-shipping-rates.test.ts': STORE_SHAPES('tests/unified/store/audit-and-shipping-rates.test.ts (56 of 56)'),
+    'checkout-charge.test.ts': STORE_SHAPES('tests/unified/store/checkout-charge.test.ts (29 of 29)'),
+    'email-domain.test.ts': STORE_SHAPES('tests/unified/store/email-domain.test.ts (11 of 11)'),
+    'label-picked-rate.test.ts': STORE_SHAPES('tests/unified/store/label-picked-rate.test.ts (10 of 10)'),
+    'loyalty-races-and-roles.test.ts': STORE_SHAPES('tests/unified/store/loyalty-races-and-roles.test.ts (18 of 18)'),
+    'loyalty.test.ts': STORE_SHAPES('tests/unified/store/loyalty.test.ts (32 of 32)'),
+    'mfa-sign-in.test.ts': STORE_SHAPES('tests/unified/store/mfa-sign-in.test.ts (36 of 36)'),
+    'order-receipt.test.ts': STORE_SHAPES('tests/unified/store/order-receipt.test.ts (11 of 11)'),
+    'part-refunds.test.ts': STORE_SHAPES('tests/unified/store/part-refunds.test.ts (65 of 65)'),
+    'paypal-refunds.test.ts': STORE_SHAPES('tests/unified/store/paypal-refunds.test.ts (85 of 85)'),
+    'qa-t1.test.ts': STORE_SHAPES('tests/unified/store/qa-t1.test.ts (81 of 81)'),
+    'qa-t3-manager.test.ts': STORE_SHAPES('tests/unified/store/qa-t3-manager.test.ts (37 of 37)'),
+    'refunds-through-stripe.test.ts': STORE_SHAPES('tests/unified/store/refunds-through-stripe.test.ts (47 of 47)'),
+    'roles.test.ts': STORE_SHAPES('tests/unified/store/roles.test.ts (80 of 80)'),
+    'store-domain.test.ts': STORE_SHAPES('tests/unified/store/store-domain.test.ts (17 of 17)'),
+    'team-invites.test.ts': STORE_SHAPES('tests/unified/store/team-invites.test.ts (22 of 22)'),
+  },
   // Home care (tests/homecare, run by harness/homecare.ts). Each route group adds the entries for the files it owns,
   // under its own comment, with one entry per file (a second key with the same name silently replaces the first).
   homecare: {

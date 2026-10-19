@@ -183,12 +183,15 @@ export default function StoreSettingsPage() {
       {back}
       <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Store, shipping &amp; tax</h1>
 
+      {/* Each control carries its section's rule as its own `disabled` too: a disabled fieldset stops the browser editing
+          its children but leaves each one's `.disabled` false, which is what the store's T3 retest read as "still
+          editable inputs" (tests/store/audit-and-shipping-rates; the template's fix, lost in the move). */}
       {/* The business: the company's name and email (owner and admin, PUT /api/company). */}
       <fieldset disabled={!mayCompany} className="card p-5 space-y-4 min-w-0">
         <h2 className={h2}>Store</h2>
         {!mayCompany && <p className={note}>The store's name and support email are set by the owner.</p>}
-        <div><label className="label" htmlFor="st-name">Store name</label><input id="st-name" className="input" value={form.name} onChange={(e) => set('name', e.target.value)} /></div>
-        <div><label className="label" htmlFor="st-email">Support email</label><input id="st-email" className="input" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} /></div>
+        <div><label className="label" htmlFor="st-name">Store name</label><input disabled={!mayCompany} id="st-name" className="input" value={form.name} onChange={(e) => set('name', e.target.value)} /></div>
+        <div><label className="label" htmlFor="st-email">Support email</label><input disabled={!mayCompany} id="st-email" className="input" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} /></div>
         {maySaveSettings && <p className={note}>The storefront's address is on the <Link to="/crm/domain" className="underline">Domain</Link> page.</p>}
       </fieldset>
 
@@ -196,8 +199,8 @@ export default function StoreSettingsPage() {
         <h2 className={h2}>Currency &amp; tax</h2>
         {!maySaveSettings && <p className={note}>The currency and tax are set by the owner.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label className="label" htmlFor="st-cur">Currency</label><input id="st-cur" className="input" value={form.currency} onChange={(e) => set('currency', e.target.value.toLowerCase())} maxLength={3} /></div>
-          <div><label className="label" htmlFor="st-tax">Tax rate (%)</label><input id="st-tax" className="input" inputMode="decimal" value={form.taxRatePct} onChange={(e) => set('taxRatePct', e.target.value)} /></div>
+          <div><label className="label" htmlFor="st-cur">Currency</label><input disabled={!maySaveSettings} id="st-cur" className="input" value={form.currency} onChange={(e) => set('currency', e.target.value.toLowerCase())} maxLength={3} /></div>
+          <div><label className="label" htmlFor="st-tax">Tax rate (%)</label><input disabled={!maySaveSettings} id="st-tax" className="input" inputMode="decimal" value={form.taxRatePct} onChange={(e) => set('taxRatePct', e.target.value)} /></div>
         </div>
       </fieldset>
 
@@ -205,8 +208,8 @@ export default function StoreSettingsPage() {
         <h2 className={h2}>Shipping</h2>
         {!mayShipping && <p className={note}>Shipping rates are set by a manager or the owner.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label className="label" htmlFor="st-flat">Flat shipping ({form.currency.toUpperCase()})</label><input id="st-flat" className="input" inputMode="decimal" value={form.flatShipping} onChange={(e) => set('flatShipping', e.target.value)} /></div>
-          <div><label className="label" htmlFor="st-free">Free shipping over</label><input id="st-free" className="input" inputMode="decimal" value={form.freeShippingThreshold} onChange={(e) => set('freeShippingThreshold', e.target.value)} placeholder="Blank = never" /></div>
+          <div><label className="label" htmlFor="st-flat">Flat shipping ({form.currency.toUpperCase()})</label><input disabled={!mayShipping} id="st-flat" className="input" inputMode="decimal" value={form.flatShipping} onChange={(e) => set('flatShipping', e.target.value)} /></div>
+          <div><label className="label" htmlFor="st-free">Free shipping over</label><input disabled={!mayShipping} id="st-free" className="input" inputMode="decimal" value={form.freeShippingThreshold} onChange={(e) => set('freeShippingThreshold', e.target.value)} placeholder="Blank = never" /></div>
         </div>
         <p className={note}>The flat rate and the tax rate apply where no zone or regional rate below matches.</p>
       </fieldset>
@@ -219,11 +222,11 @@ export default function StoreSettingsPage() {
         {form.zones.length === 0 && <p className="text-sm text-gray-600 dark:text-slate-400">No zones — the flat rate applies everywhere.</p>}
         {form.zones.map((z, i) => (
           <div key={i} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end border-t border-gray-200 pt-3 dark:border-slate-800">
-            <div className="col-span-2 sm:col-span-3"><label className="label text-xs" htmlFor={`z${i}-name`}>Name</label><input id={`z${i}-name`} className="input" value={z.name} onChange={(e) => setZone(i, 'name', e.target.value)} placeholder="Domestic" /></div>
-            <div className="sm:col-span-2"><label className="label text-xs" htmlFor={`z${i}-c`}>Countries</label><input id={`z${i}-c`} className="input" value={z.countries} onChange={(e) => setZone(i, 'countries', e.target.value)} placeholder="US" /></div>
-            <div className="sm:col-span-3"><label className="label text-xs" htmlFor={`z${i}-s`}>States (blank = all)</label><input id={`z${i}-s`} className="input" value={z.states} onChange={(e) => setZone(i, 'states', e.target.value)} placeholder="CA, NY" /></div>
-            <div className="sm:col-span-2"><label className="label text-xs" htmlFor={`z${i}-r`}>Rate</label><input id={`z${i}-r`} className="input" inputMode="decimal" value={z.rate} onChange={(e) => setZone(i, 'rate', e.target.value)} placeholder="7.00" /></div>
-            <div className="sm:col-span-1"><label className="label text-xs" htmlFor={`z${i}-f`}>Free over</label><input id={`z${i}-f`} className="input px-2" inputMode="decimal" value={z.free} onChange={(e) => setZone(i, 'free', e.target.value)} placeholder="—" /></div>
+            <div className="col-span-2 sm:col-span-3"><label className="label text-xs" htmlFor={`z${i}-name`}>Name</label><input disabled={!mayShipping} id={`z${i}-name`} className="input" value={z.name} onChange={(e) => setZone(i, 'name', e.target.value)} placeholder="Domestic" /></div>
+            <div className="sm:col-span-2"><label className="label text-xs" htmlFor={`z${i}-c`}>Countries</label><input disabled={!mayShipping} id={`z${i}-c`} className="input" value={z.countries} onChange={(e) => setZone(i, 'countries', e.target.value)} placeholder="US" /></div>
+            <div className="sm:col-span-3"><label className="label text-xs" htmlFor={`z${i}-s`}>States (blank = all)</label><input disabled={!mayShipping} id={`z${i}-s`} className="input" value={z.states} onChange={(e) => setZone(i, 'states', e.target.value)} placeholder="CA, NY" /></div>
+            <div className="sm:col-span-2"><label className="label text-xs" htmlFor={`z${i}-r`}>Rate</label><input disabled={!mayShipping} id={`z${i}-r`} className="input" inputMode="decimal" value={z.rate} onChange={(e) => setZone(i, 'rate', e.target.value)} placeholder="7.00" /></div>
+            <div className="sm:col-span-1"><label className="label text-xs" htmlFor={`z${i}-f`}>Free over</label><input disabled={!mayShipping} id={`z${i}-f`} className="input px-2" inputMode="decimal" value={z.free} onChange={(e) => setZone(i, 'free', e.target.value)} placeholder="—" /></div>
             {mayShipping && <div className="sm:col-span-1"><button type="button" onClick={() => delZone(i)} aria-label={`Remove zone ${z.name || i + 1}`} className="p-2 text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"><Trash2 className="h-4 w-4" /></button></div>}
           </div>
         ))}
@@ -237,9 +240,9 @@ export default function StoreSettingsPage() {
         {form.taxes.length === 0 && <p className="text-sm text-gray-600 dark:text-slate-400">No regional rates — the tax rate above applies.</p>}
         {form.taxes.map((t, i) => (
           <div key={i} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end border-t border-gray-200 pt-3 dark:border-slate-800">
-            <div className="sm:col-span-4"><label className="label text-xs" htmlFor={`t${i}-c`}>Country</label><input id={`t${i}-c`} className="input" value={t.country} onChange={(e) => setTax(i, 'country', e.target.value)} placeholder="US" /></div>
-            <div className="sm:col-span-4"><label className="label text-xs" htmlFor={`t${i}-s`}>State (blank = all)</label><input id={`t${i}-s`} className="input" value={t.state} onChange={(e) => setTax(i, 'state', e.target.value)} placeholder="CA" /></div>
-            <div className="sm:col-span-3"><label className="label text-xs" htmlFor={`t${i}-r`}>Rate %</label><input id={`t${i}-r`} className="input" inputMode="decimal" value={t.rate} onChange={(e) => setTax(i, 'rate', e.target.value)} placeholder="7.25" /></div>
+            <div className="sm:col-span-4"><label className="label text-xs" htmlFor={`t${i}-c`}>Country</label><input disabled={!maySaveSettings} id={`t${i}-c`} className="input" value={t.country} onChange={(e) => setTax(i, 'country', e.target.value)} placeholder="US" /></div>
+            <div className="sm:col-span-4"><label className="label text-xs" htmlFor={`t${i}-s`}>State (blank = all)</label><input disabled={!maySaveSettings} id={`t${i}-s`} className="input" value={t.state} onChange={(e) => setTax(i, 'state', e.target.value)} placeholder="CA" /></div>
+            <div className="sm:col-span-3"><label className="label text-xs" htmlFor={`t${i}-r`}>Rate %</label><input disabled={!maySaveSettings} id={`t${i}-r`} className="input" inputMode="decimal" value={t.rate} onChange={(e) => setTax(i, 'rate', e.target.value)} placeholder="7.25" /></div>
             {maySaveSettings && <div className="sm:col-span-1"><button type="button" onClick={() => delTax(i)} aria-label={`Remove tax rate ${i + 1}`} className="p-2 text-red-700 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200"><Trash2 className="h-4 w-4" /></button></div>}
           </div>
         ))}
@@ -250,7 +253,7 @@ export default function StoreSettingsPage() {
         {!maySaveSettings && <p className={note}>These are set by the owner.</p>}
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
-            <input type="checkbox" checked={form.abandonedCartEnabled} onChange={(e) => set('abandonedCartEnabled', e.target.checked)} />
+            <input disabled={!maySaveSettings} type="checkbox" checked={form.abandonedCartEnabled} onChange={(e) => set('abandonedCartEnabled', e.target.checked)} />
             Remind a shopper who left items in their cart
           </label>
           <div className="pl-6">
@@ -260,7 +263,7 @@ export default function StoreSettingsPage() {
         </div>
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
-            <input type="checkbox" checked={form.reviewsEnabled} onChange={(e) => set('reviewsEnabled', e.target.checked)} />
+            <input disabled={!maySaveSettings} type="checkbox" checked={form.reviewsEnabled} onChange={(e) => set('reviewsEnabled', e.target.checked)} />
             Ask for a product review after an order ships
           </label>
           <div className="pl-6">

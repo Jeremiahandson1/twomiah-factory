@@ -11,14 +11,22 @@
   const discLoyalty = (o && o.loyaltyDiscountCents > 0) ? Math.min(discTotal, o.loyaltyDiscountCents) : 0
   // A refunded or cancelled order is not "confirmed": the link in the shopper's email still opens it.
   const closed = o && (o.status === 'refunded' || o.status === 'cancelled')
+  // Not paid yet (the shopper came back before paying, or the payment hasn't cleared): never "confirmed", and the cart is
+  // kept so they can try again — the template said "Thank you … is confirmed" here (found in the Square sandbox check).
+  const waiting = o && o.status === 'pending'
 %>
 <div class="store-page checkout-success-page">
   <div class="container container--narrow">
     <div class="order-confirm">
-      <div class="order-confirm__icon" aria-hidden="true">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>
+      <div class="order-confirm__icon<%= waiting ? ' order-confirm__icon--waiting' : '' %>" aria-hidden="true">
+        <% if (waiting) { %><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+        <% } else { %><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg><% } %>
       </div>
-      <h1 class="order-confirm__title"><%= closed ? (o.status === 'refunded' ? 'This order was refunded' : 'This order was cancelled') : 'Thank you for your order!' %></h1>
+      <h1 class="order-confirm__title"><%= waiting ? "We haven't received your payment yet" : closed ? (o.status === 'refunded' ? 'This order was refunded' : 'This order was cancelled') : 'Thank you for your order!' %></h1>
+      <% if (waiting) { %>
+        <p class="order-confirm__lead">If you've just paid, it can take a moment to come through — refresh this page in a minute. If you didn't finish paying, nothing has been charged and your cart is still saved.</p>
+        <div class="order-confirm__actions"><a href="/cart" class="btn btn--primary btn--lg">Back to your cart</a></div>
+      <% } else { %>
       <% if (o) { %>
         <p class="order-confirm__lead">
           <% if (closed) { %>Your order <strong>#<%= o.orderNumber %></strong> was <%= o.status %>. Contact us if you have any questions.<% } else { %>Your order <strong>#<%= o.orderNumber %></strong> is confirmed.
@@ -58,8 +66,9 @@
         <p class="order-confirm__lead">Your order is confirmed &mdash; a receipt is on its way to your inbox. Thank you for shopping with <%= settings.companyName %>.</p>
       <% } %>
       <div class="order-confirm__actions"><a href="/shop" class="btn btn--primary btn--lg">Continue Shopping</a></div>
+      <% } %>
     </div>
   </div>
   <%# The order went through: /scripts/cart.js empties the saved cart when it sees this. %>
-  <% if (!closed) { %><div data-cart-clear hidden></div><% } %>
+  <% if (!closed && !waiting) { %><div data-cart-clear hidden></div><% } %>
 </div>
