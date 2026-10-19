@@ -258,3 +258,22 @@ describe("the Payers & Codes form's fields are kept", () => {
     expect(edited).toMatchObject({ revenueCode: '0571', requiresAuth: false })
   })
 })
+
+// A client with no onboarding record (moved in from the template, or made outside the add form) answered 404 to both
+// the checklist and its save, so Client Onboarding could neither show nor tick their steps (found in the browser,
+// 2026-10-19). The checklist reads as not started, and the first tick makes the record.
+describe("a client's onboarding checklist, record or not", () => {
+  test('no record: the checklist is not started; the first tick makes it; another company\'s client is still not found', async () => {
+    const S = t.schema
+    await t.db.delete(S.clientOnboarding).where(eq(S.clientOnboarding.clientId, ids.bob))
+    const blank = await as('adminA', 'GET', `/api/clients/${ids.bob}/onboarding`)
+    expect(blank.status).toBe(200)
+    expect(await blank.json()).toMatchObject({ clientId: ids.bob, emergencyContactsCompleted: false, allCompleted: false })
+    const tick = await as('adminA', 'PATCH', `/api/clients/${ids.bob}/onboarding`, { emergencyContactsCompleted: true })
+    expect(tick.status).toBe(200)
+    expect(await tick.json()).toMatchObject({ clientId: ids.bob, emergencyContactsCompleted: true, allCompleted: false })
+    expect((await t.db.select().from(S.clientOnboarding).where(eq(S.clientOnboarding.clientId, ids.bob))).length).toBe(1)
+    expect((await as('adminA', 'GET', `/api/clients/${ids.zed}/onboarding`)).status).toBe(404)
+    expect((await as('adminA', 'PATCH', `/api/clients/${ids.zed}/onboarding`, { emergencyContactsCompleted: true })).status).toBe(404)
+  })
+})

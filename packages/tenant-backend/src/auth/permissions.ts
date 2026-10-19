@@ -362,6 +362,12 @@ export interface PermissionsDeps {
   tables: { user: any }
   /** Permissions appended to a role's base list, e.g. `{ field: ['contacts:create'] }`. */
   extraRolePermissions?: Record<string, string[]>
+  /**
+   * Permissions taken off a role's base list where the vertical's people in that seat must not have them — home care's
+   * caregivers are the field rung, whose `contacts:read` is a contractor crew's, but an agency's contacts are its sales
+   * leads (prospective clients' details), the office's alone.
+   */
+  withheldRolePermissions?: Record<string, string[]>
   /** Template role names mapped onto the standard hierarchy. `user → field` is always included. */
   roleMapping?: Record<string, string>
   /**
@@ -384,7 +390,8 @@ export function createPermissions(deps: PermissionsDeps) {
   const ROLE_PERMISSIONS: Record<string, string[]> = {}
   for (const [role, list] of Object.entries(BASE_ROLE_PERMISSIONS)) {
     const extra = deps.extraRolePermissions?.[role] || []
-    ROLE_PERMISSIONS[role] = Array.from(new Set([...list, ...extra]))
+    const withheld = new Set(deps.withheldRolePermissions?.[role] || [])
+    ROLE_PERMISSIONS[role] = Array.from(new Set([...list, ...extra])).filter((p) => !withheld.has(p))
   }
   for (const [role, extra] of Object.entries(deps.extraRolePermissions || {})) {
     if (!ROLE_PERMISSIONS[role]) ROLE_PERMISSIONS[role] = Array.from(new Set(extra))

@@ -243,12 +243,21 @@ export function createClientRoutes(core: HomecareCore, d: CrmDeps, access: Clien
     return one(c, row, 201)
   })
 
-  // GET /api/clients/:id/onboarding (above /:id)
+  // GET /api/clients/:id/onboarding (above /:id). A client of the company with no record yet — one moved in from the
+  // template, or made outside the add form — has a checklist not started: the six steps not done. It answered 404,
+  // and Client Onboarding could neither show nor tick that client's steps (found in the browser, 2026-10-19).
   app.get('/:id/onboarding', async (c) => {
     const { companyId } = who(c)
+    const id = c.req.param('id')
     const [row] = await db.select().from(clientOnboarding)
-      .where(and(eq(clientOnboarding.clientId, c.req.param('id')), eq(clientOnboarding.companyId, companyId))).limit(1)
-    return row ? one(c, row) : fail(c, 404, 'Onboarding record not found')
+      .where(and(eq(clientOnboarding.clientId, id), eq(clientOnboarding.companyId, companyId))).limit(1)
+    if (row) return one(c, row)
+    if (!(await access.clientInCompany(companyId, id))) return fail(c, 404, 'Client not found')
+    return one(c, {
+      clientId: id, emergencyContactsCompleted: false, medicalHistoryCompleted: false, insuranceInfoCompleted: false,
+      carePreferencesCompleted: false, familyCommunicationCompleted: false, initialAssessmentCompleted: false,
+      allCompleted: false, completedAt: null,
+    })
   })
 
   // GET /api/clients/:id — the office's record with its contacts, onboarding, assignments, referrer, geofence and
@@ -341,8 +350,13 @@ export function createClientRoutes(core: HomecareCore, d: CrmDeps, access: Clien
     const id = c.req.param('id')
     const b = await body(c)
     const scope = and(eq(clientOnboarding.clientId, id), eq(clientOnboarding.companyId, companyId))
-    const [existing] = await db.select().from(clientOnboarding).where(scope).limit(1)
-    if (!existing) return fail(c, 404, 'Onboarding record not found')
+    let [existing] = await db.select().from(clientOnboarding).where(scope).limit(1)
+    if (!existing) {
+      // The first tick on a client with no record makes it (see the GET above).
+      if (!(await access.clientInCompany(companyId, id))) return fail(c, 404, 'Client not found')
+      ;[existing] = await db.insert(clientOnboarding).values({ companyId, clientId: id }).onConflictDoNothing().returning()
+      if (!existing) [existing] = await db.select().from(clientOnboarding).where(scope).limit(1)
+    }
     const STEPS = [
       'emergencyContactsCompleted', 'medicalHistoryCompleted', 'insuranceInfoCompleted',
       'carePreferencesCompleted', 'familyCommunicationCompleted', 'initialAssessmentCompleted',

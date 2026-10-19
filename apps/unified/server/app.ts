@@ -68,6 +68,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     db, tables: { user },
     roleLabels: vertical.roleLabels,
     extraRolePermissions: vertical.extraRolePermissions,
+    withheldRolePermissions: vertical.withheldRolePermissions,
     roleMapping: vertical.roleMapping,
   })
   const features = createEnabledFeatureGate({ db, tables: { company } })

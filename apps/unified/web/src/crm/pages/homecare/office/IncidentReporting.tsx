@@ -304,7 +304,7 @@ export default function IncidentReporting() {
               key={f}
               onClick={() => setFilter(f)}
               className={`rounded-full px-3 py-1 text-sm font-semibold ${filter === f
-                ? 'bg-teal-700 text-white dark:bg-teal-600 dark:text-white'
+                ? 'bg-teal-700 text-white dark:bg-teal-700 dark:text-white'
                 : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600'}`}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}

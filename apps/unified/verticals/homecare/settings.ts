@@ -383,6 +383,10 @@ const homecare: VerticalSettings = {
   extraRolePermissions: {
     field: ['care-schedule:read', 'care-clients:read', 'evv:read', 'evv:create', 'evv:update', 'care-portal:read', 'my-pay:read', 'my-pay:create'],
   },
+  // The field rung reads contacts for a contractor's crew; an agency's contacts are its sales leads — prospective
+  // clients' details, the office's (a caregiver was offered the Lead Inbox, 2026-10-19). The template's caregivers had
+  // no such page.
+  withheldRolePermissions: { field: ['contacts:read'] },
   // The home-care add-on on; the CRM's shared modules as the base CRM has them.
   crm: {
     ...BASE_CRM, homecare: true,

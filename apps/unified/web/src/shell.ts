@@ -57,7 +57,8 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
   { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
-  { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
+  // GET /api/leads/sources asks contacts:read: the item asks the same, so no seat is offered a page that refuses it.
+  { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'], permission: 'contacts:read' },
   { to: '/crm/selections', icon: CheckSquare, label: 'Selections', features: ['selections'], permission: 'selections:read' },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
   // Field service's own screens (templates/crm-fieldservice/frontend/src/shellConfig.ts). The registry offers these

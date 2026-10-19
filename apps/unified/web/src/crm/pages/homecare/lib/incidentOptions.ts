@@ -116,7 +116,7 @@ export const LABEL = 'mb-1 block text-xs font-semibold text-gray-700 dark:text-s
 export const CARD = 'mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800';
 export const H3 = 'mb-3 text-base font-bold text-gray-900 dark:text-slate-100';
 export const MUTED = 'text-sm text-gray-600 dark:text-slate-400';
-export const BTN_PRIMARY = 'inline-flex items-center gap-1 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60 dark:bg-teal-600 dark:hover:bg-teal-500';
+export const BTN_PRIMARY = 'inline-flex items-center gap-1 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60 dark:bg-teal-700 dark:hover:bg-teal-800';
 export const BTN_SECONDARY = 'inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600';
 export const BTN_DANGER = 'inline-flex items-center gap-1 rounded-lg bg-red-700 px-3 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-60 dark:bg-red-600 dark:hover:bg-red-500';
 

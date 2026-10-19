@@ -155,7 +155,8 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
     const matches = candidates
       .filter((i) => i.features && i.features.length && (path === i.to || path.startsWith(i.to + '/')))
       .sort((a, b) => b.to.length - a.to.length)
-    const blocked = blockedRoute(matches, hasFeature)
+    const alwaysOn = new Set(candidates.filter((i) => !i.features?.length).map((i) => i.to))
+    const blocked = blockedRoute(matches, hasFeature, alwaysOn)
     return blocked ? { ...blocked, reason: 'feature' as const } : null
   }, [location.pathname, company, hasFeature, can, config.nav, config.routeGates, config.routeRoles, config.routePermissions, user?.role])
 

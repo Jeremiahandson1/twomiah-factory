@@ -16,7 +16,8 @@
     --hc-primary: rgb(var(--brand-600));
     --hc-secondary: var(--hc-primary);
     --hc-surface: #ffffff;
-    --hc-ground: #f5f5f5;
+    /* Slate-50: grey-500 and slate-500 ink read 4.4:1 on the template's #f5f5f5 (measured 2026-10-19), 4.6+ here. */
+    --hc-ground: #f8fafc;
     --hc-subtle: #f3f4f6;
     --hc-line: #e5e7eb;
     --hc-ink: #2d3a3a;
@@ -81,7 +82,7 @@
     --color-white: #FFFFFF;
     --color-text: #2D3A3A;
     --color-text-light: #5A6B6B;
-    --color-gray: #F5F5F5;
+    --color-gray: #F8FAFC; /* the page ground, slate-50 as --hc-ground: grey-500 ink read 4.4:1 on #F5F5F5 */
     --color-red: #DC3545;
     --color-green: #28A745;
     --color-blue: #0066CC;
@@ -554,6 +555,8 @@
 :where(.hc) .filter-tab.active { background: var(--color-teal); color: white; }
 
 :where(.hc) .filter-count { opacity: 0.7; font-size: 0.75rem; margin-left: 0.25rem; }
+/* On the active tab's brand ground the count is the label's own white: faded, it read 3.3:1 (measured 2026-10-19). */
+:where(.hc) .filter-tab.active .filter-count { opacity: 1; }
 
 /* Modals */
 
@@ -820,7 +823,8 @@
 
 /* Star Rating */
 
-:where(.hc) .star-icon { color: #ffc107; }
+:where(.hc) .star-icon { color: #d97706; } /* amber-600: the template's #ffc107 star was 1.6:1 on white (an icon needs 3:1) */
+.dark .hc .star-icon { color: #fbbf24; }
 
 /* Form Sections */
 
@@ -1309,8 +1313,9 @@
     position: relative;
   }
 
+/* The label in the brand's ink shade: the owner's colour itself read 3.6:1 on the dark bar (measured 2026-10-19). */
 :where(.hc) .mobile-bottom-nav-item.active {
-    color: var(--hc-primary);
+    color: var(--color-teal-dark);
   }
 
 :where(.hc) .mobile-bottom-nav-item.active::before {

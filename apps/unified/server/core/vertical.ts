@@ -12,6 +12,8 @@ export interface VerticalSettings {
   roleLabels?: Record<string, string>
   /** Permissions added to a rung's base list, e.g. `{ field: ['contacts:create'] }`. */
   extraRolePermissions?: Record<string, string[]>
+  /** Base permissions a seat does not get in this vertical (PermissionsDeps.withheldRolePermissions). */
+  withheldRolePermissions?: Record<string, string[]>
   /**
    * Older role names this vertical's people may still carry, read as a rung, e.g. `{ staff: 'field' }` (the vet's
    * clinical staff seat, templates/crm-vet middleware/permissions.ts).

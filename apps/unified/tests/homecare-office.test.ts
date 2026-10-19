@@ -605,3 +605,21 @@ describe('the wiring the browser runs (session-fetch, first-sign-in-token, accou
     expect(login).toMatch(/Your session ended\. Please sign in again\./)
   })
 })
+
+// An agency's contacts are its sales leads: the office's. The field rung's contacts:read is a contractor crew's, so a
+// caregiver was offered the Lead Inbox and Lead Sources (2026-10-19). Home care withholds it from the seat.
+describe("a caregiver does not read the agency's leads", () => {
+  test('the seat has no contacts:read, and the leads routes refuse it; the office keeps it', async () => {
+    const me = await (await as('cg', '/api/auth/me')).json()
+    expect(me.permissions).not.toContain('contacts:read')
+    expect(me.permissions).toContain('care-schedule:read')
+    // The lead inbox on, so a refusal is the seat's permission, never a feature that is off.
+    await t.db.execute(sql`UPDATE company SET enabled_features = '["lead_inbox","call_tracking","ai_receptionist"]'::json WHERE id = ${companyId}`)
+    t.services.features.forgetFeatures()
+    for (const p of ['/api/leads', '/api/leads/sources']) {
+      const r = await as('cg', p)
+      expect({ p, status: r.status, code: (await r.json()).code }).toEqual({ p, status: 403, code: expect.not.stringMatching(/FEATURE/) })
+    }
+    expect((await as('admin', '/api/leads/sources')).status).toBe(200)
+  })
+})

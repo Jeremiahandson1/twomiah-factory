@@ -1915,7 +1915,7 @@ const CaregiverDashboard = () => {
             Settings
           </button>
           <button className="mobile-more-drawer-item" onClick={() => { logout() }} style={{ color: 'var(--hc-red-ink)' }}>
-            <span className="mobile-more-drawer-item-icon" style={{ background: 'var(--hc-danger-bg)' }}>⏻</span>
+            <span className="mobile-more-drawer-item-icon" style={{ background: 'var(--hc-danger-bg)', color: 'var(--hc-danger-ink)' }}>⏻</span>
             Log Out
           </button>
         </div>
