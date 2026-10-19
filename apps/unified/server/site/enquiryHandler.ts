@@ -9,6 +9,7 @@ import type { VerticalSettings } from '../core/vertical.ts'
 import type { createEnquiries } from '../core/enquiry.ts'
 import { fail, done } from '../http/reply.ts'
 import { escHtml } from './render.ts'
+import { BAR_FORMS } from '../crm/bar/enquiry.ts'
 
 const WINDOW_MS = 10 * 60 * 1000
 const MAX_PER_WINDOW = 5
@@ -76,12 +77,21 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
       const message = [one(body.message || body.project || body.notes), ...extras].filter(Boolean).join('\n').slice(0, 5000)
 
       if (!name || name.length < 2) return reply(false, 'Name is required.')
-      if (!email || !email.includes('@')) return reply(false, 'Valid email required.')
-      if (!message || message.length < 4) return reply(false, vertical.site.words.contactMessageRequired)
+      // A vertical's own forms (CrmSettings.websiteForms: the bar's party request and Regulars sign-up) take an email
+      // or a phone number and need no message; every other form needs an email and a message.
+      const ownForm = vertical.crm?.websiteForms === 'bar' && BAR_FORMS.has(one(body.formType))
+      if (ownForm) {
+        if (email && !email.includes('@')) return reply(false, 'Valid email required.')
+        if (!email && !phone) return reply(false, 'An email or a phone number, so we can reach you.')
+      } else {
+        if (!email || !email.includes('@')) return reply(false, 'Valid email required.')
+        if (!message || message.length < 4) return reply(false, vertical.site.words.contactMessageRequired)
+      }
 
       const [co] = await db.select({ id: company.id, name: company.name, email: company.email }).from(company).orderBy(asc(company.createdAt)).limit(1)
       if (!co) return reply(false, 'Could not save your message. Please try again.', 500)
-      const enquiry = { name, email, phone, message, source }
+      const form = ownForm ? Object.fromEntries(Object.keys(body).slice(0, 40).map((k) => [k, one(body[k]).slice(0, 2000)])) : undefined
+      const enquiry = { name, email, phone, message, source, form, ip }
       await enquiries.record(co.id, enquiry)
       void enquiries.notifyOwner({ email: co.email, companyName: co.name }, enquiry)
       return reply(true, THANKS)

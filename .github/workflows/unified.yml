@@ -39,6 +39,31 @@ jobs:
         working-directory: apps/unified
         run: bun run build:web
 
+  # The Factory's side (apps/api/src/unified): a test signup built with its own database server, repo and service,
+  # then updated and torn down: the tenant repo installed from its lockfile, built, migrated, served and provisioned.
+  factory:
+    name: Factory — a test signup built, updated and torn down end to end
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: pgpass
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      UNIFIED_TEST_PG: postgres://postgres:pgpass@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.3.14
+      - name: Install
+        run: bun install
+      - name: A test signup, built, updated and torn down
+        run: bun test --timeout 900000 tests/unified/factory/build.test.ts
+
   # The step-3 measure (SPEC §0): the base CRM's own behaviour suite, unchanged, against the unified app. A file passes,
   # or every assertion it fails is a documented divergence (tests/unified/harness/unified-divergences.ts) whose
   # behaviour is held elsewhere — the six reply-shape ones by their adapted copies, run after it.
@@ -56,5 +81,19 @@ jobs:
         run: bun tests/unified/harness/crm.ts
       - name: Field-service suite (tests/fieldservice) on the unified app, as fieldservice
         run: bun tests/unified/harness/fieldservice.ts
+      - name: Basic suite (tests/basic), as basic
+        run: bun tests/unified/harness/basic.ts
+      - name: Landscaping suite (tests/landscaping), as landscaping
+        run: bun tests/unified/harness/landscaping.ts
+      - name: Restaurant suite (tests/restaurant), as restaurant
+        run: bun tests/unified/harness/restaurant.ts
+      - name: Bar suite (tests/bar), as bar
+        run: bun tests/unified/harness/bar.ts
+      - name: RV suite (tests/rv), as rv
+        run: bun tests/unified/harness/rv.ts
+      - name: Salon suite (tests/salon), as salon
+        run: bun tests/unified/harness/salon.ts
+      - name: Vet suite (tests/vet), as vet
+        run: bun tests/unified/harness/vet.ts
       - name: Adapted copies (tests/unified/<suite>)
         run: bun tests/unified/harness/adapted.ts

@@ -11,7 +11,7 @@ import { event } from './events.ts'
 import { patient } from './vet.ts'
 import { booking } from './booking.ts'
 import { company, user } from './core.ts'
-import { commissionIsAuto, commissionIsReversal } from '../../data/indexWhere.ts'
+import { commissionIsAuto, commissionIsReversal, invoiceIsLive } from '../../data/indexWhere.ts'
 
 export const contact = pgTable('contact', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -290,6 +290,12 @@ export const invoice = pgTable('invoice', {
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_status_idx').on(t.status),
+  // Two live invoices never share a number: the database's backstop under numbering and "bill once" (Vet T41: a race
+  // double-billed and twice shared a number). For every vertical, not only the vet's.
+  uniqueIndex('invoice_company_number_live_unique_idx').on(t.companyId, t.number).where(invoiceIsLive),
+  // One bill per salon visit (templates/crm-salon schema.ts): checkout relies on this refusal. NULLs never collide, so every
+  // invoice raised by hand, with no appointment, is untouched.
+  uniqueIndex('invoice_appointment_unique').on(t.companyId, t.appointmentId),
 ])
 
 export const invoiceLineItem = pgTable('invoice_line_item', {

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { EmailAliasesStep, useAuth, useToast } from '../../shared'
 import { api } from '../../api'
+import { verticalScreens } from '../vertical'
 
 const STEPS = ['Verify Info', 'Integrations', 'Branded Email', 'Need Help?', 'All Set!'];
 
@@ -122,6 +123,19 @@ const INTEGRATIONS: Integration[] = [
   },
 ];
 
+/**
+ * The ones this vertical offers (screens.onboarding.integrations; absent, all). A gym or a food truck has no Jobber
+ * export and no Angi account, so templates/crm-basic offered only the domain, QuickBooks, Stripe and texting (T41).
+ * A category left with none is not shown.
+ */
+const offeredIntegrations = (): Integration[] => {
+  const { integrations: ids, extra } = verticalScreens().onboarding
+  // A vertical's own entries, as plain data (screens.onboarding.extra): a dealership's DMS import and its marketplaces
+  // (templates/crm-rv OnboardingWizard.tsx), in place of Jobber, Angi, Thumbtack and Google LSA.
+  const all = [...INTEGRATIONS, ...(Array.isArray(extra) ? (extra as Integration[]) : [])]
+  return ids ? all.filter((i) => ids.includes(i.id)) : all
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
   dns: 'Domain Setup',
   lead_sources: 'Lead Sources',
@@ -220,6 +234,12 @@ export default function OnboardingWizard() {
       toast.error('Company name is required');
       return;
     }
+    // A malformed email otherwise poisons the final save (a 400) and loses every edit made on the way
+    // (templates/crm-restaurant OnboardingWizard.tsx, ONB-01; taken for every vertical).
+    if (currentStep === 0 && profile.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(profile.email).trim())) {
+      toast.error('Please enter a valid email address (or leave it blank).');
+      return;
+    }
     if (currentStep < STEPS.length - 1) setCurrentStep(prev => prev + 1);
   };
 
@@ -260,6 +280,28 @@ export default function OnboardingWizard() {
     }
   };
 
+  /**
+   * A way out of the wizard at any step: setup is marked complete and the person lands in the CRM; branded email and the
+   * rest can be finished from Settings. A step that can't be finished (the Branded Email step on its defaults, which has
+   * no Skip of its own) otherwise dead-ends a new customer (templates/crm-restaurant OnboardingWizard.tsx, B-03; taken for
+   * every vertical).
+   */
+  const handleSkip = async () => {
+    setSaving(true);
+    try {
+      const currentSettings = (company?.settings && typeof company.settings === 'object') ? company.settings : {};
+      const updated = await api.company.update({
+        settings: { ...currentSettings, onboardingComplete: true, onboardingSkipped: true, onboardingCompletedAt: new Date().toISOString() },
+      });
+      updateCompany(updated);
+      navigate('/crm', { replace: true });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Setup could not be skipped. Try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const progressPercent = ((currentStep + 1) / STEPS.length) * 100;
 
   return (
@@ -270,6 +312,11 @@ export default function OnboardingWizard() {
           className="h-full bg-orange-500 transition-all duration-500 ease-out rounded-r-full"
           style={{ width: `${progressPercent}%` }}
         />
+      </div>
+      <div className="flex justify-end px-4 pt-3">
+        <button onClick={handleSkip} disabled={saving} className="text-sm text-gray-600 hover:text-gray-800 dark:text-slate-300 dark:hover:text-slate-100 underline">
+          Skip setup for now
+        </button>
       </div>
 
       {/* Step indicators */}
@@ -497,7 +544,7 @@ function StepIntegrations({
   const grouped = CATEGORY_ORDER.map(cat => ({
     category: cat,
     label: CATEGORY_LABELS[cat],
-    integrations: INTEGRATIONS.filter(i => i.category === cat),
+    integrations: offeredIntegrations().filter(i => i.category === cat),
   })).filter(g => g.integrations.length > 0);
 
   return (
@@ -655,7 +702,7 @@ function StepReady({
   setupChoice: string | null;
 }) {
   const doneCount = completedIntegrations.size;
-  const totalIntegrations = INTEGRATIONS.length;
+  const totalIntegrations = offeredIntegrations().length;
   const setupLabel = SETUP_OPTIONS.find(o => o.id === setupChoice)?.label || "I'll set it up myself";
 
   return (

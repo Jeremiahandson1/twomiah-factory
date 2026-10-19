@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "invoice_company_number_live_unique_idx" ON "invoice" USING btree ("company_id","number") WHERE status <> 'void';

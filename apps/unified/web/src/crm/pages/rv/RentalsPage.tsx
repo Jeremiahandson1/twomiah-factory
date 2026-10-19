@@ -1,0 +1,127 @@
+// Moved from templates/crm-rv/frontend/src/pages/rv/RentalsPage.tsx.
+import { useEffect, useState } from 'react'
+import { Repeat, Plus, Loader2 } from 'lucide-react'
+import { api } from '../../../api'
+import { errorText, useMayWrite } from '../../../shared'
+
+/** A reservation as the server shapes it (server/crm/rv/rentals.ts `shape`). */
+interface Rental { id: string; unitId: string; unit: string; contactId: string | null; customer: string; start: string; end: string; days: number; rate: number; total: number; status: string; notes: string | null }
+/** The fleet's figures; revenue is absent for a seat without invoices:read — on every reply that carries it. */
+interface RentalSummary { active?: number; reserved?: number; revenue?: number }
+interface RentalListReply { rentals?: Rental[]; summary?: RentalSummary }
+interface RentalReply { rental: Rental; summary?: RentalSummary }
+/** A unit from GET /api/units ({ data, pagination }), the fields the picker shows. */
+interface UnitOption { id: string; year?: number | null; make?: string | null; modelName?: string | null; stockNumber?: string | null; status?: string }
+type RentalForm = { unitId: string; customer: string; start: string; end: string; rate: string }
+
+const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const STATUS: Record<string, string> = { out: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', reserved: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40', returned: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', cancelled: 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800' };
+// the status changes the server allows
+const ACTIONS: Record<string, [string, string][]> = { reserved: [['out', 'Check out'], ['cancelled', 'Cancel']], out: [['returned', 'Return']] };
+const EMPTY: RentalForm = { unitId: '', customer: '', start: '', end: '', rate: '' };
+const DAY_MS = 86_400_000;
+// same rule as the server: days between pick-up and return, at least 1
+const daysBetween = (start: string, end: string) => (start && end && end >= start ? Math.max(1, Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / DAY_MS)) : 0);
+
+// Reservations are stored per company and checked by the server (dates, rate, sold units, overlapping bookings on
+// the same unit). The page shows the server's reason when a booking or status change is refused. (RV T19 H5)
+export default function RentalsPage() {
+  const [rentals, setRentals] = useState<Rental[]>([]);
+  const [summary, setSummary] = useState<RentalSummary>({});
+  const [units, setUnits] = useState<UnitOption[]>([]);
+  const [form, setForm] = useState<RentalForm>(EMPTY);
+  const [show, setShow] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  // POST /api/rentals/create asks contacts:create and POST /:id/status contacts:update — the controls ask the same,
+  // so a seat the server refuses is not offered them. (T62: "RV Rentals … staff see that the server refuses")
+  const mayCreate = useMayWrite('contacts:create');
+  const mayUpdate = useMayWrite('contacts:update');
+
+  const load = () => api.get('/api/rentals/list').then((r: RentalListReply) => { setRentals(r.rentals || []); setSummary(r.summary || {}); }).catch((e: unknown) => setError(errorText(e, 'Could not load reservations')));
+  useEffect(() => {
+    load();
+    api.get('/api/units', { limit: 500 }).then((r: { data?: UnitOption[] }) => setUnits((r.data || []).filter((u) => u.status !== 'sold'))).catch(() => {});
+  }, []);
+
+  const days = daysBetween(form.start, form.end);
+  const rate = Number(form.rate);
+
+  async function create() {
+    setError(null);
+    if (!form.unitId || !form.customer.trim()) { setError('Pick a unit and enter the customer.'); return; }
+    setSaving(true);
+    try {
+      const r: RentalReply = await api.post('/api/rentals/create', { ...form, rate: form.rate === '' ? '' : form.rate });
+      setRentals((x) => [r.rental, ...x]); setSummary(r.summary || summary); setShow(false); setForm(EMPTY);
+    } catch (e: unknown) { setError(errorText(e, 'Could not save the reservation')); }
+    finally { setSaving(false); }
+  }
+
+  async function changeStatus(id: string, status: string) {
+    setError(null); setBusyId(id);
+    try {
+      const r: RentalReply = await api.post(`/api/rentals/${id}/status`, { status });
+      setRentals((x) => x.map((row) => (row.id === id ? r.rental : row))); setSummary(r.summary || summary);
+    } catch (e: unknown) { setError(errorText(e, 'Could not update the reservation')); }
+    finally { setBusyId(null); }
+  }
+
+  // The server omits summary.revenue for a seat without invoices:read (routes/rentals.ts), so the
+  // tile goes rather than showing $0 — "the rental side made nothing" is a worse answer than none.
+  // Keyed off the field's absence so the card cannot disagree with the payload. (T41)
+  const cards: [string, string | number][] = [['Active (out)', summary.active ?? 0], ['Reserved', summary.reserved ?? 0]];
+  if (summary.revenue !== undefined) cards.push(['Rental revenue', money(summary.revenue)]);
+  const unitName = (u: UnitOption) => [[u.year, u.make, u.modelName].filter(Boolean).join(' '), u.stockNumber ? `(${u.stockNumber})` : ''].filter(Boolean).join(' ');
+
+  return (
+    <div className="max-w-5xl mx-auto p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="w-10 h-10 rounded-lg bg-indigo-700 flex items-center justify-center text-white"><Repeat size={22} /></div>
+        <div className="flex-1"><h1 className="text-2xl font-bold">Rentals</h1><p className="text-sm text-gray-500 dark:text-slate-400">Reservations, contracts, and fleet utilization.</p></div>
+        {mayCreate && <button onClick={() => { setShow((s) => !s); setError(null); }} className="px-4 py-2 rounded-lg bg-indigo-700 text-white text-sm font-medium hover:bg-indigo-800 inline-flex items-center gap-1.5"><Plus size={16} />New reservation</button>}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mt-4">
+        {cards.map(([l, v]) => (<div key={l} className="bg-white rounded-xl border shadow-sm p-4 dark:bg-slate-900"><div className="text-xs text-gray-500 dark:text-slate-400">{l}</div><div className="text-2xl font-bold mt-1">{v}</div></div>))}
+      </div>
+
+      {error && <div className="mt-4 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 text-sm dark:text-red-400 dark:bg-red-950/40">{error}</div>}
+
+      {show && <div className="mt-4 bg-white rounded-xl border shadow-sm p-4 grid sm:grid-cols-3 gap-3 dark:bg-slate-900">
+        <select value={form.unitId} onChange={(e) => setForm((f) => ({ ...f, unitId: e.target.value }))} className="p-2 border rounded-lg text-sm sm:col-span-2">
+          <option value="">Select a unit…</option>
+          {units.map((u) => <option key={u.id} value={u.id}>{unitName(u)}</option>)}
+        </select>
+        <input placeholder="Customer" value={form.customer} onChange={(e) => setForm((f) => ({ ...f, customer: e.target.value }))} className="p-2 border rounded-lg text-sm" />
+        <label className="text-xs text-gray-500 dark:text-slate-400">Pick-up<input type="date" value={form.start} onChange={(e) => setForm((f) => ({ ...f, start: e.target.value }))} className="mt-1 block w-full p-2 border rounded-lg text-sm" /></label>
+        <label className="text-xs text-gray-500 dark:text-slate-400">Return<input type="date" min={form.start || undefined} value={form.end} onChange={(e) => setForm((f) => ({ ...f, end: e.target.value }))} className="mt-1 block w-full p-2 border rounded-lg text-sm" /></label>
+        <label className="text-xs text-gray-500 dark:text-slate-400">Rate / day<input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00" value={form.rate} onChange={(e) => setForm((f) => ({ ...f, rate: e.target.value }))} className="mt-1 block w-full p-2 border rounded-lg text-sm" /></label>
+        <div className="sm:col-span-2 text-sm text-gray-600 self-center dark:text-slate-400">{days > 0 && Number.isFinite(rate) && rate >= 0 ? `${days} day${days === 1 ? '' : 's'} × ${money(rate)} = ${money(rate * days)}` : 'Pick the dates and rate to see the total.'}</div>
+        <button onClick={create} disabled={saving} className="p-2 rounded-lg bg-indigo-700 text-white text-sm font-medium hover:bg-indigo-800 disabled:opacity-50 inline-flex items-center justify-center gap-1.5">{saving && <Loader2 size={14} className="animate-spin" />}Save</button>
+      </div>}
+
+      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-x-auto dark:bg-slate-900">
+        <div className="px-4 py-2.5 border-b text-sm font-semibold text-gray-600 dark:text-slate-400">Reservations</div>
+        <div className="overflow-x-auto"><table className="min-w-full text-sm">
+          <thead className="bg-gray-50 text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr>
+            <th className="px-4 py-2 text-left font-semibold">Unit</th><th className="px-4 py-2 text-left font-semibold">Customer</th><th className="px-4 py-2 text-left font-semibold">Dates</th><th className="px-4 py-2 text-right font-semibold">Rate</th><th className="px-4 py-2 text-right font-semibold">Total</th><th className="px-4 py-2 text-left font-semibold">Status</th><th className="px-4 py-2" />
+          </tr></thead>
+          <tbody>
+            {rentals.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No reservations.</td></tr>}
+            {rentals.map((r) => (<tr key={r.id} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
+              <td className="px-4 py-2">{r.unit}</td><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{r.customer}</td>
+              <td className="px-4 py-2 text-gray-500 text-xs dark:text-slate-400">{r.start} → {r.end} ({r.days}d)</td>
+              <td className="px-4 py-2 text-right">{money(r.rate)}/day</td><td className="px-4 py-2 text-right font-medium">{money(r.total)}</td>
+              <td className="px-4 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${STATUS[r.status] || 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{r.status}</span></td>
+              <td className="px-4 py-2 text-right whitespace-nowrap">{(mayUpdate ? (ACTIONS[r.status] || []) : []).map(([s, label]) => (
+                <button key={s} onClick={() => changeStatus(r.id, s)} disabled={busyId === r.id} className="ml-2 text-xs text-indigo-700 hover:underline disabled:opacity-50 dark:text-indigo-300">{label}</button>
+              ))}</td>
+            </tr>))}
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  );
+}

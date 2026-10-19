@@ -79,3 +79,16 @@ audit, authorization checks, punch rules, invoice money …). So:
 3. **Screens** the same way, under `web/src/crm/pages/homecare/`.
 4. **The suite** (`tests/homecare`, its own auth stub today: `tests/harness/fixtures/middleware-auth.crm-homecare.ts`)
    runs against the unified app as `homecare`.
+
+## Foundation landed (2026-10-18): what the route-groups step must wire
+
+`server/crm/homecare/core/` (`createHomecareCore(d)`, one per CrmDeps) is in, with its SQL in `server/data/homecare*.ts`. Each item below is open until the step that needs it closes it:
+
+- **Timed work.** `core.startJobs()` (shift reminders and over-visit texts every 5 minutes; the WORCS poll every 30 for Wisconsin agencies) is started by nothing yet. When `verticals/homecare/settings.ts` exists, `createApp` exposes the core for the home-care vertical only and `server/index.ts` calls `services.homecare?.startJobs()` beside `services.crm.startJobs()`.
+- **Signed out on the server.** Home care revokes a staff token at sign-out (`core.tokens.isStaffTokenRevoked`); the shared `authenticate` does not ask. The sign-in group wires it before any home-care screen ships.
+- **View As.** `refuseViewAsWrites` mounts with the impersonation route.
+- **The portal lock.** The 402 has no `lock` field (RULEBOOK §3); the portal screens read `code`. The shared `refuseWhileLocked` reads the first company row (one business per database — correct).
+- **Call tracking and the AI receptionist.** Home care's copies match callers to clients, make a client on a first call and count calls on the agency's clock: a vertical switch on `server/crm/comms/calltrackingService.ts` / `aiReceptionistService.ts`, not a second copy.
+- **Not moved:** `routes/saasBilling.ts` (`/api/subscription`): the Factory's billing (`modules/company.ts`) replaces it, and its `changePackage` call never existed.
+
+Fixed in the move (tests: `apps/unified/tests/homecare-core-fixes.test.ts`): EVV units read the authorization's unit through `authUnits.ts` (hourly and per-visit authorizations were counted as 15-minute units); every home-care email escapes what it puts into its HTML; Sandata's "changed by" falls back to the real `changed_by_id`; `web-push` and `pdfjs-dist` are dependencies, not names loaded at run time.

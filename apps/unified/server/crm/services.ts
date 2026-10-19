@@ -15,12 +15,17 @@ import {
   inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage, inventoryTransfer, purchaseOrder,
   purchaseOrderItem, qbIntegration, vehicle, vehicleMaintenance, fuelLog, warrantyTemplate, projectWarranty, warrantyClaim,
   activity, jobAssignment, equipment, equipmentCategory, equipmentMaintenance, pricebookCategory, pricebookItem,
-  pricebookGoodBetterBest, commission, commissionPlan,
+  pricebookGoodBetterBest, commission, commissionPlan, vehicleTrip, locationLog,
 } from '../db/schema/index.ts'
+import { calculateDistance } from './field/geofencingService.ts'
 import type { EmailService } from '../core/email.ts'
 import type { CrmSettings } from '../core/vertical.ts'
 import type { Logger } from '../core/logger.ts'
 import { crmEmail, crmTemplates } from './messages.ts'
+import { createVisitSubject } from './salon/reviewSubject.ts'
+import { createAppointmentReminders } from './salon/appointmentReminders.ts'
+import { bookOnDeposit } from './restaurant/eventBooking.ts'
+import { syncEventInvoiceDueDate, backfillEventInvoices } from './restaurant/eventLedger.ts'
 
 export interface CrmServiceDeps {
   db: any
@@ -37,7 +42,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
   const sites = !!settings.serviceSites
   email.register(crmTemplates)
   // Every message the app sends is recorded, so Settings › Integrations can count them (the CRMs' T14 M23).
-  email.setRecorder(createEmailLogger({ db, tables: { emailLog, company, user }, logger } as any))
+  const recordEmail = createEmailLogger({ db, tables: { emailLog, company, user }, logger } as any)
+  email.setRecorder(recordEmail)
   const emailService = crmEmail(email)
 
   const storage = createFileStorage()
@@ -51,12 +57,38 @@ export function createCrmServices(deps: CrmServiceDeps) {
     db, tables: { contact, invoice, payment, company },
     options: {
       bookingCalendarKind: 'job',
-      afterInvoicePayment: async (invoiceId: string) => { await commissionEarner.earnForInvoice(invoiceId) },
+      afterInvoicePayment: async (invoiceId: string) => {
+        await commissionEarner.earnForInvoice(invoiceId)
+        // An event's invoice (CrmSettings.events): money arriving online books the date too — an enquiry becomes
+        // confirmed; a held room is only logged, the money is already taken — then the due date moves to the next
+        // unpaid installment (templates/crm-restaurant services/stripe.ts, T16 M8).
+        if (settings.events) {
+          await db.transaction(async (tx: any) => {
+            const [inv] = await tx.select({ companyId: invoice.companyId, eventId: invoice.eventId }).from(invoice).where(eq(invoice.id, invoiceId)).limit(1)
+            const refused = inv?.eventId ? await bookOnDeposit(tx, inv.companyId, inv.eventId) : null
+            if (refused) logger.warn('[events] online deposit on an enquiry whose room is held', { refused })
+          })
+          await syncEventInvoiceDueDate(db, invoiceId)
+        }
+      },
     },
   } as any)
   const sms = createSmsService({ db, tables: { smsConversation, smsMessage, smsTemplate, contact, company, job, user, teamMember }, usage } as any)
-  const reviews = createReviewsService({ db, tables: { reviewRequest, company, contact, job }, sendRaw: (m: any) => email.sendRaw(m), usage: { reportSmsUsage } } as any)
-  const marketing = createMarketingService({ db, tables: { campaign, contact, emailLog }, sendRaw: email.sendRaw, isFeatureEnabled } as any)
+  const reviews = createReviewsService({
+    db, tables: { reviewRequest, company, contact, job }, sendRaw: (m: any) => email.sendRaw(m), usage: { reportSmsUsage },
+    // Review requests go out through sendRaw(), which records nothing by design, so they were invisible to the usage
+    // counter; the same recorder as every other send (templates/crm-salon services/reviews.ts, Salon T30 L1 — for every
+    // vertical).
+    recordEmail,
+    // A salon's request is about the visit that raised it, not a job (CrmSettings.reviews; Salon T30 L2).
+    ...(settings.reviews?.subject === 'visit' ? { options: { subjectFor: createVisitSubject(db) } } : {}),
+  } as any)
+  // The drips keep sending with either Email Marketing or the dealership's Follow-Up switch; a scheduled campaign needs
+  // Email Marketing itself (templates/crm-rv services/marketing.ts, RV T19 M6; only crm-rv is offered follow_up_sequences).
+  const marketing = createMarketingService({
+    db, tables: { campaign, contact, emailLog }, sendRaw: email.sendRaw, isFeatureEnabled,
+    sequencesEnabled: (companyId: string) => isFeatureEnabled(companyId, ['email_marketing', 'follow_up_sequences']),
+  } as any)
   const recurring = createRecurringService({ db, tables: { invoice, invoiceLineItem }, emailService } as any)
   const agreements = createAgreementsService({
     db,
@@ -70,8 +102,14 @@ export function createCrmServices(deps: CrmServiceDeps) {
     tables: { inventoryItem, inventoryLocation, stockLevel, inventoryTransaction, inventoryUsage, inventoryTransfer, purchaseOrder, purchaseOrderItem, user, job, company, branch: location },
     emailService,
   } as any)
-  const quickbooks = createQuickBooksService({ db, tables: { contact, invoice, invoiceLineItem, payment, company, qbIntegration }, options: { customerType: 'client' } } as any)
-  const fleet = createFleetService({ db, tables: { vehicle, vehicleMaintenance, fuelLog } } as any)
+  // QuickBooks customers are this vertical's paying contacts (CrmSettings.contacts.customerType: a dealership's
+  // 'customer', templates/crm-rv services/quickbooks.ts).
+  const quickbooks = createQuickBooksService({ db, tables: { contact, invoice, invoiceLineItem, payment, company, qbIntegration }, options: { customerType: settings.contacts?.customerType ?? 'client' } } as any)
+  // Vehicles' locations and trips from the driver's phone pings where the vertical has GPS (CrmSettings.fleet; the
+  // field-service and basic copies' services/fleet.ts); elsewhere those endpoints give the neutral answers.
+  const fleet = createFleetService((settings.fleet?.gps
+    ? { db, tables: { vehicle, vehicleMaintenance, fuelLog, vehicleTrip, locationLog, user }, calculateDistance, options: { gps: true } }
+    : { db, tables: { vehicle, vehicleMaintenance, fuelLog } }) as any)
   const warranties = createWarrantiesService({
     db, tables: { warrantyTemplate, projectWarranty, warrantyClaim, activityLog: activity, jobAssignment, job, project, contact },
   } as any)
@@ -115,9 +153,14 @@ export function createCrmServices(deps: CrmServiceDeps) {
     },
   }
 
+  /** A module's own timed work (home care's reminders and polls), registered when it mounts, started with the rest. */
+  const moduleJobs: Array<() => void> = []
+
   return {
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
     fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks,
+    /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
+    addJob(start: () => void) { moduleJobs.push(start) },
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */
     startJobs() {
       reviews.startReviewProcessor()
@@ -131,6 +174,12 @@ export function createCrmServices(deps: CrmServiceDeps) {
         setTimeout(scan, 60_000)
         setInterval(scan, 6 * 60 * 60 * 1000)
       }
+      // Event payments recorded before the ledger lived on invoices move onto each event's invoice, once, at boot
+      // (templates/crm-restaurant routes/events.ts ran it when the router loaded). Idempotent; never delays startup.
+      if (settings.events) void backfillEventInvoices(db, logger).catch((err: any) => logger.error('[events] invoice backfill failed', { error: err?.message }))
+      // Tomorrow's appointments get a reminder text, every 10 minutes (templates/crm-salon index.ts startAppointmentReminders).
+      if (settings.appointmentReminders) createAppointmentReminders({ db, sms, logger }).startAppointmentReminders()
+      for (const start of moduleJobs) start()
     },
   }
 }

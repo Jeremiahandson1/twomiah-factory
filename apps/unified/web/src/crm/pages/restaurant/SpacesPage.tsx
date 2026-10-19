@@ -1,0 +1,273 @@
+// Moved from templates/crm-restaurant/frontend/src/pages/events/SpacesPage.tsx (templates/crm-bar has the same).
+import { useState, useEffect, useCallback, type FormEvent } from 'react'
+import { Plus, Loader2, X, DoorOpen, Edit2, Trash2, Users, Wallet } from 'lucide-react'
+import { api } from '../../../api'
+import { useMayWrite, useConfirm } from '../../../shared'
+import FormError, { errorText } from '../../ui/FormError'
+
+/**
+ * Spaces — the rooms you can sell. Minimum spend is the number the sales
+ * conversation actually turns on, so it's shown on the card rather than buried
+ * in the edit form.
+ */
+
+const AMENITY_SUGGESTIONS = ['Private bar', 'AV / screen', 'Step-free access', 'Dance floor', 'Patio', 'Heaters', 'Exclusive use', 'Own entrance'];
+
+interface Space {
+  id: string;
+  name?: string;
+  description?: string;
+  seatedCapacity?: number;
+  standingCapacity?: number;
+  minimumSpend?: number | string;
+  hireFee?: number | string;
+  amenities?: string[];
+  active?: boolean;
+}
+
+function money(v: number | string | undefined | null): string {
+  if (v === null || v === undefined || v === '') return '—';
+  return `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export default function SpacesPage() {
+  // POST /api/event-spaces asks contacts:create; PUT and DELETE (Retire) ask contacts:update. The read-only seat was offered
+  // New, Edit and Retire. (T43 viewer round, T68)
+  const mayCreate = useMayWrite('contacts:create');
+  const mayUpdate = useMayWrite('contacts:update');
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [editing, setEditing] = useState<Space | null>(null);
+  // A refusal from a page-level action — retiring a room — shown here rather than in a pop-up. (T58)
+  const [pageErr, setPageErr] = useState<string>('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = (await api.get('/api/event-spaces', { includeInactive: 1 })) as { data?: Space[] };
+      setSpaces(res.data || []);
+    } catch (error) {
+      setPageErr(errorText(error, 'Could not load spaces. Try again.'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const ask = useConfirm();
+  const retire = async (s: Space) => {
+    if (!(await ask(`Retire "${s.name}"? Past events keep it in their history.`, { title: 'Retire this space?', confirmText: 'Retire' }))) return;
+    setPageErr('');
+    try {
+      await api.delete('/api/event-spaces', s.id);
+      load();
+    } catch (err) {
+      // a room with upcoming bookings is refused with the count — show that, not a generic failure
+      setPageErr(errorText(err, 'Could not retire that space.'));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
+            <DoorOpen className="w-6 h-6 text-orange-600 dark:text-orange-200" /> Spaces
+          </h1>
+          <p className="text-gray-500 dark:text-slate-400">What you can sell, who it holds, what it has to spend</p>
+        </div>
+        {mayCreate && <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+          <Plus className="w-4 h-4" /> New Space
+        </button>}
+      </div>
+
+      <FormError message={pageErr} onDismiss={() => setPageErr('')} />
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      ) : spaces.length === 0 ? (
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No spaces yet</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {spaces.map((s) => (
+            <div key={s.id} className={`bg-white dark:bg-slate-900 dark:border-slate-800 rounded-xl border p-5 flex flex-col ${s.active ? '' : 'opacity-60'}`}>
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-semibold text-gray-900 break-words min-w-0 dark:text-slate-100">{s.name || 'Untitled'}</p>
+                {!s.active && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Retired</span>}
+              </div>
+              {s.description && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{s.description}</p>}
+
+              <div className="flex flex-wrap gap-2 mt-3 text-xs">
+                {s.seatedCapacity ? (
+                  <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
+                    <Users className="w-3 h-3" /> {s.seatedCapacity} seated
+                  </span>
+                ) : null}
+                {s.standingCapacity ? (
+                  <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
+                    {s.standingCapacity} standing
+                  </span>
+                ) : null}
+              </div>
+
+              {/* Prices are withheld (absent) from a seat without invoices:read — no "$0 minimum spend". (T62) */}
+              {('minimumSpend' in s || 'hireFee' in s) && (
+              <div className="mt-3 space-y-1 text-sm">
+                <p className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
+                  <Wallet className="w-4 h-4 text-orange-500 dark:text-orange-200" />
+                  <span className="font-semibold">{money(s.minimumSpend)}</span>
+                  <span className="text-gray-500 dark:text-slate-400">minimum spend</span>
+                </p>
+                {s.hireFee ? <p className="text-xs text-gray-500 dark:text-slate-400 pl-6">plus {money(s.hireFee)} hire fee</p> : null}
+              </div>
+              )}
+
+              {(s.amenities || []).length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-3">
+                  {(s.amenities || []).map((a, i) => (
+                    <span key={i} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full dark:text-orange-200 dark:bg-orange-950/40">{a}</span>
+                  ))}
+                </div>
+              )}
+
+              {mayUpdate && <div className="mt-auto pt-4 flex items-center justify-end gap-2 border-t mt-4">
+                <button onClick={() => { setEditing(s); setShowForm(true); }} className="p-1 text-gray-400 hover:text-gray-600" title="Edit"><Edit2 className="w-4 h-4" /></button>
+                {s.active && (
+                  <button onClick={() => retire(s)} className="p-1 text-gray-400 hover:text-red-600" title="Retire"><Trash2 className="w-4 h-4" /></button>
+                )}
+              </div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showForm && (
+        <SpaceModal
+          space={editing}
+          onSave={() => { setShowForm(false); setEditing(null); load(); }}
+          onClose={() => { setShowForm(false); setEditing(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Space Modal ---------------- */
+
+function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: () => void; onClose: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string>('');
+  const [amenities, setAmenities] = useState<string[]>(space?.amenities || []);
+  const [form, setForm] = useState({
+    name: space?.name || '',
+    description: space?.description || '',
+    seatedCapacity: space?.seatedCapacity?.toString() || '',
+    standingCapacity: space?.standingCapacity?.toString() || '',
+    minimumSpend: space?.minimumSpend?.toString() || '',
+    hireFee: space?.hireFee?.toString() || '',
+    active: space?.active ?? true,
+  });
+  const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+
+  const toggleAmenity = (a: string) => {
+    setAmenities((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
+  };
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) { setErr('Give the space a name — it is what the room is called on the booking.'); return; }
+    setErr('');
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name: form.name.trim(),
+        description: form.description || null,
+        seatedCapacity: form.seatedCapacity === '' ? null : Number(form.seatedCapacity),
+        standingCapacity: form.standingCapacity === '' ? null : Number(form.standingCapacity),
+        minimumSpend: form.minimumSpend === '' ? null : Number(form.minimumSpend),
+        hireFee: form.hireFee === '' ? null : Number(form.hireFee),
+        amenities,
+        active: form.active,
+      };
+      if (space) await api.put(`/api/event-spaces/${space.id}`, payload);
+      else await api.post('/api/event-spaces', payload);
+      onSave();
+    } catch (e2) {
+      setErr(errorText(e2, 'Could not save the space.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">{space ? 'Edit Space' : 'New Space'}</h2>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <form onSubmit={submit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
+              <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="The Cellar" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
+              <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Seated capacity</label>
+                <input type="number" value={form.seatedCapacity} onChange={(e) => set('seatedCapacity', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Standing capacity</label>
+                <input type="number" value={form.standingCapacity} onChange={(e) => set('standingCapacity', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Minimum spend ($)</label>
+                <input type="number" step="any" value={form.minimumSpend} onChange={(e) => set('minimumSpend', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Hire fee ($)</label>
+                <input type="number" step="any" value={form.hireFee} onChange={(e) => set('hireFee', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amenities</label>
+              <div className="flex flex-wrap gap-2">
+                {AMENITY_SUGGESTIONS.map((a) => (
+                  <button
+                    key={a}
+                    type="button"
+                    onClick={() => toggleAmenity(a)}
+                    className={`text-xs px-2 py-1 rounded-full border ${amenities.includes(a) ? 'bg-orange-600 text-white border-orange-600' : 'bg-white dark:bg-slate-900 text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300'} dark:text-slate-300`}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input id="spaceActive" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} className="w-4 h-4" />
+              <label htmlFor="spaceActive" className="text-sm font-medium text-gray-700 dark:text-slate-200">Bookable</label>
+            </div>
+            <FormError message={err} />
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Space'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

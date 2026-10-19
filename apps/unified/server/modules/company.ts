@@ -16,6 +16,7 @@ import { queryAudit, auditFilterOptions } from '../data/audit.ts'
 import { list, one, fail, done } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
 import type { Realtime } from '../core/realtime.ts'
+import { createProvisionRoute } from './provision.ts'
 
 export interface CompanyModuleDeps {
   db: any
@@ -72,7 +73,9 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       // The inbox is the lead_inbox feature's, on the server as in the menu; the enquiry form above is everyone's.
       requireFeature: deps.features.requireEnabledFeature('lead_inbox'),
       emitToCompany: deps.realtime.emitToCompany, EVENTS: deps.realtime.EVENTS,
-      audit, options: { platforms: TRADES_LEAD_PLATFORMS, contactType: 'lead' },
+      // The vertical's platforms (CrmSettings.leads, templates/crm-basic routes/leads.ts T42); absent, the trades set.
+      // What a converted lead becomes: a salon's is a client, in the book (templates/crm-salon routes/leads.ts, Salon T27 N13).
+      audit, options: { platforms: vertical.crm?.leads?.platforms ?? TRADES_LEAD_PLATFORMS, contactType: vertical.crm?.leads?.contactType ?? 'lead' },
     } as any))
 
   const auditLogRoutes = new Hono<AppEnv>()
@@ -114,6 +117,8 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       { path: '/api/internal/email-aliases', access: 'factory' as const, router: createEmailAliasesInternalRoute({ db, emailAliasesTable: emailAlias } as any) },
       { path: '/api/internal/sync-subscription', access: 'factory' as const, router: createSubscriptionSyncRoute(billingDeps as any) },
       { path: '/api/internal/sync-features', access: 'factory' as const, router: syncFeatures },
+      // The Factory's first call: the business, its owner, features and starting website (modules/provision.ts).
+      { path: '/api/internal/provision', access: 'factory' as const, router: createProvisionRoute({ db, vertical, forgetFeatures: () => deps.features.forgetFeatures() }) },
     ],
   }
 }

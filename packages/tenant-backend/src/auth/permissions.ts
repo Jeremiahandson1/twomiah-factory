@@ -221,6 +221,19 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'orders:*', 'products:*', 'discounts:*', 'shipping:*', 'reviews:*',
     // crm-bar: the menu, taps, specials, hours and the Tonight console (routes/bar.ts).
     'bar:*',
+    // Home care (apps/unified server/crm/homecare). The template's whole model was requireAdmin (owner or admin)
+    // plus "is this a caregiver"; each area is a resource here, so a rank check becomes the area's permission and
+    // an owner can grant one person more (Settings › Users). Additive: no other vertical gates on these.
+    //   care-clients     clients, care plans, medications, assessments, documents on a client
+    //   care-schedule    schedules, open shifts, assignments
+    //   evv              visits, clock-in/out, EVV, IVR, GPS, Sandata
+    //   care-billing     authorizations, visit invoices, claims, EDI, remittances, payers, payments
+    //   care-payroll     pay runs, rates, mileage, expenses, Gusto
+    //   care-hr          applications, background checks, onboarding packets, certifications, caregivers' records
+    //   care-portal      the family and client portals, messages, notifications
+    //   care-compliance  incidents, compliance checks, the clinical audit trail
+    'care-clients:*', 'care-schedule:*', 'evv:*', 'care-billing:*', 'care-payroll:*', 'care-hr:*', 'care-portal:*',
+    'care-compliance:*',
   ],
   manager: [
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
@@ -293,6 +306,10 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // line payments:* and settings:* already draw. (crm-store; note on admin)
     'orders:*', 'products:*', 'discounts:*', 'shipping:*', 'reviews:*',
     'bar:*',
+    // Home care: the agency's office runs the care — clients, the schedule, visits, the portals, incidents — and
+    // reads the billing it produces. Not billing writes, payroll or hiring: those stay with an admin unless the
+    // owner grants them to one person. (Home care had no manager rung; this is its first, least-privilege.)
+    'care-clients:*', 'care-schedule:*', 'evv:*', 'care-portal:*', 'care-compliance:*', 'care-billing:read',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',

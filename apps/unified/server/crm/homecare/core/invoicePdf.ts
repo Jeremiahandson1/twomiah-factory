@@ -1,0 +1,94 @@
+// A client invoice as a PDF (the client portal's invoice download). Moved from
+// templates/crm-homecare/backend/src/services/pdf.ts. Pure: the caller reads the invoice (with `lineItems`), the
+// agency's `company` row and the client, all camelCase.
+//
+// Change: with no agency name the header falls back to 'Our agency' (core/agencyProfile.ts's fallback); the template's
+// was a build placeholder, '{{COMPANY_NAME}}', which the unified app — with no build step — would print as written.
+import PDFDocument from 'pdfkit'
+import { lineQuantity } from './invoiceEngine.ts'
+
+function buildInvoicePDF(doc: PDFKit.PDFDocument, invoice: any, agency: any, client: any) {
+  const agencyName = agency?.name || 'Our agency'
+
+  // Header
+  doc.fontSize(20).text(agencyName, { align: 'left' })
+  doc.fontSize(14).text('INVOICE', { align: 'left' })
+  doc.moveDown()
+
+  // Invoice details
+  doc.fontSize(10)
+  if (invoice.invoiceNumber) doc.text(`Invoice #: ${invoice.invoiceNumber}`)
+  if (invoice.billingPeriodStart && invoice.billingPeriodEnd) {
+    doc.text(`Billing Period: ${invoice.billingPeriodStart} - ${invoice.billingPeriodEnd}`)
+  }
+  if (invoice.paymentDueDate) doc.text(`Due Date: ${invoice.paymentDueDate}`)
+  if (invoice.paymentStatus) doc.text(`Status: ${invoice.paymentStatus}`)
+  doc.moveDown()
+
+  // Client info
+  if (client) {
+    doc.text(`Bill To: ${client.firstName || ''} ${client.lastName || ''}`.trim())
+    if (client.address) doc.text(client.address)
+    if (client.city || client.state || client.zip) {
+      doc.text(`${client.city || ''}, ${client.state || ''} ${client.zip || ''}`.trim())
+    }
+    if (client.email) doc.text(client.email)
+    doc.moveDown()
+  }
+
+  // Line items
+  const items = invoice.lineItems || []
+  if (items.length > 0) {
+    doc.fontSize(10).text('Description', 72, doc.y, { continued: true, width: 250 })
+    doc.text('Qty', { continued: true, width: 50, align: 'right' })
+    doc.text('Rate', { continued: true, width: 80, align: 'right' })
+    doc.text('Amount', { width: 80, align: 'right' })
+    doc.moveDown(0.5)
+
+    // Separator line
+    doc.moveTo(72, doc.y).lineTo(522, doc.y).stroke()
+    doc.moveDown(0.5)
+
+    for (const item of items) {
+      // Quantity and rate in the line's own unit, so quantity × rate = amount (invoiceEngine.lineQuantity).
+      const q = lineQuantity(item)
+      const amount = Number(item.amount || 0)
+      doc.text(item.description || '', 72, doc.y, { continued: true, width: 250 })
+      doc.text(q.quantityLabel, { continued: true, width: 50, align: 'right' })
+      doc.text(q.rateLabel, { continued: true, width: 80, align: 'right' })
+      doc.text(`$${amount.toFixed(2)}`, { width: 80, align: 'right' })
+    }
+    doc.moveDown()
+  }
+
+  // Totals
+  doc.moveTo(72, doc.y).lineTo(522, doc.y).stroke()
+  doc.moveDown(0.5)
+
+  if (invoice.subtotal != null) {
+    doc.fontSize(10).text(`Subtotal: $${Number(invoice.subtotal).toFixed(2)}`, { align: 'right' })
+  }
+  if (invoice.tax != null && Number(invoice.tax) > 0) {
+    doc.text(`Tax: $${Number(invoice.tax).toFixed(2)}`, { align: 'right' })
+  }
+  if (invoice.total != null) {
+    doc.fontSize(12).text(`Total: $${Number(invoice.total).toFixed(2)}`, { align: 'right' })
+  }
+
+  // Footer
+  doc.moveDown(2)
+  doc.fontSize(8).fillColor('#888')
+  doc.text('Thank you for choosing ' + agencyName, { align: 'center' })
+}
+
+export async function generateInvoicePDF(invoice: any, agency: any, client: any): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 72 })
+    const chunks: Buffer[] = []
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+    buildInvoicePDF(doc, invoice, agency, client)
+    doc.end()
+  })
+}

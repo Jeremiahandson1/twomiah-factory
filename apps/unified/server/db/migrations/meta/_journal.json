@@ -57,6 +57,20 @@
       "when": 1792360993990,
       "tag": "0007_homecare",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792365600173,
+      "tag": "0008_invoice_number_live",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792367106060,
+      "tag": "0009_salon_visit_once",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,344 @@
+// Moved from templates/crm-rv/frontend/src/pages/rv/DashboardPage.tsx.
+import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  Loader2,
+  Truck,
+  TrendingUp,
+  Wrench,
+  Users,
+  ArrowUpRight,
+} from 'lucide-react';
+import { api } from '../../../api'
+
+/**
+ * RV / Powersports dealership dashboard.
+ *
+ * Backed by:
+ *   GET /api/dashboard/stats           — inventory / sales / service KPIs
+ *   GET /api/dashboard/recent-activity — recent units, leads, repair orders
+ *
+ * Every field is guarded for null/undefined so a brand-new dealer (all zeros)
+ * renders cleanly.
+ */
+
+interface DashboardStats {
+  contacts?: number;
+  inventory?: {
+    total?: number;
+    available?: number;
+    byStatus?: Partial<Record<string, number>>;
+    byCategory?: Partial<Record<string, number>>;
+    availableByCategory?: Partial<Record<string, number>>;
+  };
+  sales?: {
+    openLeads?: number;
+    leadsThisMonth?: number;
+    closedWonThisMonth?: number;
+    closedLostThisMonth?: number;
+    closeRate?: number;
+  };
+  service?: {
+    openRepairOrders?: number;
+    repairOrdersThisMonth?: number;
+    revenueThisMonth?: number;
+  };
+}
+
+interface RecentUnit {
+  id: string;
+  year?: number | null;
+  make?: string | null;
+  modelName?: string | null;
+  status?: string | null;
+  category?: string | null;
+  updatedAt?: string | null;
+}
+interface RecentLead {
+  id: string;
+  stage?: string | null;
+  source?: string | null;
+  updatedAt?: string | null;
+}
+interface RecentRepairOrder {
+  id: string;
+  roNumber?: string | null;
+  status?: string | null;
+  updatedAt?: string | null;
+}
+interface RecentActivity {
+  recentUnits?: RecentUnit[];
+  recentLeads?: RecentLead[];
+  recentRepairOrders?: RecentRepairOrder[];
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  motorhome: 'Motorhomes',
+  towable: 'Towables',
+  motorcycle: 'Motorcycles',
+  atv: 'ATVs',
+  utv: 'UTVs',
+  sxs: 'Side-by-Sides',
+  pwc: 'PWC',
+  snowmobile: 'Snowmobiles',
+  boat: 'Boats',
+};
+const CATEGORY_ORDER = [
+  'motorhome', 'towable', 'motorcycle', 'atv', 'utv', 'sxs', 'pwc', 'snowmobile', 'boat',
+];
+
+function num(v: number | null | undefined): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+}
+
+function money(v: number | null | undefined): string {
+  return `$${num(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function pct(v: number | null | undefined): string {
+  return `${num(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}%`;
+}
+
+function unitLabel(u: RecentUnit): string {
+  return [u.year, u.make, u.modelName].filter(Boolean).join(' ') || 'Unit';
+}
+
+function prettyStatus(s: string | null | undefined): string {
+  if (!s) return '—';
+  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [activity, setActivity] = useState<RecentActivity | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [statsRes, activityRes]: [DashboardStats | null, RecentActivity | null] = await Promise.all([
+        api.get('/api/dashboard/stats'),
+        api.get('/api/dashboard/recent-activity'),
+      ]);
+      setStats(statsRes || {});
+      setActivity(activityRes || {});
+    } catch (error) {
+      console.error('Failed to load dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  const inventory = stats?.inventory || {};
+  const sales = stats?.sales || {};
+  const service = stats?.service || {};
+  // the panel sits under the "available" tile, so it counts units for sale now — not sold ones (RV T19 L7)
+  const byCategory = inventory.availableByCategory || {};
+  // this month's close rate, with the won/lost it comes from; "—" when nothing closed this month (RV T19 L9)
+  const decidedThisMonth = num(sales.closedWonThisMonth) + num(sales.closedLostThisMonth);
+
+  const recentUnits = activity?.recentUnits || [];
+  const recentLeads = activity?.recentLeads || [];
+  const recentRepairOrders = activity?.recentRepairOrders || [];
+
+  const categoryRows = CATEGORY_ORDER
+    .map((key) => ({ key, label: CATEGORY_LABELS[key], count: num(byCategory[key]) }))
+    .filter((r) => r.count > 0);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Dashboard</h1>
+        <p className="text-gray-500 dark:text-slate-400">Inventory, sales & service at a glance</p>
+      </div>
+
+      {/* KPI stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Inventory */}
+        <Link
+          to="/crm/units"
+          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
+              <Truck className="w-5 h-5 text-orange-500 dark:text-orange-200" />
+              <span className="text-sm font-medium">Inventory</span>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
+          </div>
+          <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(inventory.total)}</div>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
+            <span className="font-medium text-green-700 dark:text-green-300">{num(inventory.available)}</span> available
+          </p>
+        </Link>
+
+        {/* Sales Pipeline */}
+        <Link
+          to="/crm/sales-pipeline"
+          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
+              <TrendingUp className="w-5 h-5 text-orange-500 dark:text-orange-200" />
+              <span className="text-sm font-medium">Sales Pipeline</span>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
+          </div>
+          <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(sales.openLeads)}</div>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">open leads</p>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+            <div>
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{num(sales.leadsThisMonth)}</div>
+              <div className="text-gray-500 dark:text-slate-400">new (mo)</div>
+            </div>
+            <div>
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{num(sales.closedWonThisMonth)}</div>
+              <div className="text-gray-500 dark:text-slate-400">won (mo)</div>
+            </div>
+            <div title={`This month: ${num(sales.closedWonThisMonth)} won, ${num(sales.closedLostThisMonth)} lost`}>
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{decidedThisMonth > 0 ? pct(sales.closeRate) : '—'}</div>
+              <div className="text-gray-500 dark:text-slate-400">close (mo) · {num(sales.closedLostThisMonth)} lost</div>
+            </div>
+          </div>
+        </Link>
+
+        {/* Service */}
+        <Link
+          to="/crm/service"
+          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
+              <Wrench className="w-5 h-5 text-orange-500 dark:text-orange-200" />
+              <span className="text-sm font-medium">Service</span>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
+          </div>
+          <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(service.openRepairOrders)}</div>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">open repair orders</p>
+          {/* The server omits service.revenueThisMonth for a seat without invoices:read
+              (routes/dashboard.ts). The workload figure stays; the month's takings leave the tile
+              rather than reading $0, and the row closes up to one column. (T41) */}
+          <div className={`mt-3 grid ${service.revenueThisMonth === undefined ? 'grid-cols-1' : 'grid-cols-2'} gap-2 text-center text-xs`}>
+            <div>
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{num(service.repairOrdersThisMonth)}</div>
+              <div className="text-gray-500 dark:text-slate-400">ROs (mo)</div>
+            </div>
+            {service.revenueThisMonth !== undefined && (
+              <div>
+                <div className="font-semibold text-gray-900 dark:text-slate-100">{money(service.revenueThisMonth)}</div>
+                <div className="text-gray-500 dark:text-slate-400">rev (mo)</div>
+              </div>
+            )}
+          </div>
+        </Link>
+
+        {/* Contacts */}
+        <Link
+          to="/crm/contacts"
+          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
+              <Users className="w-5 h-5 text-orange-500 dark:text-orange-200" />
+              <span className="text-sm font-medium">Contacts</span>
+            </div>
+            <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
+          </div>
+          <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(stats?.contacts)}</div>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">total contacts</p>
+        </Link>
+      </div>
+
+      {/* Inventory by category + Recent activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Inventory by category */}
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Available by category</h2>
+            <Link to="/crm/units" className="text-xs text-orange-600 hover:underline dark:text-orange-200">View all</Link>
+          </div>
+          {categoryRows.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No units in stock yet</p>
+          ) : (
+            <div className="space-y-2">
+              {categoryRows.map((row) => (
+                <div key={row.key} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600 dark:text-slate-400">{row.label}</span>
+                  <span className="font-semibold text-gray-900 dark:text-slate-100">{row.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Recent activity */}
+        <div className="bg-white rounded-xl border p-5 lg:col-span-2 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Recent activity</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Recent units */}
+            <div>
+              <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Units</h3>
+              {recentUnits.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-slate-400">No recent units</p>
+              ) : (
+                <ul className="space-y-2">
+                  {recentUnits.map((u) => (
+                    <li key={u.id} className="text-sm">
+                      <div className="font-medium text-gray-800 truncate dark:text-slate-200">{unitLabel(u)}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">{prettyStatus(u.status)}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Recent leads */}
+            <div>
+              <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Leads</h3>
+              {recentLeads.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-slate-400">No recent leads</p>
+              ) : (
+                <ul className="space-y-2">
+                  {recentLeads.map((l) => (
+                    <li key={l.id} className="text-sm">
+                      <div className="font-medium text-gray-800 dark:text-slate-200">{prettyStatus(l.stage)}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">{l.source ? prettyStatus(l.source) : '—'}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Recent repair orders */}
+            <div>
+              <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Repair Orders</h3>
+              {recentRepairOrders.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-slate-400">No recent ROs</p>
+              ) : (
+                <ul className="space-y-2">
+                  {recentRepairOrders.map((r) => (
+                    <li key={r.id} className="text-sm">
+                      <div className="font-medium text-gray-800 dark:text-slate-200">{r.roNumber || `RO ${r.id.slice(0, 6)}`}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">{prettyStatus(r.status)}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

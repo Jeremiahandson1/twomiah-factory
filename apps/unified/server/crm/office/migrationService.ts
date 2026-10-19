@@ -301,8 +301,11 @@ export function getAvailableProviders() {
   }))
 }
 
-export function createMigrationService(d: Pick<CrmDeps, 'db'>) {
+export function createMigrationService(d: Pick<CrmDeps, 'db' | 'settings'>) {
   const { db } = d
+  // A migrated customer is this vertical's paying contact (CrmSettings.contacts.customerType; templates/crm-rv
+  // services/migration.ts 'customer'). Absent: 'client'.
+  const customerType = d.settings?.contacts?.customerType ?? 'client'
 
   /**
    * The due date to store for a migrated invoice: the source's, or the tenant's payment terms (Settings → Company),
@@ -395,7 +398,7 @@ export function createMigrationService(d: Pick<CrmDeps, 'db'>) {
             email,
             phone,
             company: c.companyName || null,
-            type: 'client',
+            type: customerType,
             address: addr?.street1 || null,
             city: addr?.city || null,
             state: addr?.province || null,
@@ -617,7 +620,7 @@ export function createMigrationService(d: Pick<CrmDeps, 'db'>) {
             name,
             email,
             phone,
-            type: 'client',
+            type: customerType,
             address: c.address?.street || null,
             city: c.address?.city || null,
             state: c.address?.state || null,
@@ -754,7 +757,7 @@ export function createMigrationService(d: Pick<CrmDeps, 'db'>) {
             phone: c.mobile_number || c.home_number || null,
             mobile: c.mobile_number || null,
             company: c.company_name || null,
-            type: 'client',
+            type: customerType,
             address: c.address?.street || c.street || null,
             city: c.address?.city || c.city || null,
             state: c.address?.state || c.state || null,

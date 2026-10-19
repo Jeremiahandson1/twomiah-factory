@@ -1,0 +1,188 @@
+// Moved from templates/crm-landscaping/frontend/src/pages/landscaping/AreaPricingPage.tsx.
+import { useState, useEffect } from 'react'
+import { Plus, Trash2, Calculator, Loader2, Ruler } from 'lucide-react'
+import { api } from '../../../api'
+import { useToast, useConfirm, useMayWrite } from '../../../shared'
+import { SitePicker, useSites } from './SitePicker'
+
+const AREA_FIELDS = [
+  { value: 'lawnSqft', label: 'Lawn' },
+  { value: 'bedSqft', label: 'Beds' },
+  { value: 'hardscapeSqft', label: 'Hardscape' },
+  { value: 'lotSqft', label: 'Full lot' },
+  { value: 'drivewaySqft', label: 'Driveway' },
+] as const
+type AreaField = typeof AREA_FIELDS[number]['value']
+
+/** A row of GET /api/area-pricing/rates (server/crm/landscaping/areaPricing.ts). Money is a decimal string. */
+interface Rate {
+  id: string;
+  serviceType: string;
+  areaField: string;
+  ratePer1000Sqft: string | number;
+  minCharge: string | number;
+  unitLabel: string | null;
+}
+
+/** GET /api/area-pricing/quote: the price for one service at one property. */
+interface AreaQuote {
+  price: number;
+  minChargeApplied: boolean;
+  lineItem?: { description: string };
+}
+
+type RateForm = { serviceType: string; areaField: AreaField; ratePer1000Sqft: string; minCharge: string; unitLabel: string }
+type MeasureForm = { siteId: string } & Record<AreaField, string>
+
+const EMPTY: RateForm = { serviceType: '', areaField: 'lawnSqft', ratePer1000Sqft: '', minCharge: '0', unitLabel: 'per visit' }
+const EMPTY_MEASURE: MeasureForm = { siteId: '', lawnSqft: '', bedSqft: '', hardscapeSqft: '', drivewaySqft: '', lotSqft: '' }
+const MEASURE_ORDER: AreaField[] = ['lawnSqft', 'bedSqft', 'hardscapeSqft', 'drivewaySqft', 'lotSqft']
+
+/** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
+const serverMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback
+
+export default function AreaPricingPage() {
+  const toast = useToast()
+  const confirm = useConfirm()
+  // Each control asks its route: a rate is quotes:create / quotes:delete, a property's measurements contacts:update. (T63)
+  const mayAddRate = useMayWrite('quotes:create')
+  const mayDeleteRate = useMayWrite('quotes:delete')
+  const maySaveMeasurements = useMayWrite('contacts:update')
+  const [rates, setRates] = useState<Rate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState<RateForm>(EMPTY)
+  const [calc, setCalc] = useState({ siteId: '', serviceType: '' })
+  const [calcResult, setCalcResult] = useState<AreaQuote | null>(null)
+  const [measure, setMeasure] = useState<MeasureForm>(EMPTY_MEASURE)
+  const { sites, reloadSites } = useSites()
+
+  const load = async () => {
+    try {
+      // A list reply: the whole rate card.
+      const res = await api.get('/api/area-pricing/rates')
+      setRates(Array.isArray(res?.data) ? (res.data as Rate[]) : [])
+    } catch (error) { toast.error(serverMessage(error, 'Failed to load rate card')) }
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [])
+
+  const addRate = async () => {
+    if (!form.serviceType || !form.ratePer1000Sqft) { toast.error('Service type and rate are required'); return }
+    try {
+      await api.post('/api/area-pricing/rates', form)
+      toast.success('Rate added')
+      setForm(EMPTY)
+      load()
+    } catch (error) { toast.error(serverMessage(error, 'Failed to add rate')) }
+  }
+
+  const removeRate = async (id: string) => {
+    if (!(await confirm('Quotes already priced from it keep their prices.', { title: 'Delete this rate?', confirmText: 'Delete rate' }))) return
+    try { await api.delete(`/api/area-pricing/rates/${id}`); toast.success('Deleted'); load() }
+    catch (error) { toast.error(serverMessage(error, 'Failed to delete')) }
+  }
+
+  const saveMeasurements = async () => {
+    if (!measure.siteId) { toast.error('Pick a property first'); return }
+    try {
+      await api.put(`/api/area-pricing/sites/${measure.siteId}/measurements`, { ...measure, measurementSource: 'manual' })
+      toast.success('Measurements saved')
+    } catch (error) { toast.error(serverMessage(error, 'Failed to save measurements')) }
+  }
+
+  const runQuote = async () => {
+    if (!calc.siteId || !calc.serviceType) { toast.error('Pick a site and service'); return }
+    setCalcResult(null)
+    try {
+      const res = await api.get('/api/area-pricing/quote', { siteId: calc.siteId, serviceType: calc.serviceType })
+      setCalcResult(res as AreaQuote)
+    } catch (error) {
+      toast.error(serverMessage(error, 'No price (check the site has a measurement and an active rate)'))
+    }
+  }
+
+  if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin" /></div>
+
+  return (
+    <div className="p-6 max-w-5xl space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Ruler className="w-6 h-6" /> Area-Based Pricing</h1>
+        <p className="text-gray-500 text-sm dark:text-slate-400">Price services by measured square footage. Price = max(min charge, area ÷ 1,000 × rate).</p>
+      </div>
+
+      {/* Rate card */}
+      <section className="bg-white border dark:border-slate-700 rounded-lg p-5 dark:bg-slate-900">
+        <h2 className="font-semibold mb-3">Rate Card</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="text-left text-gray-500 border-b dark:border-slate-700 dark:text-slate-400">
+              <th className="py-2">Service</th><th>Drives off</th><th>Rate / 1,000 sq ft</th><th>Min charge</th><th>Unit</th><th></th>
+            </tr></thead>
+            <tbody>
+              {rates.map((r) => (
+                <tr key={r.id} className="border-b dark:border-slate-700">
+                  <td className="py-2 font-medium">{r.serviceType}</td>
+                  <td>{AREA_FIELDS.find((a) => a.value === r.areaField)?.label || r.areaField}</td>
+                  <td>${Number(r.ratePer1000Sqft).toFixed(2)}</td>
+                  <td>${Number(r.minCharge).toFixed(2)}</td>
+                  <td>{r.unitLabel}</td>
+                  <td>{mayDeleteRate && <button aria-label="Delete rate" onClick={() => removeRate(r.id)} className="text-red-600 p-1 hover:bg-red-50 rounded dark:text-red-400 dark:hover:bg-red-950/40"><Trash2 className="w-4 h-4" /></button>}</td>
+                </tr>
+              ))}
+              {rates.length === 0 && <tr><td colSpan={6} className="py-4 text-gray-500 dark:text-slate-400">No rates yet — add one below.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {mayAddRate && <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-4 items-end">
+          <input className="input" aria-label="Service" placeholder="Service (e.g. mowing)" value={form.serviceType} onChange={(e) => setForm({ ...form, serviceType: e.target.value })} />
+          <select className="input" aria-label="Drives off" value={form.areaField} onChange={(e) => setForm({ ...form, areaField: e.target.value as AreaField })}>
+            {AREA_FIELDS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+          </select>
+          <input className="input" aria-label="Rate per 1,000 sq ft" type="number" placeholder="Rate /1k" value={form.ratePer1000Sqft} onChange={(e) => setForm({ ...form, ratePer1000Sqft: e.target.value })} />
+          <input className="input" aria-label="Minimum charge" type="number" placeholder="Min $" value={form.minCharge} onChange={(e) => setForm({ ...form, minCharge: e.target.value })} />
+          <input className="input" aria-label="Unit" placeholder="Unit" value={form.unitLabel} onChange={(e) => setForm({ ...form, unitLabel: e.target.value })} />
+          <button onClick={addRate} className="btn-primary flex items-center justify-center gap-1"><Plus className="w-4 h-4" /> Add</button>
+        </div>}
+      </section>
+
+      {/* Site measurements — a form with nothing else on it, so it goes with its Save (contacts:update). (T43, T68) */}
+      {maySaveMeasurements && <section className="bg-white border dark:border-slate-700 rounded-lg p-5 dark:bg-slate-900">
+        <h2 className="font-semibold mb-3">Set Property Measurements</h2>
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
+          <div className="col-span-2">
+            <label htmlFor="area-measure-site" className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Property</label>
+            <SitePicker id="area-measure-site" value={measure.siteId} sites={sites} onAdded={reloadSites} onChange={(siteId) => setMeasure({ ...measure, siteId })} />
+          </div>
+          {MEASURE_ORDER.map((f) => (
+            <input key={f} className="input" type="number" aria-label={`${f.replace('Sqft', '')} sq ft`} placeholder={f.replace('Sqft', '') + ' sq ft'} value={measure[f]} onChange={(e) => setMeasure({ ...measure, [f]: e.target.value })} />
+          ))}
+        </div>
+        <button onClick={saveMeasurements} className="btn-secondary mt-3">Save Measurements</button>
+      </section>}
+
+      {/* Quote calculator */}
+      <section className="bg-white border dark:border-slate-700 rounded-lg p-5 dark:bg-slate-900">
+        <h2 className="font-semibold mb-3 flex items-center gap-2"><Calculator className="w-5 h-5" /> Price a Service for a Property</h2>
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="min-w-[16rem]">
+            <label htmlFor="area-quote-site" className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Property</label>
+            <SitePicker id="area-quote-site" value={calc.siteId} sites={sites} onAdded={reloadSites} onChange={(siteId) => setCalc({ ...calc, siteId })} allowAdd={false} />
+          </div>
+          <select className="input w-auto" aria-label="Service" value={calc.serviceType} onChange={(e) => setCalc({ ...calc, serviceType: e.target.value })}>
+            <option value="">Select service…</option>
+            {rates.map((r) => <option key={r.id} value={r.serviceType}>{r.serviceType}</option>)}
+          </select>
+          <button onClick={runQuote} className="btn-primary">Calculate</button>
+        </div>
+        {calcResult && (
+          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded dark:bg-green-950/40 dark:border-green-900">
+            <div className="text-2xl font-bold text-green-800 dark:text-green-300">${Number(calcResult.price).toFixed(2)}</div>
+            <div className="text-sm text-green-700 dark:text-green-300">{calcResult.lineItem?.description}</div>
+            {calcResult.minChargeApplied && <div className="text-xs text-green-700 mt-1 dark:text-green-300">Minimum charge applied.</div>}
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}

@@ -170,8 +170,11 @@ export default function App() {
                         {barScreens.routes}
                         {restaurantScreens.routes}
                         {rvScreens.routes}
-                        {salonScreens.routes}
+                        {/* The vet's before the salon's: both have appointments and reminders, and the vet registers its
+                            pair only where the vertical's screens say book: 'practice' (VerticalScreens.book), so there
+                            the first match is the vet's and everywhere else the salon's are the only ones. */}
                         {vetScreens.routes}
+                        {salonScreens.routes}
                       </Route>
                       <Route path="help" element={<HelpPage />} />
                       <Route path="contact-support" element={<ContactSupportPage />} />

@@ -1,4 +1,4 @@
-// The tenant's database: its own Postgres database, usually on a shared (pooled) instance (SPEC §0, decision 2).
+// The tenant's database: on its own Render Postgres server, shared with no other tenant (SPEC §0, decision 2).
 // Pool settings from the CRM templates' db/index.ts: Render drops idle connections, and the node-postgres defaults
 // hand out a dead client that hangs a query for ever, health checks included.
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -9,8 +9,8 @@ export function createDb(connectionString = process.env.DATABASE_URL) {
   if (!connectionString) throw new Error('DATABASE_URL is not set')
   const pool = new Pool({
     connectionString,
-    // A pooled instance serves many tenants, so each tenant keeps its share of connections small.
-    max: Number(process.env.DB_POOL_MAX) || 5,
+    // The CRM templates' size. The tenant's database server is its own (SPEC §0 decision 2).
+    max: Number(process.env.DB_POOL_MAX) || 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 15_000,
     keepAlive: true,

@@ -43,8 +43,11 @@ export interface ContactRelation {
 
 /** A table whose rows block deleting the contact they point at. */
 export interface ContactGuard {
-  table: any
-  column: any
+  /** The rows that hold the contact: `column` on `table` equals its id. Or `count`, for rows a step further away. */
+  table?: any
+  column?: any
+  /** Counts the rows that hold this contact (or this site, as a site guard) when they are not a column away. */
+  count?: (id: string) => Promise<number>
   /** singular noun used in the 409 message, e.g. 'invoice' → "2 invoices" */
   label: string
   plural?: string
@@ -52,7 +55,18 @@ export interface ContactGuard {
   message?: (n: number) => string
 }
 
-export interface ContactSitesTables { site: any; equipment: any; job: any }
+export interface ContactSitesTables {
+  site: any; equipment: any; job: any
+  /** What else holds a site (a landscaping route stop, a snow contract): counted before a site is deleted. */
+  guards?: ContactGuard[]
+}
+
+/** How many rows a guard finds holding `id`. */
+async function guardCount(db: any, g: ContactGuard, id: string): Promise<number> {
+  if (g.count) return g.count(id)
+  const [{ value }] = await db.select({ value: count() }).from(g.table).where(eq(g.column, id))
+  return Number(value)
+}
 
 export interface ContactOptions {
   /** Accepted `type` values. Default lead/client/subcontractor/vendor. */
@@ -292,7 +306,7 @@ export function createContactRoutes(deps: ContactDeps) {
 
   // ---------------------------------------------------------------- sites (field service / landscaping)
   if (o.sites) {
-    const { site, equipment, job } = o.sites
+    const { site, equipment, job, guards: siteGuards = [] } = o.sites
     const siteSchema = z.object({
       name: cleanText(1),
       address: cleanText().optional(),
@@ -366,6 +380,12 @@ export function createContactRoutes(deps: ContactDeps) {
       ])
       if (Number(eqCount.value) > 0 || Number(jobCount.value) > 0) {
         return c.json({ error: 'Cannot delete a location with linked equipment or jobs. Reassign them first.' }, 409)
+      }
+      // A site's other holders (its cascade would take them silently): named, as the contact's guards are.
+      const held = (await Promise.all(siteGuards.map(async (g) => ({ g, n: await guardCount(db, g, existing.id) })))).filter((x) => x.n > 0)
+      if (held.length) {
+        const attached = held.map(({ g, n }) => `${n} ${n === 1 ? g.label : (g.plural || g.label + 's')}`)
+        return c.json({ error: `This location still has ${attached.join(', ')} attached. Remove them before deleting the location.` }, 409)
       }
       await db.delete(site).where(eq(site.id, existing.id))
       return c.body(null, 204)
@@ -471,10 +491,7 @@ export function createContactRoutes(deps: ContactDeps) {
 
     // Never let a delete silently orphan financial / work records or destroy history. Count what is
     // attached and name it so the user can reassign first.
-    const counts = await Promise.all(guards.map(async (g) => {
-      const [{ value }] = await db.select({ value: count() }).from(g.table).where(eq(g.column, id))
-      return Number(value)
-    }))
+    const counts = await Promise.all(guards.map((g) => guardCount(db, g, id)))
     const hit = guards.map((g, i) => ({ g, n: counts[i] })).filter((x) => x.n > 0)
     if (hit.length) {
       const custom = hit.find((x) => x.g.message)

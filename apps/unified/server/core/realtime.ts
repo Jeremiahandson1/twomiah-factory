@@ -22,9 +22,14 @@ export const EVENTS = {
   PAYMENT_RECEIVED: 'payment:received',
   LEAD_CREATED: 'lead:created',
   LEAD_UPDATED: 'lead:updated',
+  // "Something in this list changed, read it again" ({ entity }), and a service-to-sales alert for one salesperson
+  // (templates/crm-rv services/socket.ts).
+  REFRESH: 'data:refresh',
+  ALERT_CREATED: 'alert:created',
 } as const
 
-type Listener = (companyId: string, event: string, data: unknown) => void
+/** `userId` is set when the event is for one person rather than the whole company. */
+type Listener = (companyId: string, event: string, data: unknown, userId?: string) => void
 
 export function createRealtime() {
   const listeners = new Set<Listener>()
@@ -33,6 +38,10 @@ export function createRealtime() {
     /** Tell everyone watching this company that something changed. Never throws into the caller. */
     emitToCompany(companyId: string, event: string, data: unknown) {
       for (const l of listeners) { try { l(companyId, event, data) } catch { /* a listener's failure is its own */ } }
+    },
+    /** Tell one person (their screens only), e.g. the salesperson whose customer just checked into service. */
+    emitToUser(companyId: string, userId: string, event: string, data: unknown) {
+      for (const l of listeners) { try { l(companyId, event, data, userId) } catch { /* a listener's failure is its own */ } }
     },
     /** For the transport (and tests): called with every event. Returns the unsubscribe. */
     listen(l: Listener) { listeners.add(l); return () => { listeners.delete(l) } },

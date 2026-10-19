@@ -1,0 +1,508 @@
+// Moved from templates/crm-salon/frontend/src/pages/salon/RemindersPage.tsx.
+import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  Loader2, BellRing, RotateCcw, UserX, Cake, Send, X, CheckCircle2, AlertCircle,
+} from 'lucide-react';
+import { api } from '../../../api'
+import { useMayWrite } from '../../../shared'
+import { useToast } from '../../../shared'
+
+/**
+ * Rebooking — the retention page.
+ * Tab 1: Due to Rebook  (GET /api/reminders/due?window=)
+ * Tab 2: Lapsed Clients (GET /api/reminders/lapsed?months=)
+ * Tab 3: Birthdays      (GET /api/reminders/birthdays?window=)
+ * Checked rows collect contactIds → POST /api/reminders/send { contactIds, message }.
+ */
+
+interface DueRow {
+  recordId: string;
+  contactId?: string;
+  clientName?: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientMobile?: string;
+  serviceName?: string;
+  /** The rhythm this row is about — one row per client per category, not per service. */
+  category?: string;
+  dueDate?: string;
+  overdue?: boolean;
+  stylistFirstName?: string;
+  stylistLastName?: string;
+  /** 'client' when the date came from their own visits, 'menu' when it came from the price list. */
+  intervalBasis?: 'client' | 'menu' | 'none';
+  intervalNote?: string;
+  visitsInRhythm?: number;
+}
+/** One Service Category's share of the recall list — the way in, and its own message. */
+interface DueCategory {
+  category: string;
+  label: string;
+  due: number;
+  overdue: number;
+  template?: string | null;
+}
+interface LapsedRow {
+  contactId?: string;
+  clientName?: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientMobile?: string;
+  lastVisit?: string;
+  visits?: number;
+  lifetimeValue?: number;
+}
+interface BirthdayRow {
+  contactId?: string;
+  clientName?: string;
+  clientEmail?: string;
+  clientPhone?: string;
+  clientMobile?: string;
+  nextBirthday?: string;
+  daysAway?: number;
+}
+
+function fmtDate(s?: string): string {
+  if (!s) return '—';
+  const str = String(s);
+  // date-only ("2026-08-29") parsed at LOCAL midnight, else it rolls back a day. (CC-07)
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
+  const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function money(v: number | undefined): string {
+  return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+// Rendered at text-gray-600, not gray-500, in all three tabs. An OVERDUE row is painted red-50
+// (rgb 254,242,242) and gray-500 measures 4.42:1 on that tint — under AA, on the phone number someone
+// is meant to read off the screen and dial. gray-600 clears it on the tint (~6.4:1) and on the plain
+// white row (7.0:1), so the three tabs keep one shade between them rather than diverging on a
+// background that only one of them can have. (Salon T26 N1 residual)
+function contactLine(r: { clientMobile?: string; clientPhone?: string; clientEmail?: string }): string {
+  return [r.clientMobile || r.clientPhone, r.clientEmail].filter(Boolean).join(' · ') || '—';
+}
+
+type Tab = 'due' | 'lapsed' | 'birthdays';
+
+const DEFAULT_MESSAGE: Record<Tab, string> = {
+  due: "Hi! It's about time for your next appointment — reply or give us a call and we'll get you booked in.",
+  lapsed: "Hi! We haven't seen you in a while and we'd love to get you back in the chair. Reply and we'll find you a time.",
+  birthdays: 'Happy birthday from all of us! Book any service this month and we have a little treat waiting for you.',
+};
+
+export default function RemindersPage() {
+  // Sending is POST /api/reminders/send (contacts:update). The checkboxes exist only to choose whom to text, so they
+  // go with the button: the read-only seat reads the lists. (T43 viewer round, T68)
+  const maySend = useMayWrite('contacts:update');
+  const [tab, setTab] = useState<Tab>('due');
+
+  const [windowDays, setWindowDays] = useState<number>(14);
+  const [dueRows, setDueRows] = useState<DueRow[]>([]);
+  const [dueCount, setDueCount] = useState<number>(0);
+  const [overdueCount, setOverdueCount] = useState<number>(0);
+  /** Which Service Category is being worked. '' is everyone. */
+  const [category, setCategory] = useState<string>('');
+  const [dueCategories, setDueCategories] = useState<DueCategory[]>([]);
+  const [totalDue, setTotalDue] = useState<number>(0);
+
+  const [months, setMonths] = useState<number>(6);
+  const [lapsedRows, setLapsedRows] = useState<LapsedRow[]>([]);
+
+  const [bdayWindow, setBdayWindow] = useState<number>(30);
+  const [bdayRows, setBdayRows] = useState<BirthdayRow[]>([]);
+
+  const [loading, setLoading] = useState<boolean>(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showSend, setShowSend] = useState<boolean>(false);
+
+  const loadDue = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/api/reminders/due?window=${windowDays}${category ? `&category=${encodeURIComponent(category)}` : ''}`);
+      setDueRows(res.data || []);
+      setDueCount(res.count || 0);
+      setOverdueCount(res.overdue || 0);
+      // The category counts come back unfiltered on purpose, so working one category still shows
+      // what else is waiting behind it.
+      setDueCategories(res.categories || []);
+      setTotalDue(res.totalDue ?? res.count ?? 0);
+    } catch (error) {
+      console.error('Failed to load rebooking list:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [windowDays, category]);
+
+  const loadLapsed = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/api/reminders/lapsed?months=${months}`);
+      setLapsedRows(res.data || []);
+    } catch (error) {
+      console.error('Failed to load lapsed clients:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [months]);
+
+  const loadBirthdays = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/api/reminders/birthdays?window=${bdayWindow}`);
+      setBdayRows(res.data || []);
+    } catch (error) {
+      console.error('Failed to load birthdays:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [bdayWindow]);
+
+  useEffect(() => {
+    setSelected(new Set());
+    if (tab === 'due') loadDue();
+    else if (tab === 'lapsed') loadLapsed();
+    else loadBirthdays();
+  }, [tab, loadDue, loadLapsed, loadBirthdays]);
+
+  const toggle = (contactId?: string) => {
+    if (!contactId) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(contactId)) next.delete(contactId);
+      else next.add(contactId);
+      return next;
+    });
+  };
+
+  const rows: { contactId?: string }[] = tab === 'due' ? dueRows : tab === 'lapsed' ? lapsedRows : bdayRows;
+  // /reminders/lapsed omits lifetimeValue for a seat without invoices:read (see routes/reminders.ts).
+  // Read off the rows rather than from a second permission check, so the header and the cells cannot
+  // disagree and shift the whole table by one column. The win-back order is unaffected — the server
+  // sorts by the figure before dropping it. (T41)
+  const showLifetime = lapsedRows.some((r) => r.lifetimeValue !== undefined);
+  const allIds = Array.from(new Set(rows.map((r) => r.contactId).filter(Boolean))) as string[];
+  const allSelected = allIds.length > 0 && allIds.every((id) => selected.has(id));
+
+  const toggleAll = () => {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(allIds));
+  };
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'due', label: 'Due to Rebook', icon: <RotateCcw className="w-4 h-4" /> },
+    { id: 'lapsed', label: 'Lapsed Clients', icon: <UserX className="w-4 h-4" /> },
+    { id: 'birthdays', label: 'Birthdays', icon: <Cake className="w-4 h-4" /> },
+  ];
+
+  const emptyText: Record<Tab, string> = {
+    due: 'Nobody is due to rebook in this window',
+    lapsed: 'No lapsed clients',
+    birthdays: 'No birthdays in this window',
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
+          <BellRing className="w-6 h-6 text-teal-700 dark:text-teal-300" /> Rebooking
+        </h1>
+        <p className="text-gray-500 dark:text-slate-400">Get clients back in the chair on cadence</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b overflow-x-auto">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
+              // The selected tab had no dark partner, so teal-700 stayed on the dark surface at
+              // 3.69:1 — the one sub-AA item left in dark mode. teal-300 is the pair, not a
+              // re-shading of the light side, which is already correct. (Salon T26 N1 residual)
+              tab === t.id ? 'border-teal-600 text-teal-700 dark:border-teal-400 dark:text-teal-300' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+            }`}
+          >
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Categories are the way IN to a recall list, not a column on it. Phorest works Client
+          Reconnect one Service Category at a time and gives each its own message, because what you
+          say to a colour client six weeks out is not what you say to somebody due a trim — and a
+          flat list mixing them can only ever send one of the two. Picking a category also settles
+          the "why is this client on here twice" question: under Colour she appears once.
+          Only shown when the shop actually has more than one rhythm running. */}
+      {tab === 'due' && dueCategories.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => { setCategory(''); setSelected(new Set()); }}
+            className={`px-3 py-1 rounded-full text-sm border ${category === ''
+              ? 'bg-teal-700 text-white border-teal-700'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-800'}`}
+          >Everyone ({totalDue})</button>
+          {dueCategories.map((cat) => (
+            <button
+              key={cat.category}
+              onClick={() => { setCategory(cat.category); setSelected(new Set()); }}
+              className={`px-3 py-1 rounded-full text-sm border ${category === cat.category
+                ? 'bg-teal-700 text-white border-teal-700'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-slate-900 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-800'}`}
+            >
+              {cat.label} ({cat.due}{cat.overdue > 0 ? `, ${cat.overdue} overdue` : ''})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Controls */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          {tab === 'due' && (
+            <>
+              <label className="text-sm text-gray-500 dark:text-slate-400">Due within</label>
+              <select value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))} className="px-3 py-2 border rounded-lg">
+                <option value={7}>7 days</option>
+                <option value={14}>14 days</option>
+                <option value={30}>30 days</option>
+              </select>
+              <span className="text-sm text-gray-500 dark:text-slate-400">
+                {dueCount} due · <span className="text-red-600 dark:text-red-400 font-medium">{overdueCount} overdue</span>
+              </span>
+            </>
+          )}
+          {tab === 'lapsed' && (
+            <>
+              <label className="text-sm text-gray-500 dark:text-slate-400">No visit in</label>
+              <select value={months} onChange={(e) => setMonths(Number(e.target.value))} className="px-3 py-2 border rounded-lg">
+                <option value={3}>3 months</option>
+                <option value={6}>6 months</option>
+                <option value={12}>12 months</option>
+                <option value={24}>24 months</option>
+              </select>
+              <span className="text-sm text-gray-500 dark:text-slate-400">{lapsedRows.length} lapsed</span>
+            </>
+          )}
+          {tab === 'birthdays' && (
+            <>
+              <label className="text-sm text-gray-500 dark:text-slate-400">Within</label>
+              <select value={bdayWindow} onChange={(e) => setBdayWindow(Number(e.target.value))} className="px-3 py-2 border rounded-lg">
+                <option value={7}>7 days</option>
+                <option value={30}>30 days</option>
+                <option value={60}>60 days</option>
+              </select>
+              <span className="text-sm text-gray-500 dark:text-slate-400">{bdayRows.length} upcoming</span>
+            </>
+          )}
+        </div>
+        {maySend && <button
+          onClick={() => setShowSend(true)}
+          disabled={selected.size === 0}
+          className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50"
+        >
+          <Send className="w-4 h-4" /> Send Text{selected.size > 0 ? ` (${selected.size})` : ''}
+        </button>}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">{emptyText[tab]}</div>
+      ) : (
+        <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
+              <tr>
+                <th className="px-4 py-3 w-10">
+                  {maySend && <input type="checkbox" checked={allSelected} onChange={toggleAll} className="w-4 h-4" />}
+                </th>
+                <th className="px-4 py-3 font-medium">Client</th>
+                <th className="px-4 py-3 font-medium">Contact</th>
+                {tab === 'due' && (
+                  <>
+                    <th className="px-4 py-3 font-medium">Service</th>
+                    <th className="px-4 py-3 font-medium">Due</th>
+                  </>
+                )}
+                {tab === 'lapsed' && (
+                  <>
+                    <th className="px-4 py-3 font-medium">Last Visit</th>
+                    <th className="px-4 py-3 font-medium">Visits</th>
+                    {showLifetime && <th className="px-4 py-3 font-medium">Lifetime</th>}
+                  </>
+                )}
+                {tab === 'birthdays' && (
+                  <>
+                    <th className="px-4 py-3 font-medium">Birthday</th>
+                    <th className="px-4 py-3 font-medium">In</th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {/* Same shape as the dashboard banner: an overdue row painted light pink while its cells
+                  switch to the dark-mode near-white is unreadable in dark mode. Found by sweeping for
+                  the pattern rather than by the report, which stopped at three pages. (T20 H2) */}
+              {tab === 'due' && dueRows.map((r) => (
+                <tr key={r.recordId} className={r.overdue ? 'bg-red-50 dark:bg-red-950/40' : ''}>
+                  <td className="px-4 py-3">
+                    {maySend && <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
+                    {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">{contactLine(r)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
+                    {r.serviceName || '—'}
+                    {[r.stylistFirstName, r.stylistLastName].filter(Boolean).length > 0 && (
+                      <span className="block text-xs text-gray-500 dark:text-slate-400">with {[r.stylistFirstName, r.stylistLastName].filter(Boolean).join(' ')}</span>
+                    )}
+                  </td>
+                  {/* The overdue half carried its dark partner and the not-yet-due half did not, so
+                      on the dark table an upcoming date read 2.36:1 — the only failure in a
+                      12-page dark-mode audit, and it is the column the whole screen is about.
+                      (FULL0929 F3; the same missing-partner shape as every contrast fix here.) */}
+                  <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 dark:text-red-400 font-medium' : 'text-gray-600 dark:text-slate-300'}`}>
+                    {fmtDate(r.dueDate)}{r.overdue ? ' (overdue)' : ''}
+                    {/* Where the date came from. A front desk about to ring someone is helped by
+                        knowing whether "due today" is this client's own habit or the price list's
+                        default — and it is the difference between a useful call and a nagging one. */}
+                    {r.intervalNote && (
+                      <span className="block text-xs font-normal text-gray-600 dark:text-slate-400">{r.intervalNote}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+
+              {tab === 'lapsed' && lapsedRows.map((r, i) => (
+                <tr key={r.contactId || i}>
+                  <td className="px-4 py-3">
+                    {maySend && <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
+                    {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">{contactLine(r)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(r.lastVisit)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{r.visits ?? 0}</td>
+                  {showLifetime && <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{money(r.lifetimeValue)}</td>}
+                </tr>
+              ))}
+
+              {tab === 'birthdays' && bdayRows.map((r, i) => (
+                <tr key={r.contactId || i}>
+                  <td className="px-4 py-3">
+                    {maySend && <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
+                    {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">{contactLine(r)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(r.nextBirthday)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
+                    {r.daysAway === 0 ? 'Today' : `${r.daysAway} day${r.daysAway === 1 ? '' : 's'}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showSend && (
+        <SendReminderModal
+          contactIds={Array.from(selected)}
+          // The category being worked writes the message. A shop-wide line sent to everybody is
+          // what makes recall texts read like spam — "time to book your roots" and "time for a
+          // trim" are different conversations. Falls back to the shop default when the salon has
+          // not written one for this category.
+          defaultMessage={(tab === 'due' && dueCategories.find((x) => x.category === category)?.template) || DEFAULT_MESSAGE[tab]}
+          onDone={() => { setShowSend(false); setSelected(new Set()); }}
+          onClose={() => setShowSend(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Send Reminder Modal ---------------- */
+
+function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { contactIds: string[]; defaultMessage: string; onDone: () => void; onClose: () => void }) {
+  const toast = useToast();
+  const [message, setMessage] = useState<string>(defaultMessage);
+  const [sending, setSending] = useState<boolean>(false);
+  const [result, setResult] = useState<{ sent?: number; failed?: number; noPhone?: number; reason?: string | null } | null>(null);
+  // Texting runs on a prepaid usage wallet billed by Twomiah. Warn BEFORE sending when it is empty
+  // or texting is not enabled — a failed send used to be reported as "sent". (SALON-C4)
+  // walletEmpty is what every seat is told; walletCents only reaches whoever settles the bill. (T63)
+  const [wallet, setWallet] = useState<{ configured: boolean; enabled: boolean; walletEmpty?: boolean; walletCents?: number } | null>(null);
+  useEffect(() => { api.get('/api/messaging-billing/status').then((w) => setWallet(w)).catch(() => setWallet(null)); }, []);
+  const walletEmpty = !!wallet?.configured && (!wallet.enabled || (wallet.walletEmpty ?? Number(wallet.walletCents ?? 0) <= 0));
+
+  const send = async () => {
+    if (!message.trim()) { toast.error('Message is required'); return; }
+    setSending(true);
+    try {
+      const res = await api.post('/api/reminders/send', { contactIds, message: message.trim() });
+      setResult({ sent: res.sent || 0, failed: res.failed || 0, noPhone: res.noPhone || 0, reason: res.reason || null });
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to send');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold flex items-center gap-2"><Send className="w-5 h-5 text-teal-700 dark:text-teal-300" /> Send Text</h2>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+
+          {result ? (
+            <div className="space-y-4">
+              <div className={`flex items-center gap-2 ${(result.sent || 0) > 0 ? 'text-green-700 dark:text-green-300' : 'text-gray-600 dark:text-slate-300'}`}>
+                <CheckCircle2 className="w-5 h-5" />
+                <span className="font-medium">{result.sent} text{result.sent === 1 ? '' : 's'} sent</span>
+              </div>
+              {(result.failed || 0) > 0 && (
+                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
+                  <AlertCircle className="w-5 h-5" />
+                  <span>{result.failed} failed{result.reason ? ` — ${result.reason}` : (result.noPhone || 0) > 0 ? ' — no mobile number on file' : ''}</span>
+                </div>
+              )}
+              <button onClick={onDone} className="w-full px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">Done</button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-500 dark:text-slate-400">Sending to {contactIds.length} client{contactIds.length === 1 ? '' : 's'}.</p>
+              {walletEmpty && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm dark:text-amber-300 dark:bg-amber-950/40">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{wallet?.enabled ? 'Your texting wallet is empty — these texts will not send.' : 'Texting is not enabled for this account yet.'} <Link to="/crm/settings/billing" className="underline">Manage texting in Settings › Billing</Link>.</span>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Message</label>
+                <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+                <button onClick={send} disabled={sending || contactIds.length === 0 || walletEmpty} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
+                  {sending ? 'Sending...' : 'Send'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

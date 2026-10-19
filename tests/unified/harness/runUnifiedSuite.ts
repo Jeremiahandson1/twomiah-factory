@@ -33,6 +33,28 @@ export interface UnifiedSuiteOptions {
   vertical: string
   label: string
   filter?: string
+  /**
+   * Template route files whose exported functions (pure rules the tests assert where they live) moved into a unified
+   * module: { 'snowBilling.ts': 'server/crm/landscaping/snowBilling.ts' }, the module relative to apps/unified. The
+   * route file's `export function` names are re-exported from it.
+   */
+  routeModules?: Record<string, string>
+  /**
+   * Template service or util files the tests import directly, written into the sandbox by path (two levels down, e.g.
+   * 'src/services/loyaltyAward.ts'): the file's source, where `@app/` is the path to apps/unified and `crmDeps` can be
+   * imported from '../services/crmDeps.ts' (the app's own dependencies).
+   */
+  sandboxFiles?: Record<string, string>
+  /**
+   * Home care's own model (templates/crm-homecare): one agency per database, `agencies` and `users` with no business
+   * id, signed in by headers alone (tests/harness/fixtures/middleware-auth.crm-homecare.ts). In the sandbox:
+   *   · `agencies` and `users` are the unified `company` and `user`;
+   *   · a row the tests write without company_id gets the database's one company — exactly how the cutover data move
+   *     fills it (docs/UNIFIED_HOMECARE_PLAN.md decision 2). The app's own inserts must set it themselves; that is held
+   *     by apps/unified/tests/homecare-company-id.test.ts, which reads the server code, so this default hides nothing;
+   *   · x-test-user signs in with x-test-role / x-test-company (or x-test-agency), as home care's stub did.
+   */
+  homecare?: boolean
 }
 
 export async function runUnifiedSuite(o: UnifiedSuiteOptions): Promise<number> {
@@ -53,7 +75,7 @@ export async function runUnifiedSuite(o: UnifiedSuiteOptions): Promise<number> {
 
   // The template's own migrations, for the tests that read a data heal from them and apply it here.
   cpSync(`${o.root}templates/${o.template}/backend/db/migrations`, `${SB}/db/migrations`, { recursive: true })
-  w('db/schema.ts', `export * from '${rel}/server/db/schema/index.ts'\n`)
+  w('db/schema.ts', `export * from '${rel}/server/db/schema/index.ts'\n` + (o.homecare ? `export { company as agencies, user as users } from '${rel}/server/db/schema/index.ts'\n` : ''))
   w('db/index.ts', `
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle } from 'drizzle-orm/pglite'
@@ -68,7 +90,17 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { db } from './db/index.ts'
 import { MIGRATIONS } from '${'..'}/../server/db/migrate.ts'
 /** The unified migrations, in order, as a boot applies them. A failed one fails the suite. */
-export async function setupSchema() { await migrate(db as any, { migrationsFolder: MIGRATIONS }) }
+export async function setupSchema() {
+  await migrate(db as any, { migrationsFolder: MIGRATIONS })${o.homecare ? `
+  await oneAgency()` : ''}
+}${o.homecare ? `
+import { sql } from 'drizzle-orm'
+/** One agency per database: a row written without company_id gets the one company (see runUnifiedSuite homecare). */
+async function oneAgency() {
+  await db.execute(sql.raw("CREATE OR REPLACE FUNCTION sandbox_one_company() RETURNS text LANGUAGE sql AS $$ SELECT id FROM company ORDER BY created_at, id LIMIT 1 $$"))
+  const cols: any = await db.execute(sql.raw("SELECT table_name FROM information_schema.columns WHERE table_schema = 'public' AND column_name = 'company_id' AND column_default IS NULL"))
+  for (const r of (cols.rows ?? cols)) await db.execute(sql.raw('ALTER TABLE "' + r.table_name + '" ALTER COLUMN company_id SET DEFAULT sandbox_one_company()'))
+}` : ''}
 `)
   // The app, built once per test file, signed in by header like the template stub.
   w('src/unified.ts', `
@@ -88,7 +120,17 @@ const store = {
 }
 
 /** x-test-user: the user by id, exactly as tests/harness/fixtures/middleware-auth.ts does; otherwise the real check. */
-const bridge = (real: any) => async (c: any, next: any) => {
+const bridge = (real: any) => async (c: any, next: any) => {${o.homecare ? `
+  // Home care's stub: the person is the headers, no lookup (tests/harness/fixtures/middleware-auth.crm-homecare.ts).
+  const hid = c.req.header('x-test-user')
+  if (hid) {
+    let companyId = c.req.header('x-test-company') || c.req.header('x-test-agency')
+    if (!companyId) companyId = (await db.select({ id: company.id }).from(company).orderBy(company.createdAt).limit(1))[0]?.id
+    c.set('user', { userId: hid, id: hid, companyId, agencyId: companyId, email: c.req.header('x-test-email') || hid + '@test.local', role: c.req.header('x-test-role') || 'caregiver' })
+    const locked = await refuseWhileLocked(c, db, company)
+    if (locked) return locked
+    return next()
+  }` : ''}
   const id = c.req.header('x-test-user')
   if (!id) return real(c, next)
   const [found] = await db.select({ id: user.id, companyId: user.companyId, email: user.email, role: user.role, isActive: user.isActive })
@@ -110,8 +152,11 @@ export const forward = () => new Hono().all('*', (c) => unified.app.fetch(c.req.
   // Every router file the template has, by name.
   const routeNames = readdirSync(`${o.root}templates/${o.template}/backend/src/routes`).filter((f) => f.endsWith('.ts'))
   for (const f of routeNames) {
-    const named = [...readFileSync(`${o.root}templates/${o.template}/backend/src/routes/${f}`, 'utf8').matchAll(/^export const (\w+)/gm)].map((m) => m[1])
-    w(`src/routes/${f}`, `import { forward } from '../unified.ts'\nexport default forward()\n${named.map((n) => `export const ${n} = forward()\n`).join('')}`)
+    const src = readFileSync(`${o.root}templates/${o.template}/backend/src/routes/${f}`, 'utf8')
+    const named = [...src.matchAll(/^export const (\w+)/gm)].map((m) => m[1])
+    const fns = o.routeModules?.[f] ? [...src.matchAll(/^export (?:async )?function (\w+)/gm)].map((m) => m[1]) : []
+    const reexport = fns.length ? `export { ${fns.join(', ')} } from '${rel}/../${o.routeModules![f]}'\n` : ''
+    w(`src/routes/${f}`, `import { forward } from '../unified.ts'\nexport default forward()\n${named.map((n) => `export const ${n} = forward()\n`).join('')}${reexport}`)
   }
 
   w('src/middleware/auth.ts', `
@@ -168,7 +213,7 @@ export const templates: any = Object.fromEntries(Object.entries({ ...coreTemplat
 export const inlineButtonColours = (html: string) => inline(html, brand)
 export default e
 `)
-  for (const [name, expr] of Object.entries({ sms: 'services.crm.sms', commissionEarner: 'services.crm.commissionEarner', stripe: 'services.crm.stripeService', reviews: 'services.crm.reviews', inventory: 'services.crm.inventory' })) {
+  for (const [name, expr] of Object.entries({ sms: 'services.crm.sms', commissionEarner: 'services.crm.commissionEarner', stripe: 'services.crm.stripeService', reviews: 'services.crm.reviews', inventory: 'services.crm.inventory', recurring: 'services.crm.recurring' })) {
     w(`src/services/${name}.ts`, `import { services } from '../unified.ts'\nconst s = ${expr}\nexport default s\n`)
   }
   // Services the CRM's own modules build (server/crm/<group>/*Service.ts), made from the app's own dependencies.
@@ -178,6 +223,8 @@ import { services as s } from '../unified.ts'
 import logger from '${rel}/../server/core/logger.ts'
 export const crmDeps: any = { db, audit: s.audit, logger, authenticate: s.authenticate, permissions: s.permissions, features: s.features, realtime: s.realtime, services: s.crm }
 `)
+  // The suite's own extra files (a vertical's services the tests import by the template's paths).
+  for (const [p, src] of Object.entries(o.sandboxFiles || {})) w(p, src.split('@app/').join(`${rel}/../`))
   w('src/services/import.ts', `
 import { crmDeps } from './crmDeps.ts'
 import { createImportService } from '${rel}/../server/crm/office/importService.ts'

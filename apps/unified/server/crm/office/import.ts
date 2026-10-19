@@ -46,7 +46,8 @@ export function createImportRoutes(d: CrmDeps) {
     const options = {
       skipDuplicates: skipDuplicates !== 'false',
       updateExisting: updateExisting === 'true',
-      defaultType: (defaultType as string) || 'client',
+      // The vertical's paying contact (CrmSettings.contacts.customerType; templates/crm-rv routes/import.ts 'customer').
+      defaultType: (defaultType as string) || d.settings?.contacts?.customerType || 'client',
     }
 
     const results = await importService.importContacts(csvContent, user.companyId, options)

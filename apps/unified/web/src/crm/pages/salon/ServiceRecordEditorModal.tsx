@@ -1,0 +1,333 @@
+// Moved from templates/crm-salon/frontend/src/components/salon/ServiceRecordEditorModal.tsx.
+import { useState, useEffect } from 'react'
+import { X, Scissors, Plus, Trash2, AlertTriangle } from 'lucide-react'
+import { api } from '../../../api'
+import { fetchStaff, staffName, type StaffMember } from './staff';
+import { todayKey as todayStr, localDayKey as toDayString } from '../../../shared'
+import { useConfirm } from '../../../shared'
+import { useToast } from '../../../shared'
+
+/**
+ * The steps of a formula, whatever shape the row is in.
+ *
+ * RR2 R1: the visit list ran `formulaSteps(r.formula).map(...)`, which guards null and NOT a string —
+ * a string is truthy and has no .map. One visit with `formula: "6N + 20vol"` threw, the error
+ * boundary caught it, and the whole client chart went to "Something went wrong": no formulas, no
+ * appointments, no account balance, for that client. Every writer normalises now, but rows can
+ * already be in the table from the importer or a migration, so the reader does not assume.
+ */
+export function formulaSteps(raw: unknown): FormulaLine[] {
+  if (Array.isArray(raw)) return raw.filter((s): s is FormulaLine => !!s && typeof s === 'object')
+  if (typeof raw === 'string' && raw.trim()) return [{ product: raw.trim() }]
+  return []
+}
+
+/**
+ * Service record editor — the formula log.
+ *
+ * The formula is a repeatable list of {product, shade, parts} rather than a free
+ * text blob: that is what lets a different stylist reproduce the colour when the
+ * regular one is out, which is the whole retention argument for the record.
+ */
+
+export interface FormulaLine {
+  product?: string;
+  shade?: string;
+  parts?: string;
+}
+
+export interface ServiceRecord {
+  id?: string;
+  contactId?: string;
+  appointmentId?: string;
+  stylistId?: string;
+  serviceId?: string;
+  performedAt?: string;
+  formula?: FormulaLine[];
+  developerVolume?: string;
+  processingMin?: number | string;
+  productsUsed?: string;
+  result?: string;
+  priceCharged?: number | string;
+  notes?: string;
+  serviceName?: string;
+  stylistFirstName?: string;
+  stylistLastName?: string;
+}
+
+interface ServiceOption { id: string; name?: string; price?: string | number; requiresPatchTest?: boolean }
+interface ClientProfileLite { allergies?: string | null; patchTestAt?: string | null }
+// Same rule as the book: allergies always, patch test when the service requires one and the last
+// recorded test is missing or older than 6 months. (SALON-H3)
+function visitWarnings(profile: ClientProfileLite | null, service: ServiceOption | undefined): string[] {
+  const out: string[] = [];
+  if (profile?.allergies && profile.allergies.trim()) out.push(`Allergies on file: ${profile.allergies.trim()}`);
+  if (service?.requiresPatchTest) {
+    const at = profile?.patchTestAt ? new Date(String(profile.patchTestAt).slice(0, 10) + 'T00:00:00') : null;
+    const ageDays = at && !isNaN(at.getTime()) ? (Date.now() - at.getTime()) / 86400000 : Infinity;
+    if (ageDays > 180) out.push(at ? `${service.name || 'This service'} needs a patch test — last one was ${Math.round(ageDays)} days ago` : `${service.name || 'This service'} needs a patch test — none on file`);
+  }
+  return out;
+}
+
+interface Props {
+  contactId: string;
+  record: ServiceRecord | null;
+  appointmentId?: string;
+  onSave: (saved?: Record<string, unknown>) => void;
+  onClose: () => void;
+}
+
+function toDateInput(s?: string): string {
+  const d = s ? new Date(s) : new Date();
+  // Local day, not the UTC one: a visit performed at 7pm in Chicago is stored past midnight UTC and
+  // came back into the date box as TOMORROW. (Salon T25 N2)
+  if (isNaN(d.getTime())) return todayStr();
+  return toDayString(d);
+}
+
+export default function ServiceRecordEditorModal({ contactId, record, appointmentId, onSave, onClose }: Props) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [saving, setSaving] = useState(false);
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [stylists, setStylists] = useState<StaffMember[]>([]);
+  const [profile, setProfile] = useState<ClientProfileLite | null>(null);
+  useEffect(() => { api.get(`/api/clients/${contactId}`).then((d) => setProfile((d?.profile as ClientProfileLite) || null)).catch(() => setProfile(null)); }, [contactId]);
+  const [formula, setFormula] = useState<FormulaLine[]>(
+    record?.formula?.length ? record.formula : [{ product: '', shade: '', parts: '' }]
+  );
+  const [form, setForm] = useState({
+    serviceId: record?.serviceId || '',
+    stylistId: record?.stylistId || '',
+    performedAt: toDateInput(record?.performedAt),
+    developerVolume: record?.developerVolume || '',
+    processingMin: record?.processingMin?.toString() || '',
+    productsUsed: record?.productsUsed || '',
+    result: record?.result || '',
+    priceCharged: record?.priceCharged?.toString() || '',
+    notes: record?.notes || '',
+  });
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  /**
+   * EDITING A RECORD MUST NOT MOVE THE TIME IT WAS PERFORMED. (T41)
+   *
+   *   "editing a service record resets performedAt to noon"
+   *
+   * The form asks for a DATE, and the save posted `${date}T12:00:00`. So correcting a price on a
+   * cut performed at 14:30 rewrote the time to 12:00 — a silent edit to a field the operator was
+   * not shown and did not touch. The time is real: closing out an appointment writes the
+   * appointment's own start into it (routes/appointments.ts), the dashboard orders by it, and two
+   * services on one day are only distinguishable by it.
+   *
+   * So: the date box is the only thing the operator controls, and the TIME is carried across.
+   *   · the date unchanged  → the stored timestamp is sent back exactly as it was
+   *   · the date changed    → the same clock time, on the new day
+   *   · a brand-new record  → noon, as before, because there is no time to preserve
+   */
+  const originalPerformedAt = record?.performedAt ? new Date(record.performedAt) : null;
+  const performedAtToSend = (dayStr: string): string => {
+    if (!originalPerformedAt || isNaN(originalPerformedAt.getTime())) {
+      return new Date(`${dayStr}T12:00:00`).toISOString();
+    }
+    if (dayStr === toDayString(originalPerformedAt)) return originalPerformedAt.toISOString();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const clock = `${pad(originalPerformedAt.getHours())}:${pad(originalPerformedAt.getMinutes())}:${pad(originalPerformedAt.getSeconds())}`;
+    return new Date(`${dayStr}T${clock}`).toISOString();
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [svcRes, staff] = await Promise.all([
+          api.get('/api/service-menu'),
+          fetchStaff(),
+        ]);
+        setServices(svcRes.data || []);
+        setStylists(staff);
+      } catch {
+        /* degrade gracefully — the record can still be written free-hand */
+      }
+    })();
+  }, []);
+
+  // Picking a service pre-fills the menu price, which is what actually gets
+  // charged most of the time; the stylist can still override it.
+  const onService = (id: string) => {
+    set('serviceId', id);
+    if (!form.priceCharged) {
+      const svc = services.find((s) => s.id === id);
+      if (svc?.price) set('priceCharged', String(svc.price));
+    }
+  };
+
+  const setLine = (i: number, k: keyof FormulaLine, v: string) => {
+    setFormula((rows) => rows.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const cleanFormula = formula.filter((l) => (l.product || '').trim() || (l.shade || '').trim());
+      const payload: Record<string, unknown> = {
+        contactId,
+        performedAt: performedAtToSend(form.performedAt),
+        formula: cleanFormula,
+      };
+      if (appointmentId) payload.appointmentId = appointmentId;
+      if (form.serviceId) payload.serviceId = form.serviceId;
+      if (form.stylistId) payload.stylistId = form.stylistId;
+      if (form.developerVolume) payload.developerVolume = form.developerVolume;
+      if (form.processingMin !== '') payload.processingMin = Number(form.processingMin);
+      if (form.productsUsed) payload.productsUsed = form.productsUsed;
+      if (form.result) payload.result = form.result;
+      if (form.priceCharged !== '') payload.priceCharged = Number(form.priceCharged);
+      if (form.notes) payload.notes = form.notes;
+
+      const saved = record?.id ? await api.put(`/api/service-records/${record.id}`, payload) : await api.post('/api/service-records', payload);
+      onSave(saved as Record<string, unknown>);
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to save service record');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!record?.id || !(await confirm('Delete this service record? This cannot be undone.', { title: 'Delete visit', confirmText: 'Delete it' }))) return;
+    setSaving(true);
+    try {
+      await api.delete('/api/service-records', record.id);
+      onSave();
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to delete service record');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Scissors className="w-5 h-5 text-teal-700 dark:text-teal-300" /> {record?.id ? 'Edit Service Record' : 'New Service Record'}
+            </h2>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+
+          {visitWarnings(profile, services.find((s) => s.id === form.serviceId)).length > 0 && (
+            <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-sm dark:text-amber-300 dark:bg-amber-950/40">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <ul className="space-y-1">{visitWarnings(profile, services.find((s) => s.id === form.serviceId)).map((w) => <li key={w}>{w}</li>)}</ul>
+            </div>
+          )}
+          <form onSubmit={submit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Service</label>
+                <select value={form.serviceId} onChange={(e) => onService(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                  <option value="">Select service...</option>
+                  {services.map((s) => <option key={s.id} value={s.id}>{s.name || 'Untitled'}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Stylist</label>
+                <select value={form.stylistId} onChange={(e) => set('stylistId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                  <option value="">Unassigned</option>
+                  {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
+                <input type="date" value={form.performedAt} onChange={(e) => set('performedAt', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+
+            {/* Formula */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Formula</label>
+                <button
+                  type="button"
+                  onClick={() => setFormula((rows) => [...rows, { product: '', shade: '', parts: '' }])}
+                  className="inline-flex items-center gap-1 text-xs text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200"
+                >
+                  <Plus className="w-3 h-3" /> Add line
+                </button>
+              </div>
+              <div className="space-y-2">
+                {formulaSteps(formula).map((line, i) => (
+                  <div key={i} className="grid grid-cols-12 gap-2">
+                    <input
+                      type="text" value={line.product || ''} onChange={(e) => setLine(i, 'product', e.target.value)}
+                      placeholder="Product / line" className="col-span-5 px-3 py-2 border rounded-lg text-sm"
+                    />
+                    <input
+                      type="text" value={line.shade || ''} onChange={(e) => setLine(i, 'shade', e.target.value)}
+                      placeholder="Shade" className="col-span-4 px-3 py-2 border rounded-lg text-sm"
+                    />
+                    <input
+                      type="text" value={line.parts || ''} onChange={(e) => setLine(i, 'parts', e.target.value)}
+                      placeholder="Parts" className="col-span-2 px-3 py-2 border rounded-lg text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormula((rows) => (rows.length === 1 ? [{ product: '', shade: '', parts: '' }] : rows.filter((_, idx) => idx !== i)))}
+                      className="col-span-1 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
+                      title="Remove line"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Developer</label>
+                <input type="text" value={form.developerVolume} onChange={(e) => set('developerVolume', e.target.value)} placeholder="20 vol" className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Processing (min)</label>
+                <input type="number" value={form.processingMin} onChange={(e) => set('processingMin', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price charged ($)</label>
+                <input type="number" step="any" value={form.priceCharged} onChange={(e) => set('priceCharged', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Other products used</label>
+              <input type="text" value={form.productsUsed} onChange={(e) => set('productsUsed', e.target.value)} placeholder="Toner, bond builder, treatment..." className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Result <span className="text-xs text-gray-500 dark:text-slate-400">(what to repeat or change next time)</span></label>
+              <textarea value={form.result} onChange={(e) => set('result', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
+              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              {record?.id && (
+                <button type="button" onClick={handleDelete} disabled={saving} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 dark:text-red-400">Delete</button>
+              )}
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Record'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

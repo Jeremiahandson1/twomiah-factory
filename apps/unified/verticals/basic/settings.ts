@@ -1,0 +1,138 @@
+// Basic: the general small-business CRM (templates/crm-basic) — what industryRouting.ts sends showcase (gyms, studios,
+// venues, photographers), food trucks and any business with no vertical of its own. A copy of field service with the
+// trade taken out: jobs at a customer's sites, equipment, recurring agreements, but no service calls, no tech view, no
+// builder's paperwork and no contractor lead marketplaces.
+import type { VerticalSettings } from '../../server/core/vertical.ts'
+
+// Permits and drawings are a builder's paperwork (templates/crm-basic routes/documents.ts and docsConfig.ts, T43).
+const DOC_TYPES = ['general', 'contract', 'photo', 'invoice', 'receipt', 'other']
+
+const basic: VerticalSettings = {
+  id: 'basic',
+  label: 'Business',
+  // Shared by showcase, food truck and basic, so no one trade to name (templates/crm-basic routes/mfa.ts, T41).
+  mfaIssuer: 'Twomiah CRM',
+  featureSet: 'crm-basic',
+  // The 1:1 text box on the contact record is for the person on their way (templates/crm-basic
+  // middleware/permissions.ts, T30 L-RB).
+  extraRolePermissions: { field: ['sms:send'] },
+  crm: {
+    serviceSites: true,
+    // No billing a job on its own: the basic copy's job table had no invoice link mounted (routes/jobs.ts).
+    jobs: { photos: true, textArrival: true },
+    quotes: { textOnSend: true },
+    documents: { markup: false, types: DOC_TYPES },
+    agreements: { recurrence: true },
+    fleet: { gps: true },
+    // Not the trades' marketplaces: a gym can't sign up to Angi (routes/leads.ts, T42). Same ids as screens.leads.
+    leads: { platforms: ['google_business', 'instagram', 'yelp', 'website'] },
+    // No technician's view in this copy (no routes/tech.ts; tech_mobile_view is not in its features): the base checklist.
+    tech: { checklistType: 'site_checklist', checklistTitle: 'Site checklist' },
+    portal: { disable: ['collaborators', 'projects', 'changeOrders', 'selections', 'projectFiles', 'sharedDocuments'] },
+  },
+  // A studio doesn't come to your house: the booking form doesn't ask for an address unless the owner says so
+  // (templates/crm-basic routes/booking.ts, T42).
+  booking: { requireAddress: false },
+  // templates/crm-basic/frontend/src/*Config.ts
+  screens: {
+    searchPlaceholder: 'Search contacts, jobs, invoices...',
+    contacts: {
+      // A supplier is stored as `vendor`; not a builder's Subcontractor (contactsConfig.ts, T64).
+      types: [{ value: 'lead', label: 'Lead' }, { value: 'client', label: 'Client' }, { value: 'vendor', label: 'Supplier' }],
+      sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true },
+      portalGate: false,
+    },
+    jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true },
+    // The template's quote-name example was field service's ('AC Compressor Replacement'); a neutral one here.
+    invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. Standard package', pricebook: true },
+    documents: { markup: false, projects: false, types: DOC_TYPES },
+    equipment: {
+      contacts: true, sites: true, linkedJobs: true,
+      categories: [
+        { name: 'Power tools', icon: 'tool' }, { name: 'Heavy equipment', icon: 'mower' }, { name: 'Trucks & trailers', icon: 'truck' },
+        { name: 'HVAC', icon: 'hvac' }, { name: 'Plumbing', icon: 'plumbing' }, { name: 'Electrical', icon: 'electrical' },
+      ],
+    },
+    import: {
+      types: [
+        { id: 'contacts', label: 'Contacts', description: 'Import customers, vendors, and leads' },
+        { id: 'projects', label: 'Projects', description: 'Import project records', feature: 'projects' },
+        { id: 'jobs', label: 'Jobs', description: 'Import work orders and jobs', feature: 'jobs' },
+        { id: 'products', label: 'Products/Services', description: 'Import products and service items' },
+        { id: 'invoices', label: 'Invoices', description: 'Import invoices and open balances from Jobber, HousecallPro or QuickBooks' },
+      ],
+    },
+    migration: { entityLabels: { jobs: 'Jobs & Work Orders' } },
+    pricebook: { tiersTitle: 'Good-Better-Best options' },
+    reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
+    dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
+    jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
+    time: { jobLabel: 'Job' },
+    expenses: { jobLabel: 'Job' },
+    // "Trade" and "Lead Technician" are a contractor's words (peopleConfig.ts, T51).
+    team: { roleLabel: 'Job title', rolePlaceholder: 'e.g. Shift lead' },
+    agreements: { recurrence: true },
+    fleet: { gps: true },
+    portal: {
+      providerNoun: 'service team',
+      clientNav: ['myJobs', 'quotes', 'invoices', 'paymentMethods', 'equipment', 'agreements', 'serviceRequest', 'messages'],
+      collaboratorNav: ['messages'],
+      reviewerNav: ['messages'],
+      labels: { myJobs: 'Jobs', agreements: 'Maintenance Plans' },
+    },
+    // The general lead platforms (leadsConfig.ts, T42); the ids are crm.leads.platforms.
+    leads: {
+      platforms: [
+        {
+          value: 'google_business', label: 'Google Business Profile', color: '#c62828', tone: 'indigo',
+          description: 'Turn Google messages and booking requests into leads in your Lead Inbox.',
+          instructions: [
+            'Google emails the profile owner for every new message or booking request', 'Forward those notification emails to the inbound address below',
+            'Gmail: Settings › Filters › from:google.com "Business Profile" › Forward', "Each forwarded message becomes a lead with the sender's name and note",
+          ],
+        },
+        {
+          value: 'instagram', label: 'Instagram / Facebook', color: '#6a1b9a', tone: 'pink',
+          description: 'Bring DMs and lead-form submissions from Meta into your CRM.',
+          instructions: [
+            'Meta emails you when someone messages your page or fills in a lead form', 'Forward those notification emails to the inbound address below',
+            'Or connect a Zapier / Make zap from Meta Lead Ads to the webhook URL below',
+          ],
+        },
+        {
+          value: 'yelp', label: 'Yelp', color: '#e65100', tone: 'sky',
+          description: 'Forward Yelp quote requests and messages into your Lead Inbox.',
+          instructions: ['Yelp for Business → Account Settings → Notifications', 'Turn on email alerts for "Request a quote" / messages', 'Forward those alerts to the inbound address below'],
+        },
+        {
+          value: 'website', label: 'Website contact form', color: '#2e7d32', tone: 'emerald',
+          description: 'Every form submission on your website becomes a lead.',
+          instructions: ["Point your website form's notification email at the inbound address below", 'Or use the webhook URL below with Zapier / Make from any form builder'],
+        },
+      ],
+      jobTypeLabel: 'Service',
+      sourcesSubtitle: 'Where new enquiries arrive: Google, Meta, Yelp and your website',
+    },
+    marketing: {},
+    messages: {},
+    reviews: {},
+    // No trade licence for a gym or a venue (settingsConfig.ts, T41).
+    settings: { licenseNumber: false },
+    // Only the four every business can use: no Jobber, Angi, Thumbtack or Local Services (OnboardingWizard.tsx, T41).
+    onboarding: { integrations: ['dns', 'quickbooks', 'stripe', 'twilio'] },
+    // The four stored role keys in this CRM's words: nobody here is a technician (pages/CommissionsPage.tsx, T51).
+    commissions: { roleWords: { technician: 'Staff', sales_rep: 'Sales', manager: 'Managers', all: 'Everyone' }, planExample: 'Standard staff plan' },
+    // No tech view (tech_mobile_view is not in this CRM's features), so no screens.tech.
+  },
+  // The showcase site (templates/website-premium-showcase): its contact section and its empty-message reply.
+  site: {
+    design: 'showcase',
+    words: {
+      contactAddressLabel: 'Address',
+      contactMessageLabel: 'Your message',
+      contactMessageRequired: 'Please write a short message.',
+    },
+  },
+}
+
+export default basic

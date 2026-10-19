@@ -13,6 +13,7 @@ import type { AgreementsConfig } from '@twomiah/tenant-ui/src/agreements/types'
 import type { FleetConfig } from '@twomiah/tenant-ui/src/fleet/types'
 import type { CommissionsConfig } from '@twomiah/tenant-ui/src/commissions/CommissionsPage'
 import type { TechViewConfig } from '@twomiah/tenant-ui/src/tech/TechView'
+import type { IntegrationsConfig } from '@twomiah/tenant-ui/src/settings/integrationsTypes'
 
 export interface VerticalScreens {
   contacts: ContactsConfig
@@ -39,6 +40,36 @@ export interface VerticalScreens {
   migration: Record<string, unknown>
   import: Record<string, unknown>
   settings: Record<string, unknown>
+  /** Parts & Materials (crm/pages/fieldservice/PartsInventory): the categories a part is filed under (absent: field service's). */
+  parts: { categories?: string[] }
+  /** The first-run wizard: the integrations its second step offers, by id (absent: all of them). */
+  onboarding: {
+    integrations?: string[]
+    /** The vertical's own entries for that step (id, label, description, category, guideSteps), e.g. RV's marketplaces. */
+    extra?: Array<{ id: string; label: string; description: string; category: string; guideSteps: string[] }>
+  }
+  /**
+   * The vertical whose own dashboard replaces the shared jobs dashboard at /crm/dashboard ('salon': crm/verticals/salon.tsx
+   * `dashboard`), as its /api/dashboard answers in that vertical's shape. Absent: the jobs dashboard. Read it with
+   * `typeof … === 'string'`: an absent setting reads as an empty object here.
+   */
+  home?: string
+  /**
+   * The vertical whose own figures sit above the shared Reports page ('bar': the register's nights, crm/verticals/bar.tsx
+   * `reportsAbove`). Absent: the shared page alone. Read it with `typeof … === 'string'`.
+   */
+  reportsAbove?: string
+  /**
+   * Whose screens /crm/appointments and /crm/reminders are, as the server's CrmSettings.appointments decides whose
+   * /api/appointments and /api/reminders answer: 'practice' is the vet's (crm/verticals/vet.tsx registers them); absent,
+   * the salon's (crm/verticals/salon.tsx). One route per path: a Route the other vertical also declares never matches.
+   * Read it with `typeof … === 'string'`.
+   */
+  book?: string
+  /** The Schedule screen: `events` shows calendar appointments (/api/schedule-events) with "New Appointment" (RV). */
+  schedule: { events?: boolean }
+  /** Settings › Integrations: the vertical's words for its cards and which extra panels it shows (RV's call tracking). */
+  integrations: Omit<IntegrationsConfig, 'leadSources'>
 }
 
 let cached: VerticalScreens | null = null

@@ -1,0 +1,207 @@
+// Moved from templates/crm-rv/frontend/src/pages/rv/OEMPartsPage.tsx.
+import { useEffect, useState, type ChangeEvent } from 'react'
+import { Package, Search, Loader2, Info, Upload, X, CheckCircle2 } from 'lucide-react'
+import { api } from '../../../api'
+import { PageError, errorText, useMayWrite } from '../../../shared'
+
+const money = (n?: number) => (n ? '$' + Number(n).toFixed(2) : '');
+
+/** A catalogue part (server/crm/rv/parts.ts OemPart). */
+interface OemPart {
+  partNumber: string; name: string; oem: string; category: string; price: number; msrp?: number
+  availability: string; supersededBy?: string; fitment?: string; diagram?: string
+}
+/** GET /api/oem-parts/search */
+interface PartsSearchReply { parts?: OemPart[]; provider?: string; live?: boolean; imported?: number; oems?: string[]; categories?: string[] }
+/** POST /api/parts-orders/create — not placed while no supplier rail is connected (poNumber null, with the reason). */
+interface PartsOrderReply { order?: { status: string; poNumber: string | null; reason?: string }; provider?: string; live?: boolean }
+/** POST /api/oem-parts/import; a refusal is a 4xx whose sentence says why (and how many rows were skipped). */
+interface PartsImportReply { ok: boolean; imported: number; skipped: number; total: number; mappedColumns: string[] }
+
+export default function OEMPartsPage() {
+  const [q, setQ] = useState('');
+  // Importing a price file and ordering a part both ask inventory:create (POST /api/oem-parts/import,
+  // POST /api/parts-orders/create) — staff were offered both and refused. (T63)
+  const mayStock = useMayWrite('inventory:create');
+  const [oem, setOem] = useState('');
+  const [category, setCategory] = useState('');
+  const [parts, setParts] = useState<OemPart[]>([]);
+  const [oems, setOems] = useState<string[]>([]);
+  const [cats, setCats] = useState<string[]>([]);
+  const [live, setLive] = useState(false);
+  const [imported, setImported] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  // import panel
+  const [showImport, setShowImport] = useState(false);
+  const [csv, setCsv] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [importOem, setImportOem] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function run() {
+    setLoading(true);
+    try {
+      const r: PartsSearchReply = await api.get('/api/oem-parts/search', { q, oem, category });
+      setParts(r.parts || []); setOems(r.oems || []); setCats(r.categories || []);
+      setLive(!!r.live); setImported(r.imported || 0);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  }
+  // run on mount + whenever a filter changes; text search runs via button/Enter
+  useEffect(() => { run(); }, [oem, category]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [ordered, setOrdered] = useState<Record<string, string>>({});
+  const [pageErr, setPageErr] = useState<string>('');
+  // The server prices the order from the catalog; the result (or why it wasn't placed) is shown. (RV T19 L3)
+  // On the page since T58d — the reason a part was not ordered is a sentence the parts counter needs
+  // to keep reading while they decide what to do, and a pop-up takes it away.
+  async function order(p: OemPart) {
+    setPageErr('');
+    try {
+      const r: PartsOrderReply = await api.post('/api/parts-orders/create', { item: { partNumber: p.partNumber, oem: p.oem, qty: 1 } });
+      const po = r?.order?.poNumber
+      if (po) setOrdered((o) => ({ ...o, [p.partNumber]: po }));
+      else setPageErr(`${p.partNumber}: ${r?.order?.reason || 'the order was not placed.'}`);
+    } catch (e: unknown) {
+      setPageErr(`${p.partNumber}: ${errorText(e, 'the order could not be placed.')}`);
+    }
+  }
+
+  async function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFileName(f.name);
+    setCsv(await f.text());
+  }
+
+  async function doImport() {
+    if (!csv.trim()) { setImportMsg({ ok: false, text: 'Paste a CSV or choose a file first.' }); return; }
+    setImporting(true); setImportMsg(null);
+    try {
+      const r: PartsImportReply = await api.post('/api/oem-parts/import', { csv, oem: importOem });
+      setImportMsg({ ok: true, text: `Imported ${r.imported} part${r.imported === 1 ? '' : 's'}${r.skipped ? ` (${r.skipped} skipped)` : ''}. Catalog now has ${r.total}.` });
+      setCsv(''); setFileName('');
+      await run();
+    } catch (e: unknown) {
+      // The server's sentence says what was wrong (no part-number column, every row skipped…).
+      setImportMsg({ ok: false, text: 'Import failed: ' + errorText(e, 'try again') });
+    } finally { setImporting(false); }
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto p-6">
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center text-white"><Package size={22} /></div>
+          <div>
+            <h1 className="text-2xl font-bold">Parts Catalog</h1>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Search parts by number, name, or unit — price, fitment, availability, supersessions.</p>
+          </div>
+        </div>
+        {mayStock && <button onClick={() => setShowImport((s) => !s)}
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800">
+          <Upload size={15} /> Import parts
+        </button>}
+      </div>
+
+      <div className="mt-3"><PageError message={pageErr} onDismiss={() => setPageErr('')} /></div>
+
+      {live ? (
+        <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-800 flex gap-2 dark:text-green-300 dark:bg-green-950/40">
+          <CheckCircle2 size={15} className="shrink-0 mt-0.5" />
+          <span><b>Live catalog — {imported.toLocaleString()} parts</b> from your imported data. Import again any time to add brands or refresh pricing.</span>
+        </div>
+      ) : (
+        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex gap-2 dark:text-amber-300 dark:bg-amber-950/40">
+          <Info size={15} className="shrink-0 mt-0.5" />
+          <span><b>Demo catalog.</b> Import your own parts to go live — your OEM price files (downloaded from your dealer portal) or your parts export from your old system.{mayStock && <> <button onClick={() => setShowImport(true)} className="underline font-medium">Import now →</button></>}</span>
+        </div>
+      )}
+
+      {showImport && (
+        <div className="mt-3 bg-white rounded-xl border shadow-sm p-4 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-semibold text-sm">Import a parts file</h2>
+            <button aria-label="Close" onClick={() => setShowImport(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X size={16} /></button>
+          </div>
+          <p className="text-xs text-gray-500 mb-3 dark:text-slate-400">
+            Upload a CSV — an OEM price file you downloaded from your dealer portal, or a parts export from your old DMS.
+            We auto-detect columns (Part Number / Description / Price / Cost / Brand / Qty / Fitment). Re-importing updates existing parts by part number.
+          </p>
+          <div className="flex flex-wrap gap-3 items-center mb-3">
+            <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800">
+              <Upload size={14} /> Choose CSV
+              <input type="file" accept=".csv,.txt" onChange={onFile} className="hidden" />
+            </label>
+            {fileName && <span className="text-xs text-gray-500 dark:text-slate-400">{fileName}</span>}
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-gray-600 dark:text-slate-400">Brand for this file (if the file has no brand column):</label>
+              <input value={importOem} onChange={(e) => setImportOem(e.target.value)} placeholder="e.g. Polaris"
+                className="p-1.5 border rounded text-sm w-32" />
+            </div>
+          </div>
+          <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={5}
+            placeholder={'…or paste CSV here. First row = headers, e.g.:\npart number,description,price,qty\n2540086,Oil Filter,12.99,8'}
+            className="w-full p-2 border rounded-lg text-xs font-mono" />
+          <div className="flex items-center gap-3 mt-3">
+            <button onClick={doImport} disabled={importing}
+              className="px-4 py-2 rounded-lg bg-slate-700 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 inline-flex items-center gap-1.5">
+              {importing ? <Loader2 className="animate-spin" size={15} /> : <Upload size={15} />} Import
+            </button>
+            {importMsg && (
+              <span className={`text-xs font-medium ${importMsg.ok ? 'text-green-700 dark:text-green-300' : 'text-red-600 dark:text-red-400'}`}>{importMsg.text}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border shadow-sm p-4 mt-4 flex flex-wrap gap-3 items-end dark:bg-slate-900">
+        <div className="flex-1 min-w-[220px]">
+          <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Search</label>
+          <div className="flex gap-2 mt-1">
+            <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') run(); }}
+              placeholder="part #, name, or unit (e.g. 3211202, oil filter, RANGER)" className="flex-1 p-2 border rounded-lg text-sm" />
+            <button onClick={run} disabled={loading} className="px-4 rounded-lg bg-slate-700 text-white font-medium hover:bg-slate-800 disabled:opacity-50 inline-flex items-center gap-1.5">
+              {loading ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />} Search</button>
+          </div>
+        </div>
+        <div><label className="text-xs font-medium text-gray-600 dark:text-slate-400">OEM</label>
+          <select value={oem} onChange={(e) => setOem(e.target.value)} className="mt-1 block p-2 border rounded-lg text-sm"><option value="">All</option>{oems.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
+        <div><label className="text-xs font-medium text-gray-600 dark:text-slate-400">Category</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 block p-2 border rounded-lg text-sm"><option value="">All</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+      </div>
+
+      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-x-auto dark:bg-slate-900">
+        <div className="px-4 py-2.5 border-b text-sm font-semibold text-gray-600 dark:text-slate-400">{parts.length} part{parts.length === 1 ? '' : 's'}</div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50 text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr>
+              <th className="px-4 py-2 text-left font-semibold">Part #</th>
+              <th className="px-4 py-2 text-left font-semibold">Description</th>
+              <th className="px-4 py-2 text-left font-semibold">OEM</th>
+              <th className="px-4 py-2 text-left font-semibold">Fits</th>
+              <th className="px-4 py-2 text-right font-semibold">Price</th>
+              <th className="px-4 py-2 text-left font-semibold">Availability</th>
+              <th className="px-4 py-2 text-left font-semibold">Order</th>
+            </tr></thead>
+            <tbody>
+              {parts.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">{loading ? 'Searching…' : 'No parts found.'}</td></tr>}
+              {parts.map((p, i) => (
+                <tr key={i} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
+                  <td className="px-4 py-2 font-mono text-xs align-top">{p.partNumber}{p.supersededBy && <span className="block text-[10px] text-amber-700 dark:text-amber-300">→ {p.supersededBy}</span>}</td>
+                  <td className="px-4 py-2 align-top">{p.name}<span className="block text-[11px] text-gray-500 dark:text-slate-400">{p.category}{p.diagram ? ` · ${p.diagram}` : ''}</span></td>
+                  <td className="px-4 py-2 text-gray-600 align-top dark:text-slate-400">{p.oem}</td>
+                  <td className="px-4 py-2 text-gray-500 text-xs align-top dark:text-slate-400">{p.fitment || '—'}</td>
+                  <td className="px-4 py-2 text-right font-semibold align-top">{money(p.price)}{p.msrp && p.msrp > p.price ? <span className="block text-[10px] text-gray-500 dark:text-slate-400 line-through font-normal">{money(p.msrp)}</span> : null}</td>
+                  <td className="px-4 py-2 align-top"><span className={`text-xs px-2 py-0.5 rounded-full ${/in stock/i.test(p.availability) ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{p.availability}</span></td>
+                  <td className="px-4 py-2 align-top">{ordered[p.partNumber] ? <span className="text-xs text-green-700 font-medium whitespace-nowrap dark:text-green-300">✓ {ordered[p.partNumber]}</span> : mayStock ? <button onClick={() => order(p)} className="text-xs px-2.5 py-1 rounded border border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800">Order</button> : null}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

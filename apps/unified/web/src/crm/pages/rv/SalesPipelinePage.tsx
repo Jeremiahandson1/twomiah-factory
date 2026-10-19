@@ -1,0 +1,502 @@
+// Moved from templates/crm-rv/frontend/src/pages/rv/SalesPipelinePage.tsx.
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, Loader2, X, Upload, User, Phone, Mail, Calculator, Trash2 } from 'lucide-react'
+import { api } from '../../../api'
+import { PageError, errorText } from '../../../shared'
+import { useAuth } from '../../../shared'
+import { useToast } from '../../../shared'
+import { useMayWrite } from '../../../shared'
+import { useNavigate } from 'react-router-dom'
+
+/**
+ * RV Sales Pipeline — kanban over /api/sales-leads.
+ *
+ * Rows are shaped: { lead: {...}, contactName, contactPhone, contactEmail,
+ * unitYear, unitMake, unitModelName, salespersonFirstName, salespersonLastName }.
+ * Stage VALUES drive everything; labels are display-only.
+ */
+
+const STAGES: { value: string; label: string }[] = [
+  { value: 'new', label: 'New' },
+  { value: 'contacted', label: 'Contacted' },
+  { value: 'demo', label: 'Demo' },
+  { value: 'desking', label: 'Desking' },
+  { value: 'closed_won', label: 'Sold' },
+  { value: 'closed_lost', label: 'Lost' },
+];
+
+const STAGE_ACCENT: Record<string, string> = {
+  new: 'border-t-blue-400',
+  contacted: 'border-t-indigo-400',
+  demo: 'border-t-purple-400',
+  desking: 'border-t-amber-400',
+  closed_won: 'border-t-green-500',
+  closed_lost: 'border-t-gray-400',
+};
+
+/** A list reply (RULEBOOK §3). */
+interface Page<T> { data: T[]; pagination?: { page: number; limit: number; total: number; pages: number } }
+
+interface LeadRow {
+  lead: {
+    id: string;
+    stage: string;
+    source?: string;
+    notes?: string | null;
+    tradeInInfo?: string | null;
+    followUpDate?: string | null;
+    unitId?: string | null;
+    createdAt?: string;
+  };
+  contactName?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  unitYear?: number | null;
+  unitMake?: string | null;
+  unitModelName?: string | null;
+  unitStatus?: string | null;
+  salespersonFirstName?: string | null;
+  salespersonLastName?: string | null;
+}
+
+function salespersonName(row: LeadRow): string {
+  const name = [row.salespersonFirstName, row.salespersonLastName].filter(Boolean).join(' ');
+  return name || 'Unassigned';
+}
+
+function unitDesc(row: LeadRow): string {
+  return [row.unitYear, row.unitMake, row.unitModelName].filter(Boolean).join(' ') || 'No unit selected';
+}
+
+export default function SalesPipelinePage() {
+  // New Lead and Import ADF both POST a lead, so both ask contacts:create. (T41)
+  const mayCreateLead = useMayWrite('contacts:create');
+  // Removing a lead is a delete, not an edit — DELETE /api/sales-leads/:id asks contacts:delete. (T58j)
+  const mayDeleteLead = useMayWrite('contacts:delete');
+  // Moving a deal between stages is PUT /api/sales-leads/:id — contacts:update. Staff were offered the drag and
+  // the stage picker and refused on drop. The picker stays, disabled: it is also where a card says its stage. (T62)
+  const mayMoveStage = useMayWrite('contacts:update');
+  const { hasFeature } = useAuth();
+  const [rows, setRows] = useState<LeadRow[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [showAdf, setShowAdf] = useState<boolean>(false);
+  /** The one card currently asking "delete this lead?" — the confirm lives on the card, not in a dialog. */
+  const [confirmId, setConfirmId] = useState<string>('');
+  // A refusal from dragging a card between stages — it has no form to sit on. (T58d)
+  const [pageErr, setPageErr] = useState<string>('');
+  const navigate = useNavigate();
+
+  const canDealDesk = hasFeature('deal_desk');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res: Page<LeadRow> = await api.get('/api/sales-leads?limit=500');
+      setRows(res.data || []);
+    } catch (error) {
+      console.error('Failed to load pipeline:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const moveTo = async (id: string, stage: string) => {
+    const prevStage = rows.find((r) => r.lead.id === id)?.lead.stage;
+    // Optimistic move by stage VALUE
+    setRows((prev) => prev.map((r) => (r.lead.id === id ? { ...r, lead: { ...r.lead, stage } } : r)));
+    try {
+      await api.put(`/api/sales-leads/${id}`, { stage });
+      // selling or reopening a deal changes its unit, which other cards on that unit show
+      if (stage === 'closed_won' || prevStage === 'closed_won') load();
+    } catch (err: unknown) {
+      // The refusal is usually "that unit is already on a won deal" — the one sentence a salesperson
+      // needs in front of them while the card snaps back. A pop-up took it away. (T58d)
+      setPageErr(errorText(err, 'Could not move that lead.'));
+      load();
+    }
+  };
+
+  /**
+   * TAKE A LEAD OFF THE PIPELINE. (T58j)
+   *
+   *   Owner: "there is no API way to delete a sales lead, and deleting the contact 409s."
+   *
+   * The contact refuses precisely BECAUSE of the lead — contacts.ts guards on sales_lead and names it
+   * — so with no way to remove a lead, a row typed against the wrong customer was permanent and took
+   * the customer's record hostage with it. DELETE /api/sales-leads/:id now exists; this is its screen.
+   *
+   * Confirmed in place on the card rather than through a native confirm() dialog: the question belongs
+   * next to the lead being deleted, and a refusal — a sold deal cannot be deleted — has to be readable
+   * on the page while the salesperson decides what to do, which is the whole reason pageErr exists here.
+   */
+  const removeLead = async (id: string) => {
+    setConfirmId('');
+    setPageErr('');
+    try {
+      await api.delete(`/api/sales-leads/${id}`);
+      setRows((prev) => prev.filter((r) => r.lead.id !== id));
+    } catch (err: unknown) {
+      setPageErr(errorText(err, 'Could not delete that lead.'));
+      load();
+    }
+  };
+
+  const grouped: Record<string, LeadRow[]> = {};
+  STAGES.forEach((s) => (grouped[s.value] = []));
+  rows.forEach((r) => {
+    const stage = r.lead.stage || 'new';
+    if (!grouped[stage]) grouped[stage] = [];
+    grouped[stage].push(r);
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Sales Pipeline</h1>
+          <p className="text-gray-500 dark:text-slate-400">Track deals from first contact to delivery</p>
+        </div>
+        {/* Both POST a lead (POST /api/leads and /api/leads/import-adf), so both ask
+            contacts:create, which the field rung does not hold. (T41 RV) */}
+        <div className="flex items-center gap-2">
+          {mayCreateLead && (
+            <button onClick={() => setShowAdf(true)} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
+              <Upload className="w-4 h-4" /> Import ADF
+            </button>
+          )}
+          {mayCreateLead && (
+            <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
+              <Plus className="w-4 h-4" /> New Lead
+            </button>
+          )}
+        </div>
+      </div>
+
+      <PageError message={pageErr} onDismiss={() => setPageErr('')} />
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      ) : (
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {STAGES.map((stage) => (
+            <div
+              key={stage.value}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => { if (dragId && mayMoveStage) { moveTo(dragId, stage.value); setDragId(null); } }}
+              className={`flex-shrink-0 w-72 bg-gray-50 dark:bg-slate-800 rounded-xl border-t-4 ${STAGE_ACCENT[stage.value] || 'border-t-gray-300'}`}
+            >
+              <div className="p-3 flex items-center justify-between">
+                <span className="font-semibold text-gray-900 dark:text-slate-100">{stage.label}</span>
+                <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full border dark:text-slate-400 dark:bg-slate-900">{grouped[stage.value].length}</span>
+              </div>
+              <div className="px-2 pb-3 space-y-2 min-h-[80px]">
+                {grouped[stage.value].map((row) => (
+                  <div
+                    key={row.lead.id}
+                    draggable={mayMoveStage}
+                    onDragStart={() => { if (mayMoveStage) setDragId(row.lead.id); }}
+                    className={`bg-white rounded-lg border p-3 ${mayMoveStage ? 'cursor-grab active:cursor-grabbing' : ''} space-y-2 hover:shadow-sm dark:bg-slate-900`}
+                  >
+                    <p className="font-medium text-gray-900 flex items-center gap-1 dark:text-slate-100">
+                      <User className="w-4 h-4 text-gray-400" /> {row.contactName || 'Unknown'}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-slate-400">{unitDesc(row)}</p>
+                    {row.unitStatus === 'sold' && row.lead.stage !== 'closed_won' && row.lead.stage !== 'closed_lost' && (
+                      <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 inline-block dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-800">Unit sold</p>
+                    )}
+                    {row.contactPhone && (
+                      <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Phone className="w-3 h-3" /> {row.contactPhone}</p>
+                    )}
+                    {row.contactEmail && (
+                      <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" /> {row.contactEmail}</p>
+                    )}
+                    {row.lead.tradeInInfo && (
+                      <p className="text-xs text-amber-700 dark:text-amber-300">Trade-in: {row.lead.tradeInInfo}</p>
+                    )}
+                    <div className="flex items-center justify-between pt-1 border-t">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">{salespersonName(row)}</span>
+                      {row.lead.source && <span className="text-xs text-gray-500 dark:text-slate-400">{row.lead.source}</span>}
+                    </div>
+                    {canDealDesk && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/crm/desking?lead=${row.lead.id}`)}
+                        className="w-full flex items-center justify-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 border border-orange-200 rounded px-2 py-1 dark:text-orange-200"
+                      >
+                        <Calculator className="w-3 h-3" /> Deal Desk
+                      </button>
+                    )}
+                    {/* Mobile-friendly stage selector (drag fallback) */}
+                    <select
+                      value={row.lead.stage}
+                      onChange={(e) => moveTo(row.lead.id, e.target.value)}
+                      disabled={!mayMoveStage}
+                      title={!mayMoveStage ? 'Moving a deal needs permission to edit it.' : undefined}
+                      className="w-full text-xs border rounded px-2 py-1 text-gray-600 dark:text-slate-400 disabled:opacity-100 disabled:cursor-default"
+                    >
+                      {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                    {/* A sold deal is refused by the server, so Sold cards do not offer it at all. */}
+                    {mayDeleteLead && row.lead.stage !== 'closed_won' && (
+                      confirmId === row.lead.id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => removeLead(row.lead.id)}
+                            className="flex-1 text-xs text-white bg-red-600 hover:bg-red-700 rounded px-2 py-1"
+                          >
+                            Delete lead
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmId('')}
+                            className="text-xs text-gray-600 border rounded px-2 py-1 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                          >
+                            Keep
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmId(row.lead.id)}
+                          className="w-full flex items-center justify-center gap-1 text-xs text-red-600 hover:text-red-700 border border-red-200 rounded px-2 py-1 dark:text-red-300 dark:hover:text-red-200 dark:border-red-800"
+                        >
+                          <Trash2 className="w-3 h-3" /> Delete
+                        </button>
+                      )
+                    )}
+                  </div>
+                ))}
+                {grouped[stage.value].length === 0 && (
+                  <p className="text-center text-xs text-gray-500 dark:text-slate-400 py-4">No leads</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showForm && <LeadFormModal onSave={() => { setShowForm(false); load(); }} onClose={() => setShowForm(false)} />}
+      {showAdf && <AdfImportModal onSave={() => { setShowAdf(false); load(); }} onClose={() => setShowAdf(false)} />}
+    </div>
+  );
+}
+
+/* ---------------- New Lead Modal ---------------- */
+
+interface ContactOption { id: string; name: string }
+interface UnitOption { id: string; year?: number; make?: string; modelName?: string }
+interface UserOption { id: string; firstName?: string; lastName?: string; isActive?: boolean }
+
+interface LeadFormModalProps { onSave: () => void; onClose: () => void }
+
+function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
+  const [contacts, setContacts] = useState<ContactOption[]>([]);
+  const [units, setUnits] = useState<UnitOption[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [err, setErr] = useState<string>('');
+  const [form, setForm] = useState({
+    contactId: '', unitId: '', assignedTo: '',
+    source: 'web', stage: 'new', notes: '', tradeInInfo: '', followUpDate: '',
+  });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // The salesperson is a sign-in (sales_lead.assigned_to is a user id). The template read /api/team, whose roster
+        // rows carry team-member ids and a `name`, so the picker showed ids and the server refused every assignment
+        // ("Salesperson not found"). /api/company/users is the picker list a team:read seat gets (a bare array).
+        const [contactsRes, unitsRes, usersRes]: [Page<ContactOption>, Page<UnitOption>, UserOption[]] = await Promise.all([
+          api.get('/api/contacts?limit=500'),
+          api.get('/api/units?limit=500'),
+          api.get('/api/company/users'),
+        ]);
+        setContacts(contactsRes.data || []);
+        setUnits(unitsRes.data || []);
+        setUsers((Array.isArray(usersRes) ? usersRes : []).filter((u) => u.isActive !== false));
+      } catch {
+        /* dropdowns degrade gracefully */
+      }
+    })();
+  }, []);
+
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!form.contactId) { setErr('Choose the customer this lead is for.'); return; }
+    setErr('');
+    setSaving(true);
+    try {
+      await api.post('/api/sales-leads', {
+        contactId: form.contactId,
+        unitId: form.unitId || undefined,
+        assignedTo: form.assignedTo || undefined,
+        source: form.source || 'web',
+        stage: form.stage || 'new',
+        notes: form.notes || undefined,
+        tradeInInfo: form.tradeInInfo || undefined,
+        followUpDate: form.followUpDate || undefined,
+      });
+      onSave();
+    } catch (e2) {
+      setErr(errorText(e2, 'Could not create the lead.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">New Sales Lead</h2>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Contact <span className="text-red-500 dark:text-red-400">*</span></label>
+              <select value={form.contactId} onChange={(e) => set('contactId', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
+                <option value="">Select contact...</option>
+                {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Unit of Interest</label>
+              <select value={form.unitId} onChange={(e) => set('unitId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                <option value="">None</option>
+                {units.map((u) => (
+                  <option key={u.id} value={u.id}>{[u.year, u.make, u.modelName].filter(Boolean).join(' ') || u.id}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Salesperson</label>
+                <select value={form.assignedTo} onChange={(e) => set('assignedTo', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                  <option value="">Unassigned</option>
+                  {users.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.id}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Stage</label>
+                <select value={form.stage} onChange={(e) => set('stage', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                  {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Source</label>
+                <input type="text" value={form.source} onChange={(e) => set('source', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="web, walk-in, phone..." />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Follow-Up Date</label>
+                <input type="date" value={form.followUpDate} onChange={(e) => set('followUpDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Trade-In Info</label>
+              <input type="text" value={form.tradeInInfo} onChange={(e) => set('tradeInInfo', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
+              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <PageError message={err} />
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg disabled:opacity-50">
+                {saving ? 'Saving...' : 'Create Lead'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- ADF Import Modal ---------------- */
+
+interface AdfImportModalProps { onSave: () => void; onClose: () => void }
+
+function AdfImportModal({ onSave, onClose }: AdfImportModalProps) {
+  const toast = useToast();
+  const [xml, setXml] = useState<string>('');
+  const [saving, setSaving] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+
+  /**
+   * THREE alert() CALLS, EACH SAYING THE WRONG KIND OF THING. (T41 RV: "ADF import uses alert()")
+   *
+   * window.alert is shimmed into a toast app-wide (contexts/ToastContext.tsx), so these were not
+   * native popups — but the shim has to GUESS the severity from the words, and it guessed wrong
+   * here in both directions:
+   *
+   *   · "Paste ADF/XML content" is a validation message about the box the operator is looking at.
+   *     A toast that floats away is the wrong place for it; it belongs under the field, and the
+   *     modal must stay open. It also matched the shim's "required" rule only by luck.
+   *   · "already imported — the existing lead was kept" is a SUCCESSFUL outcome: the provider
+   *     resent a lead and the CRM recognised it. The shim read "already" and painted it red.
+   *   · the failure is a real failure, and now says so explicitly rather than by regex.
+   */
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!xml.trim()) { setError('Paste the ADF/XML your lead provider sent.'); return; }
+    setSaving(true); setError('');
+    try {
+      const r: { success?: boolean; duplicate?: boolean; message?: string } = await api.post('/api/sales-leads/import-adf', { xml });
+      // A resent lead is recognised and the existing lead kept — say so rather than closing silently.
+      if (r?.duplicate) toast.info(r.message || 'This ADF lead was already imported — the existing lead was kept.');
+      else toast.success('Lead imported');
+      onSave();
+    } catch (err) {
+      setError(errorText(err, 'That ADF could not be imported. Check the XML and try again.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Import ADF Lead</h2>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Paste ADF/XML from your lead provider to auto-create a contact and lead.</p>
+            <textarea
+              value={xml}
+              onChange={(e) => { setXml(e.target.value); if (error) setError(''); }}
+              rows={10}
+              aria-invalid={!!error}
+              aria-describedby={error ? 'adf-error' : undefined}
+              className={`w-full px-3 py-2 border rounded-lg font-mono text-xs ${error ? 'border-red-500' : ''}`}
+              placeholder="<?adf?><adf><prospect>...</prospect></adf>"
+            />
+            {error && <p id="adf-error" role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg disabled:opacity-50">
+                {saving ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

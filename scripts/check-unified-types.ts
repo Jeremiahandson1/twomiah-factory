@@ -34,4 +34,20 @@ for (const [project, baseline] of Object.entries(PACKAGES_BASELINE)) {
   if (shared > baseline) { console.log(`${project}: the shared packages gained type errors.`); failed = true }
   if (shared < baseline) console.log(`${project}: shared packages improved: lower its PACKAGES_BASELINE to ${shared}.`)
 }
+// The Factory's side of the unified app (apps/api/src/unified, RULEBOOK §10): none in its own files. The rest of the
+// Factory is live code the fence keeps read-only; its own errors are not this check's.
+{
+  const api = path.resolve(import.meta.dir, '..', 'apps', 'api')
+  const run = spawnSync(process.execPath, ['x', 'tsc', '-p', 'tsconfig.json', '--noEmit'], { cwd: api, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  const lines = (run.stdout + run.stderr).split('\n').filter((l) => /error TS\d+/.test(l))
+  if (run.status !== 0 && lines.length === 0) {
+    console.log('apps/api: ' + ((run.stdout + run.stderr).trim() || `tsc exited ${run.status} with no output`))
+    failed = true
+  } else {
+    const own = lines.filter((l) => l.replace(/\\/g, '/').startsWith('src/unified/'))
+    for (const l of own) console.log('apps/api/' + l)
+    console.log(`apps/api/src/unified: ${own.length} type error(s)`)
+    if (own.length) failed = true
+  }
+}
 process.exit(failed ? 1 : 0)

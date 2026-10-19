@@ -5,8 +5,11 @@ import { parse } from 'csv-parse/sync'
 import { eq, and, or, ilike, desc } from 'drizzle-orm'
 import { contact, project, job, user, pricebookItem, invoice, invoiceLineItem, payment } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
+// The private-events types (events, spaces, menus): their importers are the events module's
+// (crm/restaurant/eventImport.ts); their preview and sample CSV are answered here with the rest.
+import { VENUE_IMPORT_REQUIRED, VENUE_IMPORT_TEMPLATES } from '../restaurant/eventImportColumns.ts'
 
-function parseCSV(content: string, options: Record<string, any> = {}): Record<string, string>[] {
+export function parseCSV(content: string, options: Record<string, any> = {}): Record<string, string>[] {
   return parse(content, {
     columns: true,
     skip_empty_lines: true,
@@ -17,7 +20,7 @@ function parseCSV(content: string, options: Record<string, any> = {}): Record<st
 }
 
 /** Normalize column names (handle variations). */
-function normalizeColumns(row: Record<string, string>): Record<string, string> {
+export function normalizeColumns(row: Record<string, string>): Record<string, string> {
   const normalized: Record<string, string> = {}
   for (const [key, value] of Object.entries(row)) {
     const normalizedKey = key
@@ -32,7 +35,7 @@ function normalizeColumns(row: Record<string, string>): Record<string, string> {
 }
 
 /** A value from the row under any of several possible column names. */
-function getValue(row: Record<string, string>, ...keys: string[]): string | null {
+export function getValue(row: Record<string, string>, ...keys: string[]): string | null {
   for (const key of keys) {
     const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '_')
     if (row[normalizedKey] !== undefined && row[normalizedKey] !== '') {
@@ -113,13 +116,18 @@ export interface ImportResults {
  * rejected for it.
  */
 const CONTACT_TYPES = ['lead', 'client', 'subcontractor', 'vendor']
-function mapContactType(type: string | null): { type: string; unrecognised: string | null } {
+/**
+ * `types` and `customerType` are the vertical's (CrmSettings.contacts): a dealership's contacts are lead, customer or
+ * vendor, and "client" or "customer" in a file is its 'customer' (templates/crm-rv services/import.ts). A type the
+ * vertical doesn't have is never written.
+ */
+function mapContactType(type: string | null, types: string[] = CONTACT_TYPES, customerType = 'client'): { type: string; unrecognised: string | null } {
   if (!type) return { type: 'lead', unrecognised: null }
   const t = type.toLowerCase()
-  if (CONTACT_TYPES.includes(t)) return { type: t, unrecognised: null }
-  if (t.includes('client') || t.includes('customer')) return { type: 'client', unrecognised: null }
-  if (t.includes('vendor') || t.includes('supplier')) return { type: 'vendor', unrecognised: null }
-  if (t.includes('sub')) return { type: 'subcontractor', unrecognised: null }
+  if (types.includes(t)) return { type: t, unrecognised: null }
+  if (t.includes('client') || t.includes('customer')) return { type: customerType, unrecognised: null }
+  if ((t.includes('vendor') || t.includes('supplier')) && types.includes('vendor')) return { type: 'vendor', unrecognised: null }
+  if (t.includes('sub') && types.includes('subcontractor')) return { type: 'subcontractor', unrecognised: null }
   if (t.includes('lead') || t.includes('prospect')) return { type: 'lead', unrecognised: null }
   return { type: 'lead', unrecognised: type }
 }
@@ -133,6 +141,15 @@ function mapContactType(type: string | null): { type: string; unrecognised: stri
  * address". Restored to the pattern it was written as.
  */
 const looksLikeEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)
+
+/**
+ * CSV/Excel formula injection: a value beginning with = + - @ (or a tab or carriage return) runs as a formula when the
+ * data is later exported and opened in a spreadsheet. Stored with a leading single quote, it stays literal text.
+ * A fix only the vet's copy had (templates/crm-vet services/import.ts, R2-06); every vertical's import, here.
+ */
+function deFormula<T>(v: T): T {
+  return (typeof v === 'string' && /^[=+\-@\t\r]/.test(v)) ? ("'" + v) as unknown as T : v
+}
 
 // ============================================
 // PROJECT IMPORT
@@ -276,14 +293,14 @@ function normalizeInvoiceStatus(raw: string | null, total: number, paid: number)
   return total > 0 ? 'sent' : 'draft'
 }
 
-function parseDecimal(value: string | null): number | null {
+export function parseDecimal(value: string | null): number | null {
   if (!value) return null
   const cleaned = value.toString().replace(/[^0-9.-]/g, '')
   const num = parseFloat(cleaned)
   return isNaN(num) ? null : num
 }
 
-function parseDate(value: string | null): Date | null {
+export function parseDate(value: string | null): Date | null {
   if (!value) return null
   const date = new Date(value)
   return isNaN(date.getTime()) ? null : date
@@ -310,9 +327,13 @@ export function validateCSV(csvContent: string, type: string) {
       jobs: JOB_COLUMN_MAP.title,
       products: PRODUCT_COLUMN_MAP.name,
       invoices: INVOICE_COLUMN_MAP.total,
+      ...VENUE_IMPORT_REQUIRED,
     }
 
     const required = requiredMap[type]
+    // A type the import doesn't know is said so, not a 500 on `undefined.some` (templates/crm-restaurant's copy had
+    // this guard; taken for every vertical).
+    if (!required) return { valid: false, error: `Unknown import type: ${type}` }
     const hasRequired = required.some((col) => columns.some((c) => c.includes(col.replace(/_/g, ''))))
 
     if (!hasRequired) {
@@ -333,12 +354,16 @@ export function getTemplate(type: string): string {
     jobs: 'Title,Number,Type,Status,Priority,Scheduled Date,Address,City,State,Zip,Notes,Project,Contact,Assigned To\nHVAC Installation,JOB-001,installation,scheduled,high,2024-02-01,789 Pine St,Chicago,IL,60602,Bring extra filters,New Office Build,Jane Doe,john@company.com',
     products: 'Name,SKU,Type,Price,Unit,Category,Description,Taxable\nStandard Labor,LAB-001,service,75.00,hour,Labor,Standard hourly rate,yes\nPVC Pipe 4in,MAT-001,product,12.50,foot,Materials,4 inch PVC pipe,yes',
     invoices: 'Invoice Number,Customer,Customer Email,Invoice Date,Due Date,Status,Item,Quantity,Unit Price,Line Total,Subtotal,Tax,Total,Amount Paid,Balance,Notes\nINV-1001,Jane Doe,jane@client.com,2026-01-15,2026-02-14,sent,Service call,1,150.00,150.00,150.00,12.38,162.38,0,162.38,Imported from previous system\nINV-1001,Jane Doe,jane@client.com,2026-01-15,2026-02-14,sent,Parts,2,25.00,50.00,150.00,12.38,162.38,0,162.38,',
+    ...VENUE_IMPORT_TEMPLATES,
   }
   return templates[type] || ''
 }
 
-export function createImportService(d: Pick<CrmDeps, 'db'>) {
+export function createImportService(d: Pick<CrmDeps, 'db' | 'settings'>) {
   const { db } = d
+  // The vertical's contact types and what a paying customer is (CrmSettings.contacts). Absent: the shared four, 'client'.
+  const contactTypes = d.settings?.contacts?.types ?? CONTACT_TYPES
+  const customerType = d.settings?.contacts?.customerType ?? 'client'
 
   async function importContacts(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
     const { dryRun = false } = options
@@ -407,9 +432,14 @@ export function createImportService(d: Pick<CrmDeps, 'db'>) {
 
         // Validated the way the form validates, and anything changed on the way in is reported.
         const rawType = getValue(row, ...CONTACT_COLUMN_MAP.type)
-        const mapped = mapContactType(rawType)
+        // A row with NO type takes the caller's default (the import screen's "Import as"): the route always sent it and
+        // it was never read, so every untyped row became a lead (templates/crm-salon services/import.ts, Salon T27 N6 —
+        // for every vertical). A default the vertical doesn't have falls back to a lead, as before.
+        const mapped = !rawType && options.defaultType && contactTypes.includes(options.defaultType)
+          ? { type: options.defaultType, unrecognised: null }
+          : mapContactType(rawType, contactTypes, customerType)
         if (mapped.unrecognised) {
-          results.warnings.push({ line: lineNum, warning: `Type "${mapped.unrecognised}" is not one of ${CONTACT_TYPES.join(', ')} — imported as a lead.` })
+          results.warnings.push({ line: lineNum, warning: `Type "${mapped.unrecognised}" is not one of ${contactTypes.join(', ')} — imported as a lead.` })
         }
         let cleanEmail: string | null = email || null
         if (cleanEmail && !looksLikeEmail(cleanEmail)) {
@@ -417,20 +447,21 @@ export function createImportService(d: Pick<CrmDeps, 'db'>) {
           cleanEmail = null
         }
 
+        // The free-text columns are stored formula-safe (deFormula), from templates/crm-vet services/import.ts R2-06.
         const contactData = {
           companyId,
-          name,
+          name: deFormula(name),
           email: cleanEmail,
           phone: getValue(row, ...CONTACT_COLUMN_MAP.phone),
           mobile: getValue(row, ...CONTACT_COLUMN_MAP.mobile),
-          company: getValue(row, ...CONTACT_COLUMN_MAP.company),
+          company: deFormula(getValue(row, ...CONTACT_COLUMN_MAP.company)),
           type: mapped.type,
-          address: fullAddress || null,
-          city: primaryCity,
-          state: primaryState,
+          address: deFormula(fullAddress || null),
+          city: deFormula(primaryCity),
+          state: deFormula(primaryState),
           zip: primaryZip,
-          notes: fullNotes,
-          source: getValue(row, ...CONTACT_COLUMN_MAP.source),
+          notes: deFormula(fullNotes),
+          source: deFormula(getValue(row, ...CONTACT_COLUMN_MAP.source)),
           // `tags` is a json column holding an array. The template stored JSON.stringify(...) — a json STRING — which
           // every reader of contact.tags (the export's Tags column, the contact screens) treats as no tags.
           tags: tags ? tags.split(',').map((t: string) => t.trim()) : [],
@@ -535,7 +566,7 @@ export function createImportService(d: Pick<CrmDeps, 'db'>) {
               companyId,
               name: contactName || contactEmail!,
               email: contactEmail,
-              type: 'client',
+              type: customerType,
             }).returning()
             contactId = newContact.id
           }
@@ -801,7 +832,7 @@ export function createImportService(d: Pick<CrmDeps, 'db'>) {
               companyId,
               name: name || email!,
               email: email || null,
-              type: 'client',
+              type: customerType,
               source: 'import',
             }).returning({ id: contact.id })
             contactId = created?.id ?? null

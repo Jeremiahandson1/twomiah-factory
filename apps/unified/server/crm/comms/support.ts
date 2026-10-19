@@ -7,7 +7,7 @@
 // support:update; the knowledge base and SLA policies are written with their own permissions.
 import { Hono } from 'hono'
 import { eq, and, desc, asc, like, or, count } from 'drizzle-orm'
-import { nextNumber } from '@twomiah/tenant-backend'
+import { nextNumber, reportAiUsage } from '@twomiah/tenant-backend'
 import { supportTicket, supportTicketMessage, supportKnowledgeBase, supportSlaPolicy } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one, done } from '../../http/reply.ts'
@@ -42,6 +42,25 @@ export function createSupportRoutes(d: CrmDeps) {
   const { db, logger } = d
   const { requirePermission, hasPermission, getExtraPermissions } = d.permissions
   const app = new Hono<AppEnv>()
+
+  /**
+   * The help articles this business can act on (CrmSettings.help.articleFeatures): a seeded article about a module that is
+   * switched off is left out; anything the business wrote itself is always kept. An EMPTY feature list hides nothing —
+   * a business not yet synced must not lose its way out. (templates/crm-salon utils/helpArticles.ts, Salon T27 N15)
+   */
+  async function visible<T extends { title: string }>(companyId: string, rows: T[]): Promise<T[]> {
+    const map = d.settings?.help?.articleFeatures
+    if (!map) return rows
+    const features = await d.features.enabledFeaturesFor(companyId)
+    return features.length === 0 ? rows : rows.filter((r) => { const f = map[r.title]; return !f || features.includes(f) })
+  }
+
+  /** The vertical's features this business has on, in the words the assistant may use (CrmSettings.help.topics). */
+  async function enabledTopics(companyId: string): Promise<string> {
+    const topics = d.settings?.help?.topics || []
+    const features = await d.features.enabledFeaturesFor(companyId)
+    return (features.length === 0 ? topics : topics.filter(([id]) => features.includes(id))).map(([, label]) => label).join(', ')
+  }
 
   /** Ticket numbers only go forwards: the shared locked numbering, inside the caller's transaction. (T58k) */
   const nextTicketNumber = (companyId: string, exec: any) =>
@@ -119,6 +138,19 @@ export function createSupportRoutes(d: CrmDeps) {
   app.post('/tickets', async (c) => {
     const u = c.get('user')
     const body = await c.req.json()
+    // A ticket's subject is the only thing the queue shows, and its priority and status are what the queue is sorted
+    // by: a blank subject or a "banana" priority saved happily and sorted nowhere (templates/crm-salon routes/support.ts,
+    // Salon T28 M8 — for every vertical).
+    const subject = typeof body.subject === 'string' ? body.subject.trim() : ''
+    if (!subject) return fail(c, 400, 'A subject is required — it is the only thing the ticket list shows.')
+    if (subject.length > 200) return fail(c, 400, 'Subject must be 200 characters or fewer.')
+    if (body.priority !== undefined && body.priority !== null && !TICKET_PRIORITIES.includes(String(body.priority))) {
+      return fail(c, 400, `"${body.priority}" is not a ticket priority. Use one of: ${TICKET_PRIORITIES.join(', ')}.`)
+    }
+    if (body.status !== undefined && body.status !== null && !TICKET_STATUSES.includes(String(body.status))) {
+      return fail(c, 400, `"${body.status}" is not a ticket status. Use one of: ${TICKET_STATUSES.join(', ')}.`)
+    }
+    body.subject = subject
     const ai = autoCategory(body.subject, body.description)
     const sla = await applySla(u.companyId, body.priority || 'normal')
     // One transaction: the number's lock is still held when the ticket lands. (T58k)
@@ -190,8 +222,13 @@ export function createSupportRoutes(d: CrmDeps) {
     if (body.priority !== undefined && !TICKET_PRIORITIES.includes(body.priority)) {
       return fail(c, 400, `"${body.priority}" is not a ticket priority. Use one of: ${TICKET_PRIORITIES.join(', ')}.`)
     }
+    // The subject can be corrected, never blanked (Salon T28 M8).
+    if (body.subject !== undefined && !String(body.subject).trim()) {
+      return fail(c, 400, 'A subject is required — it is the only thing the ticket list shows.')
+    }
 
     const updates: any = { updatedAt: new Date() }
+    if (body.subject !== undefined) updates.subject = String(body.subject).trim().slice(0, 200)
     if (body.status) updates.status = body.status
     if (body.priority) updates.priority = body.priority
     if (body.category) updates.category = body.category
@@ -272,7 +309,9 @@ export function createSupportRoutes(d: CrmDeps) {
       if (search) conditions.push(or(like(supportKnowledgeBase.title, '%' + search + '%'), like(supportKnowledgeBase.content, '%' + search + '%')))
       const articles = await db.select().from(supportKnowledgeBase)
         .where(and(...conditions)).orderBy(desc(supportKnowledgeBase.viewCount)).limit(50)
-      return list(c, articles, { page: 1, limit: articles.length, total: articles.length })
+      // Help must not describe a module this business does not have (Salon T27 N15).
+      const shown = await visible(u.companyId, articles)
+      return list(c, shown, { page: 1, limit: shown.length, total: shown.length })
     } catch (e: any) {
       if (missingTable(e)) return list(c, [], { page: 1, limit: 0, total: 0 })
       throw e
@@ -341,10 +380,22 @@ export function createSupportRoutes(d: CrmDeps) {
         .from(supportKnowledgeBase)
         .where(and(eq(supportKnowledgeBase.companyId, u.companyId), eq(supportKnowledgeBase.published, true)))
         .limit(20)
-      if (articles.length > 0) kbContext = '\n\nKnowledge Base Articles:\n' + articles.map((a: any) => `## ${a.title}\n${a.content}`).join('\n\n')
+      const grounded = await visible(u.companyId, articles)
+      if (grounded.length > 0) kbContext = '\n\nKnowledge Base Articles:\n' + grounded.map((a: any) => `## ${a.title}\n${a.content}`).join('\n\n')
     } catch {}
 
-    const systemPrompt = `You are a helpful support assistant for a business management CRM. Answer questions based on the knowledge base articles provided. If you cannot find a relevant answer, say you'll need to create a support ticket for the team to handle.${kbContext}`
+    // What the assistant is told about this business's software: the vertical's own sentence where it has one
+    // (CrmSettings.support; templates/crm-vet routes/support.ts), else the generic CRM. Where the vertical names its
+    // features (CrmSettings.help), the assistant is told the ones THIS business has switched on and no others — it
+    // recommended a Marketing page to salons without one (templates/crm-salon routes/support.ts, Salon T27 N15, HELP-01).
+    const about = d.settings?.support?.assistant
+    const help = d.settings?.help
+    const topics = help ? await enabledTopics(u.companyId) : ''
+    const systemPrompt = help
+      ? `You are a helpful support assistant for ${help.productNoun}. The features THIS business has are: ${topics || help.fallbackTopics}. Those are the only ones that exist for this user — never mention or suggest a feature that is not in that list, because the page for it is not in their app.${help.notOffered ? ' ' + help.notOffered : ''} Answer from these features and the knowledge base articles provided. If you cannot find a relevant answer, say you'll need to create a support ticket for the team to handle.${kbContext}`
+      : about
+      ? `You are a helpful support assistant for ${about} If you cannot find a relevant answer, say you'll need to create a support ticket for the team to handle.${kbContext}`
+      : `You are a helpful support assistant for a business management CRM. Answer questions based on the knowledge base articles provided. If you cannot find a relevant answer, say you'll need to create a support ticket for the team to handle.${kbContext}`
     const messages = [
       ...(conversationHistory || []).map((m: any) => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content: asked },
@@ -357,7 +408,10 @@ export function createSupportRoutes(d: CrmDeps) {
         body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1024, system: systemPrompt, messages }),
       })
       const data = (await res.json()) as any
-      const answer = typeof data?.content?.[0]?.text === 'string' ? data.content[0].text : ''
+      // The tokens are the business's to pay for, from its usage wallet (every CRM copy but the base: templates/crm-basic
+      // routes/support.ts).
+      reportAiUsage(data?.usage?.input_tokens, data?.usage?.output_tokens, 'claude-haiku-4-5-20251001')
+      const answer =typeof data?.content?.[0]?.text === 'string' ? data.content[0].text : ''
       if (!res.ok || !answer) {
         logger.warn('[support/ai-chat] no answer', { status: res.status, type: data?.error?.type })
         return one(c, { reply: 'AI support could not answer that just now. Please submit a ticket and the team will pick it up.', resolved: false })

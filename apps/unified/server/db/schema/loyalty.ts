@@ -74,4 +74,7 @@ export const loyaltyTransaction = pgTable('loyalty_transactions', {
 }, (t) => [
   index('loyalty_tx_member_idx').on(t.memberId, t.createdAt),
   uniqueIndex('loyalty_tx_earn_per_check').on(t.memberId, t.earnCheckId),
+  // The salon's: completing the same visit twice (a status flip, a retry) cannot award its points again
+  // (templates/crm-salon schema.ts; the salon's award relies on this refusal).
+  uniqueIndex('loyalty_tx_earn_per_appointment').on(t.memberId, t.type, t.appointmentId),
 ])

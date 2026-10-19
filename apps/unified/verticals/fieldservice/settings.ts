@@ -19,6 +19,8 @@ const fieldservice: VerticalSettings = {
     // No drawings to mark up: plan markup is construction's.
     documents: { markup: false, types: DOC_TYPES },
     agreements: { recurrence: true },
+    // Vehicles' locations and trips (templates/crm-fieldservice services/fleet.ts options.gps).
+    fleet: { gps: true },
     // One checklist for every trade this CRM serves; rows of the old HVAC-only type are still read.
     tech: { checklistType: 'service_checklist', checklistTitle: 'Service checklist', legacyChecklistTypes: ['hvac_inspection_checklist'] },
     portal: { disable: ['collaborators', 'projects', 'changeOrders', 'selections', 'projectFiles', 'sharedDocuments'] },

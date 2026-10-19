@@ -1,6 +1,8 @@
 // A vertical is a setting (SPEC §8, RULEBOOK §8): which industry this tenant is, and the handful of things that
 // differ by industry. Everything here feeds an option the shared modules already take, so a vertical changes
 // words and switches, never code paths.
+import type { StarterContent } from './starter.ts'
+
 export interface VerticalSettings {
   /** Stable id, reported to the screens and the mobile app as company.vertical. */
   id: string
@@ -10,6 +12,11 @@ export interface VerticalSettings {
   roleLabels?: Record<string, string>
   /** Permissions added to a rung's base list, e.g. `{ field: ['contacts:create'] }`. */
   extraRolePermissions?: Record<string, string[]>
+  /**
+   * Older role names this vertical's people may still carry, read as a rung, e.g. `{ staff: 'field' }` (the vet's
+   * clinical staff seat, templates/crm-vet middleware/permissions.ts).
+   */
+  roleMapping?: Record<string, string>
   /** What the authenticator app lists two-factor under. */
   mfaIssuer: string
   /**
@@ -34,6 +41,13 @@ export interface VerticalSettings {
    * base CRM's behaviour.
    */
   crm?: CrmSettings
+  /** What a new business finds on day one (help articles, price-book categories). Absent: the base CRM's (core/starter.ts). */
+  starter?: StarterContent
+  /** Online booking's answers for this vertical; each is the owner's switch to change. */
+  booking?: {
+    /** Whether the booking form asks for the customer's address when the owner hasn't said (the trades go to the address). Absent: asked. */
+    requireAddress?: boolean
+  }
 }
 
 /** The base CRM's behaviour: a vertical without its own `crm` settings gets this. */
@@ -73,10 +87,139 @@ export interface CrmSettings {
     /** Service agreements recur and generate their own jobs. */
     recurrence?: boolean
   }
+  fleet?: {
+    /** Vehicles' live locations and trips (GPS): the fleet module's location, trip and mileage endpoints answer for real. (field service, basic) */
+    gps?: boolean
+  }
+  leads?: {
+    /** The lead platforms the Lead Sources page offers and the server accepts (ids; screens.leads.platforms has the same list). Absent: the trades set. (basic) */
+    platforms?: string[]
+    /** What a converted lead becomes: 'client' where a person you convert is in the book (salon). Absent: 'lead'. */
+    contactType?: string
+  }
   /** The field view's end-of-visit checklist. */
   tech: { checklistType: string; checklistTitle: string; legacyChecklistTypes?: string[] }
   /** Customer-portal sections this vertical doesn't offer. */
   portal: { disable: string[] }
+  /**
+   * What /api/dashboard answers: 'events' is the private-events dashboard (the book ahead, the pipeline by status,
+   * the rooms, the money owed — server/crm/restaurant/eventsDashboard.ts), which templates/crm-restaurant and
+   * templates/crm-bar shipped in place of the jobs dashboard. Absent: the jobs dashboard. (restaurant, bar)
+   * 'practice' is the veterinary practice's (patients, the day's appointments, billed visit revenue, vaccinations
+   * due, wellness enrolments — server/crm/vet/dashboard.ts, templates/crm-vet routes/dashboard.ts). (vet)
+   * 'salon' is the salon's (the book today, the month's services and takings by chair, who is due back, active
+   * memberships — server/crm/salon/dashboard.ts, templates/crm-salon routes/dashboard.ts). (salon)
+   * 'dealership' is the RV / powersports dealer's (inventory, the sales pipeline, service, the Reports page's sales
+   * figures — server/crm/rv/dashboard.ts, templates/crm-rv routes/dashboard.ts). (rv)
+   */
+  dashboard?: 'events' | 'practice' | 'salon' | 'dealership'
+  /**
+   * Private events (server/crm/restaurant) reach into the shared modules: a contact lists their events and can't be
+   * deleted while they have any; money recorded on an event's invoice (by hand or by Stripe) confirms an enquiry it is
+   * the deposit for and moves the invoice's due date to the next installment; the old event-payment ledger is moved
+   * onto invoices once at boot. (templates/crm-restaurant and crm-bar routes/contacts, invoices, services/stripe,
+   * routes/events.ts' backfill) (restaurant, bar)
+   */
+  events?: boolean
+  /**
+   * Patients (animals) on an owner's record (vet): a contact lists their pets and can't be deleted while they have
+   * any (or any appointment); documents and invoices can be filed against a patient; the customer portal shows the
+   * owner's pets, their vaccinations, appointments and visits. (templates/crm-vet routes/contacts, documents,
+   * invoices, portal)
+   */
+  patients?: boolean
+  /**
+   * Whose book /api/appointments and /api/reminders are — one path each, so one router each: 'practice' is the
+   * vet's (exam rooms, providers, patients; vaccination recall — server/crm/vet/). Absent: the salon's. (vet)
+   */
+  appointments?: 'practice'
+  support?: {
+    /** What the help assistant is told about this business's software, in place of the generic CRM sentence. (vet) */
+    assistant?: string
+  }
+  /**
+   * Whose /api/loyalty it is: absent is the salon's programme (points and punch cards earned on visits —
+   * server/crm/salon/loyalty.ts, templates/crm-salon routes/loyalty.ts). Another value names the vertical whose own
+   * router serves the path instead (the bar's regulars). (salon, bar)
+   */
+  loyalty?: 'bar'
+  /**
+   * Records that keep a contact from being deleted, beyond the standard ones (invoices, quotes, jobs, projects):
+   * 'appointment', 'serviceRecord', 'membershipEnrollment' (salon, templates/crm-salon routes/contacts.ts).
+   */
+  contacts?: {
+    guards?: Array<'appointment' | 'serviceRecord' | 'membershipEnrollment' | 'repairOrder' | 'salesLead'>
+    /**
+     * The types a contact can be, in place of the shared four (lead, client, subcontractor, vendor): a dealership sells
+     * to customers — ['lead', 'customer', 'vendor'] (templates/crm-rv routes/contacts.ts). Absent: the shared four.
+     */
+    types?: string[]
+    /**
+     * What a paying customer's contact type is: a converted lead becomes one, an imported or migrated customer is one,
+     * and QuickBooks syncs them as customers. 'customer' at a dealership (templates/crm-rv routes/contacts.ts,
+     * routes/import.ts, services/{import,migration,quickbooks}.ts). Absent: 'client'.
+     */
+    customerType?: string
+  }
+  /** Work a team member holds besides jobs, unassigned when they're removed: 'appointment' (a stylist's chair). (salon) */
+  team?: { assignedWork?: Array<'appointment'> }
+  invoices?: {
+    /** A tip line on an invoice (salon). */
+    tips?: boolean
+    /** A client's account balance is a way to pay and a place to refund to (client_account_entry; salon). */
+    accountBalance?: boolean
+    /**
+     * Which clock decides an invoice's day: 'booking' is the zone the booking calendar is set to (America/Chicago when
+     * Booking was never set up), the salon's own clock (templates/crm-salon utils/salonDate.ts). Absent: the company's
+     * zone (companyTimeZone).
+     */
+    clock?: 'booking'
+    /**
+     * How an invoice is numbered, a quote's converted invoice too: a dealership's run INV-1001, INV-1002…
+     * ({ prefix: 'INV', pad: 0, seed: 1000 }, templates/crm-rv routes/invoices.ts and quotes.ts). Absent: INV-00001.
+     */
+    numbering?: { prefix: string; pad: number; seed: number }
+  }
+  /**
+   * Where a website enquiry goes: 'pipeline' is a dealership's sales pipeline — a sales lead at new, on the customer's
+   * existing contact when the email (or a phone nothing contradicts) matches, and the same message sent again within
+   * 30 days kept as the open lead it already made (templates/crm-rv routes/webhooks.ts, T59). Absent: the Lead Inbox
+   * when it's on, else a lead contact.
+   */
+  websiteEnquiries?: 'pipeline'
+  /**
+   * The vertical's own website forms, by `formType`: 'bar' answers the party request (a dated one opens an enquiry
+   * in the party book) and the Regulars sign-up (crm/bar/enquiry.ts; templates/crm-bar routes/webhooks.ts). Any
+   * other form is an ordinary enquiry.
+   */
+  websiteForms?: 'bar'
+  /** The home-care add-on: its records, routes and timed work (server/crm/homecare; templates/crm-homecare). */
+  homecare?: boolean
+  /** The expense categories this trade buys in, and the words for the ones whose id isn't enough. Absent: the shared list. (salon) */
+  expenses?: { categories: string[]; categoryLabels?: Record<string, string> }
+  reports?: {
+    /** Team productivity by services performed and what they took (service_record), for a chair. Absent: hours and jobs. (salon) */
+    teamProductivity?: 'serviceRecords'
+  }
+  reviews?: {
+    /** What a review request is about when it has no job: 'visit' is the client's latest service record. (salon) */
+    subject?: 'visit'
+  }
+  /** Text clients a reminder of tomorrow's appointment (the salon's hourly sweep, started once at boot). */
+  appointmentReminders?: boolean
+  /** The help centre and its assistant, grounded in what this vertical's business actually has switched on. (salon) */
+  help?: {
+    /** "You are a helpful support assistant for <productNoun>." */
+    productNoun: string
+    /** Seeded article title → the feature it describes; an article whose feature is off isn't shown. */
+    articleFeatures: Record<string, string>
+    /** [feature, words] the assistant may name, when the feature is on. */
+    topics: Array<[string, string]>
+    /** What to name when nothing is listed. */
+    fallbackTopics: string
+    /** A sentence on what this software does not have. */
+    notOffered?: string
+  }
 }
 
 /**
@@ -116,6 +259,14 @@ export async function loadVertical(id = process.env.VERTICAL): Promise<VerticalS
   const known: Record<string, () => Promise<{ default: VerticalSettings }>> = {
     contractor: () => import('../../verticals/contractor/settings.ts'),
     fieldservice: () => import('../../verticals/fieldservice/settings.ts'),
+    basic: () => import('../../verticals/basic/settings.ts'),
+    vet: () => import('../../verticals/vet/settings.ts'),
+    salon: () => import('../../verticals/salon/settings.ts'),
+    landscaping: () => import('../../verticals/landscaping/settings.ts'),
+    restaurant: () => import('../../verticals/restaurant/settings.ts'),
+    rv: () => import('../../verticals/rv/settings.ts'),
+    bar: () => import('../../verticals/bar/settings.ts'),
+    homecare: () => import('../../verticals/homecare/settings.ts'),
   }
   if (!id) {
     if (process.env.NODE_ENV === 'production') throw new Error('VERTICAL is not set')

@@ -41,7 +41,8 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   const webhooks = createBookingWebhooks({ db, logger })
   const happen = createHappenings({ db, email, logger, webhooks })
   const engine = createBookingEngine({
-    db, requireAddressDefault: deps.vertical.id !== 'salon' && deps.vertical.id !== 'vet', deposits: deps.deposits, externalBusy: deps.externalBusy,
+    // The vertical's answer (VerticalSettings.booking: basic says no, templates/crm-basic T42); salon and vet still by id.
+    db, requireAddressDefault: deps.vertical.booking?.requireAddress ?? (deps.vertical.id !== 'salon' && deps.vertical.id !== 'vet'), deposits: deps.deposits, externalBusy: deps.externalBusy,
     onHappening: (h) => { void happen(h) },
   })
   const extras = createBookingExtras({ db, engine, email, logger, webhooks })

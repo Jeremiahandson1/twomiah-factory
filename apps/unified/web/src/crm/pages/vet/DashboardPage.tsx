@@ -1,0 +1,341 @@
+// Moved from templates/crm-vet/frontend/src/pages/vet/DashboardPage.tsx. The practice's dashboard at /crm/dashboard
+// where the vertical's screens.dashboard.page is 'practice' (crm/screens.tsx Dashboard).
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  Loader2, PawPrint, CalendarDays, Stethoscope, BellRing,
+  HeartPulse, DollarSign, AlertTriangle, ArrowRight,
+} from 'lucide-react';
+import { api } from '../../../api'
+import { useToast } from '../../../shared'
+import { appointmentTypeLabel } from './vetHelpers'
+
+/**
+ * Twomiah Vet — practice dashboard.
+ * KPI cards over /api/dashboard/stats + recent activity. Every field is
+ * null/zero-guarded because a brand-new clinic comes back all zeros.
+ */
+
+interface Stats {
+  contacts?: number;
+  patients?: { total?: number; active?: number; bySpecies?: Record<string, number> };
+  appointments?: { today?: number; upcoming7?: number; byStatus?: Record<string, number> };
+  /**
+   * `revenueThisMonth` is work done AND billed. It used to include visits still in the future and
+   * visits nobody had invoiced, so on the 1st of a month the tile reported the month ahead as earned.
+   * The other two are those excluded amounts, shown beneath it so the figure accounts for itself. (T51)
+   */
+  // revenueWithheld: this seat may not see the practice's money (vet staff — T62); the three figures are absent.
+  visits?: { thisMonth?: number; revenueThisMonth?: number; unbilledThisMonth?: number; scheduledThisMonth?: number; revenueWithheld?: boolean };
+  reminders?: { overdue?: number; dueSoon?: number };
+  wellness?: { activeEnrollments?: number };
+}
+
+interface RecentPatient {
+  id: string;
+  name?: string;
+  species?: string;
+  breed?: string;
+  ownerName?: string;
+}
+interface RecentVisit {
+  id: string;
+  patientId?: string;
+  patientName?: string;
+  visitDate?: string;
+  reason?: string;
+  total?: number | string;
+}
+interface UpcomingAppt {
+  id: string;
+  patientName?: string;
+  ownerName?: string;
+  type?: string;
+  status?: string;
+  startTime?: string;
+}
+interface Activity {
+  recentPatients?: RecentPatient[];
+  recentVisits?: RecentVisit[];
+  upcomingAppointments?: UpcomingAppt[];
+}
+
+/**
+ * MONEY SHOWS CENTS. (T58d)
+ *
+ *   Owner: "Recent Visits rounds the cents."
+ *
+ * It did — `maximumFractionDigits: 0` — so a $125.50 visit read $126 on the dashboard and $125.50
+ * on the invoice, and the two numbers describing one charge disagreed. The same helper prints the
+ * three figures on the Visits tile, so "billed", "not yet invoiced" and "still to come" were all
+ * rounded too: a practice reconciling the month against its books was reading dollars that are not
+ * the dollars anybody was asked to pay.
+ *
+ * This is the same fault, and the same fix, as crm-rv's AccountingPage at T41 — "an accounting page
+ * does not round". Rounding is only ever right where the number is a count, and none of these are.
+ */
+function money(v: number | string | undefined | null): string {
+  const n = Number(v || 0);
+  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtDateTime(s?: string): string {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function fmtDate(s?: string): string {
+  if (!s) return '—';
+  // Date-only / midnight-UTC values must render at local midnight, or a negative
+  // UTC offset shows the previous day (VET-03). Datetimes render as-is.
+  const str = String(s);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
+  const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+export default function DashboardPage() {
+  const toast = useToast();
+  const [stats, setStats] = useState<Stats>({});
+  const [activity, setActivity] = useState<Activity>({});
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [s, a]: [Stats | null, Activity | null] = await Promise.all([
+          api.get('/api/dashboard/stats'),
+          api.get('/api/dashboard/recent-activity'),
+        ]);
+        setStats(s || {});
+        setActivity(a || {});
+      } catch (error) {
+        toast.error((error as Error).message || 'Could not load the dashboard');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  const patients = stats.patients || {};
+  const appts = stats.appointments || {};
+  const visits = stats.visits || {};
+  const reminders = stats.reminders || {};
+  const wellness = stats.wellness || {};
+  const bySpecies = patients.bySpecies || {};
+  const overdue = reminders.overdue || 0;
+  const dueSoon = reminders.dueSoon || 0;
+  const reminderTotal = overdue + dueSoon;
+
+  const speciesEntries = Object.entries(bySpecies).filter(([, n]) => Number(n) > 0);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Dashboard</h1>
+        <p className="text-gray-500 dark:text-slate-400">Practice overview</p>
+      </div>
+
+      {/* Headline reminders card */}
+      <Link
+        to="/crm/reminders"
+        className={`block rounded-xl border p-5 transition hover:shadow-md ${
+          reminderTotal > 0 ? 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900' : 'bg-white dark:bg-slate-900 dark:border-slate-700'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-lg ${reminderTotal > 0 ? 'bg-red-100 dark:bg-red-950/40 dark:text-slate-100' : 'bg-gray-100 dark:bg-slate-800 dark:text-slate-100'}`}>
+              <BellRing className={`w-6 h-6 ${reminderTotal > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-slate-400">Reminders Due</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                {overdue} overdue
+                {/*
+                  gray-600, not gray-500: this card's ground is RED-50 whenever a reminder is due,
+                  which is the only state anybody reads it in. Measured at 4.42:1 against red-50,
+                  where AA needs 4.5 — it passes on the white version, which is why nothing static
+                  caught it. The same pair, in the same card, on the Events dashboard. (T51)
+                */}
+                <span className="text-base font-medium text-gray-600 dark:text-slate-400"> · {dueSoon} due soon</span>
+              </p>
+              <p className="text-sm text-gray-600 dark:text-slate-400">Bring lapsed patients back in for care</p>
+            </div>
+          </div>
+          <ArrowRight className="w-5 h-5 text-gray-400" />
+        </div>
+      </Link>
+
+      {/* KPI grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Patients */}
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Active Patients</p>
+            <PawPrint className="w-5 h-5 text-teal-500 dark:text-teal-300" />
+          </div>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{patients.active || 0}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{patients.total || 0} total in records</p>
+          {speciesEntries.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-3">
+              {speciesEntries.map(([sp, n]) => (
+                <span key={sp} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">
+                  {sp} {n}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Appointments */}
+        <Link to="/crm/appointments" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Appointments Today</p>
+            <CalendarDays className="w-5 h-5 text-indigo-500 dark:text-indigo-300" />
+          </div>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{appts.today || 0}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{appts.upcoming7 || 0} in the next 7 days</p>
+        </Link>
+
+        {/* Visits + revenue */}
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Visits This Month</p>
+            <Stethoscope className="w-5 h-5 text-purple-500 dark:text-purple-300" />
+          </div>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{visits.thisMonth || 0}</p>
+          {!visits.revenueWithheld && (
+          <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
+            <DollarSign className="w-3 h-3 text-green-700 dark:text-green-300" />
+            {money(visits.revenueThisMonth)} billed
+          </p>
+          )}
+          {/*
+            What the figure above leaves out, where there is anything to leave out. "Billed" on its
+            own invites "billed out of what?", and the unbilled number is the one a practice chases
+            at month end. Both stay hidden when they are zero rather than printing two empty rows.
+          */}
+          {!!visits.unbilledThisMonth && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">{money(visits.unbilledThisMonth)} done, not yet invoiced</p>
+          )}
+          {!!visits.scheduledThisMonth && (
+            <p className="text-xs text-gray-600 dark:text-slate-400">{money(visits.scheduledThisMonth)} still to come this month</p>
+          )}
+        </div>
+
+        {/* Wellness */}
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Wellness Enrollments</p>
+            <HeartPulse className="w-5 h-5 text-rose-500 dark:text-rose-300" />
+          </div>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{wellness.activeEnrollments || 0}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">Active plan members</p>
+        </div>
+      </div>
+
+      {/* Recent activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Recent patients */}
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
+            <PawPrint className="w-4 h-4 text-teal-500 dark:text-teal-300" /> Recent Patients
+          </h2>
+          {(activity.recentPatients || []).length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No patients yet</p>
+          ) : (
+            <ul className="divide-y">
+              {(activity.recentPatients || []).map((p) => (
+                <li key={p.id} className="py-2">
+                  <Link to={`/crm/patients/${p.id}`} className="block hover:bg-gray-50 dark:hover:bg-slate-800 -mx-2 px-2 rounded">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{p.name || 'Unnamed'}</p>
+                    <p className="text-xs text-gray-500 capitalize dark:text-slate-400">
+                      {[p.species, p.breed].filter(Boolean).join(' · ') || '—'}
+                      {p.ownerName ? ` — ${p.ownerName}` : ''}
+                    </p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Recent visits */}
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
+            <Stethoscope className="w-4 h-4 text-purple-500 dark:text-purple-300" /> Recent Visits
+          </h2>
+          {(activity.recentVisits || []).length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No visits yet</p>
+          ) : (
+            <ul className="divide-y">
+              {(activity.recentVisits || []).map((v) => (
+                <li key={v.id} className="py-2">
+                  <Link
+                    to={v.patientId ? `/crm/patients/${v.patientId}` : '#'}
+                    className="block hover:bg-gray-50 dark:hover:bg-slate-800 -mx-2 px-2 rounded"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-gray-900 dark:text-slate-100">{v.patientName || 'Patient'}</p>
+                      <span className="text-xs text-gray-500 dark:text-slate-400">{money(v.total)}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      {fmtDate(v.visitDate)}{v.reason ? ` · ${v.reason}` : ''}
+                    </p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Upcoming appointments */}
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
+            <CalendarDays className="w-4 h-4 text-indigo-500 dark:text-indigo-300" /> Upcoming Appointments
+          </h2>
+          {(activity.upcomingAppointments || []).length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing scheduled</p>
+          ) : (
+            <ul className="divide-y">
+              {(activity.upcomingAppointments || []).map((a) => (
+                <li key={a.id} className="py-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{a.patientName || 'Patient'}</p>
+                    {a.type && (
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
+                        {appointmentTypeLabel(a.type)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    {fmtDateTime(a.startTime)}{a.ownerName ? ` · ${a.ownerName}` : ''}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      {reminderTotal > 0 && (
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
+          <AlertTriangle className="w-3 h-3" />
+          Tip: the Reminders page lets you batch-text owners of patients due for vaccines.
+        </div>
+      )}
+    </div>
+  );
+}

@@ -17,7 +17,7 @@ import {
   createQuickBooksRoutes, createIntegrationsRoutes, createReviewsRoutes, createAdsRoutes, createAdsPublicRoutes,
   createAdsConnector, createOnboardingRoutes, createMessagingBillingRoutes, createEmailDomainRoutes, createGbpAdminRoutes,
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
-  money,
+  money, createAccountBalanceStore,
 } from '@twomiah/tenant-backend'
 import { asc } from 'drizzle-orm'
 import {
@@ -26,7 +26,19 @@ import {
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
   gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
   documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto,
+  event,
+  patient, vaccination, appointment, visit,
+  repairOrder, salesLead,
+  serviceRecord, membershipEnrollment, clientAccountEntry,
 } from '../db/schema/index.ts'
+import { createSalonDashboard } from '../crm/salon/index.ts'
+import { salonTeamProductivity } from '../data/salon.ts'
+import { createSalonClock } from '../crm/salon/days.ts'
+import { createDealershipDashboardRoutes } from '../crm/rv/index.ts'
+import { createPracticeDashboardRoutes } from '../crm/vet/dashboard.ts'
+import { createEventsDashboardRoutes } from '../crm/restaurant/eventsDashboard.ts'
+import { syncEventInvoiceDueDate } from '../crm/restaurant/eventLedger.ts'
+import { bookOnDepositForInvoice } from '../crm/restaurant/eventBooking.ts'
 import type { CrmSettings } from '../core/vertical.ts'
 import type { Mount } from '../http/registry.ts'
 import { fail } from '../http/reply.ts'
@@ -43,11 +55,13 @@ import { officeMounts } from '../crm/office/index.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
 import { basicMounts } from '../crm/basic/index.ts'
 import { landscapingMounts } from '../crm/landscaping/index.ts'
+import { propertyHolders } from '../crm/landscaping/inUse.ts'
 import { barMounts } from '../crm/bar/index.ts'
 import { restaurantMounts } from '../crm/restaurant/index.ts'
 import { rvMounts } from '../crm/rv/index.ts'
 import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
+import { homecareMounts } from '../crm/homecare/index.ts'
 
 export interface CrmModuleDeps {
   db: any
@@ -78,7 +92,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     await next()
   }
   const live = { emitToCompany: realtime.emitToCompany, EVENTS: realtime.EVENTS }
-  const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, services: s }
+  const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, services: s, settings: v }
   const timeZoneFor = (companyId: string) => companyTimeZone(db, companyId)
   const loadInvoicePdf = () => import('../crm/pdf.ts').then((m) => m.generateInvoicePDF)
   const loadQuotePdf = () => import('../crm/pdf.ts').then((m) => m.generateQuotePDF)
@@ -90,17 +104,49 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
       extraFields: { optedOutSms: z.boolean().optional() },
-      relations: sites
-        ? [
-          ...standardRelations({ project, quote, invoice, job }),
-          { key: 'equipment', table: equipment, column: equipment.contactId, columns: { id: equipment.id, name: equipment.name, manufacturer: equipment.manufacturer, model: equipment.model, serialNumber: equipment.serialNumber, status: equipment.status, location: equipment.location, purchaseDate: equipment.purchaseDate, warrantyExpiry: equipment.warrantyExpiry, siteId: equipment.siteId } },
-          { key: 'sites', table: site, column: site.contactId, orderBy: asc(site.name) },
-        ]
-        : standardRelations({ project, quote, invoice, job }),
-      guards: sites
-        ? [...standardGuards({ invoice, quote, job, project }), { table: equipment, column: equipment.contactId, label: 'piece of equipment', plural: 'pieces of equipment' }]
-        : standardGuards({ invoice, quote, job, project }),
-      ...(sites ? { sites: { site, equipment, job } } : {}),
+      // The vertical's contact types, and what a converted lead becomes (CrmSettings.contacts; a dealership sells to
+      // customers — templates/crm-rv routes/contacts.ts). Absent: the shared four, and 'client'.
+      ...(v.contacts?.types ? { types: v.contacts.types } : {}),
+      ...(v.contacts?.customerType ? { convertTo: v.contacts.customerType } : {}),
+      relations: [
+        ...(sites
+          ? [
+            ...standardRelations({ project, quote, invoice, job }),
+            { key: 'equipment', table: equipment, column: equipment.contactId, columns: { id: equipment.id, name: equipment.name, manufacturer: equipment.manufacturer, model: equipment.model, serialNumber: equipment.serialNumber, status: equipment.status, location: equipment.location, purchaseDate: equipment.purchaseDate, warrantyExpiry: equipment.warrantyExpiry, siteId: equipment.siteId } },
+            { key: 'sites', table: site, column: site.contactId, orderBy: asc(site.name) },
+          ]
+          : standardRelations({ project, quote, invoice, job })),
+        // A venue's client lists their events (templates/crm-restaurant routes/contacts.ts H-02; CrmSettings.events).
+        ...(v.events ? [{ key: 'events', table: event, column: event.contactId, columns: { id: event.id, name: event.name, status: event.status, eventDate: event.eventDate } }] : []),
+        // An owner's page lists their pets (templates/crm-vet routes/contacts.ts; CrmSettings.patients).
+        ...(v.patients ? [{ key: 'patients', table: patient, column: patient.ownerId, columns: { id: patient.id, name: patient.name, species: patient.species, breed: patient.breed, deceased: patient.deceased }, orderBy: asc(patient.name) }] : []),
+      ],
+      guards: [
+        // A client owns patients, and every patient's visits, vaccinations, prescriptions and lab results cascade with
+        // them: medical history under statutory retention, so the client is not deleted while any remain (vet).
+        ...(v.patients ? [
+          { table: patient, column: patient.ownerId, label: 'patient', message: (n: number) => `This client has ${n} patient${n === 1 ? '' : 's'} with medical history. Reassign or remove their patients before deleting the client.` },
+          { table: appointment, column: appointment.ownerId, label: 'appointment' },
+        ] : []),
+        ...(sites
+          ? [
+            ...standardGuards({ invoice, quote, job, project }), { table: equipment, column: equipment.contactId, label: 'piece of equipment', plural: 'pieces of equipment' },
+            // …and their properties' route stops and snow contracts, which the customer's delete would cascade away.
+            ...propertyHolders(db).byContact,
+          ]
+          : standardGuards({ invoice, quote, job, project })),
+        // …and keeps them: a client with events is not deleted while any remain.
+        ...(v.events ? [{ table: event, column: event.contactId, label: 'event' }] : []),
+        // A dealership's customer with a repair order or a sales lead is kept (templates/crm-rv routes/contacts.ts).
+        ...(v.contacts?.guards?.includes('repairOrder') ? [{ table: repairOrder, column: repairOrder.customerId, label: 'repair order' }] : []),
+        ...(v.contacts?.guards?.includes('salesLead') ? [{ table: salesLead, column: salesLead.contactId, label: 'sales lead' }] : []),
+        // A salon's client with an appointment, a visit on record or a membership is kept (templates/crm-salon routes/contacts.ts).
+        ...(v.contacts?.guards?.includes('appointment') ? [{ table: appointment, column: appointment.contactId, label: 'appointment' }] : []),
+        ...(v.contacts?.guards?.includes('serviceRecord') ? [{ table: serviceRecord, column: serviceRecord.contactId, label: 'service record' }] : []),
+        ...(v.contacts?.guards?.includes('membershipEnrollment') ? [{ table: membershipEnrollment, column: membershipEnrollment.contactId, label: 'membership' }] : []),
+      ],
+      // A property's route stops and snow contracts hold it (crm/landscaping/inUse.ts).
+      ...(sites ? { sites: { site, equipment, job, guards: propertyHolders(db).bySite } } : {}),
     },
   } as any)
 
@@ -133,6 +179,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // Every vertical's quote records when it was declined and which job it became (the columns are everyone's now;
       // the field-service copies had them, the base CRM didn't).
       hasDeclinedAt: true, hasConvertedToJobId: true,
+      // A converted quote's invoice is numbered as every invoice is (CrmSettings.invoices.numbering; templates/crm-rv routes/quotes.ts).
+      ...(v.invoices?.numbering ? { numbering: { invoice: v.invoices.numbering } } : {}),
       extraFields: sites ? ['siteId', 'equipmentId', 'customerMessage'] : ['customerMessage'],
       ...(sites ? { jobHasSiteAndEquipment: true } : {}),
       // Text the customer a link when a quote goes out.
@@ -147,14 +195,57 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     },
   } as any)
 
+  // The salon's clock (the booking calendar's zone) and its clients' account ledger (CrmSettings.invoices).
+  const salonClock = createSalonClock(db)
+  const clientAccounts = createAccountBalanceStore(clientAccountEntry)
+
   const invoices = createInvoiceRoutes({
     db, tables: { invoice, invoiceLineItem, payment, contact, project, quote, company }, authenticate, requirePermission, canSee, ...live,
+    // An event's invoice (CrmSettings.events): a payment, refund, void or edit on it moves its due date to the next
+    // installment not yet covered — a no-op for an invoice that isn't an event's (templates/crm-restaurant routes/invoices.ts).
+    ...(v.events ? {
+      emitToCompany: (companyId: string, name: string, data: any) => {
+        realtime.emitToCompany(companyId, name, data)
+        const invoiceId = name === realtime.EVENTS.PAYMENT_RECEIVED ? data?.invoiceId : name === realtime.EVENTS.INVOICE_UPDATED ? data?.id : null
+        if (invoiceId) void syncEventInvoiceDueDate(db, invoiceId).catch((err: any) => logger.error('[events] invoice due-date sync failed', { error: err?.message }))
+      },
+    } : {}),
     sendInvoiceEmail: (to: string, data: Record<string, unknown>) => s.emailService.sendInvoice(to, data),
     loadPdf: loadInvoicePdf, audit,
-    options: { timeZoneFor, minLineItems: 1, afterMoney: (invoiceId: string) => s.commissionEarner.earnForInvoice(invoiceId) },
+    options: {
+      timeZoneFor, minLineItems: 1, afterMoney: (invoiceId: string) => s.commissionEarner.earnForInvoice(invoiceId),
+      // The vertical's invoice numbers (CrmSettings.invoices.numbering: a dealership's INV-1001, templates/crm-rv routes/invoices.ts).
+      ...(v.invoices?.numbering ? { numbering: v.invoices.numbering } : {}),
+      // The owner pays, but the bill is for an animal: an invoice names its patient (templates/crm-vet routes/invoices.ts T12 M6).
+      ...(v.patients ? { links: { patientId: patient } } : {}),
+      // Money books the date: a deposit on an enquiry confirms it (refused while its room is held), inside the payment's
+      // own transaction (templates/crm-restaurant routes/invoices.ts, T16 M8).
+      ...(v.events ? { onPayment: bookOnDepositForInvoice } : {}),
+      // The salon's: a tip line; the client's account balance as a way to pay and a place to refund to; the day on the
+      // salon's own clock (templates/crm-salon routes/invoices.ts, Salon T27 H1).
+      ...(v.invoices?.tips ? { tips: true } : {}),
+      ...(v.invoices?.clock === 'booking' ? { timeZoneFor: (companyId: string) => salonClock.salonTimezone(companyId) } : {}),
+      ...(v.invoices?.accountBalance ? { accountBalance: {
+        // A bill with no client on it cannot be paid from a client's account — said, not a failure on a null. Both run
+        // inside the invoice's own transaction.
+        async spend(tx: any, inv: any, amount: number) {
+          const contactId = inv.contact_id ?? inv.contactId
+          if (!contactId) return 'This invoice is not attached to a client, so there is no account to take it from.'
+          const out = await clientAccounts.spend(tx, { companyId: inv.company_id ?? inv.companyId, contactId, amount, invoiceId: inv.id, reason: `Paid against ${inv.number}` })
+          return out.ok ? null : out.error
+        },
+        async credit(tx: any, inv: any, amount: number) {
+          const contactId = inv.contact_id ?? inv.contactId
+          if (!contactId) return 'This invoice is not attached to a client, so there is no account to refund it to.'
+          await clientAccounts.add(tx, { companyId: inv.company_id ?? inv.companyId, contactId, amount, source: 'refund_to_account', reason: `Refunded from ${inv.number} and kept on account`, invoiceId: inv.id })
+          return null
+        },
+        balanceOf: (companyId: string, contactId: string) => clientAccounts.balance(db, companyId, contactId),
+      } } : {}),
+    },
   } as any)
 
-  const ads = createAdsRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion }, authenticate, requirePermission, connector: deps.adsConnector } as any)
+  const ads =createAdsRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion }, authenticate, requirePermission, connector: deps.adsConnector } as any)
 
   const signedInAdmin = (router: any) => new Hono().use('*', authenticate, isAdmin).route('/', router)
 
@@ -178,16 +269,43 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   return [
     // The core CRM: on for a business with the CRM, off for a website-only one.
     { path: '/api/contacts', access: 'user', feature: 'contacts', router: contacts },
-    { path: '/api/jobs', access: 'user', feature: 'jobs', router: jobs },
+    // A job's photos are photo_capture's, as the field-service and basic copies' index.ts gated /api/jobs/:id/photos.
+    { path: '/api/jobs', access: 'user', feature: 'jobs', router: v.jobs?.photos
+      ? new Hono().use('/:id/photos', features.requireEnabledFeature('photo_capture')).use('/:id/photos/*', features.requireEnabledFeature('photo_capture')).route('/', jobs)
+      : jobs },
     { path: '/api/quotes', access: 'user', feature: 'quotes', router: quotes },
     { path: '/api/invoices', access: 'user', feature: 'invoices', router: invoices },
-    { path: '/api/team', access: 'user', feature: 'team', router: createTeamRoutes({ db, tables: { teamMember, user, job, location }, authenticate, requirePermission, canSee } as any) },
-    { path: '/api/dashboard', access: 'user', feature: 'dashboard', router: createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead }, authenticate, featuresFor: features.enabledFeaturesFor, canSee } as any) },
+    { path: '/api/team', access: 'user', feature: 'team', router: createTeamRoutes({
+      db, tables: { teamMember, user, job, location }, authenticate, requirePermission, canSee,
+      // A stylist holds appointments: removing one unassigns their chair (templates/crm-salon routes/team.ts, Salon T27 N14).
+      // The unified job table carries assigned_to_member_id for every vertical, so jobs are counted too (the salon copy's
+      // job table had no such column); the appointment comes first, so the reply speaks of appointments.
+      ...(v.team?.assignedWork?.includes('appointment') ? { options: { assignedWork: [
+        { table: appointment, field: 'stylistMemberId', one: 'appointment', many: 'appointments' },
+        { table: job, field: 'assignedToMemberId', one: 'job', many: 'jobs' },
+      ] } } : {}),
+    } as any) },
+    { path: '/api/dashboard', access: 'user', feature: 'dashboard', router: v.dashboard === 'events'
+      // The private-events dashboard (CrmSettings.dashboard; templates/crm-restaurant and crm-bar routes/dashboard.ts).
+      ? createEventsDashboardRoutes(own)
+      // The veterinary practice's (templates/crm-vet routes/dashboard.ts).
+      : v.dashboard === 'practice' ? createPracticeDashboardRoutes(own)
+      // The dealership's (templates/crm-rv routes/dashboard.ts).
+      : v.dashboard === 'dealership' ? createDealershipDashboardRoutes(own)
+      // The salon's (templates/crm-salon routes/dashboard.ts).
+      : v.dashboard === 'salon' ? createSalonDashboard(own)
+      : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead }, authenticate, featuresFor: features.enabledFeaturesFor, canSee } as any) },
 
     // Optional modules, each behind its feature (the template's index.ts gates).
     { path: '/api/time', access: 'user', feature: 'time_tracking', router: createTimeRoutes({ db, tables: { timeEntry, user, job, project, teamMember }, authenticate, requirePermission, audit } as any) },
-    { path: '/api/expenses', access: 'user', feature: 'expense_tracking', router: createExpenseRoutes({ db, tables: { expense, project, job, staffAccountEntry, user, company }, authenticate, requirePermission, audit } as any) },
-    { path: '/api/tasks', access: 'user', feature: 'projects', router: createTasksRoutes({ service: s.tasks, authenticate, requirePermission } as any) },
+    { path: '/api/expenses', access: 'user', feature: 'expense_tracking', router: createExpenseRoutes({
+      db, tables: { expense, project, job, staffAccountEntry, user, company }, authenticate, requirePermission, audit,
+      // The trade's own categories, refused outside the list as the shared ones are (templates/crm-salon routes/expenses.ts).
+      ...(v.expenses ? { options: { categories: v.expenses.categories, categoryLabels: v.expenses.categoryLabels } } : {}),
+    } as any) },
+    // Tasks: a construction business's with projects (the base CRM's gate); a clinic's always (templates/crm-vet
+    // mounted tasks ungated and put Tasks on every menu, and a clinic has no projects) — the union, on both sides.
+    { path: '/api/tasks', access: 'user', feature: ['projects', 'patient_records'], router: createTasksRoutes({ service: s.tasks, authenticate, requirePermission } as any) },
     { path: '/api/photos', access: 'user', feature: 'photo_capture', router: createPhotoRoutes({ db, tables: { document, user, project, job }, storage: s.storage, authenticate, requirePermission, audit: fileAudit } as any) },
     { path: '/api/recurring', access: 'user', feature: 'recurring_jobs', router: createRecurringRoutes({ service: s.recurring, authenticate, requirePermission, audit } as any) },
     { path: '/api/tech', access: 'user', feature: 'tech_mobile_view', router: createTechRoutes({
@@ -209,11 +327,19 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       // planMarkup only where drawings are marked up (construction): the shared module registers /:id/markups only when
       // the table is passed.
       db, tables: { document, documentVersion, project, contact, user, ...(v.documents?.markup ? { planMarkup } : {}) }, storage: s.storage, authenticate, requirePermission, audit: fileAudit,
-      options: { types: v.documents?.types ?? ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'] },
+      options: {
+        types: v.documents?.types ?? ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'],
+        // A clinic files against the animal, not only the owner (templates/crm-vet routes/documents.ts T12 M6).
+        ...(v.patients ? { links: { patientId: patient } } : {}),
+      },
     } as any) },
     { path: '/api/reports', access: 'user', router: createReportingRoutes({
       db, tables: { invoice, payment, job, project, quote, timeEntry, user, contact, teamMember, location }, authenticate, requirePermission,
-      options: { featuresFor: features.enabledFeaturesFor },
+      options: {
+        featuresFor: features.enabledFeaturesFor,
+        // A chair is measured by the services it performed and what they took (templates/crm-salon routes/reporting.ts, Salon T28 M6).
+        ...(v.reports?.teamProductivity === 'serviceRecords' ? { teamProductivity: (companyId: string, range: { gte?: Date; lte?: Date }) => salonTeamProductivity(db, companyId, range) } : {}),
+      },
     } as any) },
     { path: '/api/pricebook', access: 'user', router: createPricebookRoutes({ service: s.pricebook, db, tables: { company }, authenticate, requirePermission, canSee } as any) },
     { path: '/api/ads', access: 'user', router: ads },
@@ -226,7 +352,14 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Public doors inside: each router signs people in itself after them.
     { path: '/api/sms', access: 'public', router: createSmsRoutes({ service: s.sms, authenticate, requirePermission, requireAdmin: isAdmin } as any) },
     { path: '/api/stripe', access: 'public', router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit } as any) },
-    { path: '/api/marketing', access: 'public', router: createMarketingRoutes({ service: s.marketing, authenticate, requirePermission, escapeHtml, featureGate: features.requireEnabledFeature('email_marketing') } as any) },
+    // The drips are also the dealership's Follow-Up product (follow_up_sequences): either switch keeps the follow-up parts
+    // open, while campaigns and templates need Email Marketing itself — the union the RV copy gated (RV T19 M6); only
+    // crm-rv is offered follow_up_sequences, so everyone else's gate is what it was.
+    { path: '/api/marketing', access: 'public', router: createMarketingRoutes({
+      service: s.marketing, authenticate, requirePermission, escapeHtml,
+      featureGate: features.requireEnabledFeature(['email_marketing', 'follow_up_sequences']),
+      campaignsGate: features.requireEnabledFeature('email_marketing'),
+    } as any) },
     { path: '/api/quickbooks', access: 'public', router: createQuickBooksRoutes({ service: s.quickbooks, db, tables: { contact, invoice, invoiceLineItem, payment }, authenticate, requirePermission, audit } as any) },
     { path: '/api/reviews', access: 'public', router: createReviewsRoutes({ service: s.reviews, db, tables: { reviewRequest }, authenticate, requireRole, requirePermission, audit, requireEnabledFeature: features.requireEnabledFeature } as any) },
     { path: '/api/integrations', access: 'public', router: createIntegrationsRoutes({ db, tables: { company, emailLog }, authenticate, requireAdmin: isAdmin, quickbooks: s.quickbooks, stripe: s.stripe, factoryApiClient } as any) },
@@ -238,6 +371,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         contact, company, user, quote, quoteLineItem, invoice, invoiceLineItem, payment, message, auditLog, activity,
         project, job, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal, document, documentShare,
         equipment, serviceAgreement, agreementVisit, formSubmission,
+        // The owner's animals: the portal's Pets section (templates/crm-vet routes/portal.ts T12 H6).
+        ...(v.patients ? { patient, vaccination, appointment, visit } : {}),
       },
       authenticate, audit, requirePermission,
       sendEmail: (to: string, template: string, data: Record<string, unknown>) => s.emailService.send(to, template, data),
@@ -260,7 +395,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // The CRM's own modules (moved from the template, not shared code).
     ...siteRecordsMounts(own), ...projectMounts(own), ...fieldMounts(own), ...commsMounts(own), ...officeMounts(own),
     // The near-copy CRMs' own modules (step 3e), each behind its features.
-    ...basicMounts(own), ...landscapingMounts(own), ...barMounts(own), ...restaurantMounts(own), ...rvMounts(own), ...salonMounts(own), ...vetMounts(own),
+    ...basicMounts(own), ...landscapingMounts(own), ...barMounts(own), ...restaurantMounts(own), ...rvMounts(own), ...salonMounts(own, v), ...vetMounts(own, v),
+    // Home care's add-on (docs/UNIFIED_HOMECARE_PLAN.md).
+    ...homecareMounts(own),
   ]
 }
 

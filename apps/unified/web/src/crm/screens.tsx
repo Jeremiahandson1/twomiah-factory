@@ -13,14 +13,35 @@ import {
 import { api } from '../api'
 import { verticalScreens } from './vertical'
 import OnboardingWizard from './pages/OnboardingWizard'
+import type { ComponentType } from 'react'
+import { dashboard as salonDashboard } from './verticals/salon'
+import { dashboard as eventsDashboard } from './verticals/restaurant'
+// 'practice': the veterinary practice's.
+import { dashboard as practiceDashboard } from './verticals/vet'
+// 'rv': the dealership's (inventory, the pipeline, service).
+import { dashboard as dealershipDashboard } from './verticals/rv'
+// 'bar': Tonight at a glance above the party book; and the register's sales above the Reports page.
+import { dashboard as barDashboard, reportsAbove as barReportsAbove } from './verticals/bar'
 
 const v = verticalScreens
 const client = api as any
 const settingsOf = (company: unknown) => (company as { settings?: any } | null)?.settings
 
-export function Dashboard() {
+/** The verticals whose own dashboard replaces the jobs one (VerticalScreens.home), each from its crm/verticals/<v>.tsx. */
+// 'events': the private-events dashboard (restaurant, and the bar's events side).
+const HOMES: Record<string, ComponentType> = { salon: salonDashboard, events: eventsDashboard, practice: practiceDashboard, rv: dealershipDashboard, bar: barDashboard }
+
+/** A vertical's own figures above the shared Reports page (VerticalScreens.reportsAbove), from its crm/verticals/<v>.tsx. */
+const REPORTS_ABOVE: Record<string, ComponentType> = { bar: barReportsAbove }
+
+function JobsDashboard() {
   const { user, company } = useAuth()
   return <JobsDashboardPage api={client} user={user as any} company={company as any} config={v().dashboard} />
+}
+export function Dashboard() {
+  const home = v().home
+  const Own = typeof home === 'string' ? HOMES[home] : undefined
+  return Own ? <Own /> : <JobsDashboard />
 }
 export function Contacts() {
   const { hasFeature, can } = useAuth()
@@ -36,7 +57,8 @@ export function Jobs() {
 }
 export function JobDetail() {
   const { hasFeature } = useAuth()
-  return <JobDetailPage api={client} toast={useToast()} config={{ ...v().jobs, hasFeature } as any} />
+  // Photos are photo_capture's on the server (/api/jobs/:id/photos), so here too.
+  return <JobDetailPage api={client} toast={useToast()} config={{ ...v().jobs, photos: !!v().jobs.photos && hasFeature('photo_capture'), hasFeature } as any} />
 }
 export function Quotes() {
   const { company } = useAuth()
@@ -51,8 +73,10 @@ export function Invoices() {
   return <InvoicesPage api={client} toast={useToast()} settings={settingsOf(company)} config={v().invoicing} />
 }
 export function InvoiceDetail() {
-  const { company } = useAuth()
-  return <InvoiceDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={v().invoicing} />
+  // hasFeature and can: the QuickBooks sync follows the quickbooks feature (the field-service, basic and bar copies'
+  // InvoiceDetailPage.tsx passed them; the base CRM's didn't, and it offers no QuickBooks button here).
+  const { company, hasFeature, can } = useAuth()
+  return <InvoiceDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...v().invoicing, hasFeature, can } as any} />
 }
 export function Schedule() {
   const { hasFeature } = useAuth()
@@ -65,7 +89,9 @@ export function Schedule() {
       customerAddress: b.customerAddress ?? null, calendarId: null, source: b.source === 'public' ? 'website' as const : 'crm' as const,
     }))
   }
-  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings }} />
+  // Appointments (test drives, drop-offs, deliveries) where the vertical has them (VerticalScreens.schedule; the RV copy's
+  // SchedulePage passed events: true).
+  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, events: !!v().schedule?.events }} />
 }
 export const Time = () => <TimePage api={client} toast={useToast()} config={v().time as any} />
 export const Expenses = () => <ExpensesPage api={client} toast={useToast()} config={v().expenses as any} />
@@ -95,17 +121,33 @@ export const Recurring = () => <RecurringList api={client} />
 export const RecurringEdit = () => <RecurringForm api={client} />
 export const Tasks = () => <TasksPage api={client} />
 export const Reviews = () => <ReviewsPage api={client} toast={useToast()} config={v().reviews as any} />
-export const Marketing = () => <MarketingPage api={client} toast={useToast()} config={v().marketing as any} />
+// Campaigns and templates need Email Marketing; a dealership opens the page for its Follow-Up drips alone, and the API
+// refuses the campaigns then (templates/crm-rv MarketingPage.tsx, RV T19 M6). With Email Marketing on, as everywhere
+// the page opens otherwise, nothing changes.
+export function Marketing() {
+  const { hasFeature } = useAuth()
+  return <MarketingPage api={client} toast={useToast()} config={v().marketing as any} showCampaigns={hasFeature('email_marketing')} />
+}
 export const Messages = () => <MessagesPage api={client} toast={useToast()} config={v().messages as any} />
 export const Ads = () => <AdsPage api={client} toast={useToast()} />
 export const Pricebook = () => <PricebookPage api={client} toast={useToast()} config={v().pricebook} />
-export const Reports = () => <ReportsPage api={client} config={v().reporting} />
+export function Reports() {
+  // The events pipeline is a vertical's setting AND the business's Events module (templates/crm-restaurant's
+  // ReportsDashboard.tsx set it from hasFeature('event_bookings')).
+  const { hasFeature } = useAuth()
+  const above = v().reportsAbove
+  const Above = typeof above === 'string' ? REPORTS_ABOVE[above] : undefined
+  const page = <ReportsPage api={client} config={{ ...v().reporting, eventsPipeline: !!v().reporting.eventsPipeline && hasFeature('event_bookings') }} />
+  return Above ? <div><Above />{page}</div> : page
+}
 export const JobCosting = () => <JobCostingPage api={client} config={v().jobCosting} />
 export const LeadSources = () => <LeadSourcesPage api={client} toast={useToast()} config={v().leads as any} />
 export const EmailDomain = () => <EmailDomainPage />
 export const EmailInbox = () => <InboundMessagesPage />
 export const GoogleReviews = () => <GbpReviewsPage />
-export const Integrations = () => <IntegrationsPage api={client} config={{ leadSources: leadSourceGuides((v().leads as any).platforms) }} />
+// The vertical's words and panels for the page (VerticalScreens.integrations; the RV copy's integrationsConfig.ts), and its
+// lead sources.
+export const Integrations = () => <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms) }} />
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />
 

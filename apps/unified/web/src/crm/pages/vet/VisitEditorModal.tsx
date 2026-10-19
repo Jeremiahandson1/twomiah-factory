@@ -1,0 +1,239 @@
+// Moved from templates/crm-vet/frontend/src/components/vet/VisitEditorModal.tsx.
+import { useState, type FormEvent } from 'react'
+import { X, Stethoscope } from 'lucide-react'
+import { api } from '../../../api'
+import { useToast } from '../../../shared'
+
+/**
+ * Visit editor — create/update a visit (vitals + SOAP) for a patient.
+ * POST /api/visits (new) or PUT /api/visits/:id (edit).
+ * Diagnoses are entered comma-separated and sent as string[].
+ */
+
+export interface Visit {
+  id?: string;
+  patientId?: string;
+  appointmentId?: string | null;
+  providerId?: string | null;
+  visitDate?: string;
+  reason?: string;
+  weightLb?: number | string;
+  temperatureF?: number | string;
+  heartRate?: number | string;
+  respRate?: number | string;
+  subjective?: string;
+  objective?: string;
+  assessment?: string;
+  plan?: string;
+  diagnoses?: string[];
+  treatments?: string;
+  notes?: string;
+  total?: number | string;
+  /** Set once the visit has been billed. The charge is then fixed — see the Total field below. (T41) */
+  invoiceId?: string | null;
+}
+
+interface VisitEditorModalProps {
+  patientId: string;
+  visit?: Visit | null;
+  onSave: () => void;
+  onClose: () => void;
+}
+
+function toDateInput(s?: string): string {
+  if (!s) return new Date().toISOString().slice(0, 10);
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
+  return d.toISOString().slice(0, 10);
+}
+
+type FormKey = 'visitDate' | 'reason' | 'weightLb' | 'temperatureF' | 'heartRate' | 'respRate' | 'subjective' | 'objective'
+  | 'assessment' | 'plan' | 'diagnoses' | 'treatments' | 'notes' | 'total'
+
+/** A number field's box: what it holds, as text. */
+const box = (v: number | string | null | undefined) => (v === null || v === undefined ? '' : String(v))
+
+export default function VisitEditorModal({ patientId, visit, onSave, onClose }: VisitEditorModalProps) {
+  const toast = useToast();
+  const [saving, setSaving] = useState<boolean>(false);
+  const [form, setForm] = useState<Record<FormKey, string>>({
+    visitDate: toDateInput(visit?.visitDate),
+    reason: visit?.reason || '',
+    weightLb: box(visit?.weightLb),
+    temperatureF: box(visit?.temperatureF),
+    heartRate: box(visit?.heartRate),
+    respRate: box(visit?.respRate),
+    subjective: visit?.subjective || '',
+    objective: visit?.objective || '',
+    assessment: visit?.assessment || '',
+    plan: visit?.plan || '',
+    diagnoses: (visit?.diagnoses || []).join(', '),
+    treatments: visit?.treatments || '',
+    notes: visit?.notes || '',
+    total: box(visit?.total),
+  });
+
+  const set = (k: FormKey, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  // Already invoiced: the charge is the invoice's now. Only the money is locked. (T41)
+  const billed = !!visit?.invoiceId;
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        patientId,
+        visitDate: form.visitDate,
+      };
+      if (form.reason) payload.reason = form.reason;
+      if (form.weightLb !== '') payload.weightLb = Number(form.weightLb);
+      if (form.temperatureF !== '') payload.temperatureF = Number(form.temperatureF);
+      if (form.heartRate !== '') payload.heartRate = Number(form.heartRate);
+      if (form.respRate !== '') payload.respRate = Number(form.respRate);
+      if (form.subjective) payload.subjective = form.subjective;
+      if (form.objective) payload.objective = form.objective;
+      if (form.assessment) payload.assessment = form.assessment;
+      if (form.plan) payload.plan = form.plan;
+      const diagnoses = form.diagnoses.split(',').map((s) => s.trim()).filter(Boolean);
+      if (diagnoses.length) payload.diagnoses = diagnoses;
+      if (form.treatments) payload.treatments = form.treatments;
+      if (form.notes) payload.notes = form.notes;
+      if (form.total !== '') payload.total = Number(form.total);
+
+      if (visit?.id) {
+        await api.put(`/api/visits/${visit.id}`, payload);
+      } else {
+        await api.post('/api/visits', payload);
+      }
+      onSave();
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to save visit');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const numField = (k: FormKey, label: string) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{label}</label>
+      <input
+        type="number"
+        step="any"
+        value={form[k]}
+        onChange={(e) => set(k, e.target.value)}
+        className="w-full px-3 py-2 border rounded-lg"
+      />
+    </div>
+  );
+
+  const soapField = (k: FormKey, label: string, placeholder: string) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{label}</label>
+      <textarea
+        value={form[k]}
+        onChange={(e) => set(k, e.target.value)}
+        rows={2}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 border rounded-lg"
+      />
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Stethoscope className="w-5 h-5 text-purple-500 dark:text-purple-300" />
+              {visit?.id ? 'Edit Visit' : 'New Visit'}
+            </h2>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Visit Date</label>
+                <input type="date" value={form.visitDate} onChange={(e) => set('visitDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reason</label>
+                <input type="text" value={form.reason} onChange={(e) => set('reason', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+
+            {/* Vitals */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-slate-200">Vitals</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {numField('weightLb', 'Weight (lb)')}
+                {numField('temperatureF', 'Temp (°F)')}
+                {numField('heartRate', 'Heart Rate')}
+                {numField('respRate', 'Resp Rate')}
+              </div>
+            </div>
+
+            {/* SOAP */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-slate-200">SOAP</h3>
+              <div className="space-y-3">
+                {soapField('subjective', 'Subjective', "Owner's report / history")}
+                {soapField('objective', 'Objective', 'Exam findings')}
+                {soapField('assessment', 'Assessment', 'Clinical impression')}
+                {soapField('plan', 'Plan', 'Diagnostics, treatment, follow-up')}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Diagnoses <span className="text-xs text-gray-500 dark:text-slate-400">(comma-separated)</span></label>
+              <input type="text" value={form.diagnoses} onChange={(e) => set('diagnoses', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Otitis externa, Dental disease" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Treatments</label>
+              <textarea value={form.treatments} onChange={(e) => set('treatments', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+
+            {/* THE CHARGE IS FIXED ONCE THE BILL IS RAISED. (T41)
+                "A billed visit's total can still be edited after invoicing (PUT 999 → 200; the
+                invoice stays 125.50)." The server now refuses the change; this is the other half,
+                so the field does not invite an edit it will reject. The clinical fields above stay
+                editable on purpose — a write-up finished that evening belongs in the record. */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Total ($)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={form.total}
+                  onChange={(e) => set('total', e.target.value)}
+                  readOnly={billed}
+                  aria-readonly={billed || undefined}
+                  className={`w-full px-3 py-2 border rounded-lg ${billed ? 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400' : ''}`}
+                />
+                {billed && (
+                  <p className="mt-1 text-xs text-gray-600 dark:text-slate-400">
+                    This visit has been invoiced, so the charge is fixed. To change what the owner
+                    pays, credit or void the invoice and raise a new one.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
+              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Visit'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

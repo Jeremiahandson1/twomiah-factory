@@ -1,0 +1,686 @@
+// Moved from templates/crm-salon/frontend/src/pages/salon/ClientDetailPage.tsx.
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import {
+  Loader2, User, AlertTriangle, Phone, Mail, Plus, Scissors, CalendarDays,
+  CreditCard, ArrowLeft, X, Clock, Edit2,
+} from 'lucide-react';
+import { api } from '../../../api'
+import ServiceRecordEditorModal, { formulaSteps, type ServiceRecord } from './ServiceRecordEditorModal'
+import { fetchStaff, staffName, type StaffMember } from './staff';
+import { money, useMayWrite } from '../../../shared'
+import { stylistNameOf as stylistName } from './staff';
+import { useToast } from '../../../shared'
+
+/**
+ * Client chart — GET /api/clients/:contactId returns
+ * { contact, profile, serviceRecords[], appointments[], memberships[], stats }.
+ *
+ * The formula history is the first tab on purpose: it is the thing a stylist
+ * opens before every colour appointment, and the reason the client stays.
+ */
+
+const HAIR_TYPES = ['', 'Fine', 'Medium', 'Coarse', 'Curly', 'Coily', 'Wavy', 'Straight', 'Color-treated'];
+
+interface Contact {
+  id: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  mobile?: string;
+  address?: string;
+}
+/** A formula this CLIENT is kept on — theirs, not a booking's. See backend services/clientFormulas.ts. */
+interface KeptFormula {
+  id: string;
+  label?: string;
+  formula?: { product?: string; shade?: string; parts?: string }[];
+  developerVolume?: string | null;
+  processingMin?: number | null;
+  note?: string | null;
+  savedAt?: string;
+  lastUsedAt?: string | null;
+}
+interface Profile {
+  id?: string;
+  preferredStylistId?: string;
+  hairType?: string;
+  scalpNotes?: string;
+  allergies?: string;
+  patchTestAt?: string;
+  preferences?: string;
+  pronouns?: string;
+  birthday?: string;
+  notes?: string;
+  formulas?: KeptFormula[];
+}
+interface Appointment {
+  id: string;
+  status?: string;
+  station?: string;
+  startTime?: string;
+  serviceName?: string;
+  stylistFirstName?: string;
+  stylistMemberName?: string;
+  stylistLastName?: string;
+}
+interface Membership {
+  id: string;
+  planName?: string;
+  status?: string;
+  creditsRemaining?: number | null;
+  startDate?: string;
+  renewsAt?: string;
+}
+interface Stats {
+  visits?: number;
+  lifetimeValue?: number;
+  dueBackAt?: string | null;
+  lastVisit?: string | null;
+  /** Money this client is holding with the salon. Positive is theirs to spend; negative they owe. */
+  accountBalance?: number;
+  accountBalanceLabel?: string;
+}
+interface Detail {
+  contact?: Contact;
+  profile?: Profile | null;
+  serviceRecords?: ServiceRecord[];
+  appointments?: Appointment[];
+  memberships?: Membership[];
+  stats?: Stats;
+}
+
+function fmtDate(s?: string | null): string {
+  if (!s) return '—';
+  const str = String(s);
+  // Parse a date-only value ("1990-03-14") at LOCAL midnight — new Date(str) reads it as
+  // UTC midnight and rolls back a day for viewers west of UTC. (CC-07)
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
+  const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function fmtDateTime(s?: string): string {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+// One currency formatter for the fleet — this copy had no MINIMUM fraction digits, so a lifetime value
+// of $331.70 printed as "$331.7". (Salon T28 L4)
+
+function isPast(dateStr?: string | null): boolean {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  return !isNaN(d.getTime()) && d.getTime() < Date.now();
+}
+// stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)
+
+type Tab = 'formula' | 'appointments' | 'memberships';
+
+export default function ClientDetailPage() {
+  // Edit Profile and Keep on card are contacts:update (clients.ts); Remove a formula is contacts:delete; a service
+  // record is schedule:create to add and schedule:update to edit (serviceRecords.ts). (T43 viewer round, T68)
+  const mayEditClient = useMayWrite('contacts:update');
+  const mayForget = useMayWrite('contacts:delete');
+  const mayRecord = useMayWrite('schedule:create');
+  const mayEditRecord = useMayWrite('schedule:update');
+  const { id } = useParams<{ id: string }>();
+  const [detail, setDetail] = useState<Detail>({});
+  const [loading, setLoading] = useState<boolean>(true);
+  const [tab, setTab] = useState<Tab>('formula');
+  const [showRecord, setShowRecord] = useState<boolean>(false);
+  const [editRecord, setEditRecord] = useState<ServiceRecord | null>(null);
+  const [showProfile, setShowProfile] = useState<boolean>(false);
+  const [busyFormula, setBusyFormula] = useState<string>('');
+  const toast = useToast();
+
+  const load = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      const res = await api.get(`/api/clients/${id}`);
+      setDetail(res || {});
+    } catch (error) {
+      console.error('Failed to load client:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  /** Lift a visit's formula onto the client's own card, where it survives the booking. */
+  const keepOnCard = async (record: ServiceRecord) => {
+    if (!id || !record.id) return;
+    setBusyFormula(record.id);
+    try {
+      const res = await api.post(`/api/clients/${id}/formulas`, {
+        fromRecordId: record.id,
+        label: record.serviceName || 'Kept from a visit',
+      });
+      toast.success(res?.added === false ? 'Already on the card — re-dated as used again' : 'Kept on the card');
+      await load();
+    } catch (err) {
+      toast.error((err as Error).message || 'Could not keep that formula');
+    } finally {
+      setBusyFormula('');
+    }
+  };
+
+  const forget = async (formulaId: string) => {
+    if (!id) return;
+    setBusyFormula(formulaId);
+    try {
+      await api.delete(`/api/clients/${id}/formulas/${formulaId}`);
+      await load();
+    } catch (err) {
+      toast.error((err as Error).message || 'Could not remove that formula');
+    } finally {
+      setBusyFormula('');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  const ct = detail.contact;
+  if (!ct) {
+    return (
+      <div className="text-center py-12 text-gray-500 dark:text-slate-400">
+        Client not found. <Link to="/crm/clients" className="text-teal-700 dark:text-teal-300">Back to clients</Link>
+      </div>
+    );
+  }
+
+  const profile = detail.profile || {};
+  const keptFormulas = profile.formulas || [];
+  const records = detail.serviceRecords || [];
+  const appointments = detail.appointments || [];
+  const memberships = detail.memberships || [];
+  const stats = detail.stats || {};
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
+    { id: 'formula', label: 'Formula History', icon: <Scissors className="w-4 h-4" />, count: records.length },
+    { id: 'appointments', label: 'Appointments', icon: <CalendarDays className="w-4 h-4" />, count: appointments.length },
+    { id: 'memberships', label: 'Memberships', icon: <CreditCard className="w-4 h-4" />, count: memberships.length },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <Link to="/crm/clients" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400">
+        <ArrowLeft className="w-4 h-4" /> Clients
+      </Link>
+
+      {/* Header */}
+      <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-teal-50 rounded-lg dark:bg-teal-950/40">
+              <User className="w-6 h-6 text-teal-700 dark:text-teal-300" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{ct.name || 'Unnamed'}</h1>
+              <p className="text-gray-500 dark:text-slate-400">
+                {[profile.pronouns, profile.hairType].filter(Boolean).join(' · ') || 'No profile details yet'}
+              </p>
+            </div>
+          </div>
+          {mayEditClient && <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
+            <Edit2 className="w-4 h-4" /> Edit Profile
+          </button>}
+        </div>
+
+        {profile.allergies && (
+          <div className="mt-4 flex items-start gap-2 bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 dark:text-red-400 dark:bg-red-950/40">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Allergy / sensitivity</p>
+              <p className="text-sm">{profile.allergies}</p>
+              <p className="text-xs mt-1">
+                Last patch test: {fmtDate(profile.patchTestAt)}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Retention strip — the numbers the front desk needs at a glance. On Account sits here
+            rather than behind a tab because a credit nobody can see is a credit nobody spends: the
+            29 Sep retest found $5.43 of a client's money that existed only as a difference between
+            two columns on one invoice. */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+          <div className={`border rounded-lg p-3 ${
+            (stats.accountBalance ?? 0) > 0
+              ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/30 dark:border-emerald-800'
+              : (stats.accountBalance ?? 0) < 0
+                ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800'
+                : ''
+          }`}>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">On Account</p>
+            <p className={`text-xl font-bold ${
+              (stats.accountBalance ?? 0) > 0
+                ? 'text-emerald-800 dark:text-emerald-200'
+                : (stats.accountBalance ?? 0) < 0
+                  ? 'text-amber-800 dark:text-amber-200'
+                  : 'text-gray-900 dark:text-slate-100'
+            }`}>{money(stats.accountBalance ?? 0)}</p>
+            {(stats.accountBalance ?? 0) < 0 && (
+              <p className="text-xs text-amber-800 dark:text-amber-200 mt-0.5">owed to the salon</p>
+            )}
+          </div>
+          <div className="border rounded-lg p-3">
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Visits</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{stats.visits ?? 0}</p>
+          </div>
+          {/* The server omits lifetimeValue for a seat without invoices:read (see
+              routes/clients.ts). Keyed off the ABSENCE of the field rather than a permission check
+              here, so the tile tracks the server exactly and there is no second rule to drift:
+              money(undefined) would print "$0.00" and tell a stylist their best client has never
+              spent a penny. The remaining tiles are a grid, so the row simply closes up. (T41) */}
+          {stats.lifetimeValue !== undefined && (
+            <div className="border rounded-lg p-3">
+              <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Lifetime Value</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money(stats.lifetimeValue)}</p>
+            </div>
+          )}
+          <div className="border rounded-lg p-3">
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Last Visit</p>
+            <p className="text-sm font-medium text-gray-900 mt-1 dark:text-slate-100">{fmtDate(stats.lastVisit)}</p>
+          </div>
+          {/* RR0929 N3: every colour here was light-mode only. `text-gray-900` on the dark card
+              measured 1.01:1 — the date was invisible — and an overdue client got a light red
+              panel in the middle of a dark page. The tiles above it already carry their dark
+              partner; this one was written later and never got one, which is the same miss as the
+              Rebooking dates (F3) one screen along. A colour without its dark: partner is half a
+              colour. */}
+          <div className={`border rounded-lg p-3 ${isPast(stats.dueBackAt) ? 'bg-red-50 border-red-200 dark:bg-red-900/30 dark:border-red-800' : ''}`}>
+            <p className={`text-xs uppercase ${isPast(stats.dueBackAt) ? 'text-red-800 dark:text-red-200' : 'text-gray-500 dark:text-slate-400'}`}>Due Back</p>
+            <p className={`text-sm font-medium mt-1 ${isPast(stats.dueBackAt) ? 'text-red-700 dark:text-red-200' : 'text-gray-900 dark:text-slate-100'}`}>
+              {fmtDate(stats.dueBackAt)}{isPast(stats.dueBackAt) ? ' (overdue)' : ''}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <div className="border rounded-lg p-3">
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">Contact</p>
+            {(ct.mobile || ct.phone) && <p className="text-sm text-gray-600 flex items-center gap-2 dark:text-slate-400"><Phone className="w-3 h-3" /> {ct.mobile || ct.phone}</p>}
+            {ct.email && <p className="text-sm text-gray-600 flex items-center gap-2 mt-1 dark:text-slate-400"><Mail className="w-3 h-3" /> {ct.email}</p>}
+            {!ct.mobile && !ct.phone && !ct.email && <p className="text-sm text-gray-500 dark:text-slate-400">No contact details</p>}
+          </div>
+          <div className="border rounded-lg p-3">
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">Preferences</p>
+            <dl className="text-sm text-gray-600 space-y-1 dark:text-slate-400">
+              {profile.hairType && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Hair</dt><dd>{profile.hairType}</dd></div>}
+              {profile.scalpNotes && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Scalp</dt><dd className="text-right">{profile.scalpNotes}</dd></div>}
+              {profile.birthday && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Birthday</dt><dd>{fmtDate(profile.birthday)}</dd></div>}
+              {profile.preferences && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Notes</dt><dd className="text-right">{profile.preferences}</dd></div>}
+              {!profile.hairType && !profile.scalpNotes && !profile.birthday && !profile.preferences && (
+                <p className="text-gray-500 dark:text-slate-400">Nothing recorded yet</p>
+              )}
+            </dl>
+          </div>
+        </div>
+        {profile.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap dark:text-slate-400">{profile.notes}</p>}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b overflow-x-auto">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
+              tab === t.id ? 'border-teal-600 text-teal-700 dark:border-teal-300 dark:text-teal-200' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+            }`}
+          >
+            {t.icon} {t.label}
+            <span className="text-xs bg-gray-100 text-gray-600 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{t.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Formula history */}
+      {tab === 'formula' && (
+        <div className="space-y-3">
+          {/* The formulas kept on the CLIENT, above the visit-by-visit history.
+              A formula used to exist only on a visit record, which hangs off an appointment — so a
+              colourist's work was hostage to the status of a booking. These belong to the person, and
+              are what a stylist reaches for before they mix anything. The history below still answers
+              the other question: what did we actually do, and when. */}
+          <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h3 className="font-semibold text-gray-900 dark:text-slate-100">Formulas kept for {ct.name?.split(' ')[0] || 'this client'}</h3>
+              <span className="text-xs text-gray-500 dark:text-slate-400">Reach for these before you mix</span>
+            </div>
+            {keptFormulas.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">
+                Nothing kept yet. Use <span className="font-medium">Keep on card</span> on any visit below to put its formula here, where it survives whatever happens to the booking.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {keptFormulas.map((f) => (
+                  <li key={f.id} className="border rounded-lg p-3 dark:border-slate-700">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{f.label || 'Formula'}</p>
+                        {f.lastUsedAt && <p className="text-xs text-gray-500 dark:text-slate-400">Last used {fmtDate(f.lastUsedAt)}</p>}
+                      </div>
+                      {mayForget && <button
+                        onClick={() => forget(f.id)}
+                        disabled={busyFormula === f.id}
+                        className="text-sm text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-300 disabled:opacity-50"
+                      >Remove</button>}
+                    </div>
+                    {formulaSteps(f.formula).length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {formulaSteps(f.formula).map((line, i) => (
+                          <span key={i} className="text-xs bg-purple-50 text-purple-800 px-2 py-0.5 rounded-full dark:bg-purple-900/40 dark:text-purple-200">
+                            {[line.product, line.shade].filter(Boolean).join(' ')}{line.parts ? ` (${line.parts})` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {(f.developerVolume || f.processingMin) && (
+                      <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-slate-400">
+                        {f.developerVolume ? <span>Developer {f.developerVolume}</span> : null}
+                        {f.processingMin ? <span>{f.processingMin} min</span> : null}
+                      </div>
+                    )}
+                    {f.note && <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap dark:text-slate-300">{f.note}</p>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {mayRecord && <div className="flex justify-end">
+            <button onClick={() => { setEditRecord(null); setShowRecord(true); }} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
+              <Plus className="w-4 h-4" /> New Service Record
+            </button>
+          </div>}
+          {records.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No services recorded yet</div>
+          ) : (
+            <div className="space-y-3">
+              {records.map((r) => (
+                <div key={r.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-slate-100">
+                        {fmtDate(r.performedAt)}{r.serviceName ? ` — ${r.serviceName}` : ''}
+                      </p>
+                      {stylistName(r) && <p className="text-xs text-gray-500 dark:text-slate-400">with {stylistName(r)}</p>}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>
+                      {mayEditClient && (formulaSteps(r.formula).length > 0 || r.developerVolume || r.notes) && (
+                        <button
+                          onClick={() => keepOnCard(r)}
+                          disabled={busyFormula === r.id}
+                          className="text-sm text-purple-800 hover:text-purple-900 dark:text-purple-300 dark:hover:text-purple-200 disabled:opacity-50"
+                          title="Put this formula on the client's card, where it survives whatever happens to the booking"
+                        >{busyFormula === r.id ? 'Keeping…' : 'Keep on card'}</button>
+                      )}
+                      {mayEditRecord && <button onClick={() => { setEditRecord(r); setShowRecord(true); }} className="text-sm text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">Edit</button>}
+                    </div>
+                  </div>
+
+                  {formulaSteps(r.formula).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {formulaSteps(r.formula).map((line, i) => (
+                        // The dark partner was missing: purple-700 on a light chip over a dark card.
+                        <span key={i} className="text-xs bg-purple-50 text-purple-800 px-2 py-0.5 rounded-full dark:bg-purple-900/40 dark:text-purple-200">
+                          {[line.product, line.shade].filter(Boolean).join(' ')}{line.parts ? ` (${line.parts})` : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {(r.developerVolume || r.processingMin) && (
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-slate-400">
+                      {r.developerVolume ? <span>Developer {r.developerVolume}</span> : null}
+                      {r.processingMin ? <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {r.processingMin} min</span> : null}
+                    </div>
+                  )}
+                  {r.productsUsed && <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">{r.productsUsed}</p>}
+                  {r.result && <p className="mt-1 text-sm text-gray-600 dark:text-slate-400"><span className="font-medium text-gray-500 dark:text-slate-400">Result:</span> {r.result}</p>}
+                  {r.notes && <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{r.notes}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Appointments */}
+      {tab === 'appointments' && (
+        <div>
+          {appointments.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No appointments yet</div>
+          ) : (
+            <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">When</th>
+                    <th className="px-4 py-3 font-medium">Service</th>
+                    <th className="px-4 py-3 font-medium">Stylist</th>
+                    <th className="px-4 py-3 font-medium">Chair</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {appointments.map((a) => (
+                    <tr key={a.id}>
+                      <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{fmtDateTime(a.startTime)}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{a.serviceName || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{stylistName(a) || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{a.station || '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">
+                          {(a.status || 'scheduled').replace('_', ' ')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Memberships */}
+      {tab === 'memberships' && (
+        <div>
+          {memberships.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">
+              Not enrolled in a membership.{' '}
+              <Link to="/crm/memberships" className="text-teal-700 dark:text-teal-300">Browse plans</Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {memberships.map((m) => (
+                <div key={m.id} className="bg-white rounded-xl border p-4 flex items-center justify-between gap-3 flex-wrap dark:bg-slate-900">
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{m.planName || 'Membership'}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      Started {fmtDate(m.startDate)}{m.renewsAt ? ` · renews ${fmtDate(m.renewsAt)}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {m.creditsRemaining !== null && m.creditsRemaining !== undefined && (
+                      <span className="text-sm text-gray-600 dark:text-slate-400">{m.creditsRemaining} credit{m.creditsRemaining === 1 ? '' : 's'} left</span>
+                    )}
+                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${m.status === 'active' && m.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40' : m.status === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>
+                      {m.status === 'active' && m.creditsRemaining === 0 ? 'used up' : (m.status || 'active')}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showRecord && (
+        <ServiceRecordEditorModal
+          contactId={ct.id}
+          record={editRecord}
+          onSave={() => { setShowRecord(false); setEditRecord(null); load(); }}
+          onClose={() => { setShowRecord(false); setEditRecord(null); }}
+        />
+      )}
+      {showProfile && (
+        <ProfileModal
+          contactId={ct.id}
+          contact={ct}
+          profile={profile}
+          onSave={() => { setShowProfile(false); load(); }}
+          onClose={() => setShowProfile(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Profile Modal ---------------- */
+
+function ProfileModal({ contactId, contact, profile, onSave, onClose }: { contactId: string; contact: Contact; profile: Profile; onSave: () => void; onClose: () => void }) {
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+  const [stylists, setStylists] = useState<StaffMember[]>([]);
+  // The three fields most likely to change (name/phone/email) live on the contact, not the
+  // profile, and were only editable from Contacts. Surface them here too. (CC-22)
+  const [contactForm, setContactForm] = useState({
+    name: contact.name || '',
+    phone: contact.phone || '',
+    mobile: contact.mobile || '',
+    email: contact.email || '',
+  });
+  const setC = (k: string, v: string) => setContactForm((f) => ({ ...f, [k]: v }));
+  const [form, setForm] = useState({
+    preferredStylistId: profile.preferredStylistId || '',
+    hairType: profile.hairType || '',
+    scalpNotes: profile.scalpNotes || '',
+    allergies: profile.allergies || '',
+    patchTestAt: profile.patchTestAt || '',
+    preferences: profile.preferences || '',
+    pronouns: profile.pronouns || '',
+    birthday: profile.birthday || '',
+    notes: profile.notes || '',
+  });
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setStylists(await fetchStaff());
+      } catch { /* the rest of the form still works */ }
+    })();
+  }, []);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactForm.name.trim()) { toast.error('Name is required'); return; }
+    setSaving(true);
+    try {
+      // Contact fields go to the contact; profile fields to the profile. Send every profile
+      // field blank-included — the route maps '' to null.
+      await api.put(`/api/contacts/${contactId}`, contactForm);
+      await api.put(`/api/clients/${contactId}/profile`, form);
+      onSave();
+    } catch (err) {
+      toast.error((err as Error).message || 'Failed to save profile');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Client Profile</h2>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <form onSubmit={submit} className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
+                <input type="text" value={contactForm.name} onChange={(e) => setC('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Mobile</label>
+                <input type="tel" value={contactForm.mobile} onChange={(e) => setC('mobile', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Phone</label>
+                <input type="tel" value={contactForm.phone} onChange={(e) => setC('phone', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div className="col-span-2 md:col-span-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email</label>
+                <input type="email" value={contactForm.email} onChange={(e) => setC('email', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Hair Type</label>
+                <select value={form.hairType} onChange={(e) => set('hairType', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                  {HAIR_TYPES.map((h) => <option key={h} value={h}>{h || '—'}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Pronouns</label>
+                <input type="text" value={form.pronouns} onChange={(e) => set('pronouns', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Birthday</label>
+                <input type="date" value={form.birthday} onChange={(e) => set('birthday', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patch Test</label>
+                <input type="date" value={form.patchTestAt} onChange={(e) => set('patchTestAt', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Regular Stylist</label>
+              <select value={form.preferredStylistId} onChange={(e) => set('preferredStylistId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                <option value="">No preference</option>
+                {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Allergies / sensitivities</label>
+              <input type="text" value={form.allergies} onChange={(e) => set('allergies', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="PPD sensitivity, latex, fragrance..." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Scalp notes</label>
+              <input type="text" value={form.scalpNotes} onChange={(e) => set('scalpNotes', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Preferences</label>
+              <input type="text" value={form.preferences} onChange={(e) => set('preferences', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Drink order, quiet appointment, parking..." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
+              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

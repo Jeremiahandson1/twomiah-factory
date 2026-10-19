@@ -6,15 +6,22 @@ import { insertLead } from '@twomiah/tenant-backend'
 import { contact, lead } from '../db/schema/index.ts'
 import { escHtml, type EmailService, type Template } from './email.ts'
 import type { Logger } from './logger.ts'
+import { recordPipelineEnquiry } from '../crm/rv/enquiry.ts'
+import { partyEnquiry, joinRegulars, BAR_FORMS, type BarForm } from '../crm/bar/enquiry.ts'
 
 export interface Enquiry {
   name: string
+  /** '' when the form took a phone number instead (a vertical's own forms, CrmSettings.websiteForms). */
   email: string
   phone: string | null
   /** What they wrote, plus every other answer the form asked for (event date, headcount, ZIP…). */
   message: string
   /** The form or page it came from. */
   source: string | null
+  /** The form's own answers as sent, for a vertical's own forms (CrmSettings.websiteForms). */
+  form?: BarForm
+  /** The visitor's address, kept as consent evidence. */
+  ip?: string | null
 }
 
 /** The owner's copy of an enquiry. Replying answers the person who wrote. */
@@ -44,22 +51,38 @@ export function createEnquiries(deps: {
   email: EmailService
   logger: Logger
   isFeatureEnabled: (companyId: string, feature: string) => Promise<boolean>
+  /** CrmSettings.websiteEnquiries: 'pipeline' is a dealership's sales pipeline. Absent: the Lead Inbox, else a contact. */
+  to?: 'pipeline'
+  /** CrmSettings.websiteForms: the vertical's own forms, answered before the ordinary routing. */
+  forms?: 'bar'
 }) {
   const { db, email, logger, isFeatureEnabled } = deps
 
   /** Save the enquiry where the business works its leads. Returns which place it went. */
-  async function record(companyId: string, e: Enquiry): Promise<{ kind: 'lead' | 'contact'; id: string }> {
+  async function record(companyId: string, e: Enquiry): Promise<{ kind: 'lead' | 'contact' | 'salesLead' | 'event'; id: string }> {
+    // A bar's party request with a date is an enquiry in the party book; its Regulars sign-up joins the guest.
+    if (deps.forms === 'bar' && e.form && BAR_FORMS.has(String(e.form.formType))) {
+      if (e.form.formType === 'regulars') return { kind: 'contact', id: await joinRegulars(db, companyId, e.form, { ip: e.ip ?? null, page: e.source }) }
+      const made = await partyEnquiry(db, companyId, e.form, await isFeatureEnabled(companyId, 'event_bookings'))
+      if (made) return { kind: 'event', id: made.eventId }
+      // No real date (or Parties off): an ordinary lead, below.
+    }
+    // A dealership's leads are its pipeline, with or without the Lead Inbox (templates/crm-rv routes/webhooks.ts, T59).
+    if (deps.to === 'pipeline') {
+      const r = await recordPipelineEnquiry(db, companyId, e)
+      return { kind: 'salesLead', id: r.leadId }
+    }
     if (await isFeatureEnabled(companyId, 'lead_inbox')) {
       const row = await insertLead(db, lead, {
         companyId, sourceId: null, platform: 'website',
-        parsed: { name: e.name, email: e.email, phone: e.phone ?? undefined, description: e.message },
-        rawPayload: { ...e },
+        parsed: { name: e.name, email: e.email || undefined, phone: e.phone ?? undefined, description: e.message },
+        rawPayload: { name: e.name, email: e.email, phone: e.phone, message: e.message, source: e.source, ...(e.form ? { form: e.form } : {}) },
       })
       return { kind: 'lead', id: row.id }
     }
     // No inbox to see it in: a Contact of type 'lead', as the CRM has always done.
     const [row] = await db.insert(contact).values({
-      companyId, name: e.name, type: 'lead', email: e.email, phone: e.phone || undefined,
+      companyId, name: e.name, type: 'lead', email: e.email || undefined, phone: e.phone || undefined,
       source: e.source || 'website', notes: e.message || undefined,
     }).returning({ id: contact.id })
     return { kind: 'contact', id: row.id }
@@ -69,7 +92,8 @@ export function createEnquiries(deps: {
   async function notifyOwner(owner: { email: string | null; companyName: string }, e: Enquiry): Promise<void> {
     if (!owner.email) return
     try {
-      await email.send(owner.email, 'newEnquiry', { ...e, companyName: owner.companyName }, { replyTo: { address: e.email, name: e.name } })
+      // Replying answers the visitor when they gave an email; a phone-only form is answered by phone.
+      await email.send(owner.email, 'newEnquiry', { ...e, companyName: owner.companyName }, e.email ? { replyTo: { address: e.email, name: e.name } } : {})
     } catch (err: any) {
       logger.warn('Owner was not told about a website enquiry', { error: err?.message })
     }

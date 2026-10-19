@@ -28,6 +28,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^0.344.0",
     "nodemailer": "^6.9.12",
+    "pdfjs-dist": "4.10.38",
     "pdfkit": "^0.15.0",
     "pg": "^8.13.1",
     "react": "^18.3.1",
@@ -36,6 +37,7 @@
     "sharp": "^0.33.2",
     "stripe": "^20.3.0",
     "twilio": "^5.3.4",
+    "web-push": "^3.6.6",
     "winston": "^3.11.0",
     "zod": "^3.22.4"
   },
@@ -50,6 +52,7 @@
     "@types/pg": "^8.11.10",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.17",
     "drizzle-kit": "^0.28.1",

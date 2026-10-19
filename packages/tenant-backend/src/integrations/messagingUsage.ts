@@ -23,6 +23,23 @@ export function reportSmsUsage(segments: number, twilioSid?: string): void {
   }).catch(() => {})
 }
 
+/**
+ * Best-effort AI token-usage report to the factory, which debits the same at-cost wallet. NEVER throws / NEVER
+ * blocks. Every CRM copy but the base one carried this as services/aiUsage.ts (templates/crm-basic et al.).
+ */
+export function reportAiUsage(inputTokens: number, outputTokens: number, model?: string): void {
+  const { url, key, tenantId } = cfg()
+  const inTok = Math.max(0, Math.round(Number(inputTokens) || 0))
+  const outTok = Math.max(0, Math.round(Number(outputTokens) || 0))
+  if (!url || !key || !tenantId || (inTok === 0 && outTok === 0)) return
+  fetch(`${url}/api/v1/factory/internal/ai/usage/${tenantId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Factory-Key': key },
+    body: JSON.stringify({ inputTokens: inTok, outputTokens: outTok, model }),
+    signal: AbortSignal.timeout(5000),
+  }).catch(() => {})
+}
+
 async function fetchBalance(): Promise<number | null> {
   const { url, key, tenantId } = cfg()
   if (!url || !key || !tenantId) return null

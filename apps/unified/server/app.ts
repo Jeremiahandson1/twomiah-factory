@@ -10,6 +10,7 @@ import {
 import * as schema from './db/schema/index.ts'
 import { company, user } from './db/schema/index.ts'
 import logger from './core/logger.ts'
+import { APP_VERSION } from './core/version.ts'
 import { createAudit, requestScope } from './core/audit.ts'
 import { createEmailService } from './core/email.ts'
 import { createEnquiries, enquiryTemplates } from './core/enquiry.ts'
@@ -64,10 +65,11 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     db, tables: { user },
     roleLabels: vertical.roleLabels,
     extraRolePermissions: vertical.extraRolePermissions,
+    roleMapping: vertical.roleMapping,
   })
   const features = createEnabledFeatureGate({ db, tables: { company } })
   email.register(enquiryTemplates)
-  const enquiries = createEnquiries({ db, email, logger, isFeatureEnabled: features.isFeatureEnabled })
+  const enquiries = createEnquiries({ db, email, logger, isFeatureEnabled: features.isFeatureEnabled, to: vertical.crm?.websiteEnquiries, forms: vertical.crm?.websiteForms })
   const enquiryHandler = createEnquiryHandler({ db, vertical, enquiries })
   const realtime = createRealtime()
   const adsConnector = createCrmAdsConnector()
@@ -104,7 +106,12 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 150))
   app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
 
-  app.get('/health', (c) => one(c, { status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
+  // `commit` is the tenant repo's commit this instance runs (Render sets it): Update Code waits for the commit it
+  // pushed, because Render reports a deploy live while the old instance still answers. `version` is the unified app's.
+  app.get('/health', (c) => one(c, {
+    status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime(),
+    commit: process.env.RENDER_GIT_COMMIT || null, version: APP_VERSION,
+  }))
 
   const mounts: Mount[] = [
     // Sign-in, refresh and password reset are public; the routes that need a session apply it themselves.
@@ -153,7 +160,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   mountAll(app, mounts, {
     authenticate,
     requireEnabledFeature: deps.testing?.featureGates === false ? () => (async (_c, next) => { await next() }) as MiddlewareHandler : features.requireEnabledFeature,
-    isFeatureEnabled: features.isFeatureEnabled,
+    // The public mounts' gate (a feature off answers 404) follows the same testing seam as the signed-in one.
+    isFeatureEnabled: deps.testing?.featureGates === false ? async () => true : features.isFeatureEnabled,
     companyId,
   })
 

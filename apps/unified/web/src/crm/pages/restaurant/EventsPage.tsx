@@ -1,0 +1,419 @@
+// Moved from templates/crm-restaurant/frontend/src/pages/events/EventsPage.tsx (templates/crm-bar has the same).
+import { useState, useEffect, useCallback, type FormEvent } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Plus, Search, Loader2, X, CalendarDays, Users, DoorOpen, LayoutGrid, List } from 'lucide-react'
+import { api } from '../../../api'
+import { useMayWrite, useConfirm } from '../../../shared'
+import ClientPicker from './ClientPicker'
+import { fetchStaff, staffName, confirmEventRisks, type StaffMember } from './eventHelpers'
+import FormError, { errorText } from '../../ui/FormError'
+
+/**
+ * Events — the pipeline and the book, over the same list.
+ *
+ * "Pipeline" groups by status so a coordinator can see what needs chasing;
+ * "List" is date-ordered for the operational view. Both read GET /api/events,
+ * so the two views can never disagree about what is booked.
+ */
+
+export const STATUSES = ['enquiry', 'tentative', 'confirmed', 'completed', 'lost', 'cancelled'] as const;
+export type EventStatus = typeof STATUSES[number];
+
+export const STATUS_COLORS: Record<string, string> = {
+  enquiry: 'bg-amber-100 text-amber-700 dark:text-amber-300 dark:bg-amber-950/40',
+  tentative: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
+  confirmed: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
+  completed: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  lost: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+  cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
+};
+
+export const EVENT_TYPES = ['private_dining', 'wedding', 'corporate', 'birthday', 'anniversary', 'funeral', 'christmas_party', 'other'];
+
+export interface EventRow {
+  id: string;
+  name?: string;
+  eventType?: string;
+  status?: string;
+  eventDate?: string;
+  startTime?: string;
+  endTime?: string;
+  guestCount?: number;
+  guestCountFinal?: number;
+  quotedTotal?: number | string;
+  contactId?: string;
+  clientName?: string;
+  clientPhone?: string;
+  spaceName?: string;
+  coordinatorFirstName?: string;
+  coordinatorLastName?: string;
+}
+
+export function fmtEventDate(s?: string): string {
+  if (!s) return '—';
+  // eventDate is a plain YYYY-MM-DD; parsing it as a Date would shift it a day
+  // in negative-offset timezones, so format the parts directly.
+  const [y, m, d] = s.split('-').map(Number);
+  if (!y || !m || !d) return s;
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// The viewer's calendar day as YYYY-MM-DD. toISOString() is UTC, which in US
+// evenings is already tomorrow — a 9:30pm payment read "Paid" the next day and a
+// payment due today showed overdue.
+export function localDay(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function money(v: number | string | undefined | null): string {
+  if (v === null || v === undefined || v === '') return '—';
+  return `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function prettyType(t?: string): string {
+  return (t || '').replace(/_/g, ' ');
+}
+
+type View = 'pipeline' | 'list';
+
+export default function EventsPage() {
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string>('');
+  const [search, setSearch] = useState<string>('');
+  const [view, setView] = useState<View>('pipeline');
+  const [showForm, setShowForm] = useState<boolean>(false);
+  // POST /api/events asks contacts:create; the coordinator does not hold it and was offered New Enquiry. (T62)
+  const mayCreate = useMayWrite('contacts:create');
+  // "Create Event" from a contact lands here with ?contactId= — open the form
+  // pre-selected on that contact (H-02: you can now create an event from a contact).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const contactIdParam = searchParams.get('contactId') || '';
+  useEffect(() => {
+    if (contactIdParam && mayCreate) setShowForm(true);
+  }, [contactIdParam]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      // A list reply ({ data, pagination }).
+      const res = (await api.get('/api/events', { search })) as { data?: EventRow[] };
+      setEvents(res.data || []);
+      setLoadError('');
+    } catch (error) {
+      setLoadError(errorText(error, 'Could not load the events.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
+
+  useEffect(() => {
+    const t = setTimeout(load, 250);
+    return () => clearTimeout(t);
+  }, [load]);
+
+  const open = events.filter((e) => e.status !== 'lost' && e.status !== 'cancelled');
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Events</h1>
+          <p className="text-gray-500 dark:text-slate-400">Every enquiry, booking and party in one place</p>
+        </div>
+        {mayCreate && <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+          <Plus className="w-4 h-4" /> New Enquiry
+        </button>}
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[240px] max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by event or client name..."
+            className="w-full pl-10 pr-4 py-2 border rounded-lg"
+          />
+        </div>
+        <div className="flex border rounded-lg overflow-hidden">
+          <button
+            onClick={() => setView('pipeline')}
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'pipeline' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300 dark:bg-slate-800'} dark:bg-slate-900 dark:text-slate-300`}
+          >
+            <LayoutGrid className="w-4 h-4" /> Pipeline
+          </button>
+          <button
+            onClick={() => setView('list')}
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'list' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50 dark:hover:bg-slate-800 dark:text-slate-300 dark:bg-slate-800'} dark:bg-slate-900 dark:text-slate-300`}
+          >
+            <List className="w-4 h-4" /> List
+          </button>
+        </div>
+        <span className="text-sm text-gray-500 dark:text-slate-400">{open.length} open · {events.length} total</span>
+      </div>
+
+      <FormError message={loadError} onDismiss={() => setLoadError('')} />
+
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      ) : events.length === 0 ? (
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No events yet</div>
+      ) : view === 'pipeline' ? (
+        <PipelineView events={events} />
+      ) : (
+        <ListView events={events} />
+      )}
+
+      {showForm && (
+        <NewEventModal initialContactId={contactIdParam} onSave={() => { setShowForm(false); if (contactIdParam) setSearchParams({}); load(); }} onClose={() => { setShowForm(false); if (contactIdParam) setSearchParams({}); }} />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Pipeline ---------------- */
+
+function PipelineView({ events }: { events: EventRow[] }) {
+  // Lost and cancelled are deliberately not columns — they'd take a third of
+  // the width to show work nobody is doing. The List view has them.
+  const columns: EventStatus[] = ['enquiry', 'tentative', 'confirmed', 'completed'];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      {columns.map((col) => {
+        const rows = events.filter((e) => (e.status || 'enquiry') === col);
+        return (
+          <div key={col} className="bg-gray-50 rounded-xl border p-3 min-w-0 dark:bg-slate-900">
+            <div className="flex items-center justify-between mb-3 px-1">
+              <h2 className="font-semibold text-gray-700 capitalize text-sm dark:text-slate-200">{col}</h2>
+              <span className="text-xs bg-white text-gray-500 px-2 py-0.5 rounded-full border dark:bg-slate-900 dark:text-slate-400">{rows.length}</span>
+            </div>
+            <div className="space-y-2">
+              {rows.length === 0 ? (
+                <p className="text-xs text-gray-500 dark:text-slate-400 text-center py-6">Nothing here</p>
+              ) : rows.map((e) => (
+                <Link key={e.id} to={`/crm/events/${e.id}`} className="block bg-white rounded-lg border p-3 hover:shadow-md transition dark:bg-slate-900">
+                  <p className="font-medium text-gray-900 text-sm break-words dark:text-slate-100">{e.name || 'Untitled'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 break-words dark:text-slate-400">{e.clientName || 'No client attached'}</p>
+                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 dark:text-slate-400 flex-wrap">
+                    <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {fmtEventDate(e.eventDate)}</span>
+                    {(e.guestCountFinal || e.guestCount) && (
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {e.guestCountFinal ?? e.guestCount}</span>
+                    )}
+                  </div>
+                  {e.spaceName && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1"><DoorOpen className="w-3 h-3" /> {e.spaceName}</p>}
+                  {/* quotedTotal is absent for a seat without invoices:read (T62) */}
+                  {e.quotedTotal ? <p className="text-sm font-semibold text-gray-700 mt-2 dark:text-slate-200">{money(e.quotedTotal)}</p> : null}
+                </Link>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---------------- List ---------------- */
+
+function ListView({ events }: { events: EventRow[] }) {
+  // The server leaves quotedTotal OFF the row for a seat without invoices:read (T62); the key's absence is the
+  // signal, so the column goes rather than printing $0.00 on every event.
+  const showValue = events.length === 0 || events.some((e) => 'quotedTotal' in e);
+  return (
+    <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
+          <tr>
+            <th className="px-4 py-3 font-medium">Date</th>
+            <th className="px-4 py-3 font-medium">Event</th>
+            <th className="px-4 py-3 font-medium">Client</th>
+            <th className="px-4 py-3 font-medium">Space</th>
+            <th className="px-4 py-3 font-medium">Guests</th>
+            {showValue && <th className="px-4 py-3 font-medium">Value</th>}
+            <th className="px-4 py-3 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {events.map((e) => (
+            <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
+              <td className="px-4 py-3 text-gray-600 whitespace-nowrap dark:text-slate-400">
+                {fmtEventDate(e.eventDate)}
+                {e.startTime && <span className="block text-xs text-gray-500 dark:text-slate-400">{e.startTime}{e.endTime ? `–${e.endTime}` : ''}</span>}
+              </td>
+              <td className="px-4 py-3 max-w-xs break-words">
+                <Link to={`/crm/events/${e.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:hover:text-orange-200 dark:text-slate-100">{e.name || 'Untitled'}</Link>
+                <span className="block text-xs text-gray-500 dark:text-slate-400 capitalize">{prettyType(e.eventType)}</span>
+              </td>
+              <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.clientName || '—'}</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.spaceName || '—'}</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.guestCountFinal ?? e.guestCount ?? '—'}</td>
+              {showValue && <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{money(e.quotedTotal)}</td>}
+              <td className="px-4 py-3">
+                <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${STATUS_COLORS[e.status || ''] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
+                  {e.status || 'enquiry'}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ---------------- New Event Modal ---------------- */
+
+interface SpaceOption { id: string; name?: string; seatedCapacity?: number; standingCapacity?: number }
+
+function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => void; onClose: () => void; initialContactId?: string }) {
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string>('');
+  const [spaces, setSpaces] = useState<SpaceOption[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [contactId, setContactId] = useState<string>(initialContactId || '');
+  const [form, setForm] = useState({
+    name: '', eventType: 'private_dining', eventDate: '', startTime: '', endTime: '',
+    guestCount: '', spaceId: '', coordinatorId: '', source: '', notes: '',
+  });
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [spaceRes, people] = await Promise.all([
+          api.get('/api/event-spaces'),
+          fetchStaff(),
+        ]);
+        setSpaces((spaceRes as { data?: SpaceOption[] }).data || []);
+        setStaff(people);
+      } catch {
+        /* degrade gracefully — an enquiry can be logged without either */
+      }
+    })();
+  }, []);
+
+  const ask = useConfirm();
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) { setErr('Give the enquiry a name — "Harper / Diaz wedding" is enough to find it again.'); return; }
+    if (!form.eventDate) { setErr('Pick the event date. It is what puts the enquiry in the book.'); return; }
+    if (!(await confirmEventRisks(ask, form, spaces))) return; // past date / over capacity: warn, allow (T16 L1 / L2)
+    setErr('');
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name: form.name.trim(),
+        eventType: form.eventType,
+        eventDate: form.eventDate,
+        status: 'enquiry',
+      };
+      if (contactId) payload.contactId = contactId;
+      if (form.startTime) payload.startTime = form.startTime;
+      if (form.endTime) payload.endTime = form.endTime;
+      if (form.guestCount !== '') payload.guestCount = Number(form.guestCount);
+      if (form.spaceId) payload.spaceId = form.spaceId;
+      if (form.coordinatorId) payload.coordinatorId = form.coordinatorId;
+      if (form.source) payload.source = form.source;
+      if (form.notes) payload.notes = form.notes;
+      await api.post('/api/events', payload);
+      onSave();
+    } catch (e2) {
+      setErr(errorText(e2, 'Could not create the enquiry.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">New Enquiry</h2>
+            <button aria-label="Close" onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <form onSubmit={submit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-500 dark:text-red-400">*</span></label>
+              <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Harper / Diaz wedding" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client</label>
+              <ClientPicker value={contactId} onChange={(id) => setContactId(id)} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
+                <select value={form.eventType} onChange={(e) => set('eventType', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
+                  {EVENT_TYPES.map((t) => <option key={t} value={t}>{prettyType(t)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Guests</label>
+                <input type="number" value={form.guestCount} onChange={(e) => set('guestCount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date <span className="text-red-500 dark:text-red-400">*</span></label>
+                <input type="date" value={form.eventDate} onChange={(e) => set('eventDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">From</label>
+                <input type="time" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">To</label>
+                <input type="time" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Space</label>
+                <select value={form.spaceId} onChange={(e) => set('spaceId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                  <option value="">Not decided yet</option>
+                  {spaces.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}{s.seatedCapacity ? ` (${s.seatedCapacity} seated)` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Coordinator</label>
+                <select value={form.coordinatorId} onChange={(e) => set('coordinatorId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                  <option value="">Unassigned</option>
+                  {staff.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-slate-400 -mt-2">
+              An enquiry doesn't hold the room — the space is only blocked once you move it to Tentative.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">How did they find you?</label>
+              <input type="text" value={form.source} onChange={(e) => set('source', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Website, walk-in, referral..." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
+              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+            </div>
+            <FormError message={err} />
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Create'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

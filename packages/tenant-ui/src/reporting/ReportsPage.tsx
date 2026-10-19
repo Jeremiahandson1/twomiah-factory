@@ -21,7 +21,8 @@ interface CustomerRow { contact?: { name?: string; company?: string | null }; in
 // whichever it actually measures, and the panel shows what it was given. (Salon T28 M6)
 interface TeamRow { user?: { firstName?: string; lastName?: string }; jobsCompleted?: number; hoursWorked?: number; servicesCompleted?: number; revenue?: number }
 interface DealerReport {
-  sales: { unitsSold: number; lost: number; closeRate: number; frontEndGross: number; unitsWithCost: number; averageGross: number; soldByCategory: Record<string, number> }
+  // The gross figures are margin:read's (sale price less what the store paid): absent for anyone else, never zero.
+  sales: { unitsSold: number; lost: number; closeRate: number; frontEndGross?: number; unitsWithCost?: number; averageGross?: number; soldByCategory: Record<string, number> }
   pipeline: Record<string, number>
   service: { closedRepairOrders: number; closedValue: number; openRepairOrders: number; openEstimatedValue: number }
 }
@@ -119,7 +120,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
                 </>
               ) : cfg.dealership ? (
                 <>
-                  <Metric title="Units sold" value={sales?.unitsSold ?? 0} subtitle={`${money(sales?.frontEndGross ?? 0)} front-end gross${sales && sales.unitsWithCost < sales.unitsSold ? ` (${sales.unitsWithCost} with cost on file)` : ''}`} icon={Briefcase} color="blue" trend={sales?.closeRate ?? 0} trendLabel={`close rate · ${sales?.lost ?? 0} lost`} />
+                  <Metric title="Units sold" value={sales?.unitsSold ?? 0} subtitle={sales?.frontEndGross === undefined ? (sales ? `${sales.unitsSold} sold this period` : '') : `${money(sales.frontEndGross)} front-end gross${sales.unitsWithCost !== undefined && sales.unitsWithCost < sales.unitsSold ? ` (${sales.unitsWithCost} with cost on file)` : ''}`} icon={Briefcase} color="blue" trend={sales?.closeRate ?? 0} trendLabel={`close rate · ${sales?.lost ?? 0} lost`} />
                   <Metric title="Service ROs closed" value={service?.closedRepairOrders ?? 0} subtitle={`${money(service?.closedValue ?? 0)} · ${service?.openRepairOrders ?? 0} open now`} icon={FileText} color="purple" />
                   {cfg.quotes && <Metric title="Quote conversion" value={`${quotes.conversionRate}%`} subtitle={quoteSubtitle} icon={FileText} color="purple" />}
                 </>

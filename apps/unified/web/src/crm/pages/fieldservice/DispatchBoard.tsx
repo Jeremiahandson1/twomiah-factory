@@ -10,6 +10,11 @@ import { api } from '../../../api'
 // The day on the wall behind the dispatcher, not the day in UTC. (Evergreen BUG-28)
 import { todayKey, dayKeyPlus, useKnownPermission, useMayWrite } from '../../../shared'
 import { useToast } from '../../../shared'
+import { verticalScreens } from '../../vertical'
+
+// What this vertical calls a job (VerticalSettings.screens.jobs.labels): 'Service Call' in field service, 'Job' in
+// landscaping (its copy of this board said "Job started", "Unnamed job" — T41).
+const JOB_WORD: string = verticalScreens().jobs.labels?.singular || 'Service Call'
 
 // The job's priorities are the server's (tenant-backend jobs.ts JOB_PRIORITIES): low, normal, high, urgent. The
 // template keyed the red card on 'emergency', which the server never stores — an urgent call got no colour at all.
@@ -168,7 +173,7 @@ export default function DispatchBoard() {
   const handleStatusChange = async (jobId: string, status: 'in_progress' | 'completed') => {
     try {
       await api.put(`/api/jobs/${jobId}`, { status });
-      toast.success(`Service call ${status === 'in_progress' ? 'started' : 'completed'}`);
+      toast.success(`${JOB_WORD} ${status === 'in_progress' ? 'started' : 'completed'}`);
       loadData();
     } catch (error) {
       toast.error(error instanceof Error && error.message ? error.message : 'Failed to update job status');
@@ -426,7 +431,7 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }: {
 
       {/* Customer */}
       <p className="font-semibold text-gray-900 dark:text-white truncate">
-        {job.contact?.name || job.title || 'Unnamed Service Call'}
+        {job.contact?.name || job.title || `Unnamed ${JOB_WORD}`}
       </p>
 
       {/* Address */}

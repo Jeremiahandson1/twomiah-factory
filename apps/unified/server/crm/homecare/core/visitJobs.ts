@@ -1,0 +1,52 @@
+// The visits area's two background scans — shift reminders and over-visit-length texts — every 5 minutes. Moved from
+// templates/crm-homecare/backend/src/jobs/visitJobs.ts, where index.ts started them at boot; here nothing starts at
+// import or in the factory: the home-care core's startJobs() calls start().
+//
+// Never double-runs: start() is a no-op after the first call, a scan still running when its next tick arrives is
+// skipped, and every send is claimed through a unique-key insert first (shift_reminder_log, overtime_alert_log), so even
+// two instances of the service cannot send twice. Off under NODE_ENV=test and when VISIT_JOBS_DISABLED=1.
+import type { CrmDeps } from '../../deps.ts'
+
+const FIVE_MIN = 5 * 60 * 1000
+
+export function createVisitJobs(d: CrmDeps, deps: {
+  reminders: { scanShiftReminders: () => Promise<number> }
+  overtime: { scanOvertimeAlerts: () => Promise<number> }
+}) {
+  let started = false
+  const timers: ReturnType<typeof setTimeout>[] = []
+
+  function every(name: string, firstDelayMs: number, fn: () => Promise<number>) {
+    let running = false
+    const tick = async () => {
+      if (running) return
+      running = true
+      try {
+        const n = await fn()
+        if (n) d.logger.info(`[${name}] ${n} sent`)
+      } catch (e: any) {
+        d.logger.error(`[${name}] scan failed`, { error: e?.message })
+      } finally {
+        running = false
+      }
+    }
+    timers.push(setTimeout(tick, firstDelayMs))
+    timers.push(setInterval(tick, FIVE_MIN))
+  }
+
+  function start() {
+    if (started) return
+    if (process.env.NODE_ENV === 'test' || process.env.VISIT_JOBS_DISABLED === '1') return
+    started = true
+    every('shift-reminders', 60_000, () => deps.reminders.scanShiftReminders())
+    every('overtime-alerts', 90_000, () => deps.overtime.scanOvertimeAlerts())
+    d.logger.info('[visit-jobs] shift reminders + overtime alerts every 5 min')
+  }
+
+  function stop() {
+    for (const t of timers.splice(0)) { clearTimeout(t); clearInterval(t) }
+    started = false
+  }
+
+  return { start, stop }
+}

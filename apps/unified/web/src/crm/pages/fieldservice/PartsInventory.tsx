@@ -9,12 +9,15 @@ import type { FormEvent } from 'react'
 import { api } from '../../../api'
 import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
+import { verticalScreens } from '../../vertical'
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
-const CATEGORIES = [
+// Field service's van stock. A vertical names its own (VerticalSettings.screens.parts.categories): landscaping's is a
+// grounds crew's, not Compressors and Refrigerant (templates/crm-landscaping, T63).
+const CATEGORIES: string[] = verticalScreens().parts.categories ?? [
   'Filters',
   'Compressors',
   'Thermostats',
@@ -58,6 +61,9 @@ export default function PartsInventory() {
   const mayEdit = useMayWrite('inventory:update');
   // Remove is DELETE /api/inventory/items/:id — inventory:delete (tenant-backend inventory.ts).
   const mayDelete = useMayWrite('inventory:delete');
+  // Any category already stored on a part is still offered, so a part filed under an older name never becomes
+  // unfilterable (templates/crm-landscaping's copy had this; every vertical now).
+  const categories = [...new Set([...CATEGORIES, ...parts.map((p) => p.category).filter((c): c is string => !!c)])];
   const confirm = useConfirm();
   // What the company paid for a part is margin:read — the server strips unitCost for a seat without it (the
   // inventory module's canSee), so the tile summed to $0.00 and the column printed $0.00 per part. Left out instead,
@@ -122,7 +128,7 @@ export default function PartsInventory() {
       {/* Stats */}
       <div className={`grid grid-cols-2 ${maySeeCost ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
         <StatCard icon={Package} label="Total Parts" value={parts.length} />
-        <StatCard icon={Warehouse} label="Categories" value={CATEGORIES.length} />
+        <StatCard icon={Warehouse} label="Categories" value={categories.length} />
         <StatCard icon={AlertTriangle} label="Low Stock" value={lowStockCount} color="red" />
         {maySeeCost && <StatCard
           icon={DollarSign}
@@ -150,7 +156,7 @@ export default function PartsInventory() {
           className="max-w-full min-w-0 px-4 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
         >
           <option value="">All Categories</option>
-          {CATEGORIES.map(cat => (
+          {categories.map(cat => (
             <option key={cat} value={cat}>{cat}</option>
           ))}
         </select>
@@ -392,6 +398,8 @@ function PartFormModal({ part, onSave, onClose }: {
                   {CATEGORIES.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
+                  {/* a part filed under an older category keeps it on edit rather than losing it to "Select…" */}
+                  {part?.category && !CATEGORIES.includes(part.category) && <option value={part.category}>{part.category}</option>}
                 </select>
               </div>
               <div>

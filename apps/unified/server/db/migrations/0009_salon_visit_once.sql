@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "invoice_appointment_unique" ON "invoice" USING btree ("company_id","appointment_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "loyalty_tx_earn_per_appointment" ON "loyalty_transactions" USING btree ("member_id","type","appointment_id");

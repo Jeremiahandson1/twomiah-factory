@@ -12,8 +12,8 @@ export interface Change { status: 'A' | 'M' | 'D' | 'R' | string; path: string; 
 export interface FenceViolation { path: string; detail: string }
 
 /**
- * Where new files may go. apps/api/src/unified/ is the Factory's side of the unified app (pooled databases, its service
- * per tenant, Update Code), added beside the Factory and wired in at cutover (owner's yes, 2026-10-18). No existing
+ * Where new files may go. apps/api/src/unified/ is the Factory's side of the unified app (each tenant's database server
+ * and service, Update Code), added beside the Factory and wired in at cutover (owner's yes, 2026-10-18). No existing
  * Factory file may change (MODIFY_ALLOWED has none), so nothing live can import it before then.
  */
 const ADD_ALLOWED = [/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]

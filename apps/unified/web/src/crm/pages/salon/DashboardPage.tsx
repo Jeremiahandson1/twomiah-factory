@@ -1,0 +1,315 @@
+// Moved from templates/crm-salon/frontend/src/pages/salon/DashboardPage.tsx.
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  Loader2, Users, CalendarDays, Scissors, BellRing,
+  CreditCard, DollarSign, ArrowRight, Armchair,
+} from 'lucide-react';
+import { api } from '../../../api'
+import { stylistNameOf as stylistName } from './staff';
+
+/**
+ * Twomiah Salon — dashboard.
+ * KPI cards over /api/dashboard/stats + recent activity. Every field is
+ * null/zero-guarded because a brand-new salon comes back all zeros.
+ */
+
+interface StylistRow { stylistId?: string; name?: string; visits?: number; revenue?: number }
+
+interface Stats {
+  contacts?: number;
+  clients?: { total?: number };
+  appointments?: { today?: number; upcoming7?: number; byStatus?: Record<string, number> };
+  services?: { thisMonth?: number; revenueThisMonth?: number };
+  byStylist?: StylistRow[];
+  reminders?: { overdue?: number; dueSoon?: number };
+  memberships?: { activeEnrollments?: number };
+}
+
+interface RecentClient {
+  id: string;
+  name?: string;
+  phone?: string;
+  email?: string;
+}
+interface RecentService {
+  id: string;
+  performedAt?: string;
+  priceCharged?: number | string;
+  serviceName?: string;
+  clientName?: string;
+  stylistFirstName?: string;
+  stylistMemberName?: string;
+  stylistLastName?: string;
+}
+interface UpcomingAppt {
+  id: string;
+  startTime?: string;
+  status?: string;
+  station?: string;
+  serviceName?: string;
+  clientName?: string;
+  stylistFirstName?: string;
+  stylistMemberName?: string;
+  stylistLastName?: string;
+}
+interface Activity {
+  recentClients?: RecentClient[];
+  recentServices?: RecentService[];
+  upcomingAppointments?: UpcomingAppt[];
+}
+
+function money(v: number | string | undefined | null): string {
+  const n = Number(v || 0);
+  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtDateTime(s?: string): string {
+  if (!s) return '—';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function fmtDate(s?: string): string {
+  if (!s) return '—';
+  // Date-only values ("2026-09-11", or midnight UTC) are calendar dates — parse at local midnight or
+  // every viewer west of UTC sees the previous day. (SALON-H9)
+  const str = String(s);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
+  const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)
+
+export default function DashboardPage() {
+  const [stats, setStats] = useState<Stats>({});
+  const [activity, setActivity] = useState<Activity>({});
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [s, a] = await Promise.all([
+          api.get('/api/dashboard/stats'),
+          api.get('/api/dashboard/recent-activity'),
+        ]);
+        setStats(s || {});
+        setActivity(a || {});
+      } catch (error) {
+        console.error('Failed to load dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  const clients = stats.clients || {};
+  const appts = stats.appointments || {};
+  const services = stats.services || {};
+  const reminders = stats.reminders || {};
+  const memberships = stats.memberships || {};
+  const byStylist = stats.byStylist || [];
+  const overdue = reminders.overdue || 0;
+  const dueSoon = reminders.dueSoon || 0;
+  const reminderTotal = overdue + dueSoon;
+  // A role without invoices:read is sent no money at all, so the page shows what it was given rather
+  // than printing "$0" — which reads as "the salon took nothing" instead of "this is not yours to see".
+  // (Salon T28 M4)
+  const showsMoney = byStylist.some((s) => s.revenue !== undefined) || services.revenueThisMonth !== undefined;
+  const topRevenue = Math.max(1, ...byStylist.map((s) => Number((showsMoney ? s.revenue : s.visits) || 0)));
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Dashboard</h1>
+        <p className="text-gray-500 dark:text-slate-400">Salon overview</p>
+      </div>
+
+      {/* Headline rebooking card */}
+      <Link
+        to="/crm/reminders"
+        /* The alert kept its light-pink background in dark mode while the headline switched to the
+           dark-mode near-white, so "2 overdue" rendered at 1.00:1 and was simply missing — the banner
+           read "· 0 due soon" and nothing else. The surface has to follow the theme the text follows. (T20 H2) */
+        className={`block rounded-xl border p-5 transition hover:shadow-md ${
+          reminderTotal > 0
+            ? 'bg-red-50 border-red-200 dark:bg-red-950/40 dark:border-red-900'
+            : 'bg-white dark:bg-slate-900 dark:border-slate-700'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-lg ${reminderTotal > 0 ? 'bg-red-100 dark:bg-red-900/40' : 'bg-gray-100 dark:bg-slate-800'}`}>
+              <BellRing className={`w-6 h-6 ${reminderTotal > 0 ? 'text-red-600 dark:text-red-300' : 'text-gray-500 dark:text-slate-400'}`} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-600 dark:text-slate-400">Due to Rebook</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
+                {overdue} overdue
+                {/* gray-600, not gray-500: when the banner is alerting, these sit on the light-pink
+                    tint (rgb 254,242,242), where gray-500 measures 4.42:1 and misses AA. gray-600 is
+                    ~6.4:1 there and 7.0:1 on the white resting state, so one shade serves both. The
+                    dark partner is unchanged — dark mode was already clean. (Salon T26 N1 residual) */}
+                <span className="text-base font-medium text-gray-600 dark:text-slate-400"> · {dueSoon} due soon</span>
+              </p>
+              <p className="text-sm text-gray-600 dark:text-slate-400">Text them before they book somewhere else</p>
+            </div>
+          </div>
+          <ArrowRight className="w-5 h-5 text-gray-400" />
+        </div>
+      </Link>
+
+      {/* KPI grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <Link to="/crm/clients" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Clients</p>
+            <Users className="w-5 h-5 text-teal-500 dark:text-teal-300" />
+          </div>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{clients.total || 0}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">In your book</p>
+        </Link>
+
+        <Link to="/crm/appointments" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Appointments Today</p>
+            <CalendarDays className="w-5 h-5 text-indigo-500 dark:text-indigo-300" />
+          </div>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{appts.today || 0}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{appts.upcoming7 || 0} in the next 7 days</p>
+        </Link>
+
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Services This Month</p>
+            <Scissors className="w-5 h-5 text-purple-500 dark:text-purple-300" />
+          </div>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{services.thisMonth || 0}</p>
+          {services.revenueThisMonth !== undefined && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
+              <DollarSign className="w-3 h-3 text-green-700 dark:text-green-300" />
+              {money(services.revenueThisMonth)} in the chair
+            </p>
+          )}
+        </div>
+
+        <Link to="/crm/memberships" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Members</p>
+            <CreditCard className="w-5 h-5 text-rose-500 dark:text-rose-300" />
+          </div>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{memberships.activeEnrollments || 0}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">Active memberships</p>
+        </Link>
+      </div>
+
+      {/* Chair productivity */}
+      {byStylist.length > 0 && (
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
+            <Armchair className="w-4 h-4 text-teal-500 dark:text-teal-300" /> Chair Productivity
+            <span className="text-xs text-gray-500 dark:text-slate-400 font-normal">this month</span>
+          </h2>
+          <ul className="space-y-3">
+            {byStylist.map((s) => (
+              <li key={s.stylistId || s.name}>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-gray-900 dark:text-slate-100">{s.name || 'Unassigned'}</span>
+                  <span className="text-gray-600 dark:text-slate-400">
+                    {s.revenue !== undefined && <>{money(s.revenue)} <span className="text-gray-500 dark:text-slate-400">· </span></>}
+                    <span className="text-gray-500 dark:text-slate-400">{s.visits || 0} service{s.visits === 1 ? '' : 's'}</span>
+                  </span>
+                </div>
+                <div className="mt-1 h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
+                  <div className="h-full bg-teal-500" style={{ width: `${Math.round((Number((showsMoney ? s.revenue : s.visits) || 0) / topRevenue) * 100)}%` }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Recent activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
+            <Users className="w-4 h-4 text-teal-500 dark:text-teal-300" /> Recent Clients
+          </h2>
+          {(activity.recentClients || []).length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No clients yet</p>
+          ) : (
+            <ul className="divide-y">
+              {(activity.recentClients || []).map((c) => (
+                <li key={c.id} className="py-2">
+                  <Link to={`/crm/clients/${c.id}`} className="block hover:bg-gray-50 dark:hover:bg-slate-800 -mx-2 px-2 rounded">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{c.name || 'Unnamed'}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">{[c.phone, c.email].filter(Boolean).join(' · ') || '—'}</p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
+            <Scissors className="w-4 h-4 text-purple-500 dark:text-purple-300" /> Recent Services
+          </h2>
+          {(activity.recentServices || []).length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing logged yet</p>
+          ) : (
+            <ul className="divide-y">
+              {(activity.recentServices || []).map((s) => (
+                <li key={s.id} className="py-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{s.clientName || 'Client'}</p>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">{money(s.priceCharged)}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    {fmtDate(s.performedAt)}{s.serviceName ? ` · ${s.serviceName}` : ''}{stylistName(s) ? ` · ${stylistName(s)}` : ''}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
+            <CalendarDays className="w-4 h-4 text-indigo-500 dark:text-indigo-300" /> Upcoming Appointments
+          </h2>
+          {(activity.upcomingAppointments || []).length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing scheduled</p>
+          ) : (
+            <ul className="divide-y">
+              {(activity.upcomingAppointments || []).map((a) => (
+                <li key={a.id} className="py-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{a.clientName || 'Client'}</p>
+                    {a.serviceName && (
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{a.serviceName}</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    {fmtDateTime(a.startTime)}{stylistName(a) ? ` · ${stylistName(a)}` : ''}{a.station ? ` · ${a.station}` : ''}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

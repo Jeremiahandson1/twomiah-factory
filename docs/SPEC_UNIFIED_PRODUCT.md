@@ -38,16 +38,17 @@ copied templates kept growing instead. What changed, measured on
    structure of §4–§7. The behaviour suites and guards are pointed at
    it, so "done" is measured against the same 18,000+ checks, not
    re-tested from zero.
-2. **One database type, Postgres, with no $7 database for a site that
-   doesn't need one.** Each tenant keeps its own database (data
-   isolation, per-tenant migrations and backups, as §2 says), but
-   tenants share pooled Render Postgres instances: one instance holds
-   many databases (`CREATE DATABASE` per tenant; supported by Render
-   Postgres). A website-only tenant costs a fraction of an instance. The
+2. **One database type, Postgres, on a server of each tenant's own.**
+   Every tenant, website-only included, gets its own Render Postgres
+   server, so no tenant shares a machine, a connection limit or an
+   outage with another (owner, 2026-10-18: "server per customer, do it
+   the safe way, thats what our financial model is built on"; this
+   replaces the pooled instances first written here). Sizes are today's:
+   an app server on Starter (website and CRM now share it, where today
+   they have one each) and a Basic-256mb database. Load-tested at 326 MB
+   peak against Starter's 512 MB with 25 people working at once. The
    SQLite layer for premium sites is retired when sites move to the
-   unified app. Per-tenant restore uses the nightly per-database logical
-   backups (instance point-in-time recovery restores the whole
-   instance).
+   unified app.
 3. **Every vertical is a setting** (§8), including the four built
    separately. Their unique parts become feature layers (add-ons):
    homecare visits/EVV/care plans, dispensary compliance and register,
@@ -66,10 +67,10 @@ copied templates kept growing instead. What changed, measured on
 
 | Weeks | Step | Done when |
 |---|---|---|
-| 1 | Rulebook + build checks; unified skeleton (server, core schema, auth, feature gates) assembled from base CRM + shared packages | checks fail a planted violation of each rule; skeleton boots against a pooled test database |
+| 1 | Rulebook + build checks; unified skeleton (server, core schema, auth, feature gates) assembled from base CRM + shared packages | checks fail a planted violation of each rule; skeleton boots against a test database |
 | 2–3 | CMS + bookings layer from the premium site code; site vertical settings | every vertical's site renders from the one app and matches today's pages; website-only signup works |
 | 3–6 | CRM layer (base CRM) + the 8 near-copy verticals as settings/add-ons | each vertical's existing suite passes on the unified app |
-| 2–5 (alongside) | Factory: one service per tenant, pooled database provisioning, Update Code for all | a test signup builds, deploys and updates through the Factory |
+| 2–5 (alongside) | Factory: one service and one database server per tenant, Update Code for all | a test signup builds, deploys and updates through the Factory |
 | 6–10 | homecare, roof, store, dispensary as add-ons (in that order) | each suite passes on the unified app |
 | 10–11 | Rebuild Higgs and 547 through the Factory; move Amber Inn once, before opening; one real signup run per vertical | 0 blockers per vertical |
 
@@ -588,6 +589,9 @@ properly.
   tenant its own database on pooled instances, so a website-only tenant
   never pays for a whole instance. The four separately built CRMs become
   vertical add-ons. The Factory builds every tenant.
+- **2026-10-18 (later):** Pooled instances rejected by the owner: each
+  tenant gets its own Render Postgres server, at today's sizes (§0
+  decision 2).
 
 ---
 

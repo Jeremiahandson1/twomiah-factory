@@ -11,7 +11,7 @@ import {
 import type { NavItem, ShellConfig } from './shared'
 import { nav as basicNav } from './crm/verticals/basic'
 import { nav as landscapingNav } from './crm/verticals/landscaping'
-import { nav as barNav } from './crm/verticals/bar'
+import { nav as barNav, routeGates as barRouteGates, routePermissions as barRoutePermissions } from './crm/verticals/bar'
 import { nav as restaurantNav } from './crm/verticals/restaurant'
 import { nav as rvNav } from './crm/verticals/rv'
 import { nav as salonNav } from './crm/verticals/salon'
@@ -50,7 +50,9 @@ const NAV: NavItem[] = [
   { to: '/crm/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: ['ai_receptionist'], permission: 'ai-receptionist:read' },
   { to: '/crm/recurring', icon: Repeat, label: 'Recurring', features: ['recurring_jobs'], permission: 'invoices:read' },
   { to: '/crm/takeoffs', icon: Scissors, label: 'Takeoffs', features: ['takeoff_tools'], permission: 'takeoffs:read' },
-  { to: '/crm/tasks', icon: ListTodo, label: 'Tasks', features: ['projects'] },
+  // A construction business's with projects; a clinic's always (patient_records: templates/crm-vet's menu had Tasks
+  // ungated). The same union as /api/tasks.
+  { to: '/crm/tasks', icon: ListTodo, label: 'Tasks', features: ['projects', 'patient_records'] },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
   { to: '/crm/job-costing', icon: Calculator, label: 'Job Costing', features: ['job_costing'], permission: 'reports:read' },
@@ -120,7 +122,10 @@ export const SHELL: ShellConfig = {
   routeGates: {
     // No menu item: reachable by URL only, so the gate is here (/api/geofencing is gps_tracking on the server).
     '/crm/geofences': ['gps_tracking'],
+    // The bar register's other screens (grill, floor, close-out, count, clock), opened from it.
+    ...barRouteGates,
   },
+  routePermissions: { ...barRoutePermissions },
   routeRoles: {
     // The company, billing, email addresses and the feature switches are requireAdmin on the server.
     '/crm/settings': 'admin',
