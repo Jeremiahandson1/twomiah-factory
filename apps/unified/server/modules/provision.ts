@@ -8,7 +8,7 @@
 import { Hono } from 'hono'
 import { asc } from 'drizzle-orm'
 import { z } from 'zod'
-import { company, user, supportKnowledgeBase, pricebookCategory, website, page } from '../db/schema/index.ts'
+import { company, user, supportKnowledgeBase, pricebookCategory, website, page, canvassingScript } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
 import { BASE_STARTER, starterCategories } from '../core/starter.ts'
 import { SITE_DESIGNS } from '../core/vertical.ts'
@@ -95,6 +95,8 @@ export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings
         enabledFeatures: input.features,
         // instant_estimator switches the estimator on, as the seed did.
         estimatorEnabled: input.features.includes('instant_estimator'),
+        // The vertical's own starting values (roofing: free roof reports, the estimator's headline).
+        ...(starter.company ?? {}),
       }).returning({ id: company.id })
 
       const o = input.owner
@@ -110,6 +112,10 @@ export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings
       const categories = starterCategories(starter, input.industry)
       if (categories.length) {
         await tx.insert(pricebookCategory).values(categories.map((name, i) => ({ name, sortOrder: i, companyId: created.id })))
+      }
+      const scripts = starter.canvassingScripts ?? []
+      if (scripts.length) {
+        await tx.insert(canvassingScript).values(scripts.map((sc) => ({ ...sc, companyId: created.id })))
       }
 
       if (input.site) {

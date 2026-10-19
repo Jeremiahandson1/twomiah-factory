@@ -623,6 +623,190 @@ const src = (p: string) => { if (!MOVED[p]) throw new Error('r4-care: no unified
     "both unified screens with a Record Payment form (billing/BillingDashboard.tsx and billing/BillingEngine.tsx) are looked at"],
 ] as [string, string, string][]))
 
+// ── Roofing (docs/UNIFIED_ROOF_PLAN.md) ──────────────────────────────────────────────────────────────────────────────
+// Roofing's tests seed rows in its own table shapes, which the plan replaced with the CRM's: a contact has one `name`
+// (decision 3), a job's job_number / property_address / estimated_revenue are number / address / estimated_value and its
+// title is the address (decision 2), quotes and invoices are the CRM's (numbers in `number`, lines in their own tables,
+// a quote has a name and an expiry_date, an invoice's balance follows from total and paid — decision 4). The reads are the
+// rulebook's list replies. Nothing a test asserts about behaviour is changed.
+const RF_CONTACT = 'a contact has one name (plan decision 3)'
+const RF_JOB = "a roofing job is the CRM's job: job_number → number, property_address → address, and the address is its title (plan decision 2)"
+const RF_LIST = 'a list reply is { data, pagination } (RULEBOOK §3)'
+ADAPT['roof/t39-insurance-claims.test.ts'] = [
+  ["firstName: 'Dana', lastName: 'Okafor', email: 'dana@test.local'", "name: 'Dana Okafor', email: 'dana@test.local'", RF_CONTACT],
+  ["jobNumber: 'JOB-5001', jobType: 'insurance',\n  status: 'lead', propertyAddress: '144 Shingle Ln',", "number: 'JOB-5001', jobType: 'insurance',\n  status: 'lead', address: '144 Shingle Ln', title: '144 Shingle Ln',", RF_JOB],
+  ["jobNumber: 'JOB-5002', jobType: 'retail',\n  status: 'lead', propertyAddress: '12 Cash Rd',", "number: 'JOB-5002', jobType: 'retail',\n  status: 'lead', address: '12 Cash Rd', title: '12 Cash Rd',", RF_JOB],
+]
+ADAPT['roof/t41-claims-and-scope.test.ts'] = [
+  ["firstName: 'Dana', lastName: 'Okafor', email: 'dana-t41c@test.local'", "name: 'Dana Okafor', email: 'dana-t41c@test.local'", RF_CONTACT],
+  ["jobNumber: 'ROOF-C1', jobType: 'insurance',\n  status: 'lead', propertyAddress: '144 Shingle Ln',", "number: 'ROOF-C1', jobType: 'insurance',\n  status: 'lead', address: '144 Shingle Ln', title: '144 Shingle Ln',", RF_JOB],
+  ["jobNumber: 'ROOF-C2', jobType: 'insurance',\n  status: 'lead', propertyAddress: '12 Nothing Measured Rd',", "number: 'ROOF-C2', jobType: 'insurance',\n  status: 'lead', address: '12 Nothing Measured Rd', title: '12 Nothing Measured Rd',", RF_JOB],
+  ['const line = (trail.json || []).find(', 'const line = (trail.json?.data || []).find(', RF_LIST],
+  ["const trailHas = async (text: string) => ((await asOwner('GET', `/api/insurance/claims/${claimId}/activity`)).json || [])", "const trailHas = async (text: string) => ((await asOwner('GET', `/api/insurance/claims/${claimId}/activity`)).json?.data || [])", RF_LIST],
+  ["const trailHas2 = async (text: string) => ((await asOwner('GET', `/api/insurance/claims/${claimId}/activity`)).json || [])", "const trailHas2 = async (text: string) => ((await asOwner('GET', `/api/insurance/claims/${claimId}/activity`)).json?.data || [])", RF_LIST],
+  // The scope's files are the insurance module's own signed-in route (invoices:read), not /media/insurance/…, whose
+  // handler checked only a session and the company — a crew seat could read the priced scope (CUTOVER_LEDGER, Roofing).
+  ['const anon = await app.request(`/media/${key}`)', 'const anon = await app.request(`/api/insurance/claims/${claimId}/files/xactimate-scope.pdf`)', 'the Xactimate scope is served by /api/insurance/claims/:id/files/:file (the media route served it to any seat of the company)'],
+  ["const theirs = await asRival('GET', `/media/${key}`)", "const theirs = await asRival('GET', `/api/insurance/claims/${claimId}/files/xactimate-scope.pdf`)", 'the same route, another company'],
+  ["const mine = await asOwner('GET', `/media/${key}`)", "const mine = await asOwner('GET', `/api/insurance/claims/${claimId}/files/xactimate-scope.pdf`)", 'the same route, the company itself'],
+]
+ADAPT['roof/t63-claim-money.test.ts'] = [
+  ["firstName: 'Iris', lastName: 'Vale'", "name: 'Iris Vale'", RF_CONTACT],
+  ["jobNumber: 'RF-T63-1', jobType: 'insurance', source: 'storm', propertyAddress: '4 Gable Ct'", "number: 'RF-T63-1', jobType: 'insurance', source: 'storm', address: '4 Gable Ct', title: '4 Gable Ct'", RF_JOB],
+  ["const s1 = await get(crew, `/api/insurance/claims/${claim.id}/supplements`)", "const s1 = await get(crew, `/api/insurance/claims/${claim.id}/supplements`).then((r) => ({ ...r, json: r.json?.data }))", RF_LIST],
+  ["const a1 = await get(crew, `/api/insurance/claims/${claim.id}/activity`)", "const a1 = await get(crew, `/api/insurance/claims/${claim.id}/activity`).then((r) => ({ ...r, json: r.json?.data }))", RF_LIST],
+  ["const s2 = await get(manager, `/api/insurance/claims/${claim.id}/supplements`)", "const s2 = await get(manager, `/api/insurance/claims/${claim.id}/supplements`).then((r) => ({ ...r, json: r.json?.data }))", RF_LIST],
+  ["const a2 = await get(manager, `/api/insurance/claims/${claim.id}/activity`)", "const a2 = await get(manager, `/api/insurance/claims/${claim.id}/activity`).then((r) => ({ ...r, json: r.json?.data }))", RF_LIST],
+]
+ADAPT['roof/t62-canvass-mine.test.ts'] = [
+  ['Array.isArray(before.json) && before.json.length === 0, before.json)', 'Array.isArray(before.json?.data) && before.json.data.length === 0, before.json)', RF_LIST],
+  ['mine.json?.length === 1 && mine.json[0].id === cs.json?.id, mine.json?.map?.', 'mine.json?.data?.length === 1 && mine.json.data[0].id === cs.json?.id, mine.json?.data?.map?.', RF_LIST],
+  ['team.json?.length === 2, team.json?.map?.', 'team.json?.data?.length === 2, team.json?.data?.map?.', RF_LIST],
+  ['unfiltered.json?.length === 1 && unfiltered.json[0].id === cs.json?.id, unfiltered.json?.map?.', 'unfiltered.json?.data?.length === 1 && unfiltered.json.data[0].id === cs.json?.id, unfiltered.json?.data?.map?.', RF_LIST],
+]
+ADAPT['roof/t68-viewer-roof.test.ts'] = [
+  ['list.json?.length === 2, list.json?.map?.', 'list.json?.data?.length === 2, list.json?.data?.map?.', RF_LIST],
+  ['mineOnly.json?.length === 0, mineOnly.json)', 'mineOnly.json?.data?.length === 0, mineOnly.json)', RF_LIST],
+  ['r2list.json?.length === 1 && r2list.json[0].id === s2.json?.id, r2list.json?.map?.', 'r2list.json?.data?.length === 1 && r2list.json.data[0].id === s2.json?.id, r2list.json?.data?.map?.', RF_LIST],
+  ["firstName: 'Ida', lastName: 'Marsh',", "name: 'Ida Marsh',", RF_CONTACT],
+  ["jobNumber: 'RF-T68-1', jobType: 'retail', source: 'manual', propertyAddress: '12 Birch Rd',", "number: 'RF-T68-1', title: '12 Birch Rd', jobType: 'retail', source: 'manual', address: '12 Birch Rd',", RF_JOB],
+]
+ADAPT['roof/t43-roof-write-controls.test.ts'] = [
+  ["companyId: co.id, firstName: 'Marta', lastName: 'Vilaró', email:", "companyId: co.id, name: 'Marta Vilaró', email:", RF_CONTACT],
+  ["const crewSummary = await asCrew('GET', '/api/reviews/summary')", "const crewSummary = await asCrew('GET', '/api/reviews/stats')", "the rating summary is the CRM's reviews module's /api/reviews/stats, open to every seat as roofing's was"],
+]
+ADAPT['roof/t62-measurement-cost.test.ts'] = [
+  ["companyId: co.id, firstName: 'Ada', lastName: 'Quill', email: 'ada-t62@test.local'", "companyId: co.id, name: 'Ada Quill', email: 'ada-t62@test.local'", RF_CONTACT],
+  ["jobNumber: 'RF-T62-1', jobType: 'retail', source: 'manual', propertyAddress: '9 Slate Rd',", "number: 'RF-T62-1', jobType: 'retail', source: 'manual', address: '9 Slate Rd', title: '9 Slate Rd',", RF_JOB],
+]
+ADAPT['roof/t63-my-jobs.test.ts'] = [
+  ["companyId: co.id, firstName: 'Lee', lastName: 'Marsh', email: 'lee-t63@test.local'", "companyId: co.id, name: 'Lee Marsh', email: 'lee-t63@test.local'", RF_CONTACT],
+  ["jobNumber: n, jobType: 'retail', source: 'referral', propertyAddress: `${n} Pine St`,", "number: n, jobType: 'retail', source: 'referral', address: `${n} Pine St`, title: `${n} Pine St`,", RF_JOB],
+  ['.map((x: any) => x.jobNumber).sort()', '.map((x: any) => x.number).sort()', RF_JOB],
+]
+ADAPT['roof/t59-dashboard-stats.test.ts'] = [
+  ["values({ firstName: 'Hank', lastName: 'Homeowner', companyId: co.id }", "values({ name: 'Hank Homeowner', companyId: co.id }", RF_CONTACT],
+  ["jobType: 'replacement', propertyAddress: '1 Shingle Ln',", "jobType: 'replacement', address: '1 Shingle Ln', title: '1 Shingle Ln',", RF_JOB],
+  ["{ ...base, jobNumber: 'R-1',", "{ ...base, number: 'R-1',", RF_JOB],
+  ["{ ...base, jobNumber: 'R-2',", "{ ...base, number: 'R-2',", RF_JOB],
+  ["{ ...base, jobNumber: 'R-3',", "{ ...base, number: 'R-3',", RF_JOB],
+  ["{ ...base, jobNumber: 'R-4',", "{ ...base, number: 'R-4',", RF_JOB],
+  ["const money = { lineItems: [], subtotal: '1000',", "const money = { subtotal: '1000',", "a quote's and an invoice's lines are the CRM's line-item tables (plan decision 4)"],
+  ["contactId: ct.id, quoteNumber: 'Q-1', status: 'draft', expiresAt: now }", "contactId: ct.id, number: 'Q-1', name: 'Roof', status: 'draft', expiryDate: now }", "a quote is the CRM's: number, a name, expiry_date (plan decision 4)"],
+  ["contactId: ct.id, quoteNumber: 'Q-2', status: 'sent', expiresAt: now }", "contactId: ct.id, number: 'Q-2', name: 'Roof', status: 'sent', expiryDate: now }", "a quote is the CRM's (plan decision 4)"],
+  ["contactId: ct.id, quoteNumber: 'Q-3', status: 'approved', expiresAt: now }", "contactId: ct.id, number: 'Q-3', name: 'Roof', status: 'approved', expiryDate: now }", "a quote is the CRM's (plan decision 4)"],
+  ["invoiceNumber: 'I-1', status: 'sent', balance: '1000' }", "number: 'I-1', status: 'sent' }", "an invoice is the CRM's: number; its balance follows from total and paid (plan decision 4)"],
+  ["invoiceNumber: 'I-2', status: 'partial', amountPaid: '400', balance: '600' }", "number: 'I-2', status: 'partial', amountPaid: '400' }", "an invoice is the CRM's (plan decision 4)"],
+  ["invoiceNumber: 'I-3', status: 'paid', amountPaid: '1000', balance: '0' }", "number: 'I-3', status: 'paid', amountPaid: '1000' }", "an invoice is the CRM's (plan decision 4)"],
+  ["invoiceNumber: 'I-4', status: 'draft', balance: '1000' }", "number: 'I-4', status: 'draft' }", "an invoice is the CRM's (plan decision 4)"],
+]
+ADAPT['roof/t41-roof-money.test.ts'] = [
+  ["companyId: co.id, firstName: 'Dana', lastName: 'Okafor', email: 'dana-money@test.local',", "companyId: co.id, name: 'Dana Okafor', email: 'dana-money@test.local',", RF_CONTACT],
+  ["jobNumber: 'ROOF-0001', jobType: 'insurance', status: 'production', source: 'canvassing',\n  propertyAddress: '144 Shingle Ln',", "number: 'ROOF-0001', title: '144 Shingle Ln', jobType: 'insurance', status: 'production', source: 'canvassing',\n  address: '144 Shingle Ln',", RF_JOB],
+  ["estimatedRevenue: '48500.00', materialCost: '16200.00',", "estimatedValue: '48500.00', materialCost: '16200.00',", RF_JOB],
+  ["jobNumber: 'ROOF-0002', jobType: 'retail', status: 'sold', source: 'referral',\n  propertyAddress: '12 Cash Rd',", "number: 'ROOF-0002', title: '12 Cash Rd', jobType: 'retail', status: 'sold', source: 'referral',\n  address: '12 Cash Rd',", RF_JOB],
+  ["estimatedRevenue: '21750.00', materialCost: '7100.00',", "estimatedValue: '21750.00', materialCost: '7100.00',", RF_JOB],
+  ["contactId: homeowner.id, invoiceNumber: n, status,\n    lineItems: [{ description: 'Tear-off and re-roof', quantity: 1, unitPrice: total }],\n    subtotal: total, taxRate: '0.0000', taxAmount: '0.00', total, amountPaid: paid, balance,", "contactId: homeowner.id, number: n, status,\n    subtotal: total, taxRate: '0.0000', taxAmount: '0.00', total, amountPaid: paid,", "an invoice is the CRM's: number, lines in its own table, the balance from total and paid (plan decision 4)"],
+  ["jobId: jobA.id, quoteNumber: 'Q-1', status: 'approved',\n  lineItems: [{ description: 'Re-roof', quantity: 1, unitPrice: '48500.00' }],", "jobId: jobA.id, number: 'Q-1', name: 'Re-roof', status: 'approved',", "a quote is the CRM's: number, a name, lines in its own table (plan decision 4)"],
+  ['  expiresAt: new Date(Date.now() + 30 * 86400000),', '  expiryDate: new Date(Date.now() + 30 * 86400000),', "a quote's expiry is expiry_date (plan decision 4)"],
+]
+
+const RF_USERS = "a roofer's logins are the CRM's company users (DELETE /api/company/users/:id — the same rules: not yourself, not the owner, not the last admin); roofing had forked them onto /api/users with no delete"
+ADAPT['roof/t58d-remove-a-teammate.test.ts'] = [
+  ["app.route('/api/users', (await import('./src/routes/users.ts')).default)", "app.route('/api/company/users', (await import('./src/routes/users.ts')).default)", RF_USERS],
+  ["asOwner('DELETE', `/api/users/${probe.id}`)", "asOwner('DELETE', `/api/company/users/${probe.id}`)", RF_USERS],
+  ["asCrew('DELETE', `/api/users/${victim.id}`)", "asCrew('DELETE', `/api/company/users/${victim.id}`)", RF_USERS],
+  ["asAdmin('DELETE', `/api/users/${owner.id}`)", "asAdmin('DELETE', `/api/company/users/${owner.id}`)", RF_USERS],
+  ["asAdmin('DELETE', `/api/users/${admin.id}`)", "asAdmin('DELETE', `/api/company/users/${admin.id}`)", RF_USERS],
+  ["asOwner('DELETE', `/api/users/${second.id}`)", "asOwner('DELETE', `/api/company/users/${second.id}`)", RF_USERS],
+  ["as(lone)('DELETE', `/api/users/${lone.id}`)", "as(lone)('DELETE', `/api/company/users/${lone.id}`)", RF_USERS],
+  ["asOwner('DELETE', `/api/users/${stranger.id}`)", "asOwner('DELETE', `/api/company/users/${stranger.id}`)", RF_USERS],
+]
+
+ADAPT['roof/t59-audit-trail.test.ts'] = [
+  ["for (const p of ['/api/audit', '/api/audit/filters', `/api/audit/crew/${crewId}`]) {", "for (const p of ['/api/audit', '/api/audit/filters', `/api/audit?entity=crew&entityId=${crewId}`]) {",
+    "one record's history is the CRM's audit list filtered to it (GET /api/audit?entity=&entityId=, audit:read); roofing's /api/audit/:entity/:id had no caller"],
+]
+
+ADAPT['roof/t59-calls-inbox-off.test.ts'] = [
+  ["people.map((p) => [p.firstName, p.lastName, p.phone]))", "people.map((p) => [p.name, p.phone]))", RF_CONTACT],
+  ["people[0]?.firstName === 'Unknown' && people[0]?.lastName === 'Caller', { first: people[0]?.firstName, last: people[0]?.lastName })", "people[0]?.name === 'Unknown Caller', { name: people[0]?.name })", RF_CONTACT],
+]
+
+ADAPT['roof/mfa-roof.test.ts'] = [
+  ["finished.json?.company?.vertical === 'roofing' && !!finished.json?.company?.limits && finished.json?.user?.id === owner.id",
+    "finished.json?.company?.vertical === 'roofing' && finished.json?.user?.id === owner.id",
+    "the sign-in answer carries no plan `limits`: nothing read them (roofing's screens and the mobile app), and the plan is the Factory's (seats, features)"],
+]
+
+const RF_QBO = "a refused QuickBooks state sends the browser back to Settings with error=invalid_state, before anything is exchanged (packages/tenant-backend integrations/quickbooks.ts) — the person mid-consent lands where the error is shown; roofing answered a bare 400"
+ADAPT['roof/qbo-relay-roof.test.ts'] = [
+  ["check('an unsigned state naming another company is refused, and nothing is exchanged', f.status === 400 && sent.length === 0, f.status)",
+    "check('an unsigned state naming another company is refused, and nothing is exchanged', f.status === 302 && /error=invalid_state/.test(f.headers.get('location') || '') && sent.length === 0, { status: f.status, location: f.headers.get('location'), sent: sent.length })", RF_QBO],
+  ["check('a state with its return URL swapped is refused', s2.status === 400)",
+    "check('a state with its return URL swapped is refused', s2.status === 302 && /error=invalid_state/.test(s2.headers.get('location') || '') && !sent.some((x) => x.url.includes('tokens/bearer')), { status: s2.status, location: s2.headers.get('location') })", RF_QBO],
+]
+
+const RF_MOBILE = "a contact has one name, and its mobile number is `mobile` (plan decision 3: roofing's mobile_phone)"
+ADAPT['roof/webhook-signatures-roof.test.ts'] = [
+  ["  const SMS = '/api/sms/webhook'\n  // A known customer here;", "  const SMS = '/api/sms/webhook/incoming'\n  // A known customer here;", "Twilio's inbound text arrives at the CRM's /api/sms/webhook/incoming (roofing's was /api/sms/webhook: a roofer's own number is repointed at cutover — CUTOVER_LEDGER, Roofing); the signature is checked against that URL"],
+  ["values({ companyId: co.id, firstName: 'Known', lastName: 'Customer', mobilePhone: '+16085550303' }", "values({ companyId: co.id, name: 'Known Customer', mobile: '+16085550303' }", RF_MOBILE],
+  ["values({ companyId: co.id, firstName: 'Other', lastName: 'Person', mobilePhone: '608-555-1111' }", "values({ companyId: co.id, name: 'Other Person', mobile: '608-555-1111' }", RF_MOBILE],
+  ["values({ companyId: co.id, firstName: 'New', lastName: 'Caller', mobilePhone: '608.555.0909' }", "values({ companyId: co.id, name: 'New Caller', mobile: '608.555.0909' }", RF_MOBILE],
+  ["values({ companyId: co.id, firstName: 'Third', lastName: 'Caller', phone: '608 555 0808' }", "values({ companyId: co.id, name: 'Third Caller', phone: '608 555 0808' }", RF_CONTACT],
+]
+
+const RF_SMS = "a text belongs to a conversation (company, the number, the contact) in the CRM's texting: a message carries no company_id or contact_id of its own (packages/tenant-backend integrations/sms.ts); roofing kept them on each message"
+const RF_THREAD = "a contact's texts are their conversations (GET /api/sms/conversations?contactId=, then each conversation's messages) — the contact page's Messages panel; reading them links a stray thread from the contact's number first (the fix roofing had, made the CRM's)"
+const rfThread = (id: string) => "(async () => { const l = await api('GET', `/api/sms/conversations?contactId=${" + id + "}`); const msgs: any[] = []; for (const row of (l.json?.data || [])) { const one = await api('GET', `/api/sms/conversations/${row.conversation.id}`); msgs.push(...(one.json?.messages || [])) } return { status: l.status, json: { messages: msgs, smsThread: msgs }, text: JSON.stringify(msgs) } })()"
+const rfMessage = (sid: string) => "await db.select({ contactId: smsConversation.contactId, twilioSid: smsMessage.twilioSid }).from(smsMessage).innerJoin(smsConversation, eq(smsMessage.conversationId, smsConversation.id)).where(eq(smsMessage.twilioSid, '" + sid + "'))"
+ADAPT['roof/webhook-signatures-roof.test.ts'].push(
+  ["import { company, user, lead, leadSource, smsMessage, contact } from './db/schema.ts'", "import { company, user, lead, leadSource, smsMessage, smsConversation, contact } from './db/schema.ts'", RF_SMS],
+  ["const texts = async () => (await db.select().from(smsMessage).where(eq(smsMessage.companyId, co.id))).length",
+    "const texts = async () => (await db.select({ id: smsMessage.id }).from(smsMessage).innerJoin(smsConversation, eq(smsMessage.conversationId, smsConversation.id)).where(eq(smsConversation.companyId, co.id))).length", RF_SMS],
+  ["  const SMS = '/api/sms/webhook'\n  const p = { MessageSid: 'SM-rf-unknown'", "  const SMS = '/api/sms/webhook/incoming'\n  const p = { MessageSid: 'SM-rf-unknown'", "Twilio's inbound text arrives at the CRM's /api/sms/webhook/incoming"],
+  ["const [kept]: any[] = await db.select().from(smsMessage).where(eq(smsMessage.twilioSid, 'SM-rf-unknown'))", "const [kept]: any[] = " + rfMessage('SM-rf-unknown'), RF_SMS],
+  ["const [still]: any[] = await db.select().from(smsMessage).where(eq(smsMessage.twilioSid, 'SM-rf-unknown'))", "const [still]: any[] = " + rfMessage('SM-rf-unknown'), RF_SMS],
+  ["const [linked]: any[] = await db.select().from(smsMessage).where(eq(smsMessage.twilioSid, 'SM-rf-unknown'))", "const [linked]: any[] = " + rfMessage('SM-rf-unknown'), RF_SMS],
+  ["const oc = await api('GET', `/api/sms/conversation/${other[0].id}`)", "const oc = await " + rfThread('other[0].id'), RF_THREAD],
+  ["const conv = await api('GET', `/api/sms/conversation/${newbie.id}`)", "const conv = await " + rfThread('newbie.id'), RF_THREAD],
+  ["const card = await api('GET', `/api/contacts/${third.id}`)", "const card = await " + rfThread('third.id'), RF_THREAD],
+)
+
+const RF_SUMMARY = "the business's invoiced / collected / outstanding are the CRM's GET /api/invoices/stats (totalAmount, paidAmount, outstanding — drafts and voids out, the same three figures) under invoices:read and revenue:read, which the owner, the manager and the read-only seat hold and a crew seat does not"
+const RF_EST = "a roofing job's estimated revenue is the CRM's estimated_value (plan decision 2)"
+const RF_WITHHELD = "a list reply is { data, pagination } (RULEBOOK §3) and carries no moneyWithheld flag: the Reports page reads invoices:read from the signed-in seat (which a crew seat lacks) to hide the tiles — held by apps/unified/tests/roof-jobs.test.ts (the figures withheld) and the moved Reports screen"
+ADAPT['roof/t41-roof-money.test.ts'].push(
+  ["const sum = await asOwner('GET', '/api/invoices/summary')", "const sum = await asOwner('GET', '/api/invoices/stats')", RF_SUMMARY],
+  ['    sum.json?.invoiced === 48500, sum.json)', '    sum.json?.totalAmount === 48500, sum.json)', RF_SUMMARY],
+  ["check('…Collected is 30,500', sum.json?.collected === 30500, sum.json)", "check('…Collected is 30,500', sum.json?.paidAmount === 30500, sum.json)", RF_SUMMARY],
+  ["const mgr = await asManager('GET', '/api/invoices/summary')", "const mgr = await asManager('GET', '/api/invoices/stats')", RF_SUMMARY],
+  ['mgr.status === 200 && mgr.json?.invoiced === 48500', 'mgr.status === 200 && mgr.json?.totalAmount === 48500', RF_SUMMARY],
+  ["const vw = await asViewer('GET', '/api/invoices/summary')", "const vw = await asViewer('GET', '/api/invoices/stats')", RF_SUMMARY],
+  ['vw.status === 200 && vw.json?.invoiced === 48500', 'vw.status === 200 && vw.json?.totalAmount === 48500', RF_SUMMARY],
+  ["const staff = await asField('GET', '/api/invoices/summary')", "const staff = await asField('GET', '/api/invoices/stats')", RF_SUMMARY],
+  ["const MONEY_KEYS = ['estimatedRevenue', 'materialCost', 'laborCost', 'deductible'] as const", "const MONEY_KEYS = ['estimatedValue', 'materialCost', 'laborCost', 'deductible'] as const", RF_EST],
+  ['oRows.reduce((s: number, j: any) => s + Number(j.estimatedRevenue || 0), 0) === 70250, oRows.map((j: any) => j.estimatedRevenue))', 'oRows.reduce((s: number, j: any) => s + Number(j.estimatedValue || 0), 0) === 70250, oRows.map((j: any) => j.estimatedValue))', RF_EST],
+  ["!(staffJobs.text || '').includes('estimatedRevenue'),", "!(staffJobs.text || '').includes('estimatedValue'),", RF_EST],
+  ["const a = sRows.find((j: any) => j.jobNumber === 'ROOF-0001')", "const a = sRows.find((j: any) => j.number === 'ROOF-0001')", RF_JOB],
+  ["!!a && a.propertyAddress === '144 Shingle Ln' && a.status === 'production' &&\n    a.contact?.lastName === 'Okafor'", "!!a && a.address === '144 Shingle Ln' && a.status === 'production' &&\n    a.contact?.name === 'Dana Okafor'", RF_JOB + '; ' + RF_CONTACT],
+  ['Number(ownerOne.json?.estimatedRevenue) === 48500 &&', 'Number(ownerOne.json?.estimatedValue) === 48500 &&', RF_EST],
+  ['{ status: ownerOne.status, er: ownerOne.json?.estimatedRevenue })', '{ status: ownerOne.status, er: ownerOne.json?.estimatedValue })', RF_EST],
+  ["staffOne.json?.contact?.lastName === 'Okafor' && staffOne.json?.crew?.name === 'Crew A' &&", "staffOne.json?.contact?.name === 'Dana Okafor' && staffOne.json?.crew?.name === 'Crew A' &&", RF_CONTACT],
+  ['{ contact: staffOne.json?.contact?.lastName, crew: staffOne.json?.crew?.name })', '{ contact: staffOne.json?.contact?.name, crew: staffOne.json?.crew?.name })', RF_CONTACT],
+  ["const oRow = rowsOf(ownerJobs.json).find((j: any) => j.jobNumber === 'ROOF-0001')", "const oRow = rowsOf(ownerJobs.json).find((j: any) => j.number === 'ROOF-0001')", RF_JOB],
+  ['    staffJobs.json?.moneyWithheld === true, staffJobs.json?.moneyWithheld)', '    staffJobs.json?.moneyWithheld === undefined && Array.isArray(staffJobs.json?.data), staffJobs.json?.moneyWithheld)', RF_WITHHELD],
+)
+
+const RF_MAT_WITHHELD = "a materials reply carries no moneyWithheld flag (a list is { data, pagination } — RULEBOOK §3; one order is the record): the screen reads margin:read from the signed-in seat; the prices themselves are still withheld, as the rest of the check asserts (held by apps/unified/tests/roof-field.test.ts)"
+ADAPT['roof/t41-roof-money.test.ts'].push(
+  ["!('totalCost' in (rowsOf(viewerMats.json)[0] || {})) && viewerMats.json?.moneyWithheld === true,", "!('totalCost' in (rowsOf(viewerMats.json)[0] || {})),", RF_MAT_WITHHELD],
+  ['    staffMats.json?.moneyWithheld === true, staffMats.json?.moneyWithheld)', '    staffMats.json?.moneyWithheld === undefined && Array.isArray(staffMats.json?.data), staffMats.json?.moneyWithheld)', RF_MAT_WITHHELD],
+  ["!('totalCost' in (staffOne.json || {})) && staffOne.json?.moneyWithheld === true &&", "!('totalCost' in (staffOne.json || {})) &&", RF_MAT_WITHHELD],
+  ['sql`SELECT estimated_revenue, material_cost FROM job WHERE id = ${jobA.id}`', 'sql`SELECT estimated_value, material_cost FROM job WHERE id = ${jobA.id}`', RF_EST],
+  ['Number(row?.estimated_revenue) === 48500', 'Number(row?.estimated_value) === 48500', RF_EST],
+)
+
 for (const [key, changes] of Object.entries(ADAPT)) {
   const [suite, file] = key.split('/')
   const OUT = ROOT + 'tests/unified/' + suite + '/'

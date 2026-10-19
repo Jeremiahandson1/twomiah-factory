@@ -38,13 +38,10 @@ async function getBrowser(): Promise<any> {
 
   browserLaunchPromise = (async () => {
     try {
-      // Try puppeteer-core with custom path first, then full puppeteer
-      let puppeteer: any
-      try {
-        puppeteer = await import('puppeteer')
-      } catch {
-        puppeteer = await import('puppeteer-core')
-      }
+      // puppeteer, the dependency this package declares. The fallback to 'puppeteer-core' is gone: no package.json in
+      // the repo declares it, so it could never load (and failed the type-check of every app importing this package).
+      // A custom Chromium is still taken from PUPPETEER_EXECUTABLE_PATH below.
+      const puppeteer: any = await import('puppeteer')
 
       const launchOptions: any = {
         headless: true,

@@ -28,10 +28,10 @@ describe('boot', () => {
     const declared = Object.values(schema).filter((x) => is(x, PgTable)).map((x) => getTableName(x as PgTable)).sort()
     expect(r.rows.map((x: any) => x.table_name)).toEqual(declared)
     // Every layer: 15 core, website and enquiry tables, 11 bookings, the base CRM's other 135 (the CRM's own three
-    // booking tables are replaced by the bookings layer), the 65 the near-copy CRMs add (migration 0006), and home care's
-    // 123 (0007).
-    expect(declared.length).toBe(349)
-    for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket']) expect(declared).toContain(name)
+    // booking tables are replaced by the bookings layer), the 65 the near-copy CRMs add (migration 0006), home care's
+    // 123 (0007), and roofing's own 16 (0012).
+    expect(declared.length).toBe(365)
+    for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket', 'insurance_claim']) expect(declared).toContain(name)
   })
 
   test('health answers', async () => {

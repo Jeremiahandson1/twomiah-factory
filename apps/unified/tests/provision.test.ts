@@ -127,3 +127,26 @@ describe('a home-care agency gets its own guides', () => {
     expect((await hc.db.select().from(hc.schema.pricebookCategory)).length).toBe(0)
   })
 })
+
+// Roofing's day one (verticals/roof/settings.ts; templates/crm-roof seed.template.ts): the default canvassing script —
+// no screen creates the first one — ten free roof reports and the estimator's roofing headline; the roofing price-book
+// categories. None of the seed's invented roofing company (T44).
+describe('a roofer starts with a canvassing script and free reports', () => {
+  test('provisioned with the script, ten report credits, the roofing headline and categories — and no records', async () => {
+    const rf = await bootTenant({ vertical: 'roofing' })
+    process.env.FACTORY_SYNC_KEY = KEY
+    const res = await rf.call('/api/internal/provision', { method: 'POST', json: { ...input(), features: ['dashboard', 'canvassing_tool'] }, headers: { 'X-Factory-Key': KEY } })
+    expect(res.status).toBe(201)
+    const [co] = await rf.db.select().from(rf.schema.company)
+    expect({ credits: co.reportCredits, headline: co.estimatorHeadline, low: co.pricePerSquareLow }).toEqual({ credits: 10, headline: 'Get Your Free Roof Estimate', low: '350.00' })
+    const scripts = await rf.db.select().from(rf.schema.canvassingScript)
+    expect(scripts.map((s: any) => ({ name: s.name, isDefault: s.isDefault, steps: s.steps.length, companyId: s.companyId })))
+      .toEqual([{ name: 'Hail Damage — Standard Script', isDefault: true, steps: 4, companyId: co.id }])
+    // A pitch for no real storm date: the canvasser makes it specific.
+    expect(JSON.stringify(scripts[0].steps)).not.toMatch(/March 10/)
+    expect((await rf.db.select().from(rf.schema.pricebookCategory)).map((c: any) => c.name)).toContain('Storm Damage Assessment')
+    for (const table of ['contact', 'job', 'crew', 'insuranceClaim', 'stormEvent'] as const) {
+      expect({ table, rows: (await rf.db.select().from((rf.schema as any)[table])).length }).toEqual({ table, rows: 0 })
+    }
+  }, 60_000)
+})

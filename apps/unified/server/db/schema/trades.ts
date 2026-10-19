@@ -32,6 +32,9 @@ export const jobPhoto = pgTable('job_photo', {
   caption: text('caption'),
   takenAt: timestamp('taken_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  // What the photo shows — before, damage, during, after … (templates/crm-roof job_photo.photo_type; roofing's
+  // insurance paperwork is built from them). Every other vertical's photo is 'general'.
+  photoType: text('photo_type').default('general').notNull(),
 }, (t) => [
   index('job_photo_company_id_idx').on(t.companyId),
   index('job_photo_job_id_idx').on(t.jobId),

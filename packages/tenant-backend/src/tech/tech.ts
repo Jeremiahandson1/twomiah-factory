@@ -34,6 +34,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, asc, desc, inArray } from 'drizzle-orm'
 import type { JobHook } from '../jobs/jobs'
+import { JOB_MONEY, jobMoneyWithheld, withoutJobMoney, type CanSee } from '../jobs/jobMoney'
 
 export interface TechTables { job: any; contact: any; formSubmission: any; formTemplate: any; equipment?: any }
 export interface TechHooks { onDispatch?: JobHook; onStart?: JobHook; onComplete?: JobHook }
@@ -52,6 +53,8 @@ export interface TechRoutesDeps {
   checklistTitle: string
   /** Older types this template's checklists were saved under, still returned by GET /:id/checklist. */
   legacyChecklistTypes?: string[]
+  /** The permission check that decides which of a job's figures this person sees (../jobs/jobMoney.ts). */
+  canSee?: CanSee
 }
 
 /** Where each move may start from. A finished or cancelled job is not moved from the phone. */
@@ -80,6 +83,16 @@ export function createTechRoutes(deps: TechRoutesDeps) {
   const checklistTypes = [deps.checklistType, ...(deps.legacyChecklistTypes || [])]
   const app = new Hono()
   app.use('*', authenticate)
+
+  /**
+   * Every reply here is a whole job row, and the job table carries what a job is worth, the insurer's money and what
+   * it cost (../jobs/jobMoney.ts) — the field seat this view is for holds none of the permissions that unlock them.
+   * With a `canSee` the one rule decides; without one nothing is handed over, which costs the phone nothing: it shows
+   * no figure.
+   */
+  const ALL_JOB_MONEY = Object.values(JOB_MONEY).flat()
+  const shapeJobMoney = async <T,>(c: any, rows: T): Promise<T> =>
+    withoutJobMoney(rows, deps.canSee ? await jobMoneyWithheld(deps.canSee, c.get('user')) : ALL_JOB_MONEY)
 
   const myJob = async (id: string, currentUser: any) => {
     const [row] = await db.select().from(t.job)
@@ -125,7 +138,7 @@ export function createTechRoutes(deps: TechRoutesDeps) {
     ])
     const contactMap = Object.fromEntries((contacts as any[]).map((x) => [x.id, x]))
     const equipmentMap = Object.fromEntries((equipmentList as any[]).map((x) => [x.id, x]))
-    return c.json(jobs.map((j: any) => ({
+    return c.json((await shapeJobMoney(c, jobs)).map((j: any) => ({
       ...j,
       contact: j.contactId ? contactMap[j.contactId] || null : null,
       equipment: j.equipmentId ? equipmentMap[j.equipmentId] || null : null,
@@ -153,7 +166,7 @@ export function createTechRoutes(deps: TechRoutesDeps) {
       if (!updated) return c.json({ error: 'This job changed while you were looking at it. Pull down to refresh.', code: 'changed' }, 409)
       emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status: rule.to })
       const more = await runHook(hook(), updated, currentUser)
-      return c.json({ ...updated, ...more })
+      return c.json({ ...(await shapeJobMoney(c, updated)), ...more })
     })
   }
   move('on-my-way', () => hooks.onDispatch)

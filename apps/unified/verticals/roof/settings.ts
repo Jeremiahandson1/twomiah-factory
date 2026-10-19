@@ -1,0 +1,98 @@
+// Roofing contractors (templates/crm-roof; docs/UNIFIED_ROOF_PLAN.md). A job-based trade on the CRM's own customers,
+// jobs, quotes and invoices; roofing's own parts — insurance claims and supplements, measurements and roof reports,
+// storms and canvassing, crews and materials — are its add-on (server/crm/roof, web/src/crm/pages/roof).
+import type { StarterContent } from '../../server/core/starter.ts'
+import type { VerticalSettings } from '../../server/core/vertical.ts'
+
+// What a roofer files (templates/crm-roof/frontend/src/docsConfig.ts): a document hangs off a JOB, never a project.
+const DOC_TYPES = ['general', 'contract', 'permit', 'warranty', 'insurance', 'scope', 'inspection', 'photo', 'invoice', 'receipt', 'other']
+
+// What a new roofer finds on day one (server/core/starter.ts; written once at provisioning, then the owner's), from
+// templates/crm-roof/backend/db/seed.template.ts. The seed's invented roofing company (crews, homeowners, jobs, claims)
+// was removed there on purpose (T44) and is not carried; what it kept is:
+//   • the default canvassing script — no screen creates one (CanvassingDashboard edits and deletes only), so without it
+//     the module arrives with nothing to read from. Its first step named a storm date ("March 10th") that is true of no
+//     real roofer's street; it says "the recent hail storm" here, for the canvasser to make specific;
+//   • ten free roof reports and the estimator's roofing headline (the company row's other estimator values are the
+//     columns' own defaults).
+const STARTER: StarterContent = {
+  // Roofing's guides are written against its moved screens when they land (plan step 4); until then, none — the base
+  // CRM's articles name pages a roofer doesn't have.
+  helpArticles: [],
+  pricebookCategories: {
+    byIndustry: {},
+    // The base CRM's 'Roofing' set (server/core/starter.ts), which every roofer is.
+    default: ['Roof Replacement', 'Roof Repair', 'Gutter Installation', 'Gutter Cleaning', 'Roof Inspection', 'Storm Damage Assessment'],
+  },
+  company: { reportCredits: 10, estimatorHeadline: 'Get Your Free Roof Estimate' },
+  canvassingScripts: [{
+    name: 'Hail Damage — Standard Script',
+    isDefault: true,
+    steps: [
+      {
+        title: 'Introduction',
+        body: "Hi, I'm [Name] with [Company]. I'm in the neighborhood today because the recent hail storm caused damage to many roofs in this area. Have you had a chance to look at your roof since the storm?",
+        tips: "Be friendly and non-pushy. Mention the specific storm date — it shows you're local and informed. If they haven't looked, that's your opening.",
+      },
+      {
+        title: 'Damage Assessment',
+        body: 'I noticed from the street that your roof may have some damage. Would it be okay if I took a quick look from the ground? I can point out anything I see — no obligation at all.',
+        tips: 'Never go on the roof without explicit permission. Point out damage from the ground — dented gutters, missing shingles, granule loss in downspouts. Take photos of anything visible.',
+      },
+      {
+        title: 'The Ask',
+        body: 'Based on what I can see, I think you may have a legitimate insurance claim. Most homeowners in this area are getting full roof replacements covered by insurance with just their deductible out of pocket. Would you like to learn more about how the process works?',
+        tips: "Don't promise anything specific about coverage. Use phrases like 'may have' and 'legitimate claim'. Let them ask questions. If they're skeptical, mention neighbors who've already filed.",
+      },
+      {
+        title: 'Close',
+        body: 'I can schedule a free inspection for you this week. We handle all the insurance paperwork — you just need to be home for about 30 minutes. What day works best for you?',
+        tips: 'Offer specific time slots rather than open-ended availability. Get their phone number to confirm. Leave a door hanger if they want to think about it. Always be professional — you represent your company in the neighborhood.',
+      },
+    ],
+  }],
+}
+
+const roof: VerticalSettings = {
+  // 'roofing': what the mobile app recognises a roofer by (apps/mobile src/vertical — given anything else it fell back to
+  // the contractor's tabs), what the template's sign-in reported and what the Factory calls this vertical.
+  id: 'roofing',
+  label: 'Roofing',
+  mfaIssuer: 'Twomiah Roofing',
+  featureSet: 'crm-roof',
+  starter: STARTER,
+  // templates/crm-roof middleware/permissions.ts. Door-knocking is the crew's job after a storm: they start a session,
+  // log a stop and correct the one they just logged (T41) — not delete one, and not the shop's scripts. The read-only
+  // seat sees the team's canvassing and writes none of it (owner's decision, 2026-10-11).
+  extraRolePermissions: {
+    field: ['canvassing:create', 'canvassing:update'],
+    viewer: ['canvassing:read'],
+  },
+  crm: {
+    roof: true,
+    // The roofer's own /api/dashboard (server/crm/roof/field/dashboard.ts).
+    dashboard: 'roof',
+    documents: { markup: true, types: DOC_TYPES },
+    tech: { checklistType: 'site_checklist', checklistTitle: 'Site checklist' },
+    // A homeowner's portal (templates/crm-roof routes/portal.ts): their jobs, quotes to sign, invoices to pay, and a
+    // service request. `service` stays on for that request; its equipment and agreements sections follow features a
+    // roofer is never offered (equipment_tracking, service_agreements — featureRegistry), so they don't show. No
+    // projects or the construction paperwork that hangs off them.
+    portal: { disable: ['projects', 'changeOrders', 'selections', 'projectFiles', 'collaborators'] },
+  },
+  // The screens' settings are filled as roofing's screens land (plan step 4).
+  screens: {
+    documents: { projects: false, markup: true, types: DOC_TYPES },
+  },
+  // templates/website-premium-roofing views/sections/contact/form-info.ejs
+  site: {
+    design: 'roofing',
+    words: {
+      contactAddressLabel: 'Office',
+      contactMessageLabel: "What you're working on",
+      contactMessageRequired: 'Tell us a bit about your project.',
+    },
+  },
+}
+
+export default roof

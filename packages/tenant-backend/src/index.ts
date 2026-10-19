@@ -106,6 +106,8 @@ export type { CompanyDeps } from './company/company'
 // Jobs / service calls + the public media proxy for job photos — one implementation for every CRM.
 export { createJobRoutes, createMediaRoutes, JOB_PRIORITIES, OPEN_JOB_STATUSES } from './jobs/jobs'
 export type { JobDeps, JobOptions, JobTables, JobHook, JobPhotoStorage } from './jobs/jobs'
+export { JOB_MONEY, jobMoneyWithheld, withoutJobMoney } from './jobs/jobMoney'
+export type { CanSee } from './jobs/jobMoney'
 
 // Boot-time additive schema reconcile (db/reconcile.ts in every CRM template).
 export { reconcileSchema, buildCreateTable, buildAddColumn, buildCreateIndex } from './schemaReconcile'

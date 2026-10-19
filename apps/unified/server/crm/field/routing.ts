@@ -1,19 +1,27 @@
 // /api/routing: a route between two points, multi-stop ordering, a person's day, a navigation link, fuel cost, and
 // the team's routes for a day. Moved from the CRM template's routes/routing.ts (templates/crm/backend/src/routes). The
 // registry signs the person in; the template gated no feature and no screen calls it, so it is ungated. The template
-// checks no permission on any action, and that is kept (reported).
+// checked no permission on any action: the two that read people's days (a person's day, the team's routes — jobs and
+// customers' addresses) ask jobs:read, the permission the job list itself asks (2026-10-19); the calculators carry no
+// records and stay open to any signed-in seat.
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { user } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
-import type { CrmDeps } from '../deps.ts'
+import { jobMoneyWithheld, withoutJobMoney } from '@twomiah/tenant-backend'
+import { canSeeWith, type CrmDeps } from '../deps.ts'
 import { createRoutingService } from './routingService.ts'
 
 export function createRoutingRoutes(d: CrmDeps) {
   const { db } = d
   const routing = createRoutingService(d)
   const app = new Hono<AppEnv>()
+  /**
+   * A day's route carries each stop's whole job row, and every signed-in seat reaches these routes: the job's money is
+   * withheld by the one rule (@twomiah/tenant-backend jobs/jobMoney.ts).
+   */
+  const shapeJobs = async (who: any, jobs: any[]) => withoutJobMoney(jobs, await jobMoneyWithheld(canSeeWith(d.permissions), who))
 
   app.post('/calculate', async (c) => {
     const { origin, destination } = await c.req.json()
@@ -36,12 +44,13 @@ export function createRoutingRoutes(d: CrmDeps) {
     return one(c, result)
   })
 
-  app.get('/optimize-day', async (c) => {
+  app.get('/optimize-day', d.permissions.requirePermission('jobs:read'), async (c) => {
     const currentUser = c.get('user')
     const date = c.req.query('date')
     const targetDate = date ? new Date(date) : new Date()
     const targetUserId = c.req.query('userId') || currentUser.userId
-    return one(c, await routing.optimizeDayRoute(currentUser.companyId, targetUserId, targetDate))
+    const day = await routing.optimizeDayRoute(currentUser.companyId, targetUserId, targetDate)
+    return one(c, { ...day, jobs: await shapeJobs(currentUser, day.jobs) })
   })
 
   app.post('/navigation-url', async (c) => {
@@ -63,7 +72,7 @@ export function createRoutingRoutes(d: CrmDeps) {
   })
 
   // The dispatcher's view: every active person's optimised day.
-  app.get('/team-routes', async (c) => {
+  app.get('/team-routes', d.permissions.requirePermission('jobs:read'), async (c) => {
     const currentUser = c.get('user')
     const date = c.req.query('date')
     const targetDate = date ? new Date(date) : new Date()
@@ -82,7 +91,8 @@ export function createRoutingRoutes(d: CrmDeps) {
     }))
 
     // Only people with jobs.
-    const activeRoutes = routes.filter((r: any) => r.jobs?.length > 0)
+    const withheld = await jobMoneyWithheld(canSeeWith(d.permissions), currentUser)
+    const activeRoutes = routes.filter((r: any) => r.jobs?.length > 0).map((r: any) => ({ ...r, jobs: withoutJobMoney(r.jobs, withheld) }))
     return one(c, {
       date: targetDate.toISOString().split('T')[0],
       routes: activeRoutes,

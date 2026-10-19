@@ -64,6 +64,9 @@ import { rvMounts } from '../crm/rv/index.ts'
 import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
+import { createRoofJobRoutes } from '../crm/roof/jobs.ts'
+import { roofMounts } from '../crm/roof/index.ts'
+import { createRoofDashboardRoutes } from '../crm/roof/field/dashboard.ts'
 import { createHomecareCore } from '../crm/homecare/core/index.ts'
 import { portalsInFront } from '../crm/homecare/portals/index.ts'
 
@@ -279,7 +282,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // The core CRM: on for a business with the CRM, off for a website-only one.
     { path: '/api/contacts', access: 'user', feature: 'contacts', router: contacts },
     // A job's photos are photo_capture's, as the field-service and basic copies' index.ts gated /api/jobs/:id/photos.
-    { path: '/api/jobs', access: 'user', feature: 'jobs', router: v.jobs?.photos
+    // Roofing's own job module over the same table (CrmSettings.roof; server/crm/roof/jobs.ts) — one mount, never two.
+    { path: '/api/jobs', access: 'user', feature: 'jobs', router: v.roof
+      ? new Hono().use('/:id/photos', features.requireEnabledFeature('photo_capture')).use('/:id/photos/*', features.requireEnabledFeature('photo_capture')).route('/', createRoofJobRoutes(own))
+      : v.jobs?.photos
       ? new Hono().use('/:id/photos', features.requireEnabledFeature('photo_capture')).use('/:id/photos/*', features.requireEnabledFeature('photo_capture')).route('/', jobs)
       : jobs },
     { path: '/api/quotes', access: 'user', feature: 'quotes', router: quotes },
@@ -305,6 +311,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       : v.dashboard === 'salon' ? createSalonDashboard(own)
       // The home-care agency's (templates/crm-homecare routes/dashboard.ts).
       : v.dashboard === 'homecare' ? createHomecareDashboardRoutes(own)
+      // The roofer's (templates/crm-roof routes/dashboard.ts).
+      : v.dashboard === 'roof' ? createRoofDashboardRoutes(own)
       : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead }, authenticate, featuresFor: features.enabledFeaturesFor, canSee } as any) },
 
     // Optional modules, each behind its feature (the template's index.ts gates).
@@ -321,7 +329,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/photos', access: 'user', feature: 'photo_capture', router: createPhotoRoutes({ db, tables: { document, user, project, job }, storage: s.storage, authenticate, requirePermission, audit: fileAudit } as any) },
     { path: '/api/recurring', access: 'user', feature: 'recurring_jobs', router: createRecurringRoutes({ service: s.recurring, authenticate, requirePermission, audit } as any) },
     { path: '/api/tech', access: 'user', feature: 'tech_mobile_view', router: createTechRoutes({
-      db, tables: { job, contact, formSubmission, formTemplate, ...(sites ? { equipment } : {}) }, authenticate, requirePermission, ...live, hooks: s.jobHooks,
+      // canSee: a job's money by the one rule (packages/tenant-backend jobs/jobMoney.ts); without it the module withholds all of it.
+      db, tables: { job, contact, formSubmission, formTemplate, ...(sites ? { equipment } : {}) }, authenticate, requirePermission, canSee, ...live, hooks: s.jobHooks,
       checklistType: v.tech.checklistType, checklistTitle: v.tech.checklistTitle, legacyChecklistTypes: v.tech.legacyChecklistTypes,
     } as any) },
     { path: '/api/commissions', access: 'user', feature: 'commission_tracking', router: createCommissionRoutes({ db, tables: { commission, commissionPlan, user, job, invoice }, authenticate, requirePermission, canSee } as any) },
@@ -417,6 +426,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     ...basicMounts(own), ...landscapingMounts(own), ...barMounts(own), ...restaurantMounts(own), ...rvMounts(own), ...salonMounts(own, v), ...vetMounts(own, v),
     // Home care's add-on (docs/UNIFIED_HOMECARE_PLAN.md).
     ...homecareMounts(own),
+    ...roofMounts(own),
   ]
 }
 

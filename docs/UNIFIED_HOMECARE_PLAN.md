@@ -110,6 +110,11 @@ whole-list pickers walk the server's pages.
 Help, the suite and the gates landed (2026-10-19): home care's guides (and every vertical's own day-one help), the
 suite's screen reads pointed at the moved files, a caregiver write-gate walk over the app's own route table.
 
-Next: the browser check of every home-care screen, every role, both themes, phone and desktop (seen already: the office
-dashboard's section headings are dark green on the dark theme's ground). Noted for it: the mobile caregiver app reads
-list replies as bare arrays (asList), so it must be pointed at a unified tenant only once it reads { data, pagination }.
+The browser check landed (2026-10-19): every home-care screen and every control that opens something, as the owner,
+admin, manager, caregiver and a read-only seat, light at 1440 and dark at 390 — clean (no refusal, crash, overflow or
+unreadable text; the only events are a caregiver with no profile yet, 404, and no email provider on the local machine,
+503). What it found on the way is in docs/CUTOVER_LEDGER.md: write controls by permission, one rule for whose records a
+person reaches, the MIDAS import and remittance upload.
+
+Before any agency moves: the mobile caregiver app reads list replies as bare arrays (asList), so it is pointed at a
+unified tenant only once it reads { data, pagination } (docs/CUTOVER_LEDGER.md).

@@ -520,6 +520,19 @@ export const roofReport = pgTable('roof_report', {
   originalEdges: json('original_edges'),
   originalMeasurements: json('original_measurements'),
 
+  // Roofing's imagery and elevation sources and the AI's read of the property (templates/crm-roof roof_report;
+  // packages/roof-core). Nullable: the base CRM's reports carry none of them.
+  imagerySource: text('imagery_source').default('google_solar'),
+  elevationSource: text('elevation_source').default('google_dsm'),
+  nearmapSurveyId: text('nearmap_survey_id'),
+  dsmGridPath: text('dsm_grid_path'),
+  pdfPath: text('pdf_path'),
+  samSegments: json('sam_segments'),
+  roofCondition: integer('roof_condition'),
+  roofMaterial: text('roof_material'),
+  treeOverhangPct: real('tree_overhang_pct'),
+  aiSource: text('ai_source'),
+
   status: text('status').default('paid').notNull(),
   stripePaymentIntentId: text('stripe_payment_intent_id'),
   amountCharged: decimal('amount_charged', { precision: 10, scale: 2 }).default('9.99'),

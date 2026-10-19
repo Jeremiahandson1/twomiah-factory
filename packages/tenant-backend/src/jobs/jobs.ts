@@ -14,6 +14,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray, sql } from 'drizzle-orm'
 import { nextNumber, round2, defaultTaxRateFrom } from '../invoicing/money'
+import { jobMoneyWithheld, withoutJobMoney } from './jobMoney'
 // Billing a job raises an invoice through the SAME helper every other billing path uses, so numbering,
 // totals and the UTC date normalisation cannot drift from invoices, quotes, agreements or visits. (T41)
 import { insertInvoice } from '../invoicing/invoices'
@@ -21,7 +22,7 @@ import { withoutPortalCredential } from '../contacts/contacts'
 import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
 import { checkFilter } from '../listFilter'
 import { withinHorizon, horizonMessage } from '../dateInput'
-import { sniffType, baseMime } from '../files/storage'
+import { sniffType } from '../files/storage'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
   /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
@@ -134,22 +135,16 @@ const validDate = (v: unknown) => {
 const JOB_MONEY_PERMISSION = 'quotes:update'
 
 /**
- * …and the READ counterpart. (T41)
+ * …and the READ counterpart (T41) is ./jobMoney.ts, the ONE rule for every read that can return a job row.
  *
  * T32 M7 stopped a field technician from CHANGING what a job is worth (it had dropped JOB-00119
  * from $11,183 to $1). It left them able to read it, and T41 found that on three verticals:
  * "Staff sees agreement revenue tiles, job estimatedValue" (field service), "Staff sees job
  * estimatedValue and agreement price and revenue" (showcase), and the same on landscaping.
- *
- * `quotes:read` rather than `invoices:read`: this field IS a quoted figure — the constant above
- * already ties job money to the quotes resource — and the read sits beside the write it guards.
- * Either would exclude `field`, which is the seat that was reading it; this one says why.
- *
- * `estimatedHours` is deliberately NOT in the list below. Hours are how long the work takes, which
- * is the technician's own business; only the VALUE is withheld.
+ * The quoted value reads under `quotes:read` (it IS a quoted figure, beside the write it guards);
+ * roofing's revenue and claim money under `invoices:read`, its costs under `margin:read`.
+ * `estimatedHours` is deliberately NOT withheld: how long the work takes is the technician's own business.
  */
-const JOB_MONEY_READ_PERMISSION = 'quotes:read'
-const JOB_MONEY_FIELDS = ['estimatedValue', 'actualValue'] as const
 
 export function createJobRoutes(deps: JobDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, cleanText } = deps
@@ -158,24 +153,11 @@ export function createJobRoutes(deps: JobDeps) {
     const u = c.get('user') as any
     try { return await deps.canSee(u?.role, JOB_MONEY_PERMISSION, u?.userId) } catch { return true }
   }
-  const maySeeJobMoney = async (c: any) => {
-    if (!deps.canSee) return true
-    const u = c.get('user') as any
-    try { return await deps.canSee(u?.role, JOB_MONEY_READ_PERMISSION, u?.userId) } catch { return true }
-  }
   /**
-   * Take the value off a job row (or rows). Both the list and the single read return
-   * `db.select().from(t.job)` — the whole row — so both carried it. (T41)
+   * A job row (or rows) with the figures this person may not see taken off (./jobMoney.ts). Both the list and the
+   * single read return `db.select().from(t.job)` — the whole row — so both carried them. (T41)
    */
-  const hideJobMoney = <T,>(rows: T): T => {
-    const strip = (r: any) => {
-      if (!r || typeof r !== 'object') return r
-      const out = { ...r }
-      for (const f of JOB_MONEY_FIELDS) delete out[f]
-      return out
-    }
-    return (Array.isArray(rows) ? rows.map(strip) : strip(rows)) as any
-  }
+  const shapeJobMoney = async <T,>(c: any, rows: T): Promise<T> => withoutJobMoney(rows, await jobMoneyWithheld(deps.canSee, c.get('user')))
   /** The vertical's own noun, for a message somebody reads. "job" where nothing says otherwise. */
   const jobWord = (deps.options?.numbering?.prefix === 'SVC' ? 'service call' : 'job')
   const o = deps.options || {}
@@ -438,7 +420,7 @@ export function createJobRoutes(deps: JobDeps) {
     ])
     const withOverdue = (await withRelations(rows, currentUser.companyId)).map((j) => ({ ...j, isOverdue: isOverdue(j) }))
     // What the work is WORTH is not part of reading the schedule. (T41)
-    const data = (await maySeeJobMoney(c)) ? withOverdue : hideJobMoney(withOverdue)
+    const data = await shapeJobMoney(c, withOverdue)
     return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
   })
 
@@ -459,7 +441,7 @@ export function createJobRoutes(deps: JobDeps) {
      * surface the finding is actually about. (T41)
      */
     const today = await withRelations(rows, currentUser.companyId, { id: t.contact.id, name: t.contact.name, phone: t.contact.phone })
-    return c.json((await maySeeJobMoney(c)) ? today : hideJobMoney(today))
+    return c.json(await shapeJobMoney(c, today))
   })
 
   // ---------------------------------------------------------------- photos (before /:id so /:id/photos routes resolve first)
@@ -476,9 +458,13 @@ export function createJobRoutes(deps: JobDeps) {
       if (!file || typeof file === 'string') return c.json({ error: 'No photo provided' }, 400)
       if (file.size > MAX_PHOTO_SIZE) return c.json({ error: 'Photo exceeds 10MB limit' }, 400)
       const buffer = Buffer.from(await file.arrayBuffer())
-      // Trust the bytes, not the declared type — a renamed HTML file must not be served as an image.
-      const type = sniffType(buffer) || baseMime(file.type)
+      // Trust the bytes, not the declared type — a renamed HTML file must not be served as an image. Only the bytes:
+      // falling back to the declared type when they weren't an image took an HTML file sent as image/png and stored it
+      // as a photo. Roofing's copy had this fixed (templates/crm-roof routes/jobs.ts, M9); now every vertical's is.
+      const type = sniffType(buffer) || ''
       if (!PHOTO_EXT[type]) return c.json({ error: 'File must be an image' }, 400)
+      // No photo store set up: say so (503), rather than send the photo to an address that isn't there and 500.
+      if (storage.storageConfigured && !storage.storageConfigured()) return c.json({ error: 'Photo storage is not set up yet.', code: 'storage_not_configured' }, 503)
       const key = `photos/${currentUser.companyId}/${id}/${crypto.randomUUID().replace(/-/g, '')}.${PHOTO_EXT[type]}`
       await storage.put(key, buffer, type)
       const caption = (form!.get('caption') as string) || null
@@ -522,7 +508,7 @@ export function createJobRoutes(deps: JobDeps) {
     // one assignedTo whichever kind of person is on the job — same shape the list gives (T21 M12)
     const [withAssignee] = await withRelations([found], currentUser.companyId)
     // The same rule as the list. Both reads return the whole job row, so both carried the value. (T41)
-    const base = (await maySeeJobMoney(c)) ? found : hideJobMoney(found)
+    const base = await shapeJobMoney(c, found)
     return c.json({ ...base, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries: entries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}), ...(branches ? { location: withAssignee?.location ?? null } : {}) })
   })
 
@@ -564,7 +550,8 @@ export function createJobRoutes(deps: JobDeps) {
     if (clash) return c.json({ error: `That person is already booked on ${clash.number}${clash.scheduledTime ? ` at ${clash.scheduledTime}` : ''}, which overlaps this one. Pick another time or assignee.`, conflictId: clash.id }, 409)
     const [result] = await withRelations([created], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, result)
-    return c.json(result, 201)
+    // The saved row comes back whole; a write's reply is a read like any other (./jobMoney.ts).
+    return c.json(await shapeJobMoney(c, result), 201)
   })
 
   app.put('/:id', requirePermission('jobs:update'), async (c) => {
@@ -668,7 +655,8 @@ export function createJobRoutes(deps: JobDeps) {
     if (clash) return c.json({ error: `That person is already booked on ${clash.number}${clash.scheduledTime ? ` at ${clash.scheduledTime}` : ''}, which overlaps this one. Pick another time or assignee.`, conflictId: clash.id }, 409)
     const [result] = await withRelations([updated], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, result)
-    return c.json(result)
+    // A field seat holds jobs:update: the saved row's money is withheld as the read's is (./jobMoney.ts).
+    return c.json(await shapeJobMoney(c, result))
   })
 
   app.delete('/:id', requirePermission('jobs:delete'), async (c) => {
@@ -697,7 +685,8 @@ export function createJobRoutes(deps: JobDeps) {
       }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
       emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status })
       const more = await runHook(hook(), updated, currentUser)
-      return c.json({ ...updated, ...more })
+      // Start / Complete / Dispatch are a field seat's buttons; the moved row's money is withheld (./jobMoney.ts).
+      return c.json({ ...(await shapeJobMoney(c, updated)), ...more })
     })
   }
   transition('start', 'in_progress', () => o.onStart)

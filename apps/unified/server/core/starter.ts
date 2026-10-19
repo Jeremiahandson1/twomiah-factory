@@ -17,6 +17,10 @@ export interface StarterContent {
   helpArticles: StarterArticle[]
   /** The price book's categories for the business's industry (the Factory's industry name); `default` otherwise. */
   pricebookCategories: { byIndustry: Record<string, string[]>; default: string[] }
+  /** The company row's starting values where this vertical's differ from the columns' defaults (roofing: free reports, the estimator's headline). */
+  company?: { reportCredits?: number; estimatorHeadline?: string }
+  /** Canvassing pitch scripts the shop starts with and edits (roofing: no screen creates the first one). */
+  canvassingScripts?: Array<{ name: string; isDefault: boolean; steps: Array<{ title: string; body: string; tips: string }> }>
 }
 
 /** The base CRM's (templates/crm/backend/db/seed.template.ts). */

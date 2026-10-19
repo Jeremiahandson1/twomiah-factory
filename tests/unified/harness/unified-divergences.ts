@@ -251,6 +251,43 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     't59-website-enquiry-inbox-on.test.ts': WEBHOOK_REPLACED,
     't59-website-enquiry-inbox-off.test.ts': WEBHOOK_REPLACED,
   },
+  // Roofing (tests/roof, run by harness/roof.ts; docs/UNIFIED_ROOF_PLAN.md). Roofing's tests seed rows in its own table
+  // shapes — first / last name, job_number, property_address, quote and invoice lines as JSON — which the plan replaced
+  // with the CRM's (decisions 2–4), and read its list replies as arrays; each such file stops at its first insert or read.
+  // Every one has an adapted copy in tests/unified/roof/ (harness/adapt.ts, each change with its reason), run by
+  // adapted.ts as roof-adapted: the same assertions, the unified shapes.
+  roof: {
+    't39-insurance-claims.test.ts': { why: 'Seeds a contact with first / last name and jobs with job_number / property_address (plan decisions 2, 3).', heldBy: 'tests/unified/roof/t39-insurance-claims.test.ts (45 of 45) and apps/unified/tests/roof-insurance.test.ts' },
+    't41-claims-and-scope.test.ts': { why: "Seeds roofing's shapes (decisions 2, 3); reads the claim activity as an array (RULEBOOK §3); fetches the Xactimate scope at /media/insurance/…, which the insurance module now serves itself under invoices:read (the media route gave it to any seat of the company — CUTOVER_LEDGER, Roofing).", heldBy: 'tests/unified/roof/t41-claims-and-scope.test.ts (50 of 50) and apps/unified/tests/roof-insurance.test.ts' },
+    't41-roof-money.test.ts': { why: "Seeds roofing's job, quote and invoice shapes (decisions 2–4); reads estimatedRevenue (the CRM's estimated_value), roofing's /api/invoices/summary (the CRM's /api/invoices/stats: totalAmount, paidAmount, outstanding) and a moneyWithheld flag beside a list (RULEBOOK §3: the screen reads the seat's permissions).", heldBy: 'tests/unified/roof/t41-roof-money.test.ts (75 of 75), apps/unified/tests/roof-jobs.test.ts and apps/unified/tests/job-money-walk.test.ts' },
+    't43-roof-write-controls.test.ts': { why: "Seeds a contact with first / last name (decision 3); and drives roofing's own review log (decision 6: the CRM's reviews module replaces it) — see roof-adapted.", heldBy: 'tests/unified/roof/t43-roof-write-controls.test.ts (every storms, canvassing and roof-report check) and apps/unified/tests/roof-shared-modules.test.ts' },
+    't58d-remove-a-teammate.test.ts': { why: "A roofer's logins are the CRM's company users (DELETE /api/company/users/:id, the same rules); roofing had forked them onto /api/users with no delete.", heldBy: 'tests/unified/roof/t58d-remove-a-teammate.test.ts (15 of 15) and apps/unified/tests/roof-shared-modules.test.ts' },
+    't59-audit-trail.test.ts': { assertions: [/^a MANAGER is refused \/api\/audit\/crew\/\S+ — the audit log is owners and admins only$/], why: "One record's history is the CRM's audit list filtered to it (GET /api/audit?entity=&entityId=, audit:read); roofing's /api/audit/:entity/:id had no caller.", heldBy: 'tests/unified/roof/t59-audit-trail.test.ts (17 of 17)' },
+    't59-calls-inbox-off.test.ts': { assertions: [/^…named "Unknown Caller" \(first \/ last name, as roofing stores people\)$/], why: 'A contact has one name (decision 3): the caller is "Unknown Caller".', heldBy: 'tests/unified/roof/t59-calls-inbox-off.test.ts (6 of 6)' },
+    't59-dashboard-stats.test.ts': { why: "Seeds roofing's job, quote and invoice shapes (decisions 2–4).", heldBy: 'tests/unified/roof/t59-dashboard-stats.test.ts (10 of 10) and apps/unified/tests/roof-field.test.ts' },
+    't62-canvass-mine.test.ts': { why: 'Reads the canvassing session lists as arrays (RULEBOOK §3).', heldBy: 'tests/unified/roof/t62-canvass-mine.test.ts (16 of 16) and apps/unified/tests/roof-field.test.ts' },
+    't62-measurement-cost.test.ts': { why: "Seeds roofing's contact and job shapes (decisions 2, 3).", heldBy: 'tests/unified/roof/t62-measurement-cost.test.ts (17 of 17) and apps/unified/tests/roof-reports.test.ts' },
+    't63-claim-money.test.ts': { why: "Seeds roofing's shapes (decisions 2, 3); reads the supplement and activity lists as arrays (RULEBOOK §3).", heldBy: 'tests/unified/roof/t63-claim-money.test.ts (13 of 13) and apps/unified/tests/roof-insurance.test.ts' },
+    't63-my-jobs.test.ts': { why: "Seeds roofing's contact and job shapes and reads job_number (decisions 2, 3).", heldBy: 'tests/unified/roof/t63-my-jobs.test.ts (8 of 8) and apps/unified/tests/roof-jobs.test.ts' },
+    't68-viewer-roof.test.ts': { why: "Seeds roofing's shapes (decisions 2, 3); reads the canvassing lists as arrays (RULEBOOK §3).", heldBy: 'tests/unified/roof/t68-viewer-roof.test.ts (30 of 30)' },
+    'mfa-roof.test.ts': { assertions: [/^…and roofing's own sign-in answer, as a password-only sign-in gets it$/], why: "The sign-in answer carries no plan `limits`: nothing read them (roofing's screens, the mobile app); the plan is the Factory's (seats, features). The company's vertical is 'roofing', as the mobile app reads it.", heldBy: 'tests/unified/roof/mfa-roof.test.ts (42 of 42)' },
+    'qbo-relay-roof.test.ts': { assertions: [/^an unsigned state naming another company is refused, and nothing is exchanged( \d+)?$/, /^a state with its return URL swapped is refused$/], why: 'A refused QuickBooks state sends the browser back to Settings with error=invalid_state before anything is exchanged (packages/tenant-backend integrations/quickbooks.ts); roofing answered a bare 400.', heldBy: 'tests/unified/roof/qbo-relay-roof.test.ts (13 of 13: the forged and the swapped state are both refused, nothing exchanged)' },
+    'webhook-signatures-roof.test.ts': { why: "Seeds contacts with first / last name and mobile_phone (decision 3); counts texts by sms_message.company_id and reads /api/sms/conversation/:contactId — a text belongs to a conversation in the CRM's texting (packages/tenant-backend integrations/sms.ts); posts inbound texts to /api/sms/webhook (the CRM's is /api/sms/webhook/incoming; a roofer's own number is repointed at cutover).", heldBy: 'tests/unified/roof/webhook-signatures-roof.test.ts (25 of 25) and apps/unified/tests/roof-shared-modules.test.ts (a stray text filed under its contact)' },
+    'website-lead-webhook.test.ts': WEBHOOK_REPLACED,
+  },
+  // Roofing's adapted copies (tests/unified/roof, run by adapted.ts).
+  'roof-adapted': {
+    't43-roof-write-controls.test.ts': {
+      assertions: [
+        /^T42: the crew seat may NOT ask a customer for a review — it reached this handler before$/, /^…and the refusal names marketing:create$/,
+        /^a manager may — the people who chase reviews are the people who run the desk$/, /^…and nothing was written for the seat that was refused( "[^"]*")?$/,
+        /^the crew seat may not mark one sent$/, /^the crew seat may not record a received review$/, /^the crew seat may not pull from Google$/,
+        /^…a manager gets past the gate, and then the honest "not connected yet"$/, /^the crew seat may not remove a request from the record$/, /^…a manager may$/,
+      ],
+      why: "Drives roofing's own review log (/api/reviews/requests, mark-sent, a review recorded by hand, a Google sync that only said \"not connected yet\"). The CRM's reviews module replaces it (plan decision 6): a request is about a job and is sent for the business (/api/reviews/request/:jobId), and reviews come from Google Business (/api/gbp). Asking for a review is still marketing:create — a crew seat refused, a manager not.",
+      heldBy: 'apps/unified/tests/roof-shared-modules.test.ts (as roofing: the crew seat refused, naming marketing:create; a manager past the guard) and tests/fieldservice/t30-debt-last-three.test.ts (request, schedule and follow-up gated, run on the unified app)',
+    },
+  },
   rv: {
     't59-website-lead-one-person.test.ts': {
       why: "Drives POST /api/webhooks/leads, the separate website's contact-form webhook (and its chat's phone-only, unitOfInterest posts). The website is the same app now; a dealership's enquiry goes straight into the sales pipeline (CrmSettings.websiteEnquiries 'pipeline', server/crm/rv/enquiry.ts), on the customer's existing contact by the same rule.",

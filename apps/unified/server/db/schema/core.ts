@@ -65,6 +65,9 @@ export const company = pgTable('company', {
   sandataAgencyId: text('sandata_agency_id'),
   timezone: text('timezone'),
   mileageRate: decimal('mileage_rate', { precision: 6, scale: 3 }).default('0.67').notNull(),
+  // Roof reports a roofer may still order free, and the price of each after (templates/crm-roof company).
+  reportCredits: integer('report_credits').default(3).notNull(),
+  reportPricePerReport: decimal('report_price_per_report', { precision: 10, scale: 2 }).default('9.00').notNull(),
 })
 
 export const user = pgTable('user', {

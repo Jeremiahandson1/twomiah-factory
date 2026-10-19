@@ -13,6 +13,7 @@ import { checkFilter } from '../listFilter'
 // the credential set is removed everywhere at once. (T43)
 import { withoutPortalCredential } from '../contacts/contacts'
 import { withoutSigningEvidence } from './signingEvidence'
+import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
 
 
 export interface QuoteTables {
@@ -700,7 +701,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       ])
       const out = { ...result, project: pr[0] || null, contact: ct[0] || null }
       emitToCompany(cid, EVENTS.JOB_CREATED, out)
-      return c.json(out, 201)
+      // This route asks jobs:create, not quotes:read: the new job's row is shaped by the one rule (../jobs/jobMoney.ts).
+      return c.json(withoutJobMoney(out, await jobMoneyWithheld(deps.canSee, currentUser)), 201)
     })
   }
 

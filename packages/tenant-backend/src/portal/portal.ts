@@ -15,6 +15,7 @@ import path from 'path'
 import { eq, and, inArray, count, sql, desc, asc, gte, lte, notInArray } from 'drizzle-orm'
 import { nextNumber, invoiceBalance, deriveStatus } from '../invoicing/money'
 import { mailFailureReason } from '../integrations/mailError'
+import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
 
 export interface PortalTables {
   contact: any; company: any; user: any
@@ -913,7 +914,9 @@ export function createPortalRoutes(deps: PortalDeps) {
       if (found.status === 'completed') return c.json({ error: 'Job already completed' }, 400)
       const [updated] = await db.update(t.job).set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() }).where(eq(t.job.id, jobId)).returning()
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'job', entityId: jobId, action: 'completed', actorName: contact.name, actorRole: contact.type || 'subcontractor', summary: `marked job ${found.number} "${found.title}" complete` })
-      return c.json({ success: true, job: updated })
+      // The subcontractor holds no permission at all, so none of the job's figures go back with it (../jobs/jobMoney.ts):
+      // `.returning()` is the whole row — the roofer's claim money and costs included.
+      return c.json({ success: true, job: withoutJobMoney(updated, Object.values(JOB_MONEY).flat()) })
     })
   }
 

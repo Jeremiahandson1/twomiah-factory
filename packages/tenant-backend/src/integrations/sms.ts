@@ -6,7 +6,7 @@
 // fieldservice/landscaping lacked the Twilio signature check entirely, crm's was a stub that returned true),
 // and every version parsed Twilio's form-encoded webhook with c.req.json() → the text was dropped with a 200.
 import { Hono } from 'hono'
-import { eq, and, or, desc, asc, count, sum, sql, gt, isNull } from 'drizzle-orm'
+import { eq, and, or, desc, asc, count, sum, sql, gt, isNull, inArray } from 'drizzle-orm'
 import { withoutPortalCredential } from '../contacts/contacts'
 import { formatPhoneE164, isDialablePhone, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioConfigFor, twilioConfigured, companyTwilioNumbers, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
 
@@ -201,6 +201,20 @@ export function createSmsService(deps: SmsServiceDeps) {
         .where(and(eq(t.smsConversation.companyId, companyId), isNull(t.smsConversation.contactId), sql`length(${digits}) >= 7`))
       for (const m of matches) {
         if (m.cid) await db.update(t.smsConversation).set({ contactId: m.cid }).where(and(eq(t.smsConversation.id, m.id), isNull(t.smsConversation.contactId)))
+      }
+    }
+    // …and when ONE contact's threads are read (their Messages panel), a thread from their number that came in before
+    // they were a contact is linked to them first: opened before the inbox, the panel showed nothing. Roofing's copy
+    // did this on the contact's own read (templates/crm-roof routes/sms.ts, 10/16); now every vertical's does.
+    if (contactId) {
+      const [who] = await db.select({ phone: t.contact.phone, mobile: t.contact.mobile }).from(t.contact)
+        .where(and(eq(t.contact.id, contactId), eq(t.contact.companyId, companyId))).limit(1)
+      const tail = (v: unknown) => String(v || '').replace(/\D/g, '').slice(-10)
+      const numbers = [tail(who?.mobile), tail(who?.phone)].filter((d) => d.length >= 7)
+      if (numbers.length) {
+        const digits = sql`right(regexp_replace(coalesce(${t.smsConversation.phoneNumber}, ''), '\\D', '', 'g'), 10)`
+        await db.update(t.smsConversation).set({ contactId })
+          .where(and(eq(t.smsConversation.companyId, companyId), isNull(t.smsConversation.contactId), inArray(digits as any, numbers)))
       }
     }
     const [data, [{ value: total }]] = await Promise.all([

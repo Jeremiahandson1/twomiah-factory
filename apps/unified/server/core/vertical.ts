@@ -115,8 +115,10 @@ export interface CrmSettings {
    * figures — server/crm/rv/dashboard.ts, templates/crm-rv routes/dashboard.ts). (rv)
    * 'homecare' is the agency's (clients, caregivers clocked in, today's visits on the live board, invoices owed, the
    * office's to-do list — server/crm/homecare/planning/dashboard.ts, templates/crm-homecare routes/dashboard.ts). (homecare)
+   * 'roof' is the roofer's (jobs open and in production, today's inspections and installs, quotes waiting, money owed,
+   * new leads — server/crm/roof/field/dashboard.ts, templates/crm-roof routes/dashboard.ts). (roof)
    */
-  dashboard?: 'events' | 'practice' | 'salon' | 'dealership' | 'homecare'
+  dashboard?: 'events' | 'practice' | 'salon' | 'dealership' | 'homecare' | 'roof'
   /**
    * Private events (server/crm/restaurant) reach into the shared modules: a contact lists their events and can't be
    * deleted while they have any; money recorded on an event's invoice (by hand or by Stripe) confirms an enquiry it is
@@ -199,6 +201,12 @@ export interface CrmSettings {
   websiteForms?: 'bar'
   /** The home-care add-on: its records, routes and timed work (server/crm/homecare; templates/crm-homecare). */
   homecare?: boolean
+  /**
+   * The roofing add-on (server/crm/roof; templates/crm-roof; docs/UNIFIED_ROOF_PLAN.md): insurance claims and
+   * supplements, measurements and roof reports, storms and canvassing, crews and materials — and roofing's own job
+   * module at /api/jobs, over the CRM's job table, in place of the shared one. (roof)
+   */
+  roof?: boolean
   /**
    * Who a phone call is about, for call tracking and the AI receptionist: 'clients' matches the caller to a home-care
    * client by phone (call_log.client_id), makes a client on a first call instead of a contact or an inbox lead, and
@@ -284,6 +292,7 @@ export async function loadVertical(id = process.env.VERTICAL): Promise<VerticalS
     rv: () => import('../../verticals/rv/settings.ts'),
     bar: () => import('../../verticals/bar/settings.ts'),
     homecare: () => import('../../verticals/homecare/settings.ts'),
+    roofing: () => import('../../verticals/roof/settings.ts'),
   }
   if (!id) {
     if (process.env.NODE_ENV === 'production') throw new Error('VERTICAL is not set')

@@ -3,12 +3,12 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
-import { nextNumber } from '@twomiah/tenant-backend'
+import { nextNumber, jobMoneyWithheld, withoutJobMoney } from '@twomiah/tenant-backend'
 import { project, contact, job, rfi, changeOrder, punchListItem } from '../../db/schema/index.ts'
 import { changeOrderTotalsByStatus, projectActivity } from '../../data/projects.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
-import type { CrmDeps } from '../deps.ts'
+import { canSeeWith, type CrmDeps } from '../deps.ts'
 
 /**
  * WHO MAY SEE WHAT A PROJECT IS WORTH (T34): `invoices:read` is the line between the people who see money and
@@ -168,7 +168,7 @@ export function createProjectRoutes(d: CrmDeps) {
     const [foundProject] = await db.select().from(project).where(and(eq(project.id, id), eq(project.companyId, currentUser.companyId))).limit(1)
     if (!foundProject) return fail(c, 404, 'Project not found')
 
-    const [projectContact, jobs, rfis, changeOrders, punchListItems] = await Promise.all([
+    const [projectContact, jobRows, rfis, changeOrders, punchListItems] = await Promise.all([
       // NAMED columns, never select(): the contact row carries `portalToken`, the customer portal's credential (T32 B2).
       foundProject.contactId ? db.select({
         id: contact.id, name: contact.name, type: contact.type, email: contact.email, phone: contact.phone,
@@ -181,6 +181,9 @@ export function createProjectRoutes(d: CrmDeps) {
       db.select().from(changeOrder).where(eq(changeOrder.projectId, id)).orderBy(desc(changeOrder.createdAt)),
       db.select().from(punchListItem).where(eq(punchListItem.projectId, id)).limit(20),
     ]) as any[][]
+    // Whole job rows: each one's money is withheld by the one rule (@twomiah/tenant-backend jobs/jobMoney.ts), whichever
+    // tier of this reply the person gets — projects:read is not quotes:read, invoices:read or margin:read.
+    const jobs = withoutJobMoney(jobRows, await jobMoneyWithheld(canSeeWith(d.permissions), currentUser))
 
     // The contract value is computed here, over ALL change orders, never on the screen (T32 H4). `pending` counts
     // as not-yet-agreed beside draft and submitted.

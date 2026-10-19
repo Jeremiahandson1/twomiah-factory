@@ -74,7 +74,8 @@ async function parseGeoTiff(buffer: Buffer): Promise<{
   data: Float32Array | Uint8Array | Int8Array | Uint16Array | Int16Array | Float64Array
 }> {
   // Ensure clean ArrayBuffer (Buffer may have offset)
-  const ab = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+  // (a copy of exactly the Buffer's bytes, typed ArrayBuffer — Buffer.buffer may be a SharedArrayBuffer to the types)
+  const ab = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength).slice().buffer
   const tiff = await fromArrayBuffer(ab)
   const image = await tiff.getImage()
   const width = image.getWidth()

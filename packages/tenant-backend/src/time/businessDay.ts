@@ -52,7 +52,9 @@ export function isValidTimeZone(tz: unknown): tz is string {
  */
 export async function companyTimeZone(db: any, companyId: string): Promise<string> {
   try {
-    const r: any = await db.execute(sql`SELECT settings, state FROM company WHERE id = ${companyId} LIMIT 1`)
+    // to_jsonb(c)->>'timezone': the unified app's company.timezone column, read so that a database without the column
+    // (the CRM templates', which keep the zone in settings) answers NULL instead of failing.
+    const r: any = await db.execute(sql`SELECT c.settings, c.state, to_jsonb(c)->>'timezone' AS timezone FROM company c WHERE c.id = ${companyId} LIMIT 1`)
     const row = ((r as any)?.rows || r)?.[0]
     if (!row) return DEFAULT_BUSINESS_ZONE
     return companyRowTimeZone(row)
@@ -73,6 +75,10 @@ export async function companyTimeZone(db: any, companyId: string): Promise<strin
  */
 export function companyRowTimeZone(row: any): string {
   try {
+    // The company's own zone: the unified app's timezone column (what the Factory provisions and the owner sets), then
+    // the CRM templates' settings.timezone, then the state's. The column was never read here — so on the unified app
+    // every shared module kept its books on the state's zone, or UTC, whatever the owner chose (found 2026-10-19).
+    if (isValidTimeZone(row?.timezone)) return row.timezone
     const s = typeof row?.settings === 'string' ? JSON.parse(row.settings) : row?.settings
     if (isValidTimeZone(s?.timezone)) return s.timezone
     const byState = STATE_TIME_ZONES[String(row?.state || '').trim().toUpperCase()]

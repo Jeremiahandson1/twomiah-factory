@@ -593,7 +593,9 @@ async function updateClaimStatus(
         eq(job.companyId, companyId),
         notInArray(job.status, ['completed', 'cancelled']),
       ))
-      .returning();
+      // Named columns: this row goes back in the reply to anyone holding warranties:update, and the whole row carries
+      // the job's money, which only its permissions unlock (../jobs/jobMoney.ts).
+      .returning({ id: job.id, number: job.number, title: job.title, status: job.status, completedAt: job.completedAt });
     jobClosed = done ?? null;
   }
 

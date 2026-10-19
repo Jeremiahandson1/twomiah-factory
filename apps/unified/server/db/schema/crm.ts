@@ -10,6 +10,7 @@ import { site } from './trades.ts'
 import { event } from './events.ts'
 import { patient } from './vet.ts'
 import { booking } from './booking.ts'
+import { crew, measurementReport } from './roof.ts'
 import { company, user } from './core.ts'
 import { commissionIsAuto, commissionIsReversal, invoiceIsLive } from '../../data/indexWhere.ts'
 
@@ -48,6 +49,8 @@ export const contact = pgTable('contact', {
   // When this client was last chased — the win-back list's equivalent of the vaccination stamp, so a
   // lapsed client is not texted again the next morning by whoever opens the page. (Vet T12 M9)
   lastRemindedAt: timestamp('last_reminded_at'),
+  // Residential or commercial — how a roofer files a customer (templates/crm-roof contact.property_type).
+  propertyType: text('property_type'),
 }, (t) => [
   index('contact_company_id_idx').on(t.companyId),
   index('contact_type_idx').on(t.type),
@@ -179,6 +182,35 @@ export const job = pgTable('job', {
   equipmentId: text('equipment_id').references(() => equipment.id, { onDelete: 'set null' }),
   siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
   serviceAgreementId: text('service_agreement_id'),
+  // Roofing's job (templates/crm-roof job; docs/UNIFIED_ROOF_PLAN.md decision 2). Nullable: no other vertical writes
+  // them. Roofing's job_number / property_address / estimated_revenue are this table's number / address /
+  // estimated_value; its money is the CRM's precision (12, 2), wider than roofing's (10, 2), so every value fits.
+  assignedSalesRepId: text('assigned_sales_rep_id').references(() => user.id, { onDelete: 'set null' }),
+  assignedCrewId: text('assigned_crew_id').references((): AnyPgColumn => crew.id, { onDelete: 'set null' }),
+  roofAge: integer('roof_age'),
+  roofType: text('roof_type'),
+  stories: integer('stories'),
+  claimNumber: text('claim_number'),
+  insuranceCompany: text('insurance_company'),
+  adjusterName: text('adjuster_name'),
+  adjusterPhone: text('adjuster_phone'),
+  dateOfLoss: timestamp('date_of_loss'),
+  deductible: decimal('deductible', { precision: 12, scale: 2 }),
+  rcv: decimal('rcv', { precision: 12, scale: 2 }),
+  acv: decimal('acv', { precision: 12, scale: 2 }),
+  approvedScope: text('approved_scope'),
+  finalRevenue: decimal('final_revenue', { precision: 12, scale: 2 }),
+  materialCost: decimal('material_cost', { precision: 12, scale: 2 }),
+  laborCost: decimal('labor_cost', { precision: 12, scale: 2 }),
+  inspectionDate: timestamp('inspection_date'),
+  inspectionNotes: text('inspection_notes'),
+  installDate: timestamp('install_date'),
+  installEndDate: timestamp('install_end_date'),
+  measurementReportId: text('measurement_report_id').references((): AnyPgColumn => measurementReport.id, { onDelete: 'set null' }),
+  totalSquares: decimal('total_squares', { precision: 10, scale: 2 }),
+  // Why a job ended without being paid, and when (roofing's close with a reason).
+  lostReason: text('lost_reason'),
+  closedAt: timestamp('closed_at'),
 }, (t) => [
   index('job_company_id_idx').on(t.companyId),
   index('job_status_idx').on(t.status),
@@ -223,6 +255,8 @@ export const quote = pgTable('quote', {
   siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
   equipmentId: text('equipment_id').references(() => equipment.id, { onDelete: 'set null' }),
   convertedToJobId: text('converted_to_job_id'),
+  // The job a quote is for (templates/crm-roof quote.job_id): a roofing proposal belongs to its job, as the invoice does.
+  jobId: text('job_id').references((): AnyPgColumn => job.id, { onDelete: 'set null' }),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
   index('quote_status_idx').on(t.status),
