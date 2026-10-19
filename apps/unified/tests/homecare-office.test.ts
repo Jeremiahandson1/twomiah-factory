@@ -220,6 +220,79 @@ describe('View As and signing out', () => {
   })
 })
 
+// The unified screens keep the session in cookies the page cannot read (tenant-backend auth/cookieSession.ts). View As
+// fits that: the View As session is its own httpOnly cookie, the office's session stays beneath it, Exit drops it.
+describe('View As in a cookie session', () => {
+  type Jar = Record<string, string>
+  const absorb = (jar: Jar, r: Response) => {
+    for (const line of r.headers.getSetCookie()) {
+      const [pair] = line.split(';')
+      const i = pair.indexOf('=')
+      const name = pair.slice(0, i), value = pair.slice(i + 1)
+      if (!value || /max-age=0/i.test(line)) delete jar[name]; else jar[name] = value
+    }
+    return r
+  }
+  const cookieOf = (jar: Jar) => Object.entries(jar).map(([k, v]) => `${k}=${v}`).join('; ')
+  const browser = (jar: Jar) => async (path: string, init: any = {}) =>
+    absorb(jar, await t.call(path, { ...init, headers: { 'X-Auth-Mode': 'cookie', Cookie: cookieOf(jar), ...(init.headers || {}) } }))
+  const signedIn = async (email: string, password: string) => {
+    const jar: Jar = {}
+    const go = browser(jar)
+    expect((await go('/api/auth/login', { method: 'POST', json: { email, password } })).status).toBe(200)
+    expect(jar.tw_access).toBeTruthy()
+    return { jar, go }
+  }
+
+  test('the View As session is a cookie no script can read; the office is back on Exit', async () => {
+    const { jar, go } = await signedIn('admin@test.example', PASSWORD)
+    const r = await go(`/api/auth/impersonate/${ids.cg}`, { method: 'POST' })
+    expect(r.status).toBe(200)
+    const body = await r.json()
+    expect('token' in body).toBe(false)
+    expect(body.user.id).toBe(ids.cg)
+    const set = r.headers.getSetCookie().find((l) => l.startsWith('tw_view_as='))!
+    expect(set).toMatch(/HttpOnly/i)
+    expect(set).toMatch(/SameSite=Strict/i)
+    expect(Number(/Max-Age=(\d+)/i.exec(set)?.[1])).toBe(2 * 3600 - 60)
+
+    expect((await (await go('/api/auth/me')).json()).user.id).toBe(ids.cg)
+    expect(await (await go('/api/auth/impersonate')).json()).toMatchObject({ active: true, name: 'cg Tester', role: 'caregiver', impersonatedBy: 'admin@test.example' })
+    const w = await go('/api/incidents/caregiver-report', { method: 'POST', json: { clientId: ids.served, incidentType: 'fall', incidentDate: '2026-01-01', description: 'x' } })
+    expect(w.status).toBe(403)
+    expect((await w.json()).code).toBe('view_as_read_only')
+    // Starting another View As from inside one is a write: refused.
+    expect((await go(`/api/auth/impersonate/${ids.cg2}`, { method: 'POST' })).status).toBe(403)
+
+    // Exit.
+    expect((await go('/api/auth/logout', { method: 'POST', json: {} })).status).toBe(200)
+    expect(jar.tw_view_as).toBeUndefined()
+    expect(jar.tw_access).toBeTruthy()
+    expect((await (await go('/api/auth/me')).json()).user.id).toBe(ids.admin)
+    expect(await (await go('/api/auth/impersonate')).json()).toEqual({ active: false })
+    const [admin] = await rows(sql`SELECT last_logout_at FROM "user" WHERE id = ${ids.admin}`)
+    expect(admin.last_logout_at).toBe(null)
+  })
+
+  test('a View As cookie that no longer holds a live View As is dropped, and the office carries on', async () => {
+    const { jar, go } = await signedIn('admin@test.example', PASSWORD)
+    const ran = jwt.sign({ userId: ids.cg, companyId, email: 'cg@test.example', role: 'caregiver', impersonation: true, impersonatedBy: 'admin@test.example', exp: Math.floor(Date.now() / 1000) - 5 }, process.env.JWT_SECRET!)
+    const plain = jwt.sign({ userId: ids.cg, companyId, email: 'cg@test.example', role: 'caregiver' }, process.env.JWT_SECRET!, { expiresIn: '1h' })
+    for (const stale of [ran, plain, 'not-a-token']) {
+      jar.tw_view_as = stale
+      const r = await go('/api/incidents/my-clients')
+      expect(r.status).toBe(401)
+      expect(jar.tw_view_as).toBeUndefined()
+      expect((await (await go('/api/auth/me')).json()).user.id).toBe(ids.admin)
+    }
+  })
+
+  test('the banner asks any session; outside View As the answer is no', async () => {
+    expect(await (await as('cg', '/api/auth/impersonate')).json()).toEqual({ active: false })
+    expect((await t.call('/api/auth/impersonate')).status).toBe(401)
+  })
+})
+
 describe('call tracking: a home-care caller is a client (CrmSettings.callers)', () => {
   test('a first call makes a client from the caller; the next call is matched to them; the log filters by client', async () => {
     await t.db.execute(sql`UPDATE company SET enabled_features = '["call_tracking","ai_receptionist"]'::json, timezone = 'America/Chicago' WHERE id = ${companyId}`)

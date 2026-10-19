@@ -193,3 +193,80 @@ describe('shapes the screens read', () => {
     expect((await body(r)).code).toBe('owner_only')
   })
 })
+
+// The Full Profile's overview read GET /api/caregivers/:id/summary, which no server ever answered (built in the move).
+describe('the caregiver Full Profile overview', () => {
+  const agencyToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date())
+  beforeAll(async () => {
+    const S = t.schema
+    const [cl] = await t.db.insert(S.clients).values({ companyId: coA, firstName: 'Ada', lastName: 'Client', address: '1 Elm', city: 'Eau Claire' } as any).returning()
+    ids.client = cl.id
+    await t.db.insert(S.timeEntries).values([
+      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, startTime: new Date(), endTime: new Date(Date.now() + 90 * 60000), durationMinutes: 90, isComplete: true },
+      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, startTime: new Date('2025-01-15T15:00:00Z'), endTime: new Date('2025-01-15T17:30:00Z'), durationMinutes: 150, isComplete: true },
+      // Still clocked in: not hours yet.
+      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, startTime: new Date(Date.now() - 60000), isComplete: false },
+    ] as any)
+    const today = agencyToday()
+    await t.db.insert(S.caregiverRates).values({ companyId: coA, caregiverId: ids.cg1, rateType: 'base', hourlyRate: '24.00', effectiveDate: '2025-01-01', notes: 'Raise' } as any)
+    await t.db.insert(S.payrollShiftReviews).values({ companyId: coA, caregiverId: ids.cg1, clientId: cl.id, shiftDate: today, payPeriodStart: today, payPeriodEnd: today, payableMinutes: 90, status: 'approved' } as any)
+    await t.db.insert(S.schedules).values([
+      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, scheduleType: 'recurring', dayOfWeek: 2, startTime: new Date('2026-01-01T09:00:00'), endTime: new Date('2026-01-01T12:30:00') },
+      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, scheduleType: 'one-time', date: '2020-01-01', startTime: new Date('2020-01-01T09:00:00'), endTime: new Date('2020-01-01T10:00:00') },
+      { companyId: coA, caregiverId: ids.cg1, clientId: cl.id, scheduleType: 'one-time', date: '2099-03-04', startTime: new Date('2099-03-04T13:00:00'), endTime: new Date('2099-03-04T15:00:00') },
+    ] as any)
+  })
+
+  test('hours, clients, recent visits and the schedule from today on', async () => {
+    const r = await as('adminA', 'GET', `/api/caregivers/${ids.cg1}/summary`)
+    expect(r.status).toBe(200)
+    const s = await body(r)
+    expect(s.earnings.hoursThisMonth).toBe(1.5)
+    expect(s.earnings.hoursThisWeek).toBe(1.5)
+    expect(s.earnings.totalHours).toBe(4)
+    expect(s.earnings.avgShiftHours).toBe(2)
+    expect(s.clients).toHaveLength(1)
+    expect(s.clients[0]).toMatchObject({ id: ids.client, firstName: 'Ada', shiftCount: 2, totalHours: 4, lastVisit: agencyToday() })
+    expect(s.recentShifts).toHaveLength(3)
+    // Newest first: today's finished visit, the open one a minute before it, then January's.
+    expect(s.recentShifts.map((x: any) => [x.isComplete, x.hours])).toEqual([[true, 1.5], [false, null], [true, 2.5]])
+    expect(s.recentShifts[0].clientFirst).toBe('Ada')
+    const days = s.schedule.map((x: any) => x.dayOfWeek ?? x.date).sort()
+    expect(days).toEqual([2, '2099-03-04'].sort() as any)
+    expect(s.schedule.find((x: any) => x.dayOfWeek === 2)).toMatchObject({ startTime: '09:00:00', endTime: '12:30:00', shiftHours: 3.5, clientFirst: 'Ada' })
+  })
+
+  test('pay is the paycheck: approved reviews at the rate in force, to the payroll and the person only', async () => {
+    const office = await body(await as('adminA', 'GET', `/api/caregivers/${ids.cg1}/summary`))
+    expect(office.earnings.earningsThisMonth).toBe(36) // 90 approved minutes × $24.00
+    expect(office.payRates).toEqual([expect.objectContaining({ rate: '24.00', effectiveDate: '2025-01-01', notes: 'Raise' })])
+    const own = await body(await as('cg1', 'GET', `/api/caregivers/${ids.cg1}/summary`))
+    expect(own.earnings.earningsThisMonth).toBe(36)
+    const manager = await as('managerA', 'GET', `/api/caregivers/${ids.cg1}/summary`)
+    expect(manager.status).toBe(200)
+    const m = await body(manager)
+    expect('earningsThisMonth' in m.earnings).toBe(false)
+    expect('payRates' in m).toBe(false)
+    expect(m.earnings.totalHours).toBe(4)
+  })
+
+  test('a colleague is refused; another agency finds no such caregiver', async () => {
+    expect((await as('cg2', 'GET', `/api/caregivers/${ids.cg1}/summary`)).status).toBe(403)
+    expect((await as('adminB', 'GET', `/api/caregivers/${ids.cg1}/summary`)).status).toBe(404)
+  })
+
+  test('the visit history\'s From / To are the agency\'s days (they were ignored)', async () => {
+    const all = await body(await as('adminA', 'GET', `/api/time-entries/caregiver-history/${ids.cg1}`))
+    expect(all.data).toHaveLength(3)
+    const jan = await body(await as('adminA', 'GET', `/api/time-entries/caregiver-history/${ids.cg1}?startDate=2025-01-15&endDate=2025-01-15`))
+    expect(jan.data.map((e: any) => e.durationMinutes)).toEqual([150])
+    // Each visit says how many GPS points it has, so the history offers its route; and where the client lives.
+    const [visit] = await t.db.select().from(t.schema.timeEntries).where(eq(t.schema.timeEntries.durationMinutes, 150))
+    await t.db.insert(t.schema.gpsTracking).values([0, 1].map((i) => ({ companyId: coA, caregiverId: ids.cg1, timeEntryId: visit.id, latitude: '44.8', longitude: '-91.5', timestamp: new Date(Date.UTC(2025, 0, 15, 15, i)) })) as any)
+    const withGps = await body(await as('adminA', 'GET', `/api/time-entries/caregiver-history/${ids.cg1}?startDate=2025-01-15&endDate=2025-01-15`))
+    expect(withGps.data[0]).toMatchObject({ gpsPointCount: 2, clientAddress: '1 Elm', clientCity: 'Eau Claire' })
+    expect(all.data.filter((e: any) => e.gpsPointCount === 0)).toHaveLength(3)
+    const none = await body(await as('adminA', 'GET', `/api/time-entries/caregiver-history/${ids.cg1}?startDate=2025-01-16&endDate=2025-01-31`))
+    expect(none.data).toHaveLength(0)
+  })
+})

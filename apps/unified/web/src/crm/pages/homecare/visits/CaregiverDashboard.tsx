@@ -34,7 +34,7 @@
 //     frame token or a light/dark pair, and the white-on-colour fills that read under 4.5:1 are darker shades.
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { api, rows, errorMessage } from '../lib/http'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 import { useAuth, usePrompt, useToast } from '../../../../shared'
 import { usePolling } from '../lib/usePolling'
 import { isBiweeklyOn, toYMD } from '../lib/biweekly'
@@ -521,7 +521,7 @@ const CaregiverDashboard = () => {
       const [schedulesRes, clientsRes, activeRes, visitsRes] = await Promise.all([
         // includeMovedIn: days moved ONTO this caregiver from someone else's pattern.
         ok(api.get(`/api/schedules/${myId}`, { includeMovedIn: 1 })),
-        ok(api.get('/api/clients')),
+        ok(listAll('/api/clients')),
         ok(api.get('/api/time-entries/active')),
         ok(api.get('/api/time-entries/recent', { limit: 10 })),
       ])

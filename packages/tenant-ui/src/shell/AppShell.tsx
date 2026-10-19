@@ -301,6 +301,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
             <div className="flex-1 max-w-md ml-4">{config.search !== false && <GlobalSearch api={api} placeholder={config.searchPlaceholder} />}</div>
 
             <div className="flex items-center gap-2">
+              {config.headerActions && <config.headerActions />}
               {connected !== undefined && <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-100'}`} title={connected ? 'Connected' : 'Disconnected'} aria-label={connected ? 'Real-time updates connected' : 'Real-time updates disconnected'} />}
 
               <button type="button" onClick={() => setTheme(isDark ? 'light' : 'dark')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg" aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'} title={isDark ? 'Light mode' : 'Dark mode'}>
@@ -342,6 +343,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
           </div>
         </header>
 
+        {config.banner && <config.banner />}
         <TrialBanner company={company} />
 
         <main id="main-content" className="p-4 lg:p-6" tabIndex={-1}>

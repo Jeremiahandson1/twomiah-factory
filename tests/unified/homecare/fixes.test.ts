@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/fixes.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 3 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 4 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — six loose ends after the catch-up merge, through the real routes.
 //   1. a caregiver WRITES care (MAR, vitals, ADLs, checklist tasks, visit photos, visit notes, client
@@ -170,7 +170,7 @@ await insEntry('te_cg1_served', cg1.id, served.id)
   const needs = await CG1('PUT', `/api/matching/client/${other.id}/needs`, { needs: 'x' })
   const apply = await CG1('POST', '/api/matching/apply-schedule', { assignments: [{ clientId: other.id, caregiverId: cg1.id, dayOfWeek: 1, startTime: '09:00', endTime: '10:00' }] })
   check("1. a caregiver cannot change a client's matching needs or apply a matching schedule (that would make them 'serve' anyone)",
-    needs.status === 403 && apply.status === 403 && (await n(sql`SELECT COUNT(*)::int AS n FROM schedules WHERE caregiver_id = ${cg1.id} AND client_id = ${other.id}`)) === 0, { needs: needs.status, apply: apply.status })
+    needs.status === 403 && apply.status === 404 && /* unified: POST /api/matching/apply-schedule is not on the unified app: the template's answered success and applied nothing (a stub), so nobody — caregiver or office — can apply a matching schedule; no schedule is made either way */ (await n(sql`SELECT COUNT(*)::int AS n FROM schedules WHERE caregiver_id = ${cg1.id} AND client_id = ${other.id}`)) === 0, { needs: needs.status, apply: apply.status })
   check('1. a caregiver cannot set a pay rate per care type', (await CG1('POST', '/api/caregiver-care-type-rates', { caregiverId: cg1.id, careTypeId: 'x', hourlyRate: '40' })).status === 403)
 }
 

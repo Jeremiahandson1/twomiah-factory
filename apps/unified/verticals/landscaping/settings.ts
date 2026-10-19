@@ -1,15 +1,43 @@
 // Landscaping: lawn care, landscaping and tree service (templates/crm-landscaping). Field service's lineage — jobs at a
 // customer's property, equipment, recurring service agreements, crews texted on their way — with its own modules: the
 // weekly Route Board, area-based pricing and snow & ice contracts (server/crm/landscaping).
+import type { StarterContent } from '../../server/core/starter.ts'
 import type { VerticalSettings } from '../../server/core/vertical.ts'
 
 const DOC_TYPES = ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other']
+
+// What a new business finds in Help on day one (server/core/starter.ts; written once at provisioning, then the owner's).
+// Its template's seeded articles, rewritten against the unified screens with every claim checked in the code
+// (2026-10-19): the unified app had given every vertical the contractor CRM's articles, and the templates' own named
+// contact tags, click-a-date booking, roles on the Team page and overdue reminders, none of which the app has.
+const STARTER: StarterContent = {
+  helpArticles: [
+    { title: "Getting Started with Your Landscaping CRM", category: "Getting Started", isFaq: true,
+      content: "Welcome! Start by adding your customers on the Contacts page and each property under Locations. Then create jobs on the Jobs page (New Job) and send quotes from Quotes. Use the menu on the left to move between pages." },
+    { title: "Managing Customers & Properties", category: "Getting Started", isFaq: false,
+      content: "Add a customer with Add Contact on the Contacts page. On their page, Add Location records each property with its address and access notes. Opening a location shows the equipment there and its service history. The customer's page also lists their jobs, quotes and invoices." },
+    { title: "Creating and Sending Quotes", category: "Quotes & Invoices", isFaq: false,
+      content: "Go to Quotes and click New Quote. Pick the customer and, if they have several, the property (Location). Add a line item for each part of the work, then Save & send to email it; the customer needs an email address on file. If their client portal is on, they can approve online. Otherwise use Mark approved. An approved quote can become a job (Convert to Job) or an invoice (Create Invoice). With Area Pricing on, the Area Pricing page prices services by measured square footage." },
+    { title: "Invoice Management", category: "Quotes & Invoices", isFaq: false,
+      content: "Create an invoice with New Invoice on the Invoices page, or from an approved quote (Create Invoice). Bill a visit or a project like this. For regular billing, the Recurring page sets up Recurring Invoices (weekly, bi-weekly, monthly…). Snow Billing handles snow and ice contracts per push, per event, per inch or seasonal. Use Send to email an invoice, Record Payment when paid, and Send again to chase one that is unpaid." },
+    { title: "How do I schedule jobs and routes?", category: "Scheduling", isFaq: true,
+      content: "Give a job its Scheduled Date and Time, and pick the crew member under Assigned To. The Schedule page shows the week: click a job to open it, and with Drag & Drop Calendar on, drag it to another day. For weekly mowing, the Route Board (Recurring Route Board) holds a route for each day: click New Route, then Add Stop for each property." },
+    { title: "Team & Crew Management", category: "Team", isFaq: false,
+      content: "Give someone a sign-in from Settings › Users (Add User), which can email them an invite. Their Access Role sets what they can do:\n• Viewer can look but change nothing.\n• Staff handles day-to-day work.\n• Manager has full access to work and invoicing.\n• Admin also has company settings and the team.\n\nThe Team page is your roster: each person's job title, department and hourly rate. Crew members can be assigned to jobs, and their hours are logged on the Time page." },
+    { title: "How do I track crew time?", category: "Time & Expenses", isFaq: true,
+      content: "Use the Time page. Click Clock In when you start and Clock Out when you finish, or use Log Time to enter hours by hand. With Log Time you can link the hours to a job. Managers approve entries." },
+    { title: "Property & Job History", category: "Documents", isFaq: false,
+      content: "Each property (a customer's Location) keeps its access notes, the equipment there and its service history. With Crew View and Photo Capture on, crews add before-and-after photos to a job from Crew View, and the photos show on the job." },
+  ],
+  pricebookCategories: { byIndustry: {}, default: ["Maintenance", "Design & Install", "Irrigation", "Hardscape", "Snow"] },
+}
 
 const landscaping: VerticalSettings = {
   id: 'landscaping',
   label: 'Landscaping',
   mfaIssuer: 'Twomiah Landscaping',
   featureSet: 'crm-landscaping',
+  starter: STARTER,
   // A crew running late tells the customer from the contact record (templates/crm-landscaping middleware/permissions.ts,
   // T30 L-RB).
   extraRolePermissions: { field: ['sms:send'] },

@@ -13,7 +13,11 @@
 //         from a View As session, which ends only itself, never the viewed person's own sessions.
 //   · GET /api/auth/users — the staff list the View As picker offers;
 //   · POST /api/auth/impersonate/:userId — View As: a 2-hour token for that person, marked `impersonation`, with no
-//     refresh token, audited in the clinical trail (ADMIN_IMPERSONATE). No audit row, no token.
+//     refresh token, audited in the clinical trail (ADMIN_IMPERSONATE). No audit row, no token. A cookie-session
+//     browser (the unified app's screens) gets it as the View As cookie (tenant-backend auth/cookieSession.ts), never
+//     in the reply, so no script on the page ever holds it; the office's own session stays beneath it. Exit is
+//     POST /api/auth/logout, which in a View As ends only the View As;
+//   · GET /api/auth/impersonate — is this a View As, whose, by whom, until when (the screens' banner).
 //
 // Permissions: both were requireAdmin (owner or admin) → users:read, which exactly those two seats hold (the people
 // list is theirs). A View As token carries the viewed person's role, so nobody may view as a person on a higher rung
@@ -21,7 +25,7 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { and, asc, eq } from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
-import { requestToken } from '@twomiah/tenant-backend'
+import { clearViewAsCookie, requestToken, setViewAsCookie, wantsCookieSession } from '@twomiah/tenant-backend'
 import { auditLogs, user } from '../../../db/schema/index.ts'
 import { fail, list, one } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -33,13 +37,16 @@ export const IMPERSONATION_HOURS = 2
 export const SESSION_ENDED = 'Invalid or expired token'
 const LOGOUT = '/api/auth/logout'
 
-/** The verified token this request carries (header or session cookie), or null. Never throws. */
+/** The verified token this request carries (header or a cookie), or null. Never throws. */
 function verifiedToken(c: any): any | null {
   const presented: any = requestToken(c)
   const token = presented && 'token' in presented ? presented.token : null
   if (!token) return null
   try { return jwt.verify(token, process.env.JWT_SECRET!) } catch { return null }
 }
+
+/** Did this request come in on the View As cookie? */
+const onViewAsCookie = (c: any): boolean => { const p: any = requestToken(c); return !!p && p.via === 'view-as' }
 
 /**
  * The app's sign-in check for a home-care tenant: View As is read-only, a token from before the person's last
@@ -49,13 +56,23 @@ export function withHomecareSessions(real: MiddlewareHandler, deps: Pick<CrmDeps
   const tokens = createTokenRevocation(deps as CrmDeps)
   return async (c, next) => {
     const decoded = verifiedToken(c)
+    // A View As cookie that no longer holds a live View As (run out, or ended by the viewed person signing out) is
+    // dropped, and the request refused as signed out: the screens' client then refreshes the office's own session and
+    // asks again — as the office.
+    if (onViewAsCookie(c) && (!decoded?.impersonation || await tokens.isStaffTokenRevoked(decoded))) {
+      clearViewAsCookie(c)
+      return fail(c, 401, SESSION_ENDED)
+    }
     if (decoded?.impersonation) {
       let through = false
       const refused = await refuseViewAsWrites(c, async () => { through = true })
       if (!through) return refused as Response
       // Signing out of View As ends only the View As token (the screen drops it). It never reaches the shared
       // sign-out, which would revoke the viewed person's own refresh tokens.
-      if (c.req.method === 'POST' && c.req.path.replace(/\/+$/, '') === LOGOUT) return one(c, { message: 'Logged out' })
+      if (c.req.method === 'POST' && c.req.path.replace(/\/+$/, '') === LOGOUT) {
+        if (onViewAsCookie(c)) clearViewAsCookie(c)
+        return one(c, { message: 'Logged out' })
+      }
     }
     if (decoded && await tokens.isStaffTokenRevoked(decoded)) return fail(c, 401, SESSION_ENDED)
     return real(c, async () => {
@@ -87,6 +104,22 @@ export function createViewAsRoutes(d: CrmDeps) {
   const { requirePermission, normalizeRole, ROLE_HIERARCHY } = d.permissions
   const rung = (role: string) => (ROLE_HIERARCHY as string[]).indexOf(normalizeRole(role))
 
+  // GET / — the banner's question: is this session a View As? Any signed-in person may ask about their own session.
+  app.get('/', async (c) => {
+    const decoded = verifiedToken(c)
+    if (!decoded?.impersonation) return one(c, { active: false })
+    const viewed = c.get('user')
+    const [row] = await d.db.select({ firstName: user.firstName, lastName: user.lastName, role: user.role })
+      .from(user).where(and(eq(user.id, viewed.userId), eq(user.companyId, viewed.companyId))).limit(1)
+    return one(c, {
+      active: true,
+      name: `${row?.firstName || ''} ${row?.lastName || ''}`.trim() || decoded.name || '',
+      role: row?.role ?? viewed.role,
+      impersonatedBy: decoded.impersonatedBy ?? null,
+      expiresAt: typeof decoded.exp === 'number' ? new Date(decoded.exp * 1000).toISOString() : null,
+    })
+  })
+
   app.post('/:userId', requirePermission('users:read'), async (c) => {
     const actor = c.get('user')
     const [target] = await d.db.select({
@@ -114,10 +147,13 @@ export function createViewAsRoutes(d: CrmDeps) {
       process.env.JWT_SECRET!,
       { expiresIn: `${IMPERSONATION_HOURS}h` },
     )
-    return one(c, {
-      token,
-      user: { id: target.id, email: target.email, name, firstName: target.firstName, lastName: target.lastName, role: target.role, impersonatedBy: actor.email },
-    })
+    const viewed = { id: target.id, email: target.email, name, firstName: target.firstName, lastName: target.lastName, role: target.role, impersonatedBy: actor.email }
+    if (wantsCookieSession(c)) {
+      // A minute inside the token's life, so the browser drops the cookie before the server would refuse the token.
+      setViewAsCookie(c, token, IMPERSONATION_HOURS * 3600 - 60)
+      return one(c, { user: viewed })
+    }
+    return one(c, { token, user: viewed })
   })
   return app
 }

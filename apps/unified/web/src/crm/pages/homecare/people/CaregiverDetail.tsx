@@ -3,9 +3,11 @@
 // Caregivers → "Full Profile" (CaregiverManagement), as in the template.
 //
 // Replies read (server/crm/homecare):
-//   GET   /api/caregivers/:id/summary            NOT on the server — nor was it on the template's (reported). Its answer
-//                                                fed the overview (earnings, clients served, recent shifts, schedule,
-//                                                pay-rate history) and the form; the overview stays empty without it.
+//   GET   /api/caregivers/:id/summary            hr/caregivers.ts — the overview: earnings { hoursThisMonth, hoursThisWeek,
+//                                                totalHours, avgShiftHours, earningsThisMonth (payroll's approved pay;
+//                                                only to the person or the payroll) }, clients, recentShifts, schedule
+//                                                (from today on), payRates (base-rate history; same rule). No template
+//                                                server ever answered it — built in the move.
 //   GET   /api/caregivers/:id                    hr/caregivers.ts — the caregiver's record (camelCase, ivrPin, profile).
 //                                                The form and header read it where the summary has no profile, so
 //                                                "Save" can no longer write a blank name over the caregiver's own.
@@ -138,10 +140,7 @@ interface ShiftRow {
   gpsPointCount?: number | string | null
 }
 
-/**
- * The answer GET /api/caregivers/:id/summary would give. The route does not exist (reported); these are the template's
- * names in the rulebook's camelCase, read only if a summary ever answers.
- */
+/** GET /api/caregivers/:id/summary. No `profile`: the record comes from GET /api/caregivers/:id. */
 interface Summary {
   profile?: CaregiverRecord | null
   earnings?: { hoursThisMonth?: unknown; earningsThisMonth?: unknown; hoursThisWeek?: unknown; totalHours?: unknown; avgShiftHours?: unknown } | null
@@ -408,11 +407,10 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
 
   // ── SHIFTS / GPS loaders ────────────────────────────────────────────────────
   const loadShifts = async () => {
-    // The server pages this list but does not filter it by date (neither did the template's): From/To are sent as the
-    // template sent them. (Reported.)
+    // Calendar days: the server reads them on the agency's clock, the To day included.
     const params: Record<string, string> = { limit: '100' }
-    if (shiftFilter.start) params.startDate = shiftFilter.start + 'T00:00:00'
-    if (shiftFilter.end) params.endDate = shiftFilter.end + 'T23:59:59'
+    if (shiftFilter.start) params.startDate = shiftFilter.start
+    if (shiftFilter.end) params.endDate = shiftFilter.end
     try {
       setAllShifts(rows(await api.get(`/api/time-entries/caregiver-history/${caregiverId}`, params)).map(shiftFromHistory))
     } catch (e) { toast.error(errorMessage(e)) }
@@ -466,7 +464,7 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         {[
           { label: 'Hours This Month', val: fmtHrs(earnings?.hoursThisMonth), accent: BRAND_INK },
-          { label: 'Earnings This Month', val: fmt$(earnings?.earningsThisMonth), accent: INDIGO_INK },
+          { label: 'Approved Pay This Month', val: fmt$(earnings?.earningsThisMonth), accent: INDIGO_INK },
           { label: 'Hours This Week', val: fmtHrs(earnings?.hoursThisWeek), accent: CYAN_INK },
           { label: 'Total Hours (All Time)', val: fmtHrs(earnings?.totalHours), accent: AMBER_INK },
           { label: 'Avg Shift', val: fmtHrs(earnings?.avgShiftHours), accent: INDIGO_INK },
@@ -505,7 +503,7 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
             {recentShifts?.map((sh) => (
               <tr key={sh.id} style={s.row}>
                 <td style={{ padding: '0.4rem 0.75rem', fontWeight: 600 }}>{sh.clientFirst} {sh.clientLast}</td>
-                <td style={{ padding: '0.4rem 0.75rem', color: 'var(--hc-muted)' }}>{fmtDate(sh.startTime)}</td>
+                <td style={{ padding: '0.4rem 0.75rem', color: 'var(--hc-muted)' }}>{formatAgencyDateTime(sh.startTime, { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                 <td style={{ padding: '0.4rem 0.75rem' }}>{formatAgencyDateTime(sh.startTime, { hour: 'numeric', minute: '2-digit' })}</td>
                 <td style={{ padding: '0.4rem 0.75rem' }}>{sh.endTime ? formatAgencyDateTime(sh.endTime, { hour: 'numeric', minute: '2-digit' }) : '—'}</td>
                 <td style={{ padding: '0.4rem 0.75rem', fontWeight: 700 }}>{sh.hours ? fmtHrs(sh.hours) : '—'}</td>
@@ -842,7 +840,7 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
               {shifts.map((sh) => (
                 <tr key={sh.id} style={s.row}>
                   <td style={{ ...cell, fontWeight: 600 }}>{sh.clientFirst} {sh.clientLast}</td>
-                  <td style={{ ...cell, color: 'var(--hc-muted)' }}>{fmtDate(sh.startTime)}</td>
+                  <td style={{ ...cell, color: 'var(--hc-muted)' }}>{formatAgencyDateTime(sh.startTime, { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                   <td style={cell}>{formatAgencyDateTime(sh.startTime, { hour: 'numeric', minute: '2-digit' })}</td>
                   <td style={cell}>{sh.endTime ? formatAgencyDateTime(sh.endTime, { hour: 'numeric', minute: '2-digit' }) : 'Active'}</td>
                   <td style={{ ...cell, fontWeight: 700 }}>{sh.hours ? fmtHrs(sh.hours) : '—'}</td>
@@ -1105,7 +1103,7 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
           <div style={{ textAlign: 'right' }}>
             {/* Brand shade 200: the shade every owner colour reads at on this fixed dark header. */}
             <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'rgb(var(--brand-200))' }}>{fmt$(earnings?.earningsThisMonth)}</div>
-            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)' }}>This month</div>
+            <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.7)' }}>Approved pay this month</div>
           </div>
         </div>
       </div>

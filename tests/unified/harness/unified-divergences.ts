@@ -146,7 +146,7 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
       heldBy: "tests/unified/homecare/incidents.test.ts (the adapted copy, each reply read through templateShape, section 3 not run; run by adapted.ts — 153 of 153) and apps/unified/tests/homecare-office.test.ts",
     },
     'fixes.test.ts': {
-      why: "It reads the template's agencies table by raw SQL, and replies the template's way (lists as arrays, snake_case keys). One deliberate change: an id that is not one of the office's own clients is refused (403) like another company's, never a 404 that would tell them apart.",
+      why: "It reads the template's agencies table by raw SQL, and replies the template's way (lists as arrays, snake_case keys). One deliberate change: an id that is not one of the office's own clients is refused (403) like another company's, never a 404 that would tell them apart. And POST /api/matching/apply-schedule, a stub that applied nothing, is not moved (404).",
       heldBy: "tests/unified/homecare/fixes.test.ts (the adapted copy, run by adapted.ts — 82 of 82) and apps/unified/tests/homecare-office.test.ts (View As is read-only; the office's unknown client is refused)",
     },
     'integration.test.ts': {

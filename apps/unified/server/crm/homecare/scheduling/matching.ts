@@ -12,6 +12,10 @@
 //
 // Replies: the three lists (capabilities, a caregiver's capabilities, restrictions) are list replies
 // ({ data, pagination }); the rest as before.
+//
+// Not moved (2026-10-19): the template's POST /capabilities (a no-op: a capability exists once a caregiver has it) and
+// POST /apply-schedule (answered success and applied nothing). Each said "done" for work it never did; the screen no
+// longer offers either. Scheduling from the matcher's suggestions is the schedule's own form.
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { caregiverProfiles, clients, clientAssignments, user } from '../../../db/schema/index.ts'
@@ -40,9 +44,6 @@ export function createMatchingRoutes(core: HomecareCore, d: CrmDeps) {
     }
     return asList(c, [...allCaps].sort())
   })
-
-  // POST /api/matching/capabilities — a no-op: capabilities are free text
-  app.post('/capabilities', perm('care-schedule:update'), (c) => done(c))
 
   // GET /api/matching/caregiver/:id/capabilities
   app.get('/caregiver/:id/capabilities', perm('care-schedule:read'), async (c) => {
@@ -178,9 +179,6 @@ export function createMatchingRoutes(core: HomecareCore, d: CrmDeps) {
       summary: { totalClients: assignments.length, covered, uncovered: assignments.length - covered, coveragePercent },
     })
   })
-
-  // POST /api/matching/apply-schedule — a no-op stub
-  app.post('/apply-schedule', perm('care-schedule:update'), (c) => one(c, { success: true, applied: 0 }))
 
   return app
 }

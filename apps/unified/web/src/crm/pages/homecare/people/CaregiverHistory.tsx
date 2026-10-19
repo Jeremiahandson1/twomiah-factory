@@ -5,10 +5,9 @@
 //   GET /api/users/caregivers/:id                 hr/caregivers.ts — the caregiver's name for the heading (the template
 //                                                 was handed it by the list; an address carries only the id)
 //   GET /api/time-entries/caregiver-history/:id   visits/timeTracking.ts — { data }: id, clientId, startTime, endTime,
-//                                                 durationMinutes, isComplete, notes, client { firstName, lastName }. It
-//                                                 does not filter by the dates sent (nor did the template's), and carries no
-//                                                 GPS point count or client address (reported): "No GPS data" shows on
-//                                                 every visit, so the route viewer is not reached from this list.
+//                                                 durationMinutes, isComplete, notes, client { firstName, lastName },
+//                                                 clientAddress, clientCity, gpsPointCount; ?startDate&endDate are the
+//                                                 agency's calendar days, the end day included.
 //   GET /api/time-entries/:id/gps                 { data }: the visit's points (latitude, longitude, timestamp), oldest first
 //
 // The map is Leaflet from the app's own bundle (as packages/tenant-ui's FleetPage loads it): the template loaded it
@@ -43,7 +42,6 @@ interface Entry {
   isComplete: boolean
   notes: string | null
   client?: { firstName: string | null; lastName: string | null } | null
-  /** Not in the reply (the template read gps_point_count and client_address / client_city; reported). */
   gpsPointCount?: number | string | null
   clientAddress?: string | null
   clientCity?: string | null
@@ -181,7 +179,7 @@ export default function CaregiverHistory() {
     setLoading(true)
     try {
       const data = await api.get(`/api/time-entries/caregiver-history/${caregiverId}`, {
-        startDate: `${dateRange.start}T00:00:00`, endDate: `${dateRange.end}T23:59:59`, limit: 100,
+        startDate: dateRange.start, endDate: dateRange.end, limit: 100,
       })
       const list = rows<Entry>(data)
       setEntries(list)

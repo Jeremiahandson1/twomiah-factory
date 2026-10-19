@@ -15,7 +15,7 @@
 //   POST   /api/emergency/client-unavailable { scheduleId, date, reason, note } (clients/emergency.ts)
 import { Fragment, useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
-import { api, rows, errorMessage } from '../lib/http'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 import { getTodayCT } from '../lib/timezone'
 import { isBiweeklyOn } from '../lib/biweekly'
 import { CLIENT_UNAVAILABLE_REASONS } from '../lib/cancelReasons'
@@ -173,8 +173,8 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
     setLoading(true)
     try {
       const [cgs, cls, schs] = await Promise.all([
-        api.get('/api/caregivers', { limit: 1000 }),
-        api.get('/api/clients', { limit: 1000 }),
+        listAll('/api/caregivers'),
+        listAll('/api/clients'),
         api.get('/api/schedules-all'),
       ])
       setCaregivers(rows<Caregiver>(cgs))

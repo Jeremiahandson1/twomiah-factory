@@ -5,9 +5,11 @@
 // NoShowAlerts, ShiftApprovals, RouteOptimizer, CompanyOptimizer, ClientWeekHours} and pages/{PtoPage, NoShowPage}
 // (AdminDashboard.tsx renderPage: live-board, emergency-coverage, no-show-alerts, shift-approvals, route-optimizer,
 // company-optimizer, client-week, pto, no-show). Not moved: components/admin/CaregiverAvailability and
-// AbsenceManagement — nothing in the template imported either.
+// AbsenceManagement — nothing in the template imported either — and pages/NoShowPage, a log that read and wrote
+// /api/no-show, which no server ever had (it showed "No incidents logged." forever and its Log button did nothing).
+// No-Show Alerts does that job from real visits, so /crm/no-show opens it (retired 2026-10-19).
 import type { ReactElement } from 'react'
-import { Route } from 'react-router-dom'
+import { Navigate, Route } from 'react-router-dom'
 import { Activity, AlertTriangle, BellRing, CalendarRange, CheckSquare, Map as MapIcon, Sparkles } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
@@ -20,7 +22,6 @@ const RouteOptimizer = page(() => import('./RouteOptimizer'))
 const CompanyOptimizer = page(() => import('./CompanyOptimizer'))
 const ClientWeekHours = page(() => import('./ClientWeekHours'))
 const PtoPage = page(() => import('./PtoPage'))
-const NoShowPage = page(() => import('./NoShowPage'))
 
 export const routes: ReactElement[] = [
   <Route key="hc-live-board" path="live-board" element={<LiveBoard />} />,
@@ -31,7 +32,7 @@ export const routes: ReactElement[] = [
   <Route key="hc-company-optimizer" path="company-optimizer" element={<CompanyOptimizer />} />,
   <Route key="hc-client-week" path="client-week" element={<ClientWeekHours />} />,
   <Route key="hc-pto" path="pto" element={<PtoPage />} />,
-  <Route key="hc-no-show" path="no-show" element={<NoShowPage />} />,
+  <Route key="hc-no-show" path="no-show" element={<Navigate to="/crm/no-show-alerts" replace />} />,
 ]
 
 /**

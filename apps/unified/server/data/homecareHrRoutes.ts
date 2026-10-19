@@ -79,3 +79,36 @@ export async function backgroundCheckCompliance(q: Q, companyId: string): Promis
   `)
   return camelRows(rows)
 }
+
+// ── A caregiver's overview (GET /api/caregivers/:id/summary) ────────────────────────────────────────────────
+
+/**
+ * A caregiver's finished visits (time entries clocked out): minutes this month and this week (from the agency's
+ * midnight on `monthFrom` / `weekFrom`, instants), minutes ever, and how many visits that was.
+ */
+export async function caregiverVisitTotals(q: Q, companyId: string, caregiverId: string, monthFrom: Date, weekFrom: Date): Promise<{
+  monthMinutes: number; weekMinutes: number; totalMinutes: number; visits: number
+}> {
+  const [r] = camelRows(await q.execute(sql`
+    SELECT COALESCE(SUM(te.duration_minutes) FILTER (WHERE te.start_time >= ${monthFrom}), 0)::int AS month_minutes,
+           COALESCE(SUM(te.duration_minutes) FILTER (WHERE te.start_time >= ${weekFrom}), 0)::int AS week_minutes,
+           COALESCE(SUM(te.duration_minutes), 0)::int AS total_minutes,
+           COUNT(*)::int AS visits
+      FROM time_entries te
+     WHERE te.company_id = ${companyId} AND te.caregiver_id = ${caregiverId} AND te.is_complete = true`))
+  return { monthMinutes: Number(r?.monthMinutes) || 0, weekMinutes: Number(r?.weekMinutes) || 0, totalMinutes: Number(r?.totalMinutes) || 0, visits: Number(r?.visits) || 0 }
+}
+
+/** The clients a caregiver has finished visits with: visits, minutes, and the last visit's day on the agency's clock. */
+export async function caregiverClientsServed(q: Q, companyId: string, caregiverId: string, tz: string): Promise<any[]> {
+  return camelRows(await q.execute(sql`
+    SELECT c.id, c.first_name, c.last_name, c.address, c.city,
+           COUNT(*)::int AS shift_count,
+           COALESCE(SUM(te.duration_minutes), 0)::int AS total_minutes,
+           to_char(MAX(((te.start_time AT TIME ZONE 'UTC') AT TIME ZONE ${tz})::date), 'YYYY-MM-DD') AS last_visit
+      FROM time_entries te
+      JOIN clients c ON c.id = te.client_id AND c.company_id = ${companyId}
+     WHERE te.company_id = ${companyId} AND te.caregiver_id = ${caregiverId} AND te.is_complete = true
+     GROUP BY c.id, c.first_name, c.last_name, c.address, c.city
+     ORDER BY MAX(te.start_time) DESC`))
+}

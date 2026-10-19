@@ -90,6 +90,9 @@ export const MENU: Array<[path: string, section: string]> = [
 
 const GROUPS = [clients, schedule, shifts, visits, billing, people, portals, office]
 
+/** The shell's header button and strip for View As (crm/pages/homecare/office/ViewAs.tsx): an agency's only. */
+export { ViewAsBanner as banner, ViewAsButton as headerActions } from '../pages/homecare/office/ViewAs'
+
 /** Menu items, ordered and headed as MENU says. Empty everywhere but home care. */
 export const nav: NavItem[] = isHomecare ? (() => {
   const byPath = new Map<string, NavItem>()

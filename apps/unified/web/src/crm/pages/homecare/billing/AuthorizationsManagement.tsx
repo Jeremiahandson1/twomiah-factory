@@ -6,7 +6,7 @@
 // The pickers read /api/clients (a paged list: clients/clients.ts) and /api/payers (a list: billing/payers.ts).
 import { useEffect, useState, type FormEvent } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
-import { api, rows, errorMessage } from '../lib/http'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 import { parseLocalDate } from '../lib/date'
 
 const parseDate = (dateStr: string | null | undefined): Date | null => {
@@ -52,7 +52,6 @@ const STATUS_COLOURS: Record<string, string> = {
 }
 
 /** Enough rows for the pickers: /api/clients pages at 50 by default. */
-const ALL = { limit: 1000 }
 
 const AuthorizationsManagement = () => {
   const toast = useToast()
@@ -87,7 +86,7 @@ const AuthorizationsManagement = () => {
 
   const loadClients = async () => {
     try {
-      setClients(rows<ClientOption>(await api.get('/api/clients', ALL)))
+      setClients(rows<ClientOption>(await listAll('/api/clients')))
     } catch (error) {
       console.error('Failed to load clients:', error)
     }

@@ -22,7 +22,7 @@
 import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth, useConfirm, usePrompt, useToast } from '../../../../shared'
-import { api, rows, errorMessage } from '../lib/http'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 import { getTodayCT } from '../lib/timezone'
 import { formatDate } from '../lib/datetime'
 import { isBiweeklyOn } from '../lib/biweekly'
@@ -323,8 +323,8 @@ const SchedulingHub = () => {
   const loadCoreData = async () => {
     try {
       const [cg, cl, pr] = await Promise.all([
-        api.get('/api/caregivers', { limit: 1000 }),
-        api.get('/api/clients', { limit: 1000 }),
+        listAll('/api/caregivers'),
+        listAll('/api/clients'),
         api.get('/api/prospects').catch(() => null),
       ])
       setCaregivers(rows<Caregiver>(cg))

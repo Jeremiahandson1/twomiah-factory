@@ -1,6 +1,7 @@
 // Veterinary practices (templates/crm-vet). A retention business, not a job-based one: owners and their patients,
 // the day's appointments, visits with their SOAP notes and charges, vaccinations whose due dates drive recall, and
 // wellness plans billed monthly. No jobs, quotes or projects.
+import type { StarterContent } from '../../server/core/starter.ts'
 import type { VerticalSettings } from '../../server/core/vertical.ts'
 
 const DOC_TYPES = ['general', 'consent_form', 'medical_record', 'lab_result', 'photo', 'invoice', 'receipt', 'other']
@@ -19,11 +20,35 @@ const LEAD_PLATFORMS = [
     "Point your website form's notification email at the inbound address below", 'Or use the webhook URL below with Zapier / Make from any form builder'] },
 ]
 
+// What a new business finds in Help on day one (server/core/starter.ts; written once at provisioning, then the owner's).
+// Its template's seeded articles, rewritten against the unified screens with every claim checked in the code
+// (2026-10-19): the unified app had given every vertical the contractor CRM's articles, and the templates' own named
+// contact tags, click-a-date booking, roles on the Team page and overdue reminders, none of which the app has.
+const STARTER: StarterContent = {
+  helpArticles: [
+    { title: "Getting Started", category: "Getting Started", isFaq: true,
+      content: "Welcome! Start by adding pet owners on the Owners page and their pets on Patients. Then book on Appointments and record each visit on the patient's Visits tab. Use the menu on the left to move between pages." },
+    { title: "Patient Records", category: "Patients", isFaq: false,
+      content: "Each patient has a chart with Visits (including SOAP notes), Vaccinations, Prescriptions, Lab Results, Documents and Invoices. Open a patient from the Patients page, or from the owner's page." },
+    { title: "Vaccinations & Reminders", category: "Patients", isFaq: true,
+      content: "Click Add Vaccine on a patient and enter the given date and due date. The Reminders page shows Vaccines Due and Lapsed Clients; select owners and Send Reminder to text them." },
+    { title: "Appointments", category: "Appointments", isFaq: false,
+      content: "Click New Appointment on the Appointments page and pick the patient, type, provider, time and room. Use Check In when they arrive, Start when they go in, and Complete when done. Record the care with New Visit on the patient." },
+    { title: "Wellness Plans", category: "Wellness", isFaq: false,
+      content: "On the Wellness Plans page, click New Plan with its monthly and annual price and its benefits. Then Enroll Patient: the first period is billed straight away and renewals are billed as they come due." },
+    { title: "Invoices & Payments", category: "Billing", isFaq: false,
+      content: "Create an invoice for an owner on the Invoices page, add your line items, and Record Payment. Each invoice shows its Balance Due, and Send emails it. A patient's Invoices tab shows their invoices." },
+  ],
+  // No price book in this vertical (featureRegistry: pricebook is not offered), so no categories.
+  pricebookCategories: { byIndustry: {}, default: [] },
+}
+
 const vet: VerticalSettings = {
   id: 'vet',
   label: 'Veterinary',
   mfaIssuer: 'Twomiah Veterinary',
   featureSet: 'crm-vet',
+  starter: STARTER,
   // templates/crm-vet middleware/permissions.ts. Clinical staff (technician, receptionist) record care and bill for
   // it: patients, visits, vaccinations, appointments and wellness all ask contacts:* (R2-02); they text the owner
   // themselves (T30 L-RB). They do not see practice revenue (revenue:read, T62).

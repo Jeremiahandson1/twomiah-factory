@@ -220,7 +220,11 @@ export async function dashboardSummary(q: Q, companyId: string, today: string, t
         WHERE te.company_id = ${companyId} AND te.end_time IS NULL AND ${localDate(sql`te.start_time`, tz)} = (${today})::date) AS clocked_in_now,
       (SELECT COUNT(*)::int FROM occ) AS today_shifts,
       -- Today's shifts not started yet: no punch at all for that visit.
-      (SELECT COUNT(*)::int FROM occ WHERE NOT EXISTS (SELECT 1 FROM time_entries te WHERE ${punchForOcc(companyId, tz)})) AS remaining_shifts`)
+      (SELECT COUNT(*)::int FROM occ WHERE NOT EXISTS (SELECT 1 FROM time_entries te WHERE ${punchForOcc(companyId, tz)})) AS remaining_shifts,
+      -- Call-outs still needing a caregiver: the list Emergency Coverage opens on (data/homecareClients.ts openCallOuts),
+      -- so the dashboard's "Find Coverage" and that page agree. The template sent a fixed 0, so the alert never showed.
+      (SELECT COUNT(*)::int FROM absences a WHERE a.company_id = ${companyId} AND a.type = 'call_out' AND a.coverage_needed = true
+         AND a.coverage_assigned_to IS NULL AND a.date >= (${today})::date) AS coverage_gaps`)
 }
 
 /** GET /action-items: the office's to-do counts. */
@@ -383,10 +387,11 @@ export async function clockedHours(q: Q, companyId: string, start: string, end: 
 }
 
 /** Overview: the average satisfaction of ratings given in the range (the agency's calendar). */
-export async function averageSatisfaction(q: Q, companyId: string, start: string, end: string, tz: string) {
+export async function averageSatisfaction(q: Q, companyId: string, start: string, end: string, tz: string, f: ReportFilter) {
   return first(q, sql`SELECT COALESCE(AVG(pr.satisfaction_score), 0) AS avg_satisfaction
     FROM performance_ratings pr
-    WHERE pr.company_id = ${companyId} AND ${ratedOn(tz)} BETWEEN (${start})::date AND (${end})::date`)
+    WHERE pr.company_id = ${companyId} AND ${ratedOn(tz)} BETWEEN (${start})::date AND (${end})::date
+      ${f.caregiverId ? sql`AND pr.caregiver_id = ${f.caregiverId}` : sql``} ${f.clientId ? sql`AND pr.client_id = ${f.clientId}` : sql``}`)
 }
 
 /** Overview: revenue billed in the period — released invoices (whole, by first day of service) + claims. */
@@ -627,12 +632,6 @@ export async function claimRevenueTotals(q: Q, companyId: string, start: string,
       COALESCE(SUM(COALESCE(cl.billed_amount, 0) - COALESCE(cl.paid_amount, 0)), 0) AS outstanding,
       COUNT(cl.id)::int AS claim_count
     FROM claims cl WHERE ${claimsIn(companyId, start, end, clientId)}`)
-}
-
-/** Revenue / export-pdf: scheduled hours in the range (context, not billed hours). */
-export async function scheduledHoursTotal(q: Q, companyId: string, start: string, end: string) {
-  return first(q, sql`WITH ${occurrencesCte(companyId, start, end)}
-    SELECT COALESCE(SUM(occ.hours), 0) AS scheduled_hours, COUNT(*)::int AS total_shifts FROM occ`)
 }
 
 /** Revenue: billed and collected by the client's service type. */
@@ -1102,34 +1101,38 @@ export async function reportAuditTrail(q: Q, companyId: string, clientId: string
 
 // ── Exports ─────────────────────────────────────────────────────────────────────────────────────
 
-const completedIn = (companyId: string, start: string, end: string, tz: string): SQL =>
-  sql`te.company_id = ${companyId} AND te.start_time >= ${dayStartUtc(start, tz)} AND te.start_time < ${dayEndUtc(end, tz)} AND te.is_complete = true`
+// Every export takes the report's filter (the screen's caregiver and client pickers), so the file matches the report
+// on screen: they were ignored, and a CSV of one client's report held every client's rows (fixed 2026-10-19).
+const completedIn = (companyId: string, start: string, end: string, tz: string, f: ReportFilter): SQL =>
+  sql`te.company_id = ${companyId} AND te.start_time >= ${dayStartUtc(start, tz)} AND te.start_time < ${dayEndUtc(end, tz)} AND te.is_complete = true${f.clientId ? sql` AND te.client_id = ${f.clientId}` : sql``}`
+/** The caregiver filter on the "user" rows an export lists. */
+const onlyCaregiver = (f: ReportFilter): SQL => (f.caregiverId ? sql` AND u.id = ${f.caregiverId}` : sql``)
 
 /** Export: clocked and payable hours per caregiver (capped minutes, not raw duration). */
-export async function exportCaregiverHours(q: Q, companyId: string, start: string, end: string, tz: string) {
+export async function exportCaregiverHours(q: Q, companyId: string, start: string, end: string, tz: string, f: ReportFilter) {
   return all(q, sql`SELECT u.first_name || ' ' || u.last_name AS caregiver,
       COALESCE(SUM(te.duration_minutes) / 60.0, 0) AS clocked_hours,
       COALESCE(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0, 0) AS payable_hours,
       COUNT(te.id)::int AS shifts, COUNT(DISTINCT te.client_id)::int AS unique_clients
-    FROM "user" u LEFT JOIN time_entries te ON te.caregiver_id = u.id AND ${completedIn(companyId, start, end, tz)}
-    WHERE u.company_id = ${companyId} AND ${isCaregiver()}
+    FROM "user" u LEFT JOIN time_entries te ON te.caregiver_id = u.id AND ${completedIn(companyId, start, end, tz, f)}
+    WHERE u.company_id = ${companyId} AND ${isCaregiver()}${onlyCaregiver(f)}
     GROUP BY u.id, u.first_name, u.last_name ORDER BY payable_hours DESC`)
 }
 
 /** Export: released invoices in the range. */
-export async function exportBilling(q: Q, companyId: string, start: string, end: string) {
+export async function exportBilling(q: Q, companyId: string, start: string, end: string, f: ReportFilter) {
   return all(q, sql`SELECT c.first_name || ' ' || c.last_name AS client,
       i.invoice_number, to_char(i.billing_period_start, 'YYYY-MM-DD') AS billing_period_start,
       to_char(i.billing_period_end, 'YYYY-MM-DD') AS billing_period_end,
       i.total, i.amount_paid, i.payment_status, COALESCE(rs.name, 'Private Pay') AS payer
     FROM invoices i JOIN clients c ON i.client_id = c.id AND c.company_id = ${companyId}
     LEFT JOIN referral_sources rs ON rs.id = i.referral_source_id AND rs.company_id = ${companyId}
-    WHERE i.company_id = ${companyId} AND ${billedInRangeSql(start, end)}
+    WHERE ${invoicesIn(companyId, start, end, f.clientId)}
     ORDER BY i.billing_period_start DESC, c.last_name`)
 }
 
 /** Export: each active caregiver's latest background check and its expiry status. */
-export async function exportCompliance(q: Q, companyId: string, today: string) {
+export async function exportCompliance(q: Q, companyId: string, today: string, f: ReportFilter) {
   return all(q, sql`SELECT u.first_name || ' ' || u.last_name AS caregiver,
       bc.status AS background_check_status,
       to_char(bc.initiated_date, 'YYYY-MM-DD') AS initiated_date, to_char(bc.expiration_date, 'YYYY-MM-DD') AS expiration_date,
@@ -1141,12 +1144,12 @@ export async function exportCompliance(q: Q, companyId: string, today: string) {
     FROM "user" u
     LEFT JOIN background_checks bc ON bc.caregiver_id = u.id AND bc.company_id = ${companyId}
       AND bc.id = (SELECT id FROM background_checks bc2 WHERE bc2.company_id = ${companyId} AND bc2.caregiver_id = u.id ORDER BY initiated_date DESC NULLS LAST LIMIT 1)
-    WHERE u.company_id = ${companyId} AND ${isCaregiver()} AND u.is_active = true
+    WHERE u.company_id = ${companyId} AND ${isCaregiver()} AND u.is_active = true${onlyCaregiver(f)}
     ORDER BY bc.expiration_date ASC NULLS FIRST, u.last_name`)
 }
 
 /** Export: the active clients, with their payer and how many caregivers are scheduled to them. */
-export async function exportClients(q: Q, companyId: string, tz: string) {
+export async function exportClients(q: Q, companyId: string, tz: string, f: ReportFilter) {
   return all(q, sql`SELECT c.first_name || ' ' || c.last_name AS client,
       c.email, c.phone, c.city, c.state, ${clientServiceTypeSql(companyId)} AS service_type,
       CASE WHEN c.is_active THEN 'active' ELSE 'inactive' END AS status,
@@ -1156,58 +1159,39 @@ export async function exportClients(q: Q, companyId: string, tz: string) {
     FROM clients c
     LEFT JOIN referral_sources rs ON c.referred_by_id = rs.id AND rs.company_id = ${companyId}
     LEFT JOIN schedules s ON s.client_id = c.id AND s.company_id = ${companyId} AND s.is_active = true
-    WHERE c.company_id = ${companyId} AND c.is_active = true
+    WHERE c.company_id = ${companyId} AND c.is_active = true${f.clientId ? sql` AND c.id = ${f.clientId}` : sql``}
     GROUP BY c.id, c.first_name, c.last_name, c.email, c.phone, c.city, c.state, c.service_type, c.is_active, c.created_at, rs.name
     ORDER BY c.last_name`)
 }
 
-/** Export: an ESTIMATE of payroll from capped clocked minutes × pay rate ($18/h when none is on file). */
-export async function exportPayrollEstimate(q: Q, companyId: string, start: string, end: string, tz: string) {
-  return all(q, sql`SELECT u.first_name || ' ' || u.last_name AS caregiver,
-      COALESCE(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0, 0) AS payable_hours,
-      COALESCE(u.default_pay_rate, 18.00) AS hourly_rate,
-      COALESCE(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0 * COALESCE(u.default_pay_rate, 18.00), 0) AS gross_pay,
-      COUNT(te.id)::int AS shifts
-    FROM "user" u LEFT JOIN time_entries te ON te.caregiver_id = u.id AND ${completedIn(companyId, start, end, tz)}
-    WHERE u.company_id = ${companyId} AND ${isCaregiver()}
-    GROUP BY u.id, u.first_name, u.last_name, u.default_pay_rate ORDER BY gross_pay DESC`)
-}
-
 /** Export: payable hours per caregiver (any other report type). */
-export async function exportHours(q: Q, companyId: string, start: string, end: string, tz: string) {
+export async function exportHours(q: Q, companyId: string, start: string, end: string, tz: string, f: ReportFilter) {
   return all(q, sql`SELECT u.first_name || ' ' || u.last_name AS caregiver,
       COALESCE(SUM(COALESCE(te.billable_minutes, te.duration_minutes)) / 60.0, 0) AS hours
-    FROM "user" u LEFT JOIN time_entries te ON te.caregiver_id = u.id AND ${completedIn(companyId, start, end, tz)}
-    WHERE u.company_id = ${companyId} AND ${isCaregiver()}
+    FROM "user" u LEFT JOIN time_entries te ON te.caregiver_id = u.id AND ${completedIn(companyId, start, end, tz, f)}
+    WHERE u.company_id = ${companyId} AND ${isCaregiver()}${onlyCaregiver(f)}
     GROUP BY u.id, u.first_name, u.last_name ORDER BY hours DESC`)
 }
 
 /** Export PDF (overview / hours): scheduled hours and clients per active caregiver (twenty). */
-export async function scheduledHoursPerCaregiver(q: Q, companyId: string, start: string, end: string) {
+export async function scheduledHoursPerCaregiver(q: Q, companyId: string, start: string, end: string, f: ReportFilter) {
   return all(q, sql`WITH ${occurrencesCte(companyId, start, end)}
     SELECT u.first_name || ' ' || u.last_name AS name, COALESCE(SUM(occ.hours), 0) AS hours, COUNT(DISTINCT occ.client_id)::int AS clients
-    FROM "user" u LEFT JOIN occ ON occ.caregiver_id = u.id
-    WHERE u.company_id = ${companyId} AND ${isCaregiver()} AND u.is_active = true
+    FROM "user" u LEFT JOIN occ ON occ.caregiver_id = u.id${f.clientId ? sql` AND occ.client_id = ${f.clientId}` : sql``}
+    WHERE u.company_id = ${companyId} AND ${isCaregiver()} AND u.is_active = true${onlyCaregiver(f)}
     GROUP BY u.id, u.first_name, u.last_name ORDER BY hours DESC LIMIT 20`)
 }
 
 /** Export PDF (performance): each active caregiver's rating in the range and the clients they are scheduled to. */
-export async function ratingsPerCaregiver(q: Q, companyId: string, start: string, end: string, tz: string) {
+export async function ratingsPerCaregiver(q: Q, companyId: string, start: string, end: string, tz: string, f: ReportFilter) {
   return all(q, sql`SELECT u.first_name || ' ' || u.last_name AS name,
       COALESCE(AVG(pr.satisfaction_score), 0) AS avg_rating, COUNT(DISTINCT pr.id)::int AS ratings,
       COUNT(DISTINCT s.client_id)::int AS clients
     FROM "user" u
     LEFT JOIN performance_ratings pr ON pr.caregiver_id = u.id AND ${ratingsInRange(companyId, start, end, tz)}
     LEFT JOIN schedules s ON s.caregiver_id = u.id AND s.company_id = ${companyId} AND s.is_active = true
-    WHERE u.company_id = ${companyId} AND ${isCaregiver()} AND u.is_active = true
+    WHERE u.company_id = ${companyId} AND ${isCaregiver()} AND u.is_active = true${onlyCaregiver(f)}
     GROUP BY u.id, u.first_name, u.last_name ORDER BY avg_rating DESC`)
-}
-
-/** Export PDF (revenue): released invoices' billed and collected totals. */
-export async function invoiceTotalsInRange(q: Q, companyId: string, start: string, end: string) {
-  return first(q, sql`SELECT COALESCE(SUM(total), 0) AS total_billed, COALESCE(SUM(amount_paid), 0) AS collected,
-      COUNT(*)::int AS invoice_count
-    FROM invoices i WHERE i.company_id = ${companyId} AND ${billedInRangeSql(start, end)}`)
 }
 
 // ═══════════════════════════════ Route optimizer (routes/optimizer.ts) ════════════════════════

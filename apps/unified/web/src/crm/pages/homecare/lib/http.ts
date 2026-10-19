@@ -35,6 +35,28 @@ export function rows<T = any>(reply: unknown): T[] {
   return Array.isArray(data) ? (data as T[]) : []
 }
 
+/** The most rows one request may ask for (the server's paging guard, server/http/guards.ts: ?limit over 500 is a 400). */
+export const PAGE_LIMIT = 500
+
+/**
+ * Every row of a paged list endpoint — a picker's whole list — walking the pages until the server says there are no
+ * more, answered as one list reply ({ data, pagination }) so a screen reads it with rows() like any other. The
+ * template's screens asked for ?limit=1000 in one go; the server caps a page at 500, so that request was refused
+ * outright and the picker came up empty (found in the browser, 2026-10-19), and an agency with more than a page would
+ * have lost the rest silently either way.
+ */
+export async function listAll<T = any>(path: string, params: Record<string, string | number | boolean | undefined> = {}): Promise<{ data: T[]; pagination: { page: number; limit: number; total: number; pages: number } }> {
+  const data: T[] = []
+  for (let page = 1; page <= 1000; page++) {
+    const reply = await api.get(path, { ...params, page, limit: PAGE_LIMIT } as any)
+    const got = rows<T>(reply)
+    data.push(...got)
+    const pages = Number((reply as { pagination?: { pages?: number } } | null)?.pagination?.pages ?? 1)
+    if (!got.length || page >= pages) break
+  }
+  return { data, pagination: { page: 1, limit: data.length, total: data.length, pages: 1 } }
+}
+
 /** The message to show for a failed call. */
 export function errorMessage(err: unknown, fallback = 'Something went wrong. Please try again.'): string {
   return err instanceof Error && err.message ? err.message : fallback

@@ -23,7 +23,7 @@
 // the rest care-portal:update, both sides.
 import { useEffect, useState, type FormEvent } from 'react'
 import { usePermissions, usePrompt, useToast } from '../../../../shared'
-import { api, errorMessage, rows } from '../lib/http'
+import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 
 type PermKey = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canMessage'
@@ -121,7 +121,7 @@ export default function FamilyPortalAdmin() {
   // can pick every one (the template asked for the default and showed the first 50).
   const loadClients = async () => {
     try {
-      setClients(rows<ClientOption>(await api.get('/api/clients', { limit: 1000 })))
+      setClients(rows<ClientOption>(await listAll('/api/clients')))
     } catch (error) {
       console.error('Failed to load clients:', error)
     }

@@ -1,6 +1,7 @@
 // Salon & barber (templates/crm-salon): the retention model — a service menu, the book of appointments, the client's
 // chart and colour formula record, rebooking reminders, memberships and loyalty. Its own modules are server/crm/salon;
 // this file holds what the shared ones are switched to for a salon.
+import type { StarterContent } from '../../server/core/starter.ts'
 import type { VerticalSettings } from '../../server/core/vertical.ts'
 
 const DOC_TYPES = ['general', 'consent_form', 'photo', 'invoice', 'receipt', 'contract', 'other']
@@ -28,11 +29,39 @@ const CONTACT_TYPES = [{ value: 'lead', label: 'Lead' }, { value: 'client', labe
 const EXPENSE_CATEGORIES = ['stock', 'retail', 'tools', 'rent', 'utilities', 'training', 'marketing', 'travel', 'other']
 const EXPENSE_LABELS: Record<string, string> = { stock: 'Stock & colour', retail: 'Retail products', tools: 'Tools & equipment', rent: 'Rent & chair rental' }
 
+// What a new business finds in Help on day one (server/core/starter.ts; written once at provisioning, then the owner's).
+// Its template's seeded articles, rewritten against the unified screens with every claim checked in the code
+// (2026-10-19): the unified app had given every vertical the contractor CRM's articles, and the templates' own named
+// contact tags, click-a-date booking, roles on the Team page and overdue reminders, none of which the app has.
+const STARTER: StarterContent = {
+  helpArticles: [
+    { title: "Getting Started", category: "Getting Started", isFaq: true,
+      content: "Welcome! Start by adding clients on the Clients page, building your Service Menu, and taking bookings in The Book. Use the menu on the left to move between pages." },
+    { title: "Client Profiles", category: "Getting Started", isFaq: false,
+      content: "A client's profile holds their contact details, hair type, allergies and sensitivities, patch test date and preferences. Add one with New Client on the Clients page. Open a client to see their Formula History, Appointments and Memberships, and use New Service Record to log a visit and its formula." },
+    { title: "Building your Service Menu", category: "Services", isFaq: false,
+      content: "The Service Menu is your list of services. Click New Service and set its price, duration and Rebook (days), which is when a client is due back. These are the services you book in The Book and log on a visit. Tick \"Bookable online\" to show a service on your booking page." },
+    { title: "Taking bookings in The Book", category: "Bookings", isFaq: true,
+      content: "The Book is your appointment calendar. Click New Appointment and pick the client, service, stylist, time and chair. When the client arrives, Check In; afterwards, use Log Service to record what was done, then Complete. Reschedule moves an appointment. With Online Booking on, clients can book services you've marked bookable online." },
+    { title: "Rebooking & Recall", category: "Bookings", isFaq: false,
+      content: "The Rebooking page shows who is Due to Rebook (from each service's rebook days), Lapsed Clients and upcoming Birthdays. Select clients and click Send Text to invite them back." },
+    { title: "Memberships", category: "Memberships", isFaq: false,
+      content: "On the Memberships page, click New Plan for a recurring plan or prepaid package, with its price, billing and visit credits. Then Enroll Client: the first period is billed straight away and renewals are billed as they come due. When a member uses a visit, click Use a credit." },
+    { title: "Invoices & Payments", category: "Billing", isFaq: false,
+      content: "Create an invoice for a client from the Invoices page, add line items, and record payment. Track outstanding balances and send the invoice by email." },
+    { title: "Marketing campaigns", category: "Marketing", isFaq: false,
+      content: "On the Marketing page, click New Campaign and give it a name, a subject line, an audience and the email. Send it now or Schedule it. The list shows each campaign's recipients, opens and clicks." },
+  ],
+  // No price book in this vertical (featureRegistry: pricebook is not offered), so no categories.
+  pricebookCategories: { byIndustry: {}, default: [] },
+}
+
 const salon: VerticalSettings = {
   id: 'salon',
   label: 'Salon',
   mfaIssuer: 'Twomiah Salon',
   featureSet: 'crm-salon',
+  starter: STARTER,
   // templates/crm-salon middleware/permissions.ts (Salon T28 M3): the fifth rung is a stylist, the viewer the front desk.
   roleLabels: { field: 'Stylist', viewer: 'Front Desk' },
   // A stylist's day: take a booking, move it, check the client in, log the visit, add the client and keep their card up

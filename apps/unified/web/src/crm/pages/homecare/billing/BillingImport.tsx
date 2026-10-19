@@ -9,7 +9,7 @@
 // — billing/invoices.ts).
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useToast } from '../../../../shared'
-import { api, rows, errorMessage } from '../lib/http'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 
 // Column header aliases → canonical field names
 const HEADER_MAP: Record<string, string> = {
@@ -100,7 +100,6 @@ interface MappedRow extends NormRow {
 interface ImportResult { imported: number; skipped: number; invoicesCreated: number; errors?: { row: number | null; error: string }[] }
 
 /** Every client and caregiver for the matching (both lists page at 50 by default). */
-const ALL = { limit: 1000 }
 
 const BillingImport = () => {
   const toast = useToast()
@@ -116,8 +115,8 @@ const BillingImport = () => {
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    api.get('/api/clients', ALL).then((data) => setClients(rows<Client>(data))).catch(() => {})
-    api.get('/api/users', ALL).then((data) => setCaregivers(rows<Caregiver>(data))).catch(() => {})
+    listAll('/api/clients').then((data) => setClients(rows<Client>(data))).catch(() => {})
+    listAll('/api/users').then((data) => setCaregivers(rows<Caregiver>(data))).catch(() => {})
   }, [])
 
   const medicaidMap: Record<string, Client> = {}

@@ -11,7 +11,7 @@
 //   · the On-Time % and GPS Capture figures are coloured (green at target, amber below) as their classes intended; the
 //     template's value-success / value-warning classes were defined only inside a stat card, so they never coloured.
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { api, errorMessage, rows, saveBlob } from '../lib/http';
+import { api, errorMessage, rows, saveBlob, listAll } from '../lib/http';
 import { formatDate, toLocalYMD } from '../lib/date';
 import { serviceLabel } from '../lib/serviceTypes';
 import { useToast } from '../../../../shared';
@@ -84,6 +84,20 @@ const REPORT_TYPES = [
 // The GET-style drill-down reports (?startDate&endDate, ?format=csv); the rest are POSTed with the filters.
 const GET_REPORTS = new Set(['pnl', 'hours-by-payer', 'caregiver-utilization', 'client-visits-summary', 'client-revenue-by-month', 'client-incidents']);
 
+/**
+ * The filters each report honours on the server (server/crm/homecare/planning/reports.ts). Only those are offered and
+ * sent: both pickers showed on every report, and on most they changed nothing — the report, its CSV and its PDF all
+ * ignored them (2026-10-19).
+ */
+const FILTERS: Record<string, { caregiver?: true; client?: true }> = {
+  overview: { caregiver: true, client: true },
+  hours: { caregiver: true, client: true },
+  performance: { caregiver: true },
+  satisfaction: { caregiver: true },
+  revenue: { client: true },
+  'client-incidents': { client: true },
+};
+
 const n = (v: unknown): number => parseFloat(String(v ?? '')) || 0;
 const money = (v: Num) => `$${n(v).toFixed(2)}`;
 const nameOf = (r: { firstName?: unknown; lastName?: unknown }) => [r.firstName, r.lastName].filter(Boolean).join(' ');
@@ -136,7 +150,7 @@ const ReportsAnalytics = () => {
     try {
       const [cg, cl] = await Promise.all([
         api.get('/api/users/caregivers'),
-        api.get('/api/clients', { limit: 1000 }),
+        listAll('/api/clients'),
       ]);
       setCaregivers(rows<Person>(cg));
       setClients(rows<Person>(cl));
@@ -145,18 +159,23 @@ const ReportsAnalytics = () => {
     }
   };
 
+  // The filters this report honours, as the server reads them (a picker it ignores is not offered or sent).
+  const filtersFor = (type: string): { caregiverId?: string; clientId?: string } => ({
+    ...(FILTERS[type]?.caregiver && caregiverFilter ? { caregiverId: caregiverFilter } : {}),
+    ...(FILTERS[type]?.client && clientFilter ? { clientId: clientFilter } : {}),
+  });
+
   const generateReport = async () => {
     const ticket = ++latest.current;
     setLoading(true);
     setError('');
     try {
       const data: ReportData = GET_REPORTS.has(reportType)
-        ? await api.get(`/api/reports/${reportType}`, { startDate: dateRange.startDate, endDate: dateRange.endDate })
+        ? await api.get(`/api/reports/${reportType}`, { startDate: dateRange.startDate, endDate: dateRange.endDate, ...filtersFor(reportType) })
         : await api.post(`/api/reports/${reportType}`, {
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
-          caregiverId: caregiverFilter || null,
-          clientId: clientFilter || null,
+          ...filtersFor(reportType),
         });
       if (ticket !== latest.current) return;
       setReportData(data);
@@ -174,14 +193,14 @@ const ReportsAnalytics = () => {
       // GET-style drill-downs support ?format=csv directly; everything else goes through POST /export (or /export-pdf).
       let res: Response;
       if (GET_REPORTS.has(reportType) && format === 'csv') {
-        const qs = new URLSearchParams({ startDate: dateRange.startDate, endDate: dateRange.endDate, format: 'csv' });
+        const qs = new URLSearchParams({ startDate: dateRange.startDate, endDate: dateRange.endDate, ...filtersFor(reportType), format: 'csv' });
         res = await api.raw(`/api/reports/${reportType}?${qs.toString()}`);
       } else {
         res = await api.raw(`/api/reports/${reportType}/${format === 'pdf' ? 'export-pdf' : 'export'}`, {
           method: 'POST',
           body: JSON.stringify({
             startDate: dateRange.startDate, endDate: dateRange.endDate,
-            caregiverId: caregiverFilter || null, clientId: clientFilter || null, format,
+            ...filtersFor(reportType), format,
           }),
         });
       }
@@ -929,7 +948,7 @@ const ReportsAnalytics = () => {
             <input type="date" value={dateRange.endDate} onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })} />
           </div>
 
-          <div className="form-group">
+          {FILTERS[reportType]?.caregiver && <div className="form-group">
             <label>Caregiver (Optional)</label>
             <select value={caregiverFilter} onChange={(e) => setCaregiverFilter(e.target.value)}>
               <option value="">All Caregivers</option>
@@ -937,9 +956,9 @@ const ReportsAnalytics = () => {
                 <option key={cg.id} value={cg.id}>{cg.firstName} {cg.lastName}</option>
               ))}
             </select>
-          </div>
+          </div>}
 
-          <div className="form-group">
+          {FILTERS[reportType]?.client && <div className="form-group">
             <label>Client (Optional)</label>
             <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)}>
               <option value="">All Clients</option>
@@ -947,7 +966,7 @@ const ReportsAnalytics = () => {
                 <option key={cl.id} value={cl.id}>{cl.firstName} {cl.lastName}</option>
               ))}
             </select>
-          </div>
+          </div>}
 
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
             <button className="hc-btn hc-btn-secondary" onClick={() => exportReport('csv')}>📥 CSV</button>

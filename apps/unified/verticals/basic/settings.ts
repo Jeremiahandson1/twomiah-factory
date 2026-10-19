@@ -2,10 +2,37 @@
 // venues, photographers), food trucks and any business with no vertical of its own. A copy of field service with the
 // trade taken out: jobs at a customer's sites, equipment, recurring agreements, but no service calls, no tech view, no
 // builder's paperwork and no contractor lead marketplaces.
+import type { StarterContent } from '../../server/core/starter.ts'
 import type { VerticalSettings } from '../../server/core/vertical.ts'
 
 // Permits and drawings are a builder's paperwork (templates/crm-basic routes/documents.ts and docsConfig.ts, T43).
 const DOC_TYPES = ['general', 'contract', 'photo', 'invoice', 'receipt', 'other']
+
+// What a new business finds in Help on day one (server/core/starter.ts; written once at provisioning, then the owner's).
+// Its template's seeded articles, rewritten against the unified screens with every claim checked in the code
+// (2026-10-19): the unified app had given every vertical the contractor CRM's articles, and the templates' own named
+// contact tags, click-a-date booking, roles on the Team page and overdue reminders, none of which the app has.
+const STARTER: StarterContent = {
+  helpArticles: [
+    { title: "Getting Started with Your CRM", category: "Getting Started", isFaq: true,
+      content: "Welcome to your CRM. Start by adding your customer contacts, creating jobs for the work you have booked, and sending quotes. Use the menu on the left to move between pages." },
+    { title: "Managing Customers", category: "Getting Started", isFaq: false,
+      content: "Contacts are the foundation of your CRM. Add one with Add Contact on the Contacts page, as a Lead, Client or Supplier. A contact's page lists their jobs, quotes and invoices, and under Locations (Add Location) the addresses you work at." },
+    { title: "Creating and Sending Quotes", category: "Quotes & Invoices", isFaq: false,
+      content: "Go to Quotes and click New Quote. Add a line item for each part of the work and anything you supply, then choose Save & send to email it; the customer needs an email address on file. If their client portal is on (switched on from their contact page), the email lets them approve online. Otherwise, use Mark approved when they say yes. An approved quote becomes a job with Convert to Job, or an invoice with Create Invoice." },
+    { title: "Invoice Management", category: "Quotes & Invoices", isFaq: false,
+      content: "Create an invoice with New Invoice on the Invoices page, or from an approved quote (Create Invoice). The due date starts from the payment terms in Settings › Company. Add your line items, then click Send to email it. Use Record Payment when you're paid; the invoice shows the Balance Due. To chase an unpaid invoice, use Send again." },
+    { title: "How do I schedule work?", category: "Scheduling", isFaq: true,
+      content: "Give a job its Scheduled Date, Scheduled Time and Estimated Hours, and pick who is doing it under Assigned To. The Schedule page shows the week: click a job to open it. With Drag & Drop Calendar on, drag a job to another day to move it." },
+    { title: "Team Management", category: "Team", isFaq: false,
+      content: "Give someone a sign-in from Settings › Users (Add User), which can email them an invite. Their Access Role sets what they can do:\n• Viewer can look but change nothing.\n• Staff handles day-to-day work.\n• Manager has full access to work and invoicing.\n• Admin also has company settings and the team.\n\nThe Team page is your roster: each person's job title, department and hourly rate. Team members can be assigned to jobs, and their hours are logged on the Time page." },
+    { title: "How do I track time?", category: "Time & Expenses", isFaq: true,
+      content: "Use the Time page. Click Clock In and Clock Out, or use Log Time to add hours by hand and link them to a job. Managers approve entries." },
+    { title: "Files and documents", category: "Documents", isFaq: false,
+      content: "Keep your files on the Documents page. Click Upload and give each file a name, a type (contract, photo, invoice, receipt…) and a description, so you can find it again with search and the filters." },
+  ],
+  pricebookCategories: { byIndustry: {}, default: ["Service", "Package", "Hire", "Extra", "Other"] },
+}
 
 const basic: VerticalSettings = {
   id: 'basic',
@@ -13,6 +40,7 @@ const basic: VerticalSettings = {
   // Shared by showcase, food truck and basic, so no one trade to name (templates/crm-basic routes/mfa.ts, T41).
   mfaIssuer: 'Twomiah CRM',
   featureSet: 'crm-basic',
+  starter: STARTER,
   // The 1:1 text box on the contact record is for the person on their way (templates/crm-basic
   // middleware/permissions.ts, T30 L-RB).
   extraRolePermissions: { field: ['sms:send'] },

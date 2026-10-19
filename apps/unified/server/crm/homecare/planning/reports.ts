@@ -67,6 +67,8 @@ function renderPdf(build: (doc: PDFKit.PDFDocument) => void, opts: any = {}): Pr
 const slug = (s: string) => s.replace(/[^A-Za-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'agency'
 /** A camelCase key as a column heading: payableHours → PAYABLE HOURS. */
 const heading = (key: string) => key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toUpperCase()
+/** A CSV column's title, for a spreadsheet: "clockedHours" → "Clocked Hours" (the export's titles were the code's keys). */
+const columnTitle = (key: string) => key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
 
 // ==================== CLIENT HOURS BY WEEK: pairing ====================
 /**
@@ -205,7 +207,8 @@ export function createHomecareReportsRoutes(d: CrmDeps) {
       q.scheduledSummary(d.db, companyId, startDate, endDate, f),
       q.payableHours(d.db, companyId, startDate, endDate, tz, f),
       q.clockedHours(d.db, companyId, startDate, endDate, tz, f),
-      q.averageSatisfaction(d.db, companyId, startDate, endDate, tz),
+      // Under the filter like every other overview figure (it was the whole agency's).
+      q.averageSatisfaction(d.db, companyId, startDate, endDate, tz, f),
       q.billedRevenue(d.db, companyId, startDate, endDate, f.clientId),
       q.topCaregivers(d.db, companyId, startDate, endDate, tz, f),
       q.topClients(d.db, companyId, startDate, endDate, f),
@@ -327,14 +330,15 @@ export function createHomecareReportsRoutes(d: CrmDeps) {
     const [inv, clm, hours, byServiceType, byPayer, aging, byClient] = await Promise.all([
       q.invoiceRevenueTotals(d.db, companyId, startDate, endDate, clientId),
       q.claimRevenueTotals(d.db, companyId, startDate, endDate, clientId),
-      q.scheduledHoursTotal(d.db, companyId, startDate, endDate),
+      // The same client's scheduled hours: revenue per hour of one client over everyone's hours read low.
+      q.scheduledSummary(d.db, companyId, startDate, endDate, { caregiverId: null, clientId }),
       q.revenueByServiceType(d.db, companyId, startDate, endDate, clientId),
       q.revenueByPayer(d.db, companyId, startDate, endDate, clientId),
       q.receivablesAging(d.db, companyId, today, clientId),
       q.revenueByClient(d.db, companyId, startDate, endDate, clientId),
     ])
     const totalRevenue = num(inv.total) + num(clm.total)
-    const scheduledHours = num(hours.scheduledHours)
+    const scheduledHours = num(hours.totalHours)
     return one(c, {
       revenue: {
         total: totalRevenue,
@@ -643,20 +647,27 @@ export function createHomecareReportsRoutes(d: CrmDeps) {
     const range = parseRange(body.startDate, body.endDate, `${today.slice(0, 8)}01`, today)
     if ('error' in range) return fail(c, 400, range.error)
     const { startDate: sd, endDate: ed } = range
+    // The report's own filter (the screen's caregiver and client pickers): the file holds what the report showed.
+    const f = { caregiverId: idOrNull(body.caregiverId), clientId: idOrNull(body.clientId) }
 
     let data: any[]
-    if (type === 'overview' || type === 'caregiver_hours' || type === 'caregiver-hours') data = await q.exportCaregiverHours(d.db, companyId, sd, ed, tz)
-    else if (type === 'billing' || type === 'revenue') data = await q.exportBilling(d.db, companyId, sd, ed)
-    else if (type === 'compliance') data = await q.exportCompliance(d.db, companyId, today)
-    else if (type === 'clients') data = await q.exportClients(d.db, companyId, tz)
-    else if (type === 'payroll') data = await q.exportPayrollEstimate(d.db, companyId, sd, ed, tz)
-    else data = await q.exportHours(d.db, companyId, sd, ed, tz)
+    if (type === 'overview' || type === 'caregiver_hours' || type === 'caregiver-hours') data = await q.exportCaregiverHours(d.db, companyId, sd, ed, tz, f)
+    else if (type === 'billing' || type === 'revenue') data = await q.exportBilling(d.db, companyId, sd, ed, f)
+    else if (type === 'compliance') data = await q.exportCompliance(d.db, companyId, today, f)
+    else if (type === 'clients') data = await q.exportClients(d.db, companyId, tz, f)
+    // Pay is payroll's one rule (core/payrollPay.ts), never an estimate of its own: this was clocked minutes × the
+    // default rate ($18 when none), which disagreed with Payroll → Calculate.
+    else if (type === 'payroll') data = (await core.payroll.payrollForRange(companyId, sd, ed, { caregiverId: f.caregiverId })).map((l) => ({
+      caregiver: `${l.firstName ?? ''} ${l.lastName ?? ''}`.trim(), shifts: l.shifts, regularHours: l.regularHours, overtimeHours: l.overtimeHours,
+      baseRate: l.baseRate, overtimeRate: l.otRate, grossPay: l.grossPay,
+    }))
+    else data = await q.exportHours(d.db, companyId, sd, ed, tz, f)
 
     const agency = await agencyName(companyId)
     const filename = `${slug(agency)}-${type}-report-${sd}-to-${ed}`
     if (format === 'csv') {
       const keys = data.length ? Object.keys(data[0]) : []
-      return csvReply(c, `${filename}.csv`, toCSV(data, keys.map((k) => ({ key: k, label: k }))))
+      return csvReply(c, `${filename}.csv`, toCSV(data, keys.map((k) => ({ key: k, label: columnTitle(k) }))))
     }
     const buf = await renderPdf((doc) => {
       doc.fontSize(18).fillColor('#0F766E').text(agency, 50, 50)
@@ -692,21 +703,32 @@ export function createHomecareReportsRoutes(d: CrmDeps) {
   // POST /:type/export-pdf  { startDate, endDate } — the summary PDF for the tab on screen.
   app.post('/:type/export-pdf', byType(exportPdfPermission), async (c) => {
     const type = c.req.param('type') || ''
-    const { companyId, tz, range } = await postedRange(c)
+    const { body, companyId, tz, range } = await postedRange(c)
     if ('error' in range) return fail(c, 400, range.error)
     const { startDate, endDate } = range
+    // The figures the report on screen showed: its filter, and the same queries.
+    const f = { caregiverId: idOrNull(body.caregiverId), clientId: idOrNull(body.clientId) }
 
     let reportData: any = {}
     if (type === 'overview' || type === 'hours') {
       const [summary, caregivers] = await Promise.all([
-        q.scheduledHoursTotal(d.db, companyId, startDate, endDate),
-        q.scheduledHoursPerCaregiver(d.db, companyId, startDate, endDate),
+        q.scheduledSummary(d.db, companyId, startDate, endDate, f),
+        q.scheduledHoursPerCaregiver(d.db, companyId, startDate, endDate, f),
       ])
-      reportData = { summary, caregivers }
+      reportData = { summary: { scheduledHours: summary.totalHours, totalShifts: summary.totalShifts }, caregivers }
     } else if (type === 'performance') {
-      reportData = { caregivers: await q.ratingsPerCaregiver(d.db, companyId, startDate, endDate, tz) }
+      reportData = { caregivers: await q.ratingsPerCaregiver(d.db, companyId, startDate, endDate, tz, { caregiverId: f.caregiverId, clientId: null }) }
     } else if (type === 'revenue') {
-      reportData = { revenue: await q.invoiceTotalsInRange(d.db, companyId, startDate, endDate) }
+      // The Revenue report's totals: invoices and stand-alone claims (it summed invoices alone, so the PDF and the
+      // screen gave different totals for the same period).
+      const [inv, clm] = await Promise.all([
+        q.invoiceRevenueTotals(d.db, companyId, startDate, endDate, f.clientId),
+        q.claimRevenueTotals(d.db, companyId, startDate, endDate, f.clientId),
+      ])
+      reportData = { revenue: {
+        totalBilled: num(inv.total) + num(clm.total), collected: num(inv.collected) + num(clm.collected),
+        outstanding: num(inv.outstanding) + num(clm.outstanding), invoiceCount: (parseInt(inv.invoiceCount) || 0) + (parseInt(clm.claimCount) || 0),
+      } }
     }
 
     const agency = await agencyName(companyId)
@@ -760,8 +782,8 @@ export function createHomecareReportsRoutes(d: CrmDeps) {
         doc.fontSize(12).font('Helvetica')
         doc.text(`Total Billed: ${money(num(revenue?.totalBilled))}`)
         doc.text(`Total Collected: ${money(num(revenue?.collected))}`)
-        doc.text(`Total Invoices: ${revenue?.invoiceCount || 0}`)
-        doc.text(`Outstanding: ${money(num(revenue?.totalBilled) - num(revenue?.collected))}`)
+        doc.text(`Invoices and claims: ${revenue?.invoiceCount || 0}`)
+        doc.text(`Outstanding: ${money(num(revenue?.outstanding))}`)
       } else {
         doc.fontSize(12).font('Helvetica').text('This report has no PDF summary — use the CSV export.', 50, doc.y)
       }

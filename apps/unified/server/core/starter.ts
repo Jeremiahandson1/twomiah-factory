@@ -21,15 +21,26 @@ export interface StarterContent {
 
 /** The base CRM's (templates/crm/backend/db/seed.template.ts). */
 export const BASE_STARTER: StarterContent = {
+  // Rewritten against the unified screens, every claim checked in the code (2026-10-19): the seed's named contact tags,
+  // click-a-date booking with day / week / month views, roles on the Team page, overdue reminders and attaching files to
+  // records, none of which the app has.
   helpArticles: [
-    { title: 'Getting Started with Your CRM', content: 'Welcome to your CRM! Start by adding contacts, creating jobs, and sending quotes. Use the sidebar to navigate between modules. Each module has a list view and detail view for managing records.', category: 'Getting Started', isFaq: true },
-    { title: 'Managing Contacts', content: 'Contacts are the foundation of your CRM. Add new contacts from the Contacts page. Each contact can have multiple jobs, quotes, and invoices linked to them. Use tags and notes to organize your contacts.', category: 'Getting Started', isFaq: false },
-    { title: 'Creating and Sending Quotes', content: 'Navigate to Quotes to create a new quote. Select a contact, add line items with descriptions and prices, then send the quote via email. Customers can approve quotes online through the customer portal.', category: 'Quotes & Invoices', isFaq: false },
-    { title: 'Invoice Management', content: 'Create invoices from the Invoices page or convert approved quotes to invoices. Set payment terms, add line items, and send to customers. Track payment status and send reminders for overdue invoices.', category: 'Quotes & Invoices', isFaq: false },
-    { title: 'How do I schedule jobs?', content: 'Go to the Schedule page to view your calendar. Click on a date to create a new job or drag existing jobs to reschedule. You can assign team members and set job duration. The calendar supports day, week, and month views.', category: 'Scheduling', isFaq: true },
-    { title: 'Team Management', content: 'Add team members from the Team page. Each person gets a role — Viewer can look but change nothing, Staff handles day-to-day work, Manager has full access to work and invoicing, Admin also has company settings and the team itself. Team members can be assigned to jobs, tracked on the schedule, and have their time entries logged.', category: 'Team', isFaq: false },
-    { title: 'How do I track time?', content: 'Use the Time page to log hours for jobs. Team members can clock in/out or manually add time entries. Time entries can be linked to specific jobs for accurate billing and labor cost tracking.', category: 'Time & Expenses', isFaq: true },
-    { title: 'Document Management', content: 'Upload and organize documents in the Documents section. Attach files to contacts, jobs, or projects. Supported formats include PDF, images, and common document types.', category: 'Documents', isFaq: false },
+    { title: "Getting Started with Your CRM", category: "Getting Started", isFaq: true,
+      content: "Welcome to your CRM. Start by adding your customer contacts, creating jobs for the work you have booked, and sending quotes. Use the menu on the left to move between pages." },
+    { title: "Managing Contacts", category: "Getting Started", isFaq: false,
+      content: "Contacts are the foundation of your CRM. Add one with Add Contact on the Contacts page. A contact's page lists their jobs, quotes and invoices, and under Locations (Add Location) the addresses you work at." },
+    { title: "Creating and Sending Quotes", category: "Quotes & Invoices", isFaq: false,
+      content: "Go to Quotes and click New Quote. Add a line item for each part of the work and anything you supply, then choose Save & send to email it; the customer needs an email address on file. If their client portal is on (switched on from their contact page), the email lets them approve online. Otherwise, use Mark approved when they say yes. An approved quote becomes a job with Convert to Job, or an invoice with Create Invoice." },
+    { title: "Invoice Management", category: "Quotes & Invoices", isFaq: false,
+      content: "Create an invoice with New Invoice on the Invoices page, or from an approved quote (Create Invoice). The due date starts from the payment terms in Settings › Company. Add your line items, then click Send to email it. Use Record Payment when you're paid; the invoice shows the Balance Due. To chase an unpaid invoice, use Send again." },
+    { title: "How do I schedule jobs?", category: "Scheduling", isFaq: true,
+      content: "Give a job its Scheduled Date, Scheduled Time and Estimated Hours, and pick who is doing it under Assigned To. The Schedule page shows the week: click a job to open it. With Drag & Drop Calendar on, drag a job to another day to move it." },
+    { title: "Team Management", category: "Team", isFaq: false,
+      content: "Give someone a sign-in from Settings › Users (Add User), which can email them an invite. Their Access Role sets what they can do:\n• Viewer can look but change nothing.\n• Staff handles day-to-day work.\n• Manager has full access to work and invoicing.\n• Admin also has company settings and the team.\n\nThe Team page is your roster: each person's job title, department and hourly rate. Team members can be assigned to jobs, and their hours are logged on the Time page." },
+    { title: "How do I track time?", category: "Time & Expenses", isFaq: true,
+      content: "Use the Time page. Click Clock In when you start and Clock Out when you finish, or use Log Time to enter hours by hand. With Log Time you can link the hours to a job. Managers approve entries." },
+    { title: "Document Management", category: "Documents", isFaq: false,
+      content: "Keep your files on the Documents page. Click Upload and give each file a name, a type (contract, photo, invoice, receipt…) and a description, so you can find it again with search and the filters." },
   ],
   pricebookCategories: {
     byIndustry: {

@@ -14,6 +14,14 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 export const AUTH_MODE_HEADER = 'X-Auth-Mode'
 export const ACCESS_COOKIE = 'tw_access'
 export const REFRESH_COOKIE = 'tw_refresh'
+/**
+ * "View As" in a cookie-session browser: the short-lived, read-only session an office opens AS someone else (home
+ * care's POST /api/auth/impersonate/:userId). Kept apart from the person's own session, which stays as it was beneath
+ * it: while this cookie is there every request is the viewed person's; clearing it is Exit, back to their own. Like the
+ * session cookies, script on the page can't read it — a View As never puts a credential where injected script could
+ * take it.
+ */
+export const VIEW_AS_COOKIE = 'tw_view_as'
 /** The refresh cookie goes only to the session routes, never with an ordinary request. */
 const REFRESH_PATH = '/api/auth'
 const ACCESS_MAX_AGE = 15 * 60
@@ -34,6 +42,17 @@ export function clearSessionCookies(c: Context): void {
   deleteCookie(c, REFRESH_COOKIE, { path: REFRESH_PATH, secure: secure(), sameSite: 'Strict' })
 }
 
+/** Start a View As: the cookie lives `maxAgeSeconds`, which the caller keeps inside the token's own life. */
+export function setViewAsCookie(c: Context, token: string, maxAgeSeconds: number): void {
+  setCookie(c, VIEW_AS_COOKIE, token, { httpOnly: true, secure: secure(), sameSite: 'Strict', path: '/', maxAge: Math.max(0, Math.floor(maxAgeSeconds)) })
+}
+
+/** End a View As (the person's own session is untouched). */
+export function clearViewAsCookie(c: Context): void {
+  deleteCookie(c, VIEW_AS_COOKIE, { path: '/', secure: secure(), sameSite: 'Strict' })
+}
+
+export const viewAsCookie = (c: Context): string | undefined => getCookie(c, VIEW_AS_COOKIE) || undefined
 export const accessCookie = (c: Context): string | undefined => getCookie(c, ACCESS_COOKIE) || undefined
 export const refreshCookie = (c: Context): string | undefined => getCookie(c, REFRESH_COOKIE) || undefined
 
@@ -51,13 +70,15 @@ const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 /**
  * The access token for this request and where it came from: the Authorization header (the mobile app, the
- * templates, scripts) or the session cookie. A cookie-signed change without the header is refused (see the top).
+ * templates, scripts), else a View As cookie, else the session cookie. A cookie-signed change without the header is
+ * refused (see the top).
  */
-export function requestToken(c: Context): { token: string; via: 'header' | 'cookie' } | { refused: string } | null {
+export function requestToken(c: Context): { token: string; via: 'header' | 'cookie' | 'view-as' } | { refused: string } | null {
   const header = c.req.header('authorization')
   if (header?.startsWith('Bearer ')) return { token: header.split(' ')[1], via: 'header' }
-  const cookie = accessCookie(c)
+  const viewAs = viewAsCookie(c)
+  const cookie = viewAs || accessCookie(c)
   if (!cookie) return null
   if (MUTATING.has(c.req.method) && !wantsCookieSession(c)) return { refused: 'This request needs the X-Auth-Mode header.' }
-  return { token: cookie, via: 'cookie' }
+  return { token: cookie, via: viewAs ? 'view-as' : 'cookie' }
 }

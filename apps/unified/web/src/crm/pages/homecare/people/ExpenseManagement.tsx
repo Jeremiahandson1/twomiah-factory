@@ -13,7 +13,7 @@
 // server dropped them, so they read back empty there.
 import { useEffect, useState, type FormEvent } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
-import { api, errorMessage, rows } from '../lib/http'
+import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { money as formatCurrency } from './shared'
 
@@ -109,7 +109,7 @@ export default function ExpenseManagement() {
 
   const loadExpenses = async () => {
     try {
-      setExpenses(rows<Expense>(await api.get('/api/expenses', { startDate: dateRange.startDate, endDate: dateRange.endDate, limit: 1000 })))
+      setExpenses(rows<Expense>(await listAll('/api/expenses', { startDate: dateRange.startDate, endDate: dateRange.endDate })))
     } catch (error) {
       console.error('Failed to load expenses:', error)
       setExpenses([])

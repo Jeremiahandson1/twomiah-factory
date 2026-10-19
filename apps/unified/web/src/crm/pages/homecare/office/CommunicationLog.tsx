@@ -10,11 +10,11 @@
 //     never matched;
 //   · the type filter is applied to the rows on the screen: GET /api/communication-log/:type/:id ignores ?type (as the
 //     template's route did), so choosing a type changed nothing;
-//   · the contact picker asks for every client (?limit=1000): /api/clients is a page of 50;
+//   · the contact picker asks for every client (lib/http.ts listAll, page by page): /api/clients is a page of 50;
 //   · a failed pin, follow-up, delete or load says so (the template swallowed it); delete asks in the app's dialog;
 //   · Add Entry shows only with care-portal:create and Delete only with care-portal:delete (what the server asks).
 import { useEffect, useState } from 'react'
-import { api, rows, errorMessage } from '../lib/http'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 import { formatDate } from '../lib/date'
 import { formatAgencyDate, formatAgencyDateTime } from '../lib/agencyClock'
 import { useConfirm, usePermissions, useToast } from '../../../../shared'
@@ -96,7 +96,7 @@ export default function CommunicationLog({ entityType = 'client', entityId = nul
   const loadEntities = async () => {
     try {
       const [cData, cgData] = await Promise.all([
-        api.get('/api/clients', { limit: 1000 }),
+        listAll('/api/clients'),
         api.get('/api/users/caregivers'),
       ])
       const clients = rows<Person>(cData).map((x) => ({ type: 'client', id: x.id, name: fullName(x) }))

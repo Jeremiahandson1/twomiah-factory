@@ -2,10 +2,10 @@
 //
 // Replies read (server/crm/homecare/hr, care-hr):
 //   GET    /api/onboarding-packets                     onboardingPackets.ts — { data }: status, firstName, lastName
-//   GET    /api/background-checks?status=&type=        backgroundChecks.ts — { data }: checkType, status, result,
+//   GET    /api/background-checks                      backgroundChecks.ts — { data }: checkType, status, result,
 //                                                      initiatedDate, completedDate, expirationDate, referenceNumber,
 //                                                      findings, notes, caregiverFirst, caregiverLast, documentCount
-//   GET    /api/caregivers                             caregivers.ts — { data, pagination } (50 a page, as the template's)
+//   GET    /api/caregivers                             caregivers.ts — every page (lib/http.ts listAll; the picker stopped at 50)
 //   POST   /api/background-checks                      create;  PUT /api/background-checks/:id  update
 //   GET    /api/background-checks/:id/documents        { data }: fileName, fileSize, createdAt, uploadedByFirst/Last
 //   GET    /api/background-checks/:id/documents/:docId the file
@@ -13,7 +13,7 @@
 //   DELETE /api/background-checks/:id/documents/:docId done
 import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth, useConfirm, useToast } from '../../../../shared'
-import { api, downloadBlob, errorMessage, rows } from '../lib/http'
+import { api, downloadBlob, errorMessage, listAll, rows } from '../lib/http'
 import { formatDate, parseLocalDate } from '../lib/date'
 import type { CaregiverRow } from './shared'
 
@@ -74,7 +74,9 @@ export default function BackgroundChecks() {
   const wisconsin = String(company?.state || '').trim().toUpperCase() === 'WI'
   const [checks, setChecks] = useState<Check[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState({ status: '', type: '' })
+  // The whole list is loaded once and filtered here, so the cards count every check whatever is filtered, and a card
+  // filters by expiry, which is a date, not a status (the Expired card did nothing and Expiring Soon cleared the filter).
+  const [filter, setFilter] = useState<{ status: string; type: string; expiry: '' | 'soon' | 'expired' }>({ status: '', type: '', expiry: '' })
   const [showAddModal, setShowAddModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [currentCheck, setCurrentCheck] = useState<Check | null>(null)
@@ -160,14 +162,11 @@ export default function BackgroundChecks() {
     loadChecks()
     loadCaregivers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter])
+  }, [])
 
   const loadChecks = async () => {
     try {
-      const params: Record<string, string> = {}
-      if (filter.status) params.status = filter.status
-      if (filter.type) params.type = filter.type
-      setChecks(rows<Check>(await api.get('/api/background-checks', params)))
+      setChecks(rows<Check>(await api.get('/api/background-checks')))
     } catch (error) {
       console.error('Failed to load checks:', error)
     } finally {
@@ -177,7 +176,7 @@ export default function BackgroundChecks() {
 
   const loadCaregivers = async () => {
     try {
-      setCaregivers(rows<CaregiverRow>(await api.get('/api/caregivers')))
+      setCaregivers(rows<CaregiverRow>(await listAll('/api/caregivers')))
     } catch (error) {
       console.error('Failed to load caregivers:', error)
     }
@@ -210,6 +209,15 @@ export default function BackgroundChecks() {
   const pendingCount = checks.filter((c) => c.status === 'pending').length
   const expiringSoonCount = checks.filter((c) => isExpiringSoon(c.expirationDate)).length
   const expiredCount = checks.filter((c) => isExpired(c.expirationDate)).length
+  const shown = checks.filter((c) => (!filter.status || c.status === filter.status) && (!filter.type || c.checkType === filter.type)
+    && (filter.expiry === 'soon' ? isExpiringSoon(c.expirationDate) : filter.expiry === 'expired' ? isExpired(c.expirationDate) : true))
+  /** A card: picks its filter, or clears it when it is the one already picked. */
+  const card = (active: boolean, pick: typeof filter) => ({
+    role: 'button' as const, tabIndex: 0, 'aria-pressed': active,
+    onClick: () => setFilter(active ? { status: '', type: '', expiry: '' } : pick),
+    onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFilter(active ? { status: '', type: '', expiry: '' } : pick) } },
+    style: { cursor: 'pointer', outline: active ? '2px solid var(--hc-blue-ink)' : undefined },
+  })
 
   return (
     <div>
@@ -222,20 +230,20 @@ export default function BackgroundChecks() {
 
       {/* Summary Cards */}
       <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', marginBottom: '1rem' }}>
-        <div className="hc-stat-card" onClick={() => setFilter({ ...filter, status: 'pending' })} style={{ cursor: 'pointer' }}>
+        <div className="hc-stat-card" {...card(filter.status === 'pending' && !filter.expiry, { status: 'pending', type: '', expiry: '' })}>
           <h4>Pending</h4>
           <div className="value" style={{ color: 'var(--hc-warning-ink)' }}>{pendingCount}</div>
         </div>
-        <div className="hc-stat-card" onClick={() => setFilter({ ...filter, status: '' })} style={{ cursor: 'pointer' }}>
+        <div className="hc-stat-card" {...card(filter.expiry === 'soon', { status: '', type: '', expiry: 'soon' })}>
           <h4>Expiring Soon</h4>
           <div className="value" style={{ color: 'var(--hc-warning-ink)' }}>{expiringSoonCount}</div>
           <small>Within 30 days</small>
         </div>
-        <div className="hc-stat-card" style={{ cursor: 'pointer' }}>
+        <div className="hc-stat-card" {...card(filter.expiry === 'expired', { status: '', type: '', expiry: 'expired' })}>
           <h4>Expired</h4>
           <div className="value" style={{ color: 'var(--hc-red-ink)' }}>{expiredCount}</div>
         </div>
-        <div className="hc-stat-card" onClick={() => setFilter({ status: '', type: '' })} style={{ cursor: 'pointer' }}>
+        <div className="hc-stat-card" {...card(false, { status: '', type: '', expiry: '' })}>
           <h4>Total</h4>
           <div className="value">{checks.length}</div>
         </div>
@@ -268,7 +276,7 @@ export default function BackgroundChecks() {
       <div className="hc-card">
         {loading ? (
           <div className="loading"><div className="spinner"></div></div>
-        ) : checks.length === 0 ? (
+        ) : shown.length === 0 ? (
           <div>
             <p>No background checks found.</p>
             {awaitingConsent.length > 0 && (
@@ -296,7 +304,7 @@ export default function BackgroundChecks() {
               </tr>
             </thead>
             <tbody>
-              {checks.map((check) => {
+              {shown.map((check) => {
                 const expired = isExpired(check.expirationDate)
                 const soon = isExpiringSoon(check.expirationDate)
                 return (

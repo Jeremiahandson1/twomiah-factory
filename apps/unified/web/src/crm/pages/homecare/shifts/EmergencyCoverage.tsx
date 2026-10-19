@@ -10,7 +10,7 @@
 //   POST /api/emergency/assign-coverage         → { success, message } — the same body as the template.
 import { useState, useEffect } from 'react'
 import { formatDate, toLocalYMD } from '../lib/date'
-import { api, rows, errorMessage } from '../lib/http'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 import { useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { SOLID, field } from './ui'
 
@@ -45,7 +45,6 @@ interface ClientOption { id: string; firstName: string | null; lastName: string 
 interface SearchForm { date: string; startTime: string; endTime: string; clientId: string }
 
 // The pickers ask for every client: the list is paged at 50 by default, and the template's dropdown stopped there.
-const ALL = { limit: 1000 }
 
 const labelStyle = { display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--hc-ink-soft)', marginBottom: '0.3rem' } as const
 
@@ -76,7 +75,7 @@ const EmergencyCoverage = () => {
     try {
       const [reports, clientList] = await Promise.all([
         api.get('/api/emergency/miss-reports'),
-        api.get('/api/clients', ALL),
+        listAll('/api/clients'),
       ])
       setMissReports(rows<MissReport>(reports))
       setClients(rows<ClientOption>(clientList))

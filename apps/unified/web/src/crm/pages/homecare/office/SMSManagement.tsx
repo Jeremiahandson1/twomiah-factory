@@ -4,7 +4,7 @@
 //
 // Changes from the template:
 //   · lists are read as { data, pagination } (rows()); people as the server answers them (firstName, lastName); the
-//     caregiver and client pickers ask for everyone (?limit=1000), not the first page of 50;
+//     caregiver and client pickers ask for everyone (lib/http.ts listAll, page by page), not the first page of 50;
 //   · a single send's toast no longer prints "SID: null" when the reply carries no Twilio id;
 //   · the template's "Variables:" line printed the stored JSON array (default []), so every template showed an empty
 //     "Variables:" line; it now shows only when the array has entries. The form's free-text "variables" was never
@@ -12,7 +12,7 @@
 //   · the status badges were white on light fills (green #4caf50 is 2.8:1); they are the frame's badge pairs;
 //   · "+ Send Message" and "+ New Template" show with care-portal:create, edit with care-portal:update (the server's).
 import { useEffect, useState, type FormEvent } from 'react'
-import { api, rows, errorMessage } from '../lib/http'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 import { useConfirm, usePermissions, useToast } from '../../../../shared'
 
@@ -97,11 +97,11 @@ const SMSManagement = () => {
   }
 
   const loadCaregivers = async () => {
-    try { setCaregivers(rows<Person>(await api.get('/api/caregivers', { limit: 1000 }))) } catch { /* the bulk picker shows none */ }
+    try { setCaregivers(rows<Person>(await listAll('/api/caregivers'))) } catch { /* the bulk picker shows none */ }
   }
 
   const loadClients = async () => {
-    try { setClients(rows<Person>(await api.get('/api/clients', { limit: 1000 }))) } catch { /* the bulk picker shows none */ }
+    try { setClients(rows<Person>(await listAll('/api/clients'))) } catch { /* the bulk picker shows none */ }
   }
 
   const sendMessage = async (formData: SinglePayload) => {

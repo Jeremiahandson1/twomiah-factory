@@ -13,7 +13,7 @@
 // tenant's code was generated); it reads the signed-in company (useAuth().company) here.
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { useAuth, useConfirm, useToast } from '../../../../shared'
-import { api, rows, errorMessage, downloadBlob, saveBlob } from '../lib/http'
+import { api, rows, errorMessage, downloadBlob, saveBlob, listAll } from '../lib/http'
 // Why a cancelled visit was not billed (schedule_exceptions.cancel_reason) — the one label list.
 import { cancelReasonLabel } from '../lib/cancelReasons'
 import { toLocalYMD, parseLocalDate } from '../lib/date'
@@ -187,7 +187,6 @@ interface ResolvedRate { rate: number; rateType: string; source: string }
 
 const EMPTY_MANUAL_LINE: ManualLine = { caregiverId: '', caregiverName: '', description: 'Home Care Services', hours: '', rate: '', serviceDate: '', startTime: '', endTime: '' }
 /** Every client and caregiver for the pickers (both lists page at 50 by default). */
-const ALL = { limit: 1000 }
 
 const BillingDashboard = () => {
   const toast = useToast()
@@ -271,11 +270,11 @@ const BillingDashboard = () => {
     try {
       const [invoiceRes, clientRes, rsRes, ctRes, ratesRes, caregiversRes] = await Promise.all([
         api.get('/api/billing/invoices'),
-        api.get('/api/clients', ALL),
+        listAll('/api/clients'),
         api.get('/api/referral-sources'),
         api.get('/api/care-types'),
         api.get('/api/billing/referral-source-rates'),
-        api.get('/api/users', ALL).catch(() => null),
+        listAll('/api/users').catch(() => null),
       ])
       setInvoices(rows<Invoice>(invoiceRes))
       try { setTotals(await api.get('/api/billing/invoices/totals')) } catch { setTotals(null) }

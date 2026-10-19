@@ -110,3 +110,20 @@ describe('provision', () => {
     expect(body).toHaveProperty('version')
   })
 })
+
+// Each vertical's own day-one help (VerticalSettings.starter): every agency was given the contractor CRM's articles
+// ("Creating and Sending Quotes") until home care's guides were written (verticals/homecare/settings.ts, 2026-10-19).
+describe('a home-care agency gets its own guides', () => {
+  test('provisioned with home care\'s articles, none of the contractor CRM\'s', async () => {
+    const hc = await bootTenant({ vertical: 'homecare' })
+    process.env.FACTORY_SYNC_KEY = KEY
+    const body = { ...input(), company: { ...input().company, name: 'Sunrise Care', slug: 'sunrise-care' }, features: ['dashboard'], industry: 'Home Care' }
+    const res = await hc.call('/api/internal/provision', { method: 'POST', json: body, headers: { 'X-Factory-Key': KEY } })
+    expect(res.status).toBe(201)
+    const titles = (await hc.db.select().from(hc.schema.supportKnowledgeBase)).map((a: any) => a.title)
+    expect(titles).toContain('Running payroll')
+    expect(titles).toContain('Finding coverage fast')
+    expect(titles.some((x: string) => /quote|job/i.test(x))).toBe(false)
+    expect((await hc.db.select().from(hc.schema.pricebookCategory)).length).toBe(0)
+  })
+})

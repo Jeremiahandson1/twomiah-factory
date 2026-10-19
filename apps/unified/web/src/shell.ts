@@ -16,7 +16,7 @@ import { nav as restaurantNav } from './crm/verticals/restaurant'
 import { nav as rvNav } from './crm/verticals/rv'
 import { nav as salonNav } from './crm/verticals/salon'
 import { nav as vetNav } from './crm/verticals/vet'
-import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN } from './crm/verticals/homecare'
+import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN, banner as homecareBanner, headerActions as homecareHeaderActions } from './crm/verticals/homecare'
 
 const SHARED_NAV: NavItem[] = [
   // The CRM (templates/crm/frontend/src/shellConfig.ts): core items need the CRM's own features, so a website-only
@@ -133,6 +133,8 @@ export const SHELL: ShellConfig = {
     ...barRouteGates,
   },
   routePermissions: { ...barRoutePermissions, ...homecareRoutePermissions },
+  // An agency's View As: the header's button and, while one is open, the strip that says whose app this is.
+  ...(isHomecare ? { headerActions: homecareHeaderActions, banner: homecareBanner } : {}),
   routeRoles: {
     // The company, billing, email addresses and the feature switches are requireAdmin on the server.
     '/crm/settings': 'admin',

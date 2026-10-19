@@ -1,7 +1,7 @@
 // Moved from templates/crm-homecare/frontend/src/components/admin/CaregiverManagement.tsx (/crm/caregivers).
 //
 // Replies read (server/crm/homecare):
-//   GET  /api/caregivers?isActive=all            hr/caregivers.ts — { data, pagination } (50 a page, as the template's)
+//   GET  /api/caregivers?isActive=all            hr/caregivers.ts — every page (lib/http.ts listAll: the list stopped at 50)
 //   GET  /api/care-types                         clients/careTypes.ts — { data }
 //   GET  /api/caregiver-care-type-rates?caregiverId=   payroll/caregiverCareTypeRates.ts — { data }: careTypeName, hourlyRate
 //   POST /api/caregiver-care-type-rates          care-payroll:update
@@ -15,7 +15,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useConfirm, useToast } from '../../../../shared'
-import { api, errorMessage, rows } from '../lib/http'
+import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDate } from '../lib/date'
 import AddCaregiverModal from './AddCaregiverModal'
 import CaregiverDetail from './CaregiverDetail'
@@ -141,7 +141,7 @@ export default function CaregiverManagement() {
       const [cgData, ctData] = await Promise.all([
         // isActive=all so deactivated caregivers still load — otherwise the
         // Inactive filter finds nothing and a deactivated aide is unreachable.
-        api.get('/api/caregivers', { isActive: 'all' }),
+        listAll('/api/caregivers', { isActive: 'all' }),
         api.get('/api/care-types'),
       ])
       setCaregivers(rows<CaregiverRow>(cgData))

@@ -103,7 +103,10 @@ Step 4 is in: every screen the template rendered, in eight groups under `web/src
 `docs/UNIFIED_HOMECARE_SCREENS.md`; `docs/CUTOVER_LEDGER.md` "Home care's screens" lists what moved, what didn't and
 what was made to work. The home-care suite runs clean on the unified app (every divergence held by an adapted copy).
 
-Next: View As (the office opening the app as a caregiver or a client's portal — the server side is in, the screens
-need the app's client to carry a temporary session); the template's built-in help articles as home care's guides on
-/crm/help; the suite's screen-source checks pointed at the moved screens; then the browser check of every home-care
-screen, every role, both themes, phone and desktop.
+View As landed (2026-10-19): the header's View As for staff and a client's portal, read-only, its session an httpOnly
+cookie beside the office's own (`docs/CUTOVER_LEDGER.md`). The caregiver Full Profile's overview is built; the screens'
+whole-list pickers walk the server's pages.
+
+Next: the template's built-in help articles as home care's guides on /crm/help; the suite's screen-source checks pointed
+at the moved screens; then the browser check of every home-care screen, every role, both themes, phone and desktop (seen
+already: the office dashboard's section headings are dark green on the dark theme's ground).

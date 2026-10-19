@@ -197,3 +197,72 @@ describe("a write never names another company's person or client", () => {
     void otherCompanyId
   })
 })
+
+// The screen's caregiver and client pickers narrow the report, and its CSV and PDF are that report: the exports
+// ignored both, and the payroll export priced hours its own way ($18 an hour when no rate was on file) (fixed 2026-10-19).
+describe('an export is the report on screen', () => {
+  const csv = async (type: string, body: Record<string, unknown>) => {
+    const r = await as('owner', `/api/reports/${type}/export`, { method: 'POST', json: { ...SEPT, format: 'csv', ...body } })
+    expect(r.status).toBe(200)
+    const [head, ...lines] = (await r.text()).trim().split(/\r?\n/)
+    const keys = head.split(',').map((k) => k.replace(/"/g, ''))
+    return lines.map((l) => Object.fromEntries(l.split(',').map((v, i) => [keys[i], v.replace(/"/g, '')])))
+  }
+  beforeAll(async () => {
+    await t.db.insert(t.schema.timeEntries).values([
+      { companyId, caregiverId: ids.cg, clientId: ids.ada, startTime: new Date('2026-09-08T15:00:00Z'), endTime: new Date('2026-09-08T16:00:00Z'), durationMinutes: 60, isComplete: true },
+      { companyId, caregiverId: ids.fld, clientId: ids.eve, startTime: new Date('2026-09-09T15:00:00Z'), endTime: new Date('2026-09-09T16:30:00Z'), durationMinutes: 90, isComplete: true },
+    ] as any)
+    await t.db.insert(t.schema.invoices).values({ companyId, invoiceNumber: 'HC-2', clientId: ids.eve, billingPeriodStart: '2026-09-01', billingPeriodEnd: '2026-09-14', subtotal: '45', total: '45', amountPaid: '0', paymentStatus: 'pending', sentAt: new Date('2026-09-15T15:00:00Z') } as any)
+    await t.db.insert(t.schema.payrollShiftReviews).values({ companyId, caregiverId: ids.cg, clientId: ids.ada, shiftDate: '2026-09-08', payPeriodStart: '2026-09-01', payPeriodEnd: '2026-09-14', payableMinutes: 60, status: 'approved' } as any)
+  })
+
+  test('a client picked: only that client\'s hours and invoices', async () => {
+    const hours = await csv('overview', { clientId: ids.ada })
+    expect(Number(hours.find((r) => r.Caregiver === 'cg Tester')?.['Clocked Hours'])).toBe(1)
+    expect(Number(hours.find((r) => r.Caregiver === 'fld Tester')?.['Clocked Hours'])).toBe(0)
+    expect((await csv('revenue', { clientId: ids.eve })).map((r) => r['Invoice Number'])).toEqual(['HC-2'])
+    expect((await csv('revenue', {})).map((r) => r['Invoice Number']).sort()).toEqual(['HC-1', 'HC-2'])
+  })
+
+  test('a caregiver picked: that caregiver\'s row only', async () => {
+    const rows = await csv('hours', { caregiverId: ids.fld })
+    expect(rows.map((r) => r.Caregiver)).toEqual(['fld Tester'])
+    expect(Number(rows[0].Hours)).toBe(1.5)
+  })
+
+  test('the payroll export is what Payroll → Calculate pays', async () => {
+    const rows = await csv('payroll', {})
+    expect(rows).toEqual([expect.objectContaining({ Caregiver: 'cg Tester', 'Regular Hours': '1', 'Gross Pay': '20' })])
+  })
+
+  test('the overview\'s satisfaction is under the filter too', async () => {
+    await t.db.insert(t.schema.performanceRatings).values([
+      { companyId, caregiverId: ids.cg, clientId: ids.ada, satisfactionScore: 5, createdAt: new Date('2026-09-10T15:00:00Z') },
+      { companyId, caregiverId: ids.fld, clientId: ids.eve, satisfactionScore: 1, createdAt: new Date('2026-09-10T15:00:00Z') },
+    ] as any)
+    const all = await (await as('owner', '/api/reports/overview', { method: 'POST', json: SEPT })).json()
+    const ada = await (await as('owner', '/api/reports/overview', { method: 'POST', json: { ...SEPT, clientId: ids.ada } })).json()
+    expect(all.summary.avgSatisfaction).toBe(3)
+    expect(ada.summary.avgSatisfaction).toBe(5)
+  })
+})
+
+// The dashboard's Coverage Gaps tile and its "Find Coverage →" were a fixed 0 (in the template too); they count the
+// call-outs Emergency Coverage lists, so the two always agree (2026-10-19).
+describe('coverage gaps are the call-outs Emergency Coverage lists', () => {
+  test('an open call-out today or later counts; a covered, a past or another company\'s does not', async () => {
+    const day = (n: number) => new Date(Date.now() + n * 86400e3).toISOString().slice(0, 10)
+    await t.db.insert(t.schema.absences).values([
+      { companyId, caregiverId: ids.cg, clientId: ids.ada, date: day(2), type: 'call_out', coverageNeeded: true },
+      { companyId, caregiverId: ids.fld, clientId: ids.eve, date: day(3), type: 'call_out', coverageNeeded: true, coverageAssignedTo: ids.cg },
+      { companyId, caregiverId: ids.fld, clientId: ids.eve, date: day(-5), type: 'call_out', coverageNeeded: true },
+      { companyId, caregiverId: ids.cg, clientId: ids.ada, date: day(4), type: 'sick', coverageNeeded: true },
+      { companyId: otherCompanyId, caregiverId: ids.otherCaregiver, clientId: ids.otherClient, date: day(2), type: 'call_out', coverageNeeded: true },
+    ] as any)
+    const s = await (await as('admin', '/api/dashboard/summary')).json()
+    const listed = await (await as('admin', '/api/emergency/miss-reports')).json()
+    expect(s.coverageGaps).toBe(1)
+    expect((Array.isArray(listed) ? listed : listed.data).length).toBe(s.coverageGaps)
+  })
+})

@@ -10,11 +10,8 @@
 //                                                                   caregiver profiles), no id / category / icon.
 //                     GET  /api/matching/caregiver/:id/capabilities → list reply of that caregiver's names.
 //                     PUT  /api/matching/caregiver/:id/capabilities { capabilities: string[] } (the route joins them).
-//                     POST /api/matching/capabilities               → { success } — a no-op: a capability exists once a
-//                                                                   caregiver has it. Proficiency is not stored.
-//   Client Needs      GET  /api/matching/client/:id/needs           → { medicalConditions, allergies, serviceType } and
-//                     …/schedule-prefs → { preferredCaregivers, doNotUseCaregivers }: no per-capability needs, no
-//                     service days. The tab says so (SERVER MISMATCH, reported).
+//                     A new capability joins the list on the screen and is stored when it is ticked for a caregiver
+//                     and saved (the template also POSTed it to a route that did nothing; not moved).
 //   Restrictions      GET  /api/matching/client/:id/restrictions    → list reply of client_assignments rows
 //                                                                   (status 'restricted', caregiverId, notes); no type.
 //                     POST …/restrictions { caregiverId, notes }    → the row. DELETE /api/matching/restrictions/:id.
@@ -22,10 +19,12 @@
 //                                                                   suggestedCaregivers: [{ caregiverId, caregiverName,
 //                                                                   score }] }], summary: { totalClients, covered,
 //                                                                   uncovered, coveragePercent } }.
-//                     POST /api/matching/apply-schedule             → { success, applied } — a stub (applies nothing).
+//
+// Taken out (2026-10-19): the Client Needs tab (nothing on it could be saved: the server keeps no per-client service
+// needs or service days), the optimizer's week, mode and three options (the matcher reads none of them), and "Apply All
+// to Schedule" (its route answered success and applied nothing). Each looked like it worked and did not.
 import { useState, useEffect, type CSSProperties } from 'react'
-import { api, rows, errorMessage } from '../lib/http'
-import { toLocalYMD } from '../lib/date'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 import { CHIP, EDGE, INK, SOLID, type Tone } from './ui'
 
 interface Person { id: string; firstName: string | null; lastName: string | null; isActive?: boolean | null; weeklyAuthorizedUnits?: number | null }
@@ -37,12 +36,9 @@ interface OptimizeReply {
   summary: { totalClients: number; covered: number; uncovered: number; coveragePercent: number }
 }
 
-type Tab = 'skills' | 'needs' | 'restrictions' | 'optimizer'
+type Tab = 'skills' | 'restrictions' | 'optimizer'
 type MsgType = 'success' | 'error' | 'warning' | ''
-type OptionKey = 'balanceHours' | 'minimizeDriving' | 'respectPreferences'
 
-// The pickers ask for every row: both lists are paged at 50 by default.
-const ALL = { limit: 1000 }
 
 const CompanyOptimizer = () => {
   const [activeTab, setActiveTab] = useState<Tab>('skills')
@@ -56,24 +52,12 @@ const CompanyOptimizer = () => {
   const [cgCaps, setCgCaps] = useState<string[]>([])
   const [cgCapsLoading, setCgCapsLoading] = useState(false)
 
-  const [selectedClient, setSelectedClient] = useState('')
-
   const [restrictionsClient, setRestrictionsClient] = useState('')
   const [restrictions, setRestrictions] = useState<Restriction[]>([])
   const [newRestriction, setNewRestriction] = useState({ caregiverId: '', reason: '' })
 
-  const [optimizerWeek, setOptimizerWeek] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - d.getDay())
-    return toLocalYMD(d)
-  })
-  const [optimizerMode, setOptimizerMode] = useState('generate_fresh')
-  const [optimizerOptions, setOptimizerOptions] = useState<Record<OptionKey, boolean>>({
-    balanceHours: true, minimizeDriving: true, respectPreferences: true,
-  })
   const [optimizerResults, setOptimizerResults] = useState<OptimizeReply | null>(null)
   const [optimizing, setOptimizing] = useState(false)
-  const [applying, setApplying] = useState(false)
-  const [clearExisting, setClearExisting] = useState(false)
 
   const [showNewCap, setShowNewCap] = useState(false)
   const [newCapName, setNewCapName] = useState('')
@@ -84,7 +68,7 @@ const CompanyOptimizer = () => {
   }
 
   useEffect(() => {
-    Promise.all([api.get('/api/matching/capabilities'), api.get('/api/caregivers', ALL), api.get('/api/clients', ALL)])
+    Promise.all([api.get('/api/matching/capabilities'), listAll('/api/caregivers'), listAll('/api/clients')])
       .then(([caps, cgs, cls]) => {
         setCapabilities(rows<string>(caps).map(String))
         setCaregivers(rows<Person>(cgs))
@@ -145,7 +129,7 @@ const CompanyOptimizer = () => {
   const runOptimizer = async () => {
     setOptimizing(true); setOptimizerResults(null)
     try {
-      const data = (await api.post('/api/matching/optimize', { weekStart: optimizerWeek, mode: optimizerMode, options: optimizerOptions })) as OptimizeReply
+      const data = (await api.post('/api/matching/optimize', {})) as OptimizeReply
       const result: OptimizeReply = {
         assignments: Array.isArray(data?.assignments) ? data.assignments : [],
         summary: data?.summary || { totalClients: 0, covered: 0, uncovered: 0, coveragePercent: 0 },
@@ -156,34 +140,16 @@ const CompanyOptimizer = () => {
     finally { setOptimizing(false) }
   }
 
-  const applySchedule = async () => {
-    if (!optimizerResults) return
-    setApplying(true)
-    try {
-      const data = (await api.post('/api/matching/apply-schedule', {
-        assignments: optimizerResults.assignments,
-        weekStart: optimizerWeek,
-        clearExisting,
-      })) as { applied?: number }
-      const applied = Number(data?.applied ?? 0)
-      showMsg(`${applied} visit${applied !== 1 ? 's' : ''} applied to the schedule`, applied > 0 ? 'success' : 'warning')
-    } catch (e) { showMsg('Apply failed: ' + errorMessage(e), 'error') }
-    finally { setApplying(false) }
-  }
-
   // A capability exists once a caregiver has it (the server keeps them as free text on each caregiver's profile): a new
   // one joins the list here and is stored when it is ticked for a caregiver and saved.
-  const addCapability = async () => {
+  const addCapability = () => {
     const name = newCapName.trim()
     if (!name) { showMsg('Name required', 'error'); return }
     if (name.includes(',')) { showMsg('A capability name cannot contain a comma', 'error'); return }
-    try {
-      await api.post('/api/matching/capabilities', { name })
-      setCapabilities((p) => (p.includes(name) ? p : [...p, name].sort()))
-      setNewCapName('')
-      setShowNewCap(false)
-      showMsg('Added! Tick it for a caregiver and save to keep it.')
-    } catch (e) { showMsg(errorMessage(e), 'error') }
+    setCapabilities((p) => (p.includes(name) ? p : [...p, name].sort()))
+    setNewCapName('')
+    setShowNewCap(false)
+    showMsg('Added. Tick it for a caregiver and save to keep it.')
   }
 
   // ── Styles: the frame's tokens and light/dark pairs (./ui.ts) ──
@@ -226,7 +192,7 @@ const CompanyOptimizer = () => {
       <div style={s.card}>
         <div style={s.cardTitle}>👤 Caregiver Skills & Capabilities</div>
         <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', marginBottom: '0.75rem' }}>
-          Check off what each caregiver can do. The optimizer uses this to match them with client needs.
+          Check off what each caregiver can do. It is kept on their profile for the office to see.
         </div>
         <div style={s.row}>
           <div style={s.col(2)}>
@@ -274,34 +240,6 @@ const CompanyOptimizer = () => {
           </div>
         )}
       </div>
-    </div>
-  )
-
-  // ═══════════════════════════════════════════════
-  // RENDER: Client Needs Tab
-  // ═══════════════════════════════════════════════
-  const renderNeeds = () => (
-    <div>
-      <div style={s.card}>
-        <div style={s.cardTitle}>📋 Client Service Needs</div>
-        <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', marginBottom: '0.75rem' }}>What services does each client need? Mark critical items so the optimizer prioritizes them.</div>
-        <div style={s.row}>
-          <div style={s.col(2)}>
-            <label style={s.label}>Client</label>
-            <select style={s.select} value={selectedClient} onChange={(e) => setSelectedClient(e.target.value)}>
-              <option value="">— Select —</option>
-              {clients.map((c) => <option key={c.id} value={c.id}>{c.firstName} {c.lastName} {c.weeklyAuthorizedUnits ? `(${c.weeklyAuthorizedUnits}u/wk)` : ''}</option>)}
-            </select>
-          </div>
-        </div>
-      </div>
-      {selectedClient && (
-        <div style={s.notice} role="note">
-          Per-client service needs (with priority and frequency) and allowed service days are not stored yet: the server keeps
-          a client's medical conditions, allergies and service type, and their preferred and do-not-use caregivers, but none
-          of what this tab asked for. Nothing here can be saved until it does.
-        </div>
-      )}
     </div>
   )
 
@@ -370,22 +308,6 @@ const CompanyOptimizer = () => {
           <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', marginBottom: '0.75rem' }}>
             Ranks caregivers for each active client: their preferred caregivers first, their do-not-use caregivers left out.
           </div>
-          <div style={s.row}>
-            <div style={s.col(1)}><label style={s.label}>Week Starting</label><input type="date" style={s.input} value={optimizerWeek} onChange={(e) => setOptimizerWeek(e.target.value)} /></div>
-            <div style={s.col(1)}><label style={s.label}>Mode</label>
-              <select style={s.select} value={optimizerMode} onChange={(e) => setOptimizerMode(e.target.value)}>
-                <option value="generate_fresh">Generate Fresh Schedule</option>
-                <option value="optimize_existing">Optimize Around Existing</option>
-              </select>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-            {([{ k: 'balanceHours', l: '⚖️ Balance hours' }, { k: 'minimizeDriving', l: '🗺️ Minimize driving' }, { k: 'respectPreferences', l: '💚 Boost preferred' }] as Array<{ k: OptionKey; l: string }>).map((o) => (
-              <label key={o.k} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.82rem' }}>
-                <input type="checkbox" checked={optimizerOptions[o.k]} onChange={(e) => setOptimizerOptions((p) => ({ ...p, [o.k]: e.target.checked }))} /> {o.l}
-              </label>
-            ))}
-          </div>
           <button style={s.btn(SOLID.violet, optimizing)} onClick={runOptimizer} disabled={optimizing}>
             {optimizing ? '⏳ Optimizing...' : '🚀 Run Optimizer'}
           </button>
@@ -402,17 +324,6 @@ const CompanyOptimizer = () => {
             ] as Array<{ v: string | number; l: string; tone: Tone }>).map((st, i) => (
               <div key={i} className={EDGE[st.tone]} style={s.stat}><div className={INK[st.tone]} style={s.statVal}>{st.v}</div><div style={s.statLbl}>{st.l}</div></div>
             ))}
-          </div>
-
-          {/* Apply controls */}
-          <div style={{ ...s.card, display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-            <button style={s.btn(SOLID.green, applying)} onClick={applySchedule} disabled={applying}>
-              {applying ? '⏳ Applying...' : '✅ Apply All to Schedule'}
-            </button>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer' }}>
-              <input type="checkbox" checked={clearExisting} onChange={(e) => setClearExisting(e.target.checked)} />
-              Clear previous optimizer entries for this week first
-            </label>
           </div>
 
           {/* Client assignments */}
@@ -452,12 +363,11 @@ const CompanyOptimizer = () => {
       <h1 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '1rem' }}>🧠 Smart Matching & Optimizer</h1>
       {message.text && <div style={s.msg(message.type)}>{message.text}</div>}
       <div style={s.tabs}>
-        {([{ id: 'skills', i: '👤', l: 'Caregiver Skills' }, { id: 'needs', i: '📋', l: 'Client Needs' }, { id: 'restrictions', i: '🔒', l: 'Restrictions' }, { id: 'optimizer', i: '🧠', l: 'Run Optimizer' }] as Array<{ id: Tab; i: string; l: string }>).map((t) => (
+        {([{ id: 'skills', i: '👤', l: 'Caregiver Skills' }, { id: 'restrictions', i: '🔒', l: 'Restrictions' }, { id: 'optimizer', i: '🧠', l: 'Run Optimizer' }] as Array<{ id: Tab; i: string; l: string }>).map((t) => (
           <button key={t.id} style={s.tab(activeTab === t.id)} onClick={() => setActiveTab(t.id)}>{t.i} {t.l}</button>
         ))}
       </div>
       {activeTab === 'skills' && renderSkills()}
-      {activeTab === 'needs' && renderNeeds()}
       {activeTab === 'restrictions' && renderRestrictions()}
       {activeTab === 'optimizer' && renderOptimizer()}
     </div>

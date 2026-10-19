@@ -1,17 +1,27 @@
 // The rulebook's checks catch what they claim to: each test plants one violation in a fresh copy of the app and
 // expects that rule, and only that rule, to fire. Two cases plant lookalikes that must NOT fire.
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, setDefaultTimeout } from 'bun:test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { checkUnified } from '../../../scripts/check-unified-rules.ts'
+import { checkUnified, removeScratch } from '../../../scripts/check-unified-rules.ts'
+
+// Each test copies the app and runs the rules (the drift test runs drizzle-kit too): seconds each, more on a busy
+// Windows machine. At bun's default 5 s the runner killed drizzle-kit mid-run and the test read "could not generate".
+setDefaultTimeout(60_000)
 
 const APP = path.resolve(import.meta.dir, '..')
 const REPO = path.resolve(APP, '..', '..')
 
+/**
+ * Not source: the dependencies (linked below), the suite runner's scratch (.suite — another run creates and deletes its
+ * folders while this copies, which failed the copy) and the built screens (web/dist). The rules read source only.
+ */
+const NOT_SOURCE = [`${path.sep}node_modules`, path.join(APP, '.suite'), path.join(APP, 'web', 'dist')]
+
 function copy(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'unified-rules-'))
-  fs.cpSync(APP, dir, { recursive: true, filter: (src) => !src.includes(`${path.sep}node_modules`) })
+  fs.cpSync(APP, dir, { recursive: true, filter: (src) => !NOT_SOURCE.some((skip) => src.includes(skip)) })
   fs.symlinkSync(fs.realpathSync(path.join(APP, 'node_modules')), path.join(dir, 'node_modules'), 'junction')
   return dir
 }
@@ -22,7 +32,7 @@ function plant(edit: (dir: string) => void, drift = false) {
     edit(dir)
     return checkUnified(dir, { drift, repoRoot: REPO })
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
+    removeScratch(dir)
   }
 }
 

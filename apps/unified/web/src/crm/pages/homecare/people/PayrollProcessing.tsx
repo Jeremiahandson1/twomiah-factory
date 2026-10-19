@@ -1,10 +1,10 @@
 // Moved from templates/crm-homecare/frontend/src/components/admin/PayrollProcessing.tsx (/crm/payroll).
-// Complete payroll: Overtime, Mileage, PTO, Shift Differentials, Pay Stubs, Exports.
+// Complete payroll: shift reviews, overtime, mileage, PTO, earnings statements, exports.
 //
 // Replies read (server/crm/homecare, all care-payroll:update unless noted):
 //   GET  /api/company                                  shared company row + home care's fields: mileageRate (a decimal string)
 //   PUT  /api/company { mileageRate }                  the shared company PUT
-//   GET  /api/caregivers                               hr/caregivers.ts — { data, pagination } (50 a page, as the template's)
+//   GET  /api/caregivers                               hr/caregivers.ts — every page (lib/http.ts listAll)
 //   POST /api/payroll-shift-reviews/generate-shifts    → { generated, matched, missingPunch, kept }
 //   GET  /api/payroll-shift-reviews/shifts             → { shifts, stats }: the review rows in camelCase (caregiverId,
 //                                                      timeEntryId, shiftDate, scheduledStart/End, actualStart/End,
@@ -22,10 +22,14 @@
 //   POST /api/payroll/export (CSV);  GET /api/payroll/export/quickbooks (CSV)
 //   POST /api/mileage (payroll/mileage.ts) reads startLocation / endLocation (the template sent fromLocation /
 //        toLocation, which it never read); POST /api/pto (payroll/pto.ts) accepts type pto | vacation | sick only.
-// Hours, overtime and wages are the server's; only the withholding is an on-screen estimate (unchanged).
+// Hours, overtime, wages and gross pay are the server's. Taken out (2026-10-19): the withholding "estimate" (flat
+// federal / state / FICA rates typed into Settings — its state default, 7.65%, was the FICA rate — shown as Deductions
+// and Net Pay and printed on a "Pay Stub"): withholding depends on each person's W-4 and is the payroll provider's to
+// figure, so a printed stub carried invented tax lines. And the weekend / night differential boxes, which no
+// calculation read. The statement prints the earnings; the provider's stub is the pay stub.
 import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth, useToast } from '../../../../shared'
-import { api, downloadBlob, errorMessage, rows, saveBlob } from '../lib/http'
+import { api, downloadBlob, errorMessage, rows, saveBlob, listAll } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { formatAgencyDateTime } from '../lib/agencyClock'
 import PaydayVerificationSetting from './PaydayVerificationSetting'
@@ -71,14 +75,8 @@ interface PayrollLine {
   recordId: string | null
   status: string
 }
-/** A line with the on-screen withholding estimate. */
+/** A line of the calculation. */
 interface PayrollRow extends PayrollLine {
-  federalTax: number
-  stateTax: number
-  socialSecurity: number
-  medicare: number
-  totalDeductions: number
-  netPay: number
   /** Not in the reply (the template read pto_hours / pto_pay / check_number; absent there too). */
   ptoHours?: number
   ptoPay?: number
@@ -162,15 +160,7 @@ export default function PayrollProcessing() {
   const [settings, setSettings] = useState({
     overtimeThreshold: 40,
     overtimeRate: 1.5,
-    dailyOvertimeEnabled: false,
-    dailyOvertimeThreshold: 8,
-    weekendDifferential: 0,
-    nightDifferential: 0,
     mileageRate: 0.67, // 2024 IRS rate
-    federalTaxRate: 0.22,
-    stateTaxRate: 0.0765, // WI rate
-    socialSecurityRate: 0.062,
-    medicareRate: 0.0145,
   })
 
   // Mileage form
@@ -228,7 +218,7 @@ export default function PayrollProcessing() {
 
   const loadCaregivers = async () => {
     try {
-      setCaregivers(rows<CaregiverRow>(await api.get('/api/caregivers')))
+      setCaregivers(rows<CaregiverRow>(await listAll('/api/caregivers')))
     } catch (error) {
       console.error('Failed to load caregivers:', error)
     }
@@ -329,14 +319,7 @@ export default function PayrollProcessing() {
 
       // Hours, overtime (over 40 in each Sun–Sat week), rates and wages are the server's
       // (core/payrollPay.ts) — the same numbers the Gusto CSV and the payroll approval carry.
-      // Only the withholding below is an on-screen ESTIMATE from the rates in Settings.
       const enhanced: PayrollRow[] = (data.payroll || []).map((p) => {
-        const wages = Number(p.wagesPay) || 0
-        const federalTax = wages * settings.federalTaxRate
-        const stateTax = wages * settings.stateTaxRate
-        const socialSecurity = wages * settings.socialSecurityRate
-        const medicare = wages * settings.medicareRate
-        const totalDeductions = Math.round((federalTax + stateTax + socialSecurity + medicare) * 100) / 100
         const grossPay = Number(p.grossPay) || 0 // wages + mileage
         return {
           ...p,
@@ -350,13 +333,6 @@ export default function PayrollProcessing() {
           overtimePay: Number(p.overtimePay) || 0,
           mileageReimbursement: Number(p.mileageReimbursement) || 0,
           grossPay,
-          federalTax,
-          stateTax,
-          socialSecurity,
-          medicare,
-          totalDeductions,
-          // Taxes come off wages only; mileage is a reimbursement and is already in gross.
-          netPay: Math.round((grossPay - totalDeductions) * 100) / 100,
           status: p.status || 'draft',
         }
       })
@@ -505,8 +481,6 @@ export default function PayrollProcessing() {
     totalOvertimeHours: payrollData.reduce((sum, p) => sum + (p.overtimeHours || 0), 0),
     totalMiles: payrollData.reduce((sum, p) => sum + parseFloat(String(p.totalMiles || 0)), 0),
     totalGrossPay: payrollData.reduce((sum, p) => sum + (p.grossPay || 0), 0),
-    totalDeductions: payrollData.reduce((sum, p) => sum + (p.totalDeductions || 0), 0),
-    totalNetPay: payrollData.reduce((sum, p) => sum + (p.netPay || 0), 0),
     totalMileageReimbursement: payrollData.reduce((sum, p) => sum + (p.mileageReimbursement || 0), 0),
   }
 
@@ -839,14 +813,6 @@ export default function PayrollProcessing() {
               <div className="value">{formatCurrency(totals.totalGrossPay)}</div>
             </div>
             <div className="hc-stat-card">
-              <h3>Deductions</h3>
-              <div className="value" style={{ color: 'var(--hc-red-ink)' }}>{formatCurrency(totals.totalDeductions)}</div>
-            </div>
-            <div className="hc-stat-card">
-              <h3>Net Pay</h3>
-              <div className="value" style={{ color: 'var(--hc-green-ink)' }}>{formatCurrency(totals.totalNetPay)}</div>
-            </div>
-            <div className="hc-stat-card">
               <h3>Mileage</h3>
               <div className="value">{totals.totalMiles.toFixed(2)} mi</div>
               <div className="hc-stat-subtext">{formatCurrency(totals.totalMileageReimbursement)} reimbursement</div>
@@ -904,8 +870,6 @@ export default function PayrollProcessing() {
                   <th>Miles</th>
                   <th>Rate</th>
                   <th>Gross</th>
-                  <th>Deduct</th>
-                  <th>Net</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
@@ -920,12 +884,10 @@ export default function PayrollProcessing() {
                     <td>{parseFloat(String(payroll.totalMiles || 0)).toFixed(2)}</td>
                     <td>${payroll.baseRate?.toFixed(2)}</td>
                     <td style={{ color: 'var(--hc-green-ink)' }}>{formatCurrency(payroll.grossPay)}</td>
-                    <td style={{ color: 'var(--hc-red-ink)' }}>{formatCurrency(payroll.totalDeductions)}</td>
-                    <td><strong style={{ color: 'var(--hc-blue-ink)' }}>{formatCurrency(payroll.netPay)}</strong></td>
                     <td><span className={`hc-badge ${getStatusBadge(payroll.status)}`}>{payroll.status?.toUpperCase()}</span></td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                        <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => generatePayStub(payroll)}>Stub</button>
+                        <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => generatePayStub(payroll)}>Statement</button>
                         {payroll.status === 'draft' && <button className="hc-btn hc-btn-sm hc-btn-warning" onClick={() => handleApprovePayroll(payroll.caregiverId)}>Approve</button>}
                         {payroll.status === 'approved' && <button className="hc-btn hc-btn-sm hc-btn-success" onClick={() => handleProcessPaycheck(payroll)}>Process</button>}
                       </div>
@@ -944,8 +906,6 @@ export default function PayrollProcessing() {
                   ['Total Hours', totals.totalHours.toFixed(2), undefined],
                   ['Overtime', totals.totalOvertimeHours.toFixed(2), 'var(--hc-warning-ink)'],
                   ['Gross Pay', formatCurrency(totals.totalGrossPay), 'var(--hc-green-ink)'],
-                  ['Deductions', formatCurrency(totals.totalDeductions), 'var(--hc-red-ink)'],
-                  ['Net Pay', formatCurrency(totals.totalNetPay), 'var(--hc-blue-ink)'],
                 ].map(([label, value, color]) => (
                   <div key={label}>
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--hc-muted)' }}>{label}</p>
@@ -966,7 +926,7 @@ export default function PayrollProcessing() {
         <div className="modal active">
           <div className="modal-content modal-large" id="pay-stub">
             <div className="modal-header">
-              <h2>Pay Stub</h2>
+              <h2>Earnings Statement</h2>
               <button className="close-btn" onClick={() => setShowPayStubModal(false)}>×</button>
             </div>
 
@@ -975,7 +935,7 @@ export default function PayrollProcessing() {
               {/* Company Header */}
               <div style={{ textAlign: 'center', marginBottom: '1.5rem', borderBottom: '2px solid #333', paddingBottom: '1rem' }}>
                 <h2 style={{ margin: 0, color: 'color-mix(in srgb, var(--hc-primary) 45%, black)' }}>{company?.name || ''}</h2>
-                <p style={{ margin: '0.25rem 0 0', color: '#555' }}>Pay Statement</p>
+                <p style={{ margin: '0.25rem 0 0', color: '#555' }}>Earnings Statement</p>
               </div>
 
               {/* Employee & Pay Period Info */}
@@ -986,8 +946,6 @@ export default function PayrollProcessing() {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <p style={{ margin: 0 }}><strong>Pay Period:</strong> {payPeriod.startDate} to {payPeriod.endDate}</p>
-                  {/* The template called formatDate() with nothing, which prints nothing; kept. */}
-                  <p style={{ margin: '0.25rem 0 0' }}><strong>Pay Date:</strong> {formatDate()}</p>
                   {selectedPayroll.checkNumber && <p style={{ margin: '0.25rem 0 0' }}><strong>Check #:</strong> {selectedPayroll.checkNumber}</p>}
                 </div>
               </div>
@@ -1013,7 +971,7 @@ export default function PayrollProcessing() {
                     </tr>
                     {selectedPayroll.overtimeHours > 0 && (
                       <tr>
-                        <td style={stubCell}>Overtime (1.5x)</td>
+                        <td style={stubCell}>Overtime</td>
                         <td style={stubNum}>{selectedPayroll.overtimeHours?.toFixed(2)}</td>
                         <td style={stubNum}>${Number(selectedPayroll.otRate || 0).toFixed(2)}</td>
                         <td style={stubNum}>{formatCurrency(selectedPayroll.overtimePay)}</td>
@@ -1045,30 +1003,10 @@ export default function PayrollProcessing() {
                 </table>
               </div>
 
-              {/* Deductions */}
-              <div style={{ marginBottom: '1.5rem' }}>
-                <h4 style={{ borderBottom: '1px solid #333', paddingBottom: '0.25rem', marginBottom: '0.5rem' }}>Deductions</h4>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <tbody>
-                    <tr><td style={stubCell}>Federal Income Tax</td><td style={stubNum}>{formatCurrency(selectedPayroll.federalTax)}</td></tr>
-                    <tr><td style={stubCell}>State Income Tax (WI)</td><td style={stubNum}>{formatCurrency(selectedPayroll.stateTax)}</td></tr>
-                    <tr><td style={stubCell}>Social Security</td><td style={stubNum}>{formatCurrency(selectedPayroll.socialSecurity)}</td></tr>
-                    <tr><td style={stubCell}>Medicare</td><td style={stubNum}>{formatCurrency(selectedPayroll.medicare)}</td></tr>
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ background: '#f0f0f0', fontWeight: 'bold' }}>
-                      <td style={stubNum}>Total Deductions</td>
-                      <td style={{ ...stubNum, color: '#b91c1c' }}>{formatCurrency(selectedPayroll.totalDeductions)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Net Pay — #1e7e34 on the pale green (the template's #28a745 was 2.8:1 there). */}
-              <div style={{ background: '#e8f5e9', padding: '1rem', borderRadius: '8px', textAlign: 'center' }}>
-                <h3 style={{ margin: 0, color: '#555' }}>Net Pay</h3>
-                <p style={{ margin: '0.5rem 0 0', fontSize: '2rem', fontWeight: 'bold', color: '#1e7e34' }}>{formatCurrency(selectedPayroll.netPay)}</p>
-              </div>
+              {/* Withholding is the payroll provider's: it depends on each person's W-4. */}
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#555' }}>
+                Taxes and other withholding are calculated by your payroll provider and are not shown on this statement.
+              </p>
             </div>
 
             <div className="modal-actions">
@@ -1178,47 +1116,11 @@ export default function PayrollProcessing() {
             </div>
 
             <div className="form-section">
-              <h3>Shift Differentials</h3>
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>Weekend Differential ($/hr)</label>
-                  <input type="number" step="0.25" value={settings.weekendDifferential} onChange={(e) => setSettings({ ...settings, weekendDifferential: parseFloat(e.target.value) })} />
-                </div>
-                <div className="form-group">
-                  <label>Night Differential ($/hr)</label>
-                  <input type="number" step="0.25" value={settings.nightDifferential} onChange={(e) => setSettings({ ...settings, nightDifferential: parseFloat(e.target.value) })} />
-                </div>
-              </div>
-            </div>
-
-            <div className="form-section">
               <h3>Mileage</h3>
               <div className="form-group">
                 <label>Mileage Rate ($/mile)</label>
                 <input type="number" step="0.01" value={mileageRateText} onChange={(e) => setMileageRateText(e.target.value)} />
                 <small className="text-muted">The agency's rate: every caregiver's mileage is paid at it. (2024 IRS standard rate is $0.67/mile.)</small>
-              </div>
-            </div>
-
-            <div className="form-section">
-              <h3>Tax Rates</h3>
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label>Federal Tax Rate (%)</label>
-                  <input type="number" step="0.01" value={settings.federalTaxRate * 100} onChange={(e) => setSettings({ ...settings, federalTaxRate: parseFloat(e.target.value) / 100 })} />
-                </div>
-                <div className="form-group">
-                  <label>State Tax Rate (%)</label>
-                  <input type="number" step="0.01" value={settings.stateTaxRate * 100} onChange={(e) => setSettings({ ...settings, stateTaxRate: parseFloat(e.target.value) / 100 })} />
-                </div>
-                <div className="form-group">
-                  <label>Social Security (%)</label>
-                  <input type="number" step="0.01" value={settings.socialSecurityRate * 100} onChange={(e) => setSettings({ ...settings, socialSecurityRate: parseFloat(e.target.value) / 100 })} />
-                </div>
-                <div className="form-group">
-                  <label>Medicare (%)</label>
-                  <input type="number" step="0.01" value={settings.medicareRate * 100} onChange={(e) => setSettings({ ...settings, medicareRate: parseFloat(e.target.value) / 100 })} />
-                </div>
               </div>
             </div>
 

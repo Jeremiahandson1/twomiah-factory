@@ -1,21 +1,22 @@
 // Moved from templates/crm-homecare/frontend/src/components/ImpersonationModal.tsx — View As: pick a member of staff
 // (or a client, for a read-only look at their portal) and get a short-lived session as them.
 //   · Staff: GET /api/auth/users (a list reply: rows(); camelCase firstName/lastName) and
-//     POST /api/auth/impersonate/:userId → { token, user } (server/crm/homecare/office/signIn.ts). Both ask users:read;
-//     the server refuses a person above the asker's own rung and writes the audit row before it issues the token.
-//   · Clients: GET /api/clients?isActive=true&limit=500 (care-clients:read) and POST /api/portal/admin/preview/:clientId
+//     POST /api/auth/impersonate/:userId → { user } (server/crm/homecare/office/signIn.ts), the View As session itself
+//     set as an httpOnly cookie, never handed to this page. Both ask users:read; the server refuses a person above the
+//     asker's own rung and writes the audit row before it opens the View As.
+//   · Clients: GET /api/clients?isActive=true, every page (lib/http.ts listAll; care-clients:read) and POST /api/portal/admin/preview/:clientId
 //     → { token, user } (portals/clientPortal.ts, care-portal:update). The Client Portal tab is shown only to a seat
 //     holding care-portal:update; the Staff tab only to users:read. The template offered both to every admin.
 //   · The template read a bare array (`Array.isArray(userData) ? userData : []`), which the list reply never is: the
 //     staff list would have been empty. Rows are camelCase; the template read first_name / last_name.
-//   · The token is handed to `onImpersonate`, as in the template. The app has no way yet to run its screens on another
-//     person's token (its session is the server's cookies), so nothing in the app mounts this modal: see the office
-//     group's report.
+//   · Mounted by ./ViewAsPanel (the header's View As button, ./ViewAs.tsx): `onStaff` loads the app afresh as the person,
+//     `onPortal` opens the client's portal with the preview token.
 //   · Both themes: the panel, tabs, rows and buttons take the frame's tokens or light/dark pairs; the role colours are
 //     ink on a tint in both.
 import { useEffect, useState } from 'react';
-import { usePermissions } from '../../../../shared';
-import { api, errorMessage, rows } from '../lib/http';
+import { useAuth, usePermissions } from '../../../../shared';
+import { api, errorMessage, rows, listAll } from '../lib/http';
+import { seatLabel } from './ViewAs';
 
 /** The person or client a View As session is for, as the server answers it. */
 export interface ViewAsUser {
@@ -32,7 +33,10 @@ interface StaffRow { id: string; firstName?: string | null; lastName?: string | 
 interface ClientRow { id: string; firstName?: string | null; lastName?: string | null; email?: string | null; phone?: string | null }
 
 interface Props {
-  onImpersonate: (token: string, user: ViewAsUser) => void;
+  /** A View As of a member of staff is open (its session is the server's cookie). */
+  onStaff: (user: ViewAsUser) => void;
+  /** A client portal preview's read-only token. */
+  onPortal: (token: string, user: ViewAsUser) => void;
   onClose: () => void;
 }
 
@@ -45,8 +49,9 @@ const roleChip = (role?: string | null) => (isOffice(role)
   ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200'
   : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200');
 
-export default function ImpersonationModal({ onImpersonate, onClose }: Props) {
+export default function ImpersonationModal({ onStaff, onPortal, onClose }: Props) {
   const { can } = usePermissions();
+  const { user: me } = useAuth();
   const mayStaff = can('users:read');
   const mayPortal = can('care-portal:update');
   const [users, setUsers] = useState<StaffRow[]>([]);
@@ -59,26 +64,25 @@ export default function ImpersonationModal({ onImpersonate, onClose }: Props) {
 
   useEffect(() => {
     let live = true;
+    // Each list on its own: a refusal of one says so and leaves the other in place.
+    const load = <T,>(go: Promise<unknown>, set: (r: T[]) => void, what: string) => go
+      .then((reply) => { if (live) set(rows<T>(reply)); })
+      .catch((e) => { if (live) setError(errorMessage(e, `Could not load the ${what}.`)); });
     Promise.all([
-      mayStaff ? api.get('/api/auth/users') : Promise.resolve(null),
-      mayPortal ? api.get('/api/clients', { isActive: 'true', limit: 500 }) : Promise.resolve(null),
-    ])
-      .then(([userData, clientData]) => {
-        if (!live) return;
-        setUsers(rows<StaffRow>(userData));
-        setClients(rows<ClientRow>(clientData));
-        setLoading(false);
-      })
-      .catch((e) => { if (live) { setError(errorMessage(e, 'Failed to load data')); setLoading(false); } });
+      mayStaff ? load<StaffRow>(api.get('/api/auth/users'), setUsers, 'staff') : null,
+      mayPortal ? load<ClientRow>(listAll('/api/clients', { isActive: 'true' }), setClients, 'clients') : null,
+    ]).finally(() => { if (live) setLoading(false); });
     return () => { live = false; };
   }, [mayStaff, mayPortal]);
 
   const q = search.toLowerCase();
-  const filtered = users.filter((u) =>
+  // Not the person asking: a View As of yourself shows nothing new and only locks you out of your own changes.
+  const filtered = users.filter((u) => u.id !== me?.id).filter((u) =>
     u.firstName?.toLowerCase().includes(q) ||
     u.lastName?.toLowerCase().includes(q) ||
     u.email?.toLowerCase().includes(q) ||
-    u.role?.toLowerCase().includes(q),
+    u.role?.toLowerCase().includes(q) ||
+    seatLabel(u.role).toLowerCase().includes(q),
   );
   const filteredClients = clients.filter((c) =>
     c.firstName?.toLowerCase().includes(q) ||
@@ -87,24 +91,29 @@ export default function ImpersonationModal({ onImpersonate, onClose }: Props) {
     c.phone?.includes(q),
   );
 
-  const start = async (id: string, endpoint: string) => {
+  const start = async (id: string, go: () => Promise<void>) => {
     setImpersonating(id);
     setError('');
     try {
-      const data: { token: string; user: ViewAsUser } = await api.post(endpoint, {});
-      onImpersonate(data.token, data.user);
+      await go();
     } catch (e) {
       setError(errorMessage(e, 'Failed'));
-    } finally {
       setImpersonating(null);
     }
   };
   // A read-only look at a client's portal, as the client sees it.
-  const handlePortalPreview = (clientId: string) => start(clientId, `/api/portal/admin/preview/${clientId}`);
-  const handleImpersonate = (userId: string) => start(userId, `/api/auth/impersonate/${userId}`);
+  const handlePortalPreview = (clientId: string) => start(clientId, async () => {
+    const data: { token: string; user: ViewAsUser } = await api.post(`/api/portal/admin/preview/${clientId}`, {});
+    onPortal(data.token, data.user);
+  });
+  // The page loads afresh as the person: the button stays "Loading..." until it does.
+  const handleImpersonate = (userId: string) => start(userId, async () => {
+    const data: { user: ViewAsUser } = await api.post(`/api/auth/impersonate/${userId}`, {});
+    onStaff(data.user);
+  });
 
   const tabs = [
-    ...(mayStaff ? [{ key: 'staff' as const, label: 'Staff', icon: '👤', count: users.length }] : []),
+    ...(mayStaff ? [{ key: 'staff' as const, label: 'Staff', icon: '👤', count: users.filter((u) => u.id !== me?.id).length }] : []),
     ...(mayPortal ? [{ key: 'clients' as const, label: 'Client Portal', icon: '🏠', count: clients.length }] : []),
   ];
 
@@ -180,7 +189,7 @@ export default function ImpersonationModal({ onImpersonate, onClose }: Props) {
                   <div style={{ fontSize: '0.78rem', color: 'var(--hc-muted)' }}>{u.email}</div>
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-wide ${roleChip(u.role)}`}>
-                  {u.role}
+                  {seatLabel(u.role)}
                 </span>
               </div>
               <button

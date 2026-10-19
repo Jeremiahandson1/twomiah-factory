@@ -129,6 +129,10 @@ export interface ShellConfig {
   searchPlaceholder?: string
   /** The header search box (GET /api/search). Default shown; false for an app with no search endpoint to answer it. */
   search?: boolean
+  /** A vertical's own control in the header, beside the theme switch (home care's View As). Renders nothing it needn't. */
+  headerActions?: React.ComponentType
+  /** A vertical's own strip under the header, on every page (home care's "Viewing as …" while a View As is open). */
+  banner?: React.ComponentType
 }
 
 export interface AppShellProps {

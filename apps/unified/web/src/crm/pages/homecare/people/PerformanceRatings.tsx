@@ -2,14 +2,14 @@
 //
 // Replies read (server/crm/homecare):
 //   GET    /api/users/caregivers           hr/caregivers.ts — { data }: id, firstName, lastName
-//   GET    /api/clients                    clients/clients.ts — { data, pagination } (50 a page, as the template's)
+//   GET    /api/clients                    clients/clients.ts — every page (lib/http.ts listAll)
 //   GET    /api/performance-reviews        hr/performanceReviews.ts — { data }: caregiverId, clientId, reviewDate,
 //                                          overallAssessment, performanceNotes, strengths, areasForImprovement
 //   POST   /api/performance-reviews        care-hr:create
 //   DELETE /api/performance-reviews/:id    care-hr:delete
 import { useEffect, useState, type FormEvent } from 'react'
 import { useConfirm } from '../../../../shared'
-import { api, errorMessage, rows } from '../lib/http'
+import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDate, parseLocalDate, toLocalYMD } from '../lib/date'
 import type { CaregiverPick } from './shared'
 
@@ -72,7 +72,7 @@ export default function PerformanceRatings() {
       const [caregiversData, clientsData] = await Promise.all([
         api.get('/api/users/caregivers'),
         // Every client: /api/clients pages at 50, so the picker stopped at the 50th.
-        api.get('/api/clients', { limit: 1000 }),
+        listAll('/api/clients'),
       ])
       const cgList = rows<CaregiverPick>(caregiversData)
       setCaregivers(cgList)

@@ -19,9 +19,10 @@ import { Hono } from 'hono'
 import { and, asc, count, desc, eq, ilike, inArray, isNotNull, notInArray, or } from 'drizzle-orm'
 import {
   user, caregiverProfiles, caregiverAvailability, clientAssignments, clients, backgroundChecks,
-  notificationPreferences, certificationRecords, trainingRecords, caregiverTimeOff,
+  notificationPreferences, certificationRecords, trainingRecords, caregiverTimeOff, timeEntries, caregiverRates,
 } from '../../../db/schema/index.ts'
-import { CAREGIVER_ROLES, descNullsLast } from '../../../data/homecareHrRoutes.ts'
+import { CAREGIVER_ROLES, caregiverClientsServed, caregiverVisitTotals, descNullsLast } from '../../../data/homecareHrRoutes.ts'
+import { caregiverPatterns, movedInShifts } from '../../../data/homecareScheduling.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one, done } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
@@ -71,7 +72,7 @@ const trainingView = (r: typeof trainingRecords.$inferSelect) => ({
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/
 
-export function createCaregiversRoutes(_core: HomecareCore, d: CrmDeps) {
+export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()
   const { requirePermission, requireAnyPermission } = d.permissions
   // The caregiver list is read by the office's screens and the schedule's (a caregiver sees their colleagues' names, as
@@ -234,6 +235,82 @@ export function createCaregiversRoutes(_core: HomecareCore, d: CrmDeps) {
     const [updated] = await d.db.update(user).set({ role: 'admin', updatedAt: new Date() })
       .where(and(eq(user.id, String(userId)), eq(user.companyId, companyId))).returning({ id: user.id, role: user.role })
     return one(c, updated)
+  })
+
+  // GET /api/caregivers/:id/summary — the Full Profile's overview: hours this month and week and ever, the average
+  // visit, the clients served, the last ten visits, the schedule from today on, and — for the person themself or a
+  // holder of the payroll — this month's approved pay and the base-rate history. The template's screen read this route
+  // but no server ever answered it, so the overview was always empty (built in the move, 2026-10-19).
+  //
+  // Hours are finished visits (time entries clocked out), counted from the agency's midnight. Pay is what payroll pays
+  // (core/payrollPay.ts — approved shift reviews from the 1st of the month to today), never hours × a rate, so the
+  // figure on this card is the figure on the paycheck.
+  app.get('/:id/summary', requireAdminOrSelf('id'), async (c) => {
+    const companyId = companyOf(c)
+    const id = idOf(c)
+    const [person] = await d.db.select({ id: user.id }).from(user).where(and(eq(user.id, id), eq(user.companyId, companyId))).limit(1)
+    if (!person) return fail(c, 404, 'Caregiver not found')
+
+    const tz = await core.time.timezone(companyId)
+    const today = await core.time.today(companyId, tz)
+    const monthStart = `${today.slice(0, 8)}01`
+    const [{ from: monthFrom }, { from: weekFrom }] = await Promise.all([
+      core.time.range(companyId, monthStart), core.time.range(companyId, await core.time.weekStart(companyId)),
+    ])
+    const own = (me(c)?.userId || me(c)?.id) === id
+    const pay = own || (await seesPay(c))
+
+    const [totals, served, recent, patterns, moved, payLines, rateRows] = await Promise.all([
+      caregiverVisitTotals(d.db, companyId, id, monthFrom!, weekFrom!),
+      caregiverClientsServed(d.db, companyId, id, tz),
+      d.db.select({
+        id: timeEntries.id, startTime: timeEntries.startTime, endTime: timeEntries.endTime,
+        durationMinutes: timeEntries.durationMinutes, isComplete: timeEntries.isComplete,
+        clientFirst: clients.firstName, clientLast: clients.lastName,
+      }).from(timeEntries).leftJoin(clients, eq(clients.id, timeEntries.clientId))
+        .where(and(eq(timeEntries.companyId, companyId), eq(timeEntries.caregiverId, id)))
+        .orderBy(desc(timeEntries.startTime)).limit(10),
+      caregiverPatterns(d.db, companyId, id, today, true),
+      movedInShifts(d.db, companyId, id, today),
+      pay ? core.payroll.payrollForRange(companyId, monthStart, today, { caregiverId: id }) : Promise.resolve([]),
+      pay ? d.db.select({ id: caregiverRates.id, rate: caregiverRates.hourlyRate, effectiveDate: caregiverRates.effectiveDate, notes: caregiverRates.notes })
+        .from(caregiverRates)
+        .where(and(eq(caregiverRates.companyId, companyId), eq(caregiverRates.caregiverId, id), eq(caregiverRates.rateType, 'base')))
+        .orderBy(desc(caregiverRates.effectiveDate)) : Promise.resolve([]),
+    ])
+
+    const hours = (minutes: number) => Math.round((minutes / 60) * 100) / 100
+    // From today on: a weekly pattern still running, a one-time visit not yet past, and days moved onto this caregiver.
+    const schedule = [...patterns.filter((s: any) => s.dayOfWeek != null || (s.date && s.date >= today)), ...moved]
+      .filter((s: any) => !s.suspendedFrom || s.suspendedFrom > today)
+      .map((s: any) => {
+        const [sh, sm] = String(s.startTime || '').split(':').map(Number)
+        const [eh, em] = String(s.endTime || '').split(':').map(Number)
+        const minutes = [sh, sm, eh, em].every(Number.isFinite) ? (eh * 60 + em) - (sh * 60 + sm) : null
+        return {
+          id: s.id, dayOfWeek: s.dayOfWeek ?? null, date: s.date ?? null, startTime: s.startTime, endTime: s.endTime,
+          shiftHours: minutes != null && minutes > 0 ? hours(minutes) : null,
+          clientFirst: s.clientFirstName, clientLast: s.clientLastName, clientAddress: s.clientAddress ?? null, clientCity: s.clientCity ?? null,
+          notes: s.notes ?? null,
+        }
+      })
+
+    return one(c, {
+      earnings: {
+        hoursThisMonth: hours(totals.monthMinutes),
+        hoursThisWeek: hours(totals.weekMinutes),
+        totalHours: hours(totals.totalMinutes),
+        avgShiftHours: totals.visits ? hours(totals.totalMinutes / totals.visits) : 0,
+        ...(pay ? { earningsThisMonth: payLines[0]?.grossPay ?? 0 } : {}),
+      },
+      clients: served.map((r: any) => ({ ...r, totalHours: hours(Number(r.totalMinutes) || 0) })),
+      recentShifts: recent.map((e: any) => ({
+        id: e.id, clientFirst: e.clientFirst, clientLast: e.clientLast, startTime: e.startTime, endTime: e.endTime,
+        hours: e.durationMinutes != null ? hours(Number(e.durationMinutes)) : null, isComplete: e.isComplete,
+      })),
+      schedule,
+      ...(pay ? { payRates: rateRows } : {}),
+    })
   })
 
   // GET /api/caregivers/:id — the full file (assignments, background checks, pay): the office's, or the person's own.

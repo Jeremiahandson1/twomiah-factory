@@ -23,7 +23,7 @@
 //                                                       firstName, lastName, address, city.
 //   POST /api/route-optimizer/geofence, /geocode, /geocode-all — the same bodies as the template.
 import { Fragment, useState, useEffect, useRef, useMemo, type CSSProperties } from 'react'
-import { api, rows, errorMessage } from '../lib/http'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 import { toLocalYMD, parseLocalDate } from '../lib/date'
 import { useConfirm, useMayWrite } from '../../../../shared'
 import { CHIP, FILL, INK, SOLID, type Tone } from './ui'
@@ -104,7 +104,6 @@ type Tab = 'planner' | 'daily' | 'hours' | 'saved' | 'geofence'
 type MsgType = 'success' | 'error' | 'warning' | ''
 
 // The pickers ask for every row: both lists are paged at 50 by default, and the template's dropdowns stopped there.
-const ALL = { limit: 1000 }
 
 // The print sheet is its own document: every value written into it is escaped (the template wrote names raw).
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string))
@@ -192,7 +191,7 @@ const RouteOptimizer = () => {
 
   const loadData = async () => {
     try {
-      const [cgData, clData] = await Promise.all([api.get('/api/caregivers', ALL), api.get('/api/clients', ALL)])
+      const [cgData, clData] = await Promise.all([listAll('/api/caregivers'), listAll('/api/clients')])
       setCaregivers(rows<Caregiver>(cgData))
       setClients(rows<Client>(clData))
     } catch (e) {

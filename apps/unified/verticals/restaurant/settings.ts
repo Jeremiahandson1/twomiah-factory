@@ -2,11 +2,35 @@
 // becomes a booking, the booking gets a menu and a banquet event order, deposits are scheduled against the event's one
 // invoice. Not table service or covers. Its events, rooms and catering packages are the events module
 // (server/crm/restaurant), which the bar shares.
+import type { StarterContent } from '../../server/core/starter.ts'
 import type { VerticalSettings } from '../../server/core/vertical.ts'
 
 // A venue files menus and floor plans, not permits and drawings (templates/crm-restaurant routes/documents.ts and
 // frontend docsConfig.ts).
 const DOC_TYPES = ['general', 'contract', 'menu', 'floor_plan', 'photo', 'invoice', 'receipt', 'other']
+
+// What a new business finds in Help on day one (server/core/starter.ts; written once at provisioning, then the owner's).
+// Its template's seeded articles, rewritten against the unified screens with every claim checked in the code
+// (2026-10-19): the unified app had given every vertical the contractor CRM's articles, and the templates' own named
+// contact tags, click-a-date booking, roles on the Team page and overdue reminders, none of which the app has.
+const STARTER: StarterContent = {
+  helpArticles: [
+    { title: "Getting Started", category: "Getting Started", isFaq: true,
+      content: "Welcome! Start by adding your rooms on the Spaces page and your packages on Catering Menus. Then log each enquiry on Events (New Enquiry) and move it through to a confirmed event. Use the menu on the left to move between pages." },
+    { title: "Managing Events", category: "Events", isFaq: true,
+      content: "Events run from Enquiry to Tentative to Confirmed to Completed; an event can also be marked Lost or Cancelled. Change the stage from the picker on the event. Click Edit to set the date, the space, the guest count and the coordinator. Use the Food & Beverage tab for the menu and the Run of Show tab for the timing." },
+    { title: "Event Spaces", category: "Events", isFaq: false,
+      content: "Add each bookable room with New Space on the Spaces page: seated and standing capacity, minimum spend and hire fee. An event booked in a space holds it once the event is Tentative or later, so the same space can't be double-booked. An enquiry doesn't hold the room." },
+    { title: "Catering Menus", category: "Catering", isFaq: false,
+      content: "Build per-head packages on the Catering Menus page (New Package), with the price per person, minimum guests and courses. On an event's Food & Beverage tab, click Add Line and pick a package. A per-person line starts at the event's guest count, and you can change the quantity." },
+    { title: "Run of Show & BEO", category: "Events", isFaq: false,
+      content: "On an event's Run of Show tab, click Add Step for each timed step (time, department, what happens). Print BEO opens the Banquet Event Order for the kitchen and the floor team to print." },
+    { title: "Deposits & Payments", category: "Billing", isFaq: false,
+      content: "On an event's Payments tab, click Schedule Payment for each deposit or installment, with its amount and due date. The first one raises the event's invoice. Use Record payment as money comes in, and the tab shows what is still owed. If the space has a minimum spend, the event warns while food & beverage is below it." },
+  ],
+  // No price book in this vertical (featureRegistry: pricebook is not offered), so no categories.
+  pricebookCategories: { byIndustry: {}, default: [] },
+}
 
 const restaurant: VerticalSettings = {
   id: 'restaurant',
@@ -14,6 +38,7 @@ const restaurant: VerticalSettings = {
   // templates/crm-restaurant routes/mfa.ts
   mfaIssuer: 'Twomiah Events',
   featureSet: 'crm-restaurant',
+  starter: STARTER,
   // The template's middleware/permissions.ts is the base CRM's, unchanged: no role labels or extra permissions.
   crm: {
     // The events dashboard in place of the jobs one, and the events module's hooks into contacts, invoices and Stripe.

@@ -5,7 +5,7 @@
 // showed only that page; an agency with more had clients missing from every picker with nothing said. allRows() walks
 // the pages until the server says there are no more.
 import type { CSSProperties } from 'react'
-import { api, rows } from '../lib/http'
+import { listAll } from '../lib/http'
 
 /** A client as GET /api/clients and GET /api/clients/:id answer it (server/crm/homecare/clients/clients.ts). */
 export interface Client {
@@ -85,17 +85,9 @@ export interface CareType {
   name: string
 }
 
-/** Every row of a paged list endpoint, page by page (500 a page). */
+/** Every row of a paged list endpoint, page by page (lib/http.ts listAll). */
 export async function allRows<T>(path: string, params: Record<string, string | number | boolean> = {}): Promise<T[]> {
-  const out: T[] = []
-  for (let page = 1; page < 1000; page++) {
-    const reply = await api.get(path, { ...params, page, limit: 500 })
-    const got = rows<T>(reply)
-    out.push(...got)
-    const pages = Number((reply as { pagination?: { pages?: number } } | null)?.pagination?.pages ?? 1)
-    if (!got.length || page >= pages) break
-  }
-  return out
+  return (await listAll<T>(path, params)).data
 }
 
 /** "First Last" for a client or a caregiver row. */

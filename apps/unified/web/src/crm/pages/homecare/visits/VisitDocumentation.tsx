@@ -19,7 +19,7 @@
 // updatedAt); the client picker reads the list reply; dates through lib/date; every colour a frame token (the open
 // row is the info pair, the result line the success / danger pair); buttons are hc-btn.
 import { Fragment, useCallback, useEffect, useState } from 'react'
-import { api, rows, downloadBlob, saveBlob, errorMessage } from '../lib/http'
+import { api, rows, downloadBlob, saveBlob, errorMessage, listAll } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import VisitPhotoGallery from './VisitPhotoGallery'
 
@@ -87,7 +87,7 @@ const VisitDocumentation = () => {
 
   useEffect(() => {
     // The office's client list is paged: ask for every active client in one page.
-    api.get('/api/clients', { isActive: 'true', limit: 1000 })
+    listAll('/api/clients', { isActive: 'true' })
       .then((reply) => {
         setClients(rows<ClientRow>(reply)
           .filter((c) => c.isActive !== false)

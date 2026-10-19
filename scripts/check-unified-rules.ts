@@ -182,8 +182,18 @@ export function schemaDrift(root: string): string | null {
     const added = fs.readdirSync(path.join(tmp, 'server/db/migrations')).filter((f) => !before.has(f) && f.endsWith('.sql'))
     return added.length ? `the schema has changes no migration records (generated ${added.join(', ')}); run bun run db:generate and commit it` : null
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true })
+    removeScratch(tmp)
   }
+}
+
+/**
+ * Remove a scratch copy: its node_modules link first (so the delete never walks into the real dependencies), then the
+ * rest, retrying while Windows still holds a file the generator just closed (EBUSY; runs on a developer's machine left
+ * these behind and failed the check). Never fails the check itself.
+ */
+export function removeScratch(dir: string): void {
+  try { fs.unlinkSync(path.join(dir, 'node_modules')) } catch { /* no link */ }
+  try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) } catch { /* the OS's temp sweep takes it */ }
 }
 
 if (import.meta.main) {

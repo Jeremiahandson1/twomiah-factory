@@ -1,15 +1,40 @@
 // RV, powersports and marine dealerships (templates/crm-rv): a sales floor, not the recurring-job model — unit
 // inventory, the sales pipeline and the desked deal, F&I, title & registration, trade-ins, the service department's
 // repair orders, rentals and the parts catalogue (server/crm/rv, web/src/crm/pages/rv).
+import type { StarterContent } from '../../server/core/starter.ts'
 import type { VerticalSettings } from '../../server/core/vertical.ts'
 
 const DOC_TYPES = ['general', 'contract', 'title', 'inspection', 'photo', 'invoice', 'receipt', 'other']
+
+// What a new business finds in Help on day one (server/core/starter.ts; written once at provisioning, then the owner's).
+// Its template's seeded articles, rewritten against the unified screens with every claim checked in the code
+// (2026-10-19): the unified app had given every vertical the contractor CRM's articles, and the templates' own named
+// contact tags, click-a-date booking, roles on the Team page and overdue reminders, none of which the app has.
+const STARTER: StarterContent = {
+  helpArticles: [
+    { title: "Getting Started", category: "Getting Started", isFaq: true,
+      content: "Welcome! Start by adding your units on Inventory and your customers on Contacts. Then work each deal on the Sales Pipeline, from New to Sold. Use the menu on the left to move between pages." },
+    { title: "Managing Inventory", category: "Inventory", isFaq: true,
+      content: "Click Add Unit on the Inventory page for each new, used or consignment unit. Enter its stock number, VIN, year, make and model, and its prices (MSRP, listed price, internet price, cost). A unit is picked as the Unit of Interest on a deal, and marking that deal Sold marks the unit sold." },
+    { title: "Contacts & Leads", category: "Getting Started", isFaq: false,
+      content: "Keep leads, customers and vendors on the Contacts page (Add Contact). Convert a lead to a customer when they buy. A contact's page lists their quotes, invoices and jobs." },
+    { title: "Working Deals", category: "Sales", isFaq: false,
+      content: "On the Sales Pipeline, click New Lead and pick the contact, the Unit of Interest and the salesperson; you can note trade-in info. Move the card through New, Contacted, Demo, Desking and Sold (or Lost). Structure the price, trade, tax and fees in Desking. On F&I / Deal Jacket, add F&I products and submit the credit app. Title & Registration is filed once the deal is Sold." },
+    { title: "Service & Parts", category: "Service", isFaq: false,
+      content: "On the Service page, click New Repair Order and pick the customer and the unit, the advisor, the services and an estimated total. Change its status as the work moves. Look parts up in the Parts Catalog (Import parts loads a manufacturer's parts file)." },
+    { title: "Invoices & Payments", category: "Billing", isFaq: false,
+      content: "Create invoices for sales, service and parts, add line items, and record payment. Track outstanding balances." },
+  ],
+  // No price book in this vertical (featureRegistry: pricebook is not offered), so no categories.
+  pricebookCategories: { byIndustry: {}, default: [] },
+}
 
 const rv: VerticalSettings = {
   id: 'rv',
   label: 'RV & Powersports',
   mfaIssuer: 'Twomiah Powersports',
   featureSet: 'crm-rv',
+  starter: STARTER,
   // The floor books test drives, drop-offs and deliveries (/api/schedule-events), which ask schedule:create and
   // schedule:update since T68 (templates/crm-rv middleware/permissions.ts).
   extraRolePermissions: { field: ['schedule:create', 'schedule:update'] },

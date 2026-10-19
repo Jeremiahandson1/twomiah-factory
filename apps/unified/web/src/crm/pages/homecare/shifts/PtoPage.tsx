@@ -14,7 +14,7 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { CalendarDays, Plus, Check, X, Loader2 } from 'lucide-react'
 import { formatDate } from '../lib/date'
-import { api, rows, errorMessage } from '../lib/http'
+import { api, rows, errorMessage, listAll } from '../lib/http'
 import { useMayWrite, useToast } from '../../../../shared'
 
 // Each status as an ink on its own ground, light and dark.
@@ -72,7 +72,7 @@ export default function PtoPage() {
   const openCreate = async () => {
     setShowCreate(true)
     if (caregivers.length) return
-    try { setCaregivers(rows<CaregiverOption>(await api.get('/api/caregivers', { limit: 1000 }))) } catch { /* the ID box stands in */ }
+    try { setCaregivers(rows<CaregiverOption>(await listAll('/api/caregivers'))) } catch { /* the ID box stands in */ }
   }
 
   const create = async (e: FormEvent) => {

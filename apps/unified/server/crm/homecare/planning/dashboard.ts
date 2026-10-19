@@ -112,7 +112,7 @@ export function createHomecareDashboardRoutes(d: CrmDeps) {
       clockedInNow: int(s.clockedInNow),
       todayShifts: int(s.todayShifts),
       remainingShifts: int(s.remainingShifts),
-      coverageGaps: 0,
+      coverageGaps: int(s.coverageGaps),
     })
   })
 

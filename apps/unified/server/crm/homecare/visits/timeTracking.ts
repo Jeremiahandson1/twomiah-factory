@@ -16,7 +16,7 @@
 //   · an office edit of an unknown entry is a 404 (the template answered 200 with nothing), and setting only an end time
 //     recomputes the duration from the entry's clock-in (the template left the old duration).
 import { Hono } from 'hono'
-import { and, asc, count, desc, eq, gt, gte, inArray, isNull, isNotNull, like, lte, or } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, isNotNull, like, lt, lte, or } from 'drizzle-orm'
 import {
   timeEntries, gpsTracking, geofenceSettings, user, clients, evvVisits, referralSources, visitPhotos, notifications,
 } from '../../../db/schema/index.ts'
@@ -222,25 +222,35 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     return one(c, { warning: false, minutesRemaining: Math.round(minutesRemaining), minutesElapsed: Math.round(minutesElapsed) })
   })
 
-  // GET /caregiver-history/:id — a caregiver's punches (the office, or the caregiver themself)
+  // GET /caregiver-history/:id?startDate&endDate — a caregiver's punches (the office, or the caregiver themself). The
+  // days are the agency's (core.time.range: a YYYY-MM-DD runs midnight to midnight on the agency's clock); the template
+  // took the filter and never applied it, so the Full Profile's From / To searched every visit ever.
   app.get('/caregiver-history/:id', requirePermission('evv:read'), requireAdminOrSelf('id'), async (c) => {
     const { companyId } = who(c)
     const caregiverId = c.req.param('id')!
     const page = intParam(c.req.query('page'), 1)
     const limit = intParam(c.req.query('limit'), 50)
-    const where = and(eq(timeEntries.companyId, companyId), eq(timeEntries.caregiverId, caregiverId))
+    const { from, before } = await core.time.range(companyId, c.req.query('startDate'), c.req.query('endDate'))
+    const where = and(eq(timeEntries.companyId, companyId), eq(timeEntries.caregiverId, caregiverId),
+      from ? gte(timeEntries.startTime, from) : undefined, before ? lt(timeEntries.startTime, before) : undefined)
     const [entries, [{ value: total }]] = await Promise.all([
       db.select({
         id: timeEntries.id, clientId: timeEntries.clientId, startTime: timeEntries.startTime, endTime: timeEntries.endTime,
         durationMinutes: timeEntries.durationMinutes, billableMinutes: timeEntries.billableMinutes,
         isComplete: timeEntries.isComplete, notes: timeEntries.notes,
-        clientFirstName: clients.firstName, clientLastName: clients.lastName,
+        clientFirstName: clients.firstName, clientLastName: clients.lastName, clientAddress: clients.address, clientCity: clients.city,
       })
         .from(timeEntries).leftJoin(clients, eq(clients.id, timeEntries.clientId))
         .where(where).orderBy(desc(timeEntries.startTime)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(timeEntries).where(where),
     ])
-    const data = entries.map((e: any) => ({ ...e, client: { firstName: e.clientFirstName, lastName: e.clientLastName } }))
+    // Each visit's GPS point count: the history's "View Route" shows only for a visit with points (the reply carried
+    // no count, so every visit read "No GPS data" and the route map was never reached).
+    const ids = entries.map((e: any) => e.id)
+    const points = ids.length ? await db.select({ timeEntryId: gpsTracking.timeEntryId, n: count() }).from(gpsTracking)
+      .where(and(eq(gpsTracking.companyId, companyId), inArray(gpsTracking.timeEntryId, ids))).groupBy(gpsTracking.timeEntryId) : []
+    const pointsBy = new Map(points.map((p: any) => [p.timeEntryId, Number(p.n)]))
+    const data = entries.map((e: any) => ({ ...e, gpsPointCount: pointsBy.get(e.id) ?? 0, client: { firstName: e.clientFirstName, lastName: e.clientLastName } }))
     return list(c, data, { page, limit, total: Number(total) })
   })
 

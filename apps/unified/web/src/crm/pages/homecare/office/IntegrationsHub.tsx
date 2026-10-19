@@ -21,7 +21,7 @@
 // · Dates: a calendar day prints through lib/date, an instant (a batch's createdAt) on the agency's clock.
 import { useCallback, useEffect, useRef, useState, type ReactNode, type CSSProperties } from 'react'
 import { CallTrackingSettings, useToast, usePermissions } from '../../../../shared'
-import { api, rows, errorMessage, downloadBlob, saveBlob } from '../lib/http'
+import { api, rows, errorMessage, downloadBlob, saveBlob, listAll } from '../lib/http'
 import { parseLocalDate, toLocalYMD } from '../lib/date'
 import { formatAgencyDate } from '../lib/agencyClock'
 import SandataPanel, { type EvvVisit } from './SandataPanel'
@@ -274,7 +274,7 @@ export default function IntegrationsHub() {
         ])
         await delay(400)
         await Promise.all([
-          get('/api/clients?limit=1000').then((d) => live && d && setClients(rows<ClientLite>(d))),
+          listAll('/api/clients').catch(() => null).then((d) => live && d && setClients(rows<ClientLite>(d))),
           get('/api/remittance/payers').then((d) => live && d && setPayers(rows<Payer>(d))),
         ])
         await delay(400)

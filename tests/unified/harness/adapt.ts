@@ -164,6 +164,7 @@ ADAPT['homecare/fixes.test.ts'] = [
   OFFICE_SHAPE,
   ["(await A('GET', '/api/clients/nope/caregiver-view')).status === 404", "(await A('GET', '/api/clients/nope/caregiver-view')).status === 403", "the office's \"every client\" is every client of its own company (core/caregiverAccess.ts): an id that is not one — another company's or none — is refused alike, so the answer never says which"],
   ["(await q1(sql`SELECT name FROM agencies WHERE id = ${ag.id}`)).name === 'Fixes Care'", "(await q1(sql`SELECT name FROM company WHERE id = ${ag.id}`)).name === 'Fixes Care'", HC_TABLES],
+  ["needs.status === 403 && apply.status === 403 &&", "needs.status === 403 && apply.status === 404 &&", "POST /api/matching/apply-schedule is not on the unified app: the template's answered success and applied nothing (a stub), so nobody — caregiver or office — can apply a matching schedule; no schedule is made either way"],
 ]
 ADAPT['homecare/integration.test.ts'] = [
   OFFICE_SHAPE,
