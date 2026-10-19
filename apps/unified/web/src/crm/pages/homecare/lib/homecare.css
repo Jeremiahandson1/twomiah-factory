@@ -1,0 +1,1551 @@
+/* Home care's screens' stylesheet: templates/crm-homecare/frontend/src/index.css, scoped to .hc (the wrapper every
+   home-care screen renders in: crm/pages/homecare/lib/HomecareFrame.tsx) so none of it reaches the rest of the app.
+   Each rule is written :where(.hc) <selector>, which keeps its weight what it was in the template, so a Tailwind utility
+   on the same element wins where it did. The classes the app's own stylesheet also defines (.btn*, .card*, .badge*,
+   .table*, .stat-*) are renamed hc-* here and in the moved screens, so neither set leaks into the other.
+
+   The template was light-only. The app has a dark theme, so every colour is a token below with a light and a dark
+   value, and the moved screens use the same tokens (var(--hc-…)) or Tailwind light/dark pairs — never a raw colour on
+   its own. Light values are the template's (muted ink raised from #999, 2.85:1 on white, to 4.83:1); dark values are
+   the app's slate scale (index.css), each ink measured at 4.5:1 or better on the surface it sits on.
+   Generated once by the move (scopecss.ts); edit it as the app's own file from here on. */
+
+.hc {
+    /* The company's brand, as the shell sets it (packages/tenant-ui brandPalette.js), and its second colour (the frame
+       sets --hc-secondary from company.secondaryColor; absent, the brand). */
+    --hc-primary: rgb(var(--brand-600));
+    --hc-secondary: var(--hc-primary);
+    --hc-surface: #ffffff;
+    --hc-ground: #f5f5f5;
+    --hc-subtle: #f3f4f6;
+    --hc-line: #e5e7eb;
+    --hc-ink: #2d3a3a;
+    --hc-ink-soft: #5a6b6b;
+    --hc-muted: #6b7280;
+    --hc-success-bg: #d4edda; --hc-success-ink: #155724; --hc-success-line: #c3e6cb;
+    --hc-warning-bg: #fff3cd; --hc-warning-ink: #856404; --hc-warning-line: #ffeeba;
+    --hc-danger-bg: #f8d7da;  --hc-danger-ink: #721c24;  --hc-danger-line: #f5c6cb;
+    --hc-info-bg: #d1ecf1;    --hc-info-ink: #0c5460;    --hc-info-line: #bee5eb;
+    /* Status figures as ink on the surface (the template's green was 3.1:1 on white). */
+    --hc-red-ink: #c82333; --hc-green-ink: #1e7e34; --hc-blue-ink: #0066cc;
+    /* The deep end of the brand gradient white text sits on: deep in both themes. */
+    --hc-brand-deep: color-mix(in srgb, var(--hc-primary) 45%, black);
+    /* Where a stat tile's tint fades to. */
+    --hc-stat-end: #f0f9f7;
+    color-scheme: light;
+}
+
+.dark .hc {
+    --hc-surface: #0f172a;
+    --hc-ground: #020617;
+    --hc-subtle: #1e293b;
+    --hc-line: #334155;
+    --hc-ink: #f1f5f9;
+    --hc-ink-soft: #cbd5e1;
+    --hc-muted: #94a3b8;
+    --hc-success-bg: #06281d; --hc-success-ink: #6ee7b7; --hc-success-line: #065f46;
+    --hc-warning-bg: #2d1f05; --hc-warning-ink: #fcd34d; --hc-warning-line: #78350f;
+    --hc-danger-bg: #2d0f12;  --hc-danger-ink: #fca5a5;  --hc-danger-line: #7f1d1d;
+    --hc-info-bg: #072433;    --hc-info-ink: #7dd3fc;    --hc-info-line: #075985;
+    --hc-red-ink: #f87171; --hc-green-ink: #4ade80; --hc-blue-ink: #60a5fa;
+    --hc-stat-end: #0f172a;
+    /* The template's own names, on the dark ground. Brand ink is shade 200 there: the one shade every owner colour
+       reads at 4.5:1 on a dark ground (AppShell.tsx). */
+    --color-teal-dark: rgb(var(--brand-200));
+    --color-teal-light: color-mix(in srgb, var(--hc-primary) 18%, #0f172a);
+    --color-gold-dark: color-mix(in srgb, var(--hc-secondary) 30%, white);
+    --color-gold-light: color-mix(in srgb, var(--hc-secondary) 35%, #0f172a);
+    --color-gold-pale: color-mix(in srgb, var(--hc-secondary) 15%, #0f172a);
+    --color-cream: #0f172a;
+    --color-white: #0f172a;
+    --color-text: #f1f5f9;
+    --color-text-light: #cbd5e1;
+    --color-gray: #020617;
+    color-scheme: dark;
+}
+
+.hc {
+    /* The -dark / -light / -pale tokens are shades of the tenant's brand, not the brand itself. All six used to be
+       the raw brand colour, so every pairing of two of them was ink on its own colour (1: 1): the stat tiles' number
+       on a gradient that starts in it, the schedule count, the weekly badge, and every table row on hover. */
+    --color-teal: var(--hc-primary);
+    /* 45% keeps a pale brand (yellow, light grey) readable: ≥ 5.4:1 against var(--hc-surface) and both tints, measured
+       over eleven brand colours from var(--hc-ink) to var(--hc-line). */
+    --color-teal-dark: color-mix(in srgb, var(--hc-primary) 45%, black);
+    --color-teal-light: color-mix(in srgb, var(--hc-primary) 12%, white);
+    --color-gold: var(--hc-secondary);
+    --color-gold-dark: color-mix(in srgb, var(--hc-secondary) 45%, black);
+    --color-gold-light: color-mix(in srgb, var(--hc-secondary) 40%, white);
+    --color-gold-pale: color-mix(in srgb, var(--hc-secondary) 15%, white);
+    --color-cream: #FDFCFA;
+    --color-white: #FFFFFF;
+    --color-text: #2D3A3A;
+    --color-text-light: #5A6B6B;
+    --color-gray: #F5F5F5;
+    --color-red: #DC3545;
+    --color-green: #28A745;
+    --color-blue: #0066CC;
+    --primary: var(--hc-primary);
+    --font-display: 'Cormorant Garamond', Georgia, serif;
+    --font-body: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.12);
+    --shadow-lg: 0 10px 25px rgba(0,0,0,0.15);
+}
+
+:where(.hc),
+:where(.hc) * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.hc {
+    font-family: var(--font-body);
+    color: var(--color-text);
+    background-color: var(--color-gray);
+    line-height: 1.6;
+    font-size: 16px;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+/* Layout */
+
+/* Sidebar Navigation */
+
+:where(.hc) .sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: linear-gradient(135deg, var(--color-teal) 0%, var(--hc-brand-deep) 100%);
+    color: white;
+    padding: 2rem 1rem;
+    overflow-y: auto;
+    position: fixed;
+    height: 100vh;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+}
+
+:where(.hc) .sidebar-nav {
+    list-style: none;
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 2rem;
+}
+
+:where(.hc) .sidebar-logo {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+:where(.hc) .sidebar-nav li {
+    margin-bottom: 0.5rem;
+}
+
+:where(.hc) .sidebar-nav a {
+    display: block;
+    padding: 0.75rem 1rem;
+    color: rgba(255,255,255,0.85);
+    text-decoration: none;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+:where(.hc) .sidebar-nav a:hover,
+:where(.hc) .sidebar-nav a.active {
+    background: rgba(255,255,255,0.15);
+    color: white;
+    padding-left: 1.5rem;
+}
+
+:where(.hc) .sidebar-nav a.active {
+    background: rgba(255,255,255,0.25);
+    border-left: 3px solid var(--color-gold);
+}
+
+:where(.hc) .sidebar-user {
+    position: relative;
+    padding: 1rem;
+    background: rgba(0,0,0,0.15);
+    border-radius: 8px;
+    margin-top: auto;
+}
+
+:where(.hc) .sidebar-user-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+:where(.hc) .sidebar-user-role {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    margin-bottom: 1rem;
+}
+
+:where(.hc) .hc-btn-logout {
+    width: 100%;
+    padding: 0.5rem;
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+:where(.hc) .hc-btn-logout:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+/* Main Content */
+
+:where(.hc) .main-content {
+    flex: 1;
+    margin-left: 280px;
+    overflow-x: hidden;
+    background: var(--color-gray);
+    min-width: 0;
+    width: calc(100% - 280px);
+}
+
+:where(.hc) .header {
+    background: var(--hc-surface);
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid var(--hc-line);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 1.5rem;
+}
+
+:where(.hc) .header h1 {
+    font-family: var(--font-display);
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--color-teal-dark);
+    margin-bottom: 0.25rem;
+}
+
+:where(.hc) .header p {
+    color: var(--color-text-light);
+    font-size: 0.9rem;
+}
+
+/* Container */
+
+:where(.hc) .container {
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Page Header */
+
+:where(.hc) .page-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+:where(.hc) .page-header h2 {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    color: var(--color-teal-dark);
+}
+
+/* Cards */
+
+:where(.hc) .hc-card {
+    background: var(--hc-surface);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+:where(.hc) .hc-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+:where(.hc) .hc-card-centered {
+    text-align: center;
+}
+
+:where(.hc) .hc-card-title {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--color-teal-dark);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+:where(.hc) .hc-card-form {
+    max-width: 800px;
+}
+
+/* Grid Layout */
+
+:where(.hc) .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+:where(.hc) .hc-stat-card {
+    background: linear-gradient(135deg, var(--color-teal-light) 0%, var(--hc-stat-end) 100%);
+    border-left: 4px solid var(--color-teal);
+    padding: 1.25rem;
+    border-radius: 8px;
+}
+
+:where(.hc) .hc-stat-card h3 {
+    /* L-01: was --color-text-light on a light gradient (~1.6:1, unreadable).
+       Use a dark slate for a comfortable contrast on the tile. */
+    color: var(--hc-ink);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-bottom: 0.5rem;
+}
+
+:where(.hc) .hc-stat-card .value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--color-teal-dark);
+}
+
+:where(.hc) .hc-stat-card .value-danger { color: var(--hc-red-ink); }
+
+:where(.hc) .hc-stat-card .value-success { color: var(--hc-green-ink); }
+
+:where(.hc) .hc-stat-subtext {
+    font-size: 0.8rem;
+    color: var(--color-text-light);
+    margin-top: 0.25rem;
+}
+
+/* Forms */
+
+:where(.hc) .form-group {
+    margin-bottom: 1.25rem;
+}
+
+:where(.hc) .form-group label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-weight: 600;
+    color: var(--color-text);
+    font-size: 0.9rem;
+}
+
+:where(.hc) .form-group input,
+:where(.hc) .form-group select,
+:where(.hc) .form-group textarea {
+    width: 100%;
+    padding: 0.6rem;
+    border: 1px solid var(--hc-line);
+    border-radius: 6px;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+:where(.hc) .form-group input:focus,
+:where(.hc) .form-group select:focus,
+:where(.hc) .form-group textarea:focus {
+    outline: none;
+    border-color: var(--color-teal);
+    box-shadow: 0 0 0 3px rgba(42, 187, 167, 0.1);
+}
+
+:where(.hc) .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+:where(.hc) .form-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+:where(.hc) .form-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+/* Buttons */
+
+:where(.hc) .hc-btn {
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+:where(.hc) .hc-btn-primary {
+    background: linear-gradient(135deg, var(--color-teal) 0%, var(--hc-brand-deep) 100%);
+    color: white;
+}
+
+:where(.hc) .hc-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+:where(.hc) .hc-btn-secondary {
+    background: var(--hc-subtle);
+    color: var(--color-text);
+}
+
+:where(.hc) .hc-btn-secondary:hover { background: var(--hc-line); }
+
+:where(.hc) .hc-btn-danger { background: var(--color-red); color: white; }
+
+:where(.hc) .hc-btn-danger:hover { background: #c82333; }
+
+:where(.hc) .hc-btn-success { background: #1e7e34; color: white; border: none; }
+
+:where(.hc) .hc-btn-success:hover:not(:disabled) { background: #155d27; }
+
+:where(.hc) .hc-btn-warning { background: #ffc107; color: #1f2937; }
+
+:where(.hc) .hc-btn-sm { padding: 0.35rem 0.7rem; font-size: 0.8rem; }
+
+:where(.hc) .hc-btn-block { width: 100%; justify-content: center; }
+
+/* Tables - CRITICAL: Always scrollable */
+
+:where(.hc) .hc-card > .hc-table,
+:where(.hc) .hc-table {
+    width: 100%;
+    min-width: 500px;
+    border-collapse: collapse;
+    margin-top: 0.5rem;
+    display: table;
+}
+
+/* Make cards with tables scrollable */
+
+:where(.hc) .hc-card:has(.hc-table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+:where(.hc) .hc-table th {
+    background: var(--color-gray);
+    padding: 0.6rem 0.5rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--color-text);
+    border-bottom: 2px solid var(--hc-line);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+:where(.hc) .hc-table td {
+    padding: 0.6rem 0.5rem;
+    border-bottom: 1px solid var(--hc-subtle);
+    vertical-align: middle;
+}
+
+:where(.hc) .hc-table tr:hover { background: var(--color-teal-light); }
+
+:where(.hc) .hc-table td:last-child { white-space: nowrap; }
+
+:where(.hc) .hc-table .hc-btn + .hc-btn { margin-left: 0.25rem; }
+
+/* Status Badges */
+
+:where(.hc) .hc-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+:where(.hc) .hc-badge-success { background: var(--hc-success-bg); color: var(--hc-success-ink); }
+
+:where(.hc) .hc-badge-warning { background: var(--hc-warning-bg); color: var(--hc-warning-ink); }
+
+:where(.hc) .hc-badge-danger { background: var(--hc-danger-bg); color: var(--hc-danger-ink); }
+
+:where(.hc) .hc-badge-info { background: var(--hc-info-bg); color: var(--hc-info-ink); }
+
+:where(.hc) .hc-badge-primary { background: var(--primary); color: white; }
+
+:where(.hc) .hc-badge-secondary { background: #64748b; color: white; }
+
+/* Filter Controls */
+
+:where(.hc) .filter-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+:where(.hc) .filter-controls input,
+:where(.hc) .filter-controls select {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--hc-line);
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+:where(.hc) .search-input {
+    flex: 1;
+    min-width: 150px;
+    max-width: 300px;
+}
+
+:where(.hc) .filter-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+}
+
+:where(.hc) .filter-tab {
+    padding: 0.4rem 0.8rem;
+    background: var(--hc-subtle);
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+}
+
+:where(.hc) .filter-tab.active { background: var(--color-teal); color: white; }
+
+:where(.hc) .filter-count { opacity: 0.7; font-size: 0.75rem; margin-left: 0.25rem; }
+
+/* Modals */
+
+:where(.hc) .modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+:where(.hc) .modal.active { display: flex; }
+
+:where(.hc) .modal-content {
+    background: var(--hc-surface);
+    padding: 1.25rem;
+    border-radius: 12px;
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+}
+
+:where(.hc) .modal-large { max-width: 900px; }
+
+:where(.hc) .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--hc-subtle);
+}
+
+:where(.hc) .modal-header h2 {
+    font-family: var(--font-display);
+    color: var(--color-teal-dark);
+    font-size: 1.4rem;
+}
+
+/* The form area between header and actions; the padding comes from .modal-content. */
+
+:where(.hc) .modal-body { display: block; }
+
+:where(.hc) .modal-actions,
+:where(.hc) .modal-footer {
+    display: flex;
+    /* Wraps: a row of eight invoice buttons, right-aligned, ran off the pop-up's LEFT edge and
+       "Release to Portal" could not be clicked (Run 5). */
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--hc-subtle);
+}
+
+/* .modal-close is the same control under the name half the screens use. */
+
+:where(.hc) .close-btn,
+:where(.hc) .modal-close {
+    background: none;
+    border: none;
+    font-size: 1.8rem;
+    cursor: pointer;
+    color: var(--hc-muted);
+    transition: color 0.3s ease;
+    line-height: 1;
+}
+
+:where(.hc) .close-btn:hover,
+:where(.hc) .modal-close:hover { color: var(--color-text); }
+
+/* Alerts */
+
+:where(.hc) .alert {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+}
+
+:where(.hc) .alert-success { background: var(--hc-success-bg); color: var(--hc-success-ink); border: 1px solid var(--hc-success-line); }
+
+:where(.hc) .alert-error { background: var(--hc-danger-bg); color: var(--hc-danger-ink); border: 1px solid var(--hc-danger-line); }
+
+:where(.hc) .alert-warning { background: var(--hc-warning-bg); color: var(--hc-warning-ink); border: 1px solid var(--hc-warning-line); }
+
+:where(.hc) .alert-info { background: var(--hc-info-bg); color: var(--hc-info-ink); border: 1px solid var(--hc-info-line); }
+
+/* Loading */
+
+:where(.hc) .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+:where(.hc) .spinner {
+    border: 4px solid var(--color-gray);
+    border-top: 4px solid var(--color-teal);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: hc-spin 1s linear infinite;
+}
+
+@keyframes hc-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Text Utilities */
+
+:where(.hc) .text-muted { color: var(--color-text-light); }
+
+:where(.hc) .text-center { text-align: center; }
+
+:where(.hc) .text-right { text-align: right; }
+
+/* Hamburger Button */
+
+:where(.hc) .hamburger-btn {
+    display: none;
+    padding: 0.5rem 1rem;
+    background: var(--color-teal);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* Sidebar Overlay */
+
+:where(.hc) .sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+
+:where(.hc) .sidebar-overlay.active { display: block; }
+
+/* Login Page */
+
+:where(.hc) .login-container {
+    display: flex;
+    /* #root is a flex row (the sidebar layout), so without these the container shrank to the card's 380px and sat at
+       the left edge with the rest of the page blank (Run 4, ~900px). It fills the row; min-height lets a tall card
+       (an error, the forgot-password form) grow instead of being cut off. */
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 100vh;
+    background: linear-gradient(135deg, var(--color-teal) 0%, var(--hc-brand-deep) 100%);
+    align-items: center;
+    justify-content: center;
+}
+
+:where(.hc) .login-card {
+    background: var(--hc-surface);
+    padding: 2.5rem;
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 380px;
+}
+
+:where(.hc) .login-card h1 {
+    font-family: var(--font-display);
+    color: var(--color-teal-dark);
+    margin-bottom: 0.5rem;
+    font-size: 1.8rem;
+}
+
+:where(.hc) .login-card p {
+    color: var(--color-text-light);
+    margin-bottom: 1.5rem;
+}
+
+:where(.hc) .login-footer {
+    margin-top: 1.5rem;
+    font-size: 0.75rem;
+    color: var(--hc-muted);
+    text-align: center;
+}
+
+/* Applications Grid */
+
+:where(.hc) .applications-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+}
+
+:where(.hc) .application-card {
+    background: var(--hc-surface);
+    border-radius: 8px;
+    padding: 1.25rem;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+:where(.hc) .application-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+:where(.hc) .app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+:where(.hc) .app-header h4 { margin: 0; color: var(--color-teal-dark); }
+
+:where(.hc) .app-date { font-size: 0.8rem; color: var(--color-text-light); }
+
+:where(.hc) .app-body p { margin: 0.2rem 0; font-size: 0.85rem; }
+
+:where(.hc) .app-certs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
+
+:where(.hc) .app-footer {
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--hc-line);
+    text-align: center;
+}
+
+:where(.hc) .app-footer small { color: var(--color-text-light); }
+
+/* Quick Actions Grid */
+
+:where(.hc) .quick-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+}
+
+/* Card Empty State */
+
+:where(.hc) .hc-card-empty-state {
+    text-align: center;
+    padding: 1.5rem;
+    color: var(--color-text-light);
+}
+
+/* Star Rating */
+
+:where(.hc) .star-icon { color: #ffc107; }
+
+/* Form Sections */
+
+:where(.hc) .form-section {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--hc-line);
+}
+
+:where(.hc) .form-section:last-of-type { border-bottom: none; }
+
+:where(.hc) .form-section h2 {
+    color: var(--primary);
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid var(--primary);
+    padding-left: 0.75rem;
+}
+
+:where(.hc) .checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.75rem;
+    margin: 0.75rem 0;
+}
+
+:where(.hc) .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+:where(.hc) .checkbox-label:hover { color: var(--primary); }
+
+:where(.hc) .checkbox-label input { cursor: pointer; width: 16px; height: 16px; }
+
+:where(.hc) .form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 2px solid var(--hc-line);
+}
+
+/* Calendar */
+
+:where(.hc) .calendar-container {
+    background: var(--hc-surface);
+    border: 1px solid var(--hc-line);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+:where(.hc) .calendar-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: var(--hc-subtle);
+    border-bottom: 2px solid var(--hc-line);
+}
+
+:where(.hc) .calendar-day-name {
+    padding: 0.75rem;
+    font-weight: bold;
+    text-align: center;
+    color: var(--primary);
+    border-right: 1px solid var(--hc-line);
+    font-size: 0.85rem;
+}
+
+:where(.hc) .calendar-day-name:last-child { border-right: none; }
+
+:where(.hc) .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    min-height: 400px;
+}
+
+:where(.hc) .calendar-cell {
+    border: 1px solid var(--hc-line);
+    padding: 0.5rem;
+    min-height: 80px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+:where(.hc) .calendar-cell:hover { background: var(--hc-subtle); }
+
+:where(.hc) .calendar-cell.has-schedules { background: var(--hc-info-bg); }
+
+:where(.hc) .calendar-day-number {
+    font-weight: bold;
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+    color: var(--primary);
+}
+
+/* Caregiver Dashboard Styles */
+
+:where(.hc) .clock-card {
+    background: var(--hc-surface);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+    box-shadow: var(--shadow-md);
+    text-align: center;
+}
+
+:where(.hc) .clock-card.active {
+    background: linear-gradient(135deg, var(--color-teal) 0%, var(--hc-brand-deep) 100%);
+    color: white;
+}
+
+:where(.hc) .clock-card.ready { border: 2px dashed var(--color-teal); }
+
+:where(.hc) .clock-btn {
+    padding: 0.75rem 2rem;
+    font-size: 1.1rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    margin-top: 0.75rem;
+    transition: all 0.3s;
+}
+
+:where(.hc) .clock-btn.clock-in { background: #1e7e34; color: white; }
+
+:where(.hc) .clock-btn.clock-out { background: var(--hc-surface); color: var(--hc-red-ink); }
+
+:where(.hc) .clock-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+:where(.hc) .timer-display {
+    font-size: 2.5rem;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    margin: 0.75rem 0;
+}
+
+:where(.hc) .gps-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    margin: 0.75rem 0;
+    font-size: 0.85rem;
+    color: var(--color-text-light);
+}
+
+:where(.hc) .gps-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-green);
+}
+
+:where(.hc) .gps-dot.inactive { background: var(--color-red); }
+
+:where(.hc) .schedule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+:where(.hc) .schedule-header h3 { margin: 0; color: var(--color-teal-dark); font-size: 1.1rem; }
+
+:where(.hc) .schedule-count {
+    background: var(--color-teal-light);
+    color: var(--color-teal-dark);
+    padding: 0.2rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+:where(.hc) .schedule-list { display: flex; flex-direction: column; gap: 0.6rem; }
+
+:where(.hc) .schedule-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--color-gray);
+    border-radius: 8px;
+    align-items: center;
+}
+
+:where(.hc) .schedule-time { text-align: center; min-width: 60px; }
+
+:where(.hc) .schedule-time-start { font-weight: bold; color: var(--color-teal-dark); font-size: 0.9rem; }
+
+:where(.hc) .schedule-time-end { font-size: 0.8rem; color: var(--color-text-light); }
+
+:where(.hc) .schedule-details { flex: 1; }
+
+:where(.hc) .schedule-client { font-weight: 600; color: var(--color-text); }
+
+:where(.hc) .schedule-meta {
+    font-size: 0.8rem;
+    color: var(--color-text-light);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+:where(.hc) .hc-badge-weekly {
+    background: var(--color-gold-pale);
+    color: var(--color-gold-dark);
+    padding: 0.1rem 0.4rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+:where(.hc) .stats-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+:where(.hc) .hc-stat-value-large { font-size: 2rem; font-weight: bold; }
+
+:where(.hc) .hc-stat-value-green { color: var(--hc-green-ink); }
+
+:where(.hc) .hc-stat-value-blue { color: var(--hc-blue-ink); }
+
+:where(.hc) .hc-stat-label { font-size: 0.85rem; color: var(--color-text-light); margin-top: 0.2rem; }
+
+:where(.hc) .schedule-day-card { padding: 0; overflow: hidden; }
+
+:where(.hc) .schedule-day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: var(--color-gray);
+}
+
+:where(.hc) .schedule-day-header.today { background: var(--color-teal); color: white; }
+
+:where(.hc) .schedule-day-name { font-weight: bold; display: block; }
+
+:where(.hc) .schedule-day-date { font-size: 0.8rem; opacity: 0.8; }
+
+:where(.hc) .schedule-day-hours { font-weight: bold; }
+
+:where(.hc) .schedule-day-list { padding: 0.4rem; }
+
+:where(.hc) .schedule-day-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.6rem;
+    border-bottom: 1px solid var(--hc-line);
+    align-items: center;
+}
+
+:where(.hc) .schedule-day-item:last-child { border-bottom: none; }
+
+/* Availability Grid */
+
+:where(.hc) .availability-grid { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+:where(.hc) .availability-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem; }
+
+/* Status Buttons */
+
+:where(.hc) .status-buttons { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+
+/* Tabs */
+
+:where(.hc) .tabs {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 2px solid var(--hc-line);
+    padding-bottom: 0.4rem;
+    flex-wrap: wrap;
+}
+
+/* ==========================================
+   RESPONSIVE STYLES
+   ========================================== */
+
+@media (max-width: 1024px) {
+:where(.hc) .grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+:where(.hc) .form-grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+:where(.hc) .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 260px;
+        height: 100vh;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        z-index: 1000;
+    }
+
+:where(.hc) .sidebar.open { transform: translateX(0); }
+
+:where(.hc) .main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+
+:where(.hc) .hamburger-btn { display: block; }
+
+:where(.hc) .header {
+        padding: 0.75rem 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+:where(.hc) .header h1 { font-size: 1.1rem; }
+
+:where(.hc) .header p { font-size: 0.75rem; display: none; }
+
+:where(.hc) .container { padding: 0.75rem; }
+
+:where(.hc) .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+:where(.hc) .page-header h2 { font-size: 1.3rem; }
+
+:where(.hc) .hc-card {
+        padding: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+:where(.hc) .grid { grid-template-columns: 1fr; gap: 0.75rem; }
+
+:where(.hc) .form-grid,
+:where(.hc) .form-grid-2,
+:where(.hc) .form-grid-3 {
+        grid-template-columns: 1fr;
+    }
+
+/* Tables scroll horizontally */
+
+:where(.hc) .hc-table { font-size: 0.8rem; min-width: 450px; }
+
+:where(.hc) .hc-table th,
+:where(.hc) .hc-table td { padding: 0.4rem 0.3rem; }
+
+:where(.hc) .hc-table .hc-btn-sm { padding: 0.25rem 0.4rem; font-size: 0.7rem; }
+
+/* Calendar */
+
+:where(.hc) .calendar-grid { min-height: 250px; }
+
+:where(.hc) .calendar-cell { min-height: 50px; padding: 0.25rem; }
+
+:where(.hc) .calendar-day-number { font-size: 0.85rem; }
+
+:where(.hc) .calendar-day-name { padding: 0.4rem; font-size: 0.75rem; }
+
+/* Modals slide up from bottom on mobile */
+
+:where(.hc) .modal-content {
+        width: 100%;
+        max-width: 100%;
+        max-height: 85vh;
+        margin: 0;
+        border-radius: 12px 12px 0 0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+    }
+
+:where(.hc) .modal-large { max-width: 100%; }
+
+:where(.hc) .form-actions,
+:where(.hc) .modal-actions,
+:where(.hc) .modal-footer {
+        flex-direction: column;
+    }
+
+:where(.hc) .form-actions .hc-btn,
+:where(.hc) .modal-actions .hc-btn,
+:where(.hc) .modal-footer .hc-btn {
+        width: 100%;
+    }
+
+:where(.hc) .hc-stat-card .value { font-size: 1.5rem; }
+
+:where(.hc) .hc-badge { font-size: 0.65rem; padding: 0.15rem 0.35rem; }
+
+:where(.hc) .login-card { margin: 0.75rem; padding: 1.5rem; }
+
+:where(.hc) .filter-controls { flex-direction: column; }
+
+:where(.hc) .search-input { max-width: 100%; }
+
+:where(.hc) .applications-grid { grid-template-columns: 1fr; }
+
+:where(.hc) .stats-grid-2 { grid-template-columns: 1fr; }
+
+:where(.hc) .timer-display { font-size: 2rem; }
+
+:where(.hc) .clock-btn { padding: 0.6rem 1.5rem; font-size: 1rem; }
+}
+
+@media (max-width: 480px) {
+:where(.hc) .header h1 { font-size: 1rem; }
+
+:where(.hc) .sidebar { width: 240px; }
+
+:where(.hc) .hc-card { padding: 0.6rem; }
+
+:where(.hc) .hc-btn { padding: 0.5rem 0.8rem; font-size: 0.8rem; }
+
+:where(.hc) .hc-btn-sm { padding: 0.2rem 0.4rem; font-size: 0.65rem; }
+
+:where(.hc) .calendar-cell { min-height: 40px; }
+
+:where(.hc) .hc-stat-value-large { font-size: 1.6rem; }
+
+:where(.hc) .modal-header h2 { font-size: 1.1rem; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE REDESIGN — Bottom Nav + Polish
+   ═══════════════════════════════════════════════════════ */
+
+/* The bottom nav and its More drawer are phone-only. Every rule that styles them sits inside the 768px query
+   below, so above it they printed as a block of unstyled links at the top of the page (the caregiver screen
+   renders them unconditionally; the office screen hid them with a one-time innerWidth check). Hidden here by
+   rule, for every screen that renders them. */
+
+@media (min-width: 769px) {
+:where(.hc) .mobile-bottom-nav,
+:where(.hc) .mobile-more-drawer,
+:where(.hc) .mobile-more-drawer-overlay { display: none !important; }
+}
+
+@media (max-width: 768px) {
+/* ── Bottom Navigation Bar ── */
+
+:where(.hc) .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--hc-surface);
+    border-top: 1px solid var(--hc-line);
+    z-index: 1100;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+  }
+
+:where(.hc) .mobile-bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0.5rem 0;
+    color: var(--hc-muted);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+  }
+
+:where(.hc) .mobile-bottom-nav-item.active {
+    color: var(--hc-primary);
+  }
+
+:where(.hc) .mobile-bottom-nav-item.active::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 32px;
+    height: 3px;
+    background: var(--hc-primary);
+    border-radius: 0 0 3px 3px;
+  }
+
+:where(.hc) .mobile-bottom-nav-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+
+/* ── More Menu Drawer ── */
+
+:where(.hc) .mobile-more-drawer {
+    position: fixed;
+    bottom: 64px;
+    left: 0;
+    right: 0;
+    background: var(--hc-surface);
+    border-top: 1px solid var(--hc-line);
+    z-index: 1099;
+    max-height: 60vh;
+    overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.12);
+    border-radius: 16px 16px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+:where(.hc) .mobile-more-drawer.open {
+    transform: translateY(0);
+  }
+
+:where(.hc) .mobile-more-drawer-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--hc-line);
+    border-radius: 2px;
+    margin: 12px auto 8px;
+  }
+
+:where(.hc) .mobile-more-drawer-section {
+    padding: 0.5rem 1rem;
+  }
+
+:where(.hc) .mobile-more-drawer-section-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--hc-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.5rem 0.25rem 0.35rem;
+  }
+
+:where(.hc) .mobile-more-drawer-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 0.5rem;
+    border-radius: 8px;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.95rem;
+    color: var(--hc-ink);
+    font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.1s;
+  }
+
+:where(.hc) .mobile-more-drawer-item:active,
+:where(.hc) .mobile-more-drawer-item.active {
+    background: var(--color-teal-light);
+    color: var(--hc-primary);
+  }
+
+:where(.hc) .mobile-more-drawer-item-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--hc-subtle);
+    border-radius: 8px;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+:where(.hc) .mobile-more-drawer-item.active .mobile-more-drawer-item-icon {
+    background: var(--color-teal-light);
+  }
+
+:where(.hc) .mobile-more-drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 1098;
+  }
+
+/* ── Padding for bottom nav ── */
+
+:where(.hc) .main-content {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+/* ── Header improvements ── */
+
+:where(.hc) .header {
+    background: var(--hc-surface) !important;
+    border-bottom: 1px solid var(--hc-line);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    padding: 0.6rem 1rem !important;
+    min-height: 56px;
+  }
+
+:where(.hc) .header h1 {
+    font-size: 1rem !important;
+    font-weight: 700;
+    color: var(--hc-ink);
+  }
+
+/* Hide hamburger — replaced by bottom nav */
+
+:where(.hc) .hamburger-btn {
+    display: none !important;
+  }
+
+/* ── Card improvements ── */
+
+:where(.hc) .hc-card {
+    border-radius: 12px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07) !important;
+    border: 1px solid var(--hc-subtle);
+  }
+
+/* ── Stat cards ── */
+
+:where(.hc) .hc-stat-card {
+    border-radius: 12px !important;
+    padding: 1rem !important;
+  }
+
+:where(.hc) .hc-stat-card .value,
+:where(.hc) .hc-stat-value-large {
+    font-size: 1.75rem !important;
+    font-weight: 800 !important;
+  }
+
+/* ── Buttons — larger touch targets ── */
+
+:where(.hc) .hc-btn {
+    min-height: 44px;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+  }
+
+:where(.hc) .hc-btn-primary {
+    background: linear-gradient(135deg, var(--hc-primary), var(--hc-secondary)) !important;
+    box-shadow: 0 2px 8px rgba(42, 187, 167, 0.3) !important;
+  }
+
+/* ── Form inputs ── */
+
+:where(.hc) input[type="text"],
+:where(.hc) input[type="email"],
+:where(.hc) input[type="password"],
+:where(.hc) input[type="tel"],
+:where(.hc) input[type="date"],
+:where(.hc) input[type="time"],
+:where(.hc) input[type="number"],
+:where(.hc) select,
+:where(.hc) textarea {
+    min-height: 44px;
+    font-size: 16px !important; /* prevents iOS zoom */
+    border-radius: 10px !important;
+  }
+
+/* ── Table improvements ── */
+
+:where(.hc) .hc-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+    border: 1px solid var(--hc-line);
+  }
+
+/* ── Login page ── */
+
+:where(.hc) .login-container {
+    padding: 1.5rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+:where(.hc) .login-card {
+    border-radius: 16px !important;
+    padding: 2rem 1.5rem !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12) !important;
+  }
+
+/* ── Page header ── */
+
+:where(.hc) .page-header h2 {
+    font-size: 1.25rem !important;
+    font-weight: 800;
+  }
+
+/* ── Container ── */
+
+:where(.hc) .container {
+    padding: 0.875rem !important;
+  }
+
+/* ── Modal full-screen on mobile ── */
+
+:where(.hc) .modal-content {
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 90vh !important;
+  }
+
+:where(.hc) .modal-header {
+    padding: 1rem 1.25rem 0.875rem !important;
+    border-radius: 20px 20px 0 0;
+  }
+}
+
+/* Google Places autocomplete dropdown — dark theme (pac-container is appended to <body>) */

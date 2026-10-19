@@ -1,0 +1,150 @@
+// Home care: the agency's screens (templates/crm-homecare/frontend), moved into crm/pages/homecare/<group>/, their
+// routes under /crm and their menu items, registered only where the vertical's screens say home: 'homecare'
+// (verticals/homecare/settings.ts), so no other vertical sees them. Each group folder owns its screens and exports
+// `routes`, `nav` and `routePermissions` (and the public pages, `publicRoutes`); this file puts them together.
+//
+// The template's office was one page with a sidebar of sections (components/AdminDashboard.tsx) and its caregivers had
+// their own app (components/CaregiverDashboard.tsx). Here each section is a page under /crm in the shell's menu, in the
+// template's order and headings (MENU below), and /crm/dashboard is the office's overview or the caregiver's day.
+//
+// The agency's routes come BEFORE the CRM's in App.tsx: where both name a path (/crm/documents, /crm/reports,
+// /crm/expenses, /crm/messages) the server's /api/<path> is home care's for this vertical, so the page must be too.
+import type { ReactElement } from 'react'
+import { Navigate, Route } from 'react-router-dom'
+import type { NavItem } from '../../shared'
+import { useAuth, usePermissions } from '../../shared'
+import { page } from '../lazy'
+import { verticalScreens } from '../vertical'
+import { HomecareFrame } from '../pages/homecare/lib/HomecareFrame'
+import * as clients from '../pages/homecare/clients'
+import * as schedule from '../pages/homecare/schedule'
+import * as shifts from '../pages/homecare/shifts'
+import * as visits from '../pages/homecare/visits'
+import * as billing from '../pages/homecare/billing'
+import * as people from '../pages/homecare/people'
+import * as portals from '../pages/homecare/portals'
+import * as office from '../pages/homecare/office'
+
+const home = verticalScreens().home
+/** True where this page was served for a home-care agency. Read once. */
+export const isHomecare = typeof home === 'string' && home === 'homecare'
+
+/**
+ * The menu, in the template's order under its headings (AdminDashboard.tsx NAV_SECTIONS). Each group's `nav` gives the
+ * item (its icon, label and the permission its page's API asks); this orders them and sets the heading. An item a
+ * group has not registered is skipped. The template's items that are the app's shared screens (the lead inbox, lead
+ * sources, paid ads, Contact Twomiah, branded email, Google reviews, the email domain and inbox, the AI receptionist,
+ * sign-in & security, plan & billing) are the shared menu's own items (web/src/shell.ts), not repeated here.
+ */
+export const MENU: Array<[path: string, section: string]> = [
+  ['/crm/clients', 'Operations'],
+  ['/crm/client-onboarding', 'Operations'],
+  ['/crm/client-documents', 'Operations'],
+  ['/crm/referral-sources', 'Operations'],
+  ['/crm/care-plans', 'Operations'],
+  ['/crm/scheduling', 'Scheduling'],
+  ['/crm/live-board', 'Scheduling'],
+  ['/crm/emergency-coverage', 'Scheduling'],
+  ['/crm/no-show-alerts', 'Scheduling'],
+  ['/crm/shift-approvals', 'Scheduling'],
+  ['/crm/route-optimizer', 'Scheduling'],
+  ['/crm/company-optimizer', 'Scheduling'],
+  ['/crm/adl', 'Clinical'],
+  ['/crm/medications', 'Clinical'],
+  ['/crm/visit-docs', 'Clinical'],
+  ['/crm/incidents', 'Clinical'],
+  ['/crm/form-builder', 'Clinical'],
+  ['/crm/caregivers', 'Caregivers'],
+  ['/crm/performance', 'Caregivers'],
+  ['/crm/applications', 'Caregivers'],
+  ['/crm/job-postings', 'Caregivers'],
+  ['/crm/onboarding-packets', 'Caregivers'],
+  ['/crm/billing', 'Financial'],
+  ['/crm/billing-import', 'Financial'],
+  ['/crm/portal-claim-days', 'Financial'],
+  ['/crm/claims', 'Financial'],
+  ['/crm/billing-engine', 'Financial'],
+  ['/crm/payers-service-codes', 'Financial'],
+  ['/crm/authorizations', 'Financial'],
+  ['/crm/client-week', 'Financial'],
+  ['/crm/payroll', 'Financial'],
+  ['/crm/expenses', 'Financial'],
+  ['/crm/reports', 'Financial'],
+  ['/crm/revenue-forecast', 'Financial'],
+  ['/crm/compliance', 'Compliance'],
+  ['/crm/evv', 'Compliance'],
+  ['/crm/background-checks', 'Compliance'],
+  ['/crm/documents', 'Compliance'],
+  ['/crm/audit-logs', 'Compliance'],
+  ['/crm/login-activity', 'Compliance'],
+  ['/crm/communication-log', 'Communication'],
+  ['/crm/sms', 'Communication'],
+  ['/crm/family-portal', 'Communication'],
+  ['/crm/alerts', 'Communication'],
+  ['/crm/messages', 'Communication'],
+  ['/crm/integrations', 'Communication'],
+  ['/crm/agency-features', 'Communication'],
+  ['/crm/notifications', 'Communication'],
+  ['/crm/users', 'Settings'],
+]
+
+const GROUPS = [clients, schedule, shifts, visits, billing, people, portals, office]
+
+/** Menu items, ordered and headed as MENU says. Empty everywhere but home care. */
+export const nav: NavItem[] = isHomecare ? (() => {
+  const byPath = new Map<string, NavItem>()
+  for (const g of GROUPS) for (const item of g.nav) byPath.set(item.to, item)
+  return MENU.flatMap(([path, section]) => {
+    const item = byPath.get(path)
+    return item ? [{ ...item, section }] : []
+  })
+})() : []
+
+/**
+ * The shared menu's items an agency doesn't get: the CRM's pages home care never had, and those whose path is the
+ * agency's own page here (its documents, reports, expenses, messages). Taken off the shared items only (shell.ts), not
+ * screens.navHidden, which would take the agency's own item of the same path off too.
+ */
+export const SHARED_HIDDEN = [
+  '/crm/contacts', '/crm/jobs', '/crm/quotes', '/crm/invoices', '/crm/schedule', '/crm/time', '/crm/expenses',
+  '/crm/documents', '/crm/team', '/crm/reports', '/crm/messages', '/crm/pricebook', '/crm/tasks',
+]
+
+/** The permission each agency page asks for, for a URL typed in (the shell's routePermissions). */
+export const routePermissions: Record<string, string> = isHomecare
+  ? Object.assign({}, ...GROUPS.map((g) => g.routePermissions))
+  : {}
+
+/**
+ * The dashboard at /crm/dashboard: the office's overview, or a caregiver's day (their shifts, clocking in and out,
+ * their visits) for whoever does not run the agency's schedule — the template's split by role
+ * (App.tsx MainApp: caregiver → CaregiverDashboard, else AdminDashboard), drawn on the permission instead.
+ */
+function HomecareDashboard() {
+  const { can, known } = usePermissions()
+  useAuth()
+  if (!known) return null
+  const Home = can('care-schedule:update') ? office.OfficeHome : visits.CaregiverHome
+  return <HomecareFrame><Home /></HomecareFrame>
+}
+export const dashboard = HomecareDashboard
+
+/** Routes inside /crm (behind the CRM's first-run gate), each in the agency's frame. */
+export const routes: ReactElement[] = isHomecare ? [
+  <Route key="homecare-frame" element={<HomecareFrame />}>
+    {GROUPS.flatMap((g) => g.routes)}
+  </Route>,
+  // The template's own addresses for pages the shared app has under another name.
+  <Route key="homecare-settings-security" path="security" element={<Navigate to="/crm/account" replace />} />,
+] : []
+
+/**
+ * The agency's public pages, outside the shell (no sign-in): the client and family portals, paying a visit invoice, a
+ * new hire's onboarding packet and the careers page (templates/crm-homecare App.tsx). Served by the server only for
+ * home care (server/http/adminScreens.ts HOMECARE_PAGES). Their own bundle: none of it loads for the office.
+ */
+const PublicApp = page(() => import('../pages/homecare/publicApp'))
+export const PUBLIC_PATHS = ['/portal/*', '/family/*', '/pay/:invoiceId', '/payment-success', '/onboarding/:token', '/careers', '/careers/:slug']
+export const publicRoutes: ReactElement[] = isHomecare
+  ? PUBLIC_PATHS.map((path) => <Route key={`homecare-public-${path}`} path={path} element={<PublicApp />} />)
+  : []

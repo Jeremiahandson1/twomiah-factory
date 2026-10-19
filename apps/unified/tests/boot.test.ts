@@ -260,6 +260,28 @@ describe('the admin screens', () => {
     expect(await (await a.call('/')).text()).not.toContain('company-name')
   })
 
+  // A home-care agency's portals, invoice payment, onboarding packet and careers page are the app's pages
+  // (server/http/adminScreens.ts HOMECARE_PAGES); for every other business those paths stay the website's.
+  test("home care's public pages are the admin page for an agency only", async () => {
+    const pages = ['/portal', '/portal/setup?token=x', '/family', '/family/schedule', '/pay/abc', '/payment-success', '/onboarding/tok', '/careers', '/careers/cna']
+    const agency = await bootTenant({ adminDist: dist, vertical: 'homecare' })
+    await agency.db.insert(agency.schema.company).values({ name: 'Mary’s Care', slug: 'marys-care', primaryColor: '#0f766e', secondaryColor: '#b45309', email: 'office@marys.example' })
+    for (const p of pages) {
+      const res = await agency.call(p)
+      expect(res.status).toBe(200)
+      const html = await res.text()
+      expect(html).toContain('<div id="root"></div>')
+      // No shell loads the company for a visitor who isn't signed in: the agency's colours come with the page.
+      expect(html).toContain('<meta name="brand-primary" content="#0f766e"><meta name="brand-secondary" content="#b45309">')
+      // The invoice payment page names the agency's email, as the template's did.
+      expect(html).toContain('<meta name="company-email" content="office@marys.example">')
+    }
+    expect(await (await agency.call('/vertical-check-none')).text()).not.toContain('<div id="root"></div>')
+    for (const p of ['/family', '/careers', '/pay/abc', '/onboarding/tok']) {
+      expect(await (await a.call(p)).text()).not.toContain('<div id="root"></div>')
+    }
+  })
+
   test('a server without the build says so instead of a blank page', async () => {
     const bare = await bootTenant({ adminDist: path.join(dist, 'nope') })
     const res = await bare.call('/crm')

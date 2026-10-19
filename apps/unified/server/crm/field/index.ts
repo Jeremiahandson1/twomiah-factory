@@ -30,6 +30,7 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/geofencing', access: 'user', feature: 'gps_tracking', router: createGeofencingRoutes(d) },
     // The forecast for a job or a project, and the weather filled into a daily log.
     { path: '/api/weather', access: 'user', feature: ['jobs', 'projects', 'daily_logs'], router: createWeatherRoutes(d) },
-    { path: '/api/payroll', access: 'user', feature: 'time_tracking', router: createPayrollRoutes(d) },
+    // Home care's /api/payroll is its own pay run (server/crm/homecare/payroll/payroll.ts), so this one stands aside there.
+    ...(d.settings?.homecare ? [] : [{ path: '/api/payroll', access: 'user' as const, feature: 'time_tracking', router: createPayrollRoutes(d) }]),
   ]
 }

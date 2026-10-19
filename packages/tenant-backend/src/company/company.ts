@@ -8,6 +8,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, inArray } from 'drizzle-orm'
 import { getFeaturesForTemplate, FEATURE_MAP } from '../featureRegistry'
+import { seatRefusal } from './seats'
 import { HAS_SCHEME, looksLikeWebAddress, healLogo, normalizeLogo } from './logoAddress'
 import { COMPANY_COMMERCIAL, redactCompanyCommercial, withoutDisplayKeys } from '../auth/redactSettings'
 export { healLogo, normalizeLogo, isLogoAddress, looksLikeWebAddress } from './logoAddress'
@@ -60,13 +61,22 @@ export interface CompanyDeps {
    * which is all there was until 10/14 (E2E run 1: "no invite email is sent").
    */
   sendInvite?: (to: string, data: { firstName: string; inviterName: string; companyName: string; role: string; resetToken: string }) => Promise<unknown>
+  /**
+   * A vertical's own company columns, which PUT / accepts beside the shared ones: each a zod schema, whose message is
+   * the refusal (home care's time zone and mileage rate, its legal name, NPI and Medicaid id — apps/unified
+   * server/crm/homecare/office/companyFields.ts). Not wired → only the shared columns, as before.
+   */
+  fields?: Record<string, z.ZodTypeAny>
+  /** What GET / and PUT / add to the company they answer with, worked out from the row (home care's effectiveTimezone). */
+  describe?: (row: any) => Record<string, unknown>
 }
 
 /** How long an emailed invite link works. The teamInvite email says so: "This invitation expires in 7 days." */
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 // callrailSigningKey: the CallRail webhook signing key (Call Tracking › Settings). Write-only — the screen is told "set" / "not set".
-export const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword', 'callrailSigningKey'] as const
+// sandataPasswordEncrypted: home care's EVV aggregator password, written only through its Sandata settings (encrypted).
+export const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword', 'callrailSigningKey', 'sandataPasswordEncrypted'] as const
 export function sanitizeCompany<T extends Record<string, any>>(row: T): T {
   if (!row) return row
   const clone: any = { ...row }
@@ -215,7 +225,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
      * Asked with `company:update`: not wired (canSee absent) → not asked → today's behaviour, so a
      * template nobody rewires is unchanged rather than silently narrowed.
      */
-    return c.json(await forReader(c, safe))
+    return c.json({ ...(await forReader(c, safe)), ...(deps.describe?.(row) || {}) })
   })
 
   app.put('/', requireAdmin, async (c) => {
@@ -243,6 +253,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       // this one — the one customers actually see — was missed. (Salon T28 L1)
       primaryColor: z.string().trim().optional().refine((v: string | undefined) => !v || /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v), 'Brand colour must be a hex value like #1d4ed8.'),
       website: safeUrl.optional().nullable(), licenseNumber: z.string().optional(), settings: z.record(z.any()).optional(),
+      ...(deps.fields || {}),
     })
     const body = await readBody(c)
     if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
@@ -412,7 +423,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
           : []
         // A save that changed nothing is not an event. Logging it is how a settings log fills with
         // rows nobody can act on, which is what buried the real ones.
-        if (!touched.length && !settingKeys.length) return c.json(await forReader(c, sanitizeCompany(row)))
+        if (!touched.length && !settingKeys.length) return c.json({ ...(await forReader(c, sanitizeCompany(row))), ...(deps.describe?.(row) || {}) })
         deps.audit.log({
           action: deps.audit.ACTIONS?.UPDATE ?? 'update',
           entity: deps.audit.ENTITIES?.COMPANY ?? 'company',
@@ -422,7 +433,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
         })
       }
     } catch { /* an unwritten log must not undo a saved setting */ }
-    return c.json(await forReader(c, sanitizeCompany(row)))
+    return c.json({ ...(await forReader(c, sanitizeCompany(row))), ...(deps.describe?.(row) || {}) })
   })
 
   // ---------------------------------------------------------------- features
@@ -579,19 +590,13 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     const passwordHash = await Bun.password.hash(password || crypto.randomUUID() + crypto.randomUUID(), 'bcrypt')
     const inviteFields = invite ? { resetToken: crypto.randomUUID(), resetTokenExp: new Date(Date.now() + INVITE_TTL_MS) } : {}
 
-    // Seat cap: SEAT_LIMIT (env, written by the Factory) wins; settings.seatLimit lets staff change it
-    // without a redeploy; neither set => no cap. The count and the insert happen under a lock on the
-    // company row so two concurrent adds cannot both pass the check.
+    // Seat cap (seats.ts, the one rule): the count and the insert happen under a lock on the company row so two
+    // concurrent adds cannot both pass the check.
     const outcome = await db.transaction(async (tx: any) => {
       const [companyRow] = await tx.select().from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1).for('update')
-      const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
-      const settingSeats = Number.parseInt(String((companyRow?.settings as any)?.seatLimit ?? ''), 10)
-      const seatLimit = Number.isInteger(envSeats) && envSeats > 0 ? envSeats : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : null)
-      if (seatLimit && rest.isActive !== false) {
-        const active = await tx.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.companyId, currentUser.companyId), eq(t.user.isActive, true)))
-        if (active.length >= seatLimit) {
-          return { status: 403 as const, body: { error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${active.length} are already active. Deactivate someone or upgrade to add more.`, seatLimit, activeSeats: active.length } }
-        }
+      if (rest.isActive !== false) {
+        const full = await seatRefusal(tx, t, companyRow)
+        if (full) return { status: 403 as const, body: full }
       }
       const [existing] = await tx.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.email, rest.email), eq(t.user.companyId, currentUser.companyId))).limit(1)
       if (existing) return { status: 409 as const, body: { error: 'Email already exists' } }

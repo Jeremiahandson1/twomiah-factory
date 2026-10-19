@@ -107,9 +107,10 @@ export function createCalltrackingRoutes(d: CrmDeps) {
   // Calls
   app.get('/calls', requirePermission('calltracking:read'), async (c) => {
     const user = c.get('user')
-    const { source, status, startDate, endDate, contactId, firstTimeOnly, page, limit } = c.req.query() as any
+    // clientId: home care's call log filters by client (CrmSettings.callers).
+    const { source, status, startDate, endDate, contactId, clientId, firstTimeOnly, page, limit } = c.req.query() as any
     const r = await calltracking.getCalls(user.companyId, {
-      source, status, startDate, endDate, contactId,
+      source, status, startDate, endDate, contactId, clientId,
       firstTimeOnly: firstTimeOnly === 'true',
       page: parseInt(page) || 1,
       limit: parseInt(limit) || 50,

@@ -5,6 +5,7 @@
 // ('{{PRIMARY_COLOR}}'); the unified app has no build step for its schema, so the default is the shared UI's own
 // fallback (packages/tenant-ui/src/brandPalette.js DEFAULT_BRAND_HEX) and the Factory sets the real colour.
 import { pgTable, text, boolean, integer, decimal, timestamp, json, uniqueIndex, index, date } from 'drizzle-orm/pg-core'
+import { userHasResetToken } from '../../data/indexWhere.ts'
 import { createId } from '@paralleldrive/cuid2'
 
 export const company = pgTable('company', {
@@ -115,6 +116,8 @@ export const user = pgTable('user', {
 }, (t) => [
   uniqueIndex('user_email_company_id_key').on(t.email, t.companyId),
   index('user_company_id_idx').on(t.companyId),
+  // A password-reset link finds its person (template crm-homecare idx_users_reset_token).
+  index('idx_users_reset_token').on(t.resetToken).where(userHasResetToken),
 ])
 
 // Two-factor (SPEC §5.3). The shared sign-in (packages/tenant-backend/src/auth/mfa.ts) asks the database whether

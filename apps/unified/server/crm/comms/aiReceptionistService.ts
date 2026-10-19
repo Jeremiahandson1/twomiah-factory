@@ -1,10 +1,15 @@
 // The AI receptionist: its rules and settings, Twilio recording → OpenAI Whisper transcription, a GPT summary, and
 // the rule engine that answers a missed call by text or email. Moved from templates/crm/backend/src/services/
 // aiReceptionist.ts; its raw SQL on the call log is in server/data/aiReceptionist.ts.
+//
+// Home care's copy (templates/crm-homecare services/aiReceptionist.ts) differed only in who a caller is — a client of
+// the agency (a "new lead" is a number no client has; the reply's email is the client's) — and the summary's line of
+// business. That is CrmSettings.callers ('clients'), read here.
 import { eq, and, desc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
-import { aiReceptionistRule, aiReceptionistSettings, company, contact } from '../../db/schema/index.ts'
+import { aiReceptionistRule, aiReceptionistSettings, clients, company, contact } from '../../db/schema/index.ts'
 import * as q from '../../data/aiReceptionist.ts'
+import { clientByPhone } from '../../data/calltracking.ts'
 import type { CrmDeps } from '../deps.ts'
 
 /**
@@ -42,6 +47,8 @@ function personalizeMessage(template: string, vars: { companyName: string; calle
 
 export function createAiReceptionistService(d: CrmDeps) {
   const { db, logger } = d
+  /** Callers are home-care clients (CrmSettings.callers). */
+  const callersAreClients = d.settings?.callers === 'clients'
   // The providers' keys, read when used (the template read them once at import).
   const env = () => ({
     openai: process.env.OPENAI_API_KEY,
@@ -258,8 +265,10 @@ export function createAiReceptionistService(d: CrmDeps) {
           break
         case 'new_lead':
           if (callData.callerNumber) {
-            const [existing] = await db.select({ id: contact.id }).from(contact)
-              .where(and(eq(contact.companyId, companyId), eq(contact.phone, callData.callerNumber))).limit(1)
+            const existing = callersAreClients
+              ? await clientByPhone(db, companyId, callData.callerNumber)
+              : (await db.select({ id: contact.id }).from(contact)
+                .where(and(eq(contact.companyId, companyId), eq(contact.phone, callData.callerNumber))).limit(1))[0]
             shouldTrigger = !existing
           }
           break
@@ -304,11 +313,16 @@ export function createAiReceptionistService(d: CrmDeps) {
     if (transcription) await q.setCallTranscription(db, callRow.id, transcription, recordingUrl)
     if (transcription) {
       const [comp] = await db.select({ name: company.name }).from(company).where(eq(company.id, companyId)).limit(1)
-      const result = await summarizeAndGenerateReply(transcription, comp?.name || 'our company', 'service', callRow.callerName || undefined)
+      const result = callersAreClients
+        ? await summarizeAndGenerateReply(transcription, comp?.name || 'our agency', 'home care', callRow.callerName || undefined)
+        : await summarizeAndGenerateReply(transcription, comp?.name || 'our company', 'service', callRow.callerName || undefined)
       if (result?.summary) await q.setCallSummary(db, callRow.id, result.summary)
     }
     let callerEmail: string | undefined
-    if (callRow.contactId) {
+    if (callersAreClients && callRow.clientId) {
+      const [c] = await db.select({ email: clients.email }).from(clients).where(and(eq(clients.id, callRow.clientId), eq(clients.companyId, companyId))).limit(1)
+      callerEmail = c?.email || undefined
+    } else if (callRow.contactId) {
       const [c] = await db.select({ email: contact.email }).from(contact).where(eq(contact.id, callRow.contactId)).limit(1)
       callerEmail = c?.email || undefined
     }

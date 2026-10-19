@@ -15,6 +15,7 @@
 // only `agencies` row), so every read takes the company's id; "today" is computed from the server's clock in the zone
 // (the template asked the database's NOW(); the same instant). The pure functions are unchanged.
 import { eq } from 'drizzle-orm'
+import { zonedWallTimeToUtc } from '@twomiah/tenant-backend'
 import { company } from '../../../db/schema/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 
@@ -143,7 +144,21 @@ export function createAgencyTime(d: CrmDeps) {
     return sundayOfWeek(await today(companyId))
   }
 
-  return { timezone, state, today, now, weekStart }
+  /**
+   * A screen's ?startDate / ?endDate filter as instants on the agency's clock: a calendar day (YYYY-MM-DD) runs from the
+   * agency's midnight to its next midnight; anything else is taken as the instant it names. `before` is exclusive. A
+   * log written at 8 PM Central on the 16th is the 16th's (the filters cut days at UTC midnight, so it fell on the 17th).
+   */
+  async function range(companyId: string, startDate?: string | null, endDate?: string | null): Promise<{ from?: Date; before?: Date }> {
+    const instant = (v: string) => { const t = new Date(v); return isNaN(t.getTime()) ? undefined : t }
+    const tz = (isYmd(startDate) || isYmd(endDate)) ? await timezone(companyId) : ''
+    const from = !startDate ? undefined : isYmd(startDate) ? zonedWallTimeToUtc(startDate, '00:00', tz) : instant(startDate)
+    const endAt = !endDate ? undefined : isYmd(endDate) ? zonedWallTimeToUtc(addDays(endDate, 1), '00:00', tz) : instant(endDate)
+    const before = endAt && !isYmd(endDate) ? new Date(endAt.getTime() + 1) : endAt
+    return { from, before }
+  }
+
+  return { timezone, state, today, now, weekStart, range }
 }
 
 export type AgencyTime = ReturnType<typeof createAgencyTime>

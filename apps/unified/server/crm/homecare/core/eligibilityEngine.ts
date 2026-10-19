@@ -8,13 +8,13 @@
 //   disqualified   — at least one "permanent_bar" match. No hire.
 //
 // Rule-based on purpose: caregiver eligibility is a legal determination. The engine surfaces the matched statutes and
-// the admin makes the call. The bar list is per state (caregiver_disqualifiers.state), and only the agency's own
-// state's rows are used.
+// the admin makes the call. The bar list is per state, and only the agency's own state's statutes are used.
 //
-// Changes: the agency is a company — the bar list read is the company's own rows (caregiver_disqualifiers carries
-// company_id), the default state is the company's, and the caregiver's latest check is read within the company.
+// Changes: the bar list is the law in the code (disqualifiers.ts), not a table the template seeded and a new agency
+// never had; the default state is the company's, and the caregiver's latest check is read within the company.
 import { and, eq, desc } from 'drizzle-orm'
-import { backgroundChecks, caregiverDisqualifiers } from '../../../db/schema/index.ts'
+import { backgroundChecks } from '../../../db/schema/index.ts'
+import { disqualifiersFor } from './disqualifiers.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AgencyProfiles } from './agencyProfile.ts'
 
@@ -74,14 +74,8 @@ export function createEligibilityEngine(d: CrmDeps, deps: { profile: AgencyProfi
     ].filter(Boolean).join('\n').toLowerCase()
 
     const agencyState = state === undefined ? (await deps.profile.getAgencyProfile(companyId)).state : state
-    const disqualifiers: any[] = agencyState
-      ? await d.db.select().from(caregiverDisqualifiers)
-          .where(and(
-            eq(caregiverDisqualifiers.companyId, companyId),
-            eq(caregiverDisqualifiers.isActive, true),
-            eq(caregiverDisqualifiers.state, agencyState),
-          ))
-      : []
+    // The state's statutes, from the code (disqualifiers.ts): the same law for every agency, never an empty table.
+    const disqualifiers = disqualifiersFor(agencyState)
 
     const matches: EligibilityMatch[] = []
     for (const dq of disqualifiers) {

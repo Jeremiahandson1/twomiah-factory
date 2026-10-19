@@ -192,3 +192,22 @@ Each is something a live template does that the unified app does not do yet. Not
 - **Vet — online booking.** The vet's booking made the pet's chart and an appointment row (`appointmentCalendar`, `requirePet`). The unified booking engine makes neither. `modules/booking.ts` still decides the vet's answers by its id.
 - **RV — the chat's enquiry.** The unified enquiry form needs an email and does not take `unitOfInterest`, so a phone-only lead and the link from a stock number to its unit are lost.
 - **Live updates.** The bar's register, grill and floor refresh on a timer (10–15 s) where the template pushed changes at once; the RV's alert to one salesperson is emitted but reaches no browser. Both wait for the live-updates transport (`core/realtime.ts`).
+
+## Home care (step 6, routes)
+
+`templates/crm-homecare/backend/src/routes/*` moved into nine folders under `apps/unified/server/crm/homecare/` (clients, scheduling, planning, visits, billing, payroll, hr, portals, office), each with its raw SQL in `server/data/homecare*.ts`, mounted only for the home-care vertical (`CrmSettings.homecare`). Every route asks a permission (`care-*`, `my-pay`, `evv`; `packages/tenant-backend/src/auth/permissions.ts`), never a rank; a caregiver is narrowed to their own clients and shifts as the template did. Lists are `{ data, pagination }`, rows camelCase. Each group's report, with its route → file table, is the source for these rows; the tests that hold them are `apps/unified/tests/homecare-*.test.ts`, and the home-care suite runs on the unified app (adapted copies in `tests/unified/homecare/`).
+
+| Unified | Replaces | Notes |
+|---|---|---|
+| `server/crm/homecare/{clients,scheduling,planning,visits,billing,payroll,hr,portals,office}/*`, `server/data/homecare*.ts` | `templates/crm-homecare/backend/src/routes/*` (106 files) | Paths kept. Where a unified mount shared the path (/api/dashboard, /api/reports, /api/documents, /api/expenses, /api/payroll, /api/stripe, /api/billing, /api/portal, /api/sms, /api/clients, /api/alerts) the home-care vertical takes its own: a switch or a skipped mount, never two. |
+| `server/crm/homecare/core/disqualifiers.ts` | `0018_staff.sql`'s seeded `caregiver_disqualifiers` rows | The Wisconsin bar list is code: a new agency's table was empty, so a disqualifying record read as review. The table stays unread. |
+| migration `0010_homecare_guards` | the template's `0015`–`0017` sequence and partial indexes | One open visit per caregiver; one active recurring pattern; the invoice number sequence; five partial indexes. 0007 had left them out. |
+| `packages/tenant-backend/src/company/seats.ts` | the seat check inside `company.ts` | One seat rule for every login made: the team screen, a caregiver, a hire, an office admin. |
+| `CrmSettings.callers: 'clients'` (call tracking, AI receptionist) | home care's own `services/{calltracking,aiReceptionist}.ts` | A switch on the shared services, not a copy. |
+| (not moved) | `routes/{saasBilling,webhooks,help,failsafe}.ts` | Replaced by /api/billing, the site's enquiry, /api/support; failsafe was a stub. |
+
+**Home care's menu gains Call Tracking** (owner's yes, 2026-10-19): agencies on the business tier paid for `call_tracking` but the template had no screen for it; the shared Call Tracking page (callers matched to clients, `CrmSettings.callers`) is on their menu.
+
+**Cutover data steps for home care:** `login_activity` rows → `audit_log` (the compliance monitor reads the audit log); `help_articles` → `support_knowledge_base`; agency → company and users → user with company_id (decision 1); every company_id filled with the agency's id (decision 2). `incidents.incident_number` and `client_document_templates.key` are unique per database, which is one company's.
+
+**Fixed in the move (each held by a homecare-*.test.ts):** bodies spread into rows (caregivers, profiles, background checks with a plain-text SSN, rates, service codes, ratings, the company row, communication log) could set any column including the company or permissions; a caregiver could read every colleague's training, every client's documents (with SSN and portal hash), every client's relatives' contacts, every invoice's Stripe payment, and every schedule and absence; prospect convert always failed its foreign key; the phone line billed min(actual, scheduled) and flagged nothing; office edits of visit times were unaudited; dates on UTC's day instead of the agency's (hires, rates, payments, the phone line, certification scans).

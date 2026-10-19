@@ -26,7 +26,8 @@ export function createCareAudit(d: CrmDeps) {
    * One clinical audit row (audit_logs — who changed a client record), in the signed-in person's company. A failed
    * audit write never loses the change it describes, so the error is logged and swallowed.
    */
-  async function writeCareAudit(user: any, action: string, tableName: string, recordId: string | null, newData?: unknown, oldData?: unknown) {
+  async function writeCareAudit(user: any, action: string, tableName: string, recordId: string | null, newData?: unknown, oldData?: unknown,
+    extra: { ipAddress?: string | null; reasonCode?: string | null } = {}) {
     try {
       await d.db.insert(auditLogs).values({
         companyId: user?.companyId,
@@ -36,6 +37,9 @@ export function createCareAudit(d: CrmDeps) {
         recordId,
         newData: (newData ?? null) as any,
         oldData: (oldData ?? null) as any,
+        // The address the request came from and why the change was made (the incident case file records both).
+        ipAddress: extra.ipAddress ?? null,
+        reasonCode: extra.reasonCode ?? null,
       } as any)
     } catch (err) {
       d.logger.error(`[care audit] ${action} ${tableName} failed`, { error: (err as Error)?.message })

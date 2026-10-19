@@ -37,6 +37,8 @@ import { createSalonClock } from '../crm/salon/days.ts'
 import { createDealershipDashboardRoutes } from '../crm/rv/index.ts'
 import { createPracticeDashboardRoutes } from '../crm/vet/dashboard.ts'
 import { createEventsDashboardRoutes } from '../crm/restaurant/eventsDashboard.ts'
+import { createHomecareDashboardRoutes } from '../crm/homecare/planning/dashboard.ts'
+import { createHomecareReportsRoutes } from '../crm/homecare/planning/reports.ts'
 import { syncEventInvoiceDueDate } from '../crm/restaurant/eventLedger.ts'
 import { bookOnDepositForInvoice } from '../crm/restaurant/eventBooking.ts'
 import type { CrmSettings } from '../core/vertical.ts'
@@ -62,6 +64,8 @@ import { rvMounts } from '../crm/rv/index.ts'
 import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
+import { createHomecareCore } from '../crm/homecare/core/index.ts'
+import { portalsInFront } from '../crm/homecare/portals/index.ts'
 
 export interface CrmModuleDeps {
   db: any
@@ -93,6 +97,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   }
   const live = { emitToCompany: realtime.emitToCompany, EVENTS: realtime.EVENTS }
   const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, services: s, settings: v }
+  // Home care's own routers on two paths the CRM also serves — its client portal (/api/portal) and its texting screen
+  // (/api/sms) — answer first, composed in front of the CRM's router: one mount per path (RULEBOOK §6), the CRM's
+  // customer portal (/p/:token/…) and Twilio's webhooks still reached (server/crm/homecare/portals/index.ts).
+  const homecareFront: Record<string, Hono<any>> = v.homecare ? portalsInFront(createHomecareCore(own), own) : {}
+  const inFront = (path: string, router: Hono<any>) => (homecareFront[path] ? new Hono().route('/', homecareFront[path]).route('/', router) : router)
   const timeZoneFor = (companyId: string) => companyTimeZone(db, companyId)
   const loadInvoicePdf = () => import('../crm/pdf.ts').then((m) => m.generateInvoicePDF)
   const loadQuotePdf = () => import('../crm/pdf.ts').then((m) => m.generateQuotePDF)
@@ -294,15 +303,18 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       : v.dashboard === 'dealership' ? createDealershipDashboardRoutes(own)
       // The salon's (templates/crm-salon routes/dashboard.ts).
       : v.dashboard === 'salon' ? createSalonDashboard(own)
+      // The home-care agency's (templates/crm-homecare routes/dashboard.ts).
+      : v.dashboard === 'homecare' ? createHomecareDashboardRoutes(own)
       : createJobsDashboardRoutes({ db, tables: { contact, project, job, quote, invoice, lead }, authenticate, featuresFor: features.enabledFeaturesFor, canSee } as any) },
 
     // Optional modules, each behind its feature (the template's index.ts gates).
     { path: '/api/time', access: 'user', feature: 'time_tracking', router: createTimeRoutes({ db, tables: { timeEntry, user, job, project, teamMember }, authenticate, requirePermission, audit } as any) },
-    { path: '/api/expenses', access: 'user', feature: 'expense_tracking', router: createExpenseRoutes({
+    // Home care's /api/expenses is its own expense book (server/crm/homecare/payroll/expenses.ts), so the shared one stands aside there.
+    ...(v.homecare ? [] : [{ path: '/api/expenses', access: 'user' as const, feature: 'expense_tracking', router: createExpenseRoutes({
       db, tables: { expense, project, job, staffAccountEntry, user, company }, authenticate, requirePermission, audit,
       // The trade's own categories, refused outside the list as the shared ones are (templates/crm-salon routes/expenses.ts).
       ...(v.expenses ? { options: { categories: v.expenses.categories, categoryLabels: v.expenses.categoryLabels } } : {}),
-    } as any) },
+    } as any) }]),
     // Tasks: a construction business's with projects (the base CRM's gate); a clinic's always (templates/crm-vet
     // mounted tasks ungated and put Tasks on every menu, and a clinic has no projects) — the union, on both sides.
     { path: '/api/tasks', access: 'user', feature: ['projects', 'patient_records'], router: createTasksRoutes({ service: s.tasks, authenticate, requirePermission } as any) },
@@ -322,7 +334,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
 
     // Documents are the registry's optional 'documents' feature for every CRM; the base template never gated them (the
     // field-service copy did, on both sides). Cutover switches it on for every CRM business, which had it before.
-    { path: '/api/documents', access: 'user', feature: 'documents', router: createDocumentRoutes({
+    // Home care has its own document store at the same path (documents / document_signatures: files against a client,
+    // a caregiver or the company, and the caregivers' e-signature queue — server/crm/homecare/clients/documents.ts),
+    // so the shared module is not mounted for it.
+    ...(v.homecare ? [] : [{ path: '/api/documents', access: 'user' as const, feature: 'documents', router: createDocumentRoutes({
 
       // planMarkup only where drawings are marked up (construction): the shared module registers /:id/markups only when
       // the table is passed.
@@ -332,8 +347,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         // A clinic files against the animal, not only the owner (templates/crm-vet routes/documents.ts T12 M6).
         ...(v.patients ? { links: { patientId: patient } } : {}),
       },
-    } as any) },
-    { path: '/api/reports', access: 'user', router: createReportingRoutes({
+    } as any) }]),
+    // The home-care agency's own reports (CrmSettings.reports.module; templates/crm-homecare routes/reports.ts).
+    { path: '/api/reports', access: 'user', router: v.reports?.module === 'homecare' ? createHomecareReportsRoutes(own) : createReportingRoutes({
       db, tables: { invoice, payment, job, project, quote, timeEntry, user, contact, teamMember, location }, authenticate, requirePermission,
       options: {
         featuresFor: features.enabledFeaturesFor,
@@ -350,8 +366,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/inbound-messages', access: 'user', router: inboundMessages },
 
     // Public doors inside: each router signs people in itself after them.
-    { path: '/api/sms', access: 'public', router: createSmsRoutes({ service: s.sms, authenticate, requirePermission, requireAdmin: isAdmin } as any) },
-    { path: '/api/stripe', access: 'public', router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit } as any) },
+    { path: '/api/sms', access: 'public', router: inFront('/api/sms', createSmsRoutes({ service: s.sms, authenticate, requirePermission, requireAdmin: isAdmin } as any)) },
+    // Home care's /api/stripe pays its visit invoices (server/crm/homecare/billing/stripe.ts), so the shared one — which
+    // pays the CRM's invoice — stands aside there.
+    ...(v.homecare ? [] : [{ path: '/api/stripe', access: 'public' as const, router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit } as any) }]),
     // The drips are also the dealership's Follow-Up product (follow_up_sequences): either switch keeps the follow-up parts
     // open, while campaigns and templates need Email Marketing itself — the union the RV copy gated (RV T19 M6); only
     // crm-rv is offered follow_up_sequences, so everyone else's gate is what it was.
@@ -365,7 +383,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/integrations', access: 'public', router: createIntegrationsRoutes({ db, tables: { company, emailLog }, authenticate, requireAdmin: isAdmin, quickbooks: s.quickbooks, stripe: s.stripe, factoryApiClient } as any) },
     // The customer portal: a customer's own pages by their private link (/p/:token), and the staff switches that hand
     // the link out, which sign people in themselves (portal:share).
-    { path: '/api/portal', access: 'public', router: createPortalRoutes({
+    // Home care's client portal answers first on the same path (inFront above).
+    { path: '/api/portal', access: 'public', router: inFront('/api/portal', createPortalRoutes({
       db,
       tables: {
         contact, company, user, quote, quoteLineItem, invoice, invoiceLineItem, payment, message, auditLog, activity,
@@ -384,7 +403,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       enabledFeaturesFor: features.enabledFeaturesFor,
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
       options: { disable: v.portal.disable },
-    } as any) },
+    } as any)) },
     // The website's A/B script: anonymous, from the site's own origin.
     { path: '/api/public/ads-experiments', access: 'public', router: createAdsPublicRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion } } as any) },
 

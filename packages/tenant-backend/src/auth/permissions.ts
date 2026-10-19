@@ -234,6 +234,10 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     //   care-compliance  incidents, compliance checks, the clinical audit trail
     'care-clients:*', 'care-schedule:*', 'evv:*', 'care-billing:*', 'care-payroll:*', 'care-hr:*', 'care-portal:*',
     'care-compliance:*',
+    //   my-pay           a person's OWN mileage, time off, pay rate and payday confirmation — the routes narrow it to
+    //                    them. Not care-payroll, which opens everyone's pay; a caregiver holds this one
+    //                    (verticals/homecare/settings.ts), and an owner can take it away from one person.
+    'my-pay:*',
   ],
   manager: [
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
@@ -310,6 +314,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // reads the billing it produces. Not billing writes, payroll or hiring: those stay with an admin unless the
     // owner grants them to one person. (Home care had no manager rung; this is its first, least-privilege.)
     'care-clients:*', 'care-schedule:*', 'evv:*', 'care-portal:*', 'care-compliance:*', 'care-billing:read',
+    'my-pay:*',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',

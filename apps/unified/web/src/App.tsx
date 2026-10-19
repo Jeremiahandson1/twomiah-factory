@@ -30,6 +30,7 @@ import * as restaurantScreens from './crm/verticals/restaurant'
 import * as rvScreens from './crm/verticals/rv'
 import * as salonScreens from './crm/verticals/salon'
 import * as vetScreens from './crm/verticals/vet'
+import * as homecareScreens from './crm/verticals/homecare'
 // The customer portal is its own bundle (crm/portal.tsx: Stripe stays out of the admin).
 const PortalApp = lazy(() => import('./crm/portal'))
 const ProjectsPage = page(() => import('./crm/pages/ProjectsPage'))
@@ -95,6 +96,9 @@ export default function App() {
                       <Route index element={<Home />} />
                       {/* The CRM's screens, behind its first-run wizard (crm/screens.tsx OnboardingGate). */}
                       <Route element={<Crm.OnboardingGate />}>
+                        {/* Home care's first: where it and the CRM name the same path (/crm/documents, /crm/reports…) the
+                            server's API is home care's for that vertical, so the page is too (crm/verticals/homecare.tsx). */}
+                        {homecareScreens.routes}
                         <Route path="dashboard" element={<Crm.Dashboard />} />
                         <Route path="contacts" element={<Crm.Contacts />} />
                         <Route path="contacts/:id" element={<Crm.ContactDetail />} />
@@ -205,8 +209,11 @@ export default function App() {
                       <Route path="*" element={<NotFound />} />
                     </Route>
 
-                    {/* The customer's portal, by their private link (no sign-in). */}
-                    <Route path="/portal/:token/*" element={<Suspense fallback={null}><PortalApp /></Suspense>} />
+                    {/* The customer's portal, by their private link (no sign-in). A home-care agency's /portal is its
+                        client portal instead, with its family portal, invoice payment, onboarding and careers pages. */}
+                    {homecareScreens.isHomecare
+                      ? homecareScreens.publicRoutes
+                      : <Route path="/portal/:token/*" element={<Suspense fallback={null}><PortalApp /></Suspense>} />}
 
                     {/* A vendor's portal, by their private link (no sign-in, no shell). */}
                     <Route path="/vendor/:token" element={<VendorPortalPage />} />

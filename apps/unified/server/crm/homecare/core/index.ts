@@ -132,11 +132,17 @@ function buildHomecareCore(d: CrmDeps) {
 
 export type HomecareCore = ReturnType<typeof buildHomecareCore>
 
-const built = new WeakMap<CrmDeps, HomecareCore>()
+const built = new WeakMap<object, HomecareCore>()
 
-/** Home care's foundation for this app: built once per CrmDeps, so every route group shares one set of instances. */
+/**
+ * Home care's foundation for this app: built once per app, so every route group shares one set of instances. Keyed by
+ * the app's CRM services (one object per app), not the CrmDeps wrapper: the behaviour suite's sandbox builds its own
+ * CrmDeps around the same services (tests/unified/harness/runUnifiedSuite.ts crmDeps), and its test seams
+ * (__setWorcsSubmitForTests …) must reach the instance the routes use.
+ */
 export function createHomecareCore(d: CrmDeps): HomecareCore {
-  let core = built.get(d)
-  if (!core) { core = buildHomecareCore(d); built.set(d, core) }
+  const key: object = d.services ?? d
+  let core = built.get(key)
+  if (!core) { core = buildHomecareCore(d); built.set(key, core) }
   return core
 }

@@ -95,5 +95,7 @@ jobs:
         run: bun tests/unified/harness/salon.ts
       - name: Vet suite (tests/vet), as vet
         run: bun tests/unified/harness/vet.ts
+      - name: Home care suite (tests/homecare), as homecare
+        run: bun tests/unified/harness/homecare.ts
       - name: Adapted copies (tests/unified/<suite>)
         run: bun tests/unified/harness/adapted.ts

@@ -1,9 +1,14 @@
 // Call tracking: tracking numbers per marketing source, the call log, the providers' call webhooks and the
 // attribution reports. Moved from templates/crm/backend/src/services/calltracking.ts; its raw SQL is in
 // server/data/calltracking.ts.
+//
+// Home care's copy (templates/crm-homecare services/calltracking.ts) differed only in WHO a caller is: a client of the
+// agency, matched by phone and made on a first call, with the volume report on the agency's clock. That is the
+// vertical's switch CrmSettings.callers ('clients'), read here — not a second copy.
 import { eq, and } from 'drizzle-orm'
 import { mapCallRailPayload, insertLead } from '@twomiah/tenant-backend'
-import { contact, lead } from '../../db/schema/index.ts'
+import { company, contact, lead } from '../../db/schema/index.ts'
+import { resolveTimezone, ymdIn } from '../homecare/core/agencyTime.ts'
 import * as q from '../../data/calltracking.ts'
 import type { CrmDeps } from '../deps.ts'
 
@@ -23,6 +28,42 @@ export function createCalltrackingService(d: CrmDeps) {
   const { db } = d
   // Read at call time (the template read it at import), so a test or a redeploy sees the current value.
   const provider = () => process.env.CALL_TRACKING_PROVIDER || null
+  /** Callers are home-care clients (CrmSettings.callers). */
+  const callersAreClients = d.settings?.callers === 'clients'
+
+  /** The agency's zone (its own setting, else its state's — core/agencyTime.ts). */
+  async function agencyZone(companyId: string): Promise<string> {
+    const [row] = await db.select({ timezone: company.timezone, state: company.state }).from(company).where(eq(company.id, companyId)).limit(1)
+    return resolveTimezone(row ?? null)
+  }
+
+  /** Home care: the caller is a client, matched by phone; a first call makes one (the template's logCall). */
+  async function logClientCall(companyId: string, data: CallInput, tracking: { trackingNumberId: string | null; source: string | null; campaign: string | null; medium: string | null }) {
+    let clientId: string | null = null
+    let isFirstTimeCaller = true
+    if (data.callerNumber) {
+      const c = await q.clientByPhone(db, companyId, data.callerNumber)
+      if (c) { clientId = c.id; isFirstTimeCaller = false }
+    }
+    const logged = await q.insertCallLog(db, {
+      companyId, trackingNumberId: tracking.trackingNumberId, contactId: null, clientId,
+      callerNumber: data.callerNumber || null, callerName: data.callerName || null, callerCity: data.callerCity || null, callerState: data.callerState || null,
+      source: tracking.source, campaign: tracking.campaign, medium: tracking.medium, keyword: data.keyword || null, landingPage: data.landingPage || null,
+      direction: data.direction || 'inbound', status: data.status || 'completed', duration: data.duration || 0,
+      startTime: data.startTime ? new Date(data.startTime) : new Date(), endTime: data.endTime ? new Date(data.endTime) : null,
+      recordingUrl: data.recordingUrl || null, transcription: data.transcription || null,
+      tags: data.tags || [], notes: data.notes || null,
+      firstTimeCaller: isFirstTimeCaller, providerId: data.providerId || null,
+    })
+    if (isFirstTimeCaller && data.callerNumber && data.createContact !== false) {
+      const parts = (data.callerName || '').trim().split(/\s+/).filter(Boolean)
+      await q.insertCallerClient(db, companyId, {
+        firstName: parts[0] || 'Unknown', lastName: parts.slice(1).join(' ') || 'Caller',
+        phone: data.callerNumber, notes: `First call: ${ymdIn(new Date(), await agencyZone(companyId))}`,
+      })
+    }
+    return logged
+  }
 
   /**
    * Log a call (a provider webhook, or one entered by hand). A first-time caller is filed in the Lead Inbox where
@@ -43,6 +84,8 @@ export function createCalltrackingService(d: CrmDeps) {
         trackingMedium = tn.medium || data.medium || null
       }
     }
+
+    if (callersAreClients) return logClientCall(companyId, data, { trackingNumberId, source: trackingSource, campaign: trackingCampaign, medium: trackingMedium })
 
     const toInbox = await d.features.isFeatureEnabled(companyId, 'lead_inbox')
 
@@ -127,13 +170,15 @@ export function createCalltrackingService(d: CrmDeps) {
 
   async function getCallVolumeReport(companyId: string, { startDate, endDate, groupBy = 'day' }: { startDate?: string; endDate?: string; groupBy?: string } = {}) {
     const calls = await q.callTimes(db, companyId, { startDate, endDate })
+    // Home care counts hours, weekdays and days on the agency's clock (the server's is UTC); elsewhere, as it was.
+    const tz = callersAreClients ? await agencyZone(companyId) : null
     const grouped: Record<string, { calls: number; answered: number; missed: number; duration: number }> = {}
     for (const call of calls) {
       let key: string
       const date = new Date(call.startTime)
-      if (groupBy === 'hour') key = String(date.getHours())
-      else if (groupBy === 'dayOfWeek') key = date.toLocaleDateString('en-US', { weekday: 'long' })
-      else key = date.toISOString().split('T')[0]
+      if (groupBy === 'hour') key = tz ? String(Number(new Intl.DateTimeFormat('en-US', { hour: '2-digit', hourCycle: 'h23', timeZone: tz }).format(date))) : String(date.getHours())
+      else if (groupBy === 'dayOfWeek') key = date.toLocaleDateString('en-US', tz ? { weekday: 'long', timeZone: tz } : { weekday: 'long' })
+      else key = tz ? ymdIn(date, tz) : date.toISOString().split('T')[0]
       if (!grouped[key]) grouped[key] = { calls: 0, answered: 0, missed: 0, duration: 0 }
       grouped[key].calls++
       if (call.status === 'completed') grouped[key].answered++

@@ -142,9 +142,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   accounting: 'Accounting & Import',
   payments: 'Payments',
   communication: 'Communication',
+  // A vertical's own (screens.onboarding.extra): home care's HIPAA checklist.
+  compliance: 'Compliance',
 };
 
-const CATEGORY_ORDER = ['dns', 'lead_sources', 'accounting', 'payments', 'communication'];
+const CATEGORY_ORDER = ['dns', 'lead_sources', 'accounting', 'payments', 'communication', 'compliance'];
 
 /* ─── Setup service options ────────────────────────────────────────────────── */
 const SETUP_OPTIONS = [
@@ -359,7 +361,7 @@ export default function OnboardingWizard() {
               onSkip={skipIntegration}
             />
           )}
-          {currentStep === 2 && <EmailAliasesStep productId="crm" defaultForwardTo={profile.email} onBack={handleBack} onNext={handleNext} />}
+          {currentStep === 2 && <EmailAliasesStep productId={verticalScreens().onboarding.emailProduct || 'crm'} defaultForwardTo={profile.email} onBack={handleBack} onNext={handleNext} />}
           {currentStep === 3 && <StepSetupHelp choice={setupChoice} onChoose={setSetupChoice} />}
           {currentStep === 4 && (
             <StepReady

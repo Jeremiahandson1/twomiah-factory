@@ -17,6 +17,7 @@ import { list, one, fail, done } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
 import type { Realtime } from '../core/realtime.ts'
 import { createProvisionRoute } from './provision.ts'
+import { homecareCompanyFields, describeAgency } from '../crm/homecare/office/companyFields.ts'
 
 export interface CompanyModuleDeps {
   db: any
@@ -32,6 +33,30 @@ export interface CompanyModuleDeps {
   realtime: Realtime
   /** Told when the switched-on features change: registers the business with Twomiah Ads when paid_ads goes on. */
   adsConnector: { onFeaturesChanged: (features: string[]) => unknown }
+}
+
+/** The Factory subscription's doors (packages/tenant-backend billing.ts createBillingRoutes). */
+export const SUBSCRIPTION_DOORS = ['/subscription', '/portal-link', '/restart-checkout'] as const
+
+/**
+ * The agency's own Twomiah subscription at /api/billing: the office's (owner or admin), and changing what is paid for
+ * is billing:manage. Each door is gated on its own path, not '*', so a vertical whose /api/billing also holds its own
+ * records composes this at its router's root without the gate falling over them: home care's visit invoicing
+ * (server/crm/homecare/billing/index.ts), which checks its own permissions.
+ */
+export function createSubscriptionRoutes(deps: { db: any; permissions: any; factoryApiClient?: any }): Hono {
+  const { db, permissions } = deps
+  const officeOnly = (c: any, next: any) => {
+    const u = c.get('user')
+    if (!u || !['owner', 'admin'].includes(u.role)) return fail(c, 403, 'Insufficient permissions')
+    return next()
+  }
+  const app = new Hono()
+  for (const door of SUBSCRIPTION_DOORS) app.use(door, officeOnly)
+  return app.route('/', createBillingRoutes({
+    db, companyTable: company, userTable: user, factoryApiClient: deps.factoryApiClient ?? createFactoryApiClient(), seatLimitEnv: process.env.SEAT_LIMIT,
+    canManage: async (c: any) => { const u = c.get('user'); return !!u && permissions.hasPermission(u.role, 'billing:manage', await permissions.getExtraPermissions(u.userId)) },
+  } as any))
 }
 
 export function createCompanyModules(deps: CompanyModuleDeps) {
@@ -53,13 +78,15 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     // The owner's switch takes effect on the next request, not after the gate's 15-second cache.
     onFeaturesChanged: (features: string[]) => { deps.features.forgetFeatures(); void deps.adsConnector.onFeaturesChanged(features) },
     sendInvite: (to: string, data: any) => email.sendTeamInvite(to, { ...data, inviteLink: `${process.env.FRONTEND_URL || ''}/reset-password?token=${data.resetToken}` }),
+    // Home care's own company columns (time zone, mileage rate, legal name, NPI, Medicaid id) and the zone its reports
+    // count days on (server/crm/homecare/office/companyFields.ts; templates/crm-homecare routes/company.ts).
+    ...(vertical.crm?.homecare ? { fields: homecareCompanyFields, describe: describeAgency } : {}),
   } as any)
 
   const billingDeps = { db, companyTable: company, userTable: user, factoryApiClient, seatLimitEnv: process.env.SEAT_LIMIT }
-  const billing = new Hono().use('*', isAdmin).route('/', createBillingRoutes({
-    ...billingDeps,
-    canManage: async (c: any) => { const u = c.get('user'); return !!u && permissions.hasPermission(u.role, 'billing:manage', await permissions.getExtraPermissions(u.userId)) },
-  } as any))
+  // Everywhere but home care, /api/billing is only the subscription: the office's, all of it (staff get a 403 on any
+  // path, as before). Home care composes the doors into its visit invoicing instead (no mount here; see below).
+  const billing = new Hono().use('*', isAdmin).route('/', createSubscriptionRoutes({ db, permissions, factoryApiClient }))
 
   const account = new Hono().use('*', isAdmin).route('/', createAccountRoutes({ factoryApiClient }))
   const emailAliases = new Hono().use('*', isAdmin).route('/', createEmailAliasesRoutes({ db, emailAliasesTable: emailAlias, factoryApiClient } as any))
@@ -109,7 +136,9 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     refreshSubscription: () => refreshSubscriptionFromFactory(billingDeps as any),
     mounts: [
       { path: '/api/company', access: 'user' as const, router: companyRoutes },
-      { path: '/api/billing', access: 'user' as const, router: billing },
+      // Home care's /api/billing is also its visit invoicing (server/crm/homecare/billing), which composes these doors at
+      // its root, as the template's billing router did — so it is mounted there, once.
+      ...(vertical.crm?.homecare ? [] : [{ path: '/api/billing', access: 'user' as const, router: billing }]),
       { path: '/api/account', access: 'user' as const, router: account },
       { path: '/api/email-aliases', access: 'user' as const, router: emailAliases },
       { path: '/api/audit', access: 'user' as const, router: auditLogRoutes },

@@ -26,10 +26,11 @@ import { loadSiteContext } from './site/context.ts'
 import { createBookingPages } from './booking/pages.ts'
 import { BASE_CRM, type VerticalSettings } from './core/vertical.ts'
 import { mountAll, type Mount } from './http/registry.ts'
-import { createAdminScreens } from './http/adminScreens.ts'
+import { createAdminScreens, HOMECARE_PAGES } from './http/adminScreens.ts'
 import { contentSecurityPolicy, sitePolicy, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
 import { errorHandler } from './http/errors.ts'
 import { fail, one } from './http/reply.ts'
+import { withHomecareSessions } from './crm/homecare/office/signIn.ts'
 
 const NOT_FOUND_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found</title>' +
   '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f7f5;color:#1a1a1a}main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}</style></head>' +
@@ -59,7 +60,9 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
 
   const audit = createAudit({ db })
   const email = createEmailService({ db, logger })
-  const realAuth = createAuthMiddleware({ db, tables: { user, company } }).authenticate as MiddlewareHandler
+  const sharedAuth = createAuthMiddleware({ db, tables: { user, company } }).authenticate as MiddlewareHandler
+  // Home care: View As is read-only, and signing out ends every session (crm/homecare/office/signIn.ts).
+  const realAuth = vertical.crm?.homecare ? withHomecareSessions(sharedAuth, { db, logger }) : sharedAuth
   const authenticate = deps.testing?.authenticate ? deps.testing.authenticate(realAuth) : realAuth
   const permissions = createPermissions({
     db, tables: { user },
@@ -144,6 +147,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
       router: createAdminScreens({
         distDir: deps.adminDist,
         screens: () => vertical.screens,
+        extraPages: vertical.crm?.homecare ? HOMECARE_PAGES : [],
+        brand: async () => (await db.select({ primaryColor: company.primaryColor, secondaryColor: company.secondaryColor, email: company.email }).from(company).orderBy(asc(company.createdAt)).limit(1))[0] ?? null,
         companyName: async () => (await db.select({ name: company.name }).from(company).orderBy(asc(company.createdAt)).limit(1))[0]?.name ?? null,
       }),
     },

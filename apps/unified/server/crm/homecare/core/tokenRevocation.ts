@@ -13,8 +13,13 @@ import type { CrmDeps } from '../../deps.ts'
 
 const CACHE_TTL_MS = 30 * 1000
 
-export function createTokenRevocation(d: CrmDeps) {
-  const cache = new Map<string, { lastLogoutMs: number | null; expiresAt: number }>()
+// One cache per database: the app's sign-in check (office/signIn.ts, built before the CRM's deps) and the core's
+// instance must see the same sign-out at once, or a logout recorded through one is missed by the other for 30 seconds.
+const caches = new WeakMap<object, Map<string, { lastLogoutMs: number | null; expiresAt: number }>>()
+
+export function createTokenRevocation(d: Pick<CrmDeps, 'db' | 'logger'>) {
+  const cache = caches.get(d.db) ?? new Map<string, { lastLogoutMs: number | null; expiresAt: number }>()
+  caches.set(d.db, cache)
 
   async function getLastLogoutMs(userId: string): Promise<number | null> {
     const hit = cache.get(userId)

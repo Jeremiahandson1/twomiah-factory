@@ -1,0 +1,38 @@
+/* The schedule group's tints, beside the frame's tokens (../lib/homecare.css). The template's Schedule Hub, grid and
+   optimizers drew with Tailwind's raw blue / green / amber / red / violet / orange tints, light only. Each tint here is a
+   ground, an ink and a line with a light and a dark value; the ink reads at 4.5:1 or better on its own ground in both
+   themes (light: blue 6.2, green 5.2, amber 6.8, red 5.9, violet 6.6, orange 6.9; dark: every ink 9.3:1 or better),
+   and on the plain surface too. Secondary text on a tint is var(--hc-ink-soft), not --hc-muted (4.4:1 on the light
+   blue, red and grey tints). White text sits only on the fixed fills in ./theme.ts (4.8:1 or better, both themes).
+   Scoped to .hc like the frame's stylesheet, so nothing reaches the rest of the app. */
+
+.hc {
+    --sc-blue-bg: #eff6ff;   --sc-blue-ink: #1d4ed8;   --sc-blue-line: #bfdbfe;
+    --sc-green-bg: #ecfdf5;  --sc-green-ink: #047857;  --sc-green-line: #a7f3d0;
+    --sc-amber-bg: #fffbeb;  --sc-amber-ink: #92400e;  --sc-amber-line: #fcd34d;
+    --sc-red-bg: #fef2f2;    --sc-red-ink: #b91c1c;    --sc-red-line: #fecaca;
+    --sc-violet-bg: #faf5ff; --sc-violet-ink: #6d28d9; --sc-violet-line: #ddd6fe;
+    --sc-orange-bg: #fff7ed; --sc-orange-ink: #9a3412; --sc-orange-line: #fed7aa;
+    /* Grid cells: today's column, a cell under the pointer, a cell a shift is dragged over. */
+    --sc-today-bg: #eff6ff;  --sc-today-ink: #1d4ed8;
+    --sc-hover-bg: #f9fafb;
+    --sc-drop-bg: #dcfce7;   --sc-drop-ring: #16a34a;
+    --sc-shadow: rgba(0, 0, 0, 0.15);
+}
+
+.dark .hc {
+    --sc-blue-bg: #0c1d36;   --sc-blue-ink: #93c5fd;   --sc-blue-line: #1e3a8a;
+    --sc-green-bg: #052e1f;  --sc-green-ink: #6ee7b7;  --sc-green-line: #065f46;
+    --sc-amber-bg: #2d1f05;  --sc-amber-ink: #fcd34d;  --sc-amber-line: #78350f;
+    --sc-red-bg: #2d0f12;    --sc-red-ink: #fca5a5;    --sc-red-line: #7f1d1d;
+    --sc-violet-bg: #1e1033; --sc-violet-ink: #c4b5fd; --sc-violet-line: #4c1d95;
+    --sc-orange-bg: #2a1406; --sc-orange-ink: #fdba74; --sc-orange-line: #7c2d12;
+    --sc-today-bg: #0c1d36;  --sc-today-ink: #93c5fd;
+    --sc-hover-bg: #1e293b;
+    --sc-drop-bg: #052e16;   --sc-drop-ring: #22c55e;
+    --sc-shadow: rgba(0, 0, 0, 0.5);
+}
+
+/* A weekday's own ink on its tint (ScheduleOptimizer / RosterOptimizer dayChip): unset in the light theme, so each day
+   keeps its colour; the frame's ink on the dark ground. */
+.dark .hc { --sc-day-ink: var(--hc-ink); }

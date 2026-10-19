@@ -3,7 +3,8 @@
 // and compliance. Column for column from templates/crm-homecare/backend/db/schema.ts, with: company_id on every table
 // (one agency per database needed none); agencies → company and users → user; the standard id (the two logs keyed on
 // their columns keep them as a unique index); incident numbers per company and year; names kept as they were.
-import { pgTable, text, boolean, integer, bigint, decimal, timestamp, date, time, json, uniqueIndex, index, check } from 'drizzle-orm/pg-core'
+import { pgTable, pgSequence, text, boolean, integer, bigint, decimal, timestamp, date, time, json, uniqueIndex, index, check } from 'drizzle-orm/pg-core'
+import { scheduleActiveRecurring, scheduleStartClock, scheduleEndClock, timeEntryOpen, scheduleIsTraining, scheduleSuspended, timeEntryNeedsApproval, invoiceSeqNext } from '../../data/indexWhere.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { lead } from './crm.ts'
@@ -342,6 +343,10 @@ export const schedules = pgTable('schedules', {
   index('schedules_client_id_idx').on(t.clientId),
   index('schedules_caregiver_id_idx').on(t.caregiverId),
   index('schedules_split_group_idx').on(t.splitShiftGroupId),
+  // One active recurring pattern per caregiver, client, weekday and clock time (template 0016_visits.sql).
+  uniqueIndex('uniq_active_recurring_schedule').on(t.caregiverId, t.clientId, t.dayOfWeek, scheduleStartClock, scheduleEndClock).where(scheduleActiveRecurring),
+  index('idx_schedules_is_training').on(t.isTraining).where(scheduleIsTraining),
+  index('idx_schedules_suspended_from').on(t.suspendedFrom).where(scheduleSuspended),
 ])
 
 export const openShifts = pgTable('open_shifts', {
@@ -456,6 +461,10 @@ export const timeEntries = pgTable('time_entries', {
   index('time_entries_caregiver_complete_idx').on(t.caregiverId, t.isComplete),
   index('time_entries_period_idx').on(t.startTime, t.endTime),
   index('time_entries_client_start_idx').on(t.clientId, t.startTime),
+  // One open visit per caregiver: two taps of clock-in cannot make twin visits that bill twice (template
+  // 0016_visits.sql; the clock-in's unique-violation catch relies on it).
+  uniqueIndex('uniq_open_time_entry_per_caregiver').on(t.caregiverId).where(timeEntryOpen),
+  index('idx_time_entries_needs_approval').on(t.needsApproval).where(timeEntryNeedsApproval),
 ])
 
 export const gpsTracking = pgTable('gps_tracking', {
@@ -648,6 +657,9 @@ export const validationLog = pgTable('validation_log', {
   index('validation_log_entity_idx').on(t.entityId, t.entityType),
 ])
 
+/** The friendly invoice number's sequence (template 0015_billing.sql). */
+export const invoiceSeqNumberSeq = pgSequence('invoice_seq_number_seq', { startWith: 1 })
+
 export const invoices = pgTable('invoices', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -669,10 +681,10 @@ export const invoices = pgTable('invoices', {
   amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }),
   amountAdjusted: decimal('amount_adjusted', { precision: 12, scale: 2 }),
   notes: text('notes'),
-  // Billing port (0015): the friendly "Invoice #42". Its DB default is nextval('invoice_seq_number_seq')
-  // from migration 0015 — never set it from code, and never derive it from a count (a delete would
-  // hand the same number out twice).
-  seqNumber: integer('seq_number'),
+  // Billing port (0015): the friendly "Invoice #42", from its own sequence (invoiceSeqNumberSeq below; the first
+  // home-care migration left it out, so every invoice had none — restored by 0010). Never set it from code, and never
+  // derive it from a count (a delete would hand the same number out twice).
+  seqNumber: integer('seq_number').default(invoiceSeqNext),
   // NULL = draft: the family portal and the public pay page do not show it until it is sent,
   // released, or has a payment recorded (CVHC v55).
   sentAt: timestamp('sent_at'),

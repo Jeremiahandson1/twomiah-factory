@@ -23,6 +23,152 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
   // Home care (tests/homecare, run by harness/homecare.ts). Each route group adds the entries for the files it owns,
   // under its own comment, with one entry per file (a second key with the same name silently replaces the first).
   homecare: {
+    // visits group (server/crm/homecare/visits). Whole-file entries: each file reads a list reply as an array or a
+    // reply's snake_case keys, which throws on the unified reply and stops it before its summary.
+    'evv.test.ts': {
+      why: "1) Replies are camelCase (RULEBOOK §2): clock-in / clock-out answer sandataRequired (not sandata_required), the caregiver context inSandata / medicaidId / activeVisit.timeEntryId, the visit detail timeChanges, the queue's failures evvVisitId, the submission status queueStatus (and the clients group's evv-week / evv-units, the billing group's payers, likewise). 2) Lists are { data, pagination } (RULEBOOK §3): the clients group's evv-week. 3) The office's doors are permissions (requirePermission: evv:delete for Sandata, care-clients writes for the clients' and referral sources'), refused with 'Permission denied', not 'Admin access required'. Same figures, same refusals.",
+      heldBy: 'tests/unified/homecare/evv.test.ts (the adapted copy, every reply read through templateShape; 184 of 184; run by adapted.ts) and apps/unified/tests/homecare-visits.test.ts (the office side refused to a caregiver, camelCase replies, the caregiver context)',
+    },
+    'visits.test.ts': {
+      why: "1) Replies are camelCase (RULEBOOK §2): a re-tapped clock-out answers alreadyComplete, the approval queue's rows needsApproval / approvalReason, a visit change request requestedBy / caregiverId, visit documentation visitDate / scheduleId / endTime (and the scheduling, portals and clients groups' replies in the same file, likewise). 2) Lists are { data, pagination } (RULEBOOK §3): the approval queue, visit photos, change requests, the schedules, the open-shift board, the portal's visits, the client list. Same figures. NOT a divergence and still failing in the adapted copy: 'the same active recurring shift twice is refused (409)' and 'the database itself refuses a second open entry for one caregiver' — migration 0007 lacks the template's two partial unique indexes (0016: uniq_active_recurring_schedule, uniq_open_time_entry_per_caregiver); they need a migration.",
+      heldBy: 'tests/unified/homecare/visits.test.ts (the adapted copy, every reply read through templateShape; run by adapted.ts) and apps/unified/tests/homecare-visits.test.ts',
+    },
+    'caregiver-visit.test.ts': {
+      why: "Lists are { data, pagination } (RULEBOOK §3) and replies camelCase (§2): the caregiver's call-out list (the scheduling group's emergency my-shifts) and the medication logs are list replies, the client card camelCase; a refused second swap is { error, code: 'swap_pending' } (§3), not carrying the open swap as a field.",
+      heldBy: 'tests/unified/homecare/caregiver-visit.test.ts (the adapted copy, every reply read through templateShape; 33 of 33; run by adapted.ts) and apps/unified/tests/homecare-visits.test.ts (the visit photo and the punch)',
+    },
+    // billing group (server/crm/homecare/billing). Whole-file entries: each file reads a reply's snake_case keys
+    // (r.json.reconcile[].service_date, li.hours of line_items), which throws on the camelCase reply and stops it before
+    // its summary.
+    'billing.test.ts': {
+      why: "1) Replies are camelCase (RULEBOOK §2): the file reads the template's raw snake_case rows (sent_at, seq_number, service_date, line_items, periods_due, billed_on …) — the template's own index.ts added those aliases to every reply (addSnakeAliases); the routes it imported bare answered snake_case. 2) Lists are { data, pagination } (RULEBOOK §3): scheduled visits, rates, missing rates, the billing schedule, claims, the denial queue. 3) A refusal is { error, code }: the no-rate fix is in the sentence (code no_billing_rate; it was a message field), an overpayment's balance due is in the sentence (code overpayment; it was a balanceDue field). 4) The office's doors are care-billing permissions, refused with 'Permission denied', not 'Admin access required'. 5) The claims aging buckets are under30 / days30To60 … (under_30 has no camelCase to come back from). Same figures. NOT a divergence and still failing in the adapted copy: '…with a friendly sequential number' and 'the next invoice gets the next number' — invoices.seq_number lost its sequence default in migration 0007 (the template's 0015 set DEFAULT nextval('invoice_seq_number_seq')); it needs a migration.",
+      heldBy: "tests/unified/homecare/billing.test.ts (the adapted copy, reading each reply through templateShape — the template's own snake-alias pass and the list's rows — and the refusals' sentences and codes; run by adapted.ts: 149 of 151, the two seq_number assertions failing on the missing sequence) and apps/unified/tests/homecare-billing.test.ts (the mounts, the permission map for a caregiver of either seat and a manager, one company's records, camelCase, list and refusal shapes)",
+    },
+    'r3-billing.test.ts': {
+      why: "1) Replies are camelCase (RULEBOOK §2) and lists are { data, pagination } (RULEBOOK §3): the file reads line_items, rate_type, payment_status, the reports' snake_case keys, the EVV dashboard as { visits, total } and the billing schedule and missing rates as arrays. 2) The invoice engine's client row is camelCase: privatePayByRule, not private_pay_by_rule. Same figures.",
+      heldBy: "tests/unified/homecare/r3-billing.test.ts (the adapted copy, reading each reply through templateShape, the EVV dashboard's total from its pagination and the engine's camelCase row; run by adapted.ts: 54 of 54) and apps/unified/tests/homecare-billing.test.ts",
+    },
+    // clients group (server/crm/homecare/clients). Two whole-file entries: each file reads a list reply as an array
+    // (list.json[0].minutes_per_week, list1.json.length), which throws on { data, pagination } before its summary.
+    'care.test.ts': {
+      why: "1) Every list is { data, pagination } (RULEBOOK §3): checklists, care plans, revisions, templates, medications, the MAR, vitals, forms, documents, signatures, ADL logs, the client list (was { clients, total, page, pages }). 2) Keys are camelCase (RULEBOOK §2): taskName, minutesPerWeek, revisionNumber, changedByFirst, medicationName, administeredTime, caregiverFirst, documentName, uploadedAt … Same values. 3) The file imports the template's services/carePdf.ts; it is server/crm/homecare/core/carePdf.ts, taking camelCase task rows. 4) It counts the template's snapshot trigger (trg_snapshot_care_plan); the unified migrations have none — PUT /api/care-plans/:id writes the revision itself, in the same transaction, with its author.",
+      heldBy: "tests/unified/homecare/care.test.ts (the adapted copy: each reply read through templateShape, the PDF text from the core, and the plan's revisions counted in the table; run by adapted.ts) and apps/unified/tests/homecare-clients.test.ts (revisions written with the change, with author and company; list replies; permissions; one company's records)",
+    },
+    'r4-care.test.ts': {
+      why: "1) Lists are { data, pagination } and keys camelCase (RULEBOOK §2, §3): the care plans (isActive), the care tasks (timesPerWeek, minutesPerWeek, everyVisit), the medications, the vitals; the care-plan PDF text is the core's carePdf.ts. 2) A reply is an object: the family portal's \"no active care plan\" is {} (portals group), not null. 3) The vitals' recorded instant leaves in JSON's Date form, 2026-10-16T16:10:00.000Z (the template formatted …00Z by hand) — the same UTC instant.",
+      heldBy: "tests/unified/homecare/r4-care.test.ts (the adapted copy: replies read through templateShape, {} for no plan, the instant with milliseconds; run by adapted.ts) and apps/unified/tests/homecare-clients.test.ts",
+    },
+    // scheduling group (server/crm/homecare/scheduling). A whole-file entry: the file reads a caregiver's shift list as
+    // an array (before.json.some), which throws on { data, pagination } and stops it before its summary.
+    'scheduling.test.ts': {
+      why: "1) The shift lists are list replies ({ data, pagination }, RULEBOOK §3): GET /api/schedules/caregiver/:id is read as an array. 2) A schedule row is camelCase (RULEBOOK §2): endTime, not end_time (the overnight create and the overnight edit). Same values.",
+      heldBy: "tests/unified/homecare/scheduling.test.ts (the adapted copy, reading each reply through templateShape; 49 of 49 on adapted.ts) and apps/unified/tests/homecare-scheduling.test.ts (list replies, camelCase rows, permissions, one company's records)",
+    },
+    // payroll group (server/crm/homecare/payroll). A whole-file entry: the file reads the client's visit notes as an
+    // array (card.json.some), which throws on { data, pagination } and stops it before its summary.
+    'r3pay.test.ts': {
+      why: "1) Replies are camelCase (RULEBOOK §2): the Gusto preview's grossPay / overtimeHours; the planning group's hours and performance reports' workedHours / payableHours / totalHours and punctuality rows (totalShifts, onTimeCount, earlyCount, lateCount, onTimePercentage); the visits group's visit documentation visits (visitDate, caregiverId, punch.clockOutNote) — the file reads gross_pay, worked_hours, on_time_count, visit_date, caregiver_id, clock_out_note. 2) Lists are { data, pagination } (RULEBOOK §3): the clients group's GET /api/clients/:id/visit-notes, read as an array. Same figures.",
+      heldBy: "tests/unified/homecare/r3pay.test.ts (the adapted copy, every reply read through templateShape; run by adapted.ts — 60 of 60), apps/unified/tests/homecare-payroll.test.ts (the preview's rows and warnings in camelCase) and apps/unified/tests/homecare-planning.test.ts (who may run the hours and performance reports); the reports' camelCase rows and the visit notes' list reply are held by the adapted copy",
+    },
+    // Run 5, the agency's clock (office, planning, billing and clients groups). A whole-file entry: the file imports the
+    // template's own src/services/calltracking.ts and frontend utils, which stops it before its summary.
+    'r5-agency-clock.test.ts': {
+      why: "1) /me is the shared sign-in's (packages/tenant-backend auth.ts) and does not name the agency's zone; every signed-in role, a caregiver included, reads it at GET /api/company (effectiveTimezone, server/crm/homecare/office/companyFields.ts), which is what the screens read (web/src/crm/pages/homecare/lib/HomecareFrame.tsx). 2) It imports template files that moved: the call volume report is the shared server/crm/comms/calltrackingService.ts switched by CrmSettings.callers ('clients', on the agency's clock); the frontend helpers agencyClock / datetime / serviceTypes are web/src/crm/pages/homecare/lib/; it reads the screens' source at their template paths (they are billing/PortalClaimDays.tsx, office/ReportsAnalytics.tsx, portals/FamilyPortal.tsx, typed to the camelCase replies: linkedClients, plan.serviceType). 3) It writes call_log by agency_id (the column is company_id, RULEBOOK §4). 4) Replies are camelCase (RULEBOOK §2): portal claim days' linkedClients, the revenue report's byServiceType rows' serviceType. Same zone, same figures.",
+      heldBy: "tests/unified/homecare/r5-agency-clock.test.ts (the adapted copy: the zone read as a caregiver at GET /api/company, imports and screen reads pointed at the moved files, every reply read through templateShape; run by adapted.ts — 26 of 26) and apps/unified/tests/homecare-office.test.ts (every role, a caregiver included, reads the zone in use at GET /api/company; a home-care caller is a client)",
+    },
+    // hr group (server/crm/homecare/hr).
+    'hire-credentials.test.ts': {
+      assertions: [/^emailed: the caregiver login exists/],
+      why: "A hire's login is stored with the unified caregiver seat, `field` (moved tenants keep `caregiver`; verticals/homecare/settings.ts maps both onto the field rung, and the shared team module stores `field` too — canonicalRole). Same login, same rights; the assertion reads role === 'caregiver'.",
+      heldBy: "apps/unified/tests/homecare-hr.test.ts (a hire: role field, in the hiring company)",
+    },
+    // A whole-file entry: the template reads a list reply as an array (list.json[0] of the public careers list), which
+    // throws on { data, pagination } and stops the file before its summary.
+    'staff.test.ts': {
+      why: "1) Every list is { data, pagination } (RULEBOOK §3): the careers list, applications, postings, packets, checks, the reports, reviews, certifications, training — the file reads them as arrays. 2) The compliance report and the Gusto preview are camelCase (RULEBOOK §2): passedChecks, regularHours… 3) A hire's seat is the unified role `field`.",
+      heldBy: "tests/unified/homecare/staff.test.ts (the adapted copy: the same file reading each list's rows, the camelCase keys and role field; run by adapted.ts) and apps/unified/tests/homecare-hr.test.ts (list replies, camelCase compliance, role field, permissions, one company's records)",
+    },
+    // planning group (server/crm/homecare/planning). A whole-file entry: the file imports the template's own
+    // src/services/agencyTime.ts and scheduleOccurrences.ts, which stops it before its first check.
+    'reports.test.ts': {
+      why: "1) It imports template files that moved: the agency clock (server/crm/homecare/core/agencyTime.ts), the schedule engine (SQL in server/data/homecareCore.ts, which now takes the company's id first) and the roster optimizer's shiftSpan (server/crm/homecare/planning/rosterOptimizer.ts). 2) Replies are camelCase (RULEBOOK §2) and lists are { data, pagination } (RULEBOOK §3): the file reads total_hours, client_id, shift_status…, saved routes as { routes, total }. 3) The office's doors are permissions now, refused with 'Permission denied', not 'Admin access required'.",
+      heldBy: "tests/unified/homecare/reports.test.ts (the adapted copy: the same file, its imports pointed at the moved modules, each reply read through one camelCase-to-template alias pass, the saved routes as a list, the permission refusal; run by adapted.ts — 139 of 139) and apps/unified/tests/homecare-planning.test.ts (home care's /api/dashboard and /api/reports, the permission map for a caregiver of either seat and a manager, one company's rows and writes, camelCase and list replies)",
+    },
+    // portals group (server/crm/homecare/portals). Whole-file entries: each file stops before its summary on the
+    // unified app (a fixture row without its company, a list reply read as an array, or a template file that moved).
+    'portal.test.ts': {
+      why: "1) Every home-care row carries its company (company_id NOT NULL, docs/UNIFIED_HOMECARE_PLAN.md decision 2): the file's first block writes clients before it makes the agency, so the sandbox has no company to give them and the insert is refused. 2) Lists are { data, pagination } (RULEBOOK §3): a client's portal logins, the all-clients view, the client's caregivers and a caregiver's background checks, invoices, the portal's notifications, the family members, their messages, the client threads, the staff inbox — the file reads them as arrays. 3) Keys are camelCase (RULEBOOK §2): /api/portal/me's firstName, portalEmail, displayName; the all-clients view's portalStatus, accountCount; a serving caregiver's caregiverId. Same values.",
+      heldBy: "tests/unified/homecare/portal.test.ts (the adapted copy: the agency made first, each reply read through templateShape; run by adapted.ts — 155 of 155) and apps/unified/tests/homecare-portals.test.ts (home care's portal in front of the CRM's on /api/portal, the care-portal permission map for a caregiver of either seat and a manager, one company's clients, people and portal sessions, list and camelCase replies)",
+    },
+    'portal-visit-changes.test.ts': {
+      why: "1) The family's visits and the picker's slots are list replies ({ data, pagination }, RULEBOOK §3): the file reads GET /api/portal/visits as an array (json.find), which throws. 2) Keys are camelCase (RULEBOOK §2): a filed request's autoApplied, cancelReason, adminNotes; a visit's scheduleId, scheduledDate, canChange; a slot's startTime. Same values.",
+      heldBy: "tests/unified/homecare/portal-visit-changes.test.ts (the adapted copy, each reply read through templateShape; run by adapted.ts — 32 of 32) and apps/unified/tests/homecare-portals.test.ts",
+    },
+    'r4-owner-and-portals.test.ts': {
+      why: "1) Its first part imports the template's seed rule (db/signupOwner.ts) and reads db/seed.template.ts: the unified app has no seed — the Factory's provisioning writes the business and its owner with role 'owner' (server/modules/provision.ts). 2) Replies are read through the rulebook's shapes. The billing doors, the owner's login and the two portals' locks are unchanged.",
+      heldBy: "tests/unified/homecare/r4-owner-and-portals.test.ts (the adapted copy: the owner made as provisioning makes it, the seed's three blocks not run, every other check as written; run by adapted.ts — 28 of 28), apps/unified/tests/provision.test.ts (the provisioned owner is role 'owner') and apps/unified/tests/homecare-portals.test.ts",
+    },
+    'popup-forms.test.ts': {
+      why: "1) The payers list is a list reply ({ data, pagination }, RULEBOOK §3): the file reads it as an array (json.some), which throws. 2) A new caregiver's seat is the unified role field (the hr group's caregivers route; moved tenants keep caregiver; both read as a caregiver).",
+      heldBy: "tests/unified/homecare/popup-forms.test.ts (the adapted copy, each reply read through templateShape and the field seat; run by adapted.ts — 38 of 38, the bulk texts included), apps/unified/tests/homecare-portals.test.ts (a bulk text reaches a caregiver of either seat, never another company's) and apps/unified/tests/homecare-hr.test.ts (a hire's role is field)",
+    },
+    // office group (server/crm/homecare/office; sign-in, the company and the shared modules). The whole-file entries
+    // stop before their summary on the unified app: a list reply or a camelCase row read the template's way, a raw
+    // query naming the template's agencies / users / agency_id, a fixture person with no company, or a module that
+    // follows its feature with the fixture's agency not having it.
+    'smoke.test.ts': {
+      assertions: [/^the no-op permissions stub is gone/],
+      why: "The sandbox writes src/middleware/permissions.ts on purpose: it is the app's real permission module (createPermissions, the shared matrix) by the template's path, not the no-op stub the assertion guards against.",
+      heldBy: "apps/unified/tests/homecare-office.test.ts (a caregiver is refused by the real permission check, 'Permission denied', on every office path)",
+    },
+    'account-lock.test.ts': {
+      assertions: [/^locked: …and so is the caregiver, who is sent nothing else from settings/],
+      why: "Sign-in is the shared one (packages/tenant-backend auth.ts): /me sends every role the company's settings with the secrets stripped (redactCompanySettings) — product and trialEndsAt among them — where home care's own /me sent accountLock alone. The lock itself reaches the caregiver (the assertion's first half).",
+      heldBy: "apps/unified/tests/homecare-office.test.ts (/me tells a caregiver the agency's lock and no secret)",
+    },
+    'admin-model.test.ts': {
+      assertions: [/^…with homecare's own message/],
+      why: "The template's requireAdmin answered 'Admin access required'; the unified routes are gated by permission (requirePermission: care-clients, care-payroll …), whose refusal is 'Permission denied'. Still a 403, for the same people.",
+      heldBy: "apps/unified/tests/homecare-office.test.ts (a caregiver is refused by the real permission check, in its words) and the file's own refusal assertions, which pass",
+    },
+    'leads.test.ts': {
+      assertions: [/^GET \/api\/leads is served, not missing/, /^…with homecare's own message/, /^an admin reaches PUT \/api\/leads/, /^an owner reaches POST \/api\/leads/, /^an admin can create a lead source/, /^a caregiver may still read \/api\/leads/],
+      why: "The Lead Inbox is the shared module, which follows its lead_inbox feature on the server as the template's menu did (its API was ungated); the fixture's agency does not have it. Its writes refuse with requirePermission's 'Permission denied', and a lead source is one of the platforms the inbox connects to.",
+      heldBy: "tests/unified/homecare/leads.test.ts (the adapted copy: the agency has lead_inbox, the refusal is 'Permission denied', the probe source is angi; run by adapted.ts — 21 of 21)",
+    },
+    'mfa-sign-in.test.ts': {
+      assertions: [/^the rows carry the agency's one fixed company id/, /^…and its refresh token is the one stored/],
+      why: "Two-factor and sign-in are the shared ones: the device rows carry the person's real company id (the template fixed the id 'agency' for its one-agency database), and user.refresh_token holds the list of live sessions (one per device), not one token.",
+      heldBy: "apps/unified/tests/homecare-office.test.ts (two-factor rows carry the company; a sign-in's refresh token is one /refresh accepts)",
+    },
+    'incidents.test.ts': {
+      why: "The case file answers camelCase in list replies (RULEBOOK §2, §3), its paths refuse with 'Permission denied' (care-compliance), and section 3 replays the template's migration 0019 backfill on old-shape rows, which throws on the unified schema.",
+      heldBy: "tests/unified/homecare/incidents.test.ts (the adapted copy, each reply read through templateShape, section 3 not run; run by adapted.ts — 153 of 153) and apps/unified/tests/homecare-office.test.ts",
+    },
+    'fixes.test.ts': {
+      why: "It reads the template's agencies table by raw SQL, and replies the template's way (lists as arrays, snake_case keys). One deliberate change: an id that is not one of the office's own clients is refused (403) like another company's, never a 404 that would tell them apart.",
+      heldBy: "tests/unified/homecare/fixes.test.ts (the adapted copy, run by adapted.ts — 82 of 82) and apps/unified/tests/homecare-office.test.ts (View As is read-only; the office's unknown client is refused)",
+    },
+    'integration.test.ts': {
+      why: "It drives most groups' routes and reads their replies the template's way (lists as arrays, snake_case keys, { caregivers } and { entries } lists), and raw SQL on the template's agencies and users tables.",
+      heldBy: "tests/unified/homecare/integration.test.ts (the adapted copy, run by adapted.ts — 150 of 150)",
+    },
+    'write-gates.test.ts': {
+      why: "Part 3 drives every group's routes and reads their replies the template's way; call tracking and Paid Ads follow their features (the fixture's agency had only ai_receptionist); /api/subscription (routes/saasBilling.ts) is the app's billing module, /api/billing, and /api/help's articles are the knowledge base, /api/support/kb (routes/help.ts not moved).",
+      heldBy: "tests/unified/homecare/write-gates.test.ts (the adapted copy, run by adapted.ts — 138 of 138) and apps/unified/tests/homecare-office.test.ts (help articles: the office writes, a caregiver reads)",
+    },
+    'ai-receptionist.test.ts': {
+      why: "Its rows name their company (companyId) where the template's named the agency (agencyId), and a read by aiReceptionistRule.agencyId throws; the call log is call tracking's, which follows call_tracking; the feature list is company.enabled_features alone (core/agencyFeatures.ts), never the settings blob.",
+      heldBy: "tests/unified/homecare/ai-receptionist.test.ts (the adapted copy, run by adapted.ts — 62 of 62) and apps/unified/tests/homecare-office.test.ts (a home-care caller is a client)",
+    },
+    'webhook-signatures-homecare.test.ts': {
+      why: "It reads call_log by agency_id (the column is company_id, RULEBOOK §4), and call tracking's settings and the lead sources follow their features (call_tracking, lead_inbox), which the fixture's agency did not have; a lead source is one of the platforms the inbox connects to.",
+      heldBy: "tests/unified/homecare/webhook-signatures-homecare.test.ts (the adapted copy, run by adapted.ts — 37 of 37)",
+    },
+    'email-alias-readback.test.ts': {
+      why: "Its fixture makes people before any agency; every person belongs to a company in the unified schema (user.company_id NOT NULL).",
+      heldBy: "tests/unified/homecare/email-alias-readback.test.ts (the adapted copy, the agency made first; run by adapted.ts — 12 of 12)",
+    },
   },
   salon: {
     // Two reasons, one file (a whole-file entry: the first stops it before its summary).
@@ -169,6 +315,11 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
       assertions: [/^the tracking numbers answer/, /^a tracking number carries/, /^…its number, forward-to and call count/],
       why: 'GET /api/calltracking/numbers is a list reply, { data, pagination } (RULEBOOK §3); the test reads a bare array.',
       heldBy: 'tests/unified/crm/calltracking-fields.test.ts (the same file, reading .data)',
+    },
+    'quote-email.test.ts': {
+      assertions: [/^…and never what a line costs us/],
+      why: "Not a difference in behaviour: the check looks for the digits 210 (a line's cost) anywhere in the email's data, which also holds randomly made ids and links, so it fails whenever one of them happens to contain 210 (CI, 2026-10-19). The template's run has the same chance.",
+      heldBy: 'tests/unified/crm/quote-email.test.ts (the same check for the cost figures themselves, 210.00 and 30.00, and the unitCost field)',
     },
     'comments-gate.test.ts': {
       assertions: [/^…and is the owner's/],

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { existsSync } from 'node:fs'
 import { runUnifiedSuite } from './runUnifiedSuite.ts'
 import { SALON_SANDBOX } from './salonSandbox.ts'
+import { HOMECARE_SANDBOX } from './homecareSandbox.ts'
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\\/g, '/')
 /** suite directory → the template its files name, and the vertical the app runs as. */
@@ -18,7 +19,7 @@ const SUITES: Record<string, { template: string; vertical: string; sandboxFiles?
   vet: { template: 'crm-vet', vertical: 'vet' },
   bar: { template: 'crm-bar', vertical: 'bar' },
   salon: { template: 'crm-salon', vertical: 'salon', sandboxFiles: SALON_SANDBOX },
-  homecare: { template: 'crm-homecare', vertical: 'homecare', homecare: true },
+  homecare: { template: 'crm-homecare', vertical: 'homecare', homecare: true, sandboxFiles: HOMECARE_SANDBOX },
 }
 const only = process.argv[2]
 let failed = 0

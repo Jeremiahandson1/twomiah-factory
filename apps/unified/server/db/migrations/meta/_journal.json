@@ -71,6 +71,13 @@
       "when": 1792367106060,
       "tag": "0009_salon_visit_once",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792373568723,
+      "tag": "0010_homecare_guards",
+      "breakpoints": true
     }
   ]
 }

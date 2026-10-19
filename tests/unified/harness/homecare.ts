@@ -5,6 +5,7 @@
 //   bun tests/unified/harness/homecare.ts billing    # only files whose name contains "billing"
 import { fileURLToPath } from 'node:url'
 import { runUnifiedSuite } from './runUnifiedSuite.ts'
+import { HOMECARE_SANDBOX } from './homecareSandbox.ts'
 
 // fileURLToPath, not .pathname: a space in the checkout's path arrives as %20 otherwise.
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\\/g, '/')
@@ -16,4 +17,5 @@ process.exit(await runUnifiedSuite({
   label: 'homecare',
   filter: process.argv[2] || '',
   homecare: true,
+  sandboxFiles: HOMECARE_SANDBOX,
 }))

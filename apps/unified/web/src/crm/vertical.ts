@@ -47,6 +47,8 @@ export interface VerticalScreens {
     integrations?: string[]
     /** The vertical's own entries for that step (id, label, description, category, guideSteps), e.g. RV's marketplaces. */
     extra?: Array<{ id: string; label: string; description: string; category: string; guideSteps: string[] }>
+    /** Whose suggested addresses the branded-email step offers (packages/tenant-ui config/emailDefaults.ts); absent, 'crm'. */
+    emailProduct?: string
   }
   /**
    * The vertical whose own dashboard replaces the shared jobs dashboard at /crm/dashboard ('salon': crm/verticals/salon.tsx

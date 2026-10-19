@@ -12,6 +12,13 @@ export const ADMIN_DIST = path.resolve(import.meta.dir, '..', '..', 'web', 'dist
 // /portal/<token> and /vendor/<token> are a customer's and a vendor's own pages, reached by their private link.
 export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*']
 
+/**
+ * A home-care agency's public pages, which are the app's, not the website's (templates/crm-homecare App.tsx): the client
+ * portal (/portal, its sign-in and invite setup), the family portal, paying a visit invoice, a new hire's onboarding
+ * packet, and the careers page. Served only for the home-care vertical; everywhere else these paths stay the website's.
+ */
+export const HOMECARE_PAGES = ['/portal', '/family', '/family/*', '/pay/*', '/payment-success', '/onboarding/*', '/careers', '/careers/*']
+
 const TYPES: Record<string, string> = {
   '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png',
   '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.json': 'application/json', '.map': 'application/json',
@@ -20,7 +27,17 @@ const TYPES: Record<string, string> = {
 const NOT_BUILT = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Admin</title></head>' +
   '<body style="font:16px system-ui,sans-serif;padding:2rem">The admin screens haven’t been built on this server (bun run build:web).</body></html>'
 
-export function createAdminScreens(deps: { companyName: () => Promise<string | null>; screens: () => Record<string, unknown>; distDir?: string }) {
+export function createAdminScreens(deps: {
+  companyName: () => Promise<string | null>
+  screens: () => Record<string, unknown>
+  distDir?: string
+  extraPages?: readonly string[]
+  /**
+   * The business's colours and public email, for pages a visitor opens without signing in (no shell loads the company
+   * for them): a home-care agency's portals and its invoice payment page ("Questions about this invoice? Email …").
+   */
+  brand?: () => Promise<{ primaryColor?: string | null; secondaryColor?: string | null; email?: string | null } | null>
+}) {
   const dist = deps.distDir ?? ADMIN_DIST
   const app = new Hono()
 
@@ -33,12 +50,16 @@ export function createAdminScreens(deps: { companyName: () => Promise<string | n
     // The vertical's screen settings (VerticalSettings.screens) as data the page reads: not run, and < escaped so no
     // value can close the element.
     const screens = JSON.stringify(deps.screens()).replace(/</g, '\\u003c')
+    const colours = (await deps.brand?.()) ?? null
+    const hex = (v?: string | null) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : '')
     const head = `<title>${escHtml(name ? name + ' · Admin' : 'Admin')}</title><meta name="company-name" content="${escHtml(name)}">` +
+      `<meta name="brand-primary" content="${hex(colours?.primaryColor)}"><meta name="brand-secondary" content="${hex(colours?.secondaryColor)}">` +
+      `<meta name="company-email" content="${escHtml(colours?.email ?? '')}">` +
       `<script type="application/json" id="vertical-screens">${screens}</script>`
     c.header('Cache-Control', 'no-store')
     return c.html(html.replace(/<title>[^<]*<\/title>/, head))
   }
-  for (const p of ADMIN_PAGES) app.get(p, page)
+  for (const p of [...ADMIN_PAGES, ...(deps.extraPages ?? [])]) app.get(p, page)
 
   // The built files. Their names carry a hash of their contents, so a browser may keep them for good.
   app.get('/crm-assets/*', async (c) => {

@@ -22,6 +22,7 @@ import { dashboard as practiceDashboard } from './verticals/vet'
 import { dashboard as dealershipDashboard } from './verticals/rv'
 // 'bar': Tonight at a glance above the party book; and the register's sales above the Reports page.
 import { dashboard as barDashboard, reportsAbove as barReportsAbove } from './verticals/bar'
+import { dashboard as homecareDashboard } from './verticals/homecare'
 
 const v = verticalScreens
 const client = api as any
@@ -29,7 +30,7 @@ const settingsOf = (company: unknown) => (company as { settings?: any } | null)?
 
 /** The verticals whose own dashboard replaces the jobs one (VerticalScreens.home), each from its crm/verticals/<v>.tsx. */
 // 'events': the private-events dashboard (restaurant, and the bar's events side).
-const HOMES: Record<string, ComponentType> = { salon: salonDashboard, events: eventsDashboard, practice: practiceDashboard, rv: dealershipDashboard, bar: barDashboard }
+const HOMES: Record<string, ComponentType> = { salon: salonDashboard, events: eventsDashboard, practice: practiceDashboard, rv: dealershipDashboard, bar: barDashboard, homecare: homecareDashboard }
 
 /** A vertical's own figures above the shared Reports page (VerticalScreens.reportsAbove), from its crm/verticals/<v>.tsx. */
 const REPORTS_ABOVE: Record<string, ComponentType> = { bar: barReportsAbove }

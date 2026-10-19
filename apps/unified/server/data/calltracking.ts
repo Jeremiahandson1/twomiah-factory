@@ -60,6 +60,8 @@ export async function findTrackingNumberByPhone(db: any, companyId: string, phon
 
 export interface CallLogRow {
   companyId: string; trackingNumberId: string | null; contactId: string | null
+  /** The home-care client the caller is (CrmSettings.callers 'clients'); absent elsewhere. */
+  clientId?: string | null
   callerNumber: string | null; callerName: string | null; callerCity: string | null; callerState: string | null
   source: string | null; campaign: string | null; medium: string | null; keyword: string | null; landingPage: string | null
   direction: string; status: string; duration: number; startTime: Date; endTime: Date | null
@@ -71,7 +73,7 @@ export interface CallLogRow {
 export async function insertCallLog(db: any, r: CallLogRow) {
   return camelFirst(await db.execute(sql`
     INSERT INTO call_log (
-      id, company_id, tracking_number_id, contact_id,
+      id, company_id, tracking_number_id, contact_id, client_id,
       caller_number, caller_name, caller_city, caller_state,
       source, campaign, medium, keyword, landing_page,
       direction, status, duration,
@@ -81,7 +83,7 @@ export async function insertCallLog(db: any, r: CallLogRow) {
       first_time_caller, provider_id,
       created_at
     ) VALUES (
-      ${createId()}, ${r.companyId}, ${r.trackingNumberId}, ${r.contactId},
+      ${createId()}, ${r.companyId}, ${r.trackingNumberId}, ${r.contactId}, ${r.clientId ?? null},
       ${r.callerNumber}, ${r.callerName}, ${r.callerCity}, ${r.callerState},
       ${r.source}, ${r.campaign}, ${r.medium}, ${r.keyword}, ${r.landingPage},
       ${r.direction}, ${r.status}, ${r.duration},
@@ -97,12 +99,13 @@ export async function insertCallLog(db: any, r: CallLogRow) {
 
 /** A page of this company's calls, newest first, with the tracking number's name and the contact's. */
 export async function listCalls(db: any, companyId: string, f: {
-  source?: string; status?: string; startDate?: string; endDate?: string; contactId?: string; firstTimeOnly?: boolean; page?: number; limit?: number
+  source?: string; status?: string; startDate?: string; endDate?: string; contactId?: string; clientId?: string; firstTimeOnly?: boolean; page?: number; limit?: number
 } = {}) {
   const conds = [sql`cl.company_id = ${companyId}`]
   if (f.source) conds.push(sql`cl.source = ${f.source}`)
   if (f.status) conds.push(sql`cl.status = ${f.status}`)
   if (f.contactId) conds.push(sql`cl.contact_id = ${f.contactId}`)
+  if (f.clientId) conds.push(sql`cl.client_id = ${f.clientId}`)
   if (f.firstTimeOnly) conds.push(sql`cl.first_time_caller = true`)
   if (f.startDate) conds.push(sql`cl.start_time >= ${new Date(f.startDate)}`)
   if (f.endDate) conds.push(sql`cl.start_time <= ${new Date(f.endDate)}`)
@@ -115,10 +118,12 @@ export async function listCalls(db: any, companyId: string, f: {
   const data = camelRows(await db.execute(sql`
     SELECT cl.*,
       tn.name as tracking_number_name, tn.source as tracking_number_source,
-      c.id as contact_id_ref, c.name as contact_name
+      c.id as contact_id_ref, c.name as contact_name,
+      hc.id as client_id_ref, hc.first_name as client_first_name, hc.last_name as client_last_name
     FROM call_log cl
     LEFT JOIN tracking_number tn ON cl.tracking_number_id = tn.id
     LEFT JOIN contact c ON cl.contact_id = c.id
+    LEFT JOIN clients hc ON cl.client_id = hc.id AND hc.company_id = cl.company_id
     WHERE ${where}
     ORDER BY cl.start_time DESC
     LIMIT ${limit} OFFSET ${offset}
@@ -132,17 +137,20 @@ export async function getCall(db: any, callId: string, companyId: string) {
   const rows = camelRows(await db.execute(sql`
     SELECT cl.*,
       tn.name as tracking_number_name, tn.source as tracking_number_source,
-      c.id as contact_id_ref, c.name as contact_name
+      c.id as contact_id_ref, c.name as contact_name,
+      hc.id as client_id_ref, hc.first_name as client_first_name, hc.last_name as client_last_name
     FROM call_log cl
     LEFT JOIN tracking_number tn ON cl.tracking_number_id = tn.id
     LEFT JOIN contact c ON cl.contact_id = c.id
+    LEFT JOIN clients hc ON cl.client_id = hc.id AND hc.company_id = cl.company_id
     WHERE cl.id = ${callId} AND cl.company_id = ${companyId}
     LIMIT 1
   `))
   return rows[0] || null
 }
 
-const CALL_COLUMNS = ['notes', 'tags', 'is_lead', 'lead_value', 'contact_id', 'status']
+// client_id: home care files a call against a client (CrmSettings.callers).
+const CALL_COLUMNS = ['notes', 'tags', 'is_lead', 'lead_value', 'contact_id', 'client_id', 'status']
 
 /** Change the allowed columns of one of this company's calls; camelCase keys in, unknown keys skipped. */
 export async function updateCall(db: any, callId: string, companyId: string, data: Record<string, unknown>) {
@@ -203,4 +211,16 @@ export async function attributionFigures(db: any, companyId: string, range: Rang
 export async function callTimes(db: any, companyId: string, range: Range = {}): Promise<{ startTime: any; duration: number | null; status: string }[]> {
   return rowsOf(await db.execute(sql`SELECT start_time, duration, status FROM call_log WHERE ${rangeWhere(companyId, range)}`))
     .map((r: any) => ({ startTime: r.start_time, duration: r.duration, status: r.status }))
+}
+
+/** The company's home-care client with this phone number (CrmSettings.callers 'clients'), or null. */
+export async function clientByPhone(db: any, companyId: string, phone: string): Promise<{ id: string; email: string | null } | null> {
+  return camelFirst(await db.execute(sql`SELECT id, email FROM clients WHERE company_id = ${companyId} AND phone = ${phone} LIMIT 1`)) ?? null
+}
+
+/** A home-care client made from a first call: the caller's name split in two, their number, the day of the call. */
+export async function insertCallerClient(db: any, companyId: string, c: { firstName: string; lastName: string; phone: string; notes: string }) {
+  await db.execute(sql`
+    INSERT INTO clients (id, company_id, first_name, last_name, phone, notes)
+    VALUES (${createId()}, ${companyId}, ${c.firstName}, ${c.lastName}, ${c.phone}, ${c.notes})`)
 }

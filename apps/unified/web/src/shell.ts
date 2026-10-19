@@ -16,8 +16,9 @@ import { nav as restaurantNav } from './crm/verticals/restaurant'
 import { nav as rvNav } from './crm/verticals/rv'
 import { nav as salonNav } from './crm/verticals/salon'
 import { nav as vetNav } from './crm/verticals/vet'
+import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN } from './crm/verticals/homecare'
 
-const NAV: NavItem[] = [
+const SHARED_NAV: NavItem[] = [
   // The CRM (templates/crm/frontend/src/shellConfig.ts): core items need the CRM's own features, so a website-only
   // business sees none of them; the rest show with their feature.
   { to: '/crm/dashboard', icon: Home, label: 'Dashboard', section: 'Business', features: ['dashboard'], exact: true },
@@ -109,6 +110,12 @@ const NAV: NavItem[] = [
   ...vetNav,
 ]
 
+const NAV: NavItem[] = [
+  // An agency's menu is the shared items it has, then its own under its headings (crm/verticals/homecare.tsx).
+  ...(isHomecare ? SHARED_NAV.filter((item) => !SHARED_HIDDEN.includes(item.to)) : SHARED_NAV),
+  ...homecareNav,
+]
+
 export const SHELL: ShellConfig = {
   nav: NAV,
   // The header search: /api/search (server/crm/comms/search.ts). The shared GlobalSearch reads its Recent list in
@@ -125,7 +132,7 @@ export const SHELL: ShellConfig = {
     // The bar register's other screens (grill, floor, close-out, count, clock), opened from it.
     ...barRouteGates,
   },
-  routePermissions: { ...barRoutePermissions },
+  routePermissions: { ...barRoutePermissions, ...homecareRoutePermissions },
   routeRoles: {
     // The company, billing, email addresses and the feature switches are requireAdmin on the server.
     '/crm/settings': 'admin',

@@ -6,7 +6,7 @@ export { AppShell } from '@twomiah/tenant-ui/src/shell/AppShell'
 export { SettingsPage } from '@twomiah/tenant-ui/src/shell/SettingsPage'
 export { FeaturesSettingsPage } from '@twomiah/tenant-ui/src/shell/FeaturesSettingsPage'
 export { ErrorBoundary } from '@twomiah/tenant-ui/src/shell/ErrorBoundary'
-export { applyStoredTheme } from '@twomiah/tenant-ui/src/shell/hooks'
+export { applyStoredTheme, useBrandPalette } from '@twomiah/tenant-ui/src/shell/hooks'
 export { todayKey, dayKeyPlus, localDayKey } from '@twomiah/tenant-ui/src/time/day'
 // The invoicing screens' money format (the salon's own screens use it too).
 export { money } from '@twomiah/tenant-ui/src/invoicing/ui'

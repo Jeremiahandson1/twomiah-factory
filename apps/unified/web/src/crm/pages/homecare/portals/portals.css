@@ -1,0 +1,43 @@
+/* The client and family portals' own colours, as light/dark pairs beside the frame's tokens (../lib/homecare.css).
+   The template's portals were light-only and fixed to their own palette (a navy client portal, a green family portal),
+   not the agency's brand; the light values below are the template's own, so the light theme is unchanged. Each dark
+   value is an ink measured at 4.5:1 or better on the dark surface (#0f172a) and subtle ground (#1e293b), or a ground
+   its ink reads on. A *-fill is a ground for white text and stays dark in both themes. */
+
+.hc {
+    --hcp-navy: #1a5276;          /* headings, labels, chip ink: 8.6:1 on white */
+    --hcp-navy-fill: #1a5276;     /* buttons, the client's message bubble, a picked slot: white on it 8.6:1 */
+    --hcp-tint: #eaf4fd;          /* the navy ink's chip / note ground */
+    --hcp-unread: #f0f7ff;        /* an unread notification or thread */
+    --hcp-today: #fffbf0;         /* today's visit card */
+    --hcp-mark: #2980b9;          /* a card's left edge, an unread dot: marks, not text */
+    --hcp-violet-bg: #f5eeff;     /* a counter-offer */
+    --hcp-violet-ink: #7d3c98;
+    --hcp-violet-line: #d4b8f0;
+    --hcp-forest: #2d5016;        /* the family portal's heading and tab ink */
+    --hcp-forest-tint: #d5f5e3;   /* the family welcome card */
+    --hcp-forest-tint-end: #e8f8f5;
+    --hcp-pill: #c0392b;          /* the unread count pill, white on it 5.4:1 (the template's #e74c3c was 3.8:1) */
+}
+
+.dark .hc {
+    --hcp-navy: #93c5fd;
+    --hcp-tint: #0c2a40;
+    --hcp-unread: #0b2236;
+    --hcp-today: #2a2108;
+    --hcp-mark: #3b82f6;
+    --hcp-violet-bg: #2a1640;
+    --hcp-violet-ink: #d8b4fe;
+    --hcp-violet-line: #6b21a8;
+    --hcp-forest: #86efac;
+    --hcp-forest-tint: #0f2a1a;
+    --hcp-forest-tint-end: #0f172a;
+}
+
+/* The portals' form fields: the template's were the browser's (white) in every theme. */
+.hc .hcp-field {
+    background: var(--hc-surface);
+    color: var(--hc-ink);
+    border: 1px solid var(--hc-line);
+}
+.hc .hcp-field::placeholder { color: var(--hc-muted); }

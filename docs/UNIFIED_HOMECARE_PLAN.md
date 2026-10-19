@@ -92,3 +92,9 @@ audit, authorization checks, punch rules, invoice money …). So:
 - **Not moved:** `routes/saasBilling.ts` (`/api/subscription`): the Factory's billing (`modules/company.ts`) replaces it, and its `changePackage` call never existed.
 
 Fixed in the move (tests: `apps/unified/tests/homecare-core-fixes.test.ts`): EVV units read the authorization's unit through `authUnits.ts` (hourly and per-visit authorizations were counted as 15-minute units); every home-care email escapes what it puts into its HTML; Sandata's "changed by" falls back to the real `changed_by_id`; `web-push` and `pdfjs-dist` are dependencies, not names loaded at run time.
+
+## Routes landed (2026-10-18)
+
+All nine route groups are in (step 3); `docs/CUTOVER_LEDGER.md` "Home care (step 6, routes)" lists them. The foundation's open items are closed: the timed work starts with the CRM's (`services.addJob`); server-side sign-out revocation and View As are in the app's sign-in for home care (`office/signIn.ts`); call tracking and the AI receptionist match callers to clients through `CrmSettings.callers`; the portal lock answers `{ error, code }`. A manager is office (`core/caregiverAccess.ts`); a person's own pay is `my-pay`.
+
+Next: **step 4, the screens** (`web/src/crm/pages/homecare/`), reading `{ data, pagination }` and camelCase everywhere the groups' reports list; then the browser check of every home-care screen, every role, both themes, phone and desktop.

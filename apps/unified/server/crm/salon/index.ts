@@ -35,13 +35,15 @@ export const createSalonDashboard = (d: CrmDeps) => createSalonDashboardRoutes(d
 
 /**
  * `settings` decides who owns the two shared paths: /api/appointments and /api/reminders are the vet's book and recall
- * where CrmSettings.appointments is 'practice', and /api/loyalty is the bar's where CrmSettings.loyalty is 'bar'.
+ * where CrmSettings.appointments is 'practice', /api/loyalty is the bar's where CrmSettings.loyalty is 'bar', and
+ * /api/clients is home care's where CrmSettings.homecare is on.
  */
 export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
   const s = salonServicesFor(d)
   const salonBook = settings.appointments !== 'practice'
   return [
-    { path: '/api/clients', access: 'user', feature: 'client_profiles', router: createClientRoutes(d, s) },
+    // /api/clients is home care's people in care where CrmSettings.homecare is on (server/crm/homecare/clients).
+    ...(settings.homecare ? [] : [{ path: '/api/clients', access: 'user', feature: 'client_profiles', router: createClientRoutes(d, s) } as Mount]),
     { path: '/api/service-menu', access: 'user', feature: 'service_menu', router: createServiceMenuRoutes(d) },
     { path: '/api/service-records', access: 'user', feature: ['client_profiles', 'salon_booking'], router: createServiceRecordRoutes(d, s) },
     { path: '/api/memberships', access: 'user', feature: 'salon_memberships', router: createMembershipRoutes(d, s) },

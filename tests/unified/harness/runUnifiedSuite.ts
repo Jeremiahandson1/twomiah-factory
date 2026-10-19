@@ -224,7 +224,11 @@ import logger from '${rel}/../server/core/logger.ts'
 export const crmDeps: any = { db, audit: s.audit, logger, authenticate: s.authenticate, permissions: s.permissions, features: s.features, realtime: s.realtime, services: s.crm }
 `)
   // The suite's own extra files (a vertical's services the tests import by the template's paths).
-  for (const [p, src] of Object.entries(o.sandboxFiles || {})) w(p, src.split('@app/').join(`${rel}/../`))
+  for (const [p, src] of Object.entries(o.sandboxFiles || {})) {
+    // Its folder (e.g. src/helpers, which the template has and the sandbox does not make above).
+    mkdirSync(`${SB}/${p.slice(0, p.lastIndexOf('/'))}`, { recursive: true })
+    w(p, src.split('@app/').join(`${rel}/../`))
+  }
   w('src/services/import.ts', `
 import { crmDeps } from './crmDeps.ts'
 import { createImportService } from '${rel}/../server/crm/office/importService.ts'

@@ -16,7 +16,10 @@ import { caregiverServesClient } from '../../../data/homecareCore.ts'
 import { fail } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 
-const OFFICE = new Set(['admin', 'owner'])
+// The office: the rungs that run the agency. The template had owner and admin only; the unified app's office manager
+// (the manager rung) holds the care work too (packages/tenant-backend auth/permissions.ts), so it is office here — a
+// caregiver, stored as 'caregiver' (moved tenants) or 'field' (new ones), is not.
+const OFFICE = new Set(['admin', 'owner', 'manager'])
 export const isOfficeUser = (user: any) => !!user && OFFICE.has(user.role)
 export const userIdOf = (user: any): string => user?.userId || user?.id
 

@@ -111,8 +111,10 @@ export interface CrmSettings {
    * memberships — server/crm/salon/dashboard.ts, templates/crm-salon routes/dashboard.ts). (salon)
    * 'dealership' is the RV / powersports dealer's (inventory, the sales pipeline, service, the Reports page's sales
    * figures — server/crm/rv/dashboard.ts, templates/crm-rv routes/dashboard.ts). (rv)
+   * 'homecare' is the agency's (clients, caregivers clocked in, today's visits on the live board, invoices owed, the
+   * office's to-do list — server/crm/homecare/planning/dashboard.ts, templates/crm-homecare routes/dashboard.ts). (homecare)
    */
-  dashboard?: 'events' | 'practice' | 'salon' | 'dealership'
+  dashboard?: 'events' | 'practice' | 'salon' | 'dealership' | 'homecare'
   /**
    * Private events (server/crm/restaurant) reach into the shared modules: a contact lists their events and can't be
    * deleted while they have any; money recorded on an event's invoice (by hand or by Stripe) confirms an enquiry it is
@@ -195,11 +197,24 @@ export interface CrmSettings {
   websiteForms?: 'bar'
   /** The home-care add-on: its records, routes and timed work (server/crm/homecare; templates/crm-homecare). */
   homecare?: boolean
+  /**
+   * Who a phone call is about, for call tracking and the AI receptionist: 'clients' matches the caller to a home-care
+   * client by phone (call_log.client_id), makes a client on a first call instead of a contact or an inbox lead, and
+   * counts the call-volume report's hours and days on the agency's clock (templates/crm-homecare
+   * services/calltracking.ts, services/aiReceptionist.ts). Absent: contacts, and the Lead Inbox where it is on. (homecare)
+   */
+  callers?: 'clients'
   /** The expense categories this trade buys in, and the words for the ones whose id isn't enough. Absent: the shared list. (salon) */
   expenses?: { categories: string[]; categoryLabels?: Record<string, string> }
   reports?: {
     /** Team productivity by services performed and what they took (service_record), for a chair. Absent: hours and jobs. (salon) */
     teamProductivity?: 'serviceRecords'
+    /**
+     * What /api/reports answers: 'homecare' is the agency's own reports (scheduled, worked and payable hours, revenue,
+     * P&L, Client Hours by Week, the client report — server/crm/homecare/planning/reports.ts, templates/crm-homecare
+     * routes/reports.ts) in place of the shared CRM reports. Absent: the shared CRM reports. (homecare)
+     */
+    module?: 'homecare'
   }
   reviews?: {
     /** What a review request is about when it has no job: 'visit' is the client's latest service record. (salon) */

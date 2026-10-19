@@ -1,0 +1,242 @@
+// The public page a client pays a visit invoice on (/pay/:invoiceId — the invoice email's link and the client portal's
+// Pay button), and Stripe's return page (/payment-success). Moved from templates/crm-homecare/frontend/src/components/PaymentPage.tsx.
+//
+// Server (server/crm/homecare/billing/stripe.ts, /api/stripe, public; 503 when Stripe is not configured):
+//   GET  /api/stripe/invoice/:invoiceId/pay  → { invoiceNumber, clientName, total, amountDue (text, 2 places), status,
+//                                              billingPeriod: { start, end } }; 404 for a draft or unknown invoice
+//   POST /api/stripe/invoice/:invoiceId/pay  → { url } (Stripe Checkout); refused 400 when paid / nothing due
+//   GET  /api/stripe/verify-payment/:id      → { success: true, amount, invoiceId, customerEmail } or { success: false, status }
+// The page also printed "Already Paid" from an amountPaid the reply has never carried (the template's server did not
+// send it either), so that row does not show; the figures are otherwise printed exactly as the template printed them.
+import type { CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { formatDate } from '../lib/date'
+import { agencyNameFromPage, publicCall } from './portalHttp'
+
+interface PayInvoice {
+  invoiceNumber: string
+  clientName: string
+  total: string | number | null
+  amountPaid?: string | number | null
+  amountDue: string | number | null
+  status: string
+  billingPeriod?: { start: string | null; end: string | null }
+}
+
+const dollars = (v: unknown) => (parseFloat(String(v ?? 0)) || 0).toFixed(2)
+
+export default function PaymentPage({ invoiceId }: { invoiceId: string }) {
+  const { search } = useLocation()
+  const cancelled = new URLSearchParams(search).get('cancelled') === 'true'
+  const [invoice, setInvoice] = useState<PayInvoice | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [processing, setProcessing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const agency = agencyNameFromPage()
+  const agencyEmail = document.querySelector('meta[name="company-email"]')?.getAttribute('content') || ''
+
+  useEffect(() => {
+    let live = true
+    publicCall<PayInvoice>('GET', `/api/stripe/invoice/${encodeURIComponent(invoiceId)}/pay`)
+      .then((r) => {
+        if (!live) return
+        // The server's own sentence ("This invoice is no longer available…", "Stripe payments not configured…"); the
+        // template said "Invoice not found" for every refusal.
+        if (!r.ok) throw new Error(r.error || 'Invoice not found')
+        setInvoice(r.data)
+      })
+      .catch((err: Error) => { if (live) setError(err.message || 'Invoice not found') })
+      .finally(() => { if (live) setLoading(false) })
+    return () => { live = false }
+  }, [invoiceId])
+
+  const handlePayment = async () => {
+    setProcessing(true)
+    setError(null)
+    try {
+      const r = await publicCall<{ url?: string }>('POST', `/api/stripe/invoice/${encodeURIComponent(invoiceId)}/pay`)
+      if (r.ok && r.data.url) {
+        window.location.href = r.data.url // Stripe Checkout
+      } else {
+        throw new Error(r.error || 'Failed to create payment session')
+      }
+    } catch (err) {
+      setError((err as Error).message)
+      setProcessing(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <div style={styles.spinner} />
+          <p>Loading invoice...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !invoice) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <h2 style={{ color: 'var(--hc-red-ink)' }}>Error</h2>
+          <p>{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (invoice?.status === 'paid') {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <div style={styles.successIcon}>✓</div>
+          <h2 style={{ color: 'var(--hc-green-ink)' }}>Invoice Paid</h2>
+          <p>This invoice has already been paid. Thank you!</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <div style={styles.logo}>
+          <h1 style={{ margin: 0, color: 'var(--hc-ink)' }}>{agency}</h1>
+        </div>
+
+        {cancelled && <div style={styles.cancelledBanner}>Payment was cancelled. You can try again below.</div>}
+
+        <div style={styles.invoiceHeader}>
+          <h2>Invoice #{invoice?.invoiceNumber}</h2>
+          <p style={styles.clientName}>{invoice?.clientName}</p>
+        </div>
+
+        <div style={styles.details}>
+          <div style={styles.detailRow}>
+            <span>Billing Period:</span>
+            <span>
+              {invoice?.billingPeriod?.start && formatDate(invoice.billingPeriod.start)} - {' '}
+              {invoice?.billingPeriod?.end && formatDate(invoice.billingPeriod.end)}
+            </span>
+          </div>
+          <div style={styles.detailRow}>
+            <span>Invoice Total:</span>
+            <span>${dollars(invoice?.total)}</span>
+          </div>
+          {parseFloat(String(invoice?.amountPaid ?? 0)) > 0 && (
+            <div style={styles.detailRow}>
+              <span>Already Paid:</span>
+              <span style={{ color: 'var(--hc-green-ink)' }}>-${dollars(invoice?.amountPaid)}</span>
+            </div>
+          )}
+          <div style={{ ...styles.detailRow, ...styles.totalRow }}>
+            <span><strong>Amount Due:</strong></span>
+            <span style={styles.amountDue}>${dollars(invoice?.amountDue)}</span>
+          </div>
+        </div>
+
+        {error && <div style={styles.errorBanner}>{error}</div>}
+
+        <button onClick={handlePayment} disabled={processing} style={{ ...styles.payButton, ...(processing ? styles.payButtonDisabled : {}) }}>
+          {processing ? 'Processing...' : `Pay $${dollars(invoice?.amountDue)}`}
+        </button>
+
+        <div style={styles.secureNotice}><span>🔒</span> Secure payment powered by Stripe</div>
+
+        <div style={styles.footer}>
+          {/* The agency's email, as the template printed it ({{COMPANY_EMAIL}}): the server writes it into the page. */}
+          {agencyEmail ? (
+            <>
+              <p>Questions about this invoice? Contact us at:</p>
+              <p><strong>{agencyEmail}</strong></p>
+            </>
+          ) : <p>Questions about this invoice? Please contact {agency || 'us'}.</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Stripe's return page: /payment-success?session_id=…&invoice_id=… */
+export function PaymentSuccess() {
+  const { search } = useLocation()
+  const sessionId = new URLSearchParams(search).get('session_id')
+  const [payment, setPayment] = useState<{ success?: boolean; amount?: number; customerEmail?: string | null } | null>(null)
+  const [loading, setLoading] = useState(!!sessionId)
+
+  useEffect(() => {
+    if (!sessionId) return
+    let live = true
+    publicCall<{ success?: boolean; amount?: number; customerEmail?: string | null }>('GET', `/api/stripe/verify-payment/${encodeURIComponent(sessionId)}`)
+      .then((r) => { if (live) setPayment(r.data) })
+      .catch((err) => console.error('Error verifying payment:', err))
+      .finally(() => { if (live) setLoading(false) })
+    return () => { live = false }
+  }, [sessionId])
+
+  if (loading) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}><p>Verifying payment...</p></div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <div style={styles.successIcon}>✓</div>
+        <h2 style={{ color: 'var(--hc-green-ink)' }}>Payment Successful!</h2>
+        {payment?.success && (
+          <div style={styles.details}>
+            <p>Amount Paid: <strong>${payment.amount?.toFixed(2)}</strong></p>
+            <p>A confirmation email has been sent to {payment.customerEmail}</p>
+          </div>
+        )}
+        <p style={{ marginTop: '2rem', color: 'var(--hc-ink-soft)' }}>Thank you for your payment. You can close this window.</p>
+      </div>
+    </div>
+  )
+}
+
+// The template's styles, its raw colours as the frame's light/dark tokens. Two fixed grounds hold white text in both
+// themes: the pay button (the template's #3498db held white at 3.2:1; the portal's navy is 8.6:1) and the green tick
+// (#1e7e34, 5.1:1; the template's #27ae60 was 2.9:1).
+const styles: Record<string, CSSProperties> = {
+  container: {
+    minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--hc-ground)',
+    padding: '1rem', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', color: 'var(--hc-ink)',
+  },
+  card: {
+    backgroundColor: 'var(--hc-surface)', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '2rem',
+    maxWidth: '480px', width: '100%', textAlign: 'center',
+  },
+  logo: { marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--hc-line)' },
+  invoiceHeader: { marginBottom: '1.5rem' },
+  clientName: { color: 'var(--hc-ink-soft)', fontSize: '1.1rem' },
+  details: { backgroundColor: 'var(--hc-subtle)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', textAlign: 'left' },
+  detailRow: { display: 'flex', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--hc-line)' },
+  totalRow: { borderBottom: 'none', paddingTop: '1rem', marginTop: '0.5rem', borderTop: '2px solid var(--hc-line)' },
+  amountDue: { fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--hc-ink)' },
+  payButton: {
+    width: '100%', padding: '1rem 2rem', fontSize: '1.1rem', fontWeight: 'bold', color: 'white', backgroundColor: '#1a5276',
+    border: 'none', borderRadius: '8px', cursor: 'pointer', transition: 'background-color 0.2s',
+  },
+  payButtonDisabled: { backgroundColor: '#95a5a6', cursor: 'not-allowed' },
+  secureNotice: { marginTop: '1rem', color: 'var(--hc-ink-soft)', fontSize: '0.875rem' },
+  footer: { marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid var(--hc-line)', color: 'var(--hc-ink-soft)', fontSize: '0.875rem' },
+  successIcon: {
+    width: '60px', height: '60px', borderRadius: '50%', backgroundColor: '#1e7e34', color: 'white', fontSize: '2rem',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem',
+  },
+  spinner: {
+    width: '40px', height: '40px', border: '4px solid var(--hc-line)', borderTop: '4px solid #3498db', borderRadius: '50%',
+    animation: 'hc-spin 1s linear infinite', margin: '0 auto 1rem',
+  },
+  cancelledBanner: { backgroundColor: 'var(--hc-warning-bg)', color: 'var(--hc-warning-ink)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' },
+  errorBanner: { backgroundColor: 'var(--hc-danger-bg)', color: 'var(--hc-danger-ink)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' },
+}

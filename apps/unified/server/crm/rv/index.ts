@@ -39,7 +39,9 @@ export function rvMounts(d: CrmDeps): Mount[] {
     { path: '/api/units', access: 'user', feature: 'unit_inventory', router: createUnitRoutes(d) },
     { path: '/api/sales-leads', access: 'user', feature: 'deal_pipeline', router: createSalesLeadRoutes(d) },
     { path: '/api/repair-orders', access: 'user', feature: 'service_dept', router: createRepairOrderRoutes(d) },
-    { path: '/api/alerts', access: 'user', feature: ['deal_pipeline', 'service_dept'], router: createAlertRoutes(d) },
+    // A home-care agency's /api/alerts is its own office alert queue (server/crm/homecare/visits/alerts.ts); the
+    // dealership's alerts are behind dealership features such an agency never has, so the path is home care's there.
+    ...(d.settings?.homecare ? [] : [{ path: '/api/alerts', access: 'user', feature: ['deal_pipeline', 'service_dept'], router: createAlertRoutes(d) } as Mount]),
     { path: '/api/ai-reports', access: 'user', feature: DEALERSHIP, router: createAiReportRoutes(d) },
     { path: '/api/ai-leads', access: 'user', feature: DEALERSHIP, router: createAiLeadRoutes(d) },
     { path: '/api/ai-trade', access: 'user', feature: DEALERSHIP, router: createAiTradeRoutes(d) },
