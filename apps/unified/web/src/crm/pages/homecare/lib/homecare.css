@@ -682,7 +682,9 @@
 
 /* Text Utilities */
 
-:where(.hc) .text-muted { color: var(--color-text-light); }
+/* .hc, not :where(.hc): the app's Tailwind has a text-muted utility of its own (the website screens' --ui-muted, slate-500),
+   which out-ranked this and printed 4.32:1 on the subtle panels — home care's token never applied (measured 2026-10-19). */
+.hc .text-muted { color: var(--color-text-light); }
 
 :where(.hc) .text-center { text-align: center; }
 

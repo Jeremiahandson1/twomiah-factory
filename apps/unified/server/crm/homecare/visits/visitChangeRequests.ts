@@ -24,6 +24,7 @@ import {
 } from '../../../data/homecareVisits.ts'
 import { createVisitChanges } from './visitChanges.ts'
 import { isCaregiver, who } from './shared.ts'
+import { actsForAnyone } from '../core/caregiverAccess.ts'
 
 export function createVisitChangeRequestRoutes(core: HomecareCore, d: CrmDeps) {
   const { db } = d
@@ -47,7 +48,8 @@ export function createVisitChangeRequestRoutes(core: HomecareCore, d: CrmDeps) {
   // say-so: the office approves in the Schedule Hub.
   app.post('/reschedule-request', async (c) => {
     const { user: u, companyId, me } = who(c)
-    const caregiver = isCaregiver(d, u)
+    // Asking for someone else's visit is the office's (care-schedule:update); anyone else asks only about their own.
+    const caregiver = !(await actsForAnyone(d, u, 'care-schedule:update'))
     const b = await c.req.json().catch(() => ({})) as any
     const { scheduleId, visitDate, proposedDate, reason } = b
     const startTime = hms(b.startTime), endTime = hms(b.endTime), proposedStartTime = hms(b.proposedStartTime), proposedEndTime = hms(b.proposedEndTime)
@@ -85,7 +87,8 @@ export function createVisitChangeRequestRoutes(core: HomecareCore, d: CrmDeps) {
   // — the office decides whether a shift moves.
   app.put('/:id/resolve', async (c) => {
     const { user: u, companyId, me: actor } = who(c)
-    const office = !isCaregiver(d, u)
+    // Resolving moves or cancels a visit: care-schedule:update (it was "not a caregiver" — a read-only seat could, 2026-10-19).
+    const office = await actsForAnyone(d, u, 'care-schedule:update')
     const b = await c.req.json().catch(() => ({})) as any
     const { action, counterDate, counterMessage, adminNotes } = b
     if (!['approve', 'deny', 'counter'].includes(action)) return fail(c, 400, 'action must be approve, deny, or counter')

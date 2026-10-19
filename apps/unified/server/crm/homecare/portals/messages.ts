@@ -7,7 +7,8 @@
 // Changes from the template:
 //   · permissions: every signed-in person used these (caregivers message the office from their phone), so every action
 //     is care-portal:read — the area's permission a caregiver holds — with the template's narrowing kept: a thread is
-//     its participants' (the office: core's isOfficeUser, the same line the template drew by role);
+//     its participants' (and whoever holds care-portal:update — core/caregiverAccess.ts actsForAnyone; the template drew
+//     the line by role);
 //   · scoped to the company: the inbox, the recipient picker (the company's own people), every thread and message; a
 //     new thread's recipients must be the company's people (the template wrote any id it was sent);
 //   · replies: the inbox and the picker are { data, pagination } lists (RULEBOOK §3).
@@ -16,7 +17,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 import { messageThreads, messageThreadParticipants, messages, user } from '../../../db/schema/index.ts'
 import { fail, list, one } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { isOfficeUser } from '../core/caregiverAccess.ts'
+import { actsForAnyone } from '../core/caregiverAccess.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 
@@ -31,7 +32,7 @@ export function createMessageRoutes(_core: HomecareCore, d: CrmDeps) {
     const [thread] = await db.select({ id: messageThreads.id }).from(messageThreads)
       .where(and(eq(messageThreads.id, threadId), eq(messageThreads.companyId, me.companyId))).limit(1)
     if (!thread) return false
-    if (isOfficeUser(me)) return true
+    if (await actsForAnyone(d, me, 'care-portal:update')) return true
     const [p] = await db.select({ id: messageThreadParticipants.id }).from(messageThreadParticipants)
       .where(and(eq(messageThreadParticipants.threadId, threadId), eq(messageThreadParticipants.userId, me.userId))).limit(1)
     return !!p

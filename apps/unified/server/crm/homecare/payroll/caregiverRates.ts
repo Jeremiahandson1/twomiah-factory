@@ -27,7 +27,7 @@ export function createCaregiverRateRoutes(core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()
 
   // GET /:caregiverId — the rates in force today, one per type.
-  app.get('/:caregiverId', payrollOrCaregiver(d, 'read'), requireAdminOrSelf('caregiverId'), async (c) => {
+  app.get('/:caregiverId', payrollOrCaregiver(d, 'read'), requireAdminOrSelf(d, 'caregiverId', 'care-payroll:read'), async (c) => {
     const { companyId } = c.get('user')
     const caregiverId = c.req.param('caregiverId') as string
     const today = await core.time.today(companyId)
@@ -48,7 +48,7 @@ export function createCaregiverRateRoutes(core: HomecareCore, d: CrmDeps) {
   })
 
   // GET /:caregiverId/history — every rate, newest first (at most 100).
-  app.get('/:caregiverId/history', payrollOrCaregiver(d, 'read'), requireAdminOrSelf('caregiverId'), async (c) => {
+  app.get('/:caregiverId/history', payrollOrCaregiver(d, 'read'), requireAdminOrSelf(d, 'caregiverId', 'care-payroll:read'), async (c) => {
     const { companyId } = c.get('user')
     const rows = await db.select().from(caregiverRates)
       .where(and(eq(caregiverRates.companyId, companyId), eq(caregiverRates.caregiverId, c.req.param('caregiverId') as string)))

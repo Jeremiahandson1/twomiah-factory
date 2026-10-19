@@ -23,7 +23,7 @@ export function createCaregiverAvailabilityRoutes(_core: HomecareCore, d: CrmDep
   const db = d.db
 
   // GET /:id — by caregiverId (not by row id)
-  app.get('/:id', perm('care-schedule:read'), requireAdminOrSelf('id'), async (c) => {
+  app.get('/:id', perm('care-schedule:read'), requireAdminOrSelf(d, 'id', 'care-schedule:read'), async (c) => {
     const { companyId } = who(c)
     const [row] = await db.select().from(caregiverAvailability)
       .where(and(eq(caregiverAvailability.caregiverId, c.req.param('id')!), eq(caregiverAvailability.companyId, companyId))).limit(1)
@@ -33,7 +33,7 @@ export function createCaregiverAvailabilityRoutes(_core: HomecareCore, d: CrmDep
 
   // PUT /:id — upsert by caregiverId. The row's owner is the path's caregiver — an id / caregiverId / companyId in the
   // body never moves the row to someone else.
-  app.put('/:id', perm('care-schedule:read'), requireAdminOrSelf('id'), async (c) => {
+  app.put('/:id', perm('care-schedule:read'), requireAdminOrSelf(d, 'id', 'care-schedule:update'), async (c) => {
     const { companyId } = who(c)
     const caregiverId = c.req.param('id')!
     const { id: _id, caregiverId: _cg, companyId: _co, createdAt: _ca, updatedAt: _ua, ...body } = await c.req.json().catch(() => ({})) as any

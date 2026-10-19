@@ -15,6 +15,7 @@ import { auditLog, backgroundChecks, clients, performanceRatings, user } from '.
 import { fail, list, one } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import type { CrmDeps } from '../../deps.ts'
+import { isCaregiverSeat } from '../core/caregiverAccess.ts'
 
 /** The fields a performance rating is made of (the rest — id, company, timestamps — are the server's). */
 const RATING_FIELDS = ['caregiverId', 'clientId', 'ratingDate', 'satisfactionScore', 'punctualityScore', 'professionalismScore',
@@ -25,7 +26,7 @@ export function createComplianceRoutes(d: CrmDeps) {
   const app = new Hono<AppEnv>()
   const read = d.permissions.requirePermission('care-compliance:read')
   const create = d.permissions.requirePermission('care-compliance:create')
-  const isCaregiver = (role: string) => d.permissions.normalizeRole(role) === 'field'
+  const isCaregiver = (role: string) => isCaregiverSeat(d, { role })
 
   // Compliance dashboard - certifications expiring, background checks, etc.
   app.get('/dashboard', read, async (c) => {

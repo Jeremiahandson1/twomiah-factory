@@ -19,7 +19,7 @@ export function createCaregiverProfileRoutes(_core: HomecareCore, d: CrmDeps) {
   const { requirePermission } = d.permissions
 
   // GET /api/caregiver-profile/:id — by caregiver id.
-  app.get('/:id', requireAdminOrSelf('id'), async (c) => {
+  app.get('/:id', requireAdminOrSelf(d, 'id', 'care-hr:read'), async (c) => {
     const [row] = await d.db.select().from(caregiverProfiles)
       .where(and(eq(caregiverProfiles.companyId, companyOf(c)), eq(caregiverProfiles.caregiverId, idOf(c))))
       .limit(1)

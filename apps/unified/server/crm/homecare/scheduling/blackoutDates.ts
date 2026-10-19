@@ -15,7 +15,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, list, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
-import { isOfficeUser } from '../core/caregiverAccess.ts'
+import { actsForAnyone } from '../core/caregiverAccess.ts'
 import { selfSubject, ownsRow } from '../core/selfService.ts'
 import { who } from './shared.ts'
 
@@ -27,7 +27,7 @@ export function createBlackoutDatesRoutes(_core: HomecareCore, d: CrmDeps) {
   // GET / — the blackout dates with the caregiver's name (a caregiver: their own)
   app.get('/', async (c) => {
     const { user: me, companyId, me: myId } = who(c)
-    const mine = isOfficeUser(me) ? undefined : eq(caregiverTimeOff.caregiverId, myId)
+    const mine = (await actsForAnyone(d, me, 'care-schedule:read')) ? undefined : eq(caregiverTimeOff.caregiverId, myId)
     const rows = await db
       .select({
         id: caregiverTimeOff.id,
@@ -53,7 +53,7 @@ export function createBlackoutDatesRoutes(_core: HomecareCore, d: CrmDeps) {
   app.post('/', async (c) => {
     const { companyId } = who(c)
     const body = await c.req.json().catch(() => ({})) as any
-    const subject = selfSubject(c, body.caregiverId)
+    const subject = await selfSubject(d, c, body.caregiverId, 'care-schedule:create')
     if ('refusal' in subject) return subject.refusal
     if (!body.startDate || !body.endDate) return fail(c, 400, 'startDate and endDate are required')
     const [row] = await db
@@ -70,7 +70,7 @@ export function createBlackoutDatesRoutes(_core: HomecareCore, d: CrmDeps) {
     const mine = and(eq(caregiverTimeOff.id, id), eq(caregiverTimeOff.companyId, companyId), eq(caregiverTimeOff.type, 'blackout'))
     const [row] = await db.select({ caregiverId: caregiverTimeOff.caregiverId }).from(caregiverTimeOff).where(mine).limit(1)
     if (!row) return fail(c, 404, 'Blackout date not found')
-    if (!ownsRow(c, row.caregiverId)) return fail(c, 403, 'You can only remove your own blackout dates.')
+    if (!(await ownsRow(d, c, row.caregiverId, 'care-schedule:delete'))) return fail(c, 403, 'You can only remove your own blackout dates.')
     await db.delete(caregiverTimeOff).where(mine)
     return done(c)
   })

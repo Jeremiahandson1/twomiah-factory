@@ -225,7 +225,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
   // GET /caregiver-history/:id?startDate&endDate — a caregiver's punches (the office, or the caregiver themself). The
   // days are the agency's (core.time.range: a YYYY-MM-DD runs midnight to midnight on the agency's clock); the template
   // took the filter and never applied it, so the Full Profile's From / To searched every visit ever.
-  app.get('/caregiver-history/:id', requirePermission('evv:read'), requireAdminOrSelf('id'), async (c) => {
+  app.get('/caregiver-history/:id', requirePermission('evv:read'), requireAdminOrSelf(d, 'id', 'evv:read'), async (c) => {
     const { companyId } = who(c)
     const caregiverId = c.req.param('id')!
     const page = intParam(c.req.query('page'), 1)
@@ -255,7 +255,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
   })
 
   // GET /caregiver-gps/:id — the GPS trail of a caregiver's recent visits
-  app.get('/caregiver-gps/:id', requirePermission('evv:read'), requireAdminOrSelf('id'), async (c) => {
+  app.get('/caregiver-gps/:id', requirePermission('evv:read'), requireAdminOrSelf(d, 'id', 'evv:read'), async (c) => {
     const { companyId } = who(c)
     const points = await db.select().from(gpsTracking)
       .where(and(eq(gpsTracking.companyId, companyId), eq(gpsTracking.caregiverId, c.req.param('id')!)))

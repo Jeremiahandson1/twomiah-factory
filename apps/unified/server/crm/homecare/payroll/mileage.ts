@@ -16,7 +16,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
-import { isOfficeUser } from '../core/caregiverAccess.ts'
+import { actsForAnyone } from '../core/caregiverAccess.ts'
 import { MILEAGE_RATE_REFUSAL, parseMileageRate } from '../core/mileageRate.ts'
 import { isCompanyClient, isCompanyPerson, payrollOrCaregiver } from './shared.ts'
 
@@ -30,11 +30,12 @@ export function createMileageRoutes(core: HomecareCore, d: CrmDeps) {
     const { caregiverId, startDate, endDate, page = '1', limit = '50' } = c.req.query()
     const pageNum = Math.max(parseInt(page) || 1, 1)
     const pageSize = Math.max(parseInt(limit) || 50, 1)
+    const office = await actsForAnyone(d, me, 'care-payroll:read')
 
     const where = and(
       eq(mileageEntries.companyId, me.companyId),
-      // The office sees everyone's mileage; a caregiver only their own (whatever caregiverId says).
-      !isOfficeUser(me) ? eq(mileageEntries.caregiverId, me.userId) : caregiverId ? eq(mileageEntries.caregiverId, caregiverId) : undefined,
+      // Whoever reads payroll sees everyone's mileage; anyone else only their own (whatever caregiverId says).
+      !office ? eq(mileageEntries.caregiverId, me.userId) : caregiverId ? eq(mileageEntries.caregiverId, caregiverId) : undefined,
       startDate ? gte(mileageEntries.date, startDate) : undefined,
       endDate ? lte(mileageEntries.date, endDate) : undefined,
     )
@@ -81,7 +82,7 @@ export function createMileageRoutes(core: HomecareCore, d: CrmDeps) {
     const body = await c.req.json().catch(() => ({})) as any
 
     // The office may record a trip for a caregiver; a caregiver records their own — a caregiverId they send is ignored.
-    const office = isOfficeUser(me)
+    const office = await actsForAnyone(d, me, 'care-payroll:create')
     const caregiverId = office && body.caregiverId ? body.caregiverId : me.userId
     if (office && body.caregiverId && !(await isCompanyPerson(d, me.companyId, caregiverId))) return fail(c, 404, 'Caregiver not found')
     if (body.clientId && !(await isCompanyClient(d, me.companyId, body.clientId))) return fail(c, 404, 'Client not found')

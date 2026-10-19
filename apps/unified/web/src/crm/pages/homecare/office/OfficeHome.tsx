@@ -62,9 +62,11 @@ interface CaregiverHoursRow {
 /** A money figure to two places (the server's numeric columns can arrive as strings). */
 const formatCurrency = (value: unknown): string => (parseFloat(String(value ?? '')) || 0).toFixed(2);
 
-const QUICK_ACTIONS: Array<{ page: string; label: string }> = [
-  { page: 'client-onboarding', label: '➕ New Client' },
-  { page: 'caregivers', label: '➕ New Caregiver' },
+// A "New …" action also asks the permission to make one: a seat that may read the page and add nothing was offered
+// "New Caregiver" (found in the browser, 2026-10-19).
+const QUICK_ACTIONS: Array<{ page: string; label: string; adds?: string }> = [
+  { page: 'client-onboarding', label: '➕ New Client', adds: 'care-clients:create' },
+  { page: 'caregivers', label: '➕ New Caregiver', adds: 'care-hr:create' },
   { page: 'billing', label: '📄 Billing' },
   { page: 'reports', label: '📊 Reports' },
   { page: 'emergency-coverage', label: '🚨 Emergency Coverage' },
@@ -129,7 +131,7 @@ export default function OfficeHome() {
 
   const openNoShows = Number(noShowStats?.openCount) || 0;
   const gaps = summary?.coverageGaps || 0;
-  const quickActions = QUICK_ACTIONS.filter((q) => mayOpen(q.page));
+  const quickActions = QUICK_ACTIONS.filter((q) => mayOpen(q.page) && (!q.adds || can(q.adds)));
 
   return (
     <>

@@ -24,6 +24,7 @@ import {
   markNotified, claimsForShift,
 } from '../../../data/homecareScheduling.ts'
 import { HttpError, isCaregiver, who, type SchedulingShared } from './shared.ts'
+import { actsForAnyone } from '../core/caregiverAccess.ts'
 
 const fmtHm = (t: string) => { const [h, m] = String(t).split(':').map(Number); return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}` }
 const fmtDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })
@@ -118,12 +119,13 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     return one(c, await openShiftById(db, companyId, id))
   })
 
-  // POST /api/open-shifts/:id/claim — a caregiver accepts. The office may name the caregiver.
+  // POST /api/open-shifts/:id/claim — a caregiver accepts. Whoever changes the schedule (care-schedule:update) may name
+  // the caregiver; anyone else claims for themselves (a read-only seat named anyone before 2026-10-19).
   app.post('/:id/claim', perm('care-schedule:read'), async (c) => {
     const { user, companyId, me } = who(c)
     const id = c.req.param('id')
     const b = await c.req.json().catch(() => ({})) as any
-    const caregiverId = !isCaregiver(d, user) && b.caregiverId ? String(b.caregiverId) : me
+    const caregiverId = b.caregiverId && (await actsForAnyone(d, user, 'care-schedule:update')) ? String(b.caregiverId) : me
 
     const os = await openShiftById(db, companyId, id, true)
     if (!os) return fail(c, 400, 'Shift is no longer available')

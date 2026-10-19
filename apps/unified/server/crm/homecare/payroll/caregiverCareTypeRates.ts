@@ -49,7 +49,7 @@ export function createCaregiverCareTypeRateRoutes(d: CrmDeps) {
   // GET /?caregiverId= — with each care type's name.
   app.get('/', payrollOrCaregiver(d, 'read'), async (c) => {
     const { companyId } = c.get('user')
-    const who = selfSubject(c, c.req.query('caregiverId'))
+    const who = await selfSubject(d, c, c.req.query('caregiverId'), 'care-payroll:read')
     if ('refusal' in who) return who.refusal
     const caregiverId = who.office ? c.req.query('caregiverId') : who.id
 

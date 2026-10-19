@@ -29,13 +29,15 @@ beforeAll(async () => {
   const [b] = await t.db.insert(S.company).values({ name: 'Agency B', slug: 'agency-b' }).returning()
   coA = a.id; coB = b.id
   const hash = await Bun.password.hash('Seat-pass-1', 'bcrypt')
-  const people: [string, string, string][] = [
+  const people: [string, string, string, string[]?][] = [
     ['ownerA', 'owner', coA], ['adminA', 'admin', coA], ['managerA', 'manager', coA],
     ['cg1', 'caregiver', coA], ['cg2', 'field', coA], ['adminB', 'admin', coB], ['cgB', 'caregiver', coB],
+    // A seat granted the caregivers' files and not their pay (an owner's grant: a hiring coordinator).
+    ['hrA', 'viewer', coA, ['care-hr:read']],
   ]
   let n = 0
-  for (const [who, role, companyId] of people) {
-    const [u] = await t.db.insert(S.user).values({ email: `${who.toLowerCase()}@hr.example`, passwordHash: hash, firstName: who, lastName: 'Hr', role, companyId, defaultPayRate: '21.00' }).returning()
+  for (const [who, role, companyId, extraPermissions = []] of people) {
+    const [u] = await t.db.insert(S.user).values({ email: `${who.toLowerCase()}@hr.example`, passwordHash: hash, firstName: who, lastName: 'Hr', role, companyId, defaultPayRate: '21.00', extraPermissions } as any).returning()
     ids[who] = u.id
     const res = await t.call('/api/auth/login', { method: 'POST', json: { email: `${who.toLowerCase()}@hr.example`, password: 'Seat-pass-1' }, headers: { 'X-Forwarded-For': `203.0.113.${++n}` } })
     tokens[who] = (await res.json()).accessToken
@@ -244,9 +246,11 @@ describe('the caregiver Full Profile overview', () => {
     expect(office.payRates).toEqual([expect.objectContaining({ rate: '24.00', effectiveDate: '2025-01-01', notes: 'Raise' })])
     const own = await body(await as('cg1', 'GET', `/api/caregivers/${ids.cg1}/summary`))
     expect(own.earnings.earningsThisMonth).toBe(36)
-    const manager = await as('managerA', 'GET', `/api/caregivers/${ids.cg1}/summary`)
-    expect(manager.status).toBe(200)
-    const m = await body(manager)
+    // The file is care-hr's: the manager holds none (core/caregiverAccess.ts — it was a list of roles, 2026-10-19).
+    expect((await as('managerA', 'GET', `/api/caregivers/${ids.cg1}/summary`)).status).toBe(403)
+    const hr = await as('hrA', 'GET', `/api/caregivers/${ids.cg1}/summary`)
+    expect(hr.status).toBe(200)
+    const m = await body(hr)
     expect('earningsThisMonth' in m.earnings).toBe(false)
     expect('payRates' in m).toBe(false)
     expect(m.earnings.totalHours).toBe(4)

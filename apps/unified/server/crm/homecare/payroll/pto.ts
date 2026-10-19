@@ -15,7 +15,7 @@ import { caregiverTimeOff, user } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
-import { isOfficeUser } from '../core/caregiverAccess.ts'
+import { actsForAnyone } from '../core/caregiverAccess.ts'
 import { selfSubject } from '../core/selfService.ts'
 import { isCompanyPerson, payrollOrCaregiver } from './shared.ts'
 
@@ -50,7 +50,7 @@ export function createPtoRoutes(d: CrmDeps) {
       .where(and(
         eq(caregiverTimeOff.companyId, me.companyId),
         inArray(caregiverTimeOff.type, PTO_TYPES),
-        isOfficeUser(me) ? undefined : eq(caregiverTimeOff.caregiverId, me.userId),
+        (await actsForAnyone(d, me, 'care-payroll:read')) ? undefined : eq(caregiverTimeOff.caregiverId, me.userId),
       ))
       .orderBy(desc(caregiverTimeOff.startDate))
     const entries = (rows as any[]).map(({ caregiverFirstName, caregiverLastName, ...entry }) => ({
@@ -64,7 +64,7 @@ export function createPtoRoutes(d: CrmDeps) {
   app.post('/', payrollOrCaregiver(d, 'create'), async (c) => {
     const me = c.get('user')
     const body = await c.req.json().catch(() => ({})) as any
-    const who = selfSubject(c, body.caregiverId)
+    const who = await selfSubject(d, c, body.caregiverId, 'care-payroll:create')
     if ('refusal' in who) return who.refusal
     if (who.office && who.id !== me.userId && !(await isCompanyPerson(d, me.companyId, who.id))) return fail(c, 404, 'Caregiver not found')
 

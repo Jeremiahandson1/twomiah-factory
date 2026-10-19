@@ -22,7 +22,7 @@ export function createCertificationsRoutes(_core: HomecareCore, d: CrmDeps) {
   // GET /api/certifications?caregiverId= — the office: anyone's (or all); a caregiver: their own
   app.get('/', async (c) => {
     const companyId = companyOf(c)
-    const who = selfSubject(c, c.req.query('caregiverId'))
+    const who = await selfSubject(d, c, c.req.query('caregiverId'), 'care-hr:read')
     if ('refusal' in who) return who.refusal
     const caregiverId = who.office ? c.req.query('caregiverId') : who.id
     const rows = caregiverId
@@ -36,7 +36,7 @@ export function createCertificationsRoutes(_core: HomecareCore, d: CrmDeps) {
   })
 
   // GET /api/certifications/caregiver/:id
-  app.get('/caregiver/:id', requireAdminOrSelf('id'), async (c) => {
+  app.get('/caregiver/:id', requireAdminOrSelf(d, 'id', 'care-hr:read'), async (c) => {
     const rows = await d.db.select().from(certificationRecords)
       .where(and(eq(certificationRecords.companyId, companyOf(c)), eq(certificationRecords.caregiverId, idOf(c))))
       .orderBy(desc(certificationRecords.createdAt))
@@ -101,13 +101,13 @@ export function createTrainingRecordsRoutes(_core: HomecareCore, d: CrmDeps) {
 
   // GET /api/training-records?caregiverId= — the office: anyone's (or all); a caregiver: their own
   app.get('/', async (c) => {
-    const who = selfSubject(c, c.req.query('caregiverId'))
+    const who = await selfSubject(d, c, c.req.query('caregiverId'), 'care-hr:read')
     if ('refusal' in who) return who.refusal
     return all(c, await query(companyOf(c), who.office ? c.req.query('caregiverId') : who.id))
   })
 
   // GET /api/training-records/:id — one caregiver's records (the office's, or the caregiver's own)
-  app.get('/:id', requireAdminOrSelf('id'), async (c) => all(c, await query(companyOf(c), idOf(c))))
+  app.get('/:id', requireAdminOrSelf(d, 'id', 'care-hr:read'), async (c) => all(c, await query(companyOf(c), idOf(c))))
 
   // POST /api/training-records — the office records training
   app.post('/', requirePermission('care-hr:create'), async (c) => {

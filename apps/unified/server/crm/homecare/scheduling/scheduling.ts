@@ -132,7 +132,7 @@ export function createSchedulingRoutes(_core: HomecareCore, d: CrmDeps) {
   // reasons on these rows are personal: sick, family, medical).
   app.get('/time-off', perm('care-schedule:read'), async (c) => {
     const { companyId } = who(c)
-    const subject = selfSubject(c, c.req.query('caregiverId'))
+    const subject = await selfSubject(d, c, c.req.query('caregiverId'), 'care-schedule:read')
     if ('refusal' in subject) return subject.refusal
     const caregiverId = subject.office ? c.req.query('caregiverId') : subject.id
     const status = c.req.query('status')
@@ -165,7 +165,7 @@ export function createSchedulingRoutes(_core: HomecareCore, d: CrmDeps) {
   app.post('/time-off', perm('care-schedule:read'), async (c) => {
     const { companyId, me } = who(c)
     const body = await c.req.json().catch(() => ({})) as any
-    const subject = selfSubject(c, body.caregiverId)
+    const subject = await selfSubject(d, c, body.caregiverId, 'care-schedule:create')
     if ('refusal' in subject) return subject.refusal
     if (!body.startDate || !body.endDate || !body.type) return fail(c, 400, 'startDate, endDate and type are required')
     const status = subject.office && typeof body.status === 'string' && body.status ? body.status : 'pending'

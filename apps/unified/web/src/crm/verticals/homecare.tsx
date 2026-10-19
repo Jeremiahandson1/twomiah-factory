@@ -126,15 +126,23 @@ export const routePermissions: Record<string, string> = isHomecare
   : {}
 
 /**
- * The dashboard at /crm/dashboard: the office's overview, or a caregiver's day (their shifts, clocking in and out,
- * their visits) for whoever does not run the agency's schedule — the template's split by role
- * (App.tsx MainApp: caregiver → CaregiverDashboard, else AdminDashboard), drawn on the permission instead.
+ * The stored roles that are the caregiver seat — the server's rule (server/crm/homecare/core/caregiverAccess.ts
+ * isCaregiverSeat: the roles that normalise to the field rung; 'caregiver' by home care's roleMapping, 'user' by the
+ * shared one). apps/unified/tests/homecare-whose-records.test.ts holds this list to the server's.
+ */
+export const CAREGIVER_SEATS = ['field', 'caregiver', 'user']
+
+/**
+ * The dashboard at /crm/dashboard: a caregiver's day (their shifts, clocking in and out, their visits) for a caregiver,
+ * and the office's overview — each tile for whoever holds its permission — for everyone else: the template's split
+ * (App.tsx MainApp: caregiver → CaregiverDashboard, else AdminDashboard). It was drawn on care-schedule:update, so a
+ * seat granted read access was shown a caregiver's day, with "my shifts" and "my availability" (2026-10-19).
  */
 function HomecareDashboard() {
-  const { can, known } = usePermissions()
-  useAuth()
+  const { user } = useAuth()
+  const { known } = usePermissions()
   if (!known) return null
-  const Home = can('care-schedule:update') ? office.OfficeHome : visits.CaregiverHome
+  const Home = CAREGIVER_SEATS.includes(String(user?.role || '')) ? visits.CaregiverHome : office.OfficeHome
   return <HomecareFrame><Home /></HomecareFrame>
 }
 export const dashboard = HomecareDashboard

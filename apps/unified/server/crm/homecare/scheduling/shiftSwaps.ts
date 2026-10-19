@@ -20,6 +20,7 @@ import {
   scheduleOwner, coverDate, setActiveScheduleCaregiver, reviewSwap, withdrawSwap,
 } from '../../../data/homecareScheduling.ts'
 import { isCaregiver, who } from './shared.ts'
+import { actsForAnyone } from '../core/caregiverAccess.ts'
 
 export function createShiftSwapsRoutes(core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()
@@ -39,7 +40,8 @@ export function createShiftSwapsRoutes(core: HomecareCore, d: CrmDeps) {
   // is pinned to the NEXT upcoming occurrence — the one the caregiver is looking at.
   app.post('/', perm('care-schedule:read'), async (c) => {
     const { user, companyId, me } = who(c)
-    const office = !isCaregiver(d, user)
+    // Filing a swap for someone else is a schedule change: care-schedule:update (it was "not a caregiver", 2026-10-19).
+    const office = await actsForAnyone(d, user, 'care-schedule:update')
     const b = await c.req.json().catch(() => ({})) as any
     const requester = office && (b.requestingCaregiverId || b.requesterId) ? String(b.requestingCaregiverId || b.requesterId) : me
     const target = b.targetCaregiverId || b.targetId || null
@@ -76,7 +78,7 @@ export function createShiftSwapsRoutes(core: HomecareCore, d: CrmDeps) {
     const { user, companyId, me } = who(c)
     const s = await swapById(db, companyId, c.req.param('id'))
     if (!s) return fail(c, 404, 'Swap request not found')
-    if (isCaregiver(d, user) && s.targetId !== me) return fail(c, 403, 'Only the caregiver asked can answer this swap')
+    if (s.targetId !== me && !(await actsForAnyone(d, user, 'care-schedule:update'))) return fail(c, 403, 'Only the caregiver asked can answer this swap')
     if (s.status !== 'pending') return fail(c, 400, `This swap is already ${s.status}`)
     const { accepted, notes } = await c.req.json().catch(() => ({})) as any
     await answerSwap(db, companyId, s.id, !!accepted, notes || null)
@@ -125,7 +127,7 @@ export function createShiftSwapsRoutes(core: HomecareCore, d: CrmDeps) {
     const { user, companyId, me } = who(c)
     const s = await swapById(db, companyId, c.req.param('id'))
     if (!s) return fail(c, 404, 'Swap request not found')
-    if (isCaregiver(d, user) && s.requesterId !== me) return fail(c, 403, 'Only the caregiver who asked can withdraw this swap')
+    if (s.requesterId !== me && !(await actsForAnyone(d, user, 'care-schedule:update'))) return fail(c, 403, 'Only the caregiver who asked can withdraw this swap')
     await withdrawSwap(db, companyId, s.id)
     return done(c)
   })

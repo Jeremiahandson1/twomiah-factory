@@ -22,7 +22,7 @@ import { createActorName } from '@twomiah/tenant-backend'
 import { communicationLog, messageThreads, messageThreadParticipants, messages, user } from '../../../db/schema/index.ts'
 import { fail, list, one, done } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { isOfficeUser } from '../core/caregiverAccess.ts'
+import { actsForAnyone } from '../core/caregiverAccess.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 
@@ -136,7 +136,7 @@ export function createCommunicationRoutes(_core: HomecareCore, d: CrmDeps) {
     const [thread] = await db.select({ id: messageThreads.id }).from(messageThreads)
       .where(and(eq(messageThreads.id, threadId), eq(messageThreads.companyId, me.companyId))).limit(1)
     if (!thread) return false
-    if (isOfficeUser(me)) return true
+    if (await actsForAnyone(d, me, 'care-portal:update')) return true
     const [p] = await db.select({ id: messageThreadParticipants.id }).from(messageThreadParticipants)
       .where(and(eq(messageThreadParticipants.threadId, threadId), eq(messageThreadParticipants.userId, me.userId))).limit(1)
     return !!p

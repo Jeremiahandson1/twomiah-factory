@@ -84,7 +84,7 @@ export function createAbsencesRoutes(_core: HomecareCore, d: CrmDeps) {
   app.post('/', perm('care-schedule:read'), async (c) => {
     const { companyId, me } = who(c)
     const body = await c.req.json().catch(() => ({})) as any
-    const subject = selfSubject(c, body.caregiverId)
+    const subject = await selfSubject(d, c, body.caregiverId, 'care-schedule:create')
     if ('refusal' in subject) return subject.refusal
     if (!body.date || !body.type) return fail(c, 400, 'caregiverId, date, and type are required')
     const [row] = await db

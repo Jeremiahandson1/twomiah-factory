@@ -10,13 +10,14 @@ import {
 import { toAuthUnits } from '../core/authUnits.ts'
 import { schedTs } from '../core/scheduleOccurrences.ts'
 import { addDays } from '../core/agencyTime.ts'
+import { isCaregiverSeat } from '../core/caregiverAccess.ts'
 
 /**
- * "Is this person a caregiver?" — the question the template asked with `!isOffice(user)` where it narrowed a read to
- * the caregiver's own rows. A stored role may be `caregiver` (a moved tenant) or `field` (a new one); both normalise to
- * the field rung. Everyone above it (manager, admin, owner) holds the area's permissions and sees the agency's rows.
+ * "Is this person a caregiver?" — the question the template asked with `!isOffice(user)` where it narrowed a READ to the
+ * caregiver's own rows (the route already asks the area's read permission). The one rule is core/caregiverAccess.ts;
+ * an act on someone else's record asks actsForAnyone with the act's own permission, never just "not a caregiver".
  */
-export const isCaregiver = (d: CrmDeps, user: any): boolean => d.permissions.normalizeRole(user?.role) === 'field'
+export const isCaregiver = (d: CrmDeps, user: any): boolean => isCaregiverSeat(d, user)
 
 /** The signed-in user's id. */
 export const userIdOf = (user: any): string => user?.userId || user?.id

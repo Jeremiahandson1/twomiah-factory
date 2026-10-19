@@ -2,10 +2,8 @@
 // record care for, and the list reply for a whole (unpaged) list.
 //
 // "The office" in the template was owner or admin (helpers/careAudit.ts isOffice): everyone who was not a caregiver.
-// The unified seats add a manager, who holds every care-clients permission (packages/tenant-backend auth/permissions.ts),
-// so the question the routes really ask is "is this a caregiver?" — the scheduling group's isCaregiver, the field rung,
-// whatever the stored role says ('caregiver' on a moved tenant, 'field' on a new one). Anyone else acts for the
-// company and sees all of its clients; a caregiver goes through core/caregiverAccess.ts (the clients they serve).
+// Which clients a person may read is core/caregiverAccess.ts maySeeClient, the one rule: a caregiver, the clients they
+// serve; anyone else holding care-clients:read, every client of the company.
 import type { Context, Next } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { clients, user as userTable } from '../../../db/schema/index.ts'
@@ -32,8 +30,6 @@ export const whole = <T>(c: Context, rows: T[]) => list(c, rows, { page: 1, limi
 export const body = async (c: Context): Promise<any> => (await c.req.json().catch(() => ({}))) ?? {}
 
 export function createClientAccess(core: HomecareCore, d: CrmDeps) {
-  const office = (user: any) => !!user && !isCaregiver(d, user)
-
   /** Is this one of the company's clients? */
   async function clientInCompany(companyId: string, clientId: string | null | undefined): Promise<boolean> {
     if (!clientId || !companyId) return false
@@ -42,12 +38,15 @@ export function createClientAccess(core: HomecareCore, d: CrmDeps) {
     return !!row
   }
 
-  /** May this person read this client's records? Anyone above a caregiver: any client of the company; a caregiver: a client they serve. */
-  async function maySeeClient(user: any, clientId: string | null | undefined): Promise<boolean> {
-    if (!user?.companyId || !clientId) return false
-    if (office(user)) return clientInCompany(user.companyId, clientId)
-    return core.access.maySeeClient(user, clientId)
-  }
+  /**
+   * Not a caregiver — for a route that already asks the act's own permission (care-clients:read on a read; evv:create /
+   * update on recording care, which a read-only seat does not hold). An act on another person's record that the route's
+   * permission does not cover asks core/caregiverAccess.ts actsForAnyone instead (documents' sign, 2026-10-19).
+   */
+  const office = (user: any): boolean => !!user && !isCaregiver(d, user)
+
+  /** May this person read this client's records? core/caregiverAccess.ts — the one rule. */
+  const maySeeClient = (user: any, clientId: string | null | undefined): Promise<boolean> => core.access.maySeeClient(user, clientId)
 
   /** Route guard for `/:clientId` paths: 403 for a client this person may not read. */
   const requireClientAccess = (param = 'clientId') => async (c: Context, next: Next) => {

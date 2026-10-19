@@ -245,7 +245,7 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
   // Hours are finished visits (time entries clocked out), counted from the agency's midnight. Pay is what payroll pays
   // (core/payrollPay.ts — approved shift reviews from the 1st of the month to today), never hours × a rate, so the
   // figure on this card is the figure on the paycheck.
-  app.get('/:id/summary', requireAdminOrSelf('id'), async (c) => {
+  app.get('/:id/summary', requireAdminOrSelf(d, 'id', 'care-hr:read'), async (c) => {
     const companyId = companyOf(c)
     const id = idOf(c)
     const [person] = await d.db.select({ id: user.id }).from(user).where(and(eq(user.id, id), eq(user.companyId, companyId))).limit(1)
@@ -314,7 +314,7 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
   })
 
   // GET /api/caregivers/:id — the full file (assignments, background checks, pay): the office's, or the person's own.
-  app.get('/:id', requireAdminOrSelf('id'), async (c) => {
+  app.get('/:id', requireAdminOrSelf(d, 'id', 'care-hr:read'), async (c) => {
     const companyId = companyOf(c)
     const id = idOf(c)
     const [row] = await d.db.select({
@@ -456,7 +456,7 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
   // ── Certifications, training records and the latest background check, per caregiver ──────────
   // The paths the caregiver profile and Compliance screens call, answered with the field names those screens read.
   // Reads: the office, or the caregiver themself. Writes: the office.
-  app.get('/:id/certifications', requireAdminOrSelf('id'), async (c) => {
+  app.get('/:id/certifications', requireAdminOrSelf(d, 'id', 'care-hr:read'), async (c) => {
     const rows = await d.db.select().from(certificationRecords)
       .where(and(eq(certificationRecords.companyId, companyOf(c)), eq(certificationRecords.caregiverId, idOf(c))))
       .orderBy(desc(certificationRecords.expiryDate))
@@ -485,7 +485,7 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     return one(c, certView(row), 201)
   })
 
-  app.get('/:id/training-records', requireAdminOrSelf('id'), async (c) => {
+  app.get('/:id/training-records', requireAdminOrSelf(d, 'id', 'care-hr:read'), async (c) => {
     const rows = await d.db.select().from(trainingRecords)
       .where(and(eq(trainingRecords.companyId, companyOf(c)), eq(trainingRecords.caregiverId, idOf(c))))
       .orderBy(desc(trainingRecords.completedDate))
@@ -517,7 +517,7 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
   })
 
   // GET /api/caregivers/:id/background-check — the latest check. None on file is a 404 (the template answered null).
-  app.get('/:id/background-check', requireAdminOrSelf('id'), async (c) => {
+  app.get('/:id/background-check', requireAdminOrSelf(d, 'id', 'care-hr:read'), async (c) => {
     const [row] = await d.db.select().from(backgroundChecks)
       .where(and(eq(backgroundChecks.companyId, companyOf(c)), eq(backgroundChecks.caregiverId, idOf(c))))
       .orderBy(descNullsLast(backgroundChecks.initiatedDate))
@@ -556,7 +556,7 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     return row
   }
 
-  app.get('/:id/availability', requireAdminOrSelf('id'), async (c) => {
+  app.get('/:id/availability', requireAdminOrSelf(d, 'id', 'care-schedule:read'), async (c) => {
     const companyId = companyOf(c)
     const id = idOf(c)
     if (!(await personInCompany(d, companyId, id))) return fail(c, 404, 'Caregiver not found')
@@ -569,7 +569,7 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     return one(c, await availabilityOf(companyId, id))
   })
 
-  app.put('/:id/availability', requireAdminOrSelf('id'), async (c) => {
+  app.put('/:id/availability', requireAdminOrSelf(d, 'id', 'care-schedule:update'), async (c) => {
     const companyId = companyOf(c)
     const id = idOf(c)
     const b = await body(c)
@@ -605,14 +605,14 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     endDate: caregiverTimeOff.endDate, reason: caregiverTimeOff.reason, status: caregiverTimeOff.status, createdAt: caregiverTimeOff.createdAt,
   }
 
-  app.get('/:id/blackout-dates', requireAdminOrSelf('id'), async (c) => {
+  app.get('/:id/blackout-dates', requireAdminOrSelf(d, 'id', 'care-schedule:read'), async (c) => {
     const rows = await d.db.select(blackoutColumns).from(caregiverTimeOff)
       .where(and(eq(caregiverTimeOff.companyId, companyOf(c)), eq(caregiverTimeOff.caregiverId, idOf(c)), eq(caregiverTimeOff.type, 'blackout')))
       .orderBy(desc(caregiverTimeOff.startDate))
     return all(c, rows)
   })
 
-  app.post('/:id/blackout-dates', requireAdminOrSelf('id'), async (c) => {
+  app.post('/:id/blackout-dates', requireAdminOrSelf(d, 'id', 'care-schedule:create'), async (c) => {
     const companyId = companyOf(c)
     const id = idOf(c)
     const b = await body(c)
