@@ -204,3 +204,37 @@ describe('the Gusto preview answers in camelCase', () => {
     expect((await body(await as('ownerB', 'GET', '/api/gusto/preview?startDate=2026-09-06&endDate=2026-09-19'))).preview).toEqual([])
   })
 })
+
+describe('time off of every kind the payroll screen offers', () => {
+  test('personal, bereavement, jury duty and unpaid are recorded (the template refused them); an unknown kind is not', async () => {
+    for (const type of ['personal', 'bereavement', 'jury_duty', 'unpaid']) {
+      const r = await as('ownerA', 'POST', '/api/pto', { caregiverId: ids.cg2, startDate: '2026-12-01', endDate: '2026-12-01', type })
+      expect(r.status).toBe(201)
+    }
+    const listed = (await body(await as('ownerA', 'GET', '/api/pto'))).data.map((r: any) => r.type)
+    for (const type of ['personal', 'bereavement', 'jury_duty', 'unpaid']) expect(listed).toContain(type)
+    expect((await as('ownerA', 'POST', '/api/pto', { caregiverId: ids.cg2, startDate: '2026-12-01', endDate: '2026-12-01', type: 'blackout' })).status).toBe(400)
+  })
+})
+
+describe("removing a caregiver's care-type rate", () => {
+  test('Remove deletes it (the template had no route); only the office, only the company\'s', async () => {
+    const [ct] = await t.db.insert(t.schema.careTypes).values({ companyId: coA, name: 'Respite' }).returning()
+    const made = await body(await as('ownerA', 'POST', '/api/caregiver-care-type-rates', { caregiverId: ids.cg1, careTypeId: ct.id, hourlyRate: '24.00' }))
+    expect((await as('cg1', 'DELETE', `/api/caregiver-care-type-rates/${made.id}`)).status).toBe(403)
+    expect((await as('ownerB', 'DELETE', `/api/caregiver-care-type-rates/${made.id}`)).status).toBe(404)
+    expect((await as('ownerA', 'DELETE', `/api/caregiver-care-type-rates/${made.id}`)).status).toBe(200)
+    const left = (await body(await as('ownerA', 'GET', `/api/caregiver-care-type-rates?caregiverId=${ids.cg1}`))).data.map((r: any) => r.id)
+    expect(left).not.toContain(made.id)
+  })
+})
+
+describe("the expense form's fields are kept", () => {
+  test('vendor, payment method and the two flags are stored and listed (migration 0011)', async () => {
+    const made = await body(await as('ownerA', 'POST', '/api/expenses', { description: 'Gloves', amount: '42.10', date: '2026-10-01', vendor: 'Medline', paymentMethod: 'credit_card', taxDeductible: true, reimbursable: false }))
+    expect(made).toMatchObject({ vendor: 'Medline', paymentMethod: 'credit_card', taxDeductible: true, reimbursable: false })
+    await as('ownerA', 'PUT', `/api/expenses/${made.id}`, { reimbursable: true })
+    const listed = (await body(await as('ownerA', 'GET', '/api/expenses'))).data.find((r: any) => r.id === made.id)
+    expect(listed).toMatchObject({ vendor: 'Medline', paymentMethod: 'credit_card', taxDeductible: true, reimbursable: true })
+  })
+})

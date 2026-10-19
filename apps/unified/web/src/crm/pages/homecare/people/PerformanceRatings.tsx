@@ -71,7 +71,8 @@ export default function PerformanceRatings() {
     try {
       const [caregiversData, clientsData] = await Promise.all([
         api.get('/api/users/caregivers'),
-        api.get('/api/clients'),
+        // Every client: /api/clients pages at 50, so the picker stopped at the 50th.
+        api.get('/api/clients', { limit: 1000 }),
       ])
       const cgList = rows<CaregiverPick>(caregiversData)
       setCaregivers(cgList)

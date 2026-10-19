@@ -2,7 +2,7 @@
 // light), their menu items (paths and order: crm/verticals/homecare.tsx MENU), and the permission each page's API asks.
 //
 // Moved from templates/crm-homecare/frontend/src (AdminDashboard.tsx renderPage): caregivers, performance,
-// performance-reviews, applications, job-postings, onboarding-packets, payroll, expenses, background-checks, and the
+// performance-reviews (to performance), applications, job-postings, onboarding-packets, payroll, expenses, background-checks, and the
 // caregiver-profile / caregiver-history sections as /crm/caregivers/:id and /crm/caregivers/:id/history.
 //
 // Permissions (the routes' own; packages/tenant-backend auth/permissions.ts, verticals/homecare/settings.ts):
@@ -14,7 +14,7 @@
 //     every action).
 // The detail and history addresses sit under /crm/caregivers, so its permission covers them (the shell matches by prefix).
 import type { ReactElement } from 'react'
-import { Route } from 'react-router-dom'
+import { Navigate, Route } from 'react-router-dom'
 import { Banknote, ClipboardList, CreditCard, FileText, Inbox, SearchCheck, Star, Users } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
@@ -23,7 +23,6 @@ const CaregiverManagement = page(() => import('./CaregiverManagement'))
 const CaregiverProfile = page(() => import('./CaregiverProfile'))
 const CaregiverHistory = page(() => import('./CaregiverHistory'))
 const PerformanceRatings = page(() => import('./PerformanceRatings'))
-const PerformanceReviewsPage = page(() => import('./PerformanceReviewsPage'))
 const ApplicationsDashboard = page(() => import('./ApplicationsDashboard'))
 const JobPostingsAdmin = page(() => import('./JobPostingsAdmin'))
 const OnboardingPacketsAdmin = page(() => import('./OnboardingPacketsAdmin'))
@@ -39,7 +38,10 @@ export const routes: ReactElement[] = [
   <Route key="hc-people-caregiver" path="caregivers/:id" element={<CaregiverProfile />} />,
   <Route key="hc-people-caregiver-history" path="caregivers/:id/history" element={<CaregiverHistory />} />,
   <Route key="hc-people-performance" path="performance" element={<PerformanceRatings />} />,
-  <Route key="hc-people-performance-reviews" path="performance-reviews" element={<PerformanceReviewsPage />} />,
+  // The template's second review page (pages/PerformanceReviewsPage.tsx) could never save — it asked for a caregiver id
+  // typed by hand and no client, which every review needs — and /crm/performance writes the same reviews properly.
+  // Its address opens that page.
+  <Route key="hc-people-performance-reviews" path="performance-reviews" element={<Navigate to="/crm/performance" replace />} />,
   <Route key="hc-people-applications" path="applications" element={<ApplicationsDashboard />} />,
   <Route key="hc-people-job-postings" path="job-postings" element={<JobPostingsAdmin />} />,
   <Route key="hc-people-onboarding-packets" path="onboarding-packets" element={<OnboardingPacketsAdmin />} />,

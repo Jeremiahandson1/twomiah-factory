@@ -9,8 +9,8 @@
 //   POST   /api/expenses                              reads date (or expenseDate), category, description, amount, receiptUrl, notes
 //   PUT    /api/expenses/:id                          reads date — the template sent only expenseDate, so an edited date never saved
 //   DELETE /api/expenses/:id                          care-payroll:delete
-// The table has no vendor, payment method, tax-deductible or reimbursable columns: the form sends them as the template
-// did and the server drops them, so they read back empty (the template's too). Reported.
+// The vendor, payment method and the tax-deductible and reimbursable flags are stored (migration 0011); the template's
+// server dropped them, so they read back empty there.
 import { useEffect, useState, type FormEvent } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
 import { api, errorMessage, rows } from '../lib/http'

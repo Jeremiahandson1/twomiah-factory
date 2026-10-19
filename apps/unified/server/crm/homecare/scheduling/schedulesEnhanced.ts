@@ -104,10 +104,16 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
     const authCheck = isTraining ? { warnings: [] as string[] } : await shared.checkAuthorizationBalance(companyId, clientId, totalHours)
     const base = isRecurring ? effectiveDate! : date
 
+    // A recurring pattern may end on a day (the create forms' "End Date"; the template's forms showed it and never
+    // sent it). The occurrence engine stops at it (data/homecareCore.ts). Not before the pattern starts.
+    const endDate: string | null = isRecurring && b.endDate ? String(b.endDate) : null
+    if (endDate && !DATE_RE.test(endDate)) return fail(c, 400, 'endDate must be a date (YYYY-MM-DD).')
+    if (endDate && endDate < effectiveDate!) return fail(c, 400, 'The end date is before the schedule starts.')
+
     const insert = (start: string, end: string, split?: { group: string; segment: number }) => insertSchedule(db, companyId, {
       caregiverId, clientId, scheduleType: scheduleType || (isRecurring ? 'recurring' : 'one-time'), dayOfWeek,
       date: isRecurring ? null : date, startTs: schedTs(start, base), endTs: schedTs(end, base), notes: notes || null,
-      frequency: frequency || 'weekly', effectiveDate, anchorDate, split: split ?? null, isTraining: !!isTraining,
+      frequency: frequency || 'weekly', effectiveDate, anchorDate, split: split ?? null, isTraining: !!isTraining, endDate,
     })
 
     // A one-time shift overlapping one the caregiver already has that day.

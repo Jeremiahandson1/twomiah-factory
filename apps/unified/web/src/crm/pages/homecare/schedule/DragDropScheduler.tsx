@@ -331,6 +331,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
             frequency: newShiftForm.frequency,
             effectiveDate: newShiftForm.startDate || todayStr,
             anchorDate: newShiftForm.frequency === 'biweekly' ? anchorStr : null,
+            endDate: newShiftForm.endDate || null,
             isTraining: newShiftForm.isTraining,
             overnight,
           }

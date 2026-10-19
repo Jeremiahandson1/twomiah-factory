@@ -540,7 +540,7 @@ const SchedulingHub = () => {
             const body = await api.post('/api/schedules-enhanced', {
               caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'recurring',
               dayOfWeek, date: null, startTime: formData.startTime, endTime: formData.endTime, notes: formData.notes,
-              frequency: freq, effectiveDate: formData.date || today, anchorDate: anchorStr,
+              frequency: freq, effectiveDate: formData.date || today, anchorDate: anchorStr, endDate: formData.endDate || null,
               isTraining: formData.isTraining, overnight,
             }) as SavedReply
             if (body?.authWarnings?.length) lastWarnings = body.authWarnings
@@ -560,7 +560,7 @@ const SchedulingHub = () => {
         const body = await api.post('/api/schedules-enhanced', {
           caregiverId: formData.caregiverId, clientId: formData.clientId, scheduleType: 'recurring',
           dayOfWeek: parseInt(formData.dayOfWeek), date: null, startTime: formData.startTime, endTime: formData.endTime,
-          notes: formData.notes, frequency: 'weekly', effectiveDate: formData.date || today, anchorDate: null,
+          notes: formData.notes, frequency: 'weekly', effectiveDate: formData.date || today, anchorDate: null, endDate: formData.endDate || null,
           isTraining: formData.isTraining, overnight,
         }) as SavedReply
         showSaved('Schedule created!', body)
@@ -1786,7 +1786,7 @@ const SchedulingHub = () => {
           <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 600, fontSize: '0.82rem' }}>Start Date *</label>
           <input type="date" value={formData.date} onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))} style={smallDate} />
         </div>
-        {/* "End Date" is not sent: neither create takes an end date (nor did the template's). */}
+        {/* The recurring pattern's last day (POST /api/schedules-enhanced endDate). */}
         <div>
           <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 600, fontSize: '0.82rem' }}>End Date <span style={{ color: C.inkSoft, fontWeight: 400 }}>(optional)</span></label>
           <input type="date" value={formData.endDate || ''} onChange={(e) => setFormData((prev) => ({ ...prev, endDate: e.target.value }))} min={formData.date || undefined} style={smallDate} />

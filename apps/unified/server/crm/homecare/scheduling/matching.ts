@@ -133,7 +133,7 @@ export function createMatchingRoutes(core: HomecareCore, d: CrmDeps) {
     const [cl] = await db.select({ id: clients.id }).from(clients).where(and(eq(clients.id, clientId), eq(clients.companyId, companyId))).limit(1)
     if (!cl) return fail(c, 404, 'Client not found')
     const [row] = await db.insert(clientAssignments).values({
-      companyId, clientId, caregiverId: body.caregiverId, assignmentDate: new Date().toISOString().slice(0, 10), status: 'restricted', notes: body.notes,
+      companyId, clientId, caregiverId: body.caregiverId, assignmentDate: await core.time.today(companyId), status: 'restricted', notes: body.notes,
     }).returning()
     return one(c, row, 201)
   })

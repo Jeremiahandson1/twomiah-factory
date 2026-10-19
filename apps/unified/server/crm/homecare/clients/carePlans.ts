@@ -21,6 +21,7 @@
 // Replies: the list and the revisions are { data, pagination }; the revisions are camelCase (they were snake_case).
 import { Hono } from 'hono'
 import { and, asc, count, desc, eq, inArray } from 'drizzle-orm'
+import { ymdIn } from '../core/agencyTime.ts'
 import {
   carePlans, carePlanTemplates, carePlanRevisions, clients, company, clientEmergencyContacts, schedules, user as users,
 } from '../../../db/schema/index.ts'
@@ -232,7 +233,8 @@ export function createCarePlanRoutes(core: HomecareCore, d: CrmDeps, access: Cli
       tasks,
       isAssessmentSource,
     })
-    const ymd = new Date(r.plan.createdAt).toISOString().slice(0, 10)
+    // The file's day is the agency's, as createdOn above (UTC's put an evening plan on the next day).
+    const ymd = ymdIn(new Date(r.plan.createdAt), tz)
     return new Response(new Uint8Array(pdf), {
       headers: {
         'Content-Type': 'application/pdf',

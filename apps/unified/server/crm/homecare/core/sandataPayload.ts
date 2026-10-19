@@ -9,6 +9,8 @@
 
 // ── formatting helpers ───────────────────────────────────────────────────────────────────────
 
+import { ymdIn } from './agencyTime.ts'
+
 // Spec date/time: YYYY-MM-DDTHH:MM:SSZ, UTC, to the second (no milliseconds).
 export function utc(dt: unknown): string | null {
   if (!dt) return null
@@ -220,7 +222,8 @@ export function buildClientPayload(c: any, opts: { providerId: string | null; se
       PayerProgram: c.sandataPayerProgram,
       ProcedureCode: c.defaultServiceCode,
       ClientStatus: c.isActive === false ? '04' : '02',
-      EffectiveStartDate: (c.createdAt ? new Date(c.createdAt) : new Date()).toISOString().slice(0, 10),
+      // The day the client was added, on the agency's clock (UTC's put an evening sign-up on the next day).
+      EffectiveStartDate: ymdIn(c.createdAt ? new Date(c.createdAt) : new Date(), opts.timeZone),
     }]
     payload.ClientAddress = [{
       ClientAddressType: 'Other',

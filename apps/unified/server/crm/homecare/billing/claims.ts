@@ -31,7 +31,6 @@ import { isDate, body, who, download } from './shared.ts'
 export const CLAIM_STATUSES = ['draft', 'pending', 'ready', 'submitted', 'accepted', 'paid', 'partial', 'denied', 'voided', 'appealed']
 
 const idsOf = (b: any): string[] => (Array.isArray(b?.claimIds) ? b.claimIds.filter((x: any) => typeof x === 'string' && x) : [])
-const exportDay = () => new Date().toISOString().slice(0, 10)
 
 export function createClaimRoutes(core: HomecareCore, d: CrmDeps) {
   const { db } = d
@@ -215,7 +214,7 @@ export function createClaimRoutes(core: HomecareCore, d: CrmDeps) {
     const portalName = portals.length === 1 && portals[0] ? portals[0] : 'Insurer Portal'
     const csv = generateMidasExport(rows as any, getProviderInfo((await agencyRow(companyId)) as any), portalName)
     await markClaimsExported(db, companyId, ids, 'portal_export')
-    return download(c, 'text/csv', `${portalName.replace(/[^A-Za-z0-9]+/g, '-')}-Upload-Packet-${exportDay()}.csv`, csv)
+    return download(c, 'text/csv', `${portalName.replace(/[^A-Za-z0-9]+/g, '-')}-Upload-Packet-${await core.time.today(companyId)}.csv`, csv)
   }
   app.post('/export/portal', update, portalExport)
   app.post('/export/midas', update, portalExport)
@@ -229,7 +228,7 @@ export function createClaimRoutes(core: HomecareCore, d: CrmDeps) {
     if (!rows.length) return fail(c, 400, 'No claims found')
     const csv = generateIRISExport(rows as any)
     await markClaimsExported(db, companyId, ids, 'iris_export')
-    return download(c, 'text/csv', `IRIS-FEA-Export-${exportDay()}.csv`, csv)
+    return download(c, 'text/csv', `IRIS-FEA-Export-${await core.time.today(companyId)}.csv`, csv)
   })
 
   // GET /:id — one claim with its payer, client, invoice, authorization, denial lookup and history.

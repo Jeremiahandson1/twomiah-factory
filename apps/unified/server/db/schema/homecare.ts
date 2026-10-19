@@ -513,6 +513,11 @@ export const serviceCodes = pgTable('service_codes', {
   unitType: text('unit_type').default('15min').notNull(),
   ratePerUnit: decimal('rate_per_unit', { precision: 8, scale: 4 }),
   requiresEvv: boolean('requires_evv').default(true).notNull(),
+  // The Payers & Codes form's revenue code, prior-authorization flag and notes (migration 0011): the template's form
+  // showed and sent them and no column kept them.
+  revenueCode: text('revenue_code'),
+  requiresAuth: boolean('requires_auth').default(false).notNull(),
+  notes: text('notes'),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
@@ -950,6 +955,12 @@ export const expenses = pgTable('expenses', {
   receiptUrl: text('receipt_url'),
   status: text('status').default('pending').notNull(),
   notes: text('notes'),
+  // The expense form's vendor, payment method and the two flags (migration 0011): the template's form showed and sent
+  // them and no column kept them.
+  vendor: text('vendor'),
+  paymentMethod: text('payment_method'),
+  taxDeductible: boolean('tax_deductible').default(false).notNull(),
+  reimbursable: boolean('reimbursable').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

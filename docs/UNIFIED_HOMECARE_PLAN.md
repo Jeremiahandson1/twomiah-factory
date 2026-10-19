@@ -97,4 +97,13 @@ Fixed in the move (tests: `apps/unified/tests/homecare-core-fixes.test.ts`): EVV
 
 All nine route groups are in (step 3); `docs/CUTOVER_LEDGER.md` "Home care (step 6, routes)" lists them. The foundation's open items are closed: the timed work starts with the CRM's (`services.addJob`); server-side sign-out revocation and View As are in the app's sign-in for home care (`office/signIn.ts`); call tracking and the AI receptionist match callers to clients through `CrmSettings.callers`; the portal lock answers `{ error, code }`. A manager is office (`core/caregiverAccess.ts`); a person's own pay is `my-pay`.
 
-Next: **step 4, the screens** (`web/src/crm/pages/homecare/`), reading `{ data, pagination }` and camelCase everywhere the groups' reports list; then the browser check of every home-care screen, every role, both themes, phone and desktop.
+## Screens landed (2026-10-19)
+
+Step 4 is in: every screen the template rendered, in eight groups under `web/src/crm/pages/homecare/`, by
+`docs/UNIFIED_HOMECARE_SCREENS.md`; `docs/CUTOVER_LEDGER.md` "Home care's screens" lists what moved, what didn't and
+what was made to work. The home-care suite runs clean on the unified app (every divergence held by an adapted copy).
+
+Next: View As (the office opening the app as a caregiver or a client's portal — the server side is in, the screens
+need the app's client to carry a temporary session); the template's built-in help articles as home care's guides on
+/crm/help; the suite's screen-source checks pointed at the moved screens; then the browser check of every home-care
+screen, every role, both themes, phone and desktop.

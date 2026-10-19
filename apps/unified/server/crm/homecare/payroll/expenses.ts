@@ -45,6 +45,10 @@ export function createHomecareExpenseRoutes(d: CrmDeps) {
         receiptUrl: expenses.receiptUrl,
         status: expenses.status,
         notes: expenses.notes,
+        vendor: expenses.vendor,
+        paymentMethod: expenses.paymentMethod,
+        taxDeductible: expenses.taxDeductible,
+        reimbursable: expenses.reimbursable,
         createdAt: expenses.createdAt,
         updatedAt: expenses.updatedAt,
         userFirstName: user.firstName,
@@ -79,6 +83,11 @@ export function createHomecareExpenseRoutes(d: CrmDeps) {
       receiptUrl: body.receiptUrl || null,
       status: body.status || 'pending',
       notes: body.notes || null,
+      // The form's vendor, payment method and flags (migration 0011; the template kept none of them).
+      vendor: body.vendor || null,
+      paymentMethod: body.paymentMethod || null,
+      taxDeductible: body.taxDeductible === true,
+      reimbursable: body.reimbursable === true,
     }).returning()
     return one(c, row, 201)
   })
@@ -96,6 +105,10 @@ export function createHomecareExpenseRoutes(d: CrmDeps) {
         receiptUrl: body.receiptUrl,
         status: body.status,
         notes: body.notes,
+        vendor: body.vendor === undefined ? undefined : (body.vendor || null),
+        paymentMethod: body.paymentMethod === undefined ? undefined : (body.paymentMethod || null),
+        taxDeductible: body.taxDeductible === undefined ? undefined : body.taxDeductible === true,
+        reimbursable: body.reimbursable === undefined ? undefined : body.reimbursable === true,
         updatedAt: new Date(),
       })
       .where(and(eq(expenses.id, c.req.param('id')), eq(expenses.companyId, companyId)))

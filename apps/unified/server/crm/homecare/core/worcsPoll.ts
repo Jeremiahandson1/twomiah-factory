@@ -20,6 +20,7 @@ import { and, eq, inArray, isNotNull, asc } from 'drizzle-orm'
 import { backgroundChecks, company, user } from '../../../db/schema/index.ts'
 import { claimBackgroundCheck } from '../../../data/homecareHr.ts'
 import type { CrmDeps } from '../../deps.ts'
+import { createAgencyTime } from './agencyTime.ts'
 import { getCheckResults } from './worcsService.ts'
 import { isWisconsin, type AgencyProfile, type AgencyProfiles } from './agencyProfile.ts'
 import type { EligibilityEngine } from './eligibilityEngine.ts'
@@ -30,6 +31,7 @@ export type PollSummary = { polled: number; completed: number; errors: number; s
 const EVERY_MS = 30 * 60 * 1000
 
 export function createWorcsPoll(d: CrmDeps, deps: { eligibility: EligibilityEngine; staffEmails: StaffEmails; profile: AgencyProfiles }) {
+  const agencyTime = createAgencyTime(d)
   let running = false
   let timer: ReturnType<typeof setInterval> | null = null
   // The WORCS client, swappable for tests. Production always uses the real one.
@@ -93,7 +95,8 @@ export function createWorcsPoll(d: CrmDeps, deps: { eligibility: EligibilityEngi
             status: bcStatus,
             result: bcResult,
             worcsStatus: bcStatus,
-            completedDate: current?.completedDate || new Date().toISOString().slice(0, 10),
+            // Completed today on the agency's clock (UTC's day was tomorrow every US evening).
+            completedDate: current?.completedDate || await agencyTime.today(row.companyId),
             findings: current?.findings || findings,
             updatedAt: new Date(),
           }).where(mine)

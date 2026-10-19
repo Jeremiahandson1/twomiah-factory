@@ -27,7 +27,7 @@ const parseComments = (comments: string | null) => {
 
 const caregiver = alias(user, 'caregiver_user')
 
-export function createPerformanceReviewsRoutes(_core: HomecareCore, d: CrmDeps) {
+export function createPerformanceReviewsRoutes(core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()
   const { requirePermission } = d.permissions
   const ours = (companyId: string, id: string) => and(eq(performanceRatings.id, id), eq(performanceRatings.companyId, companyId))
@@ -76,7 +76,8 @@ export function createPerformanceReviewsRoutes(_core: HomecareCore, d: CrmDeps) 
       companyId,
       caregiverId: cg,
       clientId: cl.id,
-      ratingDate: reviewDate || new Date().toISOString().split('T')[0],
+      // Undated: the agency's today (UTC's was tomorrow every US evening).
+      ratingDate: reviewDate || await core.time.today(companyId),
       satisfactionScore: SATISFACTION_BY_ASSESSMENT[assessment],
       comments: JSON.stringify({
         performance_notes: performanceNotes,

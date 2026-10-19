@@ -82,9 +82,12 @@ export function createNoShowRoutes(core: HomecareCore, d: CrmDeps) {
   // PUT /api/no-show/alerts/:id/resolve
   app.put('/alerts/:id/resolve', async (c) => {
     const { companyId, me } = who(c)
-    const { resolutionNote } = await c.req.json().catch(() => ({})) as any
+    const { resolutionNote, status } = await c.req.json().catch(() => ({})) as any
+    // Resolved, or a false alarm (the screen's two buttons; /stats counts false alarms apart). The template stored
+    // 'resolved' for both.
+    if (status !== undefined && status !== 'resolved' && status !== 'false_alarm') return fail(c, 400, "status must be 'resolved' or 'false_alarm'")
     const [updated] = await db.update(noshowAlerts)
-      .set({ status: 'resolved', resolvedAt: new Date(), resolvedById: me, resolutionNote: resolutionNote || null })
+      .set({ status: status === 'false_alarm' ? 'false_alarm' : 'resolved', resolvedAt: new Date(), resolvedById: me, resolutionNote: resolutionNote || null })
       .where(and(eq(noshowAlerts.id, c.req.param('id')), eq(noshowAlerts.companyId, companyId)))
       .returning()
     if (!updated) return fail(c, 404, 'Alert not found')

@@ -249,3 +249,12 @@ describe('the store at /api/documents is home care\'s', () => {
     expect((await body(await as('adminB', 'GET', '/api/documents'))).data).toEqual([])
   })
 })
+
+describe("the Payers & Codes form's fields are kept", () => {
+  test('revenue code, prior-authorization flag and notes are stored and read back (migration 0011)', async () => {
+    const made = await body(await as('adminA', 'POST', '/api/service-codes', { code: 'S5130', description: 'Homemaker', revenueCode: '0571', requiresAuth: true, notes: 'County plan only' }))
+    expect(made).toMatchObject({ revenueCode: '0571', requiresAuth: true, notes: 'County plan only' })
+    const edited = await body(await as('adminA', 'PUT', `/api/service-codes/${made.id}`, { requiresAuth: false }))
+    expect(edited).toMatchObject({ revenueCode: '0571', requiresAuth: false })
+  })
+})

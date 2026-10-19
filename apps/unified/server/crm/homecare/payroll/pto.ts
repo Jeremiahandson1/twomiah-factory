@@ -19,7 +19,10 @@ import { isOfficeUser } from '../core/caregiverAccess.ts'
 import { selfSubject } from '../core/selfService.ts'
 import { isCompanyPerson, payrollOrCaregiver } from './shared.ts'
 
-const PTO_TYPES = ['pto', 'vacation', 'sick']
+// The time-off kinds the office records: the payroll screen offers all seven (the template's route took three and refused
+// personal days, bereavement, jury duty and unpaid leave, which the screen still offered). Kept as records; nothing pays
+// from this table. 'blackout' rows share the table and are not time off.
+const PTO_TYPES = ['pto', 'vacation', 'sick', 'personal', 'bereavement', 'jury_duty', 'unpaid']
 
 export function createPtoRoutes(d: CrmDeps) {
   const { db } = d
@@ -66,7 +69,7 @@ export function createPtoRoutes(d: CrmDeps) {
     if (who.office && who.id !== me.userId && !(await isCompanyPerson(d, me.companyId, who.id))) return fail(c, 404, 'Caregiver not found')
 
     const type = body.type || 'pto'
-    if (!PTO_TYPES.includes(type)) return fail(c, 400, 'Invalid type. Must be pto, vacation, or sick')
+    if (!PTO_TYPES.includes(type)) return fail(c, 400, `Invalid type. Must be one of: ${PTO_TYPES.join(', ')}`)
     if (!body.startDate || !body.endDate) return fail(c, 400, 'startDate and endDate are required')
 
     const [entry] = await db.insert(caregiverTimeOff).values({

@@ -232,8 +232,8 @@ export default function CaregiverManagement() {
     }
   }
 
-  // DELETE /api/caregiver-care-type-rates/:id: the server has no such route (nor had the template's), so Remove is
-  // refused; the template swallowed the 404 and looked as if it worked. Now the refusal shows. (Reported.)
+  // DELETE /api/caregiver-care-type-rates/:id (server/crm/homecare/payroll/caregiverCareTypeRates.ts). The template had no
+  // such route and swallowed the 404, so Remove looked as if it worked; a refusal now shows.
   const handleDeleteRate = async (rateId: string) => {
     const ok = await confirm('Remove this rate?', { danger: true })
     if (!ok || !selectedCaregiver) return

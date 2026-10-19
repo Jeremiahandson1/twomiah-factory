@@ -15,7 +15,9 @@ import { fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { body, who, whole } from './shared.ts'
 
-const FIELDS = ['code', 'modifier1', 'modifier2', 'description', 'serviceCategory', 'payerType', 'unitType', 'ratePerUnit', 'requiresEvv', 'isActive'] as const
+// revenueCode, requiresAuth and notes are the Payers & Codes form's (migration 0011; the template's form sent them and no
+// column kept them).
+const FIELDS = ['code', 'modifier1', 'modifier2', 'description', 'serviceCategory', 'payerType', 'unitType', 'ratePerUnit', 'requiresEvv', 'isActive', 'revenueCode', 'requiresAuth', 'notes'] as const
 
 function codeValues(b: any): Record<string, unknown> {
   const out: Record<string, unknown> = {}

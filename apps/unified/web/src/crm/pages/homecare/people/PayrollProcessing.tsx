@@ -432,8 +432,8 @@ export default function PayrollProcessing() {
     }
   }
 
-  // As with mileage: a refused request (a type the route does not take — personal, bereavement, jury duty, unpaid) now
-  // shows instead of "✓ PTO recorded".
+  // As with mileage: a refused request now shows instead of "✓ PTO recorded". Every type offered below is one the route
+  // takes (server/crm/homecare/payroll/pto.ts PTO_TYPES).
   const handleAddPTO = async (e: FormEvent) => {
     e.preventDefault()
     try {

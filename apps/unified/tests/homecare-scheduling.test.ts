@@ -10,7 +10,7 @@
 //     to any signed-in person: a caregiver now reads them only for a client they care for.
 // The template suite's own file (tests/homecare/scheduling.test.ts) runs as an adapted copy (tests/unified/homecare/).
 import { describe, test, expect, beforeAll } from 'bun:test'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
@@ -265,5 +265,33 @@ describe('home care — scheduling', () => {
     ] as any)
     const s = await json(await as('owner')('/api/no-show/stats'))
     expect(s.body).toMatchObject({ total: 1, openCount: 1, pending: 1, resolved: 0 })
+  })
+})
+
+describe('a recurring schedule keeps the end date the create form asks for', () => {
+  test('stored, and refused when it is before the pattern starts', async () => {
+    const made = await json(await as('owner')('/api/schedules-enhanced', { method: 'POST', json: {
+      caregiverId: ids.bob, clientId: ids.pat, scheduleType: 'recurring', dayOfWeek: 2, date: null, startTime: '07:00', endTime: '08:00',
+      frequency: 'weekly', effectiveDate: '2099-01-06', endDate: '2099-03-31',
+    } }))
+    expect(made.status).toBe(201)
+    const [row] = ((await t.db.execute(sql`SELECT to_char(end_date, 'YYYY-MM-DD') AS e FROM schedules WHERE id = ${made.body.id}`)) as any).rows
+    expect(row.e).toBe('2099-03-31')
+    const bad = await as('owner')('/api/schedules-enhanced', { method: 'POST', json: {
+      caregiverId: ids.bob, clientId: ids.pat, scheduleType: 'recurring', dayOfWeek: 3, date: null, startTime: '07:00', endTime: '08:00',
+      frequency: 'weekly', effectiveDate: '2099-01-06', endDate: '2099-01-01',
+    } })
+    expect(bad.status).toBe(400)
+  })
+})
+
+describe('a no-show alert closed as a false alarm', () => {
+  test('is stored as one and counted apart (the template stored resolved for both)', async () => {
+    const [a] = await t.db.insert(t.schema.noshowAlerts).values({ companyId, shiftDate: '2026-10-02', expectedStart: '10:00:00', status: 'open' } as any).returning()
+    const r = await json(await as('owner')(`/api/no-show/alerts/${a.id}/resolve`, { method: 'PUT', json: { resolutionNote: 'Clocked in on paper', status: 'false_alarm' } }))
+    expect(r.status).toBe(200)
+    expect(r.body.status).toBe('false_alarm')
+    expect((await json(await as('owner')('/api/no-show/stats'))).body.falseAlarmCount).toBe(1)
+    expect((await as('owner')(`/api/no-show/alerts/${a.id}/resolve`, { method: 'PUT', json: { status: 'deleted' } })).status).toBe(400)
   })
 })

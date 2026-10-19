@@ -14,7 +14,7 @@ import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { careTypes, caregiverCareTypeRates } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { done, fail, list, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { selfSubject } from '../core/selfService.ts'
 import { isCompanyPerson, payrollOrCaregiver } from './shared.ts'
@@ -92,6 +92,18 @@ export function createCaregiverCareTypeRateRoutes(d: CrmDeps) {
       .returning()
     if (!row) return fail(c, 404, 'Rate not found')
     return one(c, row)
+  })
+
+  // DELETE /:id — the screen's Remove (the template had no route, so Remove did nothing). The rate is a record the
+  // office keeps per care type; no pay calculation reads this table (core/payrollPay.ts pays the caregiver's own rate),
+  // so removing one changes no pay.
+  app.delete('/:id', requirePermission('care-payroll:update'), async (c) => {
+    const { companyId } = c.get('user')
+    const [row] = await db.delete(caregiverCareTypeRates)
+      .where(and(eq(caregiverCareTypeRates.id, c.req.param('id')), eq(caregiverCareTypeRates.companyId, companyId)))
+      .returning({ id: caregiverCareTypeRates.id })
+    if (!row) return fail(c, 404, 'Rate not found')
+    return done(c, 'Rate removed')
   })
 
   return app

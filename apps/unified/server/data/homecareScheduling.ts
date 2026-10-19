@@ -112,16 +112,16 @@ export interface NewSchedule {
 }
 
 /** Write one schedule row (active), in the company. Returns its id. */
-export async function insertSchedule(q: Q, companyId: string, v: NewSchedule): Promise<string> {
+export async function insertSchedule(q: Q, companyId: string, v: NewSchedule & { endDate?: string | null }): Promise<string> {
   const id = createId()
   await q.execute(sql`
     INSERT INTO schedules (id, company_id, caregiver_id, client_id, schedule_type, day_of_week, date, start_time, end_time, notes,
                            frequency, effective_date, anchor_date, is_split_shift, split_shift_group_id, split_segment,
-                           is_training, is_active, status, created_at, updated_at)
+                           is_training, end_date, is_active, status, created_at, updated_at)
     VALUES (${id}, ${companyId}, ${v.caregiverId}, ${v.clientId}, ${v.scheduleType}, ${v.dayOfWeek}, ${v.date}::date,
             ${v.startTs}::timestamp, ${v.endTs}::timestamp, ${v.notes ?? null}, ${v.frequency || 'weekly'},
             ${v.effectiveDate ?? null}::date, ${v.anchorDate ?? null}::date, ${!!v.split}, ${v.split?.group ?? null},
-            ${v.split?.segment ?? null}, ${!!v.isTraining}, true, 'active', NOW(), NOW())`)
+            ${v.split?.segment ?? null}, ${!!v.isTraining}, ${v.endDate ?? null}::date, true, 'active', NOW(), NOW())`)
   return id
 }
 

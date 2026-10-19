@@ -18,7 +18,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, list, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createHomecareCore } from '../core/index.ts'
-import { addDays, isYmd } from '../core/agencyTime.ts'
+import { addDays, createAgencyTime, isYmd } from '../core/agencyTime.ts'
 import { shiftHours } from '../core/scheduleOccurrences.ts'
 import { DEFAULT_MILEAGE_RATE } from '../core/mileageRate.ts'
 import * as q from '../../../data/homecarePlanning.ts'
@@ -182,6 +182,7 @@ const intOrNull = (v: unknown) => { const n = numOrNull(v); return n == null ? n
 const STOP_STATUSES = ['pending', 'en_route', 'arrived', 'in_progress', 'completed', 'skipped']
 
 export function createRouteOptimizerRoutes(d: CrmDeps) {
+  const agencyTime = createAgencyTime(d)
   const core = createHomecareCore(d)
   const { requirePermission } = d.permissions
   const log = (m: string) => d.logger.error(`[route optimizer] ${m}`)
@@ -687,9 +688,11 @@ export function createRouteOptimizerRoutes(d: CrmDeps) {
   app.get('/routes', plan, async (c) => {
     const caregiverId = c.req.query('caregiverId') || null
     const date = c.req.query('date')
-    const dateObj = date && isYmd(date) ? new Date(`${date}T12:00:00Z`) : new Date()
-    const stops = await q.assignedClientStops(d.db, c.get('user').companyId, caregiverId)
-    return one(c, { caregiverId, date: dateObj.toISOString().split('T')[0], stops })
+    const companyId = c.get('user').companyId
+    // Undated: the agency's today (the server's UTC day was tomorrow every US evening).
+    const day = date && isYmd(date) ? date : await agencyTime.today(companyId)
+    const stops = await q.assignedClientStops(d.db, companyId, caregiverId)
+    return one(c, { caregiverId, date: day, stops })
   })
 
   // GET /stats — the route optimizer dashboard's summary; visit counts off the schedule engine.

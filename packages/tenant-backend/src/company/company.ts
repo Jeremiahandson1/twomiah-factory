@@ -204,7 +204,10 @@ export function createCompanyRoutes(deps: CompanyDeps) {
    * Every reply that carries the row goes through here — the GET and each save — so a save cannot hand back what
    * the read withholds. canSee not wired → not asked → unchanged.
    */
-  const forReader = async (c: any, safe: any) => {
+  // Every answer that hands the company back goes through here (the GET and every save), so what a vertical adds to it
+  // (deps.describe: home care's effectiveTimezone) is redacted by the same rule as the rest.
+  const forReader = async (c: any, row: any) => {
+    const safe = deps.describe ? { ...row, ...deps.describe(row) } : row
     const u = c.get('user') as any
     if (!canSee) return safe
     if (!(await canSee(u?.role, 'company:update', u?.userId))) return redactCompanyCommercial(safe)
@@ -225,7 +228,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
      * Asked with `company:update`: not wired (canSee absent) → not asked → today's behaviour, so a
      * template nobody rewires is unchanged rather than silently narrowed.
      */
-    return c.json({ ...(await forReader(c, safe)), ...(deps.describe?.(row) || {}) })
+    return c.json(await forReader(c, safe))
   })
 
   app.put('/', requireAdmin, async (c) => {
@@ -423,7 +426,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
           : []
         // A save that changed nothing is not an event. Logging it is how a settings log fills with
         // rows nobody can act on, which is what buried the real ones.
-        if (!touched.length && !settingKeys.length) return c.json({ ...(await forReader(c, sanitizeCompany(row))), ...(deps.describe?.(row) || {}) })
+        if (!touched.length && !settingKeys.length) return c.json(await forReader(c, sanitizeCompany(row)))
         deps.audit.log({
           action: deps.audit.ACTIONS?.UPDATE ?? 'update',
           entity: deps.audit.ENTITIES?.COMPANY ?? 'company',
@@ -433,7 +436,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
         })
       }
     } catch { /* an unwritten log must not undo a saved setting */ }
-    return c.json({ ...(await forReader(c, sanitizeCompany(row))), ...(deps.describe?.(row) || {}) })
+    return c.json(await forReader(c, sanitizeCompany(row)))
   })
 
   // ---------------------------------------------------------------- features

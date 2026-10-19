@@ -9,9 +9,8 @@
 //   GET  /api/no-show/config              → { graceMinutes, notifyAdmin, notifyCaregiver, notifyClientFamily, adminPhone,
 //                                           adminEmail, isActive } (was grace_minutes …).
 //   POST /api/no-show/run-check           → { checked, alertsCreated } (was alerts_created).
-//   PUT  /api/no-show/alerts/:id/resolve  { resolutionNote, status } — the route reads resolutionNote only and always
-//                                           stores 'resolved' (as the template's did): "False Alarm" is recorded as
-//                                           resolved. Reported, not worked around.
+//   PUT  /api/no-show/alerts/:id/resolve  { resolutionNote, status: 'resolved' | 'false_alarm' } — stored as sent (the
+//                                           template's route stored 'resolved' for both).
 //   PUT  /api/no-show/config              — the same camelCase body as the template.
 import { useState, useEffect, type CSSProperties } from 'react'
 import { api, rows, errorMessage } from '../lib/http'

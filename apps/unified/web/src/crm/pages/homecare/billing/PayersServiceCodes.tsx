@@ -4,7 +4,7 @@
 // Server: /api/payers (server/crm/homecare/billing/payers.ts: GET a list of drizzle rows, POST/PUT the record; only
 // PAYER_FIELDS are written), /api/service-codes (server/crm/homecare/clients/serviceCodes.ts: GET a list, POST/PUT the
 // record; only code, modifier1/2, description, serviceCategory, payerType, unitType, ratePerUnit, requiresEvv,
-// isActive are written) and /api/sandata/payer-presets (server/crm/homecare/visits/sandata.ts: { state, presets }).
+// isActive, revenueCode, requiresAuth and notes are written) and /api/sandata/payer-presets (server/crm/homecare/visits/sandata.ts: { state, presets }).
 import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
@@ -36,7 +36,7 @@ interface Payer {
 }
 interface ServiceCode {
   id: string; code: string; description: string | null; ratePerUnit: string | number | null; unitType: string | null
-  // Not columns of service_codes (the template's screen showed them; its server never stored them either).
+  // Stored since migration 0011 (the template's server never kept them).
   revenueCode?: string | null; requiresAuth?: boolean | null; notes?: string | null
 }
 interface SandataPreset { label: string; sandataPayerId: string; sandataPayerProgram: string }

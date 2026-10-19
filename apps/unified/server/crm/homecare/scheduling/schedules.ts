@@ -13,7 +13,7 @@ import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { schedTs, hms, shiftHours, shiftTimesError, DATE_RE } from '../core/scheduleOccurrences.ts'
 import { CANCEL_REASONS } from '../core/cancelReasons.ts'
-import { addDays } from '../core/agencyTime.ts'
+import { addDays, ymdIn } from '../core/agencyTime.ts'
 import {
   caregiverPatterns, movedInShifts, caregiverOccurrences, oneTimeTwin, insertSchedule, activeCaregiver, dateOverlap,
   setScheduleCaregiver, cancelOccurrence, endActivePattern, deactivateSchedules, endSchedules, activeScheduleClient,
@@ -197,7 +197,8 @@ export function createSchedulesRoutes(core: HomecareCore, d: CrmDeps, shared: Sc
     if (isRecurring) {
       const today = await core.time.today(companyId)
       const endStr = addDays(today, -1)
-      const effStr = shift.effectiveDate || (shift.createdAt ? new Date(shift.createdAt).toISOString().slice(0, 10) : today)
+      // A pattern with no effective date started the day it was made — on the agency's clock, not UTC's.
+      const effStr = shift.effectiveDate || (shift.createdAt ? ymdIn(new Date(shift.createdAt), await core.time.timezone(companyId)) : today)
       if (endStr < effStr) {
         // It had not started yet — nothing to protect, remove it outright.
         const ids = await deactivateSchedules(db, companyId, target)

@@ -10,6 +10,7 @@
 // caller could write any column (its id, its company); it now takes the rating's own fields only.
 import { Hono } from 'hono'
 import { and, avg, count, desc, eq, inArray, lte } from 'drizzle-orm'
+import { addDays, createAgencyTime } from '../core/agencyTime.ts'
 import { auditLog, backgroundChecks, clients, performanceRatings, user } from '../../../db/schema/index.ts'
 import { fail, list, one } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -20,6 +21,7 @@ const RATING_FIELDS = ['caregiverId', 'clientId', 'ratingDate', 'satisfactionSco
   'careQualityScore', 'comments', 'noShows', 'lateArrivals'] as const
 
 export function createComplianceRoutes(d: CrmDeps) {
+  const agencyTime = createAgencyTime(d)
   const app = new Hono<AppEnv>()
   const read = d.permissions.requirePermission('care-compliance:read')
   const create = d.permissions.requirePermission('care-compliance:create')
@@ -28,9 +30,8 @@ export function createComplianceRoutes(d: CrmDeps) {
   // Compliance dashboard - certifications expiring, background checks, etc.
   app.get('/dashboard', read, async (c) => {
     const companyId = c.get('user').companyId
-    const soon = new Date()
-    soon.setDate(soon.getDate() + 60)
-    const soonStr = soon.toISOString().split('T')[0]
+    // Sixty days from the agency's today (the server's UTC day was tomorrow every US evening).
+    const soonStr = addDays(await agencyTime.today(companyId), 60)
 
     const [people, recentBackgroundChecks, performanceRatingRows] = await Promise.all([
       d.db.select({
@@ -80,7 +81,7 @@ export function createComplianceRoutes(d: CrmDeps) {
         name: `${cg.firstName} ${cg.lastName}`,
         cert: ((cg.certifications || []) as any[])[i],
         expiry: exp,
-      })).filter((x: any) => x.expiry && new Date(x.expiry) <= soon),
+      })).filter((x: any) => x.expiry && String(x.expiry).slice(0, 10) <= soonStr), // calendar days, compared as days
     )
 
     const performanceRatingsFormatted = performanceRatingRows.map((r: any) => ({
