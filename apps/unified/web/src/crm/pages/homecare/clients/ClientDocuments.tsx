@@ -10,6 +10,7 @@ import { api, rows, errorMessage } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
 import { formatAgencyDate } from '../lib/agencyClock'
 import { allRows, type Client } from './shared'
+import { useMay } from '../lib/useMay'
 
 // Each status chip: its ink on its own ground, in both themes.
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
@@ -66,6 +67,8 @@ const field: CSSProperties = { padding: '0.6rem 0.75rem', border: '1px solid var
 const muted: CSSProperties = { color: 'var(--hc-muted)' }
 
 export default function ClientDocuments() {
+  // Each control for whoever the server lets use it (care-clients create / update / delete) (lib/useMay.ts).
+  const may = useMay('care-clients')
   const [tab, setTab] = useState('sent')
   const [documents, setDocuments] = useState<DocRow[]>([])
   const [templates, setTemplates] = useState<DocTemplate[]>([])
@@ -245,12 +248,12 @@ export default function ClientDocuments() {
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
           {viewDoc.status !== 'signed' && viewDoc.status !== 'void' && (
             <>
-              <button onClick={() => remind(viewDoc.id)} style={{ ...primaryBtn, fontWeight: 400, padding: '0.6rem 1.2rem' }}>
+              {may.update && <button onClick={() => remind(viewDoc.id)} style={{ ...primaryBtn, fontWeight: 400, padding: '0.6rem 1.2rem' }}>
                 Send reminder
-              </button>
-              <button onClick={() => voidDocument(viewDoc.id)} style={{ ...plainBtn, padding: '0.6rem 1.2rem' }}>
+              </button>}
+              {may.delete && <button onClick={() => voidDocument(viewDoc.id)} style={{ ...plainBtn, padding: '0.6rem 1.2rem' }}>
                 Void
-              </button>
+              </button>}
             </>
           )}
         </div>
@@ -286,13 +289,13 @@ export default function ClientDocuments() {
           style={{ ...field, width: '100%', padding: '0.75rem', fontFamily: 'inherit', lineHeight: 1.5 }}
         />
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-          <button
+          {(editTemplate.id ? may.update : may.create) && <button
             onClick={saveTemplate}
             disabled={busy || !editTemplate.title.trim() || !editTemplate.body.trim()}
             style={{ ...primaryBtn, padding: '0.7rem 1.5rem' }}
           >
             {busy ? 'Saving…' : 'Save'}
-          </button>
+          </button>}
           <button onClick={() => setEditTemplate(null)} style={{ ...plainBtn, padding: '0.7rem 1.25rem' }}>
             Cancel
           </button>
@@ -313,9 +316,9 @@ export default function ClientDocuments() {
             Agreements and consents your clients sign in their portal.
           </p>
         </div>
-        <button onClick={() => { setSending(true); setNotice(''); setError('') }} style={{ ...primaryBtn, padding: '0.65rem 1.35rem' }}>
+        {may.create && <button onClick={() => { setSending(true); setNotice(''); setError('') }} style={{ ...primaryBtn, padding: '0.65rem 1.35rem' }}>
           Send a document
-        </button>
+        </button>}
       </div>
 
       {error && <div style={{ background: 'var(--hc-danger-bg)', color: 'var(--hc-danger-ink)', padding: '0.75rem 1rem', borderRadius: '8px', marginBottom: '1rem' }}>{error}</div>}
@@ -404,14 +407,14 @@ export default function ClientDocuments() {
 
       {tab === 'templates' && (
         <div>
-          <div style={{ marginBottom: '1rem' }}>
+          {may.create && <div style={{ marginBottom: '1rem' }}>
             <button
               onClick={() => setEditTemplate({ title: '', body: '', isActive: true })}
               style={{ background: 'none', border: '1px solid var(--hc-blue-ink)', color: 'var(--hc-blue-ink)', padding: '0.55rem 1.1rem', borderRadius: '8px', cursor: 'pointer' }}
             >
               + New document
             </button>
-          </div>
+          </div>}
           <div style={{ ...panel, overflow: 'hidden' }}>
             {templates.map((t, i) => (
               <div

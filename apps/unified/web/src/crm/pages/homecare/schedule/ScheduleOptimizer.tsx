@@ -10,6 +10,7 @@
 //   POST /apply { proposals } — { success, created, errors, errorDetails }
 import { useState, type CSSProperties } from 'react'
 import { useToast } from '../../../../shared'
+import { useMay } from '../lib/useMay'
 import { api, errorMessage } from '../lib/http'
 import { C, FILL, MARKS, tint, dayButton, dayChip } from './theme'
 import { fullName, type Caregiver, type Client } from './types'
@@ -87,6 +88,8 @@ const timeInput: CSSProperties = { padding: '0.25rem', borderRadius: '5px', bord
 
 export default function ScheduleOptimizer({ caregivers: allCaregivers, clients: allClients }: Props) {
   const toast = useToast()
+  // Run is care-schedule:update, apply is care-schedule:create (planning/scheduleOptimizer.ts) — lib/useMay.ts.
+  const may = useMay('care-schedule')
   const [selectedCaregivers, setSelectedCaregivers] = useState<PickedCaregiver[]>([])
   const [selectedClients, setSelectedClients] = useState<PickedClient[]>([])
   const [cgDropdown, setCgDropdown] = useState('')
@@ -391,14 +394,14 @@ export default function ScheduleOptimizer({ caregivers: allCaregivers, clients: 
 
       {!result && (
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <button onClick={runOptimizer} disabled={running || !selectedCaregivers.length || !selectedClients.length}
+          {may.update && <button onClick={runOptimizer} disabled={running || !selectedCaregivers.length || !selectedClients.length}
             style={{
               padding: '0.9rem 2.5rem', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '1.05rem',
               background: running ? FILL.grey : `linear-gradient(135deg, ${C.brandFill}, #1d4ed8)`,
               color: '#fff', boxShadow: running ? 'none' : `0 4px 15px ${C.shadow}`,
             }}>
             {running ? '⏳ Analyzing schedules...' : '✨ Generate Optimized Schedule'}
-          </button>
+          </button>}
           {(!selectedCaregivers.length || !selectedClients.length) && (
             <p style={{ margin: '0.5rem 0 0', fontSize: '0.82rem', color: C.muted }}>Add at least one caretaker and one client to begin</p>
           )}
@@ -592,18 +595,18 @@ export default function ScheduleOptimizer({ caregivers: allCaregivers, clients: 
               style={{ padding: '0.7rem 1.5rem', borderRadius: '8px', border: `1.5px solid ${C.line}`, background: C.surface, color: C.ink, cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>
               ← Start Over
             </button>
-            <button onClick={() => { setResult(null); runOptimizer() }} disabled={running}
+            {may.update && <button onClick={() => { setResult(null); runOptimizer() }} disabled={running}
               style={{ padding: '0.7rem 1.5rem', borderRadius: '8px', border: `1px solid ${C.line}`, background: C.surface, color: C.ink, cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>
               🔄 Re-run
-            </button>
-            <button onClick={applyProposals} disabled={applying || selectedProposals.size === 0}
+            </button>}
+            {may.create && <button onClick={applyProposals} disabled={applying || selectedProposals.size === 0}
               style={{
                 padding: '0.7rem 1.75rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem',
                 background: applying || selectedProposals.size === 0 ? FILL.grey : `linear-gradient(135deg, ${FILL.green}, ${C.brandFill})`,
                 color: '#fff', boxShadow: applying || selectedProposals.size === 0 ? 'none' : `0 4px 12px ${C.shadow}`,
               }}>
               {applying ? 'Applying...' : `✅ Apply ${selectedProposals.size} Schedule${selectedProposals.size !== 1 ? 's' : ''} to Live`}
-            </button>
+            </button>}
           </div>
           <p style={{ fontSize: '0.78rem', color: C.muted, textAlign: 'center', margin: '0.5rem 0 0' }}>
             Only checked proposals will be applied. Conflicts are unchecked by default — review them before including.

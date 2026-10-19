@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/leads.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 3 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 4 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — /api/leads exists, and its writes are the office's.
 //
@@ -101,7 +101,7 @@ for (const [m, p, body] of WRITES) {
 // ── reads stay open ─────────────────────────────────────────────────────────────
 for (const p of ['/api/leads/sources', '/api/leads', '/api/leads/stats']) {
   const r = await as(caregiver)('GET', p)
-  check(`a caregiver may still read ${p}`, reached(r), { status: r.status, error: r.json?.error })
+  check(`a caregiver is refused ${p}`, r.status === 403, { status: r.status, error: r.json?.error }) /* unified: home care withholds the field rung's contacts:read (verticals/homecare/settings.ts withheldRolePermissions): the shared Lead Inbox reads on it, and an agency's leads are prospective clients' details, the office's — a caregiver was offered the inbox (2026-10-19). The template's caregivers had no such page; its API was ungated */
 }
 
 console.log(`\nhomecare-leads: ${passed} passed, ${failed} failed`)

@@ -22,6 +22,7 @@ import { CLIENT_UNAVAILABLE_REASONS } from '../lib/cancelReasons'
 import { endsBeforeStart, shiftTimesError } from '../lib/shiftTimes'
 import { toLocalYMD, parseLocalDate, formatDate } from '../lib/date'
 import MakeShiftAvailableModal from './MakeShiftAvailableModal'
+import { useMay } from '../lib/useMay'
 import { C, CHIP_FILLS, FILL, dialog, overlay, tint } from './theme'
 import { fullName, isRecurringRow, type Caregiver, type Client, type SavedReply, type ScheduleRow } from './types'
 
@@ -124,6 +125,10 @@ const blankNewShift = (dayIndex: number, startDate: string): NewShiftForm => ({
 export default function DragDropScheduler({ onScheduleChange }: { onScheduleChange?: () => void }) {
   const toast = useToast()
   const confirm = useConfirm()
+  // Each write is the care-schedule verb its route asks (scheduling/*.ts); client-unavailable is evv:create (clients/emergency.ts).
+  const may = useMay('care-schedule')
+  const mayEvv = useMay('evv')
+  const mayOpenShift = may.update || may.delete || mayEvv.create
   const [weekOf, setWeekOfState] = useState<Date>(initialWeekOf)
   const setWeekOf = (d: Date) => { setWeekOfState(d); try { sessionStorage.setItem(WEEK_KEY, localYmd(d)) } catch { /* convenience only */ } }
   const [caregivers, setCaregivers] = useState<Caregiver[]>([])
@@ -648,7 +653,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
       <Fragment key={s.id + '-' + weekDateStrs[dayIndex]}>
         {showConnector && <div style={{ borderLeft: `2px dashed ${color}`, height: 8, marginLeft: 12, opacity: 0.5 }} />}
         <div
-          draggable
+          draggable={may.update}
           onDragStart={(e) => {
             e.stopPropagation()
             setDragShift({ shift: s, fromDate: weekDateStrs[dayIndex] })
@@ -656,7 +661,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
             e.dataTransfer.effectAllowed = 'move'
           }}
           onDragEnd={() => { setDragShift(null); setDragOverKey(null) }}
-          onClick={(e) => { e.stopPropagation(); openEditShift(s, weekDateStrs[dayIndex]) }}
+          onClick={(e) => { e.stopPropagation(); if (mayOpenShift) openEditShift(s, weekDateStrs[dayIndex]) }}
           style={{
             background: isModified ? `repeating-linear-gradient(135deg, ${color}, ${color} 4px, ${color}dd 4px, ${color}dd 8px)` : color,
             color: '#fff', borderRadius: 5, padding: '3px 6px',
@@ -754,9 +759,9 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
                     <div style={{ fontWeight: 700, fontSize: 14, color: C.ink }}>{cg.firstName} {cg.lastName}</div>
                     <div style={{ fontSize: 11, color: C.inkSoft }}>{weeklyHours(cg.id).toFixed(2)}h this week</div>
                   </div>
-                  <button onClick={() => handleCellClick(cg.id, mobileDay)} style={{
+                  {may.create && <button onClick={() => handleCellClick(cg.id, mobileDay)} style={{
                     padding: '6px 14px', borderRadius: 8, border: 'none', background: C.brandFill, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  }}>+ Shift</button>
+                  }}>+ Shift</button>}
                 </div>
                 {shifts.length === 0 ? (
                   <div style={{ padding: '12px 14px', color: C.muted, fontSize: 13 }}>No shifts</div>
@@ -767,7 +772,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
                     const durH = shiftHours(s.startTime, s.endTime).toFixed(2)
                     const isSplit = s.isSplitShift && s.splitSegment
                     return (
-                      <div key={s.id} onClick={() => openEditShift(s, weekDateStrs[mobileDay])} style={{
+                      <div key={s.id} onClick={() => { if (mayOpenShift) openEditShift(s, weekDateStrs[mobileDay]) }} style={{
                         padding: '10px 14px', borderLeft: `4px solid ${color}`, borderBottom: `1px solid ${C.subtle}`, cursor: 'pointer',
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       }}>
@@ -837,7 +842,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
                   return (
                     <div
                       key={dayIndex}
-                      onClick={() => handleCellClick(cg.id, dayIndex)}
+                      onClick={may.create ? () => handleCellClick(cg.id, dayIndex) : undefined}
                       onDragOver={(e) => {
                         if (!dragShift) return
                         e.preventDefault()
@@ -1099,7 +1104,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
               hint="Trainee shadow shift — paid through payroll, excluded from invoices." marginTop={10} />
 
             {/* Suspend / resume service — pause visits without deleting the schedule */}
-            {isRecurring && (() => {
+            {may.update && isRecurring && (() => {
               const suspendedFrom = editShift.suspendedFrom ? editShift.suspendedFrom.slice(0, 10) : null
               const clientName = (() => { const cl = clientMap[editShift.clientId]; return cl ? fullName(cl) : 'this client' })()
               return (
@@ -1145,7 +1150,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
               )
             })()}
 
-            {editDate && (
+            {may.create && may.update && editDate && (
               <button type="button" disabled={saving}
                 onClick={() => { setOfferShift({ shift: editShift, date: editDate }); setEditShift(null) }}
                 style={{ ...cancelBtn, width: '100%', marginTop: 12, color: amber.ink, borderColor: amber.line, background: amber.bg, fontWeight: 700 }}>
@@ -1154,19 +1159,19 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
             )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
-              <button onClick={() => setDeleteConfirm({ shift: editShift, date: editDate })} disabled={saving} style={{ ...cancelBtn, color: red.ink, borderColor: red.line }}>
+              {(may.delete || mayEvv.create) && <button onClick={() => setDeleteConfirm({ shift: editShift, date: editDate })} disabled={saving} style={{ ...cancelBtn, color: red.ink, borderColor: red.line }}>
                 {saving ? '...' : 'Delete'}
-              </button>
+              </button>}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => setEditShift(null)} style={cancelBtn}>Cancel</button>
-                <button onClick={handleSaveShift} disabled={saving} style={primaryBtn}>
+                {may.update && <button onClick={handleSaveShift} disabled={saving} style={primaryBtn}>
                   {/* Say exactly what will change, so a scope left on the wrong option is visible before saving. */}
                   {saving ? 'Saving...'
                     : !isRecurring ? 'Save Changes'
                       : editScope === 'this' ? `Save — ${dateLabel || 'this date'} only`
                         : editScope === 'following' ? `Save — ${dateLabel || 'this date'} & every week after`
                           : 'Save — every week (past too)'}
-                </button>
+                </button>}
               </div>
             </div>
           </Modal>
@@ -1197,6 +1202,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
         const fromLabel = fromDate ? formatDate(fromDate, { weekday: 'short', month: 'short', day: 'numeric' }) : ''
         const toLabel = formatDate(toDate, { weekday: 'long', month: 'short', day: 'numeric' })
         const client = clientMap[shift.clientId]
+        const mayMove = !isRecurring || dropScope === 'all' ? may.update : dropScope === 'this' ? may.update && may.create : may.delete && may.create
 
         return (
           <Modal title="Move Shift?" onClose={() => setDropTarget(null)}>
@@ -1232,7 +1238,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button onClick={() => setDropTarget(null)} disabled={saving} style={cancelBtn}>Cancel</button>
-              <button onClick={handleConfirmDrop} disabled={saving} style={primaryBtn}>{saving ? 'Moving...' : 'Move'}</button>
+              <button onClick={handleConfirmDrop} disabled={saving || !mayMove} style={primaryBtn}>{saving ? 'Moving...' : 'Move'}</button>
             </div>
           </Modal>
         )
@@ -1275,7 +1281,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
           )
         }
 
-        const unavailOption = (
+        const unavailOption = mayEvv.create && (
           <button onClick={() => setUnavailForm({ reason: '', note: '' })} disabled={saving || !occDate} style={{
             padding: '12px 16px', borderRadius: 8, border: `1px solid ${red.line}`, cursor: 'pointer', background: red.bg, textAlign: 'left', fontSize: 13, color: C.ink,
           }}>
@@ -1288,14 +1294,14 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
           return (
             <Modal title="Delete Shift" onClose={() => setDeleteConfirm(null)}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>{unavailOption}</div>
-              <p style={{ margin: '0 0 16px', fontSize: 14, color: C.ink }}>
+              {may.delete && <p style={{ margin: '0 0 16px', fontSize: 14, color: C.ink }}>
                 {isSplit ? 'Or delete both segments of this split shift?' : 'Or delete this shift entirely?'}
-              </p>
+              </p>}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <button onClick={() => setDeleteConfirm(null)} style={cancelBtn}>Cancel</button>
-                <button onClick={() => handleDeleteShift('all')} disabled={saving} style={{ ...primaryBtn, background: FILL.red }}>
+                {may.delete && <button onClick={() => handleDeleteShift('all')} disabled={saving} style={{ ...primaryBtn, background: FILL.red }}>
                   {saving ? 'Deleting...' : 'Delete'}
-                </button>
+                </button>}
               </div>
             </Modal>
           )
@@ -1310,19 +1316,19 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {unavailOption}
-              <button onClick={() => handleDeleteShift('this')} disabled={saving} style={option}>
+              {may.delete && <button onClick={() => handleDeleteShift('this')} disabled={saving} style={option}>
                 <div style={{ fontWeight: 700 }}>This occurrence only ({dateLabel})</div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>Cancel just this one date. All other occurrences continue.</div>
-              </button>
-              <button onClick={() => handleDeleteShift('following')} disabled={saving} style={option}>
+              </button>}
+              {may.delete && <button onClick={() => handleDeleteShift('following')} disabled={saving} style={option}>
                 <div style={{ fontWeight: 700 }}>This & all following</div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>End the recurring pattern starting from {dateLabel}. Past occurrences stay.</div>
-              </button>
-              <button onClick={() => handleDeleteShift('all')} disabled={saving} style={option}>
+              </button>}
+              {may.delete && <button onClick={() => handleDeleteShift('all')} disabled={saving} style={option}>
                 <div style={{ fontWeight: 700 }}>Stop going forward</div>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>End this schedule as of today. All past (already-worked) occurrences are kept.</div>
-              </button>
-              <button
+              </button>}
+              {may.delete && <button
                 onClick={async () => {
                   const ok = await confirm('ERASE the ENTIRE schedule, including every PAST occurrence and its worked history?\n\nThis is rarely what you want — use it only for a schedule created by mistake. Past occurrences will disappear from view.',
                     { title: 'Erase entire schedule', confirmText: 'Erase it', danger: true })
@@ -1332,7 +1338,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
                 style={{ ...option, border: `1px solid ${red.line}`, background: red.bg }}>
                 <div style={{ fontWeight: 700, color: red.ink }}>Erase entire schedule (incl. past history)</div>
                 <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 2 }}>Removes past + future. Only for a schedule created by mistake.</div>
-              </button>
+              </button>}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
               <button onClick={() => setDeleteConfirm(null)} style={cancelBtn}>Cancel</button>

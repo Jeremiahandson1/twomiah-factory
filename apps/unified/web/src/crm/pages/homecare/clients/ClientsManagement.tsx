@@ -8,6 +8,7 @@ import EditClientModal from './EditClientModal'
 import CareTasksManager from './CareTasksManager'
 import ClientReportModal from './ClientReportModal'
 import { allRows, SECTION_HEAD, HINT, type Client, type ReferralSource, type CareType } from './shared'
+import { useMay } from '../lib/useMay'
 
 // AddressLink component - opens Google Maps
 const AddressLink = ({ address, city, state, zip }: { address?: string | null; city?: string | null; state?: string | null; zip?: string | null }) => {
@@ -35,7 +36,7 @@ interface CardProps {
   getCareTypeName: (id?: string | null) => string
   onEdit: (c: Client) => void
   onTasks: (c: Client) => void
-  onReport: (c: Client) => void
+  onReport?: (c: Client) => void
 }
 
 // Mobile-friendly client card
@@ -52,7 +53,7 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit, on
       </div>
       <div style={{ display: 'flex', gap: '0.35rem', flexShrink: 0 }}>
         <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => onTasks(client)} title="Care tasks checklist">📋 Tasks</button>
-        <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => onReport(client)} title="Generate comprehensive report">📄 Report</button>
+        {onReport && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => onReport(client)} title="Generate comprehensive report">📄 Report</button>}
         <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => onEdit(client)}>✏️ Edit</button>
       </div>
     </div>
@@ -172,6 +173,10 @@ interface NewClientForm {
 }
 
 const ClientsManagement = () => {
+  // Each control for whoever the server lets use it: adding is care-clients:create, suspending care-schedule:update, the report care-billing:read (lib/useMay.ts).
+  const may = useMay('care-clients')
+  const maySchedule = useMay('care-schedule')
+  const mayBilling = useMay('care-billing')
   const { company } = useAuth()
   const toast = useToast()
   const [clients, setClients] = useState<Client[]>([])
@@ -322,9 +327,9 @@ const ClientsManagement = () => {
     <div>
       <div className="page-header">
         <h2>👥 Clients</h2>
-        <button className="hc-btn hc-btn-primary" onClick={() => setShowForm(!showForm)}>
+        {may.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowForm(!showForm)}>
           {showForm ? '✕ Cancel' : '➕ Add'}
-        </button>
+        </button>}
       </div>
 
       {showForm && (
@@ -530,7 +535,7 @@ const ClientsManagement = () => {
       ) : isMobile ? (
         <div>
           {filteredClients.map((client) => (
-            <ClientCard key={client.id} client={client} getReferralSourceName={getReferralSourceName} getCareTypeName={getCareTypeName} onEdit={handleViewClient} onTasks={setCareTasksClient} onReport={setReportClient} />
+            <ClientCard key={client.id} client={client} getReferralSourceName={getReferralSourceName} getCareTypeName={getCareTypeName} onEdit={handleViewClient} onTasks={setCareTasksClient} onReport={mayBilling.read ? setReportClient : undefined} />
           ))}
         </div>
       ) : (
@@ -568,9 +573,9 @@ const ClientsManagement = () => {
                   <td>
                     <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                       <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setCareTasksClient(client)} title="Care tasks checklist">📋 Tasks</button>
-                      <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setReportClient(client)} title="Generate comprehensive report">📄 Report</button>
+                      {mayBilling.read && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setReportClient(client)} title="Generate comprehensive report">📄 Report</button>}
                       <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => handleViewClient(client)}>✏️ Edit</button>
-                      <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setSuspendClient(client)} title="Suspend or resume all of this client's visits">⏸ Service</button>
+                      {maySchedule.update && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setSuspendClient(client)} title="Suspend or resume all of this client's visits">⏸ Service</button>}
                     </div>
                   </td>
                 </tr>

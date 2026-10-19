@@ -8,6 +8,7 @@
 // POST /api/background-checks/poll-now (care-hr:update).
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../lib/http'
+import { useMay } from '../lib/useMay'
 
 const STATUS_META: Record<string, { label: string; icon: string; cls: string }> = {
   clear:          { label: 'Cleared',                            icon: '✅', cls: 'bg-green-50 text-green-900 border-green-600 dark:bg-green-900/30 dark:text-green-100 dark:border-green-500' },
@@ -28,6 +29,8 @@ export const isWisconsinAgency = (company: { state?: string | null } | null | un
   String(company?.state || '').trim().toUpperCase() === 'WI'
 
 export default function EligibilityCard({ caregiverId }: { caregiverId: string }) {
+  // Polling WORCS is care-hr:update, the server's check (lib/useMay.ts).
+  const mayHr = useMay('care-hr')
   const [data, setData] = useState<Eligibility | null>(null)
   const [loading, setLoading] = useState(true)
   const [polling, setPolling] = useState(false)
@@ -65,10 +68,10 @@ export default function EligibilityCard({ caregiverId }: { caregiverId: string }
     <div className={card}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="font-extrabold text-gray-900 dark:text-slate-100">🛡️ Wisconsin Caregiver Eligibility Analysis</div>
-        <button onClick={pollNow} disabled={polling}
+        {mayHr.update && <button onClick={pollNow} disabled={polling}
           className="px-3 py-1.5 rounded-lg border-2 border-primary-600 bg-white dark:bg-slate-800 text-primary-700 dark:text-primary-200 text-sm font-bold disabled:opacity-60">
           {polling ? 'Checking…' : 'Poll WORCS Now'}
-        </button>
+        </button>}
       </div>
       <div className={`rounded-lg border-l-4 px-4 py-3 mb-3 ${meta.cls}`}>
         <div className="font-extrabold">{meta.icon} {meta.label}</div>

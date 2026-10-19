@@ -11,6 +11,7 @@ import { useToast } from '../../../../shared'
 import { api, errorMessage, rows } from '../lib/http'
 import { formatDate } from '../lib/date'
 import ApplicationDetail from './ApplicationDetail'
+import { useMay } from '../lib/useMay'
 
 export interface ApplicationRow {
   id: string
@@ -48,6 +49,8 @@ const fieldInput = { width: '100%', padding: '0.6rem', borderRadius: '6px', bord
 const fieldLabel = { display: 'block', marginBottom: '0.3rem', fontWeight: 600, fontSize: '0.85rem' } as const
 
 export default function ApplicationsDashboard() {
+  // Hiring is care-hr:create, the server's check (lib/useMay.ts).
+  const mayHr = useMay('care-hr')
   const toast = useToast()
   const [applications, setApplications] = useState<ApplicationRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -213,7 +216,7 @@ export default function ApplicationsDashboard() {
 
               <div className="app-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <small>Click to review application</small>
-                {app.status !== 'hired' && app.status !== 'rejected' && (
+                {mayHr.create && app.status !== 'hired' && app.status !== 'rejected' && (
                   <button onClick={(e) => openHireModal(app, e)}
                     style={{ padding: '0.35rem 0.75rem', background: HIRE_FILL, color: '#fff', border: 'none', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}>
                     ✅ Hire as Caregiver

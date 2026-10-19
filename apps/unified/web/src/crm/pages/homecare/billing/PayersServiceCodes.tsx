@@ -8,6 +8,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
+import { useMay } from '../lib/useMay'
 
 // The payer's billing classification (referral_sources.payer_type). Claims, EVV, the punch rules and the
 // reports read it; the values match server/crm/homecare/billing/payers.ts PAYER_TYPES and payerRouter.PAYER_ROUTES.
@@ -59,6 +60,8 @@ const TYPE_COLOURS: Record<string, string> = {
 const pill = (bg: string) => ({ padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' as const, color: 'white', backgroundColor: bg })
 
 const PayersServiceCodes = () => {
+  // Each control for whoever the server lets use it (care-billing create / update — lib/useMay.ts).
+  const may = useMay('care-billing')
   const toast = useToast()
   const [activeTab, setActiveTab] = useState<'payers' | 'service-codes'>('payers')
   const [payers, setPayers] = useState<Payer[]>([])
@@ -78,7 +81,8 @@ const PayersServiceCodes = () => {
   useEffect(() => {
     loadPayers()
     loadServiceCodes()
-    api.get('/api/sandata/payer-presets')
+    // Only for someone who can open the payer form they fill (the route is care-billing:create / update).
+    if (may.create || may.update) api.get('/api/sandata/payer-presets')
       .then((d: { presets?: SandataPreset[] } | null) => setSandataPresets(Array.isArray(d?.presets) ? d!.presets! : []))
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,9 +192,9 @@ const PayersServiceCodes = () => {
       {activeTab === 'payers' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-            <button className="hc-btn hc-btn-primary" onClick={() => { resetPayerForm(); setEditingPayer(null); setShowPayerModal(true) }}>
+            {may.create && <button className="hc-btn hc-btn-primary" onClick={() => { resetPayerForm(); setEditingPayer(null); setShowPayerModal(true) }}>
               + Add Payer
-            </button>
+            </button>}
           </div>
 
           <div className="hc-card" style={{ overflowX: 'auto' }}>
@@ -220,7 +224,7 @@ const PayersServiceCodes = () => {
                       <span style={pill(p.isActivePayer ? '#2e7d32' : '#616161')}>{p.isActivePayer ? 'YES' : 'NO'}</span>
                     </td>
                     <td>
-                      <button className="hc-btn hc-btn-sm" onClick={() => openEditPayer(p)}>Edit</button>
+                      {may.update && <button className="hc-btn hc-btn-sm" onClick={() => openEditPayer(p)}>Edit</button>}
                     </td>
                   </tr>
                 ))}
@@ -234,9 +238,9 @@ const PayersServiceCodes = () => {
       {activeTab === 'service-codes' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-            <button className="hc-btn hc-btn-primary" onClick={() => { resetCodeForm(); setEditingCode(null); setShowCodeModal(true) }}>
+            {may.create && <button className="hc-btn hc-btn-primary" onClick={() => { resetCodeForm(); setEditingCode(null); setShowCodeModal(true) }}>
               + Add Service Code
-            </button>
+            </button>}
           </div>
 
           <div className="hc-card" style={{ overflowX: 'auto' }}>
@@ -266,7 +270,7 @@ const PayersServiceCodes = () => {
                       <span style={pill(sc.requiresAuth ? '#b45309' : '#616161')}>{sc.requiresAuth ? 'YES' : 'NO'}</span>
                     </td>
                     <td>
-                      <button className="hc-btn hc-btn-sm" onClick={() => openEditCode(sc)}>Edit</button>
+                      {may.update && <button className="hc-btn hc-btn-sm" onClick={() => openEditCode(sc)}>Edit</button>}
                     </td>
                   </tr>
                 ))}

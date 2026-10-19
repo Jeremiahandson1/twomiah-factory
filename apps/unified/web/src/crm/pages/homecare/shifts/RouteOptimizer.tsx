@@ -113,6 +113,8 @@ const RouteOptimizer = () => {
   const maySave = useMayWrite('care-schedule:create')
   const mayDelete = useMayWrite('care-schedule:delete')
   const mayFence = useMayWrite('care-clients:update')
+  // Optimize and geocode are the planner's care-schedule:update (planning/optimizer.ts `plan`).
+  const mayPlan = useMayWrite('care-schedule:update')
   // ── Core state ──────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<Tab>('planner')
   const [caregivers, setCaregivers] = useState<Caregiver[]>([])
@@ -668,7 +670,7 @@ const RouteOptimizer = () => {
         {cg && cg.address && !cgHasCoords && (
           <div style={s.msg('warning')}>
             ⚠️ <strong>{cg.firstName} {cg.lastName}</strong> has an address but it's not geocoded yet.
-            <button style={s.btnSm(SOLID.amber)} onClick={() => geocodeSingle('caregiver', cg.id, cg.address, cg.city, cg.state, cg.zip)}>Geocode Now</button>
+            {mayPlan && <button style={s.btnSm(SOLID.amber)} onClick={() => geocodeSingle('caregiver', cg.id, cg.address, cg.city, cg.state, cg.zip)}>Geocode Now</button>}
           </div>
         )}
         {cg && cgHasCoords && (
@@ -783,9 +785,9 @@ const RouteOptimizer = () => {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.85rem', flexWrap: 'wrap' }}>
-                  <button style={s.btn(SOLID.blue, optimizing)} onClick={optimizeRoute} disabled={optimizing}>
+                  {mayPlan && <button style={s.btn(SOLID.blue, optimizing)} onClick={optimizeRoute} disabled={optimizing}>
                     {optimizing ? '⏳ Optimizing...' : '🧠 Optimize Route'}
-                  </button>
+                  </button>}
                   {optimizedRoute && (
                     <>
                       {maySave && <button style={s.btn(SOLID.green, saving)} onClick={() => saveRoute('draft')} disabled={saving}>💾 Save Draft</button>}
@@ -1203,14 +1205,14 @@ const RouteOptimizer = () => {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+          {mayPlan && <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
             <button style={s.btn(SOLID.blue, geocoding)} onClick={() => geocodeAll('clients')} disabled={geocoding}>
               {geocoding ? '⏳ Geocoding...' : `📍 Geocode Clients (${clientsWithoutCoords.length} missing)`}
             </button>
             <button style={s.btn(SOLID.violet, geocoding)} onClick={() => geocodeAll('caregivers')} disabled={geocoding}>
               {geocoding ? '⏳ Geocoding...' : `📍 Geocode Caregivers (${cgWithoutCoords.length} missing)`}
             </button>
-          </div>
+          </div>}
 
           {geocodeResults && (
             <div style={{ fontSize: '0.82rem', padding: '0.6rem', background: 'var(--hc-subtle)', borderRadius: '8px', border: '1px solid var(--hc-line)' }}>

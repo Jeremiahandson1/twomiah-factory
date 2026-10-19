@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
 import { api, errorMessage } from '../lib/http'
 import { formatDate } from '../lib/date'
+import { useMay } from '../lib/useMay'
 
 interface Reference { name?: string; relationship?: string; phone?: string; email?: string }
 
@@ -53,6 +54,8 @@ interface Props {
 }
 
 export default function ApplicationDetail({ applicationId, onBack }: Props) {
+  // Notes and status are care-hr:update, hiring care-hr:create, the server's checks (lib/useMay.ts).
+  const mayHr = useMay('care-hr')
   const toast = useToast()
   const confirm = useConfirm()
   const [app, setApp] = useState<Application | null>(null)
@@ -261,6 +264,7 @@ export default function ApplicationDetail({ applicationId, onBack }: Props) {
             {String(app.interviewNotes).trim()}
           </div>
         )}
+        {mayHr.update && <>
         <textarea
           value={interviewNotes}
           onChange={(e) => setInterviewNotes(e.target.value)}
@@ -269,6 +273,7 @@ export default function ApplicationDetail({ applicationId, onBack }: Props) {
           style={{ width: '100%', marginBottom: '1rem', background: 'var(--hc-surface)', color: 'var(--hc-ink)', border: '1px solid var(--hc-line)', borderRadius: 6, padding: '0.5rem' }}
         ></textarea>
         <button className="hc-btn hc-btn-secondary" onClick={handleSaveNotes} disabled={!interviewNotes.trim()}>Add Note</button>
+        </>}
       </div>
 
       {/* Status & Actions */}
@@ -276,13 +281,13 @@ export default function ApplicationDetail({ applicationId, onBack }: Props) {
         <h3>Application Status</h3>
         <div className="status-buttons" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {['new', 'reviewing', 'interviewed', 'offered', 'rejected'].map((s) => (
-            <button key={s} className={`hc-btn ${status === s ? 'hc-btn-primary' : 'hc-btn-secondary'}`} onClick={() => handleUpdateStatus(s)} disabled={s === status}>
+            <button key={s} className={`hc-btn ${status === s ? 'hc-btn-primary' : 'hc-btn-secondary'}`} onClick={() => handleUpdateStatus(s)} disabled={s === status || !mayHr.update}>
               {s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
           ))}
         </div>
 
-        {status === 'offered' && (
+        {mayHr.create && status === 'offered' && (
           <div style={{ marginTop: '1rem' }}>
             <button className="hc-btn hc-btn-success" onClick={handleHireApplicant} disabled={hiring} style={{ padding: '1rem 2rem', fontSize: '1.1rem' }}>
               {hiring ? 'Creating account...' : '✓ Hire & Create Account'}

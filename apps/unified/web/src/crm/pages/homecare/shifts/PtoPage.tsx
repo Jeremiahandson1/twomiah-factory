@@ -50,7 +50,10 @@ const inputCls = 'w-full border rounded-lg px-3 py-2 bg-white text-gray-900 dark
 
 export default function PtoPage() {
   const toast = useToast()
-  const mayRequest = useMayWrite('care-payroll:create')
+  // POST /api/pto asks care-payroll:create OR my-pay:create (payroll/shared.ts payrollOrCaregiver).
+  const mayRequestOffice = useMayWrite('care-payroll:create')
+  const mayRequestOwn = useMayWrite('my-pay:create')
+  const mayRequest = mayRequestOffice || mayRequestOwn
   const mayAnswer = useMayWrite('care-payroll:update')
   const [requests, setRequests] = useState<PtoRequest[]>([])
   const [caregivers, setCaregivers] = useState<CaregiverOption[]>([])

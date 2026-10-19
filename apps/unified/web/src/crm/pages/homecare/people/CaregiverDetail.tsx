@@ -27,8 +27,9 @@
 //   GET   /api/time-entries/caregiver-gps/:id    { data }: the caregiver's last 100 GPS points (timeEntryId, latitude,
 //                                                longitude, accuracy, speed, timestamp) — not per visit; grouped here.
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { useAuth, useConfirm, useToast } from '../../../../shared'
+import { useAuth, useConfirm, useToast, usePermissions } from '../../../../shared'
 import { api, errorMessage, rows } from '../lib/http'
+import { useMay } from '../lib/useMay'
 import { parseLocalDate, toLocalYMD } from '../lib/date'
 import { formatAgencyDateTime } from '../lib/agencyClock'
 import EligibilityCard, { isWisconsinAgency } from './EligibilityCard'
@@ -198,6 +199,11 @@ interface Props {
 }
 
 export default function CaregiverDetail({ caregiverId, onBack }: Props) {
+  // Each control for whoever the server lets use it: the record is care-hr, pay rates care-payroll, geocoding care-schedule:update, a password reset team:update (lib/useMay.ts).
+  const mayHr = useMay('care-hr')
+  const mayPayroll = useMay('care-payroll')
+  const maySchedule = useMay('care-schedule')
+  const { can } = usePermissions()
   const { company } = useAuth()
   const toast = useToast()
   const confirm = useConfirm()
@@ -587,7 +593,7 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
                 <button style={s.outline('var(--hc-muted)')} onClick={() => { setEditing(false); load() }}>Cancel</button>
               </>
             ) : (
-              <button style={s.btn()} onClick={() => setEditing(true)}>✏️ Edit All</button>
+              mayHr.update && <button style={s.btn()} onClick={() => setEditing(true)}>✏️ Edit All</button>
             )}
           </div>
         </div>
@@ -607,7 +613,7 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
           {field('Emergency Contact Phone', 'emergencyContactPhone', 'tel')}
         </div>
 
-        {editing && (
+        {editing && maySchedule.update && (
           <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--hc-subtle)' }}>
             <button style={{ ...s.btn(INDIGO_FILL), marginRight: '0.5rem' }} onClick={geocodeAddress} disabled={geocoding}>
               {geocoding ? '📍 Geocoding...' : '📍 Geocode Address (for GPS clock-in)'}
@@ -632,10 +638,10 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
       <div style={s.card}>
         <div style={{ fontWeight: 800, fontSize: '0.95rem', marginBottom: '1rem' }}>Account Actions</div>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button style={s.outline(form.isActive ? 'var(--hc-red-ink)' : BRAND_INK)} onClick={deactivate}>
+          {mayHr.update && <button style={s.outline(form.isActive ? 'var(--hc-red-ink)' : BRAND_INK)} onClick={deactivate}>
             {form.isActive ? '🔴 Deactivate' : '🟢 Reactivate'}
-          </button>
-          <button style={s.outline(INDIGO_INK)} onClick={resetPassword}>🔑 Reset Password</button>
+          </button>}
+          {can('team:update') && <button style={s.outline(INDIGO_INK)} onClick={resetPassword}>🔑 Reset Password</button>}
         </div>
         <p style={{ fontSize: '0.78rem', color: 'var(--hc-muted)', marginTop: '0.5rem' }}>
           Member since {fmtDate(profile?.createdAt)} · Hire date: {fmtDate(profile?.hireDate) || 'not set'}
@@ -658,10 +664,10 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
             )}
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button style={s.btn()} onClick={generateIvrPin} disabled={ivrPinLoading}>
+            {mayHr.update && <button style={s.btn()} onClick={generateIvrPin} disabled={ivrPinLoading}>
               {ivrPinLoading ? '...' : ivrPin ? '🔄 Regenerate PIN' : '🔑 Generate PIN'}
-            </button>
-            {ivrPin && (
+            </button>}
+            {mayHr.update && ivrPin && (
               <button style={s.outline('var(--hc-red-ink)')} onClick={clearIvrPin} disabled={ivrPinLoading}>
                 🗑️ Clear PIN
               </button>
@@ -685,15 +691,16 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
                     type="number" step="0.01" min="0" placeholder="Not set"
                     value={caregiverRates[k]}
                     onChange={(e) => setCaregiverRates((p) => ({ ...p, [k]: e.target.value }))}
+                    disabled={!mayPayroll.update}
                     style={s.input}
                   />
                 </div>
               ))}
             </div>
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <button style={s.btn()} onClick={saveCaregiverRates} disabled={ratesSaving}>
+              {mayPayroll.update && <button style={s.btn()} onClick={saveCaregiverRates} disabled={ratesSaving}>
                 {ratesSaving ? 'Saving...' : '💾 Save Rates'}
-              </button>
+              </button>}
               <span style={{ fontSize: '0.78rem', color: 'var(--hc-muted)' }}>
                 Current: Base {caregiverRates.base ? fmt$(caregiverRates.base) : 'N/A'} · OT {caregiverRates.overtime ? fmt$(caregiverRates.overtime) : 'N/A'} · Premium {caregiverRates.premium ? fmt$(caregiverRates.premium) : 'N/A'}
               </span>
@@ -965,7 +972,7 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
       <div style={s.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>🔍 Background Checks</div>
-          <button style={s.btn()} onClick={() => setShowBgForm((p) => !p)}>{showBgForm ? 'Cancel' : '+ New Check'}</button>
+          {mayHr.create && <button style={s.btn()} onClick={() => setShowBgForm((p) => !p)}>{showBgForm ? 'Cancel' : '+ New Check'}</button>}
         </div>
 
         {showBgForm && (
@@ -1057,7 +1064,7 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
             <div style={{ fontSize: '0.875rem', color: profile?.latitude ? 'var(--hc-green-ink)' : 'var(--hc-red-ink)', fontWeight: 600 }}>
               {profile?.latitude ? `✅ Set (${parseFloat(profile.latitude).toFixed(4)}, ${parseFloat(String(profile.longitude)).toFixed(4)})` : "⚠️ Not geocoded — geofence routing won't work"}
             </div>
-            {!profile?.latitude && (
+            {mayHr.update && maySchedule.update && !profile?.latitude && (
               <button style={{ ...s.btn(INDIGO_FILL), marginTop: '0.5rem', fontSize: '0.78rem', padding: '0.35rem 0.75rem' }} onClick={() => { setEditing(true); setTab('personal') }}>
                 Go to Personal Info → Geocode Address
               </button>

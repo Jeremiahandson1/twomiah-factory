@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { useAuth, useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage, downloadBlob, saveBlob, listAll } from '../lib/http'
+import { useMay } from '../lib/useMay'
 // Why a cancelled visit was not billed (schedule_exceptions.cancel_reason) — the one label list.
 import { cancelReasonLabel } from '../lib/cancelReasons'
 import { toLocalYMD, parseLocalDate } from '../lib/date'
@@ -189,6 +190,9 @@ const EMPTY_MANUAL_LINE: ManualLine = { caregiverId: '', caregiverName: '', desc
 /** Every client and caregiver for the pickers (both lists page at 50 by default). */
 
 const BillingDashboard = () => {
+  // Each control for whoever the server lets use it (care-billing create / update / delete): the office manager reads
+  // billing and changes none of it, and was offered every button (lib/useMay.ts).
+  const may = useMay('care-billing')
   const toast = useToast()
   const confirm = useConfirm()
   const { company } = useAuth()
@@ -965,15 +969,19 @@ const BillingDashboard = () => {
       <div className="page-header">
         <h2>💰 Billing & Invoicing</h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {may.create && <>
           <button className="hc-btn hc-btn-primary" onClick={() => { setShowGenerateForm((v) => !v); setShowManualForm(false); reveal(generateRef) }}>📄 New Invoice</button>
           <button className="hc-btn hc-btn-primary" onClick={() => { setShowManualForm((v) => !v); setShowGenerateForm(false); reveal(manualRef) }}>✏️ Manual Invoice</button>
           <button className="hc-btn hc-btn-primary" onClick={handleGenerateDue} disabled={dueRunning}
             title="Previews the draft invoices due for every client with a billing schedule. Nothing is created until you confirm the preview.">
             {dueRunning ? '⏳ Reading…' : '⚡ Create Due Invoices'}
           </button>
+          </>}
           <button className="hc-btn hc-btn-secondary" onClick={() => { setShowSchedulePanel(!showSchedulePanel); if (!showSchedulePanel) { loadBillingSchedule(); reveal(scheduleRef) } }}>🗓️ Billing Schedule</button>
+          {may.create && <>
           <button className="hc-btn hc-btn-secondary" onClick={() => { setShowPickPanel(!showPickPanel); reveal(pickRef) }}>☑️ Invoice Picked Visits</button>
           <button className="hc-btn hc-btn-secondary" onClick={() => { setShowBatchForm(!showBatchForm); reveal(batchRef) }}>📋 Batch Generate</button>
+          </>}
           <button className="hc-btn hc-btn-secondary" onClick={handleExportCSV}>📥 Export CSV</button>
           <button className="hc-btn hc-btn-secondary" onClick={handleExportEVV}>📤 EVV Export</button>
         </div>
@@ -1042,7 +1050,7 @@ const BillingDashboard = () => {
                     <td><strong>{c.firstName} {c.lastName}</strong></td>
                     <td>{c.isPrivatePay ? 'Private Pay' : (c.payerName || '—')}</td>
                     <td>
-                      <select aria-label={`Billing frequency for ${c.firstName} ${c.lastName}`} value={c.billingFrequencyWeeks || ''} onChange={(e) => setClientFrequency(c.id, e.target.value)}>
+                      <select aria-label={`Billing frequency for ${c.firstName} ${c.lastName}`} value={c.billingFrequencyWeeks || ''} onChange={(e) => setClientFrequency(c.id, e.target.value)} disabled={!may.update}>
                         <option value="">Manual only</option>
                         <option value="1">Every week</option>
                         <option value="2">Every 2 weeks</option>
@@ -1607,10 +1615,10 @@ const BillingDashboard = () => {
                     <td>
                       <div style={{ display: 'flex', gap: '0.25rem' }}>
                         <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => handleViewInvoice(invoice.id)}>View</button>
-                        {invoice.paymentStatus !== 'paid' && (
+                        {may.create && invoice.paymentStatus !== 'paid' && (
                           <button className="hc-btn hc-btn-sm hc-btn-success" onClick={() => openPayment(invoice.id)}>Pay</button>
                         )}
-                        <button className="hc-btn hc-btn-sm hc-btn-danger" aria-label={`Delete invoice ${invoiceLabel(invoice)}`} onClick={() => handleDeleteInvoice(invoice.id, invoiceLabel(invoice))}>🗑️</button>
+                        {may.delete && <button className="hc-btn hc-btn-sm hc-btn-danger" aria-label={`Delete invoice ${invoiceLabel(invoice)}`} onClick={() => handleDeleteInvoice(invoice.id, invoiceLabel(invoice))}>🗑️</button>}
                       </div>
                     </td>
                   </tr>
@@ -1656,8 +1664,10 @@ const BillingDashboard = () => {
                         <td><span className={`hc-badge ${daysOverdue <= 0 ? 'hc-badge-success' : daysOverdue <= 30 ? 'hc-badge-warning' : 'hc-badge-danger'}`}>{daysOverdue <= 0 ? 'Current' : `${daysOverdue} days`}</span></td>
                         <td><strong>{formatCurrency(balance)}</strong></td>
                         <td>
+                          {may.create && <>
                           <button className="hc-btn hc-btn-sm hc-btn-success" onClick={() => openPayment(invoice.id)}>Pay</button>
                           <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { setAdjustmentFormData({ ...adjustmentFormData, invoiceId: invoice.id }); setShowAdjustmentModal(true) }}>Adjust</button>
+                          </>}
                         </td>
                       </tr>
                     )
@@ -1673,7 +1683,7 @@ const BillingDashboard = () => {
         <div className="hc-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ margin: 0 }}>Service Authorizations</h3>
-            <button className="hc-btn hc-btn-primary" onClick={() => setShowAuthModal(true)}>+ Add Authorization</button>
+            {may.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowAuthModal(true)}>+ Add Authorization</button>}
           </div>
           {authorizations.length === 0 ? (
             <p className="text-muted text-center">No authorizations on file.</p>
@@ -1714,7 +1724,7 @@ const BillingDashboard = () => {
         <div className="hc-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ margin: 0 }}>Payment History</h3>
-            <button className="hc-btn hc-btn-primary" onClick={() => setShowPaymentModal(true)}>+ Record Payment</button>
+            {may.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowPaymentModal(true)}>+ Record Payment</button>}
           </div>
           {payments.length === 0 ? (
             <p className="text-muted text-center">No payments recorded.</p>
@@ -1746,7 +1756,7 @@ const BillingDashboard = () => {
         <div className="hc-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ margin: 0 }}>Payer Contract Rates</h3>
-            <button className="hc-btn hc-btn-primary" onClick={() => setShowRateForm(!showRateForm)}>{showRateForm ? 'Cancel' : '+ Add Rate'}</button>
+            {may.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowRateForm(!showRateForm)}>{showRateForm ? 'Cancel' : '+ Add Rate'}</button>}
           </div>
 
           {missingRates.length > 0 && (
@@ -1823,7 +1833,7 @@ const BillingDashboard = () => {
                           ? <span className="font-semibold text-emerald-700 dark:text-emerald-300">{count} {count === 1 ? 'client' : 'clients'}</span>
                           : <span className="text-amber-700 dark:text-amber-300" title="No active clients use this rate — orphaned config?">⚠️ none</span>}
                       </td>
-                      <td><button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDeleteRate(rate.id)}>Delete</button></td>
+                      <td>{may.delete && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDeleteRate(rate.id)}>Delete</button>}</td>
                     </tr>
                   )
                 })}
@@ -2002,7 +2012,9 @@ const BillingDashboard = () => {
                 .invoice-company-info { font-size: 12px; color: #555; line-height: 1.5; }
                 .invoice-company-name { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 3px; }
                 .invoice-header-right { text-align: right; }
-                .invoice-title-large { font-size: 36px; font-weight: 300; color: #333; margin: 0; letter-spacing: 2px; }
+                /* Scoped to the sheet: the app's dark-mode heading rule (.dark h1, index.css) out-specifies a bare class and
+                   printed a white title on this always-white paper (1.00:1, found in the browser 2026-10-19). */
+                .invoice-print-container .invoice-title-large { font-size: 36px; font-weight: 300; color: #333; margin: 0; letter-spacing: 2px; }
                 .invoice-number-display { font-size: 14px; color: #555; margin-top: 5px; }
                 .invoice-balance-box { margin-top: 15px; text-align: right; }
                 .invoice-balance-label { font-size: 11px; color: #6b7280; text-transform: uppercase; }
@@ -2097,7 +2109,9 @@ const BillingDashboard = () => {
                   </div>
                   <div className="invoice-date-row">
                     <span className="invoice-date-label">Terms :</span>
-                    <span className="invoice-date-value">Due on Receipt</span>
+                    {/* The invoice engine sets the due date 30 days after the billing period ends (core/invoiceEngine.ts);
+                        the terms say so. They read "Due on Receipt" beside that later due date. */}
+                    <span className="invoice-date-value">{selectedInvoice.paymentDueDate ? '30 days after the period ends' : 'Due on Receipt'}</span>
                   </div>
                   <div className="invoice-date-row">
                     <span className="invoice-date-label">Due Date :</span>
@@ -2214,26 +2228,26 @@ const BillingDashboard = () => {
 
             {/* Action Buttons (screen only) */}
             <div className="modal-actions no-print" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid var(--hc-line)' }}>
-              {!selectedInvoice.sentAt && (
+              {may.update && !selectedInvoice.sentAt && (
                 <button className="hc-btn hc-btn-success" onClick={() => handleReleaseToPortal(selectedInvoice)}>👁️ Release to Portal</button>
               )}
-              {selectedInvoice.sentAt && !['paid', 'partial'].includes(selectedInvoice.paymentStatus) && (
+              {may.update && selectedInvoice.sentAt && !['paid', 'partial'].includes(selectedInvoice.paymentStatus) && (
                 <button className="hc-btn hc-btn-warning" onClick={() => handleRescindInvoice(selectedInvoice)}>↩️ Rescind (hide from portal)</button>
               )}
               {selectedInvoice.paymentStatus !== 'paid' && (
                 <>
-                  <button className="hc-btn hc-btn-secondary" onClick={() => openLineItemEditor(selectedInvoice)}>✏️ Edit Line Items</button>
-                  <button className="hc-btn hc-btn-success" onClick={() => { setPaymentFormData({ ...paymentFormData, invoiceId: selectedInvoice.id }); setShowInvoiceModal(false); setShowPaymentModal(true) }}>💳 Record Payment</button>
-                  <button className="hc-btn hc-btn-warning" onClick={() => handleMarkPaid(selectedInvoice.id)}>✓ Mark Paid</button>
-                  <button className="hc-btn hc-btn-primary" onClick={() => handleCreatePaymentLink(selectedInvoice)} disabled={creatingPaymentLink}>
+                  {may.update && <button className="hc-btn hc-btn-secondary" onClick={() => openLineItemEditor(selectedInvoice)}>✏️ Edit Line Items</button>}
+                  {may.create && <button className="hc-btn hc-btn-success" onClick={() => { setPaymentFormData({ ...paymentFormData, invoiceId: selectedInvoice.id }); setShowInvoiceModal(false); setShowPaymentModal(true) }}>💳 Record Payment</button>}
+                  {may.update && <button className="hc-btn hc-btn-warning" onClick={() => handleMarkPaid(selectedInvoice.id)}>✓ Mark Paid</button>}
+                  {may.update && <button className="hc-btn hc-btn-primary" onClick={() => handleCreatePaymentLink(selectedInvoice)} disabled={creatingPaymentLink}>
                     {creatingPaymentLink ? '🔗 Generating...' : '🔗 Get Stripe Pay Link'}
-                  </button>
+                  </button>}
                 </>
               )}
-              <button className="hc-btn hc-btn-info" onClick={() => handleSendInvoiceEmail(selectedInvoice)} disabled={sendingInvoiceEmail}>
+              {may.update && <button className="hc-btn hc-btn-info" onClick={() => handleSendInvoiceEmail(selectedInvoice)} disabled={sendingInvoiceEmail}>
                 {sendingInvoiceEmail ? '📧 Sending...' : '📧 Send Invoice'}
-              </button>
-              {selectedInvoice.paymentStatus !== 'paid' && (
+              </button>}
+              {may.update && selectedInvoice.paymentStatus !== 'paid' && (
                 <button className="hc-btn hc-btn-warning" onClick={() => handleSendInvoiceReminder(selectedInvoice)} disabled={sendingInvoiceEmail}>
                   {sendingInvoiceEmail ? '⏰ Sending...' : '⏰ Send Reminder'}
                 </button>

@@ -17,6 +17,7 @@ import { api, rows, errorMessage } from '../lib/http'
 import { formatDate } from '../lib/date'
 import { formatAgencyDateTime } from '../lib/agencyClock'
 import { useToast } from '../../../../shared'
+import { useMay } from '../lib/useMay'
 
 /** A row of GET /api/evv. */
 interface EvvVisit {
@@ -57,6 +58,8 @@ const NEUTRAL_CHIP = 'bg-gray-200 text-gray-800 dark:bg-slate-700 dark:text-slat
 
 const EVVDashboard = () => {
   const toast = useToast()
+  // Verifying is the office's evv:delete (server visits/evv.ts) — offered only to whoever holds it (lib/useMay.ts).
+  const may = useMay('evv')
   const [visits, setVisits] = useState<EvvVisit[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -215,7 +218,7 @@ const EVVDashboard = () => {
                     </td>
                     <td style={{ fontSize: '0.8rem', color: 'var(--hc-ink-soft)' }}>{v.evvMethod || '—'}</td>
                     <td>
-                      {!v.isVerified && (
+                      {may.delete && !v.isVerified && (
                         <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => verifyVisit(v.id)}>Verify</button>
                       )}
                     </td>

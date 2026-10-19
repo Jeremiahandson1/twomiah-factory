@@ -12,6 +12,7 @@ import { useConfirm } from '../../../../shared'
 import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDate, parseLocalDate, toLocalYMD } from '../lib/date'
 import type { CaregiverPick } from './shared'
+import { useMay } from '../lib/useMay'
 
 interface ClientPick { id: string; firstName: string | null; lastName: string | null }
 interface Review {
@@ -52,6 +53,8 @@ const getAssessmentLabel = (assessment: string) => {
 }
 
 export default function PerformanceRatings() {
+  // Adding a review is care-hr:create and deleting one care-hr:delete, the server's checks (lib/useMay.ts).
+  const mayHr = useMay('care-hr')
   const confirm = useConfirm()
   const [caregivers, setCaregivers] = useState<CaregiverPick[]>([])
   const [clients, setClients] = useState<ClientPick[]>([])
@@ -163,9 +166,9 @@ export default function PerformanceRatings() {
     <div>
       <div className="page-header">
         <h2>Performance Reviews</h2>
-        <button className="hc-btn hc-btn-primary" onClick={() => setShowForm(!showForm)}>
+        {mayHr.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowForm(!showForm)}>
           {showForm ? 'Cancel' : 'Add Review'}
-        </button>
+        </button>}
       </div>
 
       {message && (
@@ -298,9 +301,9 @@ export default function PerformanceRatings() {
                                     <span className={`hc-badge ${look?.badge || 'hc-badge-secondary'}`}>
                                       {getAssessmentLabel(review.overallAssessment)}
                                     </span>
-                                    <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDeleteReview(review.id)}>
+                                    {mayHr.delete && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDeleteReview(review.id)}>
                                       Delete
-                                    </button>
+                                    </button>}
                                   </div>
                                 </div>
 

@@ -16,6 +16,7 @@ import { useState, useEffect, type CSSProperties } from 'react'
 import { api, rows, errorMessage } from '../lib/http'
 import { useToast } from '../../../../shared'
 import { SOLID, backdrop, field } from './ui'
+import { useMay } from '../lib/useMay'
 
 interface NoShowAlert {
   id: string
@@ -47,6 +48,8 @@ type Filter = 'open' | 'resolved' | 'false_alarm' | 'all'
 
 export default function NoShowAlerts() {
   const toast = useToast()
+  // Every /api/no-show write is care-schedule:update (scheduling/noShow.ts) — lib/useMay.ts.
+  const may = useMay('care-schedule')
   const [alerts, setAlerts] = useState<NoShowAlert[]>([])
   const [stats, setStats] = useState<NoShowStats>({})
   const [config, setConfig] = useState<NoShowConfig>({ graceMinutes: 15, notifyAdmin: true, notifyCaregiver: true, notifyClientFamily: false, adminPhone: '', adminEmail: '', isActive: true })
@@ -142,10 +145,10 @@ export default function NoShowAlerts() {
           <span style={{ fontSize: '0.82rem', color: config.isActive ? 'var(--hc-green-ink)' : 'var(--hc-red-ink)', fontWeight: 600 }}>
             {config.isActive ? '● Active' : '○ Disabled'}
           </span>
-          <button onClick={runCheck} disabled={checking}
+          {may.update && <button onClick={runCheck} disabled={checking}
             style={{ padding: '0.5rem 1.1rem', borderRadius: '8px', border: 'none', background: SOLID.blue, color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: '0.88rem', opacity: checking ? 0.7 : 1 }}>
             {checking ? '⏳ Checking...' : '▶ Run Check Now'}
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -206,7 +209,7 @@ export default function NoShowAlerts() {
                     {a.smsSent && <div style={{ fontSize: '0.75rem', color: 'var(--hc-green-ink)', marginTop: '0.2rem' }}>✓ SMS sent</div>}
                     {a.resolutionNote && <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', marginTop: '0.35rem', fontStyle: 'italic' }}>"{a.resolutionNote}"</div>}
                   </div>
-                  {a.status === 'open' && (
+                  {may.update && a.status === 'open' && (
                     <button onClick={() => { setResolveModal(a); setResolveNote('') }}
                       style={{ padding: '0.4rem 0.9rem', borderRadius: '8px', border: 'none', background: 'var(--hc-success-bg)', color: 'var(--hc-success-ink)', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}>
                       Resolve
@@ -227,10 +230,10 @@ export default function NoShowAlerts() {
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                 <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Monitoring Active</span>
-                <input type="checkbox" checked={config.isActive} onChange={(e) => setConfig((c) => ({ ...c, isActive: e.target.checked }))} style={{ width: '1.1rem', height: '1.1rem' }} />
+                <input type="checkbox" checked={config.isActive} onChange={(e) => setConfig((c) => ({ ...c, isActive: e.target.checked }))} disabled={!may.update} style={{ width: '1.1rem', height: '1.1rem' }} />
               </label>
               <label style={labelStyle}>Grace Period (minutes)</label>
-              <input type="number" value={config.graceMinutes} onChange={(e) => setConfig((c) => ({ ...c, graceMinutes: parseInt(e.target.value) }))} min={5} max={60}
+              <input type="number" value={config.graceMinutes} onChange={(e) => setConfig((c) => ({ ...c, graceMinutes: parseInt(e.target.value) }))} min={5} max={60} disabled={!may.update}
                 style={{ ...field, width: '100px' }} />
               <div style={{ fontSize: '0.75rem', color: 'var(--hc-ink-soft)', marginTop: '0.25rem' }}>Alert triggers if no clock-in after this many minutes past shift start</div>
             </div>
@@ -243,7 +246,7 @@ export default function NoShowAlerts() {
                 { key: 'notifyClientFamily', label: "Client's Family" },
               ] as Array<{ key: NotifyKey; label: string }>).map(({ key, label }) => (
                 <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={!!config[key]} onChange={(e) => setConfig((c) => ({ ...c, [key]: e.target.checked }))} />
+                  <input type="checkbox" checked={!!config[key]} onChange={(e) => setConfig((c) => ({ ...c, [key]: e.target.checked }))} disabled={!may.update} />
                   <span style={{ fontSize: '0.88rem' }}>{label}</span>
                 </label>
               ))}
@@ -251,15 +254,15 @@ export default function NoShowAlerts() {
 
             <div style={{ marginBottom: '1rem' }}>
               <label style={labelStyle}>Admin Phone (for SMS)</label>
-              <input value={config.adminPhone || ''} onChange={(e) => setConfig((c) => ({ ...c, adminPhone: e.target.value }))}
+              <input value={config.adminPhone || ''} onChange={(e) => setConfig((c) => ({ ...c, adminPhone: e.target.value }))} disabled={!may.update}
                 placeholder="+15555551234"
                 style={{ ...field, fontSize: '0.88rem' }} />
             </div>
 
-            <button onClick={saveConfig} disabled={savingConfig}
+            {may.update && <button onClick={saveConfig} disabled={savingConfig}
               style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: 'none', background: SOLID.blue, color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.92rem' }}>
               {savingConfig ? 'Saving...' : '✓ Save Settings'}
-            </button>
+            </button>}
           </div>
 
           <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', background: 'var(--hc-info-bg)', borderRadius: '8px', border: '1px solid var(--hc-info-line)' }}>

@@ -60,6 +60,7 @@ const SMSManagement = () => {
   const { can } = usePermissions()
   const mayCreate = can('care-portal:create')
   const mayUpdate = can('care-portal:update')
+  const mayDelete = can('care-portal:delete') // DELETE /api/sms/templates/:id asks care-portal:delete
 
   const [messages, setMessages] = useState<SmsMessage[]>([])
   const [templates, setTemplates] = useState<SmsTemplate[]>([])
@@ -285,7 +286,7 @@ const SMSManagement = () => {
                       {mayUpdate && (
                         <button type="button" className="hc-btn hc-btn-sm hc-btn-secondary" title="Edit" onClick={() => { setEditingTemplate(template); setShowTemplateModal(true) }}>✏️</button>
                       )}
-                      {mayUpdate && (
+                      {mayDelete && (
                         <button type="button" className="hc-btn hc-btn-sm hc-btn-danger" title="Delete" onClick={() => deleteTemplate(template.id)}>🗑️</button>
                       )}
                     </div>

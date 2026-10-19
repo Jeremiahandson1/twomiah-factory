@@ -9,6 +9,7 @@ import { formatDateTime } from '../lib/datetime'
 import { formatAgencyDate } from '../lib/agencyClock'
 import SignaturePad from '../lib/SignaturePad'
 import { allRows, type Client, type Caregiver } from './shared'
+import { useMay } from '../lib/useMay'
 
 /** A row of GET /api/documents (data/homecareClients.ts documentRows: never the file bytes). */
 interface DocRow {
@@ -47,6 +48,8 @@ const ENTITY_CHIP: Record<string, string> = {
 }
 
 const DocumentsManagement = () => {
+  // Uploading is care-clients:create and deleting care-clients:delete, the server's checks (lib/useMay.ts).
+  const may = useMay('care-clients')
   const toast = useToast()
   const confirm = useConfirm()
   const [documents, setDocuments] = useState<DocRow[]>([])
@@ -147,9 +150,9 @@ const DocumentsManagement = () => {
     <div>
       <div className="page-header">
         <h2>📁 Document Management</h2>
-        <button className="hc-btn hc-btn-primary" onClick={() => setShowUploadModal(true)}>
+        {may.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowUploadModal(true)}>
           + Upload Document
-        </button>
+        </button>}
       </div>
 
       {/* Summary Cards */}
@@ -271,9 +274,9 @@ const DocumentsManagement = () => {
                       <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => downloadDocument(doc)} title="Download">
                         ⬇️
                       </button>
-                      <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => deleteDocument(doc.id)} title="Delete">
+                      {may.delete && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => deleteDocument(doc.id)} title="Delete">
                         🗑️
-                      </button>
+                      </button>}
                     </div>
                   </td>
                 </tr>

@@ -76,6 +76,7 @@ export default function CommunicationLog({ entityType = 'client', entityId = nul
   const { can } = usePermissions()
   const mayCreate = can('care-portal:create')
   const mayDelete = can('care-portal:delete')
+  const mayUpdate = can('care-portal:update') // pin, follow-up done and edit are PUTs (care-portal:update)
 
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -226,7 +227,7 @@ export default function CommunicationLog({ entityType = 'client', entityId = nul
             {followUps.slice(0, 3).map((f) => (
               <span key={f.id} className="rounded-md border border-amber-300 bg-white px-2 py-0.5 text-xs text-gray-800 dark:border-amber-700 dark:bg-slate-800 dark:text-slate-100">
                 {f.subject || f.body.slice(0, 30)}
-                <button type="button" onClick={() => markFollowUpDone(f.id)} title="Mark follow-up done" className="ml-1 font-bold text-emerald-700 dark:text-emerald-400">✓</button>
+                {mayUpdate && <button type="button" onClick={() => markFollowUpDone(f.id)} title="Mark follow-up done" className="ml-1 font-bold text-emerald-700 dark:text-emerald-400">✓</button>}
               </span>
             ))}
           </div>
@@ -316,11 +317,11 @@ export default function CommunicationLog({ entityType = 'client', entityId = nul
                     )}
                   </div>
                   <div className="flex gap-1.5">
-                    <button type="button" onClick={() => togglePin(log)} title={pinned ? 'Unpin' : 'Pin'} className={ICON_BTN}>📌</button>
-                    {openFollowUp && (
+                    {mayUpdate && <button type="button" onClick={() => togglePin(log)} title={pinned ? 'Unpin' : 'Pin'} className={ICON_BTN}>📌</button>}
+                    {mayUpdate && openFollowUp && (
                       <button type="button" onClick={() => markFollowUpDone(log.id)} title="Mark follow-up done" className={`${ICON_BTN} text-emerald-700 dark:text-emerald-400`}>✓</button>
                     )}
-                    <button type="button" onClick={() => startEdit(log)} title="Edit" className={ICON_BTN}>✏️</button>
+                    {mayUpdate && <button type="button" onClick={() => startEdit(log)} title="Edit" className={ICON_BTN}>✏️</button>}
                     {mayDelete && (
                       <button type="button" onClick={() => deleteLog(log.id)} title="Delete" className={`${ICON_BTN} text-red-700 dark:text-red-400`}>🗑</button>
                     )}

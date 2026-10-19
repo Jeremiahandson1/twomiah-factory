@@ -6,6 +6,7 @@ import { useConfirm } from '../../../../shared'
 import { api, rows, downloadBlob, saveBlob, errorMessage } from '../lib/http'
 import { formatAgencyDate } from '../lib/agencyClock'
 import { allRows, type Client, type Caregiver } from './shared'
+import { useMay } from '../lib/useMay'
 
 const FIELD_TYPES = [
   { value: 'text', label: 'Text Input', icon: '✏️' },
@@ -250,6 +251,9 @@ function FormFiller({ template, clients, caregivers, onClose, onSaved }: {
 }
 
 export default function FormBuilder() {
+  // Each control for whoever the server lets use it: templates are care-clients, filling one out is evv:create (lib/useMay.ts).
+  const may = useMay('care-clients')
+  const mayEvv = useMay('evv')
   const confirm = useConfirm()
   const [tab, setTab] = useState('templates')
   const [templates, setTemplates] = useState<FormTemplate[]>([])
@@ -465,7 +469,7 @@ export default function FormBuilder() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <h2 style={{ margin: 0 }}>📝 Form Builder</h2>
-        <button onClick={newTemplate} style={{ ...blueBtn, padding: '0.5rem 1.1rem', borderRadius: '8px', fontSize: '0.88rem' }}>+ New Template</button>
+        {may.create && <button onClick={newTemplate} style={{ ...blueBtn, padding: '0.5rem 1.1rem', borderRadius: '8px', fontSize: '0.88rem' }}>+ New Template</button>}
       </div>
 
       <div style={{ display: 'flex', borderBottom: '2px solid var(--hc-line)', marginBottom: '1.25rem' }}>
@@ -506,9 +510,9 @@ export default function FormBuilder() {
                       {t.requiresSignature && <span>✍️ Signature</span>}
                     </div>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
-                      <button onClick={() => setFillModal(t)} style={{ ...blueBtn, flex: 1, padding: '0.4rem', borderRadius: '6px', fontWeight: 600, fontSize: '0.8rem' }}>Fill Out</button>
-                      <button onClick={() => setEditTemplate({ ...t, fields: parseFields(t.fields) })} style={{ ...plainBtn, padding: '0.4rem 0.65rem', borderRadius: '6px', fontSize: '0.8rem' }}>Edit</button>
-                      <button onClick={() => deleteTemplate(t.id)} style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', border: '1px solid var(--hc-danger-line)', background: 'var(--hc-surface)', color: 'var(--hc-red-ink)', cursor: 'pointer', fontSize: '0.8rem' }}>✕</button>
+                      {mayEvv.create && <button onClick={() => setFillModal(t)} style={{ ...blueBtn, flex: 1, padding: '0.4rem', borderRadius: '6px', fontWeight: 600, fontSize: '0.8rem' }}>Fill Out</button>}
+                      {may.update && <button onClick={() => setEditTemplate({ ...t, fields: parseFields(t.fields) })} style={{ ...plainBtn, padding: '0.4rem 0.65rem', borderRadius: '6px', fontSize: '0.8rem' }}>Edit</button>}
+                      {may.delete && <button onClick={() => deleteTemplate(t.id)} style={{ padding: '0.4rem 0.65rem', borderRadius: '6px', border: '1px solid var(--hc-danger-line)', background: 'var(--hc-surface)', color: 'var(--hc-red-ink)', cursor: 'pointer', fontSize: '0.8rem' }}>✕</button>}
                     </div>
                   </div>
                 ))}
@@ -552,8 +556,8 @@ export default function FormBuilder() {
                       </button>
                     </td>
                     <td style={{ padding: '0.65rem 0.85rem' }}>
-                      <button onClick={() => deleteSubmission(s.id)} title="Delete submission" aria-label="Delete submission"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--hc-red-ink)', fontSize: '0.9rem' }}>🗑</button>
+                      {may.delete && <button onClick={() => deleteSubmission(s.id)} title="Delete submission" aria-label="Delete submission"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--hc-red-ink)', fontSize: '0.9rem' }}>🗑</button>}
                     </td>
                   </tr>
                 ))}

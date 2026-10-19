@@ -22,6 +22,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react'
 import { api, rows, downloadBlob, saveBlob, errorMessage, listAll } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import VisitPhotoGallery from './VisitPhotoGallery'
+import { useMay } from '../lib/useMay'
 
 /** A row of GET /api/clients (the office's list). */
 interface ClientRow { id: string; firstName: string | null; lastName: string | null; isActive?: boolean | null }
@@ -69,6 +70,9 @@ const OPEN_ROW = { background: 'var(--hc-info-bg)', color: 'var(--hc-ink)' }
 const CAREGIVER_STATUS_INK = 'var(--hc-warning-ink)'
 
 const VisitDocumentation = () => {
+  // Notes are evv:delete (visits/visitDocumentation.ts), the invoice is care-billing:create (billing/invoices.ts) — lib/useMay.ts.
+  const may = useMay('evv')
+  const mayBill = useMay('care-billing')
   const [clients, setClients] = useState<ClientRow[]>([])
   const [clientId, setClientId] = useState('')
   const [from, setFrom] = useState(daysAgo(30))
@@ -238,18 +242,18 @@ const VisitDocumentation = () => {
           <div className="hc-card" style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <div><strong>{data.client.name}</strong>{data.client.payer ? ` · ${data.client.payer}` : ''}</div>
             <div>{plural(visits.length, 'visit')} · {documented} with notes</div>
-            <button className="hc-btn hc-btn-sm hc-btn-secondary" disabled={!missing}
+            {may.delete && <button className="hc-btn hc-btn-sm hc-btn-secondary" disabled={!missing}
               onClick={() => setBulkOpen(true)}
               title="Write one note to every visit that has no note yet; tasks the caregiver recorded keep their status">
               Fill notes for visits without one ({missing})
-            </button>
+            </button>}
             <button className="hc-btn hc-btn-sm hc-btn-secondary" style={{ marginLeft: 'auto' }} onClick={downloadNotes}
               title="Print the care notes for this date range">
               📄 Print care notes ({from} – {to})
             </button>
           </div>
 
-          <div className="hc-card" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {mayBill.create && <div className="hc-card" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="hc-btn hc-btn-sm hc-btn-secondary" disabled={!billable.length}
               onClick={() => setSelected(new Set(billable.map(vkey)))}>Select all not invoiced ({billable.length})</button>
             <button className="hc-btn hc-btn-sm hc-btn-secondary" disabled={!selected.size} onClick={() => setSelected(new Set())}>Clear</button>
@@ -261,7 +265,7 @@ const VisitDocumentation = () => {
             <button className="hc-btn hc-btn-primary" style={{ marginLeft: 'auto' }} disabled={!selected.size || creating} onClick={createInvoice}>
               {creating ? 'Creating…' : `Create invoice from ${selected.size || ''} selected`}
             </button>
-          </div>
+          </div>}
 
           {bulkOpen && (
             <div className="hc-card" style={{ border: '1px solid var(--hc-info-line)', background: 'var(--hc-info-bg)', color: 'var(--hc-ink)' }}>
@@ -303,7 +307,7 @@ const VisitDocumentation = () => {
                     <Fragment key={k}>
                       <tr style={{ borderTop: '1px solid var(--hc-line)', ...(openKey === k ? OPEN_ROW : {}) }}>
                         <td style={{ padding: '0.5rem' }}>
-                          <input type="checkbox" disabled={!!v.invoiced} checked={selected.has(k)} onChange={() => toggle(v)}
+                          <input type="checkbox" disabled={!mayBill.create || !!v.invoiced} checked={selected.has(k)} onChange={() => toggle(v)}
                             aria-label={v.invoiced ? `Already on invoice ${v.invoiced.invoiceNumber}` : `Invoice the visit on ${fmtDate(v.visitDate)}`}
                             title={v.invoiced ? `Already on invoice ${v.invoiced.invoiceNumber}` : 'Include on the next invoice'} />
                         </td>
@@ -330,7 +334,7 @@ const VisitDocumentation = () => {
                         </td>
                         <td style={{ padding: '0.5rem', whiteSpace: 'nowrap' }}>{v.invoiced ? v.invoiced.invoiceNumber : '—'}</td>
                         <td style={{ padding: '0.5rem' }}>
-                          <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => openVisit(v)}>{openKey === k ? 'Close' : v.doc ? 'Edit note' : 'Add note'}</button>
+                          {may.delete && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => openVisit(v)}>{openKey === k ? 'Close' : v.doc ? 'Edit note' : 'Add note'}</button>}
                         </td>
                       </tr>
                       {openKey === k && (

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
 import { api, errorMessage, rows } from '../lib/http'
 import { formatDate } from '../lib/date'
+import { useMay } from '../lib/useMay'
 
 interface Posting {
   id: string
@@ -52,6 +53,8 @@ const input = 'w-full rounded-lg border border-gray-300 dark:border-slate-600 bg
 const btnOutline = 'px-3 py-1.5 rounded-lg border-2 text-sm font-bold bg-white dark:bg-slate-800'
 
 export default function JobPostingsAdmin() {
+  // Each control for whoever the server lets use it (care-hr create / update / delete) (lib/useMay.ts).
+  const mayHr = useMay('care-hr')
   const toast = useToast()
   const confirm = useConfirm()
   const [postings, setPostings] = useState<Posting[]>([])
@@ -153,7 +156,7 @@ export default function JobPostingsAdmin() {
             Careers page: <a className="underline text-primary-700 dark:text-primary-200" href={careersUrl} target="_blank" rel="noreferrer">{careersUrl}</a>
           </p>
         </div>
-        <button className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold" onClick={openNew}>+ New Posting</button>
+        {mayHr.create && <button className="px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold" onClick={openNew}>+ New Posting</button>}
       </div>
 
       <div className="flex gap-2 border-b border-gray-200 dark:border-slate-700 mb-4">
@@ -200,11 +203,11 @@ export default function JobPostingsAdmin() {
                 </div>
               </div>
               <div className="flex flex-col gap-1.5 min-w-[120px]">
-                <button className={`${btnOutline} border-primary-600 text-primary-700 dark:text-primary-200`} onClick={() => openEdit(p)}>Edit</button>
-                {p.isPublished && !closed && <button className={`${btnOutline} border-gray-500 text-gray-700 dark:text-slate-200`} onClick={() => setStatus(p, 'unpublish')}>Unpublish</button>}
-                {!p.isPublished && !closed && <button className={`${btnOutline} border-green-600 text-green-700 dark:text-green-300`} onClick={() => setStatus(p, 'publish')}>Publish</button>}
-                {!closed && <button className={`${btnOutline} border-red-600 text-red-700 dark:text-red-300`} onClick={() => setStatus(p, 'close')}>Close</button>}
-                <button className={`${btnOutline} border-red-600 text-red-700 dark:text-red-300`} onClick={() => remove(p)}>Delete</button>
+                {mayHr.update && <button className={`${btnOutline} border-primary-600 text-primary-700 dark:text-primary-200`} onClick={() => openEdit(p)}>Edit</button>}
+                {mayHr.update && p.isPublished && !closed && <button className={`${btnOutline} border-gray-500 text-gray-700 dark:text-slate-200`} onClick={() => setStatus(p, 'unpublish')}>Unpublish</button>}
+                {mayHr.update && !p.isPublished && !closed && <button className={`${btnOutline} border-green-600 text-green-700 dark:text-green-300`} onClick={() => setStatus(p, 'publish')}>Publish</button>}
+                {mayHr.update && !closed && <button className={`${btnOutline} border-red-600 text-red-700 dark:text-red-300`} onClick={() => setStatus(p, 'close')}>Close</button>}
+                {mayHr.delete && <button className={`${btnOutline} border-red-600 text-red-700 dark:text-red-300`} onClick={() => remove(p)}>Delete</button>}
               </div>
             </div>
           </div>

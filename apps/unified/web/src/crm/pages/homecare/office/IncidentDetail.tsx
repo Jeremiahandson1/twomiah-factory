@@ -14,6 +14,7 @@ import { useConfirm, usePermissions, useToast } from '../../../../shared';
 import { api, rows, errorMessage } from '../lib/http';
 import { formatDate } from '../lib/date';
 import { formatDateTime } from '../lib/datetime';
+import { useMay } from '../lib/useMay';
 import {
   INCIDENT_TYPES, SEVERITIES, INCIDENT_STATUSES, DISPOSITIONS, MANDATORY_REPORT_STATUSES,
   ENTRY_TYPES, ATTACHMENT_CATEGORIES, TRAINING_ACK_METHODS, incidentLabel,
@@ -232,6 +233,7 @@ export default function IncidentDetail() {
   const confirm = useConfirm();
   const { can, known } = usePermissions();
   const mayDelete = !known || can('care-compliance:delete');
+  const may = useMay('care-compliance'); // save, entries, uploads, schedule removal and the acknowledgement: create / update (lib/useMay.ts)
   const onBack = () => navigate('/crm/incidents');
   const [loading, setLoading] = useState(true);
   const [incident, setIncident] = useState<IncidentCase | null>(null);
@@ -531,7 +533,7 @@ export default function IncidentDetail() {
             </Field>
           )}
           {removalActive && <p className="text-xs text-gray-600 dark:text-slate-400">Client and caregiver are locked while the caregiver is removed from the schedule.</p>}
-          <button className={BTN_PRIMARY} onClick={() => saveCase()} disabled={saving}>{saving ? 'Saving…' : 'Save Case Details'}</button>
+          {may.update && <button className={BTN_PRIMARY} onClick={() => saveCase()} disabled={saving}>{saving ? 'Saving…' : 'Save Case Details'}</button>}
         </div>
       </div>
 
@@ -576,7 +578,7 @@ export default function IncidentDetail() {
           <textarea className={FIELD} rows={3} value={noteForm.summary} onChange={(e) => setNoteForm((f) => ({ ...f, summary: e.target.value }))}
             placeholder="Who you spoke with and what they said, what you reviewed, what you did. Facts only." />
         </Field>
-        <button className={`${BTN_PRIMARY} mt-3`} onClick={addNote}>Add Entry</button>
+        {may.create && <button className={`${BTN_PRIMARY} mt-3`} onClick={addNote}>Add Entry</button>}
       </div>
 
       {/* ── Caregiver & schedule ── */}
@@ -624,9 +626,9 @@ export default function IncidentDetail() {
                   <strong>Removed from this client's schedule effective {formatDate(incident.caregiverRemovedFromYmd)}</strong> pending investigation.
                   {openShiftCount ? ` ${openShiftCount} visit${openShiftCount === 1 ? '' : 's'} were posted as open shifts for coverage.` : ''}
                 </div>
-                <button className={`${BTN_SECONDARY} mt-3`} onClick={returnCaregiver} disabled={scheduleBusy}>
+                {may.update && <button className={`${BTN_SECONDARY} mt-3`} onClick={returnCaregiver} disabled={scheduleBusy}>
                   {scheduleBusy ? 'Working…' : 'Return caregiver to schedule'}
-                </button>
+                </button>}
               </div>
             ) : (
               <div className="mt-4 border-t border-gray-200 pt-4 dark:border-slate-700">
@@ -654,9 +656,9 @@ export default function IncidentDetail() {
                     </Field>
                   )}
                 </div>
-                <button className={`${BTN_DANGER} mt-3`} onClick={removeCaregiver} disabled={scheduleBusy || schedule.schedules.length === 0}>
+                {may.update && <button className={`${BTN_DANGER} mt-3`} onClick={removeCaregiver} disabled={scheduleBusy || schedule.schedules.length === 0}>
                   {scheduleBusy ? 'Working…' : 'Remove caregiver from this client'}
-                </button>
+                </button>}
               </div>
             )}
           </>
@@ -698,7 +700,7 @@ export default function IncidentDetail() {
                 </select>
               </Field>
             </div>
-            <button className={`${BTN_PRIMARY} mt-3`} onClick={startSigning}>✍️ Caregiver signs now</button>
+            {may.update && <button className={`${BTN_PRIMARY} mt-3`} onClick={startSigning}>✍️ Caregiver signs now</button>}
             <p className="mt-2 text-xs text-gray-600 dark:text-slate-400">
               Hand the device to {incident.caregiverName}. Signing adds completed training records to their file.
             </p>
@@ -749,7 +751,7 @@ export default function IncidentDetail() {
             <input className={FIELD} type="text" value={uploadForm.description} onChange={(e) => setUploadForm((f) => ({ ...f, description: e.target.value }))} />
           </Field>
           <Field label="File (PDF or image, 7 MB max)">
-            <input className={FIELD} type="file" accept={ATTACHMENT_ACCEPT} disabled={uploading}
+            <input className={FIELD} type="file" accept={ATTACHMENT_ACCEPT} disabled={uploading || !may.create}
               onChange={(e) => { uploadFile(e.target.files?.[0]); e.target.value = ''; }} />
           </Field>
         </div>
@@ -800,8 +802,8 @@ export default function IncidentDetail() {
             </Field>
           )}
           <div className="flex flex-wrap gap-2">
-            <button className={BTN_PRIMARY} onClick={() => saveCase()} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-            {!incident.responseSentDateYmd && (
+            {may.update && <button className={BTN_PRIMARY} onClick={() => saveCase()} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>}
+            {may.update && !incident.responseSentDateYmd && (
               <button className={BTN_SECONDARY} onClick={() => saveCase({ responseSentDate: today })} disabled={saving}>Mark response sent today</button>
             )}
           </div>

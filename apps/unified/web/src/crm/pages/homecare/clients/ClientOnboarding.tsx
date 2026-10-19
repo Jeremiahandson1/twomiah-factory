@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react'
 import { api, errorMessage } from '../lib/http'
 import { allRows, type Client } from './shared'
+import { useMay } from '../lib/useMay'
 
 /** GET /api/clients/:id/onboarding — the client_onboarding row. */
 interface Onboarding {
@@ -35,6 +36,8 @@ const onboardingSteps: Array<{ id: string; key: StepKey; label: string; descript
 ]
 
 const ClientOnboarding = () => {
+  // Marking a step is care-clients:update, the server's check (lib/useMay.ts).
+  const may = useMay('care-clients')
   const [clients, setClients] = useState<Client[]>([])
   const [expandedClient, setExpandedClient] = useState<string | null>(null)
   const [expandedStep, setExpandedStep] = useState<string | null>(null)
@@ -204,14 +207,14 @@ const ClientOnboarding = () => {
                                   {step.description}.{step.where ? ` Kept on the client in ${step.where}.` : ''}
                                 </p>
                                 <div className="form-actions" style={{ marginTop: '1rem' }}>
-                                  <button
+                                  {may.update && <button
                                     type="button"
                                     className="hc-btn hc-btn-primary"
                                     disabled={saving}
                                     onClick={() => handleSaveStep(client.id, step.key, !stepCompleted)}
                                   >
                                     {stepCompleted ? `Mark ${step.label} not complete` : `Mark ${step.label} complete`}
-                                  </button>
+                                  </button>}
                                   <button type="button" className="hc-btn hc-btn-secondary" onClick={() => setExpandedStep(null)}>
                                     Cancel
                                   </button>

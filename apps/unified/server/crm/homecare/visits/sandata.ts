@@ -140,7 +140,10 @@ export function createSandataRoutes(core: HomecareCore, d: CrmDeps) {
     return one(c, { success: true, isConfigured: cfg.isConfigured })
   })
 
-  app.get('/payer-presets', office, async (c) => {
+  // The presets fill the payer form's Sandata codes (billing/PayersServiceCodes.tsx), so whoever may write a payer may
+  // read them (billing/payers.ts: care-billing:create / update). It was OFFICE_EVV, which an agency's billing seat need
+  // not hold — the form's preset picker 403'd for it (found in the browser, 2026-10-19). Static reference data.
+  app.get('/payer-presets', d.permissions.requireAnyPermission(['care-billing:create', 'care-billing:update']), async (c) => {
     const cfg = await sandata.getConfig(who(c).companyId)
     return one(c, { state: cfg.state, presets: cfg.isWisconsin ? WI_PAYER_PRESETS : [] })
   })

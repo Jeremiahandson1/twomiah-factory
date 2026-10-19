@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react'
 import { useToast } from '../../../../shared'
 import { api, errorMessage, saveBlob } from '../lib/http'
 import { EvvWeeklyUnits } from '../clients/EditClientModal'
+import { useMay } from '../lib/useMay'
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const shiftWeek = (ws: string, n: number) => { const d = new Date(ws + 'T12:00:00'); d.setDate(d.getDate() + 7 * n); return ymd(d) }
@@ -34,6 +35,9 @@ interface ClaimClient {
 interface Week { weekStart: string; weekEnd: string; clients: ClaimClient[]; linkedClients: number }
 
 export default function PortalClaimDays() {
+  // Portal settings need care-billing:update, a client's EVV units care-clients:update (lib/useMay.ts).
+  const mayBilling = useMay('care-billing')
+  const mayClients = useMay('care-clients')
   const toast = useToast()
   const [payers, setPayers] = useState<PortalPayer[]>([])
   const [presets, setPresets] = useState<Preset[]>([])
@@ -126,7 +130,7 @@ export default function PortalClaimDays() {
             {payers.map((p) => <option key={p.id} value={p.id}>{p.name}{p.claimPortal ? ` — ${p.claimPortal.name}` : ''}</option>)}
           </select>
         </div>
-        {payer && (
+        {mayBilling.update && payer && (
           <button type="button" className="hc-btn hc-btn-secondary" onClick={() => { setCfg(portal || EMPTY_CFG); setEditing(!editing) }}>
             {portal ? '⚙️ Portal settings' : '➕ Set up a portal export'}
           </button>
@@ -206,7 +210,7 @@ export default function PortalClaimDays() {
                   <span className="text-xs text-amber-800 dark:text-amber-300">
                     ⚠ "EVV (Sandata) units per week" is blank for {c.clientName}, so all EVV time is claimed as {portal.evvCode}.
                     {c.weeklyAuthorizedUnits != null && ` The ${c.weeklyAuthorizedUnits} weekly authorized units are the total for both codes, not the EVV share.`}
-                    {' '}<button type="button" className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setEvvFor(c)}>Set EVV units</button>
+                    {mayClients.update && <>{' '}<button type="button" className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setEvvFor(c)}>Set EVV units</button></>}
                   </span>
                 )}
                 {c.inEvv && c.totals.evvAuthorizedUnits != null && c.totals.evvUnits < c.totals.evvAuthorizedUnits && <span className="text-xs text-amber-800 dark:text-amber-300">⚠ under authorized EVV units</span>}

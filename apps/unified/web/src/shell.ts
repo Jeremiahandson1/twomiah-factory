@@ -16,7 +16,7 @@ import { nav as restaurantNav } from './crm/verticals/restaurant'
 import { nav as rvNav } from './crm/verticals/rv'
 import { nav as salonNav } from './crm/verticals/salon'
 import { nav as vetNav } from './crm/verticals/vet'
-import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN, banner as homecareBanner, headerActions as homecareHeaderActions } from './crm/verticals/homecare'
+import { nav as homecareNav, routePermissions as homecareRoutePermissions, isHomecare, SHARED_HIDDEN, SETTINGS_HIDDEN, banner as homecareBanner, headerActions as homecareHeaderActions } from './crm/verticals/homecare'
 
 const SHARED_NAV: NavItem[] = [
   // The CRM (templates/crm/frontend/src/shellConfig.ts): core items need the CRM's own features, so a website-only
@@ -156,4 +156,4 @@ export const SHELL: ShellConfig = {
 export const SETTINGS_SUB_PAGES = [
   '/crm/settings/features', '/crm/settings/billing', '/crm/settings/email', '/crm/settings/email-domain', '/crm/settings/email-inbox',
   '/crm/settings/integrations', '/crm/settings/migration', '/crm/settings/import',
-]
+].filter((to) => !(isHomecare && SETTINGS_HIDDEN.includes(to)))

@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatAgencyDateTime } from '../lib/agencyClock'
+import { useMay } from '../lib/useMay'
 
 type VitalKey = 'systolicBp' | 'diastolicBp' | 'pulse' | 'respirations' | 'oxygenSaturation' | 'temperatureF' | 'bloodGlucose' | 'weightLbs' | 'painScale'
 
@@ -27,6 +28,8 @@ const card = 'rounded-xl p-4 shadow-sm bg-white text-gray-900 dark:bg-slate-800 
 const fieldLabel = 'block mb-0.5 text-xs font-bold text-gray-600 dark:text-slate-400'
 
 export default function VitalsTracker({ clientId, timeEntryId }: { clientId: string; timeEntryId?: string }) {
+  // Recording is evv:create, the server's check (a caregiver holds it too) (lib/useMay.ts).
+  const mayEvv = useMay('evv')
   const [form, setForm] = useState<Record<string, string>>({})
   const [painLocation, setPainLocation] = useState('')
   const [notes, setNotes] = useState('')
@@ -78,7 +81,7 @@ export default function VitalsTracker({ clientId, timeEntryId }: { clientId: str
 
   return (
     <div className="grid gap-4">
-      <div className={card}>
+      {mayEvv.create && <div className={card}>
         <h3 className="mt-0 mb-2 text-base font-semibold">📋 Record Vitals</h3>
         {msg && (
           <div className={`px-3 py-2 rounded-md mb-2 text-sm ${msg.kind === 'ok' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200'}`}>{msg.text}</div>
@@ -107,7 +110,7 @@ export default function VitalsTracker({ clientId, timeEntryId }: { clientId: str
             {busy ? 'Saving…' : '💾 Record Vitals'}
           </button>
         </form>
-      </div>
+      </div>}
 
       <div className={card}>
         <h3 className="mt-0 mb-2 text-base font-semibold">📊 Recent Vitals ({history.length})</h3>

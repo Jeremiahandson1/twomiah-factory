@@ -13,6 +13,7 @@
 //   POST /apply { proposals } — { success, created, errors, errorDetails }
 import { useEffect, useState, type CSSProperties } from 'react'
 import { useToast } from '../../../../shared'
+import { useMay } from '../lib/useMay'
 import { api, errorMessage } from '../lib/http'
 import { formatDate } from '../lib/date'
 import { C, FILL, MARKS, tint, dayButton, dayChip } from './theme'
@@ -105,6 +106,8 @@ const tinyTime: CSSProperties = { padding: '0.2rem', borderRadius: '5px', border
 
 export default function RosterOptimizer() {
   const toast = useToast()
+  // Run is care-schedule:update, apply is care-schedule:create (planning/rosterOptimizer.ts) — lib/useMay.ts.
+  const may = useMay('care-schedule')
   const [roster, setRoster] = useState<Roster | null>(null)
   const [caregivers, setCaregivers] = useState<CgRow[]>([])
   const [clients, setClients] = useState<ClRow[]>([])
@@ -466,14 +469,14 @@ export default function RosterOptimizer() {
           </div>
 
           <div style={{ textAlign: 'center' }}>
-            <button onClick={runOptimizer} disabled={running || activeCgCount === 0 || activeClCount === 0}
+            {may.update && <button onClick={runOptimizer} disabled={running || activeCgCount === 0 || activeClCount === 0}
               style={{
                 padding: '0.95rem 2.75rem', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '1.05rem',
                 background: running || activeCgCount === 0 || activeClCount === 0 ? FILL.grey : `linear-gradient(135deg, #1e3a5f, ${C.brandFill})`,
                 color: '#fff', boxShadow: running ? 'none' : `0 4px 18px ${C.shadow}`, transition: 'all 0.2s',
               }}>
               {running ? '⏳ Analyzing roster...' : `✨ Generate Optimized Schedule (${activeCgCount} caretakers · ${activeClCount} clients)`}
-            </button>
+            </button>}
             {(activeCgCount === 0 || activeClCount === 0) && (
               <p style={{ margin: '0.5rem 0 0', fontSize: '0.82rem', color: C.muted }}>Enable at least one caretaker and one client to continue</p>
             )}
@@ -667,18 +670,18 @@ export default function RosterOptimizer() {
               style={{ padding: '0.7rem 1.4rem', borderRadius: '8px', border: `1.5px solid ${C.line}`, background: C.surface, color: C.ink, cursor: 'pointer', fontWeight: 600, fontSize: '0.88rem' }}>
               ← Back to Setup
             </button>
-            <button onClick={runOptimizer} disabled={running}
+            {may.update && <button onClick={runOptimizer} disabled={running}
               style={{ padding: '0.7rem 1.4rem', borderRadius: '8px', border: `1px solid ${C.line}`, background: C.surface, color: C.ink, cursor: 'pointer', fontWeight: 600, fontSize: '0.88rem' }}>
               🔄 Re-run
-            </button>
-            <button onClick={applyProposals} disabled={applying || selected.size === 0}
+            </button>}
+            {may.create && <button onClick={applyProposals} disabled={applying || selected.size === 0}
               style={{
                 padding: '0.7rem 1.75rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem',
                 background: applying || selected.size === 0 ? FILL.grey : `linear-gradient(135deg, ${FILL.green}, ${C.brandFill})`,
                 color: '#fff', boxShadow: applying || selected.size === 0 ? 'none' : `0 4px 12px ${C.shadow}`,
               }}>
               {applying ? 'Applying...' : `✅ Apply ${selected.size} to Live Schedule`}
-            </button>
+            </button>}
           </div>
           <p style={{ fontSize: '0.75rem', color: C.muted, textAlign: 'center', margin: '0.5rem 0 0' }}>
             Only checked proposals apply. Conflicts are unchecked by default — review before including.

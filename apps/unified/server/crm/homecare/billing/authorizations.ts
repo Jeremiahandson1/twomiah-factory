@@ -111,6 +111,56 @@ export function createAuthorizationRoutes(_core: HomecareCore, d: CrmDeps) {
     return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
   })
 
+  // POST /import-csv { rows } — authorizations exported from Wisconsin's MIDAS portal, in the columns the Integrations
+  // screen names: MemberID, AuthNumber, ServiceCode, AuthorizedUnits, StartDate, EndDate. The screen posted here and
+  // no server (the template's either) answered, so Import MIDAS CSV never imported anything (built 2026-10-19).
+  // Each row is the company's client with that Medicaid ID; the payer is the client's own (clients.referred_by_id).
+  // A row that can't be placed is skipped with its reason — never half-written: an unknown member, a date that isn't
+  // one, units that aren't a positive number, an end before the start, or an authorization already on file (the same
+  // client and auth number).
+  app.post('/import-csv', requirePermission('care-billing:create'), async (c) => {
+    const { companyId, userId } = who(c)
+    const b = await body(c)
+    const input: any[] = Array.isArray(b?.rows) ? b.rows : []
+    if (!input.length) return fail(c, 400, 'No rows to import')
+    if (input.length > 2000) return fail(c, 400, 'At most 2,000 rows at a time')
+    const cell = (r: any, k: string) => String(r?.[k] ?? '').trim()
+    const day = (v: string): string | null => {
+      let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v)
+      if (m) return v
+      m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v)
+      if (!m) return null
+      const ymd = `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
+      return Number.isNaN(new Date(`${ymd}T12:00:00Z`).getTime()) ? null : ymd
+    }
+    let imported = 0
+    const skipped: { row: number; reason: string }[] = []
+    for (const [i, r] of input.entries()) {
+      const row = i + 2 // the file's line: the header is line 1
+      const memberId = cell(r, 'MemberID'), authNumber = cell(r, 'AuthNumber'), units = Number(cell(r, 'AuthorizedUnits'))
+      const start = day(cell(r, 'StartDate')), end = day(cell(r, 'EndDate'))
+      if (!memberId) { skipped.push({ row, reason: 'No MemberID' }); continue }
+      if (!(units > 0)) { skipped.push({ row, reason: 'AuthorizedUnits must be a positive number' }); continue }
+      if (!start || !end) { skipped.push({ row, reason: 'StartDate and EndDate must be dates (YYYY-MM-DD or M/D/YYYY)' }); continue }
+      if (end < start) { skipped.push({ row, reason: 'EndDate is before StartDate' }); continue }
+      const [client] = await db.select({ id: clients.id, payerId: clients.referredById }).from(clients)
+        .where(and(eq(clients.companyId, companyId), eq(clients.medicaidId, memberId))).limit(1)
+      if (!client) { skipped.push({ row, reason: `No client with Medicaid ID ${memberId}` }); continue }
+      if (authNumber) {
+        const [dupe] = await db.select({ id: authorizations.id }).from(authorizations)
+          .where(and(eq(authorizations.companyId, companyId), eq(authorizations.clientId, client.id), eq(authorizations.authNumber, authNumber))).limit(1)
+        if (dupe) { skipped.push({ row, reason: `Authorization ${authNumber} is already on file for this client` }); continue }
+      }
+      await db.insert(authorizations).values({
+        companyId, clientId: client.id, payerId: client.payerId ?? null, authNumber: authNumber || null, midasAuthId: authNumber || null,
+        procedureCode: cell(r, 'ServiceCode') || null, authorizedUnits: String(units), startDate: start, endDate: end,
+        importedFrom: 'midas', createdById: userId,
+      } as any)
+      imported++
+    }
+    return one(c, { imported, skipped })
+  })
+
   // GET /summary — counts for the Claims & EVV Engine's authorizations tab (CVHC authorizationRoutes).
   app.get('/summary', requirePermission('care-billing:read'), async (c) => one(c, await authorizationSummary(db, who(c).companyId)))
 

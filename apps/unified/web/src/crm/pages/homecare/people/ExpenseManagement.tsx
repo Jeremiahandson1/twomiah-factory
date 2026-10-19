@@ -16,6 +16,7 @@ import { useConfirm, useToast } from '../../../../shared'
 import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { money as formatCurrency } from './shared'
+import { useMay } from '../lib/useMay'
 
 interface Expense {
   id: string
@@ -77,6 +78,8 @@ const blankForm = () => ({
 const BUDGET_INK = { over: 'var(--hc-red-ink)', warning: 'var(--hc-warning-ink)', good: 'var(--hc-green-ink)', none: 'var(--hc-green-ink)' } as const
 
 export default function ExpenseManagement() {
+  // Each control for whoever the server lets use it: every route asks care-payroll:update, a delete care-payroll:delete too (lib/useMay.ts).
+  const mayPayroll = useMay('care-payroll')
   const toast = useToast()
   const confirm = useConfirm()
   const [expenses, setExpenses] = useState<Expense[]>([])
@@ -243,9 +246,9 @@ export default function ExpenseManagement() {
       <div className="page-header">
         <h2>💰 Expense Management</h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button className="hc-btn hc-btn-primary" onClick={() => { resetForm(); setShowForm(!showForm) }}>
+          {mayPayroll.update && <button className="hc-btn hc-btn-primary" onClick={() => { resetForm(); setShowForm(!showForm) }}>
             {showForm ? '✕ Cancel' : '➕ Add Expense'}
-          </button>
+          </button>}
           <button className="hc-btn hc-btn-secondary" onClick={() => setShowBudgetModal(true)}>📊 Budgets</button>
           <button className="hc-btn hc-btn-secondary" onClick={handleExportCSV}>📥 Export CSV</button>
         </div>
@@ -440,8 +443,8 @@ export default function ExpenseManagement() {
                   <td>{expense.taxDeductible ? <span className="hc-badge hc-badge-success">Yes</span> : <span className="hc-badge hc-badge-secondary">No</span>}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.25rem' }}>
-                      <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => handleEdit(expense)}>Edit</button>
-                      <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDelete(expense.id)}>Delete</button>
+                      {mayPayroll.update && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => handleEdit(expense)}>Edit</button>}
+                      {mayPayroll.update && mayPayroll.delete && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDelete(expense.id)}>Delete</button>}
                       {expense.receiptUrl && (
                         <a href={expense.receiptUrl} target="_blank" rel="noopener noreferrer" className="hc-btn hc-btn-sm hc-btn-primary">📎</a>
                       )}

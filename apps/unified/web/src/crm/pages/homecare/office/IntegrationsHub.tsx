@@ -101,8 +101,9 @@ interface PayrollPreview {
   warnings?: { unresolvedReviews?: number; clockEntriesWithoutReview?: number }
 }
 /** What a remittance OCR upload would answer (the template's contract; the unified server has no such route). */
+/** POST /api/payments/scan-check (billing/payments.ts): what was read off the image, and the payer it names. */
 interface OcrResult {
-  ocr?: { payerName?: string; checkNumber?: string; checkDate?: string; totalAmount?: string | number; lineItems?: Array<Record<string, unknown>> }
+  extracted?: { payerName?: string | null; checkNumber?: string | null; checkDate?: string | null; amount?: string | number | null }
   suggestedPayer?: { id?: string } | null
 }
 
@@ -466,8 +467,12 @@ export default function IntegrationsHub() {
       return obj
     })
     try {
-      const d: { imported?: number } = await api.post('/api/authorizations/import-csv', { rows: csvRows })
-      toast.success(`Imported ${d?.imported ?? 0} authorizations`)
+      // billing/authorizations.ts POST /import-csv → { imported, skipped: [{ row, reason }] } (built 2026-10-19: no server
+      // had answered this, so the import never imported). A skipped row says which line and why.
+      const d: { imported?: number; skipped?: Array<{ row: number; reason: string }> } = await api.post('/api/authorizations/import-csv', { rows: csvRows })
+      const skipped = d?.skipped || []
+      toast.success(`Imported ${d?.imported ?? 0} authorization${d?.imported === 1 ? '' : 's'}${skipped.length ? `; skipped ${skipped.length}` : ''}`)
+      if (skipped.length) toast.error(skipped.slice(0, 3).map((x) => `Line ${x.row}: ${x.reason}`).join(' · ') + (skipped.length > 3 ? ` · and ${skipped.length - 3} more` : ''))
       loadAuthorizations()
     } catch (err) { toast.error(errorMessage(err, 'Import failed')) }
   }
@@ -677,17 +682,19 @@ export default function IntegrationsHub() {
   // ── Remittance Tab ────────────────────────────────────────────────────────────
   const uploadRemittance = async (file: File) => {
     setUploadState('uploading')
+    // The app's check reader (billing/payments.ts scan-check). The screen posted to /api/remittance/upload, which no
+    // server had, so a check or statement was never read (2026-10-19). It reads images: a photo or scan.
     const fd = new FormData()
-    fd.append('remittance', file)
+    fd.append('check', file)
     try {
-      const d: OcrResult = await api.upload('/api/remittance/upload', fd)
+      const d: OcrResult = await api.upload('/api/payments/scan-check', fd)
       setUploadState(d)
       setRemitForm((p) => ({
         ...p,
-        payerName: d.ocr?.payerName || '', checkNumber: d.ocr?.checkNumber || '',
-        checkDate: d.ocr?.checkDate || '', totalAmount: String(d.ocr?.totalAmount ?? ''),
+        payerName: d.extracted?.payerName || '', checkNumber: d.extracted?.checkNumber || '',
+        checkDate: d.extracted?.checkDate || '', totalAmount: d.extracted?.amount != null ? String(d.extracted.amount) : '',
         payerId: d.suggestedPayer?.id || '',
-        lineItems: d.ocr?.lineItems || [],
+        lineItems: [],
       }))
     } catch (err) { toast.error(errorMessage(err, 'OCR failed')); setUploadState(null) }
   }
@@ -719,7 +726,7 @@ export default function IntegrationsHub() {
           sub="Photo or scan → OCR reads it → match to claims automatically"
           action={mayBillingCreate ? <Btn onClick={() => fileRef.current?.click()} disabled={uploadState === 'uploading'}>📷 Upload Check / Statement</Btn> : undefined}
         />
-        <input ref={fileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => {
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
           const file = e.target.files?.[0]
           e.target.value = ''
           if (file) uploadRemittance(file)

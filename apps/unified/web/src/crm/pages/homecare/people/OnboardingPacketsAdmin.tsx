@@ -16,6 +16,7 @@ import { api, downloadBlob, errorMessage, rows, saveBlob } from '../lib/http'
 import { formatDate } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
 import EligibilityCard, { isWisconsinAgency } from './EligibilityCard'
+import { useMay } from '../lib/useMay'
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   sent:        { label: 'Invite Sent', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
@@ -71,6 +72,8 @@ const fieldLabel = 'block text-xs font-bold uppercase tracking-wide text-gray-60
 const fieldValue = 'text-sm text-gray-900 dark:text-slate-100 mb-3'
 
 export default function OnboardingPacketsAdmin() {
+  // Resend, Retry WORCS and Mark Synced are care-hr:update, the server's check (lib/useMay.ts).
+  const mayHr = useMay('care-hr')
   const { company } = useAuth()
   const toast = useToast()
   const wisconsin = isWisconsinAgency(company)
@@ -217,7 +220,7 @@ export default function OnboardingPacketsAdmin() {
               </div>
               <div className="flex flex-col gap-1.5 min-w-[150px]">
                 <button className={`${btnOutline} border-primary-600 text-primary-700 dark:text-primary-200`} onClick={() => openDetail(p)}>View Detail</button>
-                {['sent', 'opened', 'in_progress', 'expired'].includes(p.status) && (
+                {mayHr.update && ['sent', 'opened', 'in_progress', 'expired'].includes(p.status) && (
                   <button className={`${btnOutline} border-gray-500 text-gray-700 dark:text-slate-200`} onClick={() => resend(p)}>Resend Link</button>
                 )}
                 {p.status === 'submitted' && !p.gustoSyncedAt && (
@@ -265,7 +268,7 @@ export default function OnboardingPacketsAdmin() {
                       IP: {full.bgcConsentIp || '—'} · Disclosure v{full.bgcConsentVersion || '—'}
                     </div>
                   )}
-                  {wisconsin && full.worcsSubmissionPending && (
+                  {mayHr.update && wisconsin && full.worcsSubmissionPending && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <span className="text-sm text-amber-900 dark:text-amber-100">The automatic WORCS submission has not gone through.</span>
                       <button className="px-3 py-1.5 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold disabled:opacity-60" onClick={retryWorcs} disabled={retrying}>
@@ -294,9 +297,11 @@ export default function OnboardingPacketsAdmin() {
                       </p>
                       <div className="flex flex-wrap gap-2">
                         <button className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-gray-900 text-sm font-bold" onClick={() => downloadCsv({ id: full.id, lastName: full.legalLastName || full.lastName })}>Download Gusto CSV</button>
+                        {mayHr.update && <>
                         <input placeholder="Paste Gusto employee ID" value={gustoInput} onChange={(e) => setGustoInput(e.target.value)}
                           className="flex-1 min-w-[180px] rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 px-3 py-1.5 text-sm" />
                         <button className="px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-800 text-white text-sm font-bold" onClick={markGustoSynced}>Mark Synced</button>
+                        </>}
                       </div>
                     </>
                   )}

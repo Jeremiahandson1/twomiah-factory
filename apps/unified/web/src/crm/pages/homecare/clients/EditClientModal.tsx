@@ -7,6 +7,7 @@ import { api, rows, errorMessage } from '../lib/http'
 import { formatDateForInput, toLocalYMD } from '../lib/date'
 import { formatAgencyDate } from '../lib/agencyClock'
 import InsuranceCardUploader from './InsuranceCardUploader'
+import { useMay } from '../lib/useMay'
 import { allRows, SECTION_HEAD, HINT, type Client, type Caregiver, type CareType, type EmergencyContact, type ReferralSource } from './shared'
 
 // A JSON list column shown in a textarea, one entry per line, and back.
@@ -109,6 +110,9 @@ const ACCOUNT_CHIP: Record<string, { cls: string; label: string }> = {
 }
 
 const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen, onClose, onSuccess }: Props) => {
+  // Each control for whoever the server lets use it: the record is care-clients, portal logins care-portal (lib/useMay.ts).
+  const may = useMay('care-clients')
+  const mayPortal = useMay('care-portal')
   const { company } = useAuth()
   const confirm = useConfirm()
   const [caregivers, setCaregivers] = useState<Caregiver[]>([])
@@ -807,7 +811,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                           </div>
                         </div>
                         <span className={chip.cls} style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: '999px', flexShrink: 0 }}>{chip.label}</span>
-                        <button
+                        {mayPortal.delete && <button
                           type="button"
                           className="hc-btn hc-btn-secondary"
                           onClick={() => handleRemoveAccount(acct)}
@@ -816,7 +820,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                           style={{ flexShrink: 0, padding: '4px 10px', fontSize: '0.8rem' }}
                         >
                           ✕ Remove
-                        </button>
+                        </button>}
                       </div>
                     )
                   })}
@@ -826,7 +830,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
               {/* Invite form — always available, so the office can resend at any point
                   (lost password, new email address). For an existing login it is a
                   re-invite that makes a fresh link. */}
-              <div style={{ marginBottom: '1.5rem' }}>
+              {mayPortal.create && <div style={{ marginBottom: '1.5rem' }}>
                 <h5 style={{ marginBottom: '0.75rem', color: 'var(--hc-ink)' }}>
                   {portalAccounts.length > 0 ? 'Add Another Login' : 'Invite to Portal'}
                 </h5>
@@ -846,10 +850,10 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                   add the client and as many relatives as needed, one at a time. Re-sending to an existing email
                   just generates a fresh 48-hour link (use for lost passwords; the old link stops working).
                 </small>
-              </div>
+              </div>}
 
               {/* Enable/Disable toggle — shown when portal account exists */}
-              {(portalStatus === 'active' || portalStatus === 'disabled') && (
+              {mayPortal.update && (portalStatus === 'active' || portalStatus === 'disabled') && (
                 <div style={{ background: 'var(--hc-subtle)', borderRadius: '8px', padding: '16px', marginBottom: '1.5rem' }}>
                   <div style={{ fontWeight: 600, marginBottom: '8px', color: 'var(--hc-ink)' }}>
                     Portal Access Control
@@ -882,17 +886,17 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
 
           {/* Actions */}
           <div className="modal-actions" style={{ marginTop: '1.5rem', borderTop: '1px solid var(--hc-line)', paddingTop: '1rem' }}>
-            <button type="submit" className="hc-btn hc-btn-primary" disabled={loading}>
+            {may.update && <button type="submit" className="hc-btn hc-btn-primary" disabled={loading}>
               {loading ? 'Saving...' : 'Save Changes'}
-            </button>
+            </button>}
             <button type="button" className="hc-btn hc-btn-secondary" onClick={onClose} disabled={loading}>
               Cancel
             </button>
             {client.isActive === false ? (
-              <button type="button" className="hc-btn hc-btn-success" onClick={handleReactivate} disabled={loading} style={{ marginLeft: 'auto' }}>
+              may.update && <button type="button" className="hc-btn hc-btn-success" onClick={handleReactivate} disabled={loading} style={{ marginLeft: 'auto' }}>
                 ♻️ Reactivate Client
               </button>
-            ) : !deleteConfirm ? (
+            ) : !may.delete ? null : !deleteConfirm ? (
               <button type="button" className="hc-btn hc-btn-danger" onClick={handleDelete} disabled={loading} style={{ marginLeft: 'auto' }}>
                 Delete Client
               </button>
@@ -929,6 +933,8 @@ interface EvvWeek {
 // Exported: Portal Claim Days opens this same box for a client whose EVV units are blank. `initialUnits` undefined means
 // "not known here": the box then takes the units from this week's EVV row.
 export const EvvWeeklyUnits = ({ clientId, initialUnits }: { clientId: string; initialUnits?: number | string | null }) => {
+  // Saving is care-clients:update, the server's check (lib/useMay.ts).
+  const may = useMay('care-clients')
   const [units, setUnits] = useState(initialUnits == null ? '' : String(initialUnits))
   const [week, setWeek] = useState<EvvWeek | null>(null)       // this week's usage, or null if not a Sandata client
   const [saving, setSaving] = useState(false)
@@ -971,7 +977,7 @@ export const EvvWeeklyUnits = ({ clientId, initialUnits }: { clientId: string; i
         <div className="flex items-center gap-2">
           <input type="text" inputMode="numeric" value={units}
             onChange={(e) => setUnits(e.target.value)} placeholder="from the payer's authorization, e.g. 12" style={{ flex: 1 }} />
-          <button type="button" className="hc-btn hc-btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save EVV units'}</button>
+          {may.update && <button type="button" className="hc-btn hc-btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save EVV units'}</button>}
         </div>
         {typedOk && (
           <div className="mt-2 rounded bg-sky-100 p-2 text-sm text-sky-800 dark:bg-sky-950 dark:text-sky-200">

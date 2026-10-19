@@ -26,6 +26,7 @@
 import { useState, useEffect, type CSSProperties } from 'react'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { CHIP, EDGE, INK, SOLID, type Tone } from './ui'
+import { useMay } from '../lib/useMay'
 
 interface Person { id: string; firstName: string | null; lastName: string | null; isActive?: boolean | null; weeklyAuthorizedUnits?: number | null }
 interface Restriction { id: string; caregiverId: string; notes: string | null }
@@ -41,6 +42,8 @@ type MsgType = 'success' | 'error' | 'warning' | ''
 
 
 const CompanyOptimizer = () => {
+  // Skills, restrictions and the optimizer are all care-schedule:update (scheduling/matching.ts) — lib/useMay.ts.
+  const may = useMay('care-schedule')
   const [activeTab, setActiveTab] = useState<Tab>('skills')
   const [capabilities, setCapabilities] = useState<string[]>([])
   const [caregivers, setCaregivers] = useState<Person[]>([])
@@ -203,7 +206,7 @@ const CompanyOptimizer = () => {
             </select>
           </div>
           {selectedCg && <div style={{ ...s.col(1), display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
-            <button style={s.btn(SOLID.green)} onClick={saveCgCaps}>💾 Save</button>
+            {may.update && <button style={s.btn(SOLID.green)} onClick={saveCgCaps}>💾 Save</button>}
             <span style={{ fontSize: '0.78rem', color: 'var(--hc-ink-soft)' }}>{cgCaps.length}/{capabilities.length}</span>
           </div>}
         </div>
@@ -218,7 +221,7 @@ const CompanyOptimizer = () => {
               {capabilities.map((cap) => {
                 const a = cgHasCap(cap)
                 return (
-                  <div key={cap} className={capCls(a)} style={s.capItem} onClick={() => toggleCgCap(cap)}>
+                  <div key={cap} className={capCls(a)} style={s.capItem} onClick={may.update ? () => toggleCgCap(cap) : undefined}>
                     <input type="checkbox" checked={a} readOnly style={{ cursor: 'pointer', width: '16px', height: '16px' }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: '0.86rem' }}>{cap}</div>
@@ -230,7 +233,7 @@ const CompanyOptimizer = () => {
           )}
         </div>
       )}
-      <div style={s.card}>
+      {may.update && <div style={s.card}>
         {!showNewCap ? <button className={ghostBlue} style={s.btnGhost} onClick={() => setShowNewCap(true)}>+ Add Custom Capability</button> : (
           <div>
             <div style={s.row}>
@@ -239,7 +242,7 @@ const CompanyOptimizer = () => {
             <div style={{ display: 'flex', gap: '0.5rem' }}><button style={s.btn(SOLID.green)} onClick={addCapability}>Add</button><button className={ghostSoft} style={s.btnGhost} onClick={() => setShowNewCap(false)}>Cancel</button></div>
           </div>
         )}
-      </div>
+      </div>}
     </div>
   )
 
@@ -262,7 +265,7 @@ const CompanyOptimizer = () => {
         </div>
       </div>
       {restrictionsClient && (<>
-        <div style={s.card}>
+        {may.update && <div style={s.card}>
           <div style={s.cardTitle}>➕ Add Restriction</div>
           <div style={s.row}>
             <div style={s.col(2)}><label style={s.label}>Caregiver</label>
@@ -276,7 +279,7 @@ const CompanyOptimizer = () => {
             <input style={s.input} value={newRestriction.reason} onChange={(e) => setNewRestriction((p) => ({ ...p, reason: e.target.value }))} placeholder="Internal note — not visible to caregivers or families" />
           </div>
           <button style={s.btn(SOLID.blue)} onClick={addRestriction}>Add</button>
-        </div>
+        </div>}
         {restrictions.length === 0 ? <div style={{ ...s.card, ...s.emptyState }}>No restrictions set — all caregivers eligible</div>
         : (
           <div style={s.card}>
@@ -286,7 +289,7 @@ const CompanyOptimizer = () => {
                 <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--hc-ink)' }}>{nameOf(r.caregiverId)}</div>
                   {r.notes && <div style={{ fontSize: '0.72rem', color: 'var(--hc-ink)', fontStyle: 'italic' }}>{r.notes}</div>}
                 </div>
-                <button style={s.btnSm(SOLID.red)} onClick={() => removeRestriction(r.id)}>Remove</button>
+                {may.update && <button style={s.btnSm(SOLID.red)} onClick={() => removeRestriction(r.id)}>Remove</button>}
               </div>
             ))}
           </div>
@@ -308,9 +311,9 @@ const CompanyOptimizer = () => {
           <div style={{ fontSize: '0.82rem', color: 'var(--hc-ink-soft)', marginBottom: '0.75rem' }}>
             Ranks caregivers for each active client: their preferred caregivers first, their do-not-use caregivers left out.
           </div>
-          <button style={s.btn(SOLID.violet, optimizing)} onClick={runOptimizer} disabled={optimizing}>
+          {may.update && <button style={s.btn(SOLID.violet, optimizing)} onClick={runOptimizer} disabled={optimizing}>
             {optimizing ? '⏳ Optimizing...' : '🚀 Run Optimizer'}
-          </button>
+          </button>}
         </div>
 
         {r && (<div>

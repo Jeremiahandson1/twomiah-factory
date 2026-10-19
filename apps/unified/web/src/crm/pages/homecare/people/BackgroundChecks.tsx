@@ -16,6 +16,7 @@ import { useAuth, useConfirm, useToast } from '../../../../shared'
 import { api, downloadBlob, errorMessage, listAll, rows } from '../lib/http'
 import { formatDate, parseLocalDate } from '../lib/date'
 import type { CaregiverRow } from './shared'
+import { useMay } from '../lib/useMay'
 
 // Result letters: PDF or image, 7 MB max (the server refuses anything larger).
 const DOCUMENT_MAX_BYTES = 7_000_000
@@ -68,6 +69,8 @@ const isExpiringSoon = (expirationDate: string | null) => {
 const isExpired = (expirationDate: string | null) => (expirationDate ? parseLocalDate(expirationDate) < new Date() : false)
 
 export default function BackgroundChecks() {
+  // Each control for whoever the server lets use it (care-hr create / update / delete) (lib/useMay.ts).
+  const mayHr = useMay('care-hr')
   const { company } = useAuth()
   const toast = useToast()
   const confirm = useConfirm()
@@ -223,9 +226,9 @@ export default function BackgroundChecks() {
     <div>
       <div className="page-header">
         <h2>🔒 Background Checks</h2>
-        <button className="hc-btn hc-btn-primary" onClick={() => setShowAddModal(true)}>
+        {mayHr.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowAddModal(true)}>
           + New Background Check
-        </button>
+        </button>}
       </div>
 
       {/* Summary Cards */}
@@ -328,9 +331,9 @@ export default function BackgroundChecks() {
                       ) : '-'}
                     </td>
                     <td>
-                      <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { setCurrentCheck(check); setShowDetailModal(true) }}>
+                      {mayHr.update && <><button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { setCurrentCheck(check); setShowDetailModal(true) }}>
                         Update
-                      </button>{' '}
+                      </button>{' '}</>}
                       <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => openDocs(check)}>
                         📎 Documents{check.documentCount ? ` (${check.documentCount})` : ''}
                       </button>
@@ -354,11 +357,11 @@ export default function BackgroundChecks() {
             <p style={{ fontSize: '0.85rem', color: 'var(--hc-ink-soft)', marginTop: 0 }}>
               Upload the result letter for this check (PDF or image, 7 MB max). Record its completed date and reference number with <b>Update</b>.
             </p>
-            <label className="hc-btn hc-btn-primary" style={{ display: 'inline-block', cursor: uploading ? 'wait' : 'pointer', marginBottom: '1rem' }}>
+            {mayHr.create && <label className="hc-btn hc-btn-primary" style={{ display: 'inline-block', cursor: uploading ? 'wait' : 'pointer', marginBottom: '1rem' }}>
               {uploading ? 'Uploading…' : '⬆️ Upload file'}
               <input type="file" accept={DOCUMENT_ACCEPT} disabled={uploading} style={{ display: 'none' }}
                 onChange={(e) => { uploadDoc(e.target.files?.[0]); e.target.value = '' }} />
-            </label>
+            </label>}
             {docsLoading ? (
               <div className="loading"><div className="spinner"></div></div>
             ) : docs.length === 0 ? (
@@ -376,7 +379,7 @@ export default function BackgroundChecks() {
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => viewDoc(d)}>View</button>{' '}
-                        <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => deleteDoc(d)}>Delete</button>
+                        {mayHr.delete && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => deleteDoc(d)}>Delete</button>}
                       </td>
                     </tr>
                   ))}

@@ -241,3 +241,33 @@ describe("the Billing page's totals cover every invoice", () => {
     expect((await as('cg', '/api/billing/invoices/totals')).status).toBe(403)
   })
 })
+
+// Import MIDAS CSV posted to /api/authorizations/import-csv, which no server had (2026-10-19). It imports the columns
+// the screen names, places each row on the company's client with that Medicaid ID, and skips — with the reason — what
+// it can't place.
+describe('authorizations from a MIDAS export', () => {
+  test('rows land on the right client and payer; the rest are skipped with why; the office only', async () => {
+    await t.db.update(t.schema.clients).set({ medicaidId: '1421146410' } as any).where(eq(t.schema.clients.id, ids.ada))
+    await t.db.update(t.schema.clients).set({ medicaidId: '9999999999' } as any).where(eq(t.schema.clients.id, ids.otherClient))
+    const rows = [
+      { MemberID: '1421146410', AuthNumber: 'MID-1', ServiceCode: 'T1019', AuthorizedUnits: '480', StartDate: '2026-10-01', EndDate: '2026-12-31' },
+      { MemberID: '1421146410', AuthNumber: 'MID-2', ServiceCode: 'S5125', AuthorizedUnits: '120', StartDate: '10/1/2026', EndDate: '12/31/2026' },
+      { MemberID: '9999999999', AuthNumber: 'MID-3', ServiceCode: 'T1019', AuthorizedUnits: '40', StartDate: '2026-10-01', EndDate: '2026-12-31' },
+      { MemberID: '1421146410', AuthNumber: 'MID-4', ServiceCode: 'T1019', AuthorizedUnits: '0', StartDate: '2026-10-01', EndDate: '2026-12-31' },
+      { MemberID: '1421146410', AuthNumber: 'MID-5', ServiceCode: 'T1019', AuthorizedUnits: '10', StartDate: '2026-12-31', EndDate: '2026-10-01' },
+    ]
+    expect((await as('mgr', '/api/authorizations/import-csv', { method: 'POST', json: { rows } })).status).toBe(403)
+    const r = await as('admin', '/api/authorizations/import-csv', { method: 'POST', json: { rows } })
+    expect(r.status).toBe(200)
+    const out = await r.json()
+    expect(out.imported).toBe(2)
+    expect(out.skipped.map((x: any) => x.row)).toEqual([4, 5, 6])
+    expect(out.skipped[0].reason).toMatch(/No client with Medicaid ID 9999999999/) // another company's member is no one here
+    const made = await t.db.select().from(t.schema.authorizations).where(eq(t.schema.authorizations.clientId, ids.ada))
+    const mid2 = made.find((a: any) => a.authNumber === 'MID-2')!
+    expect(mid2).toMatchObject({ companyId, payerId: ids.payer, procedureCode: 'S5125', startDate: '2026-10-01', endDate: '2026-12-31', importedFrom: 'midas' })
+    // Again: already on file.
+    const again = await (await as('admin', '/api/authorizations/import-csv', { method: 'POST', json: { rows: rows.slice(0, 1) } })).json()
+    expect(again).toMatchObject({ imported: 0, skipped: [{ row: 2, reason: expect.stringMatching(/already on file/) }] })
+  })
+})

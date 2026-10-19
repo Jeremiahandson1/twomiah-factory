@@ -10,6 +10,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '../../../../shared'
 import { api, rows, errorMessage, saveBlob } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
+import { useMay } from '../lib/useMay'
 
 interface Claim {
   id: string; claimNumber: string | null; clientFirstName: string | null; clientLastName: string | null
@@ -28,6 +29,8 @@ const STATUS_COLOURS: Record<string, string> = {
 const money = (v: string | number | null | undefined) => (parseFloat(String(v ?? '')) || 0)
 
 const ClaimsManagement = () => {
+  // Each control for whoever the server lets use it (care-billing create / update — lib/useMay.ts).
+  const may = useMay('care-billing')
   const toast = useToast()
   const [claims, setClaims] = useState<Claim[]>([])
   const [loading, setLoading] = useState(true)
@@ -146,12 +149,12 @@ const ClaimsManagement = () => {
       <div className="page-header">
         <h2>💼 Claims Management</h2>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button className="hc-btn hc-btn-primary" onClick={() => { loadInvoices(); setShowCreateModal(true) }}>
+          {may.create && <button className="hc-btn hc-btn-primary" onClick={() => { loadInvoices(); setShowCreateModal(true) }}>
             + New Claim
-          </button>
-          <button className="hc-btn hc-btn-secondary" onClick={export837P} disabled={selectedClaims.length === 0}>
+          </button>}
+          {may.update && <button className="hc-btn hc-btn-secondary" onClick={export837P} disabled={selectedClaims.length === 0}>
             📤 Export 837P ({selectedClaims.length})
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -253,9 +256,9 @@ const ClaimsManagement = () => {
                   <td><strong>${money(claim.chargeAmount).toFixed(2)}</strong></td>
                   <td>{getStatusBadge(claim.status)}</td>
                   <td>
-                    <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { setCurrentClaim(claim); setShowStatusModal(true) }}>
+                    {may.update && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { setCurrentClaim(claim); setShowStatusModal(true) }}>
                       Update
-                    </button>
+                    </button>}
                   </td>
                 </tr>
               ))}

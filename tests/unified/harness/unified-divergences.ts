@@ -140,8 +140,8 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     },
     'leads.test.ts': {
       assertions: [/^GET \/api\/leads is served, not missing/, /^…with homecare's own message/, /^an admin reaches PUT \/api\/leads/, /^an owner reaches POST \/api\/leads/, /^an admin can create a lead source/, /^a caregiver may still read \/api\/leads/],
-      why: "The Lead Inbox is the shared module, which follows its lead_inbox feature on the server as the template's menu did (its API was ungated); the fixture's agency does not have it. Its writes refuse with requirePermission's 'Permission denied', and a lead source is one of the platforms the inbox connects to.",
-      heldBy: "tests/unified/homecare/leads.test.ts (the adapted copy: the agency has lead_inbox, the refusal is 'Permission denied', the probe source is angi; run by adapted.ts — 21 of 21)",
+      why: "The Lead Inbox is the shared module, which follows its lead_inbox feature on the server as the template's menu did (its API was ungated); the fixture's agency does not have it. Its writes refuse with requirePermission's 'Permission denied', and a lead source is one of the platforms the inbox connects to. A caregiver no longer reads it: an agency's leads are prospective clients' details, the office's (home care withholds the field rung's contacts:read).",
+      heldBy: "tests/unified/homecare/leads.test.ts (the adapted copy: the agency has lead_inbox, the refusal is 'Permission denied', the probe source is angi, a caregiver is refused the reads; run by adapted.ts — 21 of 21)",
     },
     'mfa-sign-in.test.ts': {
       assertions: [/^the rows carry the agency's one fixed company id/, /^…and its refresh token is the one stored/],

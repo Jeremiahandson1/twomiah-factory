@@ -52,6 +52,20 @@ describe('home care — visits', () => {
     expect(await ctx.json()).toEqual({ sandataAgencyId: null, isWisconsin: false, clients: [], activeVisit: null })
   }, 30_000)
 
+  test('the Sandata payer presets are for whoever writes a payer, not the EVV office', async () => {
+    // They fill the payer form (billing/PayersServiceCodes.tsx); a billing seat without evv:delete was refused them.
+    const hash = await Bun.password.hash('Seat-pass-1', 'bcrypt')
+    await t.db.insert(t.schema.user).values([
+      { email: 'bill@test.example', passwordHash: hash, firstName: 'Bill', lastName: 'Seat', role: 'viewer', companyId, extraPermissions: ['care-billing:read', 'care-billing:create', 'care-billing:update'] },
+      { email: 'mona@test.example', passwordHash: hash, firstName: 'Mona', lastName: 'Manager', role: 'manager', companyId },
+    ] as any)
+    tokens.bill = await login('bill@test.example', 'Seat-pass-1')
+    tokens.mona = await login('mona@test.example', 'Seat-pass-1')
+    const status = async (who: string) => (await as(who)('/api/sandata/payer-presets')).status
+    expect({ owner: await status('owner'), bill: await status('bill'), mona: await status('mona'), cg: await status('cg') })
+      .toEqual({ owner: 200, bill: 200, mona: 403, cg: 403 })
+  }, 30_000)
+
   test('/api/alerts is home care\'s office queue, a list reply', async () => {
     const made = await as('owner')('/api/alerts', { method: 'POST', json: { alertType: 'care', message: 'Check on Pat' } })
     expect(made.status).toBe(201)

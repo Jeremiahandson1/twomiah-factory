@@ -4,6 +4,7 @@ import { useState, useEffect, type FormEvent } from 'react'
 import { useAuth, useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import type { ReferralSource } from './shared'
+import { useMay } from '../lib/useMay'
 
 interface SourceForm {
   name: string
@@ -18,6 +19,8 @@ interface SourceForm {
 }
 
 const ReferralSources = () => {
+  // Each control for whoever the server lets use it (care-clients create / update / delete) (lib/useMay.ts).
+  const may = useMay('care-clients')
   const { company } = useAuth()
   const toast = useToast()
   const confirm = useConfirm()
@@ -111,7 +114,7 @@ const ReferralSources = () => {
     <div>
       <div className="page-header">
         <h2>🏥 Referral Sources</h2>
-        <button
+        {may.create && <button
           className="hc-btn hc-btn-primary"
           onClick={() => {
             if (showForm) handleCancel()
@@ -119,7 +122,7 @@ const ReferralSources = () => {
           }}
         >
           {showForm ? '✕ Cancel' : '➕ Add Referral Source'}
-        </button>
+        </button>}
       </div>
 
       {showForm && (
@@ -215,12 +218,12 @@ const ReferralSources = () => {
 
               <div className="source-card-footer" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--hc-line)' }}>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button className="hc-btn hc-btn-secondary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }} onClick={() => handleEdit(source)}>
+                  {may.update && <button className="hc-btn hc-btn-secondary" style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }} onClick={() => handleEdit(source)}>
                     ✏️ Edit
-                  </button>
-                  <button className="hc-btn hc-btn-danger" style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }} onClick={() => handleDelete(source.id, source.name)}>
+                  </button>}
+                  {may.delete && <button className="hc-btn hc-btn-danger" style={{ padding: '0.25rem 0.75rem', fontSize: '0.875rem' }} onClick={() => handleDelete(source.id, source.name)}>
                     🗑️ Delete
-                  </button>
+                  </button>}
                 </div>
               </div>
             </div>

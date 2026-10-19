@@ -113,6 +113,13 @@ export const SHARED_HIDDEN = [
   '/crm/documents', '/crm/team', '/crm/reports', '/crm/messages', '/crm/pricebook', '/crm/tasks',
 ]
 
+/**
+ * Settings pages an agency doesn't get: Migrate Data and Import from CSV bring contacts, jobs, products and invoices
+ * from contractor platforms (Jobber, ServiceTitan, Housecall Pro…) — an agency has none of those records, and home
+ * care's own client and caregiver import is left off by the owner (2026-10-19). Their addresses go to Settings.
+ */
+export const SETTINGS_HIDDEN = ['/crm/settings/migration', '/crm/settings/import']
+
 /** The permission each agency page asks for, for a URL typed in (the shell's routePermissions). */
 export const routePermissions: Record<string, string> = isHomecare
   ? Object.assign({}, ...GROUPS.map((g) => g.routePermissions))
@@ -139,6 +146,7 @@ export const routes: ReactElement[] = isHomecare ? [
   </Route>,
   // The template's own addresses for pages the shared app has under another name.
   <Route key="homecare-settings-security" path="security" element={<Navigate to="/crm/account" replace />} />,
+  ...SETTINGS_HIDDEN.map((to) => <Route key={`homecare-hidden-${to}`} path={to.replace('/crm/', '')} element={<Navigate to="/crm/settings" replace />} />),
 ] : []
 
 /**

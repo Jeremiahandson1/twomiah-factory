@@ -14,8 +14,9 @@
 // caregiver's record in place (CaregiverDetail), as it did.
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useConfirm, useToast } from '../../../../shared'
+import { useConfirm, useToast, usePermissions } from '../../../../shared'
 import { api, errorMessage, rows, listAll } from '../lib/http'
+import { useMay } from '../lib/useMay'
 import { formatDate } from '../lib/date'
 import AddCaregiverModal from './AddCaregiverModal'
 import CaregiverDetail from './CaregiverDetail'
@@ -44,10 +45,10 @@ const fullProfileBtn = {
 
 interface CardProps {
   caregiver: CaregiverRow
-  onEdit: (c: CaregiverRow) => void
-  onRates: (c: CaregiverRow) => void
+  onEdit?: (c: CaregiverRow) => void
+  onRates?: (c: CaregiverRow) => void
   onProfile: (id: string) => void
-  onPromote: (id: string) => void
+  onPromote?: (id: string) => void
 }
 
 // Mobile-friendly caregiver card
@@ -90,10 +91,10 @@ function CaregiverCard({ caregiver, onEdit, onRates, onProfile, onPromote }: Car
 
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <button className="hc-btn hc-btn-sm" style={fullProfileBtn} onClick={() => onProfile(caregiver.id)}>👁 Full Profile</button>
-        <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => onEdit(caregiver)}>✏️ Edit</button>
-        <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => onRates(caregiver)}>💰 Rates</button>
+        {onEdit && <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => onEdit(caregiver)}>✏️ Edit</button>}
+        {onRates && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => onRates(caregiver)}>💰 Rates</button>}
         <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => onProfile(caregiver.id)}>👤 Profile</button>
-        {caregiver.role !== 'admin' && (
+        {onPromote && caregiver.role !== 'admin' && (
           <button className="hc-btn hc-btn-sm hc-btn-warning" onClick={() => onPromote(caregiver.id)}>⬆️ Admin</button>
         )}
       </div>
@@ -102,6 +103,11 @@ function CaregiverCard({ caregiver, onEdit, onRates, onProfile, onPromote }: Car
 }
 
 export default function CaregiverManagement() {
+  // Each control for whoever the server lets use it: the record is care-hr, rates care-payroll, a text care-portal:create, Make Admin team:update (lib/useMay.ts).
+  const mayHr = useMay('care-hr')
+  const mayPayroll = useMay('care-payroll')
+  const mayPortal = useMay('care-portal')
+  const { can } = usePermissions()
   const toast = useToast()
   const confirm = useConfirm()
   const navigate = useNavigate()
@@ -305,9 +311,9 @@ export default function CaregiverManagement() {
     <div>
       <div className="page-header">
         <h2>👤 Caregivers</h2>
-        <button className="hc-btn hc-btn-primary" onClick={() => setShowModal(true)}>
+        {mayHr.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowModal(true)}>
           ➕ Add
-        </button>
+        </button>}
       </div>
 
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -331,10 +337,10 @@ export default function CaregiverManagement() {
           <button onClick={exportCsv} style={{ padding: '0.35rem 0.75rem', background: 'var(--hc-surface)', color: 'var(--hc-ink)', border: '1px solid var(--hc-line)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
             📥 Export CSV
           </button>
-          <button onClick={() => setShowBulkMsg(true)}
+          {mayPortal.create && <button onClick={() => setShowBulkMsg(true)}
             style={{ padding: '0.35rem 0.75rem', background: 'var(--hc-brand-deep)', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
             📱 Send SMS
-          </button>
+          </button>}
           <button onClick={() => setSelectedIds([])} style={{ padding: '0.35rem 0.75rem', background: 'none', border: '1px solid var(--hc-line)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--hc-muted)' }}>
             Clear
           </button>
@@ -373,10 +379,10 @@ export default function CaregiverManagement() {
             <CaregiverCard
               key={caregiver.id}
               caregiver={caregiver}
-              onEdit={handleOpenEdit}
-              onRates={handleOpenRates}
+              onEdit={mayHr.update ? handleOpenEdit : undefined}
+              onRates={mayPayroll.read ? handleOpenRates : undefined}
               onProfile={onViewProfile}
-              onPromote={handlePromoteToAdmin}
+              onPromote={can('team:update') ? handlePromoteToAdmin : undefined}
             />
           ))}
         </div>
@@ -424,10 +430,10 @@ export default function CaregiverManagement() {
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <button className="hc-btn hc-btn-sm" style={fullProfileBtn} onClick={() => setDetailId(caregiver.id)}>👁 Full Profile</button>
-                      <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => handleOpenEdit(caregiver)}>Edit</button>
-                      <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => handleOpenRates(caregiver)}>💰 Pay Rates</button>
+                      {mayHr.update && <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => handleOpenEdit(caregiver)}>Edit</button>}
+                      {mayPayroll.read && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => handleOpenRates(caregiver)}>💰 Pay Rates</button>}
                       <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => onViewHistory(caregiver.id)}>🕐 History</button>
-                      {caregiver.role !== 'admin' && (
+                      {can('team:update') && caregiver.role !== 'admin' && (
                         <button className="hc-btn hc-btn-sm hc-btn-warning" onClick={() => handlePromoteToAdmin(caregiver.id)}>Make Admin</button>
                       )}
                     </div>
@@ -529,7 +535,7 @@ export default function CaregiverManagement() {
 
             <h4>Care Type Rates</h4>
 
-            {getAvailableCareTypes().length > 0 && (
+            {mayPayroll.update && getAvailableCareTypes().length > 0 && (
               <form onSubmit={handleAddRate} style={{ marginBottom: '1.5rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr auto', gap: '0.75rem', alignItems: 'end' }}>
                   <div className="form-group" style={{ marginBottom: 0 }}>
@@ -564,7 +570,7 @@ export default function CaregiverManagement() {
                       <strong>{rate.careTypeName}</strong>
                       <div style={{ fontSize: '0.9rem' }}>{money(rate.hourlyRate)}/hr</div>
                     </div>
-                    <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDeleteRate(rate.id)}>✕</button>
+                    {mayPayroll.update && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDeleteRate(rate.id)}>✕</button>}
                   </div>
                 ))}
               </div>
@@ -585,7 +591,7 @@ export default function CaregiverManagement() {
                       <td><strong>{money(rate.hourlyRate)}</strong>/hr</td>
                       <td>{formatDate(rate.effectiveDate)}</td>
                       <td>
-                        <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDeleteRate(rate.id)}>Remove</button>
+                        {mayPayroll.update && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDeleteRate(rate.id)}>Remove</button>}
                       </td>
                     </tr>
                   ))}

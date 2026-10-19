@@ -8,6 +8,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { parseLocalDate } from '../lib/date'
+import { useMay } from '../lib/useMay'
 
 const parseDate = (dateStr: string | null | undefined): Date | null => {
   if (!dateStr) return null
@@ -54,6 +55,8 @@ const STATUS_COLOURS: Record<string, string> = {
 /** Enough rows for the pickers: /api/clients pages at 50 by default. */
 
 const AuthorizationsManagement = () => {
+  // Each control for whoever the server lets use it (care-billing create / update / delete — lib/useMay.ts).
+  const may = useMay('care-billing')
   const toast = useToast()
   const confirm = useConfirm()
   const [authorizations, setAuthorizations] = useState<Authorization[]>([])
@@ -187,9 +190,9 @@ const AuthorizationsManagement = () => {
     <div>
       <div className="page-header">
         <h2>📋 Authorizations</h2>
-        <button className="hc-btn hc-btn-primary" onClick={() => { resetForm(); setEditing(null); setShowModal(true) }}>
+        {may.create && <button className="hc-btn hc-btn-primary" onClick={() => { resetForm(); setEditing(null); setShowModal(true) }}>
           + New Authorization
-        </button>
+        </button>}
       </div>
 
       {/* Summary Cards */}
@@ -301,8 +304,8 @@ const AuthorizationsManagement = () => {
                 <td>{getStatusBadge(auth.status)}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '0.25rem' }}>
-                    <button className="hc-btn hc-btn-sm" onClick={() => openEdit(auth)}>Edit</button>
-                    {auth.status === 'active' && (
+                    {may.update && <button className="hc-btn hc-btn-sm" onClick={() => openEdit(auth)}>Edit</button>}
+                    {may.delete && auth.status === 'active' && (
                       <button className="hc-btn hc-btn-sm" style={{ color: 'var(--hc-red-ink)' }} onClick={() => cancelAuthorization(auth)}>Cancel</button>
                     )}
                   </div>

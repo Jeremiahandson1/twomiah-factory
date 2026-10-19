@@ -32,6 +32,7 @@ import DragDropScheduler from './DragDropScheduler'
 import ScheduleOptimizer from './ScheduleOptimizer'
 import RosterOptimizer from './RosterOptimizer'
 import MakeShiftAvailableModal, { type OfferedVisit } from './MakeShiftAvailableModal'
+import { useMay } from '../lib/useMay'
 import { C, FILL, MARKS, dialog, field, overlay, pill, tint, type Tone } from './theme'
 import { fullName, isRecurringRow, type Caregiver, type Client, type SavedReply, type ScheduleRow } from './types'
 
@@ -154,6 +155,9 @@ const SchedulingHub = () => {
   const confirm = useConfirm()
   const prompt = usePrompt()
   const { hasFeature } = useAuth()
+  // Each control asks the verb its route checks: scheduling/*.ts (care-schedule), clients/prospects.ts (care-clients) — lib/useMay.ts.
+  const may = useMay('care-schedule')
+  const mayClients = useMay('care-clients')
 
   // ── Navigation ──
   const [mainTab, setMainTab] = useState<MainTab>('schedule')
@@ -986,7 +990,7 @@ const SchedulingHub = () => {
             </select>
           </div>
         )}
-        <button className="hc-btn hc-btn-primary" style={{ marginLeft: scheduleView === 'grid' ? 'auto' : '0', fontSize: '0.88rem' }} onClick={() => openCreatePanel()}>+ New Schedule</button>
+        {may.create && <button className="hc-btn hc-btn-primary" style={{ marginLeft: scheduleView === 'grid' ? 'auto' : '0', fontSize: '0.88rem' }} onClick={() => openCreatePanel()}>+ New Schedule</button>}
       </div>
 
       {scheduleView === 'grid' && <DragDropScheduler />}
@@ -1029,19 +1033,19 @@ const SchedulingHub = () => {
                         const hasShifts = cell.length > 0
                         return (
                           <td key={di}
-                            onClick={() => { if (!hasShifts) openCreatePanel({ caregiverId: caregiver.id, date: dateStr, dayOfWeek: di.toString() }) }}
+                            onClick={() => { if (!hasShifts && may.create) openCreatePanel({ caregiverId: caregiver.id, date: dateStr, dayOfWeek: di.toString() }) }}
                             style={{ padding: '0.25rem', verticalAlign: 'top', background: isToday ? C.todayBg : undefined, cursor: hasShifts ? 'default' : 'pointer' }}
                             onMouseEnter={(e) => { if (!hasShifts) e.currentTarget.style.background = green.bg }}
                             onMouseLeave={(e) => { e.currentTarget.style.background = isToday ? C.todayBg : '' }}>
                             {hasShifts ? cell.map((sched) => (
-                              <div key={sched.id} onClick={(e) => { e.stopPropagation(); setReassignModal({ schedule: sched, currentCaregiver: caregiver }) }}
+                              <div key={sched.id} onClick={(e) => { e.stopPropagation(); if (may.update) setReassignModal({ schedule: sched, currentCaregiver: caregiver }) }}
                                 style={{ fontSize: '0.7rem', padding: '0.25rem 0.4rem', marginBottom: '0.2rem', borderRadius: '4px', background: sched.isRecurring ? blue.bg : green.bg, color: C.ink, borderLeft: `3px solid ${cgColor(caregiver.id)}`, cursor: 'pointer' }}
                                 title={`${getClientName(sched.clientId)} · ${formatTime(sched.startTime)}–${formatTime(sched.endTime)}`}>
                                 <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getClientName(sched.clientId).split(' ')[0]}</div>
                                 <div style={{ color: C.inkSoft }}>{formatTime(sched.startTime)}</div>
                               </div>
                             )) : (
-                              <div style={{ height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: '0.7rem' }}>+ add</div>
+                              <div style={{ height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: '0.7rem' }}>{may.create ? '+ add' : ''}</div>
                             )}
                           </td>
                         )
@@ -1058,8 +1062,8 @@ const SchedulingHub = () => {
       {scheduleView === 'month' && (
         <div>
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-            <button className="hc-btn hc-btn-sm" onClick={() => setShowProspectApptForm(!showProspectApptForm)} style={{ background: FILL.orange, color: '#fff', border: 'none' }}>{showProspectApptForm ? '✕ Cancel' : '+ Prospect Appt'}</button>
-            <button className="hc-btn hc-btn-sm" onClick={() => setShowProspectForm(!showProspectForm)} style={{ background: showProspectForm ? FILL.grey : FILL.violet, color: '#fff', border: 'none' }}>{showProspectForm ? '✕ Cancel' : '+ New Prospect'}</button>
+            {mayClients.create && <button className="hc-btn hc-btn-sm" onClick={() => setShowProspectApptForm(!showProspectApptForm)} style={{ background: FILL.orange, color: '#fff', border: 'none' }}>{showProspectApptForm ? '✕ Cancel' : '+ Prospect Appt'}</button>}
+            {mayClients.create && <button className="hc-btn hc-btn-sm" onClick={() => setShowProspectForm(!showProspectForm)} style={{ background: showProspectForm ? FILL.grey : FILL.violet, color: '#fff', border: 'none' }}>{showProspectForm ? '✕ Cancel' : '+ New Prospect'}</button>}
           </div>
           {showProspectForm && (
             <div className="hc-card" style={{ marginBottom: '1rem', border: `2px solid ${violet.ink}`, background: violet.bg }}>
@@ -1099,7 +1103,7 @@ const SchedulingHub = () => {
                   <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0.75rem', background: violet.bg, border: `1px solid ${violet.line}`, borderRadius: '20px', fontSize: '0.82rem' }}>
                     <span style={{ fontWeight: 600 }}>{p.homeownerName}</span>
                     {p.phone && <span style={{ color: C.inkSoft }}>{p.phone}</span>}
-                    <button onClick={() => convertProspect(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.78rem' }} title="Convert to Client" aria-label={`Convert ${p.homeownerName || 'prospect'} to a client`}>✅</button>
+                    {mayClients.create && <button onClick={() => convertProspect(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.78rem' }} title="Convert to Client" aria-label={`Convert ${p.homeownerName || 'prospect'} to a client`}>✅</button>}
                   </div>
                 ))}
               </div>
@@ -1209,10 +1213,10 @@ const SchedulingHub = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                               <span style={pill({ fill: FILL.red })}>-{cl.shortfallUnits}u</span>
                               {/* Fix It: the Schedule tab's week view, with the create form pre-filled for this client */}
-                              <button onClick={() => { setMainTab('schedule'); setScheduleView('week'); openCreatePanel({ clientId: cl.id }) }}
+                              {may.create && <button onClick={() => { setMainTab('schedule'); setScheduleView('week'); openCreatePanel({ clientId: cl.id }) }}
                                 style={{ padding: '0.25rem 0.6rem', borderRadius: '6px', border: 'none', background: FILL.green, color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
                                 Fix It →
-                              </button>
+                              </button>}
                             </div>
                           </div>
                           <div style={{ height: '5px', background: red.line, borderRadius: '3px', overflow: 'hidden', marginTop: '0.4rem' }}><div style={{ width: `${cl.coveragePercent}%`, height: '100%', background: '#DC2626' }} /></div>
@@ -1346,15 +1350,15 @@ const SchedulingHub = () => {
                         <td style={{ maxWidth: 220 }}>{cr.requestReason || cr.cancelReason || '—'}</td>
                         <td>
                           <div style={{ display: 'flex', gap: '0.25rem' }}>
-                            <button className="hc-btn hc-btn-sm hc-btn-success" disabled={reschedBusy === cr.id} onClick={() => resolveReschedule(cr.id, 'approve')}>✓ Approve</button>
-                            <button className="hc-btn hc-btn-sm hc-btn-danger" disabled={reschedBusy === cr.id}
+                            {may.read && <button className="hc-btn hc-btn-sm hc-btn-success" disabled={reschedBusy === cr.id} onClick={() => resolveReschedule(cr.id, 'approve')}>✓ Approve</button>}
+                            {may.read && <button className="hc-btn hc-btn-sm hc-btn-danger" disabled={reschedBusy === cr.id}
                               onClick={async () => {
                                 // The deny note goes to whoever asked: the client's portal for a client request, the caregiver's phone otherwise.
                                 const who = cr.requestedBy === 'client' ? 'the client sees this in their portal' : 'the caregiver sees this'
                                 const note = await prompt(`Reason for denying (${who}):`, { title: 'Deny request', confirmText: 'Deny' })
                                 if (note === null) return
                                 resolveReschedule(cr.id, 'deny', note)
-                              }}>✗ Deny</button>
+                              }}>✗ Deny</button>}
                           </div>
                         </td>
                       </tr>
@@ -1372,7 +1376,7 @@ const SchedulingHub = () => {
             <select value={openShiftFilter} onChange={(e) => setOpenShiftFilter(e.target.value)} style={{ padding: '0.4rem 0.75rem', borderRadius: '6px', border: `1px solid ${C.line}` }}>
               <option value="active">Open &amp; waiting for approval</option><option value="open">Open</option><option value="claimed">Waiting for approval</option><option value="filled">Filled</option><option value="cancelled">Removed</option><option value="all">All</option>
             </select>
-            <button className="hc-btn hc-btn-primary hc-btn-sm" onClick={() => { setCreateShiftPreFill({}); setShowCreateShift(true) }}>+ Post Open Shift</button>
+            {may.create && <button className="hc-btn hc-btn-primary hc-btn-sm" onClick={() => { setCreateShiftPreFill({}); setShowCreateShift(true) }}>+ Post Open Shift</button>}
           </div>
           {openShiftsLoading ? loadingCard() :
             openShifts.length === 0 ? emptyCard(<><div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✅</div>No {openShiftFilter || ''} open shifts</>, '2rem') : (
@@ -1396,11 +1400,11 @@ const SchedulingHub = () => {
                           {shift.status === 'claimed' ? 'WAITING FOR APPROVAL' : shift.status === 'cancelled' ? 'REMOVED' : shift.status?.toUpperCase()}
                         </span>
                         {shift.urgency === 'urgent' && <span style={pill('red')}>URGENT</span>}
-                        {shift.status === 'claimed' && <>
+                        {may.update && shift.status === 'claimed' && <>
                           <button className="hc-btn hc-btn-sm hc-btn-success" onClick={() => approveOpenShift(shift)}>✓ Approve</button>
                           <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => turnDownOpenShift(shift)}>✗ Turn down</button>
                         </>}
-                        {(shift.status === 'open' || shift.status === 'claimed') && (
+                        {may.update && (shift.status === 'open' || shift.status === 'claimed') && (
                           <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => removeOpenShift(shift)}>🗑 Remove</button>
                         )}
                       </div>
@@ -1437,7 +1441,7 @@ const SchedulingHub = () => {
                         <td>→</td>
                         <td>{sw.targetFirst ? <strong>{sw.targetFirst} {sw.targetLast}</strong> : <em style={{ color: C.muted }}>Open</em>}</td>
                         <td><span style={statusPill(sw.status, { pending: 'amber', accepted: 'blue', approved: 'green' }, 'red')}>{sw.status?.toUpperCase()}</span></td>
-                        <td>{sw.status === 'accepted' && <div style={{ display: 'flex', gap: '0.25rem' }}><button className="hc-btn hc-btn-sm hc-btn-success" title="Approve swap" aria-label="Approve swap" onClick={() => approveSwap(sw)}>✓</button><button className="hc-btn hc-btn-sm hc-btn-danger" title="Turn down swap" aria-label="Turn down swap" onClick={() => rejectSwap(sw.id)}>✗</button></div>}</td>
+                        <td>{may.update && sw.status === 'accepted' && <div style={{ display: 'flex', gap: '0.25rem' }}><button className="hc-btn hc-btn-sm hc-btn-success" title="Approve swap" aria-label="Approve swap" onClick={() => approveSwap(sw)}>✓</button><button className="hc-btn hc-btn-sm hc-btn-danger" title="Turn down swap" aria-label="Turn down swap" onClick={() => rejectSwap(sw.id)}>✗</button></div>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1447,7 +1451,7 @@ const SchedulingHub = () => {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
             <h3 style={{ margin: 0 }}>📋 Absences</h3>
-            <button className="hc-btn hc-btn-primary hc-btn-sm" onClick={() => setShowAbsenceForm(!showAbsenceForm)}>{showAbsenceForm ? '✕ Cancel' : '+ Record Absence'}</button>
+            {may.read && <button className="hc-btn hc-btn-primary hc-btn-sm" onClick={() => setShowAbsenceForm(!showAbsenceForm)}>{showAbsenceForm ? '✕ Cancel' : '+ Record Absence'}</button>}
           </div>
           {showAbsenceForm && (
             <div className="hc-card" style={{ marginBottom: '1rem' }}>
@@ -1476,7 +1480,7 @@ const SchedulingHub = () => {
                         <span style={{ color: C.muted, marginLeft: '0.5rem' }}>{formatTime(sched.startTime)} – {formatTime(sched.endTime)}</span>
                         <span style={{ color: C.muted, marginLeft: '0.5rem' }}>{formatDay(pendingAbsenceShift.date, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
                       </div>
-                      <button onClick={() => postOpenShiftFromAbsence(sched)} style={{ padding: '0.35rem 0.75rem', borderRadius: '6px', border: 'none', background: FILL.amber, color: '#fff', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap' }}>Post Open Shift →</button>
+                      {may.create && <button onClick={() => postOpenShiftFromAbsence(sched)} style={{ padding: '0.35rem 0.75rem', borderRadius: '6px', border: 'none', background: FILL.amber, color: '#fff', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap' }}>Post Open Shift →</button>}
                     </div>
                   ))}
                 </div>
@@ -1497,7 +1501,7 @@ const SchedulingHub = () => {
                         <td>{formatDate(ab.date)}</td>
                         <td><span style={statusPill(ab.type, { no_show: 'red', sick: 'blue' }, 'amber')}>{ab.type?.replace('_', ' ').toUpperCase()}</span></td>
                         <td>{ab.reason || '—'}</td>
-                        <td><button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => deleteAbsence(ab.id)}>Delete</button></td>
+                        <td>{may.delete && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => deleteAbsence(ab.id)}>Delete</button>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1571,7 +1575,7 @@ const SchedulingHub = () => {
                     {[...blackoutDates].sort((a, b) => parseLocalDate(a.startDate).getTime() - parseLocalDate(b.startDate).getTime()).map((bd) => (
                       <div key={bd.id} style={{ padding: '0.6rem 0.75rem', background: red.bg, borderLeft: '3px solid #DC2626', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div><strong style={{ fontSize: '0.88rem' }}>{formatDate(bd.startDate)} – {formatDate(bd.endDate)}</strong>{bd.reason && <div style={{ fontSize: '0.82rem', color: C.inkSoft }}>{bd.reason}</div>}</div>
-                        <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => deleteBlackout(bd.id)}>Delete</button>
+                        {may.read && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => deleteBlackout(bd.id)}>Delete</button>}
                       </div>
                     ))}
                   </div>
@@ -1705,8 +1709,8 @@ const SchedulingHub = () => {
                       ⏸ Service suspended from {formatDay(editModal.suspendedFrom, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <button type="button" disabled={suspendBusy} onClick={() => handleResume('this')} className="hc-btn hc-btn-secondary" style={{ flex: 1, minWidth: '140px' }}>▶ Resume {getDayName(parseInt(editModal.dayOfWeek))}s</button>
-                      <button type="button" disabled={suspendBusy} onClick={() => handleResume('client')} className="hc-btn hc-btn-secondary" style={{ flex: 1, minWidth: '140px' }}>▶ Resume all {getClientName(editModal.clientId)}’s days</button>
+                      {may.update && <button type="button" disabled={suspendBusy} onClick={() => handleResume('this')} className="hc-btn hc-btn-secondary" style={{ flex: 1, minWidth: '140px' }}>▶ Resume {getDayName(parseInt(editModal.dayOfWeek))}s</button>}
+                      {may.update && <button type="button" disabled={suspendBusy} onClick={() => handleResume('client')} className="hc-btn hc-btn-secondary" style={{ flex: 1, minWidth: '140px' }}>▶ Resume all {getClientName(editModal.clientId)}’s days</button>}
                     </div>
                   </>
                 ) : (
@@ -1718,8 +1722,8 @@ const SchedulingHub = () => {
                         style={{ padding: '0.4rem', borderRadius: '6px', border: `1px solid ${C.line}`, fontSize: '0.85rem' }} />
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <button type="button" disabled={suspendBusy} onClick={() => handleSuspend('this')} className="hc-btn hc-btn-secondary" style={{ flex: 1, minWidth: '140px' }}>⏸ Just {getDayName(parseInt(editModal.dayOfWeek))}s</button>
-                      <button type="button" disabled={suspendBusy} onClick={() => handleSuspend('client')} className="hc-btn hc-btn-secondary" style={{ flex: 1, minWidth: '140px', border: `1px solid ${amber.line}`, color: amber.ink }}>⏸ All {getClientName(editModal.clientId)}’s days</button>
+                      {may.update && <button type="button" disabled={suspendBusy} onClick={() => handleSuspend('this')} className="hc-btn hc-btn-secondary" style={{ flex: 1, minWidth: '140px' }}>⏸ Just {getDayName(parseInt(editModal.dayOfWeek))}s</button>}
+                      {may.update && <button type="button" disabled={suspendBusy} onClick={() => handleSuspend('client')} className="hc-btn hc-btn-secondary" style={{ flex: 1, minWidth: '140px', border: `1px solid ${amber.line}`, color: amber.ink }}>⏸ All {getClientName(editModal.clientId)}’s days</button>}
                     </div>
                     <div style={{ fontSize: '0.74rem', color: C.inkSoft, marginTop: '0.4rem' }}>Pauses visits from that date on. Nothing is deleted — past visits stay, and you can resume anytime.</div>
                   </>
@@ -1727,8 +1731,8 @@ const SchedulingHub = () => {
               </div>
             )}
             <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <button onClick={handleSaveEdit} disabled={editSaving} className="hc-btn hc-btn-primary" style={{ flex: 1, minWidth: '160px' }}>{editSaving ? 'Saving...' : '✓ Save Changes'}</button>
-              <button type="button"
+              {may.update && <button onClick={handleSaveEdit} disabled={editSaving} className="hc-btn hc-btn-primary" style={{ flex: 1, minWidth: '160px' }}>{editSaving ? 'Saving...' : '✓ Save Changes'}</button>}
+              {may.create && may.update && <button type="button"
                 onClick={() => {
                   setMakeAvailableModal({
                     schedule: { id: editModal.id, date: editModal.date || null, startTime: editModal.startTime, endTime: editModal.endTime, caregiverId: editModal.caregiverId },
@@ -1739,7 +1743,7 @@ const SchedulingHub = () => {
                   setEditModal(null)
                 }}
                 className="hc-btn" style={{ background: FILL.amber, color: '#fff', border: 'none' }}
-                title="Mark this shift as available for another caregiver to pick up">📋 Move to Available Shifts</button>
+                title="Mark this shift as available for another caregiver to pick up">📋 Move to Available Shifts</button>}
               <button onClick={() => setEditModal(null)} className="hc-btn hc-btn-secondary">Cancel</button>
             </div>
           </div>
@@ -1988,14 +1992,14 @@ const SchedulingHub = () => {
                   <div key={dayNum} style={{ marginBottom: '1rem' }}>
                     <div style={groupHead}>{getDayName(parseInt(dayNum))}</div>
                     {scheds.map((s) => (
-                      <div key={s.id} onClick={() => openEditModal(s)} style={scheduleItem}>
+                      <div key={s.id} onClick={() => { if (may.update) openEditModal(s) }} style={scheduleItem}>
                         <div>
                           <span style={{ fontWeight: 600 }}>{getClientName(s.clientId)}</span>
                           <span style={{ color: C.inkSoft, marginLeft: '0.75rem' }}>{formatTime(s.startTime)} – {formatTime(s.endTime)}</span>
                           {s.frequency === 'biweekly' && <span style={{ marginLeft: '0.5rem', padding: '0.15rem 0.4rem', background: orange.bg, color: orange.ink, borderRadius: '4px', fontSize: '0.72rem' }}>Bi-Wk</span>}
                           {s.suspendedFrom && <span title={`Suspended from ${s.suspendedFrom.slice(0, 10)}`} style={{ marginLeft: '0.5rem', padding: '0.15rem 0.4rem', background: amber.bg, color: amber.ink, borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700 }}>⏸ Suspended</span>}
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(s.id, s) }} aria-label={`Delete ${getClientName(s.clientId)} ${formatTime(s.startTime)} – ${formatTime(s.endTime)}`} title="Delete this schedule" style={binBtn}>🗑</button>
+                        {may.delete && <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(s.id, s) }} aria-label={`Delete ${getClientName(s.clientId)} ${formatTime(s.startTime)} – ${formatTime(s.endTime)}`} title="Delete this schedule" style={binBtn}>🗑</button>}
                       </div>
                     ))}
                   </div>
@@ -2004,9 +2008,9 @@ const SchedulingHub = () => {
                   <div key={dateKey} style={{ marginBottom: '1rem' }}>
                     <div style={groupHead}>{formatDay(dateKey, { weekday: 'short', month: 'short', day: 'numeric' })}</div>
                     {scheds.map((s) => (
-                      <div key={s.id} onClick={() => openEditModal(s)} style={scheduleItem}>
+                      <div key={s.id} onClick={() => { if (may.update) openEditModal(s) }} style={scheduleItem}>
                         <div><span style={{ fontWeight: 600 }}>{getClientName(s.clientId)}</span><span style={{ color: C.inkSoft, marginLeft: '0.75rem' }}>{formatTime(s.startTime)} – {formatTime(s.endTime)}</span></div>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(s.id, s) }} aria-label={`Delete ${getClientName(s.clientId)} ${formatTime(s.startTime)} – ${formatTime(s.endTime)}`} title="Delete this schedule" style={binBtn}>🗑</button>
+                        {may.delete && <button onClick={(e) => { e.stopPropagation(); handleDeleteSchedule(s.id, s) }} aria-label={`Delete ${getClientName(s.clientId)} ${formatTime(s.startTime)} – ${formatTime(s.endTime)}`} title="Delete this schedule" style={binBtn}>🗑</button>}
                       </div>
                     ))}
                   </div>
@@ -2137,7 +2141,7 @@ const SchedulingHub = () => {
                         {pa.notes && <div style={{ fontSize: '0.78rem', color: C.inkSoft }}>📍 {pa.notes}</div>}
                         <span style={{ ...pill('orange'), border: `1px solid ${orange.line}` }}>Prospect</span>
                       </div>
-                      <button onClick={() => deleteProspectAppt(pa.id)} style={{ background: 'none', border: 'none', color: red.ink, cursor: 'pointer', fontSize: '0.9rem', alignSelf: 'flex-start' }} title="Cancel" aria-label="Cancel the appointment">🗑</button>
+                      {mayClients.delete && <button onClick={() => deleteProspectAppt(pa.id)} style={{ background: 'none', border: 'none', color: red.ink, cursor: 'pointer', fontSize: '0.9rem', alignSelf: 'flex-start' }} title="Cancel" aria-label="Cancel the appointment">🗑</button>}
                     </div>
                   ))}
                 </>

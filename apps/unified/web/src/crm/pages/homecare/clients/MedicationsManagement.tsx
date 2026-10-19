@@ -8,6 +8,7 @@ import { formatDate, toLocalYMD } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
 import VitalsTracker from './VitalsTracker'
 import { allRows, type Client } from './shared'
+import { useMay } from '../lib/useMay'
 
 /** A medication of GET /api/medications/client/:clientId. */
 interface Medication {
@@ -73,6 +74,9 @@ const GREY_CHIP = 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-2
 const chipStyle = { padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' } as const
 
 const MedicationsManagement = () => {
+  // Each control for whoever the server lets use it: the list is care-clients, a log entry is evv:create (lib/useMay.ts).
+  const may = useMay('care-clients')
+  const mayEvv = useMay('evv')
   const toast = useToast()
   const confirm = useConfirm()
   const [clients, setClients] = useState<Client[]>([])
@@ -218,12 +222,12 @@ const MedicationsManagement = () => {
               📋 Vitals
             </button>
             <div style={{ marginLeft: 'auto' }}>
-              {activeTab === 'medications' && (
+              {may.create && activeTab === 'medications' && (
                 <button className="hc-btn hc-btn-primary" onClick={() => { setEditingMed(null); setShowAddModal(true) }}>
                   + Add Medication
                 </button>
               )}
-              {activeTab === 'logs' && (
+              {mayEvv.create && activeTab === 'logs' && (
                 <button className="hc-btn hc-btn-primary" onClick={() => setShowLogModal(true)}>
                   + Log Administration
                 </button>
@@ -276,12 +280,12 @@ const MedicationsManagement = () => {
                               <td>{med.isPrn ? '✓ Yes' : 'No'}</td>
                               <td>
                                 <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                  <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { setEditingMed(med); setShowAddModal(true) }}>
+                                  {may.update && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { setEditingMed(med); setShowAddModal(true) }}>
                                     Edit
-                                  </button>
-                                  <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => discontinueMedication(med.id)}>
+                                  </button>}
+                                  {may.update && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => discontinueMedication(med.id)}>
                                     D/C
-                                  </button>
+                                  </button>}
                                 </div>
                               </td>
                             </tr>

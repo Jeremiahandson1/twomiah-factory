@@ -14,6 +14,7 @@ import { formatDateTime } from '../lib/datetime'
 import { serviceLabel } from '../lib/serviceTypes'
 import { allRows, type Client, type Caregiver } from './shared'
 import type { CareTask } from './CareTasksManager'
+import { useMay } from '../lib/useMay'
 
 // Same categories as the Care Tasks screen, in display order.
 const TASK_GROUPS: [string, string][] = [
@@ -133,6 +134,9 @@ const NOTE_FIELDS: [NoteKey, string, string, number][] = [
 ]
 
 export default function CarePlans() {
+  // Each control for whoever the server lets use it (care-clients; a generated schedule is care-schedule:create) (lib/useMay.ts).
+  const may = useMay('care-clients')
+  const maySchedule = useMay('care-schedule')
   const confirm = useConfirm()
   const [clients, setClients] = useState<Client[]>([])
   const [carePlans, setCarePlans] = useState<Record<string, CarePlan[]>>({})
@@ -327,8 +331,8 @@ export default function CarePlans() {
       <div className="page-header">
         <h2>Care Plans &amp; Service Agreements</h2>
         <div className="flex gap-2">
-          <button className="hc-btn hc-btn-secondary" onClick={() => setShowTemplateModal(true)} title="Start from a pre-built template">📋 Use Template ({templates.length})</button>
-          <button className="hc-btn hc-btn-primary" onClick={() => (showForm ? closeForm() : setShowForm(true))}>{showForm ? 'Cancel' : 'Add Care Plan'}</button>
+          {may.create && <button className="hc-btn hc-btn-secondary" onClick={() => setShowTemplateModal(true)} title="Start from a pre-built template">📋 Use Template ({templates.length})</button>}
+          {may.create && <button className="hc-btn hc-btn-primary" onClick={() => (showForm ? closeForm() : setShowForm(true))}>{showForm ? 'Cancel' : 'Add Care Plan'}</button>}
         </div>
       </div>
 
@@ -488,18 +492,18 @@ export default function CarePlans() {
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
                                   {(() => { const [text, cls] = planTag(plan); return <span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{text}</span> })()}
-                                  {plan.status === 'draft' && (
+                                  {may.update && plan.status === 'draft' && (
                                     <button type="button" className={`${btnSm} border-emerald-700 bg-emerald-700 text-white dark:border-emerald-600 dark:bg-emerald-700 dark:text-white`}
                                       title="Make this draft the client's current care plan" onClick={() => activatePlan(plan)}>✓ Activate</button>
                                   )}
-                                  <button type="button" className={`${btnSm} border-teal-700 bg-teal-700 text-white dark:border-teal-600 dark:bg-teal-700 dark:text-white`}
+                                  {maySchedule.create && <button type="button" className={`${btnSm} border-teal-700 bg-teal-700 text-white dark:border-teal-600 dark:bg-teal-700 dark:text-white`}
                                     onClick={() => { setShowGenModal(plan); setGenForm({ caregiverId: '', startTime: '09:00', endTime: '13:00', daysOfWeek: [], startDate: plan.startDate ? String(plan.startDate).slice(0, 10) : '', endDate: plan.endDate ? String(plan.endDate).slice(0, 10) : '' }) }}>
                                     Generate Schedule
-                                  </button>
-                                  <button type="button" className={btnNeutral} title="Edit this care plan" onClick={() => startEdit(plan)}>✏️ Edit</button>
-                                  <button type="button" className={btnNeutral} title="View previous versions of this care plan" onClick={() => loadRevisions(plan)}>📜 History</button>
-                                  <button type="button" className={btnNeutral} title="Download a printable PDF" onClick={() => downloadPdf(plan)}>📄 PDF</button>
-                                  <button type="button" className={`${btnSm} border-red-600 bg-red-600 text-white dark:border-red-500 dark:bg-red-700 dark:text-white`} onClick={() => handleDeletePlan(plan.id)}>Delete</button>
+                                  </button>}
+                                  {may.update && <button type="button" className={btnNeutral} title="Edit this care plan" onClick={() => startEdit(plan)}>✏️ Edit</button>}
+                                  {may.update && <button type="button" className={btnNeutral} title="View previous versions of this care plan" onClick={() => loadRevisions(plan)}>📜 History</button>}
+                                  {may.update && <button type="button" className={btnNeutral} title="Download a printable PDF" onClick={() => downloadPdf(plan)}>📄 PDF</button>}
+                                  {may.delete && <button type="button" className={`${btnSm} border-red-600 bg-red-600 text-white dark:border-red-500 dark:bg-red-700 dark:text-white`} onClick={() => handleDeletePlan(plan.id)}>Delete</button>}
                                 </div>
                               </div>
 

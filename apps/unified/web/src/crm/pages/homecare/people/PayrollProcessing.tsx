@@ -28,11 +28,12 @@
 // figure, so a printed stub carried invented tax lines. And the weekend / night differential boxes, which no
 // calculation read. The statement prints the earnings; the provider's stub is the pay stub.
 import { useEffect, useState, type FormEvent } from 'react'
-import { useAuth, useToast } from '../../../../shared'
+import { useAuth, useToast, usePermissions } from '../../../../shared'
 import { api, downloadBlob, errorMessage, rows, saveBlob, listAll } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { formatAgencyDateTime } from '../lib/agencyClock'
 import PaydayVerificationSetting from './PaydayVerificationSetting'
+import { useMay } from '../lib/useMay'
 import { fullName, money as formatCurrency, type CaregiverRow } from './shared'
 
 interface ShiftReview {
@@ -123,6 +124,9 @@ const stubCell = { padding: '0.5rem', border: '1px solid #ddd' } as const
 const stubNum = { ...stubCell, textAlign: 'right' } as const
 
 export default function PayrollProcessing() {
+  // Each control for whoever the server lets use it: the pay run is care-payroll:update, mileage and PTO care-payroll:create, the agency's mileage rate (PUT /api/company) owner or admin (lib/useMay.ts).
+  const mayPayroll = useMay('care-payroll')
+  const { isAdmin } = usePermissions()
   const { company } = useAuth()
   const toast = useToast()
   const [payPeriod, setPayPeriod] = useState({
@@ -510,11 +514,11 @@ export default function PayrollProcessing() {
       <div className="page-header">
         <h2>💰 Payroll Processing</h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button className="hc-btn hc-btn-primary" onClick={() => setShowMileageModal(true)}>🚗 Add Mileage</button>
-          <button className="hc-btn hc-btn-primary" onClick={() => setShowPTOModal(true)}>🏖️ Add PTO</button>
+          {mayPayroll.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowMileageModal(true)}>🚗 Add Mileage</button>}
+          {mayPayroll.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowPTOModal(true)}>🏖️ Add PTO</button>}
           <button className="hc-btn hc-btn-secondary" onClick={() => setShowSettingsModal(true)}>⚙️ Settings</button>
-          <button className="hc-btn hc-btn-secondary" onClick={() => handleExportPayroll('csv')}>📥 CSV</button>
-          <button className="hc-btn hc-btn-secondary" onClick={handleExportQuickBooks}>📤 QuickBooks</button>
+          {mayPayroll.update && <button className="hc-btn hc-btn-secondary" onClick={() => handleExportPayroll('csv')}>📥 CSV</button>}
+          {mayPayroll.update && <button className="hc-btn hc-btn-secondary" onClick={handleExportQuickBooks}>📤 QuickBooks</button>}
         </div>
       </div>
 
@@ -556,9 +560,9 @@ export default function PayrollProcessing() {
                 <label>Pay Period End</label>
                 <input type="date" value={payPeriod.endDate} onChange={(e) => setPayPeriod({ ...payPeriod, endDate: e.target.value })} />
               </div>
-              <button className="hc-btn hc-btn-primary" onClick={generateShifts} disabled={shiftLoading}>
+              {mayPayroll.update && <button className="hc-btn hc-btn-primary" onClick={generateShifts} disabled={shiftLoading}>
                 {shiftLoading ? 'Generating...' : 'Generate Shifts'}
-              </button>
+              </button>}
             </div>
           </div>
 
@@ -600,14 +604,14 @@ export default function PayrollProcessing() {
                   <option value="all">All Caregivers</option>
                   {shiftCaregivers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                <button className="hc-btn hc-btn-sm hc-btn-success" onClick={() => handleBulkApproveShifts('clocked')}
+                {mayPayroll.update && <button className="hc-btn hc-btn-sm hc-btn-success" onClick={() => handleBulkApproveShifts('clocked')}
                   disabled={!shiftData.shifts.some((s) => ['verified', 'pending'].includes(s.status) && s.timeEntryId)}>
                   Approve Clocked
-                </button>
-                <button className="hc-btn hc-btn-sm hc-btn-warning" onClick={() => handleBulkApproveShifts('all')}
+                </button>}
+                {mayPayroll.update && <button className="hc-btn hc-btn-sm hc-btn-warning" onClick={() => handleBulkApproveShifts('all')}
                   disabled={!shiftData.shifts.some((s) => ['verified', 'pending', 'missing_punch'].includes(s.status))}>
                   Approve All
-                </button>
+                </button>}
               </div>
             </div>
           )}
@@ -683,7 +687,7 @@ export default function PayrollProcessing() {
                           )}
                         </td>
                         <td>
-                          <div style={{ display: 'flex', gap: '0.2rem', flexWrap: 'wrap' }}>
+                          {mayPayroll.update && <div style={{ display: 'flex', gap: '0.2rem', flexWrap: 'wrap' }}>
                             {['pending', 'verified'].includes(shift.status) && (
                               <button className="hc-btn hc-btn-sm hc-btn-success" onClick={() => handleShiftAction(shift.id, 'approved')}>Approve</button>
                             )}
@@ -699,7 +703,7 @@ export default function PayrollProcessing() {
                             {shift.status === 'missing_punch' && (
                               <button className="hc-btn hc-btn-sm hc-btn-warning" onClick={() => openResolveModal(shift)}>Resolve</button>
                             )}
-                          </div>
+                          </div>}
                         </td>
                       </tr>
                     )
@@ -831,8 +835,8 @@ export default function PayrollProcessing() {
                 <label>End Date</label>
                 <input type="date" value={payPeriod.endDate} onChange={(e) => setPayPeriod({ ...payPeriod, endDate: e.target.value })} />
               </div>
-              <button className="hc-btn hc-btn-primary" onClick={calculatePayroll} disabled={loading}>{loading ? 'Calculating...' : 'Calculate'}</button>
-              <button className="hc-btn hc-btn-success" onClick={handleApproveAll} disabled={!payrollData.some((p) => p.status === 'draft')}>Approve All</button>
+              {mayPayroll.update && <button className="hc-btn hc-btn-primary" onClick={calculatePayroll} disabled={loading}>{loading ? 'Calculating...' : 'Calculate'}</button>}
+              {mayPayroll.update && <button className="hc-btn hc-btn-success" onClick={handleApproveAll} disabled={!payrollData.some((p) => p.status === 'draft')}>Approve All</button>}
             </div>
           </div>
 
@@ -888,8 +892,8 @@ export default function PayrollProcessing() {
                     <td>
                       <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
                         <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => generatePayStub(payroll)}>Statement</button>
-                        {payroll.status === 'draft' && <button className="hc-btn hc-btn-sm hc-btn-warning" onClick={() => handleApprovePayroll(payroll.caregiverId)}>Approve</button>}
-                        {payroll.status === 'approved' && <button className="hc-btn hc-btn-sm hc-btn-success" onClick={() => handleProcessPaycheck(payroll)}>Process</button>}
+                        {mayPayroll.update && payroll.status === 'draft' && <button className="hc-btn hc-btn-sm hc-btn-warning" onClick={() => handleApprovePayroll(payroll.caregiverId)}>Approve</button>}
+                        {mayPayroll.update && payroll.status === 'approved' && <button className="hc-btn hc-btn-sm hc-btn-success" onClick={() => handleProcessPaycheck(payroll)}>Process</button>}
                       </div>
                     </td>
                   </tr>
@@ -1119,7 +1123,7 @@ export default function PayrollProcessing() {
               <h3>Mileage</h3>
               <div className="form-group">
                 <label>Mileage Rate ($/mile)</label>
-                <input type="number" step="0.01" value={mileageRateText} onChange={(e) => setMileageRateText(e.target.value)} />
+                <input type="number" step="0.01" value={mileageRateText} onChange={(e) => setMileageRateText(e.target.value)} disabled={!isAdmin} />
                 <small className="text-muted">The agency's rate: every caregiver's mileage is paid at it. (2024 IRS standard rate is $0.67/mile.)</small>
               </div>
             </div>

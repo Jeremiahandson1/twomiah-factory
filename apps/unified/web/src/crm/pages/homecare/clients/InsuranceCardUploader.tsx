@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
 import { api, errorMessage } from '../lib/http'
+import { useMay } from '../lib/useMay'
 
 const compress = async (file: File): Promise<string> => {
   const dataUrl = await new Promise<string>((res, rej) => {
@@ -24,6 +25,8 @@ const compress = async (file: File): Promise<string> => {
 type Side = 'front' | 'back'
 
 export default function InsuranceCardUploader({ clientId }: { clientId: string }) {
+  // Uploading and removing are care-clients:update, the server's check (lib/useMay.ts).
+  const may = useMay('care-clients')
   const toast = useToast()
   const confirm = useConfirm()
   const [front, setFront] = useState<string | null>(null)
@@ -71,7 +74,7 @@ export default function InsuranceCardUploader({ clientId }: { clientId: string }
         {img ? <img src={img} alt={`Insurance card ${label.toLowerCase()}`} className="max-w-full max-h-full object-contain" />
           : <span className="text-sm text-gray-500 dark:text-slate-400">No image</span>}
       </div>
-      <div className="flex gap-1.5 mt-1.5">
+      {may.update && <div className="flex gap-1.5 mt-1.5">
         <label className="hc-btn hc-btn-sm hc-btn-secondary" style={{ cursor: busy === sideKey ? 'wait' : 'pointer', opacity: busy === sideKey ? 0.6 : 1 }}>
           {busy === sideKey ? 'Uploading…' : img ? 'Replace' : '+ Upload'}
           <input type="file" accept="image/*" capture="environment" className="hidden"
@@ -81,7 +84,7 @@ export default function InsuranceCardUploader({ clientId }: { clientId: string }
           <button type="button" disabled={busy === sideKey} onClick={() => clear(sideKey)}
             className="px-2.5 py-1 rounded-md text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200">Remove</button>
         )}
-      </div>
+      </div>}
     </div>
   )
 

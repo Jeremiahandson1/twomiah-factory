@@ -18,6 +18,7 @@ import { useState, useEffect, useCallback, type CSSProperties } from 'react'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatAgencyDateTime } from '../lib/agencyClock'
 import { usePrompt, useToast } from '../../../../shared'
+import { useMay } from '../lib/useMay'
 import { CHIP, SOLID, type Tone } from './ui'
 
 /** One flagged, finished punch. Numeric columns arrive as strings. */
@@ -66,6 +67,8 @@ const reasonLabel = (r: string | null) => (r ? String(r).split(',').map((x) => R
 export default function ShiftApprovals() {
   const toast = useToast()
   const prompt = usePrompt()
+  // Approve / edit / reject is PATCH …/approve, the office's evv:delete (visits/timeTracking.ts) — lib/useMay.ts.
+  const may = useMay('evv')
   const [list, setList] = useState<PendingEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -232,7 +235,7 @@ export default function ShiftApprovals() {
                             <button disabled={busy} style={btn('#6B7280')} onClick={cancelEdit}>Cancel</button>
                           </div>
                         </div>
-                      ) : (
+                      ) : may.delete && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                           <input
                             type="text"

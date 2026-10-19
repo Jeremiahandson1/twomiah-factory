@@ -7,6 +7,7 @@ import { api, rows, errorMessage } from '../lib/http'
 import { toLocalYMD } from '../lib/date'
 import { formatAgencyDate, formatAgencyDateTime } from '../lib/agencyClock'
 import { allRows, type Client, type Caregiver } from './shared'
+import { useMay } from '../lib/useMay'
 
 interface Category { id: string; name: string; icon: string }
 
@@ -70,6 +71,9 @@ const GREY_CHIP = 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-2
 const chipStyle = { padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' } as const
 
 const ADLTracking = () => {
+  // Each control for whoever the server lets use it: requirements are care-clients, a log entry is evv:create (lib/useMay.ts).
+  const may = useMay('care-clients')
+  const mayEvv = useMay('evv')
   const toast = useToast()
   const confirm = useConfirm()
   const [clients, setClients] = useState<Client[]>([])
@@ -234,12 +238,12 @@ const ADLTracking = () => {
               Care Requirements ({requirements.length})
             </button>
             <div style={{ marginLeft: 'auto' }}>
-              {activeTab === 'logs' && (
+              {mayEvv.create && activeTab === 'logs' && (
                 <button className="hc-btn hc-btn-primary" onClick={() => setShowLogModal(true)}>
                   + Log ADL
                 </button>
               )}
-              {activeTab === 'requirements' && (
+              {may.create && activeTab === 'requirements' && (
                 <button className="hc-btn hc-btn-primary" onClick={() => setShowAddReqModal(true)}>
                   + Add Requirement
                 </button>
@@ -310,9 +314,9 @@ const ADLTracking = () => {
                           <span style={{ fontSize: '1.5rem' }}>{getCategoryIcon(req.adlCategory)}</span>
                           <strong>{getCategoryName(req.adlCategory)}</strong>
                         </div>
-                        <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => deleteRequirement(req.id)}>
+                        {may.delete && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => deleteRequirement(req.id)}>
                           ×
-                        </button>
+                        </button>}
                       </div>
                       <div style={{ marginTop: '0.5rem' }}>
                         {getAssistanceBadge(req.assistanceLevel)}

@@ -13,6 +13,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useToast } from '../../../../shared'
 import { api, rows, errorMessage, saveBlob } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
+import { useMay } from '../lib/useMay'
 
 type Num = string | number | null | undefined
 const money = (n: Num) => `$${(parseFloat(String(n || 0)) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -84,6 +85,8 @@ const BillingEngine = () => {
 
 // ═════════════════════════════════════════ CLAIMS ═════════════════════════════════════════
 const ClaimsTab = () => {
+  // Each control for whoever the server lets use it (care-billing create / update — lib/useMay.ts).
+  const may = useMay('care-billing')
   const toast = useToast()
   const [claims, setClaims] = useState<Claim[]>([])
   const [loading, setLoading] = useState(true)
@@ -144,10 +147,12 @@ const ClaimsTab = () => {
         </div>
       )}
       <div className="mb-4 flex flex-wrap gap-2">
-        <button className="hc-btn hc-btn-primary" onClick={() => setShowBatch(true)}>Generate Claims from EVV</button>
+        {may.create && <button className="hc-btn hc-btn-primary" onClick={() => setShowBatch(true)}>Generate Claims from EVV</button>}
+        {may.update && <>
         <button className="hc-btn hc-btn-secondary" onClick={() => runExport('/api/claims/export/837p', `claims-837p-${day}.edi`, 'EDI 837P')} disabled={!selected.length}>EDI 837P ({selected.length})</button>
         <button className="hc-btn hc-btn-secondary" onClick={() => runExport('/api/claims/export/portal', `Insurer-Portal-Upload-Packet-${day}.csv`, 'Portal upload packet')} disabled={!selected.length}>Insurer Portal Export</button>
         <button className="hc-btn hc-btn-secondary" onClick={() => runExport('/api/claims/export/iris', `IRIS-FEA-Export-${day}.csv`, 'IRIS FEA export')} disabled={!selected.length}>IRIS FEA Export</button>
+        </>}
         <button className="hc-btn hc-btn-secondary" onClick={selectAllOpen}>Select All Open</button>
       </div>
 
@@ -217,7 +222,7 @@ const ClaimsTab = () => {
                     <td className={`text-xs ${(c.daysSinceSubmission ?? 0) > 60 ? 'text-red-700 dark:text-red-300' : (c.daysSinceSubmission ?? 0) > 30 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-600 dark:text-slate-400'}`}>
                       {c.daysSinceSubmission != null ? `${Math.floor(c.daysSinceSubmission)}d` : '-'}
                     </td>
-                    <td><button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setCurrent(c)}>Update</button></td>
+                    <td>{may.update && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => setCurrent(c)}>Update</button>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -373,6 +378,8 @@ interface Denial {
 }
 
 const DenialsTab = () => {
+  // Resubmit for whoever the server lets use it (care-billing:create — lib/useMay.ts).
+  const may = useMay('care-billing')
   const toast = useToast()
   const [denials, setDenials] = useState<Denial[]>([])
   const [loading, setLoading] = useState(true)
@@ -402,7 +409,7 @@ const DenialsTab = () => {
             <span>Date: {d.serviceDate ? formatDate(d.serviceDate) : '-'}</span>
             <span>Auth: {d.authNumber || '-'}</span>
             <div className="flex-1" />
-            <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => resubmit(d.id)}>Resubmit</button>
+            {may.create && <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => resubmit(d.id)}>Resubmit</button>}
           </div>
         </div>
       ))}
@@ -429,6 +436,8 @@ interface ScanResult {
 }
 
 const PaymentsTab = () => {
+  // Recording a payment for whoever the server lets (care-billing:create — lib/useMay.ts).
+  const may = useMay('care-billing')
   const toast = useToast()
   const [payments, setPayments] = useState<PayerPayment[]>([])
   const [loading, setLoading] = useState(true)
@@ -476,8 +485,10 @@ const PaymentsTab = () => {
         </div>
       )}
       <div className="mb-4 flex gap-2">
+        {may.create && <>
         <button className="hc-btn hc-btn-primary" onClick={() => setShowScanner(true)}>Scan Check</button>
         <button className="hc-btn hc-btn-secondary" onClick={() => setShowManual(true)}>Manual Payment</button>
+        </>}
       </div>
 
       {showScanner && (

@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react'
 import { useToast } from '../../../../shared'
 import { api, rows } from '../lib/http'
+import { useMay } from '../lib/useMay'
 
 interface Response {
   id: string
@@ -22,6 +23,8 @@ interface Response {
 }
 
 export default function PaydayVerificationSetting() {
+  // The switch is care-payroll:update, the server's check (lib/useMay.ts).
+  const mayPayroll = useMay('care-payroll')
   const toast = useToast()
   const [on, setOn] = useState<boolean | null>(null)
   const [responses, setResponses] = useState<Response[]>([])
@@ -62,7 +65,7 @@ export default function PaydayVerificationSetting() {
         </div>
         <div className="flex gap-2">
           <button onClick={showResponses} className="px-3 py-1.5 rounded-lg border-2 border-gray-400 bg-white dark:bg-slate-800 text-sm font-bold text-gray-700 dark:text-slate-200">{open ? 'Hide responses' : 'Responses'}</button>
-          <button onClick={toggle} className={`px-3 py-1.5 rounded-lg text-sm font-bold text-white ${on ? 'bg-gray-600 hover:bg-gray-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{on ? 'Turn off' : 'Turn on'}</button>
+          {mayPayroll.update && <button onClick={toggle} className={`px-3 py-1.5 rounded-lg text-sm font-bold text-white ${on ? 'bg-gray-600 hover:bg-gray-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{on ? 'Turn off' : 'Turn on'}</button>}
         </div>
       </div>
       {open && (

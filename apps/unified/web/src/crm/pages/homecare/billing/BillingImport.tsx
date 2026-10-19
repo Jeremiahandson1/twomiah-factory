@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useToast } from '../../../../shared'
 import { api, rows, errorMessage, listAll } from '../lib/http'
+import { useMay } from '../lib/useMay'
 
 // Column header aliases → canonical field names
 const HEADER_MAP: Record<string, string> = {
@@ -102,6 +103,8 @@ interface ImportResult { imported: number; skipped: number; invoicesCreated: num
 /** Every client and caregiver for the matching (both lists page at 50 by default). */
 
 const BillingImport = () => {
+  // The import writes invoices: offered to whoever the server lets (care-billing:create — lib/useMay.ts).
+  const may = useMay('care-billing')
   const toast = useToast()
   const [step, setStep] = useState(1)
   const [clients, setClients] = useState<Client[]>([])
@@ -214,12 +217,12 @@ const BillingImport = () => {
         <p className="mb-6 text-gray-600 dark:text-slate-400">
           Upload a CSV exported from an insurer portal or a spreadsheet. Each client's rows become one draft invoice per month of service.
         </p>
-        <button type="button" onClick={() => fileRef.current?.click()}
+        {may.create && <button type="button" onClick={() => fileRef.current?.click()}
           className="w-full cursor-pointer rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
           <div className="mb-3 text-5xl" aria-hidden="true">📄</div>
           <p className="mb-1 font-semibold">Click to select a CSV file</p>
           <p className="text-sm text-gray-600 dark:text-slate-400">Member / Medicaid ID or name, service date, units or hours, rate or amount, provider</p>
-        </button>
+        </button>}
         <input ref={fileRef} type="file" accept=".csv" onChange={handleFileUpload} className="hidden" aria-label="CSV file to import" />
         <div className="mt-6 rounded-lg bg-sky-50 p-4 text-sm text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
           <strong>Supported columns:</strong> Member ID / Medicaid ID, Member Name (or First / Last Name), Service Date, Units/Hours, Rate, Amount, Procedure Code, Provider Name
@@ -238,9 +241,9 @@ const BillingImport = () => {
           </div>
           <div className="flex gap-2">
             <button type="button" className="hc-btn hc-btn-secondary" onClick={reset}>Cancel</button>
-            <button type="button" className="hc-btn hc-btn-primary" onClick={handleImport} disabled={importing || ready.length === 0}>
+            {may.create && <button type="button" className="hc-btn hc-btn-primary" onClick={handleImport} disabled={importing || ready.length === 0}>
               {importing ? 'Importing...' : `Import ${ready.length} rows`}
-            </button>
+            </button>}
           </div>
         </div>
 

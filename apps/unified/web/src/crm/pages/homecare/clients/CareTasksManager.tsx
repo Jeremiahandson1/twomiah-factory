@@ -7,6 +7,7 @@ import { useConfirm } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatAgencyDate } from '../lib/agencyClock'
 import type { Client } from './shared'
+import { useMay } from '../lib/useMay'
 
 const CATEGORIES = [
   { value: 'adl', label: 'ADL (bathing, dressing…)' },
@@ -81,6 +82,8 @@ const emptyForm: TaskForm = { taskName: '', description: '', category: 'iadl', a
 const inp = 'px-2 py-2 rounded-md border text-sm border-gray-300 bg-white text-gray-900 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100'
 
 export default function CareTasksManager({ client, onClose }: { client: Client; onClose: () => void }) {
+  // Each control for whoever the server lets use it (care-clients create / update / delete) (lib/useMay.ts).
+  const may = useMay('care-clients')
   const confirm = useConfirm()
   const [tasks, setTasks] = useState<CareTask[]>([])
   const [loading, setLoading] = useState(true)
@@ -231,12 +234,12 @@ export default function CareTasksManager({ client, onClose }: { client: Client; 
 
         <div className="flex-1 overflow-auto px-5 py-4">
           <div className="flex flex-wrap gap-2 mb-3">
-            <button type="button" onClick={() => setShowImport((v) => !v)} className="hc-btn hc-btn-sm hc-btn-secondary">
+            {may.create && <button type="button" onClick={() => setShowImport((v) => !v)} className="hc-btn hc-btn-sm hc-btn-secondary">
               {showImport ? '▾ Hide assessment import' : '▸ Import from an assessment'}
-            </button>
-            <button type="button" onClick={() => { const next = !showAdherence; setShowAdherence(next); if (next && !adherence) loadAdherence() }} className="hc-btn hc-btn-sm hc-btn-secondary">
+            </button>}
+            {may.update && <button type="button" onClick={() => { const next = !showAdherence; setShowAdherence(next); if (next && !adherence) loadAdherence() }} className="hc-btn hc-btn-sm hc-btn-secondary">
               {showAdherence ? "▾ Hide what's getting done" : "📊 What's getting done"}
-            </button>
+            </button>}
           </div>
 
           {showAdherence && (
@@ -308,7 +311,7 @@ export default function CareTasksManager({ client, onClose }: { client: Client; 
                   </div>
                   <label className="hc-btn hc-btn-sm hc-btn-primary inline-block mb-2" style={{ cursor: pdfReading ? 'wait' : 'pointer' }}>
                     {pdfReading ? 'Reading PDF…' : '📄 Upload assessment PDF'}
-                    <input type="file" accept="application/pdf,.pdf" disabled={pdfReading} className="hidden"
+                    <input type="file" accept="application/pdf,.pdf" disabled={pdfReading || !may.update} className="hidden"
                       onChange={(e) => { readPdf(e.target.files?.[0]); e.target.value = '' }} />
                   </label>
                   <div className="text-xs mb-1">Or paste JSON:</div>
@@ -383,7 +386,7 @@ export default function CareTasksManager({ client, onClose }: { client: Client; 
             </div>
           )}
 
-          <div className={`rounded-xl p-3 mb-4 ${editingId ? 'bg-amber-50 text-amber-950 dark:bg-amber-950 dark:text-amber-50' : 'bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100'}`}>
+          {(editingId ? may.update : may.create) && <div className={`rounded-xl p-3 mb-4 ${editingId ? 'bg-amber-50 text-amber-950 dark:bg-amber-950 dark:text-amber-50' : 'bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100'}`}>
             <div className="font-bold text-sm mb-2">{editingId ? '✏️ Edit Task' : '+ Add Task'}</div>
             <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: '2fr 1fr 1fr' }}>
               <input aria-label="Task name" placeholder="Task name (e.g. Dust/Vacuum)" value={form.taskName} onChange={(e) => setForm({ ...form, taskName: e.target.value })} className={inp} />
@@ -417,7 +420,7 @@ export default function CareTasksManager({ client, onClose }: { client: Client; 
               {editingId && <button type="button" onClick={reset} className="hc-btn hc-btn-secondary hc-btn-sm">Cancel</button>}
             </div>
             {error && <div className="mt-2 text-sm font-semibold text-red-700 dark:text-red-300">{error}</div>}
-          </div>
+          </div>}
 
           {loading ? (
             <div className="text-center p-8 text-gray-500 dark:text-slate-400">Loading…</div>
@@ -440,8 +443,8 @@ export default function CareTasksManager({ client, onClose }: { client: Client; 
                       {t.timeOfDay && t.timeOfDay !== 'any' ? ` · ${t.timeOfDay}` : ''}
                     </div>
                   </div>
-                  <button type="button" onClick={() => edit(t)} className="hc-btn hc-btn-sm hc-btn-secondary">Edit</button>
-                  <button type="button" onClick={() => remove(t)} className="px-2.5 py-1 rounded-md text-xs border border-red-300 bg-white text-red-700 dark:border-red-700 dark:bg-slate-900 dark:text-red-300">Remove</button>
+                  {may.update && <button type="button" onClick={() => edit(t)} className="hc-btn hc-btn-sm hc-btn-secondary">Edit</button>}
+                  {may.delete && <button type="button" onClick={() => remove(t)} className="px-2.5 py-1 rounded-md text-xs border border-red-300 bg-white text-red-700 dark:border-red-700 dark:bg-slate-900 dark:text-red-300">Remove</button>}
                 </div>
               ))}
             </div>

@@ -17,6 +17,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useConfirm } from '../../../../shared'
 import { api, errorMessage, rows } from '../lib/http'
 import { formatDate, parseLocalDate } from '../lib/date'
+import { useMay } from '../lib/useMay'
 
 interface CaregiverSummary {
   id: string
@@ -58,6 +59,8 @@ interface Certification {
 const EMPTY_CERT = { certificationName: '', issuedDate: '', expirationDate: '', certificationNumber: '', issuer: '' }
 
 export default function CaregiverProfile() {
+  // Each control for whoever the server lets use it (care-hr create / update / delete) (lib/useMay.ts).
+  const mayHr = useMay('care-hr')
   const { id: caregiverId = '' } = useParams()
   const navigate = useNavigate()
   const confirm = useConfirm()
@@ -190,9 +193,9 @@ export default function CaregiverProfile() {
       <div className="page-header">
         <button className="hc-btn hc-btn-secondary" onClick={onBack}>Back</button>
         <h2>{caregiver.firstName} {caregiver.lastName}</h2>
-        <button className="hc-btn hc-btn-primary" onClick={() => setEditing(!editing)}>
+        {mayHr.update && <button className="hc-btn hc-btn-primary" onClick={() => setEditing(!editing)}>
           {editing ? 'Done' : 'Edit'}
-        </button>
+        </button>}
       </div>
 
       {message && (
@@ -231,9 +234,9 @@ export default function CaregiverProfile() {
       <div className="hc-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', paddingBottom: '1rem', borderBottom: '1px solid var(--hc-line)' }}>
           <h3 style={{ margin: 0 }}>Certifications &amp; Credentials</h3>
-          <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => setEditingCerts(!editingCerts)}>
+          {mayHr.create && <button className="hc-btn hc-btn-sm hc-btn-primary" onClick={() => setEditingCerts(!editingCerts)}>
             {editingCerts ? 'Cancel' : 'Add Certification'}
-          </button>
+          </button>}
         </div>
 
         {editingCerts && (
@@ -300,9 +303,9 @@ export default function CaregiverProfile() {
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       {expired && <span className="hc-badge hc-badge-danger">EXPIRED</span>}
                       {expiringSoon && !expired && <span className="hc-badge hc-badge-warning">EXPIRING SOON</span>}
-                      <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDeleteCertification(cert.id)}>
+                      {mayHr.delete && <button className="hc-btn hc-btn-sm hc-btn-danger" onClick={() => handleDeleteCertification(cert.id)}>
                         Delete
-                      </button>
+                      </button>}
                     </div>
                   </div>
 
