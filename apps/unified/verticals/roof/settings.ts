@@ -87,7 +87,9 @@ const roof: VerticalSettings = {
     // The roofer's own home and screens (web/src/crm/verticals/roof.tsx).
     home: 'roofing',
     // A quote is for one of the homeowner's jobs (quote.job_id): the shared quote form offers them.
-    invoicing: { clientLabel: 'Homeowner', projects: false, quoteJobs: true, quoteNamePlaceholder: 'e.g. Full roof replacement' },
+    // pricebook: roofing is sold the Pricebook (featureRegistry), and a quote or invoice line is priced from it, with its
+    // cost recorded, as for the other trades that sell it; roofing's own app had no pricebook behind the switch at all.
+    invoicing: { clientLabel: 'Homeowner', projects: false, quoteJobs: true, quoteNamePlaceholder: 'e.g. Full roof replacement', pricebook: true },
     documents: { projects: false, markup: true, types: DOC_TYPES },
   },
   // templates/website-premium-roofing views/sections/contact/form-info.ejs

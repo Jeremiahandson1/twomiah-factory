@@ -239,11 +239,14 @@ export default function JobDetailPage() {
 
   const [measurement, setMeasurement] = useState<Measurement | null>(null)
 
+  // Measurements are their own switch (measurement_reports): with it off the card shows the job's squares alone.
+  const measurementsOn = hasFeature('measurement_reports')
   const loadMeasurement = useCallback(async () => {
+    if (!measurementsOn) { setMeasurement(null); return }
     try {
       setMeasurement(await api.get(`/api/measurements/job/${id}`) as Measurement)
     } catch { setMeasurement(null) /* 404: none filed on this job */ }
-  }, [id])
+  }, [id, measurementsOn])
 
   useEffect(() => { if (id) loadMeasurement() }, [id, loadMeasurement])
 
@@ -605,7 +608,7 @@ export default function JobDetailPage() {
                       </span>
                     ) : <p className="text-sm text-gray-500 dark:text-slate-400">No measurement report</p>}
                   </div>
-                  {mayOrderMeasurement && (<button
+                  {mayOrderMeasurement && measurementsOn && (<button
                     onClick={orderMeasurement}
                     className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                   >

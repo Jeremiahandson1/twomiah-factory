@@ -1,7 +1,7 @@
 // /api/measurements — a roof measured from Google Solar for a credit, read back, regenerated when it failed, or entered
 // by hand where the imagery is too poor. Moved from templates/crm-roof/backend/src/routes/measurements.ts; the measuring
-// is packages/roof-core's (getFullRoofReport). Mounted 'user' and ungated, as the template mounted it and as its menu
-// shows it (Measurements carries no feature in AppLayout).
+// is packages/roof-core's (getFullRoofReport). Mounted behind measurement_reports (./index.ts): the template mounted it
+// ungated.
 //
 // Changes from the template:
 //   · a credit is spent in one statement that takes it only where one is left (data/roofReports.ts), before the report

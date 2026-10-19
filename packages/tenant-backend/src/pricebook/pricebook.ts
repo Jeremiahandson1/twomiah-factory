@@ -58,7 +58,9 @@ const itemFields = {
   active: z.boolean().optional(),
   showToCustomer: z.boolean().optional(),
   imageUrl: z.string().trim().url().max(1000).nullable().optional().or(z.literal('')),
-  laborHours: z.union([z.number(), z.string().trim().regex(/^\d+(\.\d+)?$/), z.literal('')]).transform((v) => (v === '' ? null : Number(v))).pipe(z.number().min(0).max(1000).nullable()).optional(),
+  // Blank is "not known": the Pricebook form sends null for an empty box, an import or an older client ''. Refusing null
+  // refused every item saved from the form without labour hours ("laborHours: Invalid input"). (2026-10-19)
+  laborHours: z.union([z.number(), z.string().trim().regex(/^\d+(\.\d+)?$/), z.literal(''), z.null()]).transform((v) => (v === '' || v === null ? null : Number(v))).pipe(z.number().min(0).max(1000).nullable()).optional(),
 }
 export const itemCreateSchema = z.object(itemFields)
 export const itemUpdateSchema = z.object(itemFields).partial()
@@ -184,7 +186,19 @@ export function createPricebookService(deps: PricebookServiceDeps) {
     async updateCategory(companyId: string, id: string, input: unknown) {
       const p = categoryUpdateSchema.safeParse(input); if (!p.success) throw new PricebookError(400, zodMsg(p.error))
       if (!(await ownCategory(companyId, id))) throw new PricebookError(404, 'Category not found')
-      if (p.data.parentId) { if (p.data.parentId === id) throw new PricebookError(400, 'A category cannot be its own parent'); await checkCategory(companyId, p.data.parentId) }
+      if (p.data.parentId) {
+        if (p.data.parentId === id) throw new PricebookError(400, 'A category cannot be its own parent')
+        await checkCategory(companyId, p.data.parentId)
+        // Nor sit under one of its own sub-categories: the two would point at each other, neither would be at the top,
+        // and the page (which draws the tree from the top) would lose both and everything under them. (2026-10-19)
+        const seen = new Set<string>()
+        for (let at: string | null = p.data.parentId; at && !seen.has(at); ) {
+          if (at === id) throw new PricebookError(400, 'A category cannot sit under one of its own sub-categories')
+          seen.add(at)
+          const [up]: Array<{ parentId: string | null }> = await db.select({ parentId: C.parentId }).from(C).where(and(eq(C.id, at), eq(C.companyId, companyId))).limit(1)
+          at = up?.parentId ?? null
+        }
+      }
       const set: Record<string, any> = {}
       for (const k of ['name', 'description', 'parentId', 'active', 'sortOrder'] as const) if (p.data[k] !== undefined) set[k] = p.data[k]
       if (!Object.keys(set).length) throw new PricebookError(400, 'Nothing to update')
@@ -311,7 +325,18 @@ export function createPricebookService(deps: PricebookServiceDeps) {
           }
           const code = typeof row?.code === 'string' ? row.code.trim().slice(0, 50) : ''
           const [existing] = code ? await db.select({ id: I.id }).from(I).where(and(eq(I.companyId, companyId), eq(I.code, code))).limit(1) : []
-          const payload = { name: row?.name, code: code || undefined, categoryId, description: row?.description ?? null, price: row?.price ?? 0, cost: row?.cost ?? 0 }
+          // Only the columns the row carries. An update by code used to write every column — a price list without a
+          // category or cost column wiped each item's category and set its cost to 0 (2026-10-19). A new item takes the
+          // defaults for what the row leaves out.
+          const has = (k: string) => row && Object.prototype.hasOwnProperty.call(row, k) && row[k] !== '' && row[k] !== null && row[k] !== undefined
+          const flag = (v: unknown) => (typeof v === 'boolean' ? v : /^(true|yes|1)$/i.test(String(v).trim()) ? true : /^(false|no|0)$/i.test(String(v).trim()) ? false : undefined)
+          const payload: Record<string, unknown> = { name: row?.name, code: code || undefined }
+          if (catName) payload.categoryId = categoryId
+          if (has('description')) payload.description = row.description
+          if (has('price') || !existing) payload.price = has('price') ? row.price : 0
+          if (has('cost')) payload.cost = row.cost
+          if (has('taxable') && flag(row.taxable) !== undefined) payload.taxable = flag(row.taxable)
+          if (has('active') && flag(row.active) !== undefined) payload.active = flag(row.active)
           if (existing) { if (updateExisting) { await this.updateItem(companyId, existing.id, payload); results.updated++ } }
           else { await this.createItem(companyId, payload); results.created++ }
         } catch (e: any) { results.errors.push({ row: i + 1, error: String(e?.message || e).slice(0, 300) }) }
@@ -386,7 +411,9 @@ export function createPricebookRoutes(deps: PricebookRoutesDeps) {
   app.post('/categories/reorder', requirePermission('pricebook:update'), run(async (c, u) => svc.reorderCategories(u.companyId, (await body(c))?.orderedIds)))
   app.get('/items', run(async (c, u) => svc.getItems(u.companyId, c.req.query()), 200, true))
   app.get('/search', run(async (c, u) => svc.searchForQuoting(u.companyId, c.req.query('q') || ''), 200, true))
-  app.get('/export', requirePermission('pricebook:read'), run(async (_c, u) => svc.exportItems(u.companyId)))
+  // The export carries cost like the list does, so it is shaped the same way: a seat granted pricebook:read without
+  // margin:read gets the prices alone. (2026-10-19)
+  app.get('/export', requirePermission('pricebook:read'), run(async (_c, u) => svc.exportItems(u.companyId), 200, true))
   app.post('/import', requirePermission('pricebook:create'), run(async (c, u) => svc.importItems(u.companyId, await body(c))))
   app.post('/bulk/adjust-prices', requirePermission('pricebook:update'), run(async (c, u) => svc.bulkAdjust(u.companyId, await body(c))))
   app.get('/calculate-price', run(async (c) => {

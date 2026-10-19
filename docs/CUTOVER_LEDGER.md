@@ -282,7 +282,7 @@ Roofers use the CRM's own customers, jobs, quotes, invoices, payments and portal
 - found in the browser: two headers ran off a phone's screen (Measurements, Canvassing), the credit-pack picker's chosen amount was pale on purple in dark mode, and two restaurant toggles had the same fault (a trailing dark class over the chosen colours); grey labels on a chosen card's brand tint (contacts' type cards, storm events) read below 4.5:1.
 - the pricebook and estimator trial pages have no link in — the templates linked them from the landing page's promo cards, which the unified app doesn't have — and need none: the Pricebook is offered to roofing and the owner switches it on in Settings › Features (no request to Twomiah), and the Instant Roof Estimator is a not-ready feature offered to no one until the owner decides (below). The pages stay at their addresses for an old link.
 
-**Roofing — for the owner before roof reports, the estimator and storm alerts are offered** (all three are hidden, not-ready features today, so no tenant reaches them):
+**Roofing — for the owner before roof reports, the estimator and storm alerts are offered** (all three are not-ready features, offered to no one; owner, 2026-10-19: "none of those roof features should be on"). Roof reports and the estimator were already marked not-ready; storm radar was still offered — any roofer's owner could switch it on in Settings › Features over placeholder providers — and is marked not-ready now (`featureRegistry.ts` `storm_radar_overlay`). Storm leads stay: a storm the roofer enters by hand, matched against their own customers, with no outside feed.
 - Buying measurement credits adds them with no payment (the template's "demo mode", always on): any admin can add 1,000. It needs a Stripe checkout and confirmation like the report purchase.
 - The public instant estimator has no rate limit, and every call is a billed Google Solar request and a new contact.
 - A paid roof report is made only when the roofer's browser comes back from Stripe; there is no Stripe webhook, and two confirmations at once can make it twice.
@@ -290,3 +290,33 @@ Roofers use the CRM's own customers, jobs, quotes, invoices, payments and portal
 - Storm radar providers are stubs, as in the template.
 
 **A job's money is one rule** (`packages/tenant-backend/src/jobs/jobMoney.ts`): the quoted value under `quotes:read`, roofing's revenue and claim money under `invoices:read`, its costs under `margin:read`. Two copies of the rule existed (the shared jobs module's and roofing's); with roofing's columns on the shared table, any route returning a whole job row was a side door. A walk of every GET route as a seat without those permissions (`apps/unified/tests/job-money-walk.test.ts`, 700 calls, mutation-checked) found and closed seven: the jobs module's own write replies (create, edit, start, complete, dispatch — a field seat got RCV and costs back from Start), the technician's view and its moves, a subcontractor's portal "complete", a warranty claim's status reply, quote → job conversion, a project's job list, and route optimisation (which also asks no permission at all — noted, not changed). Roofing's job photos are read by their bytes for every vertical now (the shared module fell back to the declared type), and an upload with no photo store set up is a plain 503, not a failed send. **Open:** live updates (`emitToCompany` JOB_CREATED / JOB_UPDATED) broadcast the whole row; the transport isn't wired yet (`core/realtime.ts` is in-process), and when it is, each recipient's payload must be shaped by the same rule.
+
+## Not-ready features and the Pricebook, tested (2026-10-19)
+
+**Off until tested (owner: "none of those roof features should be on"; "ads shouldnt be on util it is tested"):** roof
+reports, the instant estimator, storm radar and the Paid Ads Hub are the registry's not-ready features. No path switches
+one on: the owner's Features page neither lists nor saves them, and the Factory's first setup and feature sync drop them
+(`withoutNotReady`, `packages/tenant-backend/src/featureRegistry.ts`) — the Factory's admin already did. Each one's API
+refuses while it is off. Two were reachable regardless: storm radar was still offered (now not-ready), and **Measurements**
+— ordering a Google Solar roof measurement on Twomiah's key, and adding credits with no payment — had no switch at all,
+in the template or here; it is behind `measurement_reports` now, menu, API and the job page's card alike. Held by
+`apps/unified/tests/not-ready-features.test.ts` (each guard mutation-checked).
+
+**The Pricebook** (`packages/tenant-backend/src/pricebook/pricebook.ts`, `packages/tenant-ui/src/pricebook`), tested end to
+end: `apps/unified/tests/pricebook.test.ts` (13 checks over the switch, seats, categories, items, Good/Better/Best, bulk
+price changes, import/export, and use on a quote) and the screens in a browser as a roofer (add an item, its options,
+search, price a quote line from it, the crew rep's read-only view: 16 checks). Found and fixed:
+- **an item could not be saved from the form without labour hours** — the form sends an empty box as `null` and the
+  server refused it ("laborHours: Invalid input"). **The live contractor and field-service pricebooks have this fault
+  today** (same code on `main`; not changed from this branch — the owner's to schedule);
+- re-importing a price list to change prices wiped each item's category and set its cost to $0 when the file left those
+  columns out; an import now writes only the columns a row carries, and reads back the export's taxable and active;
+- a category could be set under its own sub-category, and both then vanished from the page;
+- the export handed cost and margin to a seat granted the pricebook without margin:read;
+- roofing sold the Pricebook but its quotes and invoices could not use it (roofing's own app had no pricebook behind the
+  switch at all — only a trial card); a roofer's quote and invoice lines are priced from it now.
+
+**Open, for the owner:** the Pricebook is also offered to home care, which has no quotes or invoices to price — a
+catalogue nothing uses. And the customer "presentation" page (`/api/pricebook-present/:id`, Good/Better/Best shown full
+screen) has no link from any screen, shows items that are switched off or hidden from customers, and relabels the
+tiers "Sign Today / Within 30 Days / Valid 1 Year" — not what Good/Better/Best means. Neither is changed here.

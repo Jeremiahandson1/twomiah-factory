@@ -307,8 +307,8 @@ describe('roof reports', () => {
       expect([off.status, off.body.code]).toEqual([403, 'FEATURE_NOT_ENABLED'])
       expect((await t.call(`/api/roof-reports/${ids.report}/html`)).status).toBe(200)
       expect((await t.call(`/api/roof-reports/${ids.report}/aerial.png`)).status).toBe(200)
-      // Measurements are not behind it (the template's menu shows them always).
-      expect((await as('owner')('/api/measurements')).status).toBe(200)
+      // Measurements are behind it too (owner, 2026-10-19 — the template left them open; not-ready-features.test.ts).
+      expect((await as('owner')('/api/measurements')).status).toBe(403)
     } finally {
       await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'jobs', 'measurement_reports', 'instant_estimator'] } as any).where(eq(t.schema.company.id, companyId))
       t.services.features.forgetFeatures()

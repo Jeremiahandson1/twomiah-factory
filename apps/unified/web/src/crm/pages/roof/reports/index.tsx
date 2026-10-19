@@ -6,7 +6,8 @@
 // features, and the shell blocks a URL under a menu item whose features are all off (packages/tenant-ui shell
 // routeGate.ts) — so /crm/roof-reports and /crm/roof-reports/:id are behind measurement_reports (the template's
 // FeatureRoute) and /crm/estimator behind instant_estimator (the template's page said "not enabled on your plan").
-// Measurements, the estimator's Settings page and the trial offer were ungated in the template and are here.
+// Measurements is behind measurement_reports too (the template showed it ungated; its API is gated the same way now).
+// The estimator's Settings page and the trial offer were ungated in the template and are here.
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
 import { Calculator, FileBarChart, Ruler } from 'lucide-react'
@@ -37,7 +38,7 @@ export const routes: ReactElement[] = [
  * its feature; the estimator page reads GET /api/company).
  */
 export const nav: NavItem[] = [
-  { to: '/crm/measurements', icon: Ruler, label: 'Measurements' },
+  { to: '/crm/measurements', icon: Ruler, label: 'Measurements', features: ['measurement_reports'] },
   { to: '/crm/estimator', icon: Calculator, label: 'Roof Estimator', features: ['instant_estimator'] },
   { to: '/crm/roof-reports', icon: FileBarChart, label: 'Roof Reports', features: ['measurement_reports'] },
 ]

@@ -270,7 +270,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'gantt_charts', name: 'Gantt Chart', description: 'Project schedule as a Gantt chart with dependencies', category: 'Construction', core: false, templates: ['crm'] },
 
   // Roofing
-  { id: 'storm_radar_overlay', name: 'Storm Radar', description: 'Live storm radar overlay on the service-area map', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'storm_radar_overlay', name: 'Storm Radar', description: 'Live storm radar overlay on the service-area map — not yet available', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
 
   // Dispensary — sidebar modules that had no registry entry
   { id: 'checkin', name: 'Customer Check-In', description: 'Front-desk check-in with ID capture', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
@@ -305,6 +305,16 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 ]
 
 export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f]))
+
+/**
+ * A feature list with the not-ready (hidden) ones taken out. A not-ready feature is switched on by no path — the
+ * owner's Features page, the Factory's admin, a tenant's first setup or a feature sync — so a door that writes the list
+ * from outside passes it through this. (Owner, 2026-10-19: storm radar, roof reports, the estimator and Ads stay off
+ * until they are tested.)
+ */
+export function withoutNotReady(features: string[]): string[] {
+  return features.filter((f) => !FEATURE_MAP[f]?.hidden)
+}
 
 export function getCategories(): string[] {
   const seen = new Set<string>()

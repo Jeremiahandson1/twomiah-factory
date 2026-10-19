@@ -3,7 +3,10 @@
 // index.ts' Factory review endpoints). Moved from templates/crm-roof/backend/src.
 //
 // Gates, both sides the same (templates/crm-roof index.ts and frontend AppLayout.tsx):
-//   · /api/measurements — ungated, as the template mounted it; its menu item (Measurements) carries no feature;
+//   · /api/measurements — measurement_reports, the switch whose name and description are this module ("Satellite roof
+//     measurement ordering"); the template mounted it ungated and showed its menu item to every roofer, so a roofer
+//     could order Google Solar measurements and add credits without paying while the feature was not ready (owner,
+//     2026-10-19: "none of those roof features should be on"). Its menu item and the job page's card carry it too;
 //   · /api/roof-reports — measurement_reports, applied inside the router after the two shared-link paths;
 //   · /api/estimator — public, behind instant_estimator (the menu's Roof Estimator switch; the template's API had none);
 //   · /api/settings — only PUT /estimator; ungated, as the template's settings router and its Settings card were.
@@ -16,7 +19,7 @@ import { createEstimatorRoutes, createEstimatorSettingsRoutes } from './estimato
 
 export function reportsMounts(d: CrmDeps): Mount[] {
   return [
-    { path: '/api/measurements', access: 'user', router: createMeasurementRoutes(d) },
+    { path: '/api/measurements', access: 'user', feature: 'measurement_reports', router: createMeasurementRoutes(d) },
     { path: '/api/roof-reports', access: 'public', router: createRoofReportRoutes(d) },
     { path: '/api/internal/roof-reports', access: 'factory', router: createRoofReportInternalRoutes(d) },
     { path: '/api/estimator', access: 'public', feature: 'instant_estimator', router: createEstimatorRoutes(d) },

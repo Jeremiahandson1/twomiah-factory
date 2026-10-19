@@ -6,6 +6,7 @@ import { Hono } from 'hono'
 import {
   createCompanyRoutes, createBillingRoutes, createSubscriptionSyncRoute, createAccountRoutes, createFactoryApiClient,
   createEmailAliasesRoutes, createEmailAliasesInternalRoute, createLeadsRoutes, TRADES_LEAD_PLATFORMS, refreshSubscriptionFromFactory,
+  withoutNotReady,
 } from '@twomiah/tenant-backend'
 import { asc, eq } from 'drizzle-orm'
 import { company, user, emailAlias, lead, leadSource, contact } from '../db/schema/index.ts'
@@ -119,15 +120,17 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       return one(c, await auditFilterOptions(db, u.companyId))
     })
 
-  // The Factory sets which features this tenant has (it replaces the list; the Factory reconciles first).
+  // The Factory sets which features this tenant has (it replaces the list; the Factory reconciles first). A not-ready
+  // feature in it is dropped: no path switches one on (withoutNotReady).
   const syncFeatures = new Hono().post('/', async (c) => {
     const body = await c.req.json().catch(() => ({})) as { features?: unknown }
     if (!Array.isArray(body.features) || !body.features.every((f) => typeof f === 'string')) return fail(c, 400, 'features must be an array of feature ids')
     const [co] = await db.select({ id: company.id }).from(company).orderBy(asc(company.createdAt)).limit(1)
     if (!co) return fail(c, 404, 'No company found')
-    await db.update(company).set({ enabledFeatures: body.features, updatedAt: new Date() }).where(eq(company.id, co.id))
+    const features = withoutNotReady(body.features as string[])
+    await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, co.id))
     deps.features.forgetFeatures(co.id)
-    void deps.adsConnector.onFeaturesChanged(body.features as string[])
+    void deps.adsConnector.onFeaturesChanged(features)
     return done(c)
   })
 
