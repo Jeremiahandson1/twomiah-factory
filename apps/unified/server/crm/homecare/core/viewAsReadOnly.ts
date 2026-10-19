@@ -5,9 +5,9 @@
 // `impersonation: true`). Any request that is not a read made with such a token is refused 403 here, before any route
 // runs — the same rule the client portal's admin preview has. Signing out is the one write allowed.
 //
-// In the template it was mounted on /api/* above every route. The unified app has no View As yet (the shared sign-in
-// issues no impersonation token); this is kept for the route that issues one, and must be mounted in front of the
-// home-care routes when it is. The token is read the way the app's sign-in reads it (header or session cookie).
+// In the template it was mounted on /api/* above every route. Here it runs inside the app's one sign-in check for a
+// home-care tenant (office/signIn.ts withHomecareSessions), before every signed-in route. The token is read the way
+// the app's sign-in reads it (the header, the View As cookie, or the session cookie).
 import type { Context, Next } from 'hono'
 import jwt from 'jsonwebtoken'
 import { requestToken } from '@twomiah/tenant-backend'

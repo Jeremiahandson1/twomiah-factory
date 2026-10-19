@@ -26,11 +26,13 @@ function Spinner({ label }: { label?: string }) {
 }
 
 export function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string | string[] }) {
-  const { isAuthenticated, loading, user, company } = useAuth()
+  const { isAuthenticated, loading, user, company, sessionEnded } = useAuth()
   const location = useLocation()
 
   if (loading) return <Spinner label="Loading..." />
-  if (!isAuthenticated) return <Redirect to="/login" state={{ from: location }} />
+  // A session that ran out mid-use goes to sign-in saying so, not to a bare form (home care's Run 3 had it; the shared
+  // guard dropped it).
+  if (!isAuthenticated) return <Redirect to={sessionEnded ? '/login?expired=1' : '/login'} state={{ from: location }} />
 
   // Hard-lock a locked company — an ended subscription or an expired trial — onto the paywall for every route
   // except the way back: billing, the paywall itself, and logout. The server refuses the rest anyway.

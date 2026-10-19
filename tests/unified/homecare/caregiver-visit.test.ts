@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/caregiver-visit.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 3 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 11 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — Run 3, the caregiver app (HIGH 7 and the caregiver-phone items):
 //   1. the client card's Medications reads the medications table (the MAR list), not only the
@@ -34,7 +34,14 @@ delete process.env.AGENCY_TIMEZONE
 await setupSchema()
 
 const ROOT = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'
-const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
+const HC_WEB = (process.env.FACTORY_ROOT || '') + 'apps/unified/web/src/crm/pages/homecare/'
+const MOVED: Record<string, string> = {
+  'frontend/src/components/CareTaskChecklist.tsx': 'apps/unified/web/src/crm/pages/homecare/visits/CareTaskChecklist.tsx',
+  'frontend/src/components/caregiver/ShiftMissReport.tsx': 'apps/unified/web/src/crm/pages/homecare/visits/caregiver/ShiftMissReport.tsx',
+  'frontend/src/components/CaregiverDashboard.tsx': 'apps/unified/web/src/crm/pages/homecare/visits/CaregiverDashboard.tsx',
+  'frontend/src/components/caregiver/VisitCarePanel.tsx': 'apps/unified/web/src/crm/pages/homecare/visits/caregiver/VisitCarePanel.tsx',
+}
+const src = (p: string) => { if (!MOVED[p]) throw new Error('unified: no moved file for ' + p); return readFileSync((process.env.FACTORY_ROOT || '') + MOVED[p], 'utf8').replace(/\r\n/g, '\n') } /* unified: the screens moved to apps/unified/web/src/crm/pages/homecare/ (docs/UNIFIED_HOMECARE_SCREENS.md) and the schedule rule to server/crm/homecare/core: src() reads the moved file for each template path it is given, and refuses a path with no moved file rather than read the template */
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
 const addDays = (s: string, k: number) => ymd(new Date(Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10) + k)))
@@ -120,8 +127,8 @@ await insSched({ caregiver_id: cg2.id, client_id: zed.id, day_of_week: dow(TODAY
   const skipped = await CG1('PUT', `/api/care-tasks/time-entry/te_tasks/${task.id}`, { status: 'skipped' })
   check('2. other statuses still need no note', skipped.status === 200, skipped)
   const ui = src('frontend/src/components/CareTaskChecklist.tsx')
-  check('2. the checklist\'s Refused button opens the reason dialog (not a bare PUT)', /onClick=\{\(\) => openNotes\(t, 'refuse'\)\}[^]*?>Refused</.test(ui) && !/setStatus\(t\.task_id, 'refused'/.test(ui))
-  check('2. …which requires a reason and keeps itself open with the server\'s message', /refusing && !notesDraft\.trim\(\)/.test(ui) && /if \(msg\) \{ setNotesError\(msg\); return; \}/.test(ui))
+  check('2. the checklist\'s Refused button opens the reason dialog (not a bare PUT)', /onClick=\{\(\) => openNotes\(t, 'refuse'\)\}[^]*?>Refused</.test(ui) && !/setStatus\(t\.taskId, 'refused'/.test(ui) /* unified: the checklist's rows are camelCase (taskId): a bare 'refused' PUT is looked for in that spelling */)
+  check('2. …which requires a reason and keeps itself open with the server\'s message', /refusing && !notesDraft\.trim\(\)/.test(ui) && /if \(msg\) \{ setNotesError\(msg\); return;? \}/.test(ui) /* unified: the moved checklist writes the same guard without the trailing semicolon ('if (msg) { setNotesError(msg); return }') */)
 }
 
 // ══ 3. Report Miss: only visits that can still be called out of ══════════════════════════════════
@@ -145,7 +152,7 @@ await insSched({ caregiver_id: cg2.id, client_id: zed.id, day_of_week: dow(TODAY
   const fine = await CG1('POST', '/api/emergency/miss-report', { scheduleId: ahead, date: TODAY, reason: 'Sick' })
   check('3. a visit still ahead is called out of as before', fine.status === 201, fine)
   const form = src('frontend/src/components/caregiver/ShiftMissReport.tsx')
-  check('3. the form prints times through formatTime (no "09:30:00")', /\{formatTime\(shift\.start_time\)\} – \{formatTime\(shift\.end_time\)\}/.test(form) && !/\{shift\.start_time\} – \{shift\.end_time\}/.test(form))
+  check('3. the form prints times through formatTime (no "09:30:00")', /\{formatTime\(shift\.startTime\)\} – \{formatTime\(shift\.endTime\)\}/.test(form) && !/\{shift\.startTime\} – \{shift\.endTime\}/.test(form) /* unified: my-shifts rows are camelCase (startTime, endTime) */)
 }
 
 // ══ 4. one open swap per visit day ═══════════════════════════════════════════════════════════════
@@ -161,7 +168,7 @@ await insSched({ caregiver_id: cg2.id, client_id: zed.id, day_of_week: dow(TODAY
   check('4. after the office turns it down a new request may be sent', (await CG1('POST', '/api/shift-swaps', { scheduleId: s, shiftDate: addDays(TODAY, 4), targetCaregiverId: cg2.id })).status === 201)
   const dash = src('frontend/src/components/CaregiverDashboard.tsx')
   check('4. the Swap button turns into "Swap sent" for an open swap of that day', /swapPendingFor\(s\) \? \([^]*?Swap sent/.test(dash) && /r\.status === 'pending' \|\| r\.status === 'accepted'/.test(dash))
-  check('5a. Claim: every Claim button is disabled while one is in flight, and the card shows the claim', /disabled=\{!!claimingShiftId\}/.test(dash) && /claimedShifts\[shift\.id\] \? \(/.test(dash) && /if \(claimingShiftId\) return;/.test(dash))
+  check('5a. Claim: every Claim button is disabled while one is in flight, and the card shows the claim', /disabled=\{!!claimingShiftId\}/.test(dash) && /claimedShifts\[shift\.id\] \? \(/.test(dash) && /if \(claimingShiftId\) return\b/.test(dash) /* unified: the moved dashboard writes the in-flight guard without the semicolon ('if (claimingShiftId) return') */)
 }
 
 // ══ 5. the active visit: a dose, vitals, a photo — mid-visit ═════════════════════════════════════
@@ -185,14 +192,14 @@ await insSched({ caregiver_id: cg2.id, client_id: zed.id, day_of_week: dow(TODAY
   check('5. another caregiver cannot add to this visit', (await CG1('POST', '/api/time-entries/te_active/photos', { imageBase64: img })).status === 403)
   const dash = src('frontend/src/components/CaregiverDashboard.tsx')
   const panel = src('frontend/src/components/caregiver/VisitCarePanel.tsx')
-  check('5. the active visit renders the panel with the visit and its client', /<VisitCarePanel timeEntryId=\{activeSession\.id\} clientId=\{activeSession\.client_id\} \/>/.test(dash))
+  check('5. the active visit renders the panel with the visit and its client', /<VisitCarePanel timeEntryId=\{liveEntryId\} clientId=\{activeSession\.clientId\} \/>/.test(dash) && /const liveEntryId = activeSession && !activeSession\.offline && !String\(activeSession\.id\)\.startsWith\('offline-'\) \? activeSession\.id : null/.test(dash) /* unified: the moved dashboard hands the panel liveEntryId — the active session's id unless the punch is still an offline one with no server row — and the camelCase clientId */)
   check('5. …which posts the dose, the vitals and the photo to those routes',
-    /'\/api\/medications\/log'/.test(panel) && /'\/api\/medications\/vitals'/.test(panel) && /`\/api\/time-entries\/\$\{timeEntryId\}\/photos`/.test(panel) && /`\/api\/medications\/due\/\$\{clientId\}`/.test(panel))
+    /api\.post\('\/api\/medications\/log'/.test(panel) && /api\.post\('\/api\/medications\/vitals'/.test(panel) && /api\.post\(`\/api\/time-entries\/\$\{timeEntryId\}\/photos`/.test(panel) && /api\.get\(`\/api\/medications\/due\/\$\{clientId\}`/.test(panel) /* unified: the moved panel calls through the app's api client (api.post / api.get), so the check names the verb as well as the route */)
 }
 
 // ══ 6. a bare time prints as a clock time ═══════════════════════════════════════════════════════
 {
-  const { formatTime } = await import(ROOT + 'frontend/src/utils/datetime.ts')
+  const { formatTime } = await import(HC_WEB + 'lib/datetime.ts') /* unified: the date formatters are lib/datetime.ts */
   check('6. "09:30:00" → "9:30 AM", "13:05" → "1:05 PM", "00:00:00" → "12:00 AM"',
     formatTime('09:30:00') === '9:30 AM' && formatTime('13:05') === '1:05 PM' && formatTime('00:00:00') === '12:00 AM' && formatTime('25:00') === '', [formatTime('09:30:00'), formatTime('13:05'), formatTime('00:00:00')])
 }

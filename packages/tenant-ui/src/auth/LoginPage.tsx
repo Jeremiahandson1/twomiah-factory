@@ -1,12 +1,15 @@
 // Sign-in page — one implementation for every CRM. The template passes its company name, and `home` where the app's
 // front page is not '/' (the unified app: '/' is the public website, the admin is /crm).
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import { NavLink as RouterLink } from '../invoicing/ui'
 
 export function LoginPage({ companyName, home = '/' }: { companyName: string; home?: string }) {
   const navigate = useNavigate()
+  const { search } = useLocation()
+  // Sent here because the session ran out (ProtectedRoute): say so, so the person knows why they are signing in again.
+  const expired = new URLSearchParams(search).get('expired') === '1'
   const { login, completeMfa, error } = useAuth()
   const [formData, setFormData] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
@@ -70,6 +73,11 @@ export function LoginPage({ companyName, home = '/' }: { companyName: string; ho
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-8 dark:bg-slate-900">
+          {expired && !(localError || error) && (
+            <div role="status" className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-sm dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-100">
+              Your session ended. Please sign in again.
+            </div>
+          )}
           {(localError || error) && (
             <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm dark:bg-red-950/40 dark:border-red-900 dark:text-red-300">
               {localError || error}

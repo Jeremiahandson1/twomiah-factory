@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/scheduling.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 2 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 10 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — Run 3 scheduling fixes, through the real routes and, where the fix is a screen's,
 // through the screen's source.
@@ -34,7 +34,15 @@ const q1 = async (s: any) => (await q(s))[0]
 const snakeKey = (k: string) => k.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase())
 const templateShape = (v: any): any => Array.isArray(v) ? v.map(templateShape) : (v && typeof v === 'object') ? ((Array.isArray(v.data) && v.pagination) ? templateShape(v.data) : Object.fromEntries(Object.entries(v).flatMap(([k, x]) => { const s = templateShape(x); return snakeKey(k) === k ? [[k, s]] : [[k, s], [snakeKey(k), s]] }))) : v /* unified: templateShape reads a unified reply in the template's shape: a list reply ({ data, pagination }, RULEBOOK §3) as its rows, and every camelCase key (RULEBOOK §2) also under its snake_case name — the values are the server's, unchanged */
 const ROOT = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'
-const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
+const HC_WEB = (process.env.FACTORY_ROOT || '') + 'apps/unified/web/src/crm/pages/homecare/'
+const MOVED: Record<string, string> = {
+  'frontend/src/components/admin/DragDropScheduler.tsx': 'apps/unified/web/src/crm/pages/homecare/schedule/DragDropScheduler.tsx',
+  'frontend/src/components/admin/SchedulingHub.tsx': 'apps/unified/web/src/crm/pages/homecare/schedule/SchedulingHub.tsx',
+  'frontend/src/components/admin/MakeShiftAvailableModal.tsx': 'apps/unified/web/src/crm/pages/homecare/schedule/MakeShiftAvailableModal.tsx',
+  'frontend/src/utils/shiftTimes.ts': 'apps/unified/web/src/crm/pages/homecare/lib/shiftTimes.ts',
+  'backend/src/services/scheduleOccurrences.ts': 'apps/unified/server/crm/homecare/core/scheduleOccurrences.ts',
+}
+const src = (p: string) => { if (!MOVED[p]) throw new Error('unified: no moved file for ' + p); return readFileSync((process.env.FACTORY_ROOT || '') + MOVED[p], 'utf8').replace(/\r\n/g, '\n') } /* unified: the screens moved to apps/unified/web/src/crm/pages/homecare/ (docs/UNIFIED_HOMECARE_SCREENS.md) and the schedule rule to server/crm/homecare/core: src() reads the moved file for each template path it is given, and refuses a path with no moved file rather than read the template */
 
 await setupSchema()
 const [ag] = await db.insert(agencies).values({ name: 'Sched Care', slug: 'schedcare', timezone: 'UTC' } as any).returning()
@@ -131,8 +139,8 @@ const insSched = async (v: Record<string, any>) => {
   check('a caregiver cannot delete a schedule (403)', cg.status === 403, cg)
 
   const grid = src('frontend/src/components/admin/DragDropScheduler.tsx')
-  const delFn = grid.slice(grid.indexOf('async function handleDeleteShift'), grid.indexOf('// EDIT SHIFT'))
-  check('the grid\'s delete reads the server\'s answer (no unchecked DELETE fetch)', /if \(!res\.ok\)/.test(delFn) && !/await fetch\([^)]*\{\s*method: 'DELETE'[^}]*\}\);\s*showToast/.test(delFn) && (delFn.match(/await del\(/g) || []).length === 4)
+  const delFn = grid.slice(grid.indexOf('async function handleDeleteShift'), grid.indexOf('// ═══ EDIT — scope-aware ═══')) /* unified: the delete handler ends where the edit section begins; the moved grid marks it '// ═══ EDIT — scope-aware ═══' */
+  check('the grid\'s delete reads the server\'s answer (no unchecked DELETE fetch)', /import \{[^}]*\bapi\b[^}]*\} from '\.\.\/lib\/http'/.test(grid) && /const del = \(query: string\) => api\.delete\(/.test(delFn) && /catch \(err\) \{\s*toast\.error\(errorMessage\(err, 'Delete failed'\)\)/.test(delFn) && !/fetch\(/.test(delFn) /* unified: the moved grid deletes through the app's api client (lib/http → packages/tenant-ui client.ts handleResponse), which throws on a refusal; every branch awaits del(), so a refused delete skips its success toast and lands in the catch's toast.error with the server's sentence — there is no res.ok to read and no raw fetch */ && (delFn.match(/await del\(/g) || []).length === 4)
   const hub = src('frontend/src/components/admin/SchedulingHub.tsx')
   check('the Schedule Hub\'s 🗑 passes the schedule, not just its id', (hub.match(/handleDeleteSchedule\(s\.id, s\)/g) || []).length === 2 && !/handleDeleteSchedule\(s\.id\)/.test(hub))
   const panel = hub.slice(hub.indexOf('if (createPanelOpen) {'), hub.indexOf('\n  return (\n    <>'))
@@ -201,13 +209,13 @@ const insSched = async (v: Record<string, any>) => {
   const grid = src('frontend/src/components/admin/DragDropScheduler.tsx')
   const open = grid.slice(grid.indexOf('function openEditShift'), grid.indexOf('async function handleSaveShift'))
   check('Edit Shift opens on "This date only"', /setEditScope\('this'\)/.test(open) && !/setEditScope\('following'\)/.test(open))
-  const legend = grid.slice(grid.indexOf('{/* Client legend */}'), grid.indexOf('CREATE SHIFT MODAL'))
-  check('the legend and the chips both colour by clientColor()', /clientColor\(c\.id, clientMap\)/.test(legend) && !/PALETTE\[/.test(legend) && /const color\s+= clientColor\(s\.client_id, clientMap\)/.test(grid))
+  const legend = grid.slice(grid.indexOf('{/* Client legend */}'), grid.indexOf('═══ CREATE SHIFT ═══')) /* unified: the legend ends where the create dialog begins; the moved grid marks it '═══ CREATE SHIFT ═══' (the template's 'CREATE SHIFT MODAL' is not in it) */
+  check('the legend and the chips both colour by clientColor()', /clientColor\(c\.id, clientMap\)/.test(legend) && !/PALETTE\[/.test(legend) && /const color\s+= clientColor\(s\.clientId, clientMap\)/.test(grid) /* unified: the grid's rows are camelCase (RULEBOOK §2): the chip colours by s.clientId */)
   check('the viewed week survives a save: only the first load replaces the grid', /if \(loading && !hasLoaded\) return/.test(grid) && /sessionStorage\.setItem\(WEEK_KEY/.test(grid))
   check('the grid\'s days are local calendar days, not UTC slices', /weekDates\.map\(localYmd\)/.test(grid) && !/toISOString\(\)\.split\('T'\)\[0\]/.test(grid))
   check('the forms send "overnight" and check the one times rule', (grid.match(/shiftTimesError\(/g) || []).length >= 2 && /overnight,\n/.test(grid))
   const hub = src('frontend/src/components/admin/SchedulingHub.tsx')
-  check('the month view names the client and the caregiver', /const label = `\$\{formatTime\(sc\.start_time\)\} \$\{getClientName\(sc\.client_id\)\} · \$\{getCaregiverName\(sc\.caregiver_id\)\}`/.test(hub))
+  check('the month view names the client and the caregiver', /const label = `\$\{formatTime\(sc\.startTime\)\} \$\{getClientName\(sc\.clientId\)\} · \$\{getCaregiverName\(sc\.caregiverId\)\}`/.test(hub) /* unified: the month view's rows are camelCase (startTime, clientId, caregiverId) */)
   check('the Schedule Hub forms check the same times rule', (hub.match(/shiftTimesError\(/g) || []).length === 2)
   const fe = src('frontend/src/utils/shiftTimes.ts'), be = src('backend/src/services/scheduleOccurrences.ts')
   const msg = 'The end time is before the start time. If the shift runs past midnight, mark it as overnight.'
@@ -217,8 +225,8 @@ const insSched = async (v: Record<string, any>) => {
 // ══ 7. calendar days are the LOCAL day west of UTC (HIGH 1) ═══════════════════════════════════════
 {
   process.env.TZ = 'America/Chicago'
-  const { parseLocalDate, formatDate, toLocalYMD } = await import(ROOT + 'frontend/src/utils/date.ts')
-  const dt = await import(ROOT + 'frontend/src/utils/datetime.ts')
+  const { parseLocalDate, formatDate, toLocalYMD } = await import(HC_WEB + 'lib/date.ts') /* unified: the calendar-day helpers are lib/date.ts */
+  const dt = await import(HC_WEB + 'lib/datetime.ts') /* unified: the date formatters are lib/datetime.ts */
   const opts = { weekday: 'short', month: 'short', day: 'numeric' } as const
   check('the zone is really Central here (the bug only shows west of UTC)', new Date('2026-10-21').getDate() === 20)
   check('shift_date 2026-10-21 reads "Wed, Oct 21", not "Tue, Oct 20"', formatDate('2026-10-21', opts) === 'Wed, Oct 21', formatDate('2026-10-21', opts))

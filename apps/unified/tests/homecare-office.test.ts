@@ -2,7 +2,12 @@
 // clinical audit trail, View As and server-side sign-out, and home care's company columns on the shared /api/company.
 // Through the real server, signed in with real tokens — the behaviour the template suite's files assert in the
 // template's shapes (tests/unified/harness/unified-divergences.ts names each), held here in the unified ones.
-import { describe, test, expect, beforeAll } from 'bun:test'
+import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import fs from 'node:fs'
+import path from 'node:path'
+import { ApiClient } from '@twomiah/tenant-ui/src/api/client'
+import { isTrialBypassPath, setTrialBypassPaths } from '@twomiah/tenant-ui/src/auth/trialStatus'
+import { LOCK_WAYS_OUT } from '../web/src/lockPaths.ts'
 import { sql } from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
 import { bootTenant, seedOwner } from './harness.ts'
@@ -367,5 +372,236 @@ describe('the login-activity monitor reads the sign-ins the app records', () => 
     expect(mine.some((r: any) => r.success === false && /Wrong password/.test(r.failReason))).toBe(true)
     expect(mine[0].user).toMatchObject({ firstName: 'cg2', role: 'caregiver' })
     expect((await as('cg', '/api/compliance/login-activity')).status).toBe(403)
+  })
+})
+
+/** The shared list's defaults (what a template gets), restored after a test sets the app's. */
+const DEFAULT_WAYS_OUT = ['/crm/paywall', '/crm/settings/billing', '/crm/billing', '/login', '/logout']
+
+// The template suite's account-lock, session-fetch and first-sign-in-token files checked the template's own screens and
+// session code, which the unified app does not ship. These hold the same behaviour on the unified app (2026-10-19).
+const UNIFIED = path.resolve(import.meta.dir, '..')
+
+describe('a cancelled agency is locked by the server, for every role, the moment the Factory says so (account-lock)', () => {
+  const KEY = 'factory-key-for-test'
+  const sub = (o: Record<string, unknown> = {}) => ({ plan: 'starter10', planName: 'Starter', product: 'crm', monthlyAmount: 99, billingCycle: 'monthly', billingType: 'subscription', status: 'active', billingStatus: 'active', nextBillingDate: null, trialEndsAt: null, seats: 10, hasStripeCustomer: true, syncedAt: new Date().toISOString(), ...o })
+  const push = (s: unknown, key = KEY) => t.call('/api/internal/sync-subscription', { method: 'POST', json: { subscription: s }, headers: { 'X-Factory-Key': key } })
+  let savedKey: string | undefined
+  beforeAll(() => { savedKey = process.env.FACTORY_SYNC_KEY; process.env.FACTORY_SYNC_KEY = KEY })
+  afterAll(async () => {
+    await push(sub())
+    if (savedKey === undefined) delete process.env.FACTORY_SYNC_KEY; else process.env.FACTORY_SYNC_KEY = savedKey
+  })
+
+  test('the push is mounted and keyed; while locked every door but sign-in and the subscription\'s own answers 402, client invoicing included', async () => {
+    expect((await push(sub(), 'wrong-key-for-the-test')).status).toBe(401)
+    expect((await push(sub())).status).toBe(200)
+    expect((await as('owner', '/api/clients')).status).toBe(200)
+
+    expect((await push(sub({ status: 'canceled', billingStatus: 'canceled' }))).status).toBe(200)
+    for (const who of ['owner', 'admin', 'cg']) {
+      const r = await as(who, '/api/clients')
+      expect({ who, status: r.status }).toEqual({ who, status: 402 })
+      const body = await r.json()
+      expect(body.code).toBe('ACCOUNT_LOCKED')
+      expect(body.lock).toBe('subscription_ended')
+      expect(body.error).toMatch(/subscription has ended/)
+    }
+    const before = (await t.db.select().from(t.schema.clients)).length
+    expect((await as('admin', '/api/clients', { method: 'POST', json: { firstName: 'After', lastName: 'Cancel' } })).status).toBe(402)
+    expect((await t.db.select().from(t.schema.clients)).length).toBe(before)
+    // /api/billing is ALSO home care's visit invoicing: only the subscription's three doors stay open.
+    expect((await as('owner', '/api/billing/invoices')).status).toBe(402)
+    expect((await as('owner', '/api/billing/invoice-payments', { method: 'POST', json: { invoiceId: 'x', amount: 1 } })).status).toBe(402)
+
+    const me = await as('cg', '/api/auth/me')
+    expect(me.status).toBe(200)
+    expect((await me.json()).company?.settings?.accountLock).toBe('subscription_ended')
+    const own = await as('owner', '/api/billing/subscription')
+    expect(own.status).toBe(200)
+    expect((await own.json()).mayManage).toBe(true)
+    expect((await (await as('admin', '/api/billing/subscription')).json()).mayManage).toBe(false)
+    const a = await as('admin', '/api/billing/restart-checkout', { method: 'POST' })
+    expect(a.status).toBe(403)
+    expect((await a.json()).code).toBe('owner_only')
+    expect((await as('cg', '/api/billing/restart-checkout', { method: 'POST' })).status).toBe(403)
+
+    expect((await push(sub())).status).toBe(200)
+    expect((await as('cg', '/api/clients')).status).toBe(200)
+    expect((await (await as('cg', '/api/auth/me')).json()).company?.settings?.accountLock).toBe(null)
+    expect((await as('owner', '/api/billing/invoices')).status).toBe(200)
+  })
+
+  test('a trial whose date has passed is locked; past_due stays open', async () => {
+    expect((await push(sub({ status: 'trialing', billingStatus: null, trialEndsAt: new Date(Date.now() - 60_000).toISOString() }))).status).toBe(200)
+    const r = await as('cg', '/api/clients')
+    expect(r.status).toBe(402)
+    expect((await r.json()).lock).toBe('trial_ended')
+    expect((await push(sub({ status: 'past_due', billingStatus: 'past_due' }))).status).toBe(200)
+    expect((await as('owner', '/api/clients')).status).toBe(200)
+  })
+
+  test('the server pulls the summary at boot, so a push missed while it was down still locks', () => {
+    const index = fs.readFileSync(path.join(UNIFIED, 'server', 'index.ts'), 'utf8')
+    const company = fs.readFileSync(path.join(UNIFIED, 'server', 'modules', 'company.ts'), 'utf8')
+    expect(index).toMatch(/\nvoid services\.refreshSubscription\(\)\r?\n/)
+    expect(company).toMatch(/refreshSubscription: \(\) => refreshSubscriptionFromFactory\(billingDeps as any\)/)
+    expect(company).toMatch(/const billingDeps = \{ db, companyTable: company, userTable: user,/)
+  })
+})
+
+describe('the screens\' one client: cookies, a 401 refreshed and replayed, a lock opens the lock page (session-fetch, first-sign-in-token)', () => {
+  type Seen = { url: string; method: string; headers: Record<string, string>; body: unknown; credentials?: string }
+  const realFetch = globalThis.fetch
+  const realWindow = (globalThis as any).window
+  afterAll(() => { globalThis.fetch = realFetch; (globalThis as any).window = realWindow; setTrialBypassPaths(DEFAULT_WAYS_OUT) })
+  /** A browser on `at`, and a server whose access cookie has expired until /api/auth/refresh renews it (or refuses). */
+  const browser = (o: { at?: string; refresh?: 'ok' | 'revoked' } = {}) => {
+    const seen: Seen[] = [], events: string[] = [], went: string[] = []
+    let live = false
+    const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
+    globalThis.fetch = (async (url: string, init: any = {}) => {
+      seen.push({ url, method: init.method || 'GET', headers: { ...(init.headers || {}) }, body: init.body ?? null, credentials: init.credentials })
+      if (url === '/api/auth/login') return json({ error: 'Invalid email or password' }, 401)
+      if (url === '/api/auth/refresh') {
+        if (o.refresh === 'revoked') return json({ error: 'Invalid refresh token' }, 401)
+        live = true
+        return json({ refreshed: true })
+      }
+      if (url.startsWith('/api/locked')) return json({ error: 'This account’s subscription has ended.', code: 'ACCOUNT_LOCKED', lock: 'subscription_ended' }, 402)
+      if (!live) return json({ error: 'Invalid or expired token' }, 401)
+      return json({ ok: true, body: init.body ?? null })
+    }) as any
+    ;(globalThis as any).window = { location: { pathname: o.at || '/crm/scheduling', assign: (u: string) => went.push(u) }, dispatchEvent: (e: any) => { events.push(e?.type); return true } }
+    return { api: new ApiClient({ baseUrl: '', authMode: 'cookie' }), seen, events, went }
+  }
+
+  test('the screen holds no credential: every request names the cookie session and sends no Authorization header', async () => {
+    const b = browser()
+    await b.api.get('/api/scheduling/caregivers')
+    expect(b.seen.length).toBe(3)
+    for (const s of b.seen) {
+      expect(s.headers['X-Auth-Mode']).toBe('cookie')
+      expect('Authorization' in s.headers).toBe(false)
+      expect(s.credentials).toBe('same-origin')
+    }
+  })
+
+  test('an expired session is refreshed once and the request replayed: the screen gets its answer, not a 401', async () => {
+    const b = browser()
+    expect((await b.api.get('/api/scheduling/caregivers')).ok).toBe(true)
+    expect(b.seen.map((s) => s.url)).toEqual(['/api/scheduling/caregivers', '/api/auth/refresh', '/api/scheduling/caregivers'])
+    expect(b.seen[1].body).toBe('{}')
+  })
+
+  test('a write refused 401 is replayed once, with its body', async () => {
+    const b = browser()
+    expect((await b.api.post('/api/clients', { firstName: 'Pat' })).body).toBe(JSON.stringify({ firstName: 'Pat' }))
+    expect(b.seen.filter((s) => s.method === 'POST' && s.url === '/api/clients').map((s) => s.body)).toEqual([JSON.stringify({ firstName: 'Pat' }), JSON.stringify({ firstName: 'Pat' })])
+  })
+
+  test('several screens refused at once share ONE refresh', async () => {
+    const b = browser()
+    await Promise.all([b.api.get('/api/scheduling/caregivers'), b.api.get('/api/dashboard/summary'), b.api.get('/api/clients')])
+    expect(b.seen.filter((s) => s.url === '/api/auth/refresh').length).toBe(1)
+  })
+
+  test('a session that cannot be refreshed ends: the app is told (auth:expired, which sends the person to sign in) and the screen gets no data', async () => {
+    const b = browser({ refresh: 'revoked' })
+    await expect(b.api.get('/api/scheduling/caregivers')).rejects.toThrow('Session expired')
+    expect(b.events).toEqual(['auth:expired'])
+  })
+
+  test('sign-in passes through untouched: a wrong password is the login form\'s 401, never a refresh', async () => {
+    const b = browser()
+    await expect(b.api.login('owner@test.example', 'nope')).rejects.toThrow('Invalid email or password')
+    expect(b.seen.map((s) => s.url)).toEqual(['/api/auth/login'])
+  })
+
+  test('a 402 ACCOUNT_LOCKED from any screen opens the lock page — but not again from the lock page itself', async () => {
+    setTrialBypassPaths(LOCK_WAYS_OUT)
+    const b = browser()
+    const r = await b.api.raw('/api/locked/clients')
+    expect(r.status).toBe(402)
+    expect(b.went).toEqual(['/crm/paywall'])
+    const p = browser({ at: '/crm/paywall' })
+    await p.api.raw('/api/locked/clients')
+    expect(p.went).toEqual([])
+  })
+
+  // The shared list's '/crm/billing' (a template's subscription page) let a locked agency into its visit invoicing.
+  test('home care\'s visit-billing screens are not a way round the lock (/crm/billing is the agency\'s invoicing, not the subscription)', async () => {
+    setTrialBypassPaths(LOCK_WAYS_OUT)
+    for (const at of ['/crm/billing', '/crm/billing-engine', '/crm/billing-import']) {
+      const b = browser({ at })
+      await b.api.raw('/api/locked/billing/invoices')
+      expect({ at, went: b.went }).toEqual({ at, went: ['/crm/paywall'] })
+    }
+    const sub = browser({ at: '/crm/settings/billing' })
+    await sub.api.raw('/api/locked/billing/subscription')
+    expect(sub.went).toEqual([])
+    // Whole segments, for every app: a template's /crm/billing is not /crm/billing-engine.
+    setTrialBypassPaths(DEFAULT_WAYS_OUT)
+    expect(isTrialBypassPath('/crm/billing')).toBe(true)
+    expect(isTrialBypassPath('/crm/billing/pricing')).toBe(true)
+    expect(isTrialBypassPath('/crm/billing-engine')).toBe(false)
+  })
+})
+
+describe('the wiring the browser runs (session-fetch, first-sign-in-token, account-lock)', () => {
+  const WEB = path.join(UNIFIED, 'web', 'src')
+  const HC = path.join(WEB, 'crm', 'pages', 'homecare')
+  const read = (...p: string[]) => fs.readFileSync(path.join(...p), 'utf8').replace(/\r\n/g, '\n')
+  const walk = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(path.join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(dir, e.name)] : [])
+
+  test('ONE client: home care\'s screens, the shared screens (the wizard\'s Branded Email step) and the app share the cookie-mode singleton', () => {
+    expect(read(UNIFIED, 'web', 'vite.config.ts')).toMatch(/'import\.meta\.env\.VITE_AUTH_MODE': JSON\.stringify\('cookie'\)/)
+    expect(read(WEB, 'api.ts')).toMatch(/export \{ api \} from '\.\/shared'/)
+    expect(read(WEB, 'shared.ts')).toMatch(/export \{ api \} from '@twomiah\/tenant-ui\/src\/api\/client'/)
+    expect(read(HC, 'lib', 'http.ts')).toMatch(/import \{ api \} from '\.\.\/\.\.\/\.\.\/\.\.\/api'/)
+    const step = read(UNIFIED, '..', '..', 'packages', 'tenant-ui', 'src', 'onboarding', 'steps', 'EmailAliasesStep.tsx')
+    expect(step).toMatch(/import \{ api \} from '\.\.\/\.\.\/api\/client'/)
+    expect(step).toMatch(/api\.raw\(/)
+  })
+
+  test('no home-care screen holds a token, builds a client of its own, or fetches around the client (the portals\' own client is the one exception)', () => {
+    const offenders: string[] = []
+    for (const f of walk(HC)) {
+      const s = read(f)
+      const rel = path.relative(HC, f).replace(/\\/g, '/')
+      if (/getItem\(\s*'(token|accessToken|refreshToken)'\s*\)|new ApiClient\(|createApiClient\(|window\.fetch\s*=/.test(s)) offenders.push(rel)
+      if (/(^|[^.\w])fetch\(/m.test(s) && rel !== 'portals/portalHttp.ts') offenders.push(rel + ' (fetch)')
+    }
+    expect(offenders).toEqual([])
+  })
+
+  test('a portal\'s 402 is the portal\'s: its own client calls paused(), and both portal apps then render PortalPaused', () => {
+    const http = read(HC, 'portals', 'portalHttp.ts')
+    expect(http).toMatch(/if \(res\.status === 402 && code === 'ACCOUNT_LOCKED'\) hooks\.paused\(\)/)
+    expect(http).toMatch(/if \(res\.status === 401\) \{\n\s*hooks\.expired\(\)/)
+    expect(http).not.toMatch(/\/crm\/paywall|refreshAccessToken|api\.request\(|api\.raw\(/)
+    for (const f of ['ClientPortal.tsx', 'FamilyPortal.tsx']) expect(read(HC, 'portals', f)).toMatch(/createPortalClient\(token, \{ expired: onLogout, paused: \(\) => onPaused\?\.\(\) \}\)/)
+    expect((read(HC, 'portals', 'public.tsx').match(/if \(paused\) return <PortalPaused onLogout=\{handleLogout\} \/>/g) || []).length).toBe(2)
+  })
+
+  test('the lock page is the shared PaywallScreen at /crm/paywall; a signed-in locked company is sent there; the app names its own ways out', () => {
+    expect(read(WEB, 'App.tsx')).toMatch(/<Route path="paywall" element=\{<Paywall \/>\} \/>/)
+    expect(read(WEB, 'screens.tsx')).toMatch(/<PaywallScreen company=\{company as any\} onSignOut=\{logout\} request=\{\(method, path\) => api\.request\(path, \{ method \}\)\} homePath=\{HOME\} \/>/)
+    expect(read(UNIFIED, '..', '..', 'packages', 'tenant-ui', 'src', 'auth', 'ProtectedRoute.tsx')).toMatch(/if \(isAccountLocked\(company\) && !isTrialBypassPath\(location\.pathname\)\) return <Redirect to="\/crm\/paywall" \/>/)
+    expect(read(WEB, 'main.tsx')).toMatch(/\nsetTrialBypassPaths\(LOCK_WAYS_OUT\)\n/)
+    expect(LOCK_WAYS_OUT).not.toContain('/crm/billing')
+  })
+
+  test('an agency that is not locked is sent from the lock page back into the app', () => {
+    expect(read(WEB, 'screens.tsx')).toMatch(/export function Paywall\(\) \{[\s\S]{0,400}if \(company && !isAccountLocked\(company as any\)\) return <Navigate to=\{HOME\} replace \/>/)
+  })
+
+  test('sign-in says why the person is there again after a session ends', () => {
+    const tui = path.join(UNIFIED, '..', '..', 'packages', 'tenant-ui', 'src', 'auth')
+    expect(read(tui, 'AuthContext.tsx')).toMatch(/const handleExpired = \(\) => \{[^}]*setSessionEnded\(true\) \}/)
+    expect(read(tui, 'ProtectedRoute.tsx')).toMatch(/<Redirect to=\{sessionEnded \? '\/login\?expired=1' : '\/login'\}/)
+    const login = read(tui, 'LoginPage.tsx')
+    expect(login).toMatch(/new URLSearchParams\(search\)\.get\('expired'\) === '1'/)
+    expect(login).toMatch(/Your session ended\. Please sign in again\./)
   })
 })

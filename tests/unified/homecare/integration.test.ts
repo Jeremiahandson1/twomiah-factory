@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/integration.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 12 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 35 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — the home care catch-up's cross-area wiring, through the real routes.
 //
@@ -42,6 +42,8 @@ await setupSchema()
 
 const ROOT = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'
 const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
+const UNI = (process.env.FACTORY_ROOT || '') + 'apps/unified/'
+const usrc = (p: string) => readFileSync(UNI + p, 'utf8').replace(/\r\n/g, '\n') /* unified: the screens moved to apps/unified/web/src/crm/pages/homecare/<group>/ and the server to apps/unified/server/crm/homecare/<group>/ and server/data/homecare*.ts (docs/UNIFIED_HOMECARE_SCREENS.md): usrc reads the moved files, so these checks hold the code that ships */
 
 const [ag] = await db.insert(agencies).values({ name: 'Integration Care', slug: 'integration', state: 'WI', timezone: 'UTC' } as any).returning()
 const mkUser = async (role: string, tag: string) => (await db.insert(users).values({
@@ -171,13 +173,13 @@ const evvCount = async (teId: string) => Number((await q1(sql`SELECT COUNT(*)::i
   await A('POST', `/api/time-entries/${bogus.json.id}/admin-force-clockout`, { evvReasonCode: '6' })
   check('a code that is not an EVV code falls back to 1', (await q1(sql`SELECT reason_code FROM visit_time_changes WHERE time_entry_id = ${bogus.json.id}`))?.reason_code === '1')
 
-  const tt = src('backend/src/routes/timeTracking.ts')
+  const tt = usrc('server/crm/homecare/visits/timeTracking.ts') /* unified: the punch router is server/crm/homecare/visits/timeTracking.ts */
   check('timeTracking builds EVV in one place: createEVVFromTimeEntry is called once, inside onVisitClosed',
-    (tt.match(/createEVVFromTimeEntry\(/g) || []).length === 1 && /function onVisitClosed[\s\S]{0,200}createEVVFromTimeEntry\(/.test(tt))
+    (tt.match(/createEVVFromTimeEntry\(/g) || []).length === 1 && /const onVisitClosed = [\s\S]{0,200}createEVVFromTimeEntry\(/.test(tt) /* unified: onVisitClosed is a const inside createTimeTrackingRoutes, calling core.evvVisits.createEVVFromTimeEntry */)
   check('…and every close path calls onVisitClosed (clock-out, auto-close, force)', (tt.match(/await onVisitClosed\(/g) || []).length === 3)
   check("the Live Board's Force Clock Out posts to /api/time-entries/:id/admin-force-clockout",
-    /\/api\/time-entries\/\$\{[^}]+\}\/admin-force-clockout/.test(src('frontend/src/components/admin/LiveBoard.tsx'))
-    && /app\.route\('\/api\/time-entries', timeTrackingRoutes\)/.test(src('backend/src/index.ts'))
+    /\/api\/time-entries\/\$\{[^}]+\}\/admin-force-clockout/.test(usrc('web/src/crm/pages/homecare/shifts/LiveBoard.tsx')) /* unified: the Live Board is shifts/LiveBoard.tsx */
+    && /\{ path: '\/api\/time-entries', access: 'user', router: createTimeTrackingRoutes\(core, d\) \}/.test(usrc('server/crm/homecare/visits/index.ts')) /* unified: the mount is the visits group's (server/crm/homecare/visits/index.ts visitsMounts) */
     && /app\.post\('\/:id\/admin-force-clockout'/.test(tt))
 }
 
@@ -234,8 +236,8 @@ const famClient = await mkClient('Fam')
   check('vitals sit behind the medications switch: a relative without it is refused', (await famA('GET', '/api/family-portal/portal/vitals')).status === 403)
   const vit = await famB('GET', '/api/family-portal/portal/vitals')
   check("…a relative with it sees care's vitals, with who took them", vit.status === 200 && vit.json.length === 1 && vit.json[0].pulse === 72 && vit.json[0].caregiver_first === 'cgone', vit.json)
-  check('the family portal screen has the Vitals tab, on the medications switch', /\/api\/family-portal\/portal\/vitals/.test(src('frontend/src/components/portal/FamilyPortal.tsx'))
-    && /canViewMedications\) tabs\.push\(\{ key: 'vitals'/.test(src('frontend/src/components/portal/FamilyPortal.tsx')))
+  check('the family portal screen has the Vitals tab, on the medications switch', /\/api\/family-portal\/portal\/vitals/.test(usrc('web/src/crm/pages/homecare/portals/FamilyPortal.tsx')) /* unified: the family portal is portals/FamilyPortal.tsx */
+    && /canViewMedications\) tabs\.push\(\{ key: 'vitals'/.test(usrc('web/src/crm/pages/homecare/portals/FamilyPortal.tsx')) /* unified: the family portal is portals/FamilyPortal.tsx */)
 }
 
 // ══ 5. a draft invoice never reaches the client portal ═══════════════════════════════════════════
@@ -303,9 +305,9 @@ const famClient = await mkClient('Fam')
     && Number(rev.json.byClient.find((r: any) => r.id === cl.id)?.revenue) === 150, { byPayer: rev.json.byPayer, byClient: rev.json.byClient })
   const ov = await A('POST', '/api/reports/overview', range)
   check('the overview revenue tile agrees (150)', ov.status === 200 && Number(ov.json.totalRevenue ?? ov.json.summary?.totalRevenue ?? ov.json.revenue?.totalRevenue) === 150, ov.json)
-  const rep = src('backend/src/routes/reports.ts')
+  const rep = usrc('server/data/homecarePlanning.ts') /* unified: the reports' SQL is server/data/homecarePlanning.ts */
   const claimSites = (rep.match(/(FROM|JOIN) claims cl/g) || []).length
-  const guarded = (rep.match(/cl\.invoice_id IS NULL/g) || []).length + (rep.match(/\$\{clmIn\}|AND \$\{clmIn\}/g) || []).length
+  const guarded = (rep.match(/cl\.invoice_id IS NULL/g) || []).length + (rep.match(/\$\{claimsIn\(/g) || []).length /* unified: the guarded claims filter is the function claimsIn(companyId, start, end, clientId), not the template's clmIn fragment */
   check('every place reports.ts counts claims beside invoices leaves invoice-made claims out', claimSites === 8 && guarded >= 8, { claimSites, guarded })
 }
 
@@ -352,8 +354,8 @@ const famClient = await mkClient('Fam')
 }
 
 // ══ 10. billing no longer probes for other areas' columns ════════════════════════════════════════
-for (const f of ['backend/src/services/invoiceEngine.ts', 'backend/src/routes/billing.ts', 'backend/src/services/portalClaimDays.ts']) {
-  const s = src(f)
+for (const f of ['server/crm/homecare/core/invoiceEngine.ts', 'server/crm/homecare/billing/invoices.ts', 'server/crm/homecare/core/portalClaimDays.ts', 'server/data/homecareBilling.ts', 'server/data/homecareBillingRoutes.ts']) { /* unified: the invoice engine, the billing routes (billing/invoices.ts), portal claim days and their SQL (server/data/homecareBilling.ts, homecareBillingRoutes.ts) */
+  const s = usrc(f) /* unified: read from the unified server */
   check(`${f}: no information_schema / columnExists / tableExists probe`, !/information_schema|columnExists|tableExists|to_regclass/.test(s))
 }
 
@@ -373,9 +375,9 @@ for (const f of ['backend/src/services/invoiceEngine.ts', 'backend/src/routes/bi
   check('…and the visit now shows as invoiced, the other not', !!marked?.invoiced && !after.json.visits.find((x: any) => x.visit_date !== v.visit_date)?.invoiced, after.json.visits)
   const again = await A('POST', '/api/billing/invoices/from-visits', { clientId: cl.id, visits: [{ visitDate: v.visit_date, startTime: v.start_time, caregiverId: v.caregiver_id }] })
   check('…and cannot be billed twice', again.status === 409, again.json)
-  const screen = src('frontend/src/components/admin/VisitDocumentation.tsx')
+  const screen = usrc('web/src/crm/pages/homecare/visits/VisitDocumentation.tsx') /* unified: Visit Documentation is visits/VisitDocumentation.tsx */
   check('the Visit Documentation screen posts to /api/billing/invoices/from-visits with visitDate/startTime/caregiverId',
-    /\/api\/billing\/invoices\/from-visits/.test(screen) && /visitDate: v\.visit_date, startTime: v\.start_time, caregiverId: v\.caregiver_id/.test(screen))
+    /\/api\/billing\/invoices\/from-visits/.test(screen) && /visitDate: v\.visitDate, startTime: v\.startTime, caregiverId: v\.caregiverId/.test(screen) /* unified: the screen's visits are the camelCase reply (RULEBOOK §2): it sends the same three keys from v.visitDate, v.startTime, v.caregiverId */)
   check('a caregiver cannot build an invoice', (await CG1('POST', '/api/billing/invoices/from-visits', { clientId: cl.id, visits: [] })).status === 403)
 }
 
@@ -392,22 +394,22 @@ for (const f of ['backend/src/services/invoiceEngine.ts', 'backend/src/routes/bi
   check('an admin cannot view as an owner (that token would carry more than the admin has)', (await A('POST', `/api/auth/impersonate/${owner.id}`)).status === 403)
   check('an owner may view as an admin', (await O('POST', `/api/auth/impersonate/${admin.id}`)).status === 200)
   check('an unknown user is a 404', (await A('POST', '/api/auth/impersonate/nope')).status === 404)
-  check('the View As modal calls that path', /\/api\/auth\/impersonate\/\$\{userId\}/.test(src('frontend/src/components/ImpersonationModal.tsx')))
+  check('the View As modal calls that path', /\/api\/auth\/impersonate\/\$\{userId\}/.test(usrc('web/src/crm/pages/homecare/office/ImpersonationModal.tsx') /* unified: the View As picker is office/ImpersonationModal.tsx */))
   check("the viewed user's screens get that user's session (AuthContext override with the View As token)",
-    /AuthContext\.Provider value=\{\{[\s\S]{0,200}token: impersonationToken/.test(src('frontend/src/App.tsx')))
+    /api\.post\(\x60\/api\/auth\/impersonate\/\$\{userId\}\x60, \{\}\);\s*onStaff\(data\.user\)/.test(usrc('web/src/crm/pages/homecare/office/ImpersonationModal.tsx')) && /onStaff=\{\(\) => reloadAsSession\(\)\}/.test(usrc('web/src/crm/pages/homecare/office/ViewAsPanel.tsx')) && /export const reloadAsSession = \(\) => window\.location\.assign\('\/crm\/dashboard'\)/.test(usrc('web/src/crm/pages/homecare/office/ViewAs.tsx')) /* unified: the session is the server's cookies: POST /api/auth/impersonate sets the httpOnly View As cookie and the page loads afresh as that person (office/ViewAs.tsx reloadAsSession); no script holds the token. The server half (/me is the viewed person, writes refused) is apps/unified/tests/homecare-office.test.ts */)
 }
 
 // ══ 13b/13c. Report Miss page and Edit Client fields ═════════════════════════════════════════════
 {
-  const dash = src('frontend/src/components/CaregiverDashboard.tsx')
+  const dash = usrc('web/src/crm/pages/homecare/visits/CaregiverDashboard.tsx') /* unified: the caregiver's app is visits/CaregiverDashboard.tsx */
   check('Report Miss renders the miss-report form (renderMissReportPage never existed)', !/renderMissReportPage/.test(dash) && /currentPage === 'miss-report' && <ShiftMissReport/.test(dash))
-  check('…which posts to the miss-report route visits ported', /\/api\/emergency\/miss-report/.test(src('frontend/src/components/caregiver/ShiftMissReport.tsx')))
+  check('…which posts to the miss-report route visits ported', /\/api\/emergency\/miss-report/.test(usrc('web/src/crm/pages/homecare/visits/caregiver/ShiftMissReport.tsx') /* unified: the miss-report form is visits/caregiver/ShiftMissReport.tsx */))
   const shift = await insSched({ caregiver_id: cg1.id, client_id: famClient.id, date: addDays(TODAY, 5), start: '15:00', end: '16:00' })
   const miss = await CG1('POST', '/api/emergency/miss-report', { scheduleId: shift, date: addDays(TODAY, 5), reason: 'Illness - not feeling well', alternativeContact: '' })
   check("…and the form's payload is accepted", miss.status === 201 && miss.json.openShiftCreated === true, miss.json)
 
-  const modal = src('frontend/src/components/admin/EditClientModal.tsx')
-  check('Edit Client reads the camelCase client it is given (falling back to snake_case)', /v\('firstName', 'first_name'\)/.test(modal) && /v\('careTypeId', 'care_type_id'\)/.test(modal) && /v\('isPrivatePay', 'is_private_pay'\)/.test(modal))
+  const modal = usrc('web/src/crm/pages/homecare/clients/EditClientModal.tsx') /* unified: Edit Client is clients/EditClientModal.tsx */
+  check('Edit Client reads the camelCase client it is given (falling back to snake_case)', /firstName: client\.firstName \|\| ''/.test(modal) && /careTypeId: client\.careTypeId \|\| ''/.test(modal) && /isPrivatePay: !!client\.isPrivatePay/.test(modal) && !/client\.(first_name|care_type_id|is_private_pay)\b/.test(modal) /* unified: every reply is camelCase (RULEBOOK §2), so the modal reads the camelCase client directly; no snake_case fallback is needed or left */)
   const cl = await mkClient('Edit', { allergies: ['Penicillin'], preferredCaregivers: [cg1.id] })
   const listed = await A('GET', '/api/clients')
   const row = (listed.json.clients || listed.json.data || listed.json).find?.((x: any) => x.id === cl.id)
@@ -425,16 +427,16 @@ for (const f of ['backend/src/services/invoiceEngine.ts', 'backend/src/routes/bi
 
 // ══ one schedule engine ═══════════════════════════════════════════════════════════════════════════
 {
-  const be = ROOT + 'backend/src/'
+  const be = UNI + 'server/' /* unified: the server is apps/unified/server */
   for (const gone of ['services/incidentSchedule.ts', 'helpers/shiftHours.ts', 'utils/agencyTimezone.ts', 'helpers/agencyTime.ts']) {
-    check(`${gone} is gone (folded into the shared one)`, !existsSync(be + gone))
+    check(`${gone} is gone (folded into the shared one)`, !readdirSync(be, { recursive: true } as any).map((p: any) => String(p).replace(/\\/g, '/')).some((p: string) => p.endsWith('/' + gone.split('/').pop()) && p !== 'crm/homecare/core/agencyTime.ts')) /* unified: no file of that name anywhere in the unified server (the shared agency clock is crm/homecare/core/agencyTime.ts) */
   }
   const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(`${d}/${e.name}`) : e.name.endsWith('.ts') ? [`${d}/${e.name}`] : [])
   const expanders = walk(be.replace(/\/$/, '')).filter((f) => {
     const s = readFileSync(f, 'utf8')
     return /EXTRACT\(DOW FROM d\.dt\)|getDay\(\) === sched\.dayOfWeek/.test(s)
   }).map((f) => f.slice(be.length - 1))
-  check('only services/scheduleOccurrences.ts expands a schedule pattern', JSON.stringify(expanders) === JSON.stringify(['/services/scheduleOccurrences.ts']), expanders)
+  check('only services/scheduleOccurrences.ts expands a schedule pattern', JSON.stringify(expanders) === JSON.stringify(['/data/homecareCore.ts']) /* unified: the one schedule engine is SQL in server/data/homecareCore.ts (occurrencesCte) */, expanders)
 
   const c = await mkClient('Eng')
   const anchor = '2026-09-07' // Monday
@@ -611,7 +613,7 @@ for (const f of ['backend/src/services/invoiceEngine.ts', 'backend/src/routes/bi
   const co = await A('GET', '/api/company')
   check('…the company record reports the same', co.json.effectiveTimezone === 'America/New_York', co.json?.effectiveTimezone)
   check('…and a zone Postgres would not know is refused', (await A('PUT', '/api/sandata/settings', { timezone: 'Mars/Olympus' })).status === 400)
-  check('the evv-only zone column is gone from the schema', !/evv_timezone/.test(src('backend/db/schema.ts')) && !/evv_timezone/.test(src('backend/db/migrations/0014_evv.sql')))
+  check('the evv-only zone column is gone from the schema', !readdirSync(UNI + 'server/db', { recursive: true } as any).map((p: any) => String(p)).filter((p: string) => /\.(ts|sql)$/.test(p)).some((p: string) => /evv_timezone|evvTimezone/.test(readFileSync(UNI + 'server/db/' + p, 'utf8'))) /* unified: the unified schema and migrations are apps/unified/server/db (schema/, migrations/) */)
   await q(sql`UPDATE company SET timezone = 'UTC' WHERE id = ${ag.id}`) /* unified: the business is the company table and its people the user table (RULEBOOK §4: agencies and users are refused names) */
 }
 

@@ -10,6 +10,8 @@
 //   · Reply shapes: lists are { data, pagination }; keys are camelCase (the compliance report's passedChecks …).
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
+import fs from 'node:fs'
+import path from 'node:path'
 import { bootTenant } from './harness.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
@@ -268,5 +270,46 @@ describe('the caregiver Full Profile overview', () => {
     expect(all.data.filter((e: any) => e.gpsPointCount === 0)).toHaveLength(3)
     const none = await body(await as('adminA', 'GET', `/api/time-entries/caregiver-history/${ids.cg1}?startDate=2025-01-16&endDate=2025-01-31`))
     expect(none.data).toHaveLength(0)
+  })
+})
+
+// The hire dialog and the public pages' browser tab (tests/homecare/hire-credentials.test.ts's screen half, on the
+// moved screens): the template's checks read templates/crm-homecare/frontend, which the unified app does not ship.
+const HC = path.resolve(import.meta.dir, '..', 'web', 'src', 'crm', 'pages', 'homecare')
+const screen = (p: string) => fs.readFileSync(path.join(HC, p), 'utf8').replace(/\r\n/g, '\n')
+
+describe("the hire's login on screen, and the public pages' tabs (the moved screens)", () => {
+  test('the hire dialog says "Login details emailed to" when the email went, and shows the password only when it did not', () => {
+    const dash = screen('people/ApplicationsDashboard.tsx')
+    expect(dash).toMatch(/hireResult\.credentialsEmailed \?/)
+    expect(dash).toMatch(/Login details emailed to/)
+    expect(dash).toMatch(/\{hireResult\.tempPassword && <div[^>]*><strong>Temp Password:<\/strong>/)
+    expect(dash.match(/Temp Password:/g)).toHaveLength(1)
+    expect(dash.indexOf('Temp Password:')).toBeGreaterThan(dash.indexOf('Login details emailed to'))
+  })
+  test('the application page adds the password only when the email did not go', () => {
+    expect(screen('people/ApplicationDetail.tsx')).toMatch(/!data\.credentialsEmailed && data\.tempPassword/)
+  })
+  test('the careers page and the onboarding packet name their tab for the agency, not "<agency> · Admin"', () => {
+    const careers = screen('people/CareersPage.tsx')
+    expect(careers).toContain('const companyName = pageCompanyName()')
+    expect(careers).toContain("usePageTitle(slug && posting?.title ? `${posting.title} — Careers at ${companyName}` : `Careers — ${companyName}`)")
+    expect(screen('people/OnboardingPacketPage.tsx')).toContain('usePageTitle(`Your onboarding — ${pageCompanyName()}`)')
+  })
+  test('the client portal, the family portal and paying an invoice name their tab', () => {
+    const pub = screen('portals/public.tsx')
+    expect(pub).toContain('const name = (what: string) => (agency ? `${what} — ${agency}` : what)')
+    for (const title of ['Pay your invoice', 'Payment received', 'Client portal', 'Family portal']) expect(pub).toContain(`<Titled title={name('${title}')}>`)
+    expect(pub).toMatch(/function Titled\([^)]*\) \{\s*usePageTitle\(title\)/)
+  })
+  test('the agency name comes from the page the server writes, escaped — never pasted into the source', () => {
+    for (const f of ['people/shared.ts', 'portals/portalHttp.ts']) expect(screen(f)).toContain(`querySelector('meta[name="company-name"]')`)
+    const server = fs.readFileSync(path.resolve(import.meta.dir, '..', 'server', 'http', 'adminScreens.ts'), 'utf8')
+    expect(server).toContain('<meta name="company-name" content="${escHtml(name)}">')
+    const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(path.join(d, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(d, e.name)] : [])
+    expect(walk(HC).filter((f) => fs.readFileSync(f, 'utf8').split('\n').some((l) => !/^\s*\/\//.test(l) && /\{\{COMPANY_NAME\}\}/.test(l))).map((f) => path.relative(HC, f))).toEqual([])
+  })
+  test('the title is put back when the page closes', () => {
+    expect(screen('lib/usePageTitle.ts')).toMatch(/return \(\) => \{ document\.title = before; \};/)
   })
 })

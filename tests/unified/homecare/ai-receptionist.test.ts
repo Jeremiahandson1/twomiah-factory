@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/ai-receptionist.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 9 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 42 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // Home care's AI Receptionist, through the real routes — and the screen that drives them. (10/16)
 //
@@ -126,13 +126,13 @@ console.log('\n══════════ delete ═════════
 
 console.log('\n══════════ the mounted screen sends only what the service accepts (static) ══════════')
 {
-  const ROOT = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'
+  const ROOT = (process.env.FACTORY_ROOT || '') + 'apps/unified/' /* unified: the AI receptionist is the shared one (web/src/crm/pages/AIReceptionistPage.tsx, server/crm/comms/aiReceptionist.ts and aiReceptionistService.ts), not a home-care copy */
   // The code, not its comments — the header documents the old screens' snake_case and localStorage on purpose.
-  const page = readFileSync(ROOT + 'frontend/src/pages/AiReceptionistPage.tsx', 'utf8').replace(/\r\n/g, '\n')
+  const page = readFileSync(ROOT + 'web/src/crm/pages/AIReceptionistPage.tsx', 'utf8') /* unified: the screen is the shared AIReceptionistPage.tsx */.replace(/\r\n/g, '\n')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s;{}(),])\/\/.*$/gm, '$1').replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
-  const dash = readFileSync(ROOT + 'frontend/src/components/AdminDashboard.tsx', 'utf8')
-  const service = readFileSync(ROOT + 'backend/src/services/aiReceptionist.ts', 'utf8')
-  const routes = readFileSync(ROOT + 'backend/src/routes/aiReceptionist.ts', 'utf8')
+  const dash = readFileSync(ROOT + 'web/src/App.tsx', 'utf8'), shellNav = readFileSync(ROOT + 'web/src/shell.ts', 'utf8'), hcVertical = readFileSync(ROOT + 'web/src/crm/verticals/homecare.tsx', 'utf8') /* unified: AdminDashboard's switch is the app's routes (App.tsx) and menu (shell.ts); home care's menu is the shared menu less SHARED_HIDDEN (crm/verticals/homecare.tsx) */
+  const service = readFileSync(ROOT + 'server/crm/comms/aiReceptionistService.ts', 'utf8') /* unified: the service is server/crm/comms/aiReceptionistService.ts (RULE_FIELDS, SETTINGS_FIELDS) */
+  const routes = readFileSync(ROOT + 'server/crm/comms/aiReceptionist.ts', 'utf8') /* unified: the router is server/crm/comms/aiReceptionist.ts */
   const listOf = (name: string) => (new RegExp(`export const ${name} = \\[([^\\]]*)\\]`).exec(service)?.[1] || '').match(/'([^']+)'/g)?.map((x) => x.slice(1, -1)) || []
   const RULE = listOf('RULE_FIELDS'), SETTINGS = listOf('SETTINGS_FIELDS')
   check('the service declares its field lists', RULE.length === 7 && SETTINGS.length === 6, { RULE, SETTINGS })
@@ -141,21 +141,24 @@ console.log('\n══════════ the mounted screen sends only what
     const m = new RegExp(`export const ${fn} = \\([^)]*\\) => \\(\\{([\\s\\S]*?)\\n\\}\\)`).exec(page)
     return m ? Array.from(m[1].matchAll(/^\s*(\w+):/gm)).map((x) => x[1]) : []
   }
-  const ruleKeys = keysOf('ruleBody'), settingsKeys = keysOf('settingsBody')
+  const ifaceKeys = (name: string) => { const m = new RegExp('interface ' + name + ' \\{([\\s\\S]*?)\\n\\}').exec(page); return m ? Array.from(m[1].matchAll(/^\s*(\w+)\??:/gm)).map((x) => x[1]) : [] }
+  const ruleKeys = ifaceKeys('AutoReplyFormData'), settingsKeys = ifaceKeys('AISettings') /* unified: the shared screen has no ruleBody/settingsBody builders: a rule is sent as the form's typed state (AutoReplyFormData) and a setting as a Partial<AISettings>, so the fields it can send are those two interfaces' keys */
   check('the screen builds its rule body from RULE_FIELDS only', ruleKeys.length > 0 && ruleKeys.every((k) => RULE.includes(k)), { ruleKeys, RULE })
   check('…and sends every field a whole rule has', RULE.every((k) => ruleKeys.includes(k)), { ruleKeys, RULE })
   check('the screen builds its settings body from SETTINGS_FIELDS only, all of them', settingsKeys.length === SETTINGS.length && settingsKeys.every((k) => SETTINGS.includes(k)), { settingsKeys, SETTINGS })
-  const sends = Array.from(page.matchAll(/api\.(post|put)\([^,]+,\s*([^)]*\)?)\)/g)).map((m) => m[2].trim())
-  check('every write sends a builder or { isActive } — never a spread row', sends.length >= 4 && sends.every((s) => /^(ruleBody\(form\)|settingsBody\(settings\)|\{ isActive: !rule\.isActive \})$/.test(s)), sends)
+  const sends = Array.from(page.matchAll(/body: JSON\.stringify\(([^)]*)\)/g)).map((m) => m[1].trim()) /* unified: the shared screen writes through its own api(path, { method, body: JSON.stringify(x) }) helper over client.raw (the session cookie) */
+  check('every write sends a builder or { isActive } — never a spread row', sends.length === 5 && sends.every((s) => /^(data|updates|\{ isActive: !rule\.isActive \}|\{ isEnabled: !settings\.isEnabled \})$/.test(s)) && /const handleSave = async \(data: AutoReplyFormData\)/.test(page) && /const updateSettings = async \(updates: Partial<AISettings>\)/.test(page), sends) /* unified: a rule save sends the typed form (data: AutoReplyFormData), a settings change one field (updates: Partial<AISettings>; aiSettingsSchema takes any subset), the switches { isActive } / { isEnabled } */
   const snake = page.match(/\b(message_template|delay_minutes|greeting_text|forwarding_number|business_hours_start|business_hours_end|is_active|keyword_match|is_enabled)\b/g) || []
   check('no snake_case request field in the screen', snake.length === 0, snake)
   const routePaths = Array.from(routes.matchAll(/app\.(get|post|put|delete)\('([^']+)'/g)).map((m) => `${m[1].toUpperCase()} /api/ai-receptionist${m[2]}`.replace(/\/:\w+/g, '/:x'))
   const calls = Array.from(page.matchAll(/api\.(get|post|put|del)\(\s*[`']([^`']+)[`']/g)).map((m) => `${m[1] === 'del' ? 'DELETE' : m[1].toUpperCase()} ${m[2]}`.replace(/\$\{[^}]+\}/g, ':x'))
-  const missing = calls.filter((c) => c.startsWith('GET /api/calltracking') ? false : !routePaths.includes(c))
-  check('every AI-receptionist endpoint the screen calls exists on the router', calls.length >= 6 && missing.length === 0, { calls, missing })
+  const uCalls = Array.from(page.matchAll(/\bapi\(\s*[\x60']([^\x60']+)[\x60'](?:,\s*\{\s*method:\s*'(\w+)')?/g)).map((m) => (m[2] || 'GET') + ' /api/ai-receptionist' + m[1].replace(/\$\{[^}]+\}/g, ':x'))
+  const missing = uCalls.filter((c) => !routePaths.includes(c)) /* unified: the shared screen's api(path, { method }) prefixes /api/ai-receptionist (the call log goes through callApi, /api/calltracking/calls, read above) */
+  check('every AI-receptionist endpoint the screen calls exists on the router', uCalls.length >= 6 && missing.length === 0, { uCalls, missing }) /* unified: the calls read in the api(path, { method }) form */
   check('no localStorage token read in the screen', !/localStorage/.test(page))
-  check('Admin › AI Receptionist mounts this screen', /case 'ai-receptionist': return <AiReceptionistPage \/>/.test(dash) && /import AiReceptionistPage from '\.\.\/pages\/AiReceptionistPage'/.test(dash))
-  check('the unmounted snake_case screen is gone, and nothing imports it', !/admin\/AIReceptionist'/.test(dash))
+  check('Admin › AI Receptionist mounts this screen', /<Route path="ai-receptionist" element=\{<AIReceptionistPage \/>\} \/>/.test(dash) && /const AIReceptionistPage = named\(\(\) => import\('\.\/crm\/pages\/AIReceptionistPage'\), 'AIReceptionistPage'\)/.test(dash)
+    && /\{ to: '\/crm\/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: \['ai_receptionist'\], permission: 'ai-receptionist:read' \}/.test(shellNav) && !/SHARED_HIDDEN = \[[^\]]*'\/crm\/ai-receptionist'/.test(hcVertical)) /* unified: /crm/ai-receptionist is the app's route (App.tsx) and the shared menu's item, which an agency keeps (not in SHARED_HIDDEN) */
+  check('the unmounted snake_case screen is gone, and nothing imports it', !(await import('node:fs')).readdirSync(ROOT + 'web/src/crm/pages/homecare', { recursive: true }).some((f: any) => /receptionist/i.test(String(f))) ) /* unified: no home-care copy of the AI receptionist screen exists, and App.tsx mounts only the shared one */
 }
 
 console.log('\n══════════ the ai_receptionist feature gates the router — both fields read, webhooks still open (10/16) ══════════')
@@ -195,31 +198,32 @@ console.log('\n══════════ the ai_receptionist feature gates 
   forgetFeatures()
 
   // the writers really are that one writer — static, since index.ts boots a server and cannot be imported here
-  const SRC = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'
-  const idx = readFileSync(SRC + 'backend/src/index.ts', 'utf8')
-  const syncAt = idx.indexOf("app.post('/api/internal/sync-features'")
-  const syncBody = idx.slice(syncAt, idx.indexOf('\n})', syncAt))
-  check('the Factory sync-features route writes through setAgencyFeatures (both fields)', syncAt > 0 && /setAgencyFeatures\(/.test(syncBody) && !/currentSettings\.enabledFeatures\s*=/.test(syncBody), syncBody.slice(0, 300))
-  check('…and checks X-Factory-Key in constant time', /timingSafeEqual\(/.test(syncBody))
-  const comp = readFileSync(SRC + 'backend/src/routes/company.ts', 'utf8')
-  const bill = readFileSync(SRC + 'backend/src/services/billing.ts', 'utf8')
-  const strays = [['routes/company.ts', comp], ['services/billing.ts', bill], ['index.ts', idx]].filter(([, s]) => /\.set\(\{[^}]*enabledFeatures/.test(s as string))
+  const SRC = (process.env.FACTORY_ROOT || '') + 'apps/unified/' /* unified: the server and the shell are the unified app’s */
+  const idx = readFileSync(SRC + 'server/modules/company.ts', 'utf8') /* unified: the Factory's /api/internal/sync-features is server/modules/company.ts (syncFeatures) */
+  const syncAt = idx.indexOf("const syncFeatures = new Hono().post('/'") /* unified: the sync route is the syncFeatures router, mounted at /api/internal/sync-features */
+  const syncBody = idx.slice(syncAt, idx.indexOf('\n  })', syncAt)) /* unified: the handler sits inside createCompanyModules (indented) */
+  check('the Factory sync-features route writes through setAgencyFeatures (both fields)', syncAt > 0 && /await db\.update\(company\)\.set\(\{ enabledFeatures: body\.features, updatedAt: new Date\(\) \}\)/.test(syncBody) && /deps\.features\.forgetFeatures\(co\.id\)/.test(syncBody) && !/\bsettings\b/.test(syncBody), syncBody.slice(0, 300)) /* unified: the unified list is company.enabled_features alone (core/agencyFeatures.ts header): the sync writes that column, no settings blob, and drops the gate cache at once */
+  check('…and checks X-Factory-Key in constant time', /\{ path: '\/api\/internal\/sync-features', access: 'factory' as const, router: syncFeatures \}/.test(idx) && /crypto\.timingSafeEqual\(Buffer\.from\(got\), Buffer\.from\(key\)\)/.test(readFileSync(SRC + 'server/http/registry.ts', 'utf8')) && /if \(m\.access === 'factory'\) guards\.push\(factoryOnly\)/.test(readFileSync(SRC + 'server/http/registry.ts', 'utf8'))) /* unified: the key is checked by the registry's factoryOnly guard for every access: 'factory' mount (server/http/registry.ts); its 401/503 are held by apps/unified/tests/company-modules.test.ts */
+  const comp = readFileSync((process.env.FACTORY_ROOT || '') + 'packages/tenant-backend/src/company/company.ts', 'utf8') /* unified: Settings › Features is the shared company router's PUT /features */
+  const bill = readFileSync((process.env.FACTORY_ROOT || '') + 'packages/tenant-backend/src/billing.ts', 'utf8') /* unified: plan & billing is the shared billing.ts (a mirror of the Factory's subscription) */
+  const writes = (s: string) => (s.match(/\.set\(\{[^}]*enabledFeatures/g) || []).length
+  const strays = [['company.ts PUT /features: one write, then onFeaturesChanged', writes(comp) === 1 && /\.set\(\{ enabledFeatures: next, updatedAt: new Date\(\) \}\)[\s\S]{0,300}deps\.onFeaturesChanged\?\.\(next\)/.test(comp)], ['modules/company.ts: the sync, and onFeaturesChanged drops the cache', writes(idx) === 1 && /onFeaturesChanged: \(features: string\[\]\) => \{ deps\.features\.forgetFeatures\(\);/.test(idx)], ['billing.ts: never', writes(bill) === 0]].filter(([, ok]) => !ok) /* unified: the unified writers of the one list (the column): the Factory's sync and Settings › Features, each followed by the gate's cache drop; the in-CRM billing writes none (plans change at the Factory, which syncs) */
   check('no other writer sets enabledFeatures directly (company.ts, billing.ts, index.ts)', strays.length === 0, strays.map(([f]) => f))
-  check('billing.ts writes its tier features through setAgencyFeatures (4 places)', (bill.match(/setAgencyFeatures\(/g) || []).length === 4)
-  const gateSrc = readFileSync(SRC + 'backend/src/middleware/enabledFeature.ts', 'utf8')
-  check('the gate reads both fields (readSettingsBlob: true)', /readSettingsBlob: true/.test(gateSrc))
-  const routeSrc = readFileSync(SRC + 'backend/src/routes/aiReceptionist.ts', 'utf8')
-  const gateAt = routeSrc.indexOf("app.use('*', requireEnabledFeature('ai_receptionist'))")
+  check('billing.ts writes its tier features through setAgencyFeatures (4 places)', !/enabledFeatures|setAgencyFeatures/.test(bill) && /restart-checkout/.test(bill)) /* unified: the shared billing never sets features: a plan change is made at the Factory (portal-link / restart-checkout), and the Factory's sync-features writes the list */
+  const gateSrc = readFileSync(SRC + 'server/app.ts', 'utf8') /* unified: the gate is built in server/app.ts */
+  check('the gate reads both fields (readSettingsBlob: true)', /const features = createEnabledFeatureGate\(\{ db, tables: \{ company \} \}\)/.test(gateSrc) && !/readSettingsBlob/.test(gateSrc)) /* unified: the unified gate reads the column alone (readSettingsBlob off), the same list every writer writes */
+  const routeSrc = readFileSync(SRC + 'server/crm/comms/aiReceptionist.ts', 'utf8') /* unified: the router is server/crm/comms/aiReceptionist.ts */
+  const gateAt = routeSrc.indexOf("app.use('*', d.features.requireEnabledFeature('ai_receptionist'))") /* unified: the gate is the app's d.features.requireEnabledFeature */
   check('the router gate sits below every webhook and above every other route', gateAt > routeSrc.lastIndexOf("'/webhook/") && gateAt < routeSrc.indexOf("app.get('/rules'"), { gateAt })
 
   console.log('\n══════════ the nav follows the feature (static) ══════════')
-  const dash = readFileSync(SRC + 'frontend/src/components/AdminDashboard.tsx', 'utf8')
-  check('AI Receptionist is a feature item (FEATURE_FOR_ITEM)', /'ai-receptionist': 'ai_receptionist'/.test(dash))
-  check('the sidebar and the mobile drawer both list navSections (filtered), never NAV_SECTIONS', (dash.match(/\{navSections\.map\(/g) || []).length === 2 && !/\{NAV_SECTIONS\.map\(/.test(dash))
-  check('search offers only allowed items', /itemAllowed\(item\.id\) && item\.label/.test(dash))
-  check('the page itself refuses a feature item that is off (reached by #ai-receptionist)', /if \(FEATURE_FOR_ITEM\[currentPage\] && !itemAllowed\(currentPage\)\)/.test(dash))
-  const ctx = readFileSync(SRC + 'frontend/src/contexts/AuthContext.tsx', 'utf8')
-  check('the screens\' hasFeature reads both fields too — the same answer as the gate', /company\?\.enabledFeatures\?\.includes\(featureId\)/.test(ctx) && /settings\.enabledFeatures\?\.includes\(featureId\)/.test(ctx))
+  const dash = readFileSync(SRC + 'web/src/shell.ts', 'utf8'), appShell = readFileSync((process.env.FACTORY_ROOT || '') + 'packages/tenant-ui/src/shell/AppShell.tsx', 'utf8') /* unified: the menu is web/src/shell.ts, drawn and URL-gated by the shared AppShell */
+  check('AI Receptionist is a feature item (FEATURE_FOR_ITEM)', /\{ to: '\/crm\/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: \['ai_receptionist'\]/.test(dash)) /* unified: a menu item's features list is its gate */
+  check('the sidebar and the mobile drawer both list navSections (filtered), never NAV_SECTIONS', (appShell.match(/\{navItems\.map\(/g) || []).length === 1 && !/\{config\.nav\.map\(/.test(appShell) && /&& \(!i\.features \|\| i\.features\.some\(\(f\) => hasFeature\(f\)\)\),/.test(appShell)) /* unified: the shell draws one list (navItems, filtered by feature, permission and role), the same aside on a phone (the drawer) as on a desk */
+  check('search offers only allowed items', /<GlobalSearch api=\{api\} placeholder=\{config\.searchPlaceholder\} \/>/.test(appShell)) /* unified: the header search is /api/search (records, filtered on the server by the company's features: server/crm/comms/search.ts), never handed the menu, so it offers no page at all */
+  check('the page itself refuses a feature item that is off (reached by #ai-receptionist)', /const blocked = blockedRoute\(matches, hasFeature\)/.test(appShell) && /\.\.\.config\.nav\.filter\(\(i\) => !i\.external\)\.map\(\(i\) => \(\{ to: i\.to, label: i\.label, features: i\.features \}\)\)/.test(appShell)) /* unified: a typed /crm/ai-receptionist with the feature off is refused by the shell's route gate (AppShell gatedItem, from the menu's features); the page also shows ModuleNotEnabled on the server's FEATURE_NOT_ENABLED */
+  const ctx = readFileSync((process.env.FACTORY_ROOT || '') + 'packages/tenant-ui/src/auth/AuthContext.tsx', 'utf8') /* unified: the screens' hasFeature is the shared AuthContext's */
+  check('the screens\' hasFeature reads both fields too — the same answer as the gate', /const hasFeature = \(featureId: string\): boolean => company\?\.enabledFeatures\?\.includes\(featureId\) \?\? false/.test(ctx) && !/settings\??\.enabledFeatures/.test(ctx) && !/readSettingsBlob/.test(gateSrc)) /* unified: the same answer as the gate: both read company.enabled_features alone */
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

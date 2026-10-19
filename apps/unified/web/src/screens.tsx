@@ -2,7 +2,7 @@
 // wrapper file per screen; one file here.
 import { Navigate } from 'react-router-dom'
 import {
-  AppShell, AuditLogPage, BillingPage, EmailAliasesPage, FeaturesSettingsPage, ForgotPasswordPage, LeadInboxPage,
+  AppShell, AuditLogPage, isAccountLocked, BillingPage, EmailAliasesPage, FeaturesSettingsPage, ForgotPasswordPage, LeadInboxPage,
   LoginPage, MyAccountPage, PaywallScreen, ResetPasswordPage, SettingsPage, useAuth, usePermissions, useToast,
 } from './shared'
 import { api } from './api'
@@ -74,5 +74,8 @@ export function AuditLog() {
 
 export function Paywall() {
   const { company, logout } = useAuth()
+  // A company that is not locked has nothing to do here: back into the app (home care's lock page did this; the
+  // shared screen only goes home after a restart's polling).
+  if (company && !isAccountLocked(company as any)) return <Navigate to={HOME} replace />
   return <PaywallScreen company={company as any} onSignOut={logout} request={(method, path) => api.request(path, { method })} homePath={HOME} />
 }

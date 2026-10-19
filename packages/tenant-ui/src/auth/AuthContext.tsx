@@ -23,6 +23,7 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
   const [permissions, setPermissions] = useState<string[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [sessionEnded, setSessionEnded] = useState(false)
 
   const checkAuth = useCallback(async () => {
     // Nothing to ask about: no token in storage. A cookie session is invisible to the page, so only the server can say.
@@ -69,9 +70,12 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
 
   useEffect(() => { checkAuth() }, [checkAuth])
 
+  // A signed-in person has no ended session to report: the next sign-out is an ordinary one.
+  useEffect(() => { if (user) setSessionEnded(false) }, [user])
+
   // The api client dispatches auth:expired when a refresh fails; drop the session without a hard reload.
   useEffect(() => {
-    const handleExpired = () => { setUser(null); setCompany(null); setPermissions(null) }
+    const handleExpired = () => { setUser(null); setCompany(null); setPermissions(null); setSessionEnded(true) }
     window.addEventListener('auth:expired', handleExpired)
     return () => window.removeEventListener('auth:expired', handleExpired)
   }, [])
@@ -142,7 +146,7 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
   const can = useCallback((permission: string): boolean => permissionAllows(permissions, permission), [permissions])
 
   return (
-    <AuthContext.Provider value={{ user, company, loading, error, isAuthenticated, isAdmin, isManager, login, completeMfa, logout, checkAuth, updateCompany, updateUser, hasFeature, permissions, can, getToken }}>
+    <AuthContext.Provider value={{ user, company, loading, error, isAuthenticated, sessionEnded, isAdmin, isManager, login, completeMfa, logout, checkAuth, updateCompany, updateUser, hasFeature, permissions, can, getToken }}>
       {children}
     </AuthContext.Provider>
   )

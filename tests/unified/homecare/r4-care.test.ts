@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/r4-care.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 7 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 24 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — Run 4 (tester's retest of 10/16), the care items, through the real routes on PGlite.
 //   1. ONE rule for "active care plan": status Active AND inside its dates — the office list, its
@@ -38,7 +38,27 @@ delete process.env.AGENCY_TIMEZONE
 await setupSchema()
 
 const ROOT = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'
-const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
+const UFE = (process.env.FACTORY_ROOT || '') + 'apps/unified/web/src/crm/pages/homecare/'
+const MOVED: Record<string, string> = {
+  'frontend/src/components/admin/CarePlans.tsx': UFE + 'clients/CarePlans.tsx',
+  'frontend/src/components/admin/CareTasksManager.tsx': UFE + 'clients/CareTasksManager.tsx',
+  'frontend/src/components/admin/EditClientModal.tsx': UFE + 'clients/EditClientModal.tsx',
+  'frontend/src/components/admin/SchedulingHub.tsx': UFE + 'schedule/SchedulingHub.tsx',
+  'frontend/src/components/admin/ClientWeekHours.tsx': UFE + 'shifts/ClientWeekHours.tsx',
+  'frontend/src/components/admin/PortalClaimDays.tsx': UFE + 'billing/PortalClaimDays.tsx',
+  'frontend/src/components/admin/BillingDashboard.tsx': UFE + 'billing/BillingDashboard.tsx',
+  'frontend/src/components/admin/BillingEngine.tsx': UFE + 'billing/BillingEngine.tsx',
+  'frontend/src/components/admin/FamilyPortalAdmin.tsx': UFE + 'portals/FamilyPortalAdmin.tsx',
+  'frontend/src/components/portal/FamilyPortal.tsx': UFE + 'portals/FamilyPortal.tsx',
+  'frontend/src/components/portal/ClientPortal.tsx': UFE + 'portals/ClientPortal.tsx',
+  'frontend/src/components/portal/PortalHistory.tsx': UFE + 'portals/PortalHistory.tsx',
+  'frontend/src/components/portal/PortalDocuments.tsx': UFE + 'portals/PortalDocuments.tsx',
+  'frontend/src/components/portal/PortalMessages.tsx': UFE + 'portals/PortalMessages.tsx',
+  'frontend/src/components/portal/PortalNotifications.tsx': UFE + 'portals/PortalNotifications.tsx',
+  'frontend/src/components/CaregiverClientModal.tsx': UFE + 'visits/CaregiverClientModal.tsx',
+  'backend/src/services/invoiceEngine.ts': (process.env.FACTORY_ROOT || '') + 'apps/unified/server/crm/homecare/core/invoiceEngine.ts',
+}
+const src = (p: string) => { if (!MOVED[p]) throw new Error('r4-care: no unified home named for ' + p); return readFileSync(MOVED[p], 'utf8').replace(/\r\n/g, '\n') } /* unified: the screens moved to apps/unified/web/src/crm/pages/homecare/ (clients/, schedule/, shifts/, visits/, billing/, portals/, lib/; docs/UNIFIED_HOMECARE_SCREENS.md) and the payment engine to server/crm/homecare/core/invoiceEngine.ts: each template path the file names reads its moved file */
 
 // Thursday, October 15 2026, 12:00 in America/Chicago. This week is Sun 10/11 – Sat 10/17.
 const THURSDAY = '2026-10-15'
@@ -135,7 +155,7 @@ check('0. the pinned Thursday is the database\'s today as well', dbToday === THU
 
   const cp = src('frontend/src/components/admin/CarePlans.tsx')
   check('1. the office screen takes "active" from the server, never from the dates alone',
-    /const isActivePlan = \(plan: any\) => plan\.is_active === true \|\| plan\.isActive === true;/.test(cp) && !/String\(plan\.start_date\)\.slice\(0, 10\) <= t\) && \(!plan\.end_date/.test(cp))
+    /const isActivePlan = \(plan: CarePlan\) => plan\.isActive === true\n/.test(cp) && !/String\(plan\.startDate\)\.slice\(0, 10\) <= t\) && \(!plan\.endDate/.test(cp)) /* unified: the reply is camelCase (RULEBOOK §2): the screen reads only the server's isActive (clients/CarePlans.tsx isActivePlan, the whole line), and never re-derives it from startDate/endDate */
   check('1. …a draft wears ONE tag ("Draft — not active") and an Activate button; the form can set the status',
     /if \(plan\.status === 'draft'\) return \['Draft — not active'/.test(cp) && /onClick=\{\(\) => activatePlan\(plan\)\}/.test(cp) && /id="cp-status"/.test(cp) && /status: plan\.status \|\| 'active'/.test(cp))
   const mobile = readFileSync((process.env.FACTORY_ROOT || '') + 'apps/mobile/app/(care)/client/[id].tsx', 'utf8')
@@ -163,8 +183,8 @@ check('0. the pinned Thursday is the database\'s today as well', dbToday === THU
   check('2. the swap reads approved', (await A('GET', '/api/shift-swaps?status=approved')).json.some((x: any) => x.id === req.json.id))
   const hub = src('frontend/src/components/admin/SchedulingHub.tsx')
   check('2. the screen\'s ✓ asks "Approve swap" (not a red bin-icon "Confirm Action"), calls the route, and says what happened',
-    /onClick=\{\(\) => approveSwap\(sw\)\}>✓<\/button>/.test(hub) && /title: 'Approve shift swap', confirmLabel: 'Approve swap'/.test(hub)
-    && /await api\(`\/api\/shift-swaps\/\$\{sw\.id\}\/approve`, \{ method: 'PUT' \}\); showMsg\(`Swap approved/.test(hub))
+    /onClick=\{\(\) => approveSwap\(sw\)\}>✓<\/button>/.test(hub) && /title: 'Approve shift swap', confirmText: 'Approve swap', danger: false/.test(hub) /* unified: the pop-up is the app's useConfirm (schedule/SchedulingHub.tsx approveSwap): its button text is confirmText, and danger: false keeps it from being the red destructive button */
+    && /await api\.put\(`\/api\/shift-swaps\/\$\{sw\.id\}\/approve`\); showMsg\(`Swap approved/.test(hub)) /* unified: the screen calls the route through the app's client, api.put(path) (lib/http.ts), not the template's api(path, { method: 'PUT' }) */
 }
 
 // ══ 3. a relative's permissions, edited after creation ═══════════════════════════════════════════
@@ -185,12 +205,12 @@ check('0. the pinned Thursday is the database\'s today as well', dbToday === THU
   const me = await F('GET', '/api/family-portal/portal/me')
   check('3. …and the portal\'s own permissions say so (its tabs are built from them)', me.json.canViewMedications === false && me.json.canViewSchedule === true, me.json)
   const fpa = src('frontend/src/components/admin/FamilyPortalAdmin.tsx')
-  const modal = fpa.slice(fpa.indexOf('{/* Edit Family Member Modal */}'), fpa.indexOf('{/* Add Family Member Modal */}'))
+  const modal = fpa.slice(fpa.indexOf('{editingMember && ('), fpa.indexOf('{showAddModal && (')) /* unified: the unified screen marks its pop-ups by their state, not by comments: the Edit pop-up is the {editingMember && (…)} block, which ends where the Add pop-up's {showAddModal && (…)} begins (portals/FamilyPortalAdmin.tsx) */
   check('3. each member row has ✏️ Edit, opening the house pop-up', /onClick=\{\(\) => setEditingMember\(member\)\}/.test(fpa)
     && /<div className="modal active" onClick=\{\(\) => setEditingMember\(null\)\}>\n\s*<div className="modal-content"/.test(modal) && /<EditMemberForm/.test(modal))
-  const form = fpa.slice(fpa.indexOf('const EditMemberForm'), fpa.indexOf('// Reply Form Component'))
+  const form = fpa.slice(fpa.indexOf('function EditMemberForm'), fpa.indexOf('function ReplyForm')) /* unified: the form components are function declarations in the unified screen (function EditMemberForm … function ReplyForm) */
   check('3. …whose form sends every switch the PUT reads, and primary contact', ['canViewSchedule', 'canViewCarePlan', 'canViewMedications', 'canMessage'].every((k) => fpa.includes(`['${k}',`))
-    && /isPrimaryContact: flag\('isPrimaryContact', 'is_primary_contact'\)/.test(form) && /onSubmit\(\{ \.\.\.form, name: form\.name\.trim\(\), phone: form\.phone\.trim\(\) \}\)/.test(form))
+    && /isPrimaryContact: !!member\.isPrimaryContact/.test(form) && ['canViewSchedule', 'canViewCarePlan', 'canViewMedications', 'canMessage'].every((k) => form.includes(`${k}: !!member.${k}`)) && /await api\.put\(`\/api\/family-portal\/admin\/members\/\$\{memberId\}`, patch\)/.test(fpa) /* unified: the member row is camelCase (RULEBOOK §2), so the form starts from member.isPrimaryContact and each switch from member.<key> (no snake_case fallback to pick), and Save PUTs that whole patch (updateMember) */ && /onSubmit\(\{ \.\.\.form, name: form\.name\.trim\(\), phone: form\.phone\.trim\(\) \}\)/.test(form))
 }
 
 // ══ 4. an office reply, once ═════════════════════════════════════════════════════════════════════
@@ -227,13 +247,13 @@ check('0. the pinned Thursday is the database\'s today as well', dbToday === THU
   check('5. the family portal is told the agency\'s zone', c1.json.timezone === 'America/Chicago', c1.json)
   const me = await call({ 'x-portal-token': 'r4-vit-token' })('GET', '/api/portal/me')
   check('5. …and so is the client portal', me.status === 200 && me.json.agency_timezone === 'America/Chicago', me.json)
-  const clock = await import(ROOT + 'frontend/src/utils/agencyClock.ts')
+  const clock = await import(UFE + 'lib/agencyClock.ts') /* unified: the agency clock is lib/agencyClock.ts */
   clock.setAgencyTimezone('America/Chicago')
   check('5. printed on the agency\'s clock: 11:10 AM, not 4:10 PM', clock.formatAgencyDateTime(v.json[0].recorded_at) === 'Oct 16, 11:10 AM', clock.formatAgencyDateTime(v.json[0].recorded_at))
   check('5. …an evening instant keeps its own day (not the UTC date)', clock.formatAgencyDate('2026-10-17T02:30:00Z', { month: 'short', day: 'numeric' }) === 'Oct 16')
   const fp = src('frontend/src/components/portal/FamilyPortal.tsx')
   const cp = src('frontend/src/components/portal/ClientPortal.tsx')
-  check('5. both portals adopt the zone the server names', /setAgencyTimezone\(data\.timezone\)/.test(fp) && /setAgencyTimezone\(data\.agency_timezone\)/.test(cp))
+  check('5. both portals adopt the zone the server names', /setAgencyTimezone\(data\.timezone\)/.test(fp) && /setAgencyTimezone\(data\.agencyTimezone\)/.test(cp) /* unified: GET /api/portal/me answers camelCase agencyTimezone (portals/ClientPortal.tsx) */)
   const portalFiles = ['FamilyPortal', 'PortalHistory', 'PortalDocuments', 'PortalMessages', 'PortalNotifications'].map((f) => [f, src(`frontend/src/components/portal/${f}.tsx`)] as const)
   const browserClock = portalFiles.filter(([, s]) => /new Date\([^)]*\)\.toLocale(String|TimeString)\(|parseLocalDate\(isoStr\)|const dt = new Date\(d\);\n\s*return isNaN\(dt\.getTime\(\)\) \? '' : dt\.toLocaleString/.test(s)).map(([f]) => f)
   check('5. no portal screen prints an instant on the browser\'s clock any more', browserClock.length === 0, browserClock)
@@ -263,7 +283,7 @@ check('0. the pinned Thursday is the database\'s today as well', dbToday === THU
   const lv = await CGA('GET', `/api/clients/${legacy.id}/caregiver-view`)
   check('6. a client with no Medications list rows: the record\'s free-text note, labelled as such', lv.json.medications === 'Aspirin 81mg' && lv.json.medications_source === 'client_record', lv.json)
   const modal = src('frontend/src/components/CaregiverClientModal.tsx')
-  check('6. …the Medical tab says where that note comes from', /client\.medications_source === 'client_record'/.test(modal) && /Notes from the client record — not on the office's Medications list yet\./.test(modal))
+  check('6. …the Medical tab says where that note comes from', /client\.medicationsSource === 'client_record'/.test(modal) /* unified: the caregiver view is camelCase: medicationsSource (visits/CaregiverClientModal.tsx) */ && /Notes from the client record — not on the office's Medications list yet\./.test(modal))
 }
 
 // ══ 7 + 9. Portal Claim Days: the blank field by name; this week ═════════════════════════════════
@@ -278,14 +298,14 @@ check('0. the pinned Thursday is the database\'s today as well', dbToday === THU
   check('7. the client\'s blank EVV share and its 40 authorized units are both reported, apart', c?.evv_weekly_units === null && c?.weekly_authorized_units === 40 && c?.totals?.evvAuthorizedUnits === null, c)
   check('7. …the authorized total is NOT used as the EVV cap (all 120 EVV minutes stay EVV: 8 units)', c?.totals?.evvUnits === 8 && c?.totals?.homemakerUnits === 0, c?.totals)
   const pcd = src('frontend/src/components/admin/PortalClaimDays.tsx')
-  check('7. the warning names the field and the total, and opens that field', /"EVV \(Sandata\) units per week" is blank for \{c\.client_name\}/.test(pcd)
+  check('7. the warning names the field and the total, and opens that field', /"EVV \(Sandata\) units per week" is blank for \{c\.clientName\}/.test(pcd) /* unified: the claim-days rows are camelCase: clientName */
     && /weekly authorized units are the total for both codes, not the EVV share/.test(pcd) && /onClick=\{\(\) => setEvvFor\(c\)\}>Set EVV units<\/button>/.test(pcd)
-    && /<EvvWeeklyUnits clientId=\{evvFor\.client_id\}/.test(pcd) && /export const EvvWeeklyUnits/.test(src('frontend/src/components/admin/EditClientModal.tsx')))
-  check('9. the screen sends no week of its own on first load (the server\'s agency week)', !/lastFullWeekSunday/.test(pcd) && /const \[weekStart, setWeekStart\] = useState\(''\);/.test(pcd) && /const qs = weekStart \? `&weekStart=\$\{weekStart\}` : '';/.test(pcd))
+    && /<EvvWeeklyUnits clientId=\{evvFor\.clientId\}/.test(pcd) /* unified: the claim-days rows are camelCase: clientId */ && /export const EvvWeeklyUnits/.test(src('frontend/src/components/admin/EditClientModal.tsx')))
+  check('9. the screen sends no week of its own on first load (the server\'s agency week)', !/lastFullWeekSunday/.test(pcd) && /const \[weekStart, setWeekStart\] = useState\(''\)\n/.test(pcd) && /api\.get\('\/api\/billing\/portal-claim-days', \{ payerId, weekStart: weekStart \|\| undefined \}\)/.test(pcd) /* unified: the screen asks through api.get(path, params), which drops an undefined param (packages/tenant-ui/src/api/client.ts get): the first load sends no weekStart */)
   const cw = await A('GET', '/api/reports/client-week')
   check('9. Client Hours by Week with no week asked: THIS week on the agency\'s clock', cw.status === 200 && cw.json.weekStart === THIS_SUNDAY && cw.json.weekEnd === '2026-10-17', cw.json?.weekStart)
   const cwh = src('frontend/src/components/admin/ClientWeekHours.tsx')
-  check('9. …and its screen asks without a week, adopting the server\'s', /const qs = weekStart \? `\?weekStart=\$\{weekStart\}` : '';/.test(cwh) && /if \(!weekStart && body\.weekStart\) \{ adopted\.current = body\.weekStart; setWeekStart\(body\.weekStart\); \}/.test(cwh))
+  check('9. …and its screen asks without a week, adopting the server\'s', /api\.get\('\/api\/reports\/client-week', \{ weekStart: weekStart \|\| undefined \}\)/.test(cwh) && /if \(!weekStart && body\?\.weekStart\) \{ adopted\.current = body\.weekStart; setWeekStart\(body\.weekStart\) \}/.test(cwh) /* unified: the screen asks through api.get(path, params), which drops an undefined weekStart, and adopts the week the server answers (shifts/ClientWeekHours.tsx load) */)
   // Late Saturday night in Wisconsin is already Sunday in UTC: the week is still this one.
   setSystemTime(new Date('2026-10-18T04:30:00Z'))
   check('9. Saturday 11:30 PM Central is still this week (the agency\'s clock, not UTC)', (await A('GET', '/api/reports/client-week')).json.weekStart === THIS_SUNDAY && (await A('GET', `/api/billing/portal-claim-days?payerId=${payer.id}`)).json.week_start === THIS_SUNDAY)
@@ -319,8 +339,8 @@ check('0. the pinned Thursday is the database\'s today as well', dbToday === THU
   check('8. a daily task for a client with nothing scheduled falls back to its own times per week', b1?.times_per_week === 2 && b1?.minutes_per_week === 20 && b1?.every_visit === false, b1)
   const cp = src('frontend/src/components/admin/CarePlans.tsx'), ctm = src('frontend/src/components/admin/CareTasksManager.tsx')
   check('8. both screens print the server\'s minutes (the care-plan panel and the Care Tasks screen)',
-    /const mins = \(t: any\) => Number\(t\.minutes_per_week\) \|\| 0;/.test(cp) && /sum \+ \(Number\(t\.minutes_per_week\) \|\| 0\)/.test(ctm)
-    && !/\(t\.weekly_frequency \|\| 1\) \* \(t\.allotted_minutes \|\| 0\)/.test(cp + ctm))
+    /const mins = \(t: CareTask\) => Number\(t\.minutesPerWeek\) \|\| 0/.test(cp) && /sum \+ \(Number\(t\.minutesPerWeek\) \|\| 0\)/.test(ctm) /* unified: the task rows are camelCase: minutesPerWeek (clients/CarePlans.tsx, clients/CareTasksManager.tsx) */
+    && !/\(t\.weeklyFrequency \|\| 1\) \* \(t\.allottedMinutes \|\| 0\)/.test(cp + ctm)) /* unified: the old re-count looked for in the camelCase spelling the screens use (the assessment-import preview's parseInt(String(t.weeklyFrequency)) × parseInt(String(t.allottedMinutes)) is the import's own count, as in the template) */
   const pdf = await import('../../server/crm/homecare/core/carePdf.ts') /* unified: the care plan PDF's text is the foundation's (server/crm/homecare/core/carePdf.ts); it reads the camelCase task rows the list now answers */
   const text = pdf.careTasksSection((t.json || []) as any, false)
   check('8. the care plan PDF prints the same numbers', /Bathing: 5x\/week × 30 min = 150 min\/week/.test(text) && /Total: 235 min\/week/.test(text), text)
@@ -329,7 +349,7 @@ check('0. the pinned Thursday is the database\'s today as well', dbToday === THU
 // ══ 10. the overpayment refusal ══════════════════════════════════════════════════════════════════
 {
   const bd = src('frontend/src/components/admin/BillingDashboard.tsx')
-  check('10. Record Payment has no overpayment control, so the refusal offers none', !/allowOverpayment|overpay/i.test(bd))
+  check('10. Record Payment has no overpayment control, so the refusal offers none', !/allowOverpayment|overpay/i.test(bd + src('frontend/src/components/admin/BillingEngine.tsx'))) /* unified: both unified screens with a Record Payment form (billing/BillingDashboard.tsx and billing/BillingEngine.tsx) are looked at */
   check('10. …and the refusal names no developer flag', !/allowOverpayment: true/.test(src('backend/src/services/invoiceEngine.ts')))
 }
 

@@ -58,6 +58,8 @@ export interface AuthContextValue {
   loading: boolean
   error: string | null
   isAuthenticated: boolean
+  /** The session ran out (a refresh was refused) — the sign-in page says so. Cleared by the next sign-in. */
+  sessionEnded?: boolean
   isAdmin: boolean
   isManager: boolean
   login: (email: string, password: string) => Promise<AuthData>

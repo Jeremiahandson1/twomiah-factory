@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/r3pay.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 2 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 22 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — E2E Run 3 (Oct 16 2026): payroll, shift reviews and approvals, visit documentation,
 // worked vs payable hours, punctuality, the live board and dashboard, Client Hours by Week.
@@ -36,6 +36,8 @@ delete process.env.AGENCY_TIMEZONE
 await setupSchema()
 const ROOT = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'
 const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
+const UNI = (process.env.FACTORY_ROOT || '') + 'apps/unified/'
+const usrc = (p: string) => readFileSync(UNI + p, 'utf8').replace(/\r\n/g, '\n') /* unified: the screens moved to apps/unified/web/src/crm/pages/homecare/<group>/ and the server to apps/unified/server/crm/homecare/<group>/ and server/data/homecare*.ts (docs/UNIFIED_HOMECARE_SCREENS.md): usrc reads the moved files, so these checks hold the code that ships */
 
 // Wisconsin, no zone set → America/Chicago (CDT = UTC-5 in September).
 const [ag] = await db.insert(agencies).values({ name: 'Run Three Care', slug: 'runthree', state: 'WI' } as any).returning()
@@ -104,9 +106,9 @@ const workDays = ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-
   const list = await office('GET', `/api/payroll-shift-reviews/shifts?startDate=${PERIOD.startDate}&endDate=${PERIOD.endDate}`)
   const first = list.json?.shifts?.[0] || {}
   check('shift reviews carry the caregiver\'s and client\'s names', first.caregiverFirstName === 'Ann' && first.caregiverLastName === 'Payroll' && first.clientFirstName === 'Pat' && first.clientLastName === 'Example', first)
-  const screen = src('frontend/src/components/admin/PayrollProcessing.tsx')
+  const screen = usrc('web/src/crm/pages/homecare/people/PayrollProcessing.tsx') /* unified: Payroll is people/PayrollProcessing.tsx */
   check('the Shift Reviews screen reads those names (caregiver_first_name / caregiverFirstName), not caregiver_first',
-    !/\.(caregiver|client)_(first|last)\b(?!_name)/.test(screen) && /caregiver_first_name \?\? s\.caregiverFirstName/.test(screen))
+    !/\.(caregiver|client)(_first|_last|First|Last)\b/.test(screen) && /personName\(s\.caregiverFirstName, s\.caregiverLastName\)/.test(screen) && /personName\(s\.clientFirstName, s\.clientLastName\)/.test(screen) /* unified: the reply is camelCase (RULEBOOK §2): the screen reads caregiverFirstName / clientFirstName … (cgName / clName), with no snake_case fallback */)
 
   const ap = await office('POST', '/api/payroll-shift-reviews/shifts/approve-all', { ...PERIOD, mode: 'clocked' })
   check('approve clocked: 10 approved', ap.json?.approved === 10, ap.json)
@@ -139,7 +141,7 @@ const workDays = ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-
   const appr = await office('PUT', `/api/payroll/${cgA.id}/approve`, PERIOD)
   check('approving the payroll records the same numbers', appr.status === 200 && appr.json?.regularHours === '80.00' && appr.json?.overtimeHours === '10.00' && appr.json?.overtimeRate === '30.00' && appr.json?.grossPay === '1900.00', appr.json)
   check('the screen approves with PUT and the period, and processes the record by its id',
-    /method: 'PUT'[\s\S]{0,200}startDate: payPeriod\.startDate/.test(screen) && screen.includes('/api/payroll/${payroll.recordId}/process'))
+    /api\.put\(`\/api\/payroll\/\$\{caregiverId\}\/approve`, \{ startDate: payPeriod\.startDate, endDate: payPeriod\.endDate \}\)/.test(screen) && screen.includes('api.post(`/api/payroll/${payroll.recordId}/process`)')) /* unified: the moved screen calls through the app's api client: Approve is api.put(…/approve, { startDate, endDate }) (approveOne), Process is api.post(…/${recordId}/process) */
   const calc2 = await office('POST', '/api/payroll/calculate', PERIOD)
   const row2 = calc2.json?.payroll?.find((r: any) => r.caregiverId === cgA.id)
   check('…Calculate then shows it approved, with its record', row2?.status === 'approved' && row2?.recordId === appr.json?.id, row2)
@@ -192,7 +194,7 @@ const workDays = ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-
 
   const util = await office('GET', '/api/reports/caregiver-utilization?startDate=2026-09-20&endDate=2026-09-30')
   check('utilization rows carry one name ("Bea Payroll")', util.json?.rows?.some((r: any) => r.name === 'Bea Payroll'), util.json?.rows)
-  const ui = src('frontend/src/components/admin/ReportsAnalytics.tsx')
+  const ui = usrc('web/src/crm/pages/homecare/office/ReportsAnalytics.tsx') /* unified: the reports screen is office/ReportsAnalytics.tsx */
   const utilBlock = ui.slice(ui.indexOf('const renderCaregiverUtilization'), ui.indexOf('const renderClientIncidents'))
   check('the utilization table has one Name column, no First / Last pair', utilBlock.includes('NAME_COL') && !/label: 'First'/.test(utilBlock) && !/label: 'Last'/.test(utilBlock))
 }
@@ -250,7 +252,7 @@ const [{ today }] = await q(sql`SELECT to_char((NOW() AT TIME ZONE 'America/Chic
   const te = await mkTe({ caregiverId: cgB.id, clientId: M.id, startTime: new Date('2026-09-25T14:00:00Z'), endTime: new Date('2026-09-25T15:00:00Z'), durationMinutes: 60, billableMinutes: 60, needsApproval: true, approvalReason: 'unscheduled' })
   const r = await office('PATCH', `/api/time-entries/${te.id}/approve`, { notes: '  Covered for Ann, client agreed. ' })
   check('approve with a note: the note is saved with the approval', r.status === 200 && r.json?.approvalNotes === 'Covered for Ann, client agreed.' && r.json?.needsApproval === false, r.json)
-  const sa = src('frontend/src/components/admin/ShiftApprovals.tsx')
+  const sa = usrc('web/src/crm/pages/homecare/shifts/ShiftApprovals.tsx') /* unified: Shift Approvals is shifts/ShiftApprovals.tsx */
   check('the Approve button sends the typed note (an inline field beside it)', /placeholder="Note \(optional\)"[\s\S]{0,600}approveAsIs\(r\)/.test(sa) && /submit\(row\.id, \{ notes: note \|\| 'Approved as clocked' \}\)/.test(sa))
 }
 
@@ -264,8 +266,8 @@ const [{ today }] = await q(sql`SELECT to_char((NOW() AT TIME ZONE 'America/Chic
   const lb = await office('GET', '/api/dashboard/live-board')
   const dot = lb.json?.shifts?.find((x: any) => x.caregiver_id === cgD.id)
   check('live board: the finished visit is completed with its clocked minutes', dot?.shift_status === 'completed' && Number(dot?.duration_minutes) === 1, dot)
-  const board = src('frontend/src/components/admin/LiveBoard.tsx')
-  check('the live board prints minutes, not "0.0h", for a short visit', /Clocked: \{fmtDuration\(shift\.duration_minutes\)\}/.test(board) && !/\(shift\.duration_minutes \/ 60\)\.toFixed\(1\)/.test(board))
+  const board = usrc('web/src/crm/pages/homecare/shifts/LiveBoard.tsx') /* unified: the Live Board is shifts/LiveBoard.tsx */
+  check('the live board prints minutes, not "0.0h", for a short visit', /Clocked: \{fmtDuration\(shift\.durationMinutes\)\}/.test(board) && !/\/ 60\)\.toFixed\(1\)/.test(board) /* unified: the board's rows are camelCase (durationMinutes) */)
 }
 
 // ════ Client Hours by Week opens on THIS week (agency clock) ═════════════════════════════════════
@@ -273,40 +275,41 @@ const [{ today }] = await q(sql`SELECT to_char((NOW() AT TIME ZONE 'America/Chic
   const r = await office('GET', '/api/reports/client-week')
   const d = new Date(`${today}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - d.getUTCDay())
   check('no weekStart → the Sunday of the agency\'s today', r.status === 200 && r.json?.weekStart === d.toISOString().slice(0, 10), r.json?.weekStart)
-  const cw = src('frontend/src/components/admin/ClientWeekHours.tsx')
-  check('the screen asks for the default week instead of computing "last full week"', !/Date\.now\(\) - 7 \* 86400000/.test(cw) && /useState\(''\)/.test(cw))
+  const cw = usrc('web/src/crm/pages/homecare/shifts/ClientWeekHours.tsx') /* unified: Client Hours by Week is shifts/ClientWeekHours.tsx */
+  check('the screen asks for the default week instead of computing "last full week"', !/Date\.now\(\) - 7 \* 86400000/.test(cw) && /const \[weekStart, setWeekStart\] = useState\(''\)/.test(cw) && /weekStart: weekStart \|\| undefined/.test(cw) /* unified: the week itself starts empty and the first load sends no weekStart */)
 }
 
 // ════ the screens: pop-ups that open, names, stray zeros ═════════════════════════════════════════
 {
-  const pp = src('frontend/src/components/admin/PayrollProcessing.tsx')
+  const pp = usrc('web/src/crm/pages/homecare/people/PayrollProcessing.tsx') /* unified: Payroll is people/PayrollProcessing.tsx */
   const tabEnd = pp.indexOf('{/* The pop-ups sit OUTSIDE the tabs')
   const payrollTab = pp.indexOf("{activeTab === 'payroll' && (")
   check('Payroll pop-ups (Settings, Mileage, PTO, Flag, Resolve) render outside the Payroll tab',
     tabEnd > payrollTab && payrollTab > 0 && ['SETTINGS MODAL', 'MILEAGE MODAL', 'PTO MODAL', 'FLAG SHIFT MODAL', 'RESOLVE SHIFT MODAL'].every((m) => pp.indexOf(`{/* ${m} */}`) > tabEnd)
-    && /\n      <\/div>\n      \)\}\n\n      \{\/\* The pop-ups sit OUTSIDE/.test(pp))
+    && /\n( *)  <\/div>\n\1\)\}\n\n\1\{\/\* The pop-ups sit OUTSIDE/.test(pp) /* unified: the moved screen nests the tab two spaces deeper: the tab's block closes (its div, then its )}) right before the pop-ups, at whatever depth */)
   // Every office screen (components/admin and pages/): a full-screen overlay below the sidebar's
   // z-index 1000 opens BEHIND it (the New Job Posting dialog's hidden left side).
   const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e: any) =>
     e.isDirectory() ? walk(d + e.name + '/') : e.name.endsWith('.tsx') ? [d + e.name] : [])
   // Every screen, the caregiver app's included: it has the same 1000 sidebar on a laptop.
-  const files = [...walk(ROOT + 'frontend/src/components/'), ...walk(ROOT + 'frontend/src/pages/')]
+  const files = walk((process.env.FACTORY_ROOT || '') + 'apps/unified/web/src/crm/pages/homecare/')
+  const SIDEBAR_Z = Number(/<aside\s+className=\{\x60fixed inset-y-0 left-0 z-(\d+) /.exec(readFileSync((process.env.FACTORY_ROOT || '') + 'packages/tenant-ui/src/shell/AppShell.tsx', 'utf8'))?.[1]) /* unified: every home-care screen is under apps/unified/web/src/crm/pages/homecare/; the sidebar is the app shell's (packages/tenant-ui/src/shell/AppShell.tsx, fixed, z-50), not the template's z-index 1000 */
   const under: string[] = []
   for (const f of files) {
     const s = readFileSync(f, 'utf8')
     for (const m of s.matchAll(/className=["`{][^"`]*\bfixed inset-(?:0|y-0)[^"`]*/g)) {
       const z = m[0].match(/\bz-\[?(\d+)\]?/)
-      if (z && Number(z[1]) < 1000) under.push(`${f.split('/').pop()}: ${z[0]}`)
+      if (z && Number(z[1]) <= SIDEBAR_Z) under.push( /* unified: an overlay must sit above the shell's sidebar */`${f.split('/').pop()}: ${z[0]}`)
     }
     for (const m of s.matchAll(/position: 'fixed', (?:inset: 0|top: 0, left: 0, right: 0, bottom: 0)[^}]*?zIndex: (\d+)/g)) {
-      if (Number(m[1]) < 1000) under.push(`${f.split('/').pop()}: zIndex ${m[1]}`)
+      if (Number(m[1]) <= SIDEBAR_Z) under.push( /* unified: an overlay must sit above the shell's sidebar */`${f.split('/').pop()}: zIndex ${m[1]}`)
     }
   }
-  check(`no office pop-up sits under the sidebar (z-index 1000): ${files.length} screens, every full-screen overlay ≥ 1000`, under.length === 0 && files.length > 50, under)
-  const vdui = src('frontend/src/components/admin/VisitDocumentation.tsx')
-  check('Visit Documentation lists "Pat Example", not "Example, Pat", and says "1 visit"', !vdui.includes('{c.last_name}, {c.first_name}') && vdui.includes("plural(data.visits.length, 'visit')"))
-  const hire = src('frontend/src/components/admin/ApplicationsDashboard.tsx')
-  check('Convert to Caregiver: no `{n && …}` that prints a bare 0', !/\{hireModal\.years_experience &&/.test(hire) && /Number\(hireModal\.years_experience\) > 0/.test(hire))
+  check(`no office pop-up sits under the sidebar (z-index ${SIDEBAR_Z}): ${files.length} screens, every full-screen overlay above it`, Number.isFinite(SIDEBAR_Z) && under.length === 0 && files.length > 50, under) /* unified: the threshold is the shell sidebar's z-index, read from AppShell.tsx (a failed read fails the check) */
+  const vdui = usrc('web/src/crm/pages/homecare/visits/VisitDocumentation.tsx') /* unified: Visit Documentation is visits/VisitDocumentation.tsx */
+  check('Visit Documentation lists "Pat Example", not "Example, Pat", and says "1 visit"', !vdui.includes('{c.lastName}, {c.firstName}') && /<option key=\{c\.id\} value=\{c\.id\}>\{fullName\(c\)\}<\/option>/.test(vdui) && /const fullName = \([^)]*\) => \[c\?\.firstName, c\?\.lastName\]/.test(vdui) && vdui.includes("plural(visits.length, 'visit')") && vdui.includes('const visits = data?.visits || []') /* unified: camelCase rows: the picker prints fullName(c) (first then last); the count is plural(visits.length) where visits is data?.visits */)
+  const hire = usrc('web/src/crm/pages/homecare/people/ApplicationsDashboard.tsx') /* unified: Applications is people/ApplicationsDashboard.tsx */
+  check('Convert to Caregiver: no `{n && …}` that prints a bare 0', !/\{(hireModal|app)\.yearsExperience &&/.test(hire) && /Number\(hireModal\.yearsExperience\) > 0/.test(hire) /* unified: the application row is camelCase (yearsExperience) */)
 }
 
 console.log(`\nhomecare-r3pay: ${passed} passed, ${failed} failed`)

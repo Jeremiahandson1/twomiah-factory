@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/popup-forms.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 3 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 6 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — the forms behind the pop-ups that never opened.
 //
@@ -78,10 +78,10 @@ let payerId = ''
   // The screen's own form object, read from the source: every key it sends is a field the route writes, and
   // every type it offers is one the route accepts. (The original fault was the SCREEN's names.)
   const { readFileSync } = await import('fs')
-  const tsx = readFileSync(`${process.env.FACTORY_ROOT}templates/crm-homecare/frontend/src/components/admin/PayersServiceCodes.tsx`, 'utf8')
-  const empty = tsx.match(/const EMPTY_PAYER = \{([\s\S]*?)\};/)?.[1] || ''
+  const tsx = readFileSync(`${process.env.FACTORY_ROOT}apps/unified/web/src/crm/pages/homecare/billing/PayersServiceCodes.tsx`, 'utf8') /* unified: Payers & Service Codes is billing/PayersServiceCodes.tsx */
+  const empty = tsx.match(/const EMPTY_PAYER = \{([\s\S]*?)\n\}/ /* unified: the moved file has no semicolons: the object ends at the } at the start of a line */)?.[1] || ''
   const keys = [...empty.replace(/\/\/.*$/gm, '').matchAll(/(\w+)\s*:/g)].map((m) => m[1])
-  const offered = [...(tsx.match(/const PAYER_TYPE_OPTIONS = \[([\s\S]*?)\];/)?.[1] || '').matchAll(/value: '([^']+)'/g)].map((m) => m[1])
+  const offered = [...(tsx.match(/const PAYER_TYPE_OPTIONS = \[([\s\S]*?)\n\]/ /* unified: no semicolons: the list ends at the ] at the start of a line */)?.[1] || '').matchAll(/value: '([^']+)'/g)].map((m) => m[1])
   const route = await import('./src/routes/payers.ts')
   check('the Payers form sends only fields the route writes', keys.length >= 10 && keys.every((k) => (route.PAYER_FIELDS as readonly string[]).includes(k)), { keys, notWritten: keys.filter((k) => !(route.PAYER_FIELDS as readonly string[]).includes(k)) })
   check('…and offers only payer types the route accepts', offered.length >= 5 && offered.every((v) => (route.PAYER_TYPES as readonly string[]).includes(v)), offered)

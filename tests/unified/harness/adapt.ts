@@ -348,15 +348,293 @@ ADAPT['homecare/r5-agency-clock.test.ts'] = [
   [String.raw`/serviceLabel\(pick\(plan, 'service_type', 'serviceType'\)\)/.test(family)`, String.raw`/serviceLabel\(plan\.serviceType\)/.test(family)`, "the unified screen is typed to the camelCase reply (RULEBOOK §2): it names plan.serviceType, where the template's pick() read either spelling"],
 ]
 
+// Home care's screens moved (scheduling.test.ts, caregiver-visit.test.ts): src() reads the moved file per template path,
+// and refuses a path with no moved file rather than read the template (2026-10-19).
+const HC_MOVED_WHY = 'the screens moved to apps/unified/web/src/crm/pages/homecare/ (docs/UNIFIED_HOMECARE_SCREENS.md) and the schedule rule to server/crm/homecare/core: src() reads the moved file for each template path it is given, and refuses a path with no moved file rather than read the template'
+ADAPT['homecare/scheduling.test.ts'].push(
+  ["const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\\r\\n/g, '\\n')",
+    "const HC_WEB = (process.env.FACTORY_ROOT || '') + 'apps/unified/web/src/crm/pages/homecare/'\nconst MOVED: Record<string, string> = {\n  'frontend/src/components/admin/DragDropScheduler.tsx': 'apps/unified/web/src/crm/pages/homecare/schedule/DragDropScheduler.tsx',\n  'frontend/src/components/admin/SchedulingHub.tsx': 'apps/unified/web/src/crm/pages/homecare/schedule/SchedulingHub.tsx',\n  'frontend/src/components/admin/MakeShiftAvailableModal.tsx': 'apps/unified/web/src/crm/pages/homecare/schedule/MakeShiftAvailableModal.tsx',\n  'frontend/src/utils/shiftTimes.ts': 'apps/unified/web/src/crm/pages/homecare/lib/shiftTimes.ts',\n  'backend/src/services/scheduleOccurrences.ts': 'apps/unified/server/crm/homecare/core/scheduleOccurrences.ts',\n}\nconst src = (p: string) => { if (!MOVED[p]) throw new Error('unified: no moved file for ' + p); return readFileSync((process.env.FACTORY_ROOT || '') + MOVED[p], 'utf8').replace(/\\r\\n/g, '\\n') }",
+    HC_MOVED_WHY],
+  ["grid.indexOf('// EDIT SHIFT'))", "grid.indexOf('// ═══ EDIT — scope-aware ═══'))", "the delete handler ends where the edit section begins; the moved grid marks it '// ═══ EDIT — scope-aware ═══'"],
+  [String.raw`/if \(!res\.ok\)/.test(delFn) && !/await fetch\([^)]*\{\s*method: 'DELETE'[^}]*\}\);\s*showToast/.test(delFn)`,
+    String.raw`/import \{[^}]*\bapi\b[^}]*\} from '\.\.\/lib\/http'/.test(grid) && /const del = \(query: string\) => api\.delete\(/.test(delFn) && /catch \(err\) \{\s*toast\.error\(errorMessage\(err, 'Delete failed'\)\)/.test(delFn) && !/fetch\(/.test(delFn)`,
+    "the moved grid deletes through the app's api client (lib/http → packages/tenant-ui client.ts handleResponse), which throws on a refusal; every branch awaits del(), so a refused delete skips its success toast and lands in the catch's toast.error with the server's sentence — there is no res.ok to read and no raw fetch"],
+  ["grid.indexOf('CREATE SHIFT MODAL'))", "grid.indexOf('═══ CREATE SHIFT ═══'))", "the legend ends where the create dialog begins; the moved grid marks it '═══ CREATE SHIFT ═══' (the template's 'CREATE SHIFT MODAL' is not in it)"],
+  [String.raw`/const color\s+= clientColor\(s\.client_id, clientMap\)/.test(grid)`, String.raw`/const color\s+= clientColor\(s\.clientId, clientMap\)/.test(grid)`, "the grid's rows are camelCase (RULEBOOK §2): the chip colours by s.clientId"],
+  ["/const label = `\\$\\{formatTime\\(sc\\.start_time\\)\\} \\$\\{getClientName\\(sc\\.client_id\\)\\} · \\$\\{getCaregiverName\\(sc\\.caregiver_id\\)\\}`/.test(hub)",
+    "/const label = `\\$\\{formatTime\\(sc\\.startTime\\)\\} \\$\\{getClientName\\(sc\\.clientId\\)\\} · \\$\\{getCaregiverName\\(sc\\.caregiverId\\)\\}`/.test(hub)",
+    "the month view's rows are camelCase (startTime, clientId, caregiverId)"],
+  ["await import(ROOT + 'frontend/src/utils/date.ts')", "await import(HC_WEB + 'lib/date.ts')", 'the calendar-day helpers are lib/date.ts'],
+  ["await import(ROOT + 'frontend/src/utils/datetime.ts')", "await import(HC_WEB + 'lib/datetime.ts')", 'the date formatters are lib/datetime.ts'],
+)
+ADAPT['homecare/caregiver-visit.test.ts'].push(
+  ["const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\\r\\n/g, '\\n')",
+    "const HC_WEB = (process.env.FACTORY_ROOT || '') + 'apps/unified/web/src/crm/pages/homecare/'\nconst MOVED: Record<string, string> = {\n  'frontend/src/components/CareTaskChecklist.tsx': 'apps/unified/web/src/crm/pages/homecare/visits/CareTaskChecklist.tsx',\n  'frontend/src/components/caregiver/ShiftMissReport.tsx': 'apps/unified/web/src/crm/pages/homecare/visits/caregiver/ShiftMissReport.tsx',\n  'frontend/src/components/CaregiverDashboard.tsx': 'apps/unified/web/src/crm/pages/homecare/visits/CaregiverDashboard.tsx',\n  'frontend/src/components/caregiver/VisitCarePanel.tsx': 'apps/unified/web/src/crm/pages/homecare/visits/caregiver/VisitCarePanel.tsx',\n}\nconst src = (p: string) => { if (!MOVED[p]) throw new Error('unified: no moved file for ' + p); return readFileSync((process.env.FACTORY_ROOT || '') + MOVED[p], 'utf8').replace(/\\r\\n/g, '\\n') }",
+    HC_MOVED_WHY],
+  [String.raw`!/setStatus\(t\.task_id, 'refused'/.test(ui)`, String.raw`!/setStatus\(t\.taskId, 'refused'/.test(ui)`, "the checklist's rows are camelCase (taskId): a bare 'refused' PUT is looked for in that spelling"],
+  [String.raw`/if \(msg\) \{ setNotesError\(msg\); return; \}/.test(ui)`, String.raw`/if \(msg\) \{ setNotesError\(msg\); return;? \}/.test(ui)`, "the moved checklist writes the same guard without the trailing semicolon ('if (msg) { setNotesError(msg); return }')"],
+  ["/\\{formatTime\\(shift\\.start_time\\)\\} – \\{formatTime\\(shift\\.end_time\\)\\}/.test(form) && !/\\{shift\\.start_time\\} – \\{shift\\.end_time\\}/.test(form)",
+    "/\\{formatTime\\(shift\\.startTime\\)\\} – \\{formatTime\\(shift\\.endTime\\)\\}/.test(form) && !/\\{shift\\.startTime\\} – \\{shift\\.endTime\\}/.test(form)",
+    "my-shifts rows are camelCase (startTime, endTime)"],
+  [String.raw`/if \(claimingShiftId\) return;/.test(dash)`, String.raw`/if \(claimingShiftId\) return\b/.test(dash)`, "the moved dashboard writes the in-flight guard without the semicolon ('if (claimingShiftId) return')"],
+  [String.raw`/<VisitCarePanel timeEntryId=\{activeSession\.id\} clientId=\{activeSession\.client_id\} \/>/.test(dash)`,
+    String.raw`/<VisitCarePanel timeEntryId=\{liveEntryId\} clientId=\{activeSession\.clientId\} \/>/.test(dash) && /const liveEntryId = activeSession && !activeSession\.offline && !String\(activeSession\.id\)\.startsWith\('offline-'\) \? activeSession\.id : null/.test(dash)`,
+    "the moved dashboard hands the panel liveEntryId — the active session's id unless the punch is still an offline one with no server row — and the camelCase clientId"],
+  ["/'\\/api\\/medications\\/log'/.test(panel) && /'\\/api\\/medications\\/vitals'/.test(panel) && /`\\/api\\/time-entries\\/\\$\\{timeEntryId\\}\\/photos`/.test(panel) && /`\\/api\\/medications\\/due\\/\\$\\{clientId\\}`/.test(panel)",
+    "/api\\.post\\('\\/api\\/medications\\/log'/.test(panel) && /api\\.post\\('\\/api\\/medications\\/vitals'/.test(panel) && /api\\.post\\(`\\/api\\/time-entries\\/\\$\\{timeEntryId\\}\\/photos`/.test(panel) && /api\\.get\\(`\\/api\\/medications\\/due\\/\\$\\{clientId\\}`/.test(panel)",
+    "the moved panel calls through the app's api client (api.post / api.get), so the check names the verb as well as the route"],
+  ["await import(ROOT + 'frontend/src/utils/datetime.ts')", "await import(HC_WEB + 'lib/datetime.ts')", 'the date formatters are lib/datetime.ts'],
+)
+
+// Home care's screen and server reads in ai-receptionist, fixes, evv and incidents, pointed at the unified app's files
+// (2026-10-19). Each list is added to the file's own entries above.
+const NEW: Record<string, [string, string, string][]> = {}
+
+const AIR_FE = 'the AI receptionist is the shared one (web/src/crm/pages/AIReceptionistPage.tsx, server/crm/comms/aiReceptionist.ts and aiReceptionistService.ts), not a home-care copy'
+NEW['homecare/ai-receptionist.test.ts'] = [
+  ["const ROOT = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'", "const ROOT = (process.env.FACTORY_ROOT || '') + 'apps/unified/'", AIR_FE],
+  ["readFileSync(ROOT + 'frontend/src/pages/AiReceptionistPage.tsx', 'utf8')", "readFileSync(ROOT + 'web/src/crm/pages/AIReceptionistPage.tsx', 'utf8')", 'the screen is the shared AIReceptionistPage.tsx'],
+  ["const dash = readFileSync(ROOT + 'frontend/src/components/AdminDashboard.tsx', 'utf8')", "const dash = readFileSync(ROOT + 'web/src/App.tsx', 'utf8'), shellNav = readFileSync(ROOT + 'web/src/shell.ts', 'utf8'), hcVertical = readFileSync(ROOT + 'web/src/crm/verticals/homecare.tsx', 'utf8')", "AdminDashboard's switch is the app's routes (App.tsx) and menu (shell.ts); home care's menu is the shared menu less SHARED_HIDDEN (crm/verticals/homecare.tsx)"],
+  ["readFileSync(ROOT + 'backend/src/services/aiReceptionist.ts', 'utf8')", "readFileSync(ROOT + 'server/crm/comms/aiReceptionistService.ts', 'utf8')", 'the service is server/crm/comms/aiReceptionistService.ts (RULE_FIELDS, SETTINGS_FIELDS)'],
+  ["readFileSync(ROOT + 'backend/src/routes/aiReceptionist.ts', 'utf8')", "readFileSync(ROOT + 'server/crm/comms/aiReceptionist.ts', 'utf8')", 'the router is server/crm/comms/aiReceptionist.ts'],
+  ["const ruleKeys = keysOf('ruleBody'), settingsKeys = keysOf('settingsBody')", String.raw`const ifaceKeys = (name: string) => { const m = new RegExp('interface ' + name + ' \\{([\\s\\S]*?)\\n\\}').exec(page); return m ? Array.from(m[1].matchAll(/^\s*(\w+)\??:/gm)).map((x) => x[1]) : [] }
+  const ruleKeys = ifaceKeys('AutoReplyFormData'), settingsKeys = ifaceKeys('AISettings')`, "the shared screen has no ruleBody/settingsBody builders: a rule is sent as the form's typed state (AutoReplyFormData) and a setting as a Partial<AISettings>, so the fields it can send are those two interfaces' keys"],
+  [String.raw`const sends = Array.from(page.matchAll(/api\.(post|put)\([^,]+,\s*([^)]*\)?)\)/g)).map((m) => m[2].trim())`, String.raw`const sends = Array.from(page.matchAll(/body: JSON\.stringify\(([^)]*)\)/g)).map((m) => m[1].trim())`, "the shared screen writes through its own api(path, { method, body: JSON.stringify(x) }) helper over client.raw (the session cookie)"],
+  [String.raw`sends.length >= 4 && sends.every((s) => /^(ruleBody\(form\)|settingsBody\(settings\)|\{ isActive: !rule\.isActive \})$/.test(s)), sends)`, String.raw`sends.length === 5 && sends.every((s) => /^(data|updates|\{ isActive: !rule\.isActive \}|\{ isEnabled: !settings\.isEnabled \})$/.test(s)) && /const handleSave = async \(data: AutoReplyFormData\)/.test(page) && /const updateSettings = async \(updates: Partial<AISettings>\)/.test(page), sends)`, "a rule save sends the typed form (data: AutoReplyFormData), a settings change one field (updates: Partial<AISettings>; aiSettingsSchema takes any subset), the switches { isActive } / { isEnabled }"],
+  ["const missing = calls.filter((c) => c.startsWith('GET /api/calltracking') ? false : !routePaths.includes(c))", String.raw`const uCalls = Array.from(page.matchAll(/\bapi\(\s*[\x60']([^\x60']+)[\x60'](?:,\s*\{\s*method:\s*'(\w+)')?/g)).map((m) => (m[2] || 'GET') + ' /api/ai-receptionist' + m[1].replace(/\$\{[^}]+\}/g, ':x'))
+  const missing = uCalls.filter((c) => !routePaths.includes(c))`, "the shared screen's api(path, { method }) prefixes /api/ai-receptionist (the call log goes through callApi, /api/calltracking/calls, read above)"],
+  ["check('every AI-receptionist endpoint the screen calls exists on the router', calls.length >= 6 && missing.length === 0, { calls, missing })", "check('every AI-receptionist endpoint the screen calls exists on the router', uCalls.length >= 6 && missing.length === 0, { uCalls, missing })", 'the calls read in the api(path, { method }) form'],
+  [String.raw`/case 'ai-receptionist': return <AiReceptionistPage \/>/.test(dash) && /import AiReceptionistPage from '\.\.\/pages\/AiReceptionistPage'/.test(dash))`, String.raw`/<Route path="ai-receptionist" element=\{<AIReceptionistPage \/>\} \/>/.test(dash) && /const AIReceptionistPage = named\(\(\) => import\('\.\/crm\/pages\/AIReceptionistPage'\), 'AIReceptionistPage'\)/.test(dash)
+    && /\{ to: '\/crm\/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: \['ai_receptionist'\], permission: 'ai-receptionist:read' \}/.test(shellNav) && !/SHARED_HIDDEN = \[[^\]]*'\/crm\/ai-receptionist'/.test(hcVertical))`, "/crm/ai-receptionist is the app's route (App.tsx) and the shared menu's item, which an agency keeps (not in SHARED_HIDDEN)"],
+  [String.raw`check('the unmounted snake_case screen is gone, and nothing imports it', !/admin\/AIReceptionist'/.test(dash))`, String.raw`check('the unmounted snake_case screen is gone, and nothing imports it', !(await import('node:fs')).readdirSync(ROOT + 'web/src/crm/pages/homecare', { recursive: true }).some((f: any) => /receptionist/i.test(String(f))) )`, 'no home-care copy of the AI receptionist screen exists, and App.tsx mounts only the shared one'],
+  // the second static block: the feature list, its writers, the gate and the menu
+  ["const SRC = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'", "const SRC = (process.env.FACTORY_ROOT || '') + 'apps/unified/'", 'the server and the shell are the unified app’s'],
+  ["const idx = readFileSync(SRC + 'backend/src/index.ts', 'utf8')", "const idx = readFileSync(SRC + 'server/modules/company.ts', 'utf8')", "the Factory's /api/internal/sync-features is server/modules/company.ts (syncFeatures)"],
+  ["const syncAt = idx.indexOf(\"app.post('/api/internal/sync-features'\")", "const syncAt = idx.indexOf(\"const syncFeatures = new Hono().post('/'\")", 'the sync route is the syncFeatures router, mounted at /api/internal/sync-features'],
+  [String.raw`const syncBody = idx.slice(syncAt, idx.indexOf('\n})', syncAt))`, String.raw`const syncBody = idx.slice(syncAt, idx.indexOf('\n  })', syncAt))`, 'the handler sits inside createCompanyModules (indented)'],
+  [String.raw`/setAgencyFeatures\(/.test(syncBody) && !/currentSettings\.enabledFeatures\s*=/.test(syncBody), syncBody.slice(0, 300))`, String.raw`/await db\.update\(company\)\.set\(\{ enabledFeatures: body\.features, updatedAt: new Date\(\) \}\)/.test(syncBody) && /deps\.features\.forgetFeatures\(co\.id\)/.test(syncBody) && !/\bsettings\b/.test(syncBody), syncBody.slice(0, 300))`, 'the unified list is company.enabled_features alone (core/agencyFeatures.ts header): the sync writes that column, no settings blob, and drops the gate cache at once'],
+  [String.raw`/timingSafeEqual\(/.test(syncBody))`, String.raw`/\{ path: '\/api\/internal\/sync-features', access: 'factory' as const, router: syncFeatures \}/.test(idx) && /crypto\.timingSafeEqual\(Buffer\.from\(got\), Buffer\.from\(key\)\)/.test(readFileSync(SRC + 'server/http/registry.ts', 'utf8')) && /if \(m\.access === 'factory'\) guards\.push\(factoryOnly\)/.test(readFileSync(SRC + 'server/http/registry.ts', 'utf8')))`, "the key is checked by the registry's factoryOnly guard for every access: 'factory' mount (server/http/registry.ts); its 401/503 are held by apps/unified/tests/company-modules.test.ts"],
+  ["const comp = readFileSync(SRC + 'backend/src/routes/company.ts', 'utf8')", "const comp = readFileSync((process.env.FACTORY_ROOT || '') + 'packages/tenant-backend/src/company/company.ts', 'utf8')", "Settings › Features is the shared company router's PUT /features"],
+  ["const bill = readFileSync(SRC + 'backend/src/services/billing.ts', 'utf8')", "const bill = readFileSync((process.env.FACTORY_ROOT || '') + 'packages/tenant-backend/src/billing.ts', 'utf8')", "plan & billing is the shared billing.ts (a mirror of the Factory's subscription)"],
+  [String.raw`const strays = [['routes/company.ts', comp], ['services/billing.ts', bill], ['index.ts', idx]].filter(([, s]) => /\.set\(\{[^}]*enabledFeatures/.test(s as string))`, String.raw`const writes = (s: string) => (s.match(/\.set\(\{[^}]*enabledFeatures/g) || []).length
+  const strays = [['company.ts PUT /features: one write, then onFeaturesChanged', writes(comp) === 1 && /\.set\(\{ enabledFeatures: next, updatedAt: new Date\(\) \}\)[\s\S]{0,300}deps\.onFeaturesChanged\?\.\(next\)/.test(comp)], ['modules/company.ts: the sync, and onFeaturesChanged drops the cache', writes(idx) === 1 && /onFeaturesChanged: \(features: string\[\]\) => \{ deps\.features\.forgetFeatures\(\);/.test(idx)], ['billing.ts: never', writes(bill) === 0]].filter(([, ok]) => !ok)`, "the unified writers of the one list (the column): the Factory's sync and Settings › Features, each followed by the gate's cache drop; the in-CRM billing writes none (plans change at the Factory, which syncs)"],
+  ["check('billing.ts writes its tier features through setAgencyFeatures (4 places)', (bill.match(/setAgencyFeatures\\(/g) || []).length === 4)", String.raw`check('billing.ts writes its tier features through setAgencyFeatures (4 places)', !/enabledFeatures|setAgencyFeatures/.test(bill) && /restart-checkout/.test(bill))`, "the shared billing never sets features: a plan change is made at the Factory (portal-link / restart-checkout), and the Factory's sync-features writes the list"],
+  ["const gateSrc = readFileSync(SRC + 'backend/src/middleware/enabledFeature.ts', 'utf8')", "const gateSrc = readFileSync(SRC + 'server/app.ts', 'utf8')", 'the gate is built in server/app.ts'],
+  ["check('the gate reads both fields (readSettingsBlob: true)', /readSettingsBlob: true/.test(gateSrc))", String.raw`check('the gate reads both fields (readSettingsBlob: true)', /const features = createEnabledFeatureGate\(\{ db, tables: \{ company \} \}\)/.test(gateSrc) && !/readSettingsBlob/.test(gateSrc))`, 'the unified gate reads the column alone (readSettingsBlob off), the same list every writer writes'],
+  ["const routeSrc = readFileSync(SRC + 'backend/src/routes/aiReceptionist.ts', 'utf8')", "const routeSrc = readFileSync(SRC + 'server/crm/comms/aiReceptionist.ts', 'utf8')", 'the router is server/crm/comms/aiReceptionist.ts'],
+  ["const gateAt = routeSrc.indexOf(\"app.use('*', requireEnabledFeature('ai_receptionist'))\")", "const gateAt = routeSrc.indexOf(\"app.use('*', d.features.requireEnabledFeature('ai_receptionist'))\")", "the gate is the app's d.features.requireEnabledFeature"],
+  ["const dash = readFileSync(SRC + 'frontend/src/components/AdminDashboard.tsx', 'utf8')", "const dash = readFileSync(SRC + 'web/src/shell.ts', 'utf8'), appShell = readFileSync((process.env.FACTORY_ROOT || '') + 'packages/tenant-ui/src/shell/AppShell.tsx', 'utf8')", "the menu is web/src/shell.ts, drawn and URL-gated by the shared AppShell"],
+  [String.raw`/'ai-receptionist': 'ai_receptionist'/.test(dash))`, String.raw`/\{ to: '\/crm\/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: \['ai_receptionist'\]/.test(dash))`, "a menu item's features list is its gate"],
+  [String.raw`(dash.match(/\{navSections\.map\(/g) || []).length === 2 && !/\{NAV_SECTIONS\.map\(/.test(dash))`, String.raw`(appShell.match(/\{navItems\.map\(/g) || []).length === 1 && !/\{config\.nav\.map\(/.test(appShell) && /&& \(!i\.features \|\| i\.features\.some\(\(f\) => hasFeature\(f\)\)\),/.test(appShell))`, 'the shell draws one list (navItems, filtered by feature, permission and role), the same aside on a phone (the drawer) as on a desk'],
+  [String.raw`check('search offers only allowed items', /itemAllowed\(item\.id\) && item\.label/.test(dash))`, String.raw`check('search offers only allowed items', /<GlobalSearch api=\{api\} placeholder=\{config\.searchPlaceholder\} \/>/.test(appShell))`, "the header search is /api/search (records, filtered on the server by the company's features: server/crm/comms/search.ts), never handed the menu, so it offers no page at all"],
+  [String.raw`/if \(FEATURE_FOR_ITEM\[currentPage\] && !itemAllowed\(currentPage\)\)/.test(dash))`, String.raw`/const blocked = blockedRoute\(matches, hasFeature\)/.test(appShell) && /\.\.\.config\.nav\.filter\(\(i\) => !i\.external\)\.map\(\(i\) => \(\{ to: i\.to, label: i\.label, features: i\.features \}\)\)/.test(appShell))`, "a typed /crm/ai-receptionist with the feature off is refused by the shell's route gate (AppShell gatedItem, from the menu's features); the page also shows ModuleNotEnabled on the server's FEATURE_NOT_ENABLED"],
+  ["const ctx = readFileSync(SRC + 'frontend/src/contexts/AuthContext.tsx', 'utf8')", "const ctx = readFileSync((process.env.FACTORY_ROOT || '') + 'packages/tenant-ui/src/auth/AuthContext.tsx', 'utf8')", "the screens' hasFeature is the shared AuthContext's"],
+  [String.raw`/company\?\.enabledFeatures\?\.includes\(featureId\)/.test(ctx) && /settings\.enabledFeatures\?\.includes\(featureId\)/.test(ctx))`, String.raw`/const hasFeature = \(featureId: string\): boolean => company\?\.enabledFeatures\?\.includes\(featureId\) \?\? false/.test(ctx) && !/settings\??\.enabledFeatures/.test(ctx) && !/readSettingsBlob/.test(gateSrc))`, "the same answer as the gate: both read company.enabled_features alone"],
+]
+
+const FIX_FE = 'the screens moved to apps/unified/web/src/crm/pages/homecare/ (people/, visits/, clients/)'
+NEW['homecare/fixes.test.ts'] = [
+  ["const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\\r\\n/g, '\\n')", "const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\\r\\n/g, '\\n')\nconst usrc = (p: string) => readFileSync((process.env.FACTORY_ROOT || '') + 'apps/unified/' + p, 'utf8').replace(/\\r\\n/g, '\\n')", 'usrc reads the unified app’s files (' + FIX_FE + ')'],
+  ["const pp = src('frontend/src/components/admin/PayrollProcessing.tsx')", "const pp = usrc('web/src/crm/pages/homecare/people/PayrollProcessing.tsx')", 'Payroll is people/PayrollProcessing.tsx'],
+  [String.raw`/a\?\.mileageRate \?\? a\?\.mileage_rate/.test(pp) && /JSON\.stringify\(\{ mileageRate: s \}\)/.test(pp) && /onClick=\{saveSettings\}/.test(pp))`, String.raw`/api\.get\('\/api\/company'\)/.test(pp) && /const n = Number\(a\?\.mileageRate\)/.test(pp) && /await api\.put\('\/api\/company', \{ mileageRate: s \}\)/.test(pp) && /onClick=\{saveSettings\}/.test(pp))`, "the screen reads GET /api/company's camelCase mileageRate (RULEBOOK §2; server/crm/homecare/office/companyFields.ts) and saves through the app's api client"],
+  ["const modal = src('frontend/src/components/CaregiverClientModal.tsx')", "const modal = usrc('web/src/crm/pages/homecare/visits/CaregiverClientModal.tsx')", 'the card is visits/CaregiverClientModal.tsx (opened from visits/CaregiverDashboard.tsx)'],
+  ["const m = src('frontend/src/components/admin/EditClientModal.tsx')", "const m = usrc('web/src/crm/pages/homecare/clients/EditClientModal.tsx')", 'Edit Client is clients/EditClientModal.tsx'],
+  [String.raw`/medicalNotes: v\('medicalNotes', 'medical_notes'\)/.test(m) && /carePreferences: v\('carePreferences', 'care_preferences'\)/.test(m)`, String.raw`/medicalNotes: client\.medicalNotes \|\| ''/.test(m) && /carePreferences: client\.carePreferences \|\| ''/.test(m)`, "the client is read camelCase (RULEBOOK §2): the template's v() read either spelling"],
+  [String.raw`/medicalNotes: text\('medical_notes'\)/.test(src('backend/db/schema.ts')) && /care_preferences/.test(src('backend/db/migrations/0023_fixes.sql'))`, String.raw`/medicalNotes: text\('medical_notes'\),\s*carePreferences: text\('care_preferences'\)/.test(usrc('server/db/schema/homecare.ts')) && /CREATE TABLE IF NOT EXISTS "clients" \([^;]*"medical_notes" text,\s*"care_preferences" text,/.test(usrc('server/db/migrations/0007_homecare.sql'))`, "the unified schema has both columns on clients (server/db/schema/homecare.ts), created by its home-care migration 0007_homecare; the template's 0023_fixes is not a unified migration"],
+  ["&& ((es: any[]) => { const i = es.findIndex((e) => e.tag === '0023_fixes'); return i > 0 && `${es[i - 1].idx}:${es[i - 1].tag},${es[i].idx}:${es[i].tag}` === '21:0022_integration,22:0023_fixes' })(JSON.parse(src('backend/db/migrations/meta/_journal.json')).entries))", "&& JSON.parse(usrc('server/db/migrations/meta/_journal.json')).entries.some((e: any) => e.idx === 7 && e.tag === '0007_homecare'))", 'the unified journal lists 0007_homecare at idx 7'],
+  ["const form = src('frontend/src/components/caregiver/ShiftMissReport.tsx')", "const form = usrc('web/src/crm/pages/homecare/visits/caregiver/ShiftMissReport.tsx')", 'the miss report is visits/caregiver/ShiftMissReport.tsx'],
+  [String.raw`const idx = src('backend/src/index.ts')
+  const at = idx.indexOf("app.use('/api/*', refuseViewAsWrites)")
+  const firstRoute = idx.indexOf('app.route(')
+  const firstApiHandler = idx.search(/app\.(get|post|put|patch|delete|all)\('\/api\//)
+  check('6. src/index.ts mounts it on /api/* above every route', at > 0 && at < firstRoute && at < firstApiHandler, { at, firstRoute, firstApiHandler })`, String.raw`const appSrc = usrc('server/app.ts'), signIn = usrc('server/crm/homecare/office/signIn.ts')
+  const wrap = signIn.slice(signIn.indexOf('export function withHomecareSessions('), signIn.indexOf('export function createStaffPickerRoutes('))
+  const at = wrap.indexOf('await refuseViewAsWrites(c, '), realAt = wrap.indexOf('return real(c, ')
+  check('6. src/index.ts mounts it on /api/* above every route', /const realAuth = vertical\.crm\?\.homecare \? withHomecareSessions\(sharedAuth, /.test(appSrc) && /const authenticate = deps\.testing\?\.authenticate \? deps\.testing\.authenticate\(realAuth\) : realAuth/.test(appSrc) && at > 0 && realAt > at, { at, realAt })`, "the unified app has no app-wide /api/* use: View As's refusal runs inside the app's one authenticate for a home-care tenant (withHomecareSessions, server/crm/homecare/office/signIn.ts, wired in server/app.ts), before the shared sign-in and so before every signed-in route; held behaviourally by apps/unified/tests/homecare-office.test.ts ('View As and signing out', 'View As in a cookie session')"],
+]
+
+NEW['homecare/evv.test.ts'] = [
+  ["const ui = await import(`${process.env.FACTORY_ROOT}templates/crm-homecare/frontend/src/utils/sandata.ts`)", "const ui = await import(`${process.env.FACTORY_ROOT}apps/unified/web/src/crm/pages/homecare/lib/sandata.ts`)", "the caregiver app's Sandata rules are web/src/crm/pages/homecare/lib/sandata.ts (used by visits/CaregiverDashboard.tsx, visits/caregiver/SandataEvv.tsx, office/SandataPanel.tsx)"],
+  ["const evvClient = { id: 'c', in_sandata: true, medicaid_id: '1421146410' }", "const evvClient = { id: 'c', inSandata: true, medicaidId: '1421146410' }", "the client is GET /api/sandata/caregiver-context's camelCase row (inSandata, medicaidId: server/crm/homecare/visits/sandata.ts), which lib/sandata.ts reads"],
+  ["!ui.needsSandata({ id: 'x', in_sandata: false })", "!ui.needsSandata({ id: 'x', inSandata: false })", 'camelCase client'],
+  ["ui.visitNeedsSandata({ id: 'x', in_sandata: false }, true)", "ui.visitNeedsSandata({ id: 'x', inSandata: false }, true)", 'camelCase client'],
+  ["ui.medicaidIdOf({ id: 'c', medicaid_id: ' 1421146410 ' })", "ui.medicaidIdOf({ id: 'c', medicaidId: ' 1421146410 ' })", 'camelCase client'],
+  ["ui.medicaidIdOf({ id: 'c', medicaid_id: '1197148' })", "ui.medicaidIdOf({ id: 'c', medicaidId: '1197148' })", 'camelCase client'],
+  ["ui.medicaidIdOf({ id: 'c', in_sandata: true })", "ui.medicaidIdOf({ id: 'c', inSandata: true })", 'camelCase client'],
+]
+
+NEW['homecare/incidents.test.ts'] = [
+  ["const root = process.env.FACTORY_ROOT + 'templates/crm-homecare/'", "const root = process.env.FACTORY_ROOT + 'apps/unified/'", 'the incident code moved to apps/unified (server/crm/homecare/{office,core}, server/data/homecareIncidents.ts, web/src/crm/pages/homecare/{office,visits/caregiver,lib})'],
+  ["'backend/src/routes/incidents.ts', 'backend/src/services/incidentPdf.ts', 'backend/src/services/scheduleOccurrences.ts', 'backend/src/config/incidentOptions.ts',", "'server/crm/homecare/office/incidents.ts', 'server/crm/homecare/core/incidentPdf.ts', 'server/crm/homecare/core/scheduleOccurrences.ts', 'server/crm/homecare/core/incidentOptions.ts', 'server/data/homecareIncidents.ts',", "the routes, the packet, the schedule engine, the options, and the incidents' raw SQL (server/data/homecareIncidents.ts)"],
+  ["...readdirSync(root + 'frontend/src/components/admin').filter((f) => /^Incident/.test(f)).map((f) => `frontend/src/components/admin/${f}`),", "...readdirSync(root + 'web/src/crm/pages/homecare/office').filter((f) => /^Incident/.test(f)).map((f) => `web/src/crm/pages/homecare/office/${f}`),", 'the incident screens are office/Incident*.tsx'],
+  ["'frontend/src/components/caregiver/IncidentReportForm.tsx', 'frontend/src/utils/incidentOptions.ts',", "'web/src/crm/pages/homecare/visits/caregiver/IncidentReportForm.tsx', 'web/src/crm/pages/homecare/lib/incidentOptions.ts',", "the caregiver's field report and the screens' option helpers"],
+]
+for (const [k, v] of Object.entries(NEW)) ADAPT[k].push(...v)
+
+// Home care's screen and server reads in integration, r3pay, write-gates and popup-forms, pointed at the unified app's
+// files (2026-10-19), added after each file's own entries.
+const UFE_WHY = "the screens moved to apps/unified/web/src/crm/pages/homecare/<group>/ and the server to apps/unified/server/crm/homecare/<group>/ and server/data/homecare*.ts (docs/UNIFIED_HOMECARE_SCREENS.md): usrc reads the moved files, so these checks hold the code that ships"
+const USRC: [string, string, string] = [String.raw`const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')`,
+  String.raw`const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
+const UNI = (process.env.FACTORY_ROOT || '') + 'apps/unified/'
+const usrc = (p: string) => readFileSync(UNI + p, 'utf8').replace(/\r\n/g, '\n')`, UFE_WHY]
+
+const PROPOSED: Record<string, [string, string, string][]> = {
+  'homecare/integration.test.ts': [
+    USRC,
+    ["const tt = src('backend/src/routes/timeTracking.ts')", "const tt = usrc('server/crm/homecare/visits/timeTracking.ts')", 'the punch router is server/crm/homecare/visits/timeTracking.ts'],
+    [String.raw`/function onVisitClosed[\s\S]{0,200}createEVVFromTimeEntry\(/.test(tt)`, String.raw`/const onVisitClosed = [\s\S]{0,200}createEVVFromTimeEntry\(/.test(tt)`, 'onVisitClosed is a const inside createTimeTrackingRoutes, calling core.evvVisits.createEVVFromTimeEntry'],
+    [String.raw`/\/api\/time-entries\/\$\{[^}]+\}\/admin-force-clockout/.test(src('frontend/src/components/admin/LiveBoard.tsx'))`, String.raw`/\/api\/time-entries\/\$\{[^}]+\}\/admin-force-clockout/.test(usrc('web/src/crm/pages/homecare/shifts/LiveBoard.tsx'))`, 'the Live Board is shifts/LiveBoard.tsx'],
+    [String.raw`/app\.route\('\/api\/time-entries', timeTrackingRoutes\)/.test(src('backend/src/index.ts'))`, String.raw`/\{ path: '\/api\/time-entries', access: 'user', router: createTimeTrackingRoutes\(core, d\) \}/.test(usrc('server/crm/homecare/visits/index.ts'))`, "the mount is the visits group's (server/crm/homecare/visits/index.ts visitsMounts)"],
+    [String.raw`/\/api\/family-portal\/portal\/vitals/.test(src('frontend/src/components/portal/FamilyPortal.tsx'))`, String.raw`/\/api\/family-portal\/portal\/vitals/.test(usrc('web/src/crm/pages/homecare/portals/FamilyPortal.tsx'))`, 'the family portal is portals/FamilyPortal.tsx'],
+    [String.raw`/canViewMedications\) tabs\.push\(\{ key: 'vitals'/.test(src('frontend/src/components/portal/FamilyPortal.tsx'))`, String.raw`/canViewMedications\) tabs\.push\(\{ key: 'vitals'/.test(usrc('web/src/crm/pages/homecare/portals/FamilyPortal.tsx'))`, 'the family portal is portals/FamilyPortal.tsx'],
+    ["const rep = src('backend/src/routes/reports.ts')", "const rep = usrc('server/data/homecarePlanning.ts')", "the reports' SQL is server/data/homecarePlanning.ts"],
+    [String.raw`(rep.match(/\$\{clmIn\}|AND \$\{clmIn\}/g) || []).length`, String.raw`(rep.match(/\$\{claimsIn\(/g) || []).length`, 'the guarded claims filter is the function claimsIn(companyId, start, end, clientId), not the template\'s clmIn fragment'],
+    ["for (const f of ['backend/src/services/invoiceEngine.ts', 'backend/src/routes/billing.ts', 'backend/src/services/portalClaimDays.ts']) {", "for (const f of ['server/crm/homecare/core/invoiceEngine.ts', 'server/crm/homecare/billing/invoices.ts', 'server/crm/homecare/core/portalClaimDays.ts', 'server/data/homecareBilling.ts', 'server/data/homecareBillingRoutes.ts']) {", "the invoice engine, the billing routes (billing/invoices.ts), portal claim days and their SQL (server/data/homecareBilling.ts, homecareBillingRoutes.ts)"],
+    ["const s = src(f)", "const s = usrc(f)", 'read from the unified server'],
+    ["const screen = src('frontend/src/components/admin/VisitDocumentation.tsx')", "const screen = usrc('web/src/crm/pages/homecare/visits/VisitDocumentation.tsx')", 'Visit Documentation is visits/VisitDocumentation.tsx'],
+    [String.raw`/visitDate: v\.visit_date, startTime: v\.start_time, caregiverId: v\.caregiver_id/.test(screen)`, String.raw`/visitDate: v\.visitDate, startTime: v\.startTime, caregiverId: v\.caregiverId/.test(screen)`, "the screen's visits are the camelCase reply (RULEBOOK §2): it sends the same three keys from v.visitDate, v.startTime, v.caregiverId"],
+    ["src('frontend/src/components/ImpersonationModal.tsx')", "usrc('web/src/crm/pages/homecare/office/ImpersonationModal.tsx')", 'the View As picker is office/ImpersonationModal.tsx'],
+    [String.raw`/AuthContext\.Provider value=\{\{[\s\S]{0,200}token: impersonationToken/.test(src('frontend/src/App.tsx'))`, String.raw`/api\.post\(\x60\/api\/auth\/impersonate\/\$\{userId\}\x60, \{\}\);\s*onStaff\(data\.user\)/.test(usrc('web/src/crm/pages/homecare/office/ImpersonationModal.tsx')) && /onStaff=\{\(\) => reloadAsSession\(\)\}/.test(usrc('web/src/crm/pages/homecare/office/ViewAsPanel.tsx')) && /export const reloadAsSession = \(\) => window\.location\.assign\('\/crm\/dashboard'\)/.test(usrc('web/src/crm/pages/homecare/office/ViewAs.tsx'))`, "the session is the server's cookies: POST /api/auth/impersonate sets the httpOnly View As cookie and the page loads afresh as that person (office/ViewAs.tsx reloadAsSession); no script holds the token. The server half (/me is the viewed person, writes refused) is apps/unified/tests/homecare-office.test.ts"],
+    ["const dash = src('frontend/src/components/CaregiverDashboard.tsx')", "const dash = usrc('web/src/crm/pages/homecare/visits/CaregiverDashboard.tsx')", "the caregiver's app is visits/CaregiverDashboard.tsx"],
+    ["src('frontend/src/components/caregiver/ShiftMissReport.tsx')", "usrc('web/src/crm/pages/homecare/visits/caregiver/ShiftMissReport.tsx')", 'the miss-report form is visits/caregiver/ShiftMissReport.tsx'],
+    ["const modal = src('frontend/src/components/admin/EditClientModal.tsx')", "const modal = usrc('web/src/crm/pages/homecare/clients/EditClientModal.tsx')", 'Edit Client is clients/EditClientModal.tsx'],
+    [String.raw`/v\('firstName', 'first_name'\)/.test(modal) && /v\('careTypeId', 'care_type_id'\)/.test(modal) && /v\('isPrivatePay', 'is_private_pay'\)/.test(modal)`, String.raw`/firstName: client\.firstName \|\| ''/.test(modal) && /careTypeId: client\.careTypeId \|\| ''/.test(modal) && /isPrivatePay: !!client\.isPrivatePay/.test(modal) && !/client\.(first_name|care_type_id|is_private_pay)\b/.test(modal)`, 'every reply is camelCase (RULEBOOK §2), so the modal reads the camelCase client directly; no snake_case fallback is needed or left'],
+    ["const be = ROOT + 'backend/src/'", "const be = UNI + 'server/'", "the server is apps/unified/server"],
+    ["!existsSync(be + gone))", String.raw`!readdirSync(be, { recursive: true } as any).map((p: any) => String(p).replace(/\\/g, '/')).some((p: string) => p.endsWith('/' + gone.split('/').pop()) && p !== 'crm/homecare/core/agencyTime.ts'))`, "no file of that name anywhere in the unified server (the shared agency clock is crm/homecare/core/agencyTime.ts)"],
+    ["JSON.stringify(expanders) === JSON.stringify(['/services/scheduleOccurrences.ts'])", "JSON.stringify(expanders) === JSON.stringify(['/data/homecareCore.ts'])", "the one schedule engine is SQL in server/data/homecareCore.ts (occurrencesCte)"],
+    [String.raw`!/evv_timezone/.test(src('backend/db/schema.ts')) && !/evv_timezone/.test(src('backend/db/migrations/0014_evv.sql'))`, String.raw`!readdirSync(UNI + 'server/db', { recursive: true } as any).map((p: any) => String(p)).filter((p: string) => /\.(ts|sql)$/.test(p)).some((p: string) => /evv_timezone|evvTimezone/.test(readFileSync(UNI + 'server/db/' + p, 'utf8')))`, 'the unified schema and migrations are apps/unified/server/db (schema/, migrations/)'],
+  ],
+  'homecare/r3pay.test.ts': [
+    USRC,
+    ["const screen = src('frontend/src/components/admin/PayrollProcessing.tsx')", "const screen = usrc('web/src/crm/pages/homecare/people/PayrollProcessing.tsx')", 'Payroll is people/PayrollProcessing.tsx'],
+    [String.raw`!/\.(caregiver|client)_(first|last)\b(?!_name)/.test(screen) && /caregiver_first_name \?\? s\.caregiverFirstName/.test(screen)`, String.raw`!/\.(caregiver|client)(_first|_last|First|Last)\b/.test(screen) && /personName\(s\.caregiverFirstName, s\.caregiverLastName\)/.test(screen) && /personName\(s\.clientFirstName, s\.clientLastName\)/.test(screen)`, "the reply is camelCase (RULEBOOK §2): the screen reads caregiverFirstName / clientFirstName … (cgName / clName), with no snake_case fallback"],
+    ["const ui = src('frontend/src/components/admin/ReportsAnalytics.tsx')", "const ui = usrc('web/src/crm/pages/homecare/office/ReportsAnalytics.tsx')", 'the reports screen is office/ReportsAnalytics.tsx'],
+    ["const sa = src('frontend/src/components/admin/ShiftApprovals.tsx')", "const sa = usrc('web/src/crm/pages/homecare/shifts/ShiftApprovals.tsx')", 'Shift Approvals is shifts/ShiftApprovals.tsx'],
+    ["const board = src('frontend/src/components/admin/LiveBoard.tsx')", "const board = usrc('web/src/crm/pages/homecare/shifts/LiveBoard.tsx')", 'the Live Board is shifts/LiveBoard.tsx'],
+    [String.raw`/Clocked: \{fmtDuration\(shift\.duration_minutes\)\}/.test(board) && !/\(shift\.duration_minutes \/ 60\)\.toFixed\(1\)/.test(board)`, String.raw`/Clocked: \{fmtDuration\(shift\.durationMinutes\)\}/.test(board) && !/\/ 60\)\.toFixed\(1\)/.test(board)`, "the board's rows are camelCase (durationMinutes)"],
+    ["const cw = src('frontend/src/components/admin/ClientWeekHours.tsx')", "const cw = usrc('web/src/crm/pages/homecare/shifts/ClientWeekHours.tsx')", 'Client Hours by Week is shifts/ClientWeekHours.tsx'],
+    [String.raw`/useState\(''\)/.test(cw)`, String.raw`/const \[weekStart, setWeekStart\] = useState\(''\)/.test(cw) && /weekStart: weekStart \|\| undefined/.test(cw)`, 'the week itself starts empty and the first load sends no weekStart'],
+    ["const pp = src('frontend/src/components/admin/PayrollProcessing.tsx')", "const pp = usrc('web/src/crm/pages/homecare/people/PayrollProcessing.tsx')", 'Payroll is people/PayrollProcessing.tsx'],
+    [String.raw`/\n      <\/div>\n      \)\}\n\n      \{\/\* The pop-ups sit OUTSIDE/.test(pp)`, String.raw`/\n( *)  <\/div>\n\1\)\}\n\n\1\{\/\* The pop-ups sit OUTSIDE/.test(pp)`, "the moved screen nests the tab two spaces deeper: the tab's block closes (its div, then its )}) right before the pop-ups, at whatever depth"],
+    ["const files = [...walk(ROOT + 'frontend/src/components/'), ...walk(ROOT + 'frontend/src/pages/')]", String.raw`const files = walk((process.env.FACTORY_ROOT || '') + 'apps/unified/web/src/crm/pages/homecare/')
+  const SIDEBAR_Z = Number(/<aside\s+className=\{\x60fixed inset-y-0 left-0 z-(\d+) /.exec(readFileSync((process.env.FACTORY_ROOT || '') + 'packages/tenant-ui/src/shell/AppShell.tsx', 'utf8'))?.[1])`, "every home-care screen is under apps/unified/web/src/crm/pages/homecare/; the sidebar is the app shell's (packages/tenant-ui/src/shell/AppShell.tsx, fixed, z-50), not the template's z-index 1000"],
+    ["if (z && Number(z[1]) < 1000) under.push(", "if (z && Number(z[1]) <= SIDEBAR_Z) under.push(", "an overlay must sit above the shell's sidebar"],
+    ["if (Number(m[1]) < 1000) under.push(", "if (Number(m[1]) <= SIDEBAR_Z) under.push(", "an overlay must sit above the shell's sidebar"],
+    ["check(`no office pop-up sits under the sidebar (z-index 1000): ${files.length} screens, every full-screen overlay ≥ 1000`, under.length === 0 && files.length > 50, under)", "check(`no office pop-up sits under the sidebar (z-index ${SIDEBAR_Z}): ${files.length} screens, every full-screen overlay above it`, Number.isFinite(SIDEBAR_Z) && under.length === 0 && files.length > 50, under)", "the threshold is the shell sidebar's z-index, read from AppShell.tsx (a failed read fails the check)"],
+    ["const vdui = src('frontend/src/components/admin/VisitDocumentation.tsx')", "const vdui = usrc('web/src/crm/pages/homecare/visits/VisitDocumentation.tsx')", 'Visit Documentation is visits/VisitDocumentation.tsx'],
+    [String.raw`!vdui.includes('{c.last_name}, {c.first_name}') && vdui.includes("plural(data.visits.length, 'visit')")`, String.raw`!vdui.includes('{c.lastName}, {c.firstName}') && /<option key=\{c\.id\} value=\{c\.id\}>\{fullName\(c\)\}<\/option>/.test(vdui) && /const fullName = \([^)]*\) => \[c\?\.firstName, c\?\.lastName\]/.test(vdui) && vdui.includes("plural(visits.length, 'visit')") && vdui.includes('const visits = data?.visits || []')`, "camelCase rows: the picker prints fullName(c) (first then last); the count is plural(visits.length) where visits is data?.visits"],
+    ["const hire = src('frontend/src/components/admin/ApplicationsDashboard.tsx')", "const hire = usrc('web/src/crm/pages/homecare/people/ApplicationsDashboard.tsx')", 'Applications is people/ApplicationsDashboard.tsx'],
+    [String.raw`!/\{hireModal\.years_experience &&/.test(hire) && /Number\(hireModal\.years_experience\) > 0/.test(hire)`, String.raw`!/\{(hireModal|app)\.yearsExperience &&/.test(hire) && /Number\(hireModal\.yearsExperience\) > 0/.test(hire)`, 'the application row is camelCase (yearsExperience)'],
+  ],
+  'homecare/write-gates.test.ts': [
+    ["templates/crm-homecare/frontend/src/components/CaregiverDashboard.tsx', 'utf8')", "apps/unified/web/src/crm/pages/homecare/visits/CaregiverDashboard.tsx', 'utf8')", "the caregiver's app is visits/CaregiverDashboard.tsx"],
+    ["fe.indexOf('const handlePageClick'))", "fe.indexOf('const goTo = '))", 'the handler after it in the moved screen is goTo (there is no handlePageClick)'],
+    ["fn.includes('fetch(`${API_BASE_URL}/api/pto`') && !fn.includes('fetch(`${API_BASE_URL}/api/absences'), fn.slice(0, 300))", "fe.indexOf('const handleRequestTimeOff') > 0 && fe.indexOf('const goTo = ') > fe.indexOf('const handleRequestTimeOff') && fn.includes(\"api.post('/api/pto', { type: 'pto', startDate: newTimeOff.startDate, endDate: newTimeOff.endDate\") && !fn.includes('/api/absences'), fn.slice(0, 300))", "the screen calls the app's api client (no token, no fetch): a time-off request with its dates to /api/pto, never /api/absences"],
+  ],
+  'homecare/popup-forms.test.ts': [
+    ["templates/crm-homecare/frontend/src/components/admin/PayersServiceCodes.tsx`, 'utf8')", "apps/unified/web/src/crm/pages/homecare/billing/PayersServiceCodes.tsx`, 'utf8')", 'Payers & Service Codes is billing/PayersServiceCodes.tsx'],
+    [String.raw`/const EMPTY_PAYER = \{([\s\S]*?)\};/`, String.raw`/const EMPTY_PAYER = \{([\s\S]*?)\n\}/`, 'the moved file has no semicolons: the object ends at the } at the start of a line'],
+    [String.raw`/const PAYER_TYPE_OPTIONS = \[([\s\S]*?)\];/`, String.raw`/const PAYER_TYPE_OPTIONS = \[([\s\S]*?)\n\]/`, 'no semicolons: the list ends at the ] at the start of a line'],
+  ],
+}
+for (const [k, v] of Object.entries(PROPOSED)) ADAPT[k].push(...v)
+ADAPT['homecare/r3pay.test.ts'].push(
+  // Plain strings, not String.raw: a ${…} in a template literal would be evaluated here.
+  ["/method: 'PUT'[\\s\\S]{0,200}startDate: payPeriod\\.startDate/.test(screen) && screen.includes('/api/payroll/${payroll.recordId}/process'))",
+    "/api\\.put\\(`\\/api\\/payroll\\/\\$\\{caregiverId\\}\\/approve`, \\{ startDate: payPeriod\\.startDate, endDate: payPeriod\\.endDate \\}\\)/.test(screen) && screen.includes('api.post(`/api/payroll/${payroll.recordId}/process`)'))",
+    "the moved screen calls through the app's api client: Approve is api.put(…/approve, { startDate, endDate }) (approveOne), Process is api.post(…/${recordId}/process)"],
+)
+
+// r4-care's screen reads, pointed at the moved files (2026-10-19).
+const R4_FE = "the screens moved to apps/unified/web/src/crm/pages/homecare/ (clients/, schedule/, shifts/, visits/, billing/, portals/, lib/; docs/UNIFIED_HOMECARE_SCREENS.md) and the payment engine to server/crm/homecare/core/invoiceEngine.ts: each template path the file names reads its moved file"
+ADAPT['homecare/r4-care.test.ts'].push(...([
+  [String.raw`const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')`,
+    String.raw`const UFE = (process.env.FACTORY_ROOT || '') + 'apps/unified/web/src/crm/pages/homecare/'
+const MOVED: Record<string, string> = {
+  'frontend/src/components/admin/CarePlans.tsx': UFE + 'clients/CarePlans.tsx',
+  'frontend/src/components/admin/CareTasksManager.tsx': UFE + 'clients/CareTasksManager.tsx',
+  'frontend/src/components/admin/EditClientModal.tsx': UFE + 'clients/EditClientModal.tsx',
+  'frontend/src/components/admin/SchedulingHub.tsx': UFE + 'schedule/SchedulingHub.tsx',
+  'frontend/src/components/admin/ClientWeekHours.tsx': UFE + 'shifts/ClientWeekHours.tsx',
+  'frontend/src/components/admin/PortalClaimDays.tsx': UFE + 'billing/PortalClaimDays.tsx',
+  'frontend/src/components/admin/BillingDashboard.tsx': UFE + 'billing/BillingDashboard.tsx',
+  'frontend/src/components/admin/BillingEngine.tsx': UFE + 'billing/BillingEngine.tsx',
+  'frontend/src/components/admin/FamilyPortalAdmin.tsx': UFE + 'portals/FamilyPortalAdmin.tsx',
+  'frontend/src/components/portal/FamilyPortal.tsx': UFE + 'portals/FamilyPortal.tsx',
+  'frontend/src/components/portal/ClientPortal.tsx': UFE + 'portals/ClientPortal.tsx',
+  'frontend/src/components/portal/PortalHistory.tsx': UFE + 'portals/PortalHistory.tsx',
+  'frontend/src/components/portal/PortalDocuments.tsx': UFE + 'portals/PortalDocuments.tsx',
+  'frontend/src/components/portal/PortalMessages.tsx': UFE + 'portals/PortalMessages.tsx',
+  'frontend/src/components/portal/PortalNotifications.tsx': UFE + 'portals/PortalNotifications.tsx',
+  'frontend/src/components/CaregiverClientModal.tsx': UFE + 'visits/CaregiverClientModal.tsx',
+  'backend/src/services/invoiceEngine.ts': (process.env.FACTORY_ROOT || '') + 'apps/unified/server/crm/homecare/core/invoiceEngine.ts',
+}
+const src = (p: string) => { if (!MOVED[p]) throw new Error('r4-care: no unified home named for ' + p); return readFileSync(MOVED[p], 'utf8').replace(/\r\n/g, '\n') }`,
+    R4_FE],
+  [String.raw`/const isActivePlan = \(plan: any\) => plan\.is_active === true \|\| plan\.isActive === true;/.test(cp) && !/String\(plan\.start_date\)\.slice\(0, 10\) <= t\) && \(!plan\.end_date/.test(cp))`,
+    String.raw`/const isActivePlan = \(plan: CarePlan\) => plan\.isActive === true\n/.test(cp) && !/String\(plan\.startDate\)\.slice\(0, 10\) <= t\) && \(!plan\.endDate/.test(cp))`,
+    "the reply is camelCase (RULEBOOK §2): the screen reads only the server's isActive (clients/CarePlans.tsx isActivePlan, the whole line), and never re-derives it from startDate/endDate"],
+  [String.raw`/title: 'Approve shift swap', confirmLabel: 'Approve swap'/.test(hub)`,
+    String.raw`/title: 'Approve shift swap', confirmText: 'Approve swap', danger: false/.test(hub)`,
+    "the pop-up is the app's useConfirm (schedule/SchedulingHub.tsx approveSwap): its button text is confirmText, and danger: false keeps it from being the red destructive button"],
+  ["/await api\\(`\\/api\\/shift-swaps\\/\\$\\{sw\\.id\\}\\/approve`, \\{ method: 'PUT' \\}\\); showMsg\\(`Swap approved/.test(hub))",
+    "/await api\\.put\\(`\\/api\\/shift-swaps\\/\\$\\{sw\\.id\\}\\/approve`\\); showMsg\\(`Swap approved/.test(hub))",
+    "the screen calls the route through the app's client, api.put(path) (lib/http.ts), not the template's api(path, { method: 'PUT' })"],
+  ["const modal = fpa.slice(fpa.indexOf('{/* Edit Family Member Modal */}'), fpa.indexOf('{/* Add Family Member Modal */}'))",
+    "const modal = fpa.slice(fpa.indexOf('{editingMember && ('), fpa.indexOf('{showAddModal && ('))",
+    "the unified screen marks its pop-ups by their state, not by comments: the Edit pop-up is the {editingMember && (…)} block, which ends where the Add pop-up's {showAddModal && (…)} begins (portals/FamilyPortalAdmin.tsx)"],
+  ["const form = fpa.slice(fpa.indexOf('const EditMemberForm'), fpa.indexOf('// Reply Form Component'))",
+    "const form = fpa.slice(fpa.indexOf('function EditMemberForm'), fpa.indexOf('function ReplyForm'))",
+    "the form components are function declarations in the unified screen (function EditMemberForm … function ReplyForm)"],
+  [String.raw`/isPrimaryContact: flag\('isPrimaryContact', 'is_primary_contact'\)/.test(form)`,
+    "/isPrimaryContact: !!member\\.isPrimaryContact/.test(form) && ['canViewSchedule', 'canViewCarePlan', 'canViewMedications', 'canMessage'].every((k) => form.includes(`${k}: !!member.${k}`)) && /await api\\.put\\(`\\/api\\/family-portal\\/admin\\/members\\/\\$\\{memberId\\}`, patch\\)/.test(fpa)",
+    "the member row is camelCase (RULEBOOK §2), so the form starts from member.isPrimaryContact and each switch from member.<key> (no snake_case fallback to pick), and Save PUTs that whole patch (updateMember)"],
+  [String.raw`/setAgencyTimezone\(data\.agency_timezone\)/.test(cp)`,
+    String.raw`/setAgencyTimezone\(data\.agencyTimezone\)/.test(cp)`,
+    "GET /api/portal/me answers camelCase agencyTimezone (portals/ClientPortal.tsx)"],
+  ["const clock = await import(ROOT + 'frontend/src/utils/agencyClock.ts')",
+    "const clock = await import(UFE + 'lib/agencyClock.ts')",
+    'the agency clock is lib/agencyClock.ts'],
+  [String.raw`/client\.medications_source === 'client_record'/.test(modal)`,
+    String.raw`/client\.medicationsSource === 'client_record'/.test(modal)`,
+    "the caregiver view is camelCase: medicationsSource (visits/CaregiverClientModal.tsx)"],
+  [String.raw`/"EVV \(Sandata\) units per week" is blank for \{c\.client_name\}/.test(pcd)`,
+    String.raw`/"EVV \(Sandata\) units per week" is blank for \{c\.clientName\}/.test(pcd)`,
+    'the claim-days rows are camelCase: clientName'],
+  [String.raw`/<EvvWeeklyUnits clientId=\{evvFor\.client_id\}/.test(pcd)`,
+    String.raw`/<EvvWeeklyUnits clientId=\{evvFor\.clientId\}/.test(pcd)`,
+    'the claim-days rows are camelCase: clientId'],
+  ["/const \\[weekStart, setWeekStart\\] = useState\\(''\\);/.test(pcd) && /const qs = weekStart \\? `&weekStart=\\$\\{weekStart\\}` : '';/.test(pcd)",
+    "/const \\[weekStart, setWeekStart\\] = useState\\(''\\)\\n/.test(pcd) && /api\\.get\\('\\/api\\/billing\\/portal-claim-days', \\{ payerId, weekStart: weekStart \\|\\| undefined \\}\\)/.test(pcd)",
+    "the screen asks through api.get(path, params), which drops an undefined param (packages/tenant-ui/src/api/client.ts get): the first load sends no weekStart"],
+  ["/const qs = weekStart \\? `\\?weekStart=\\$\\{weekStart\\}` : '';/.test(cwh) && /if \\(!weekStart && body\\.weekStart\\) \\{ adopted\\.current = body\\.weekStart; setWeekStart\\(body\\.weekStart\\); \\}/.test(cwh)",
+    "/api\\.get\\('\\/api\\/reports\\/client-week', \\{ weekStart: weekStart \\|\\| undefined \\}\\)/.test(cwh) && /if \\(!weekStart && body\\?\\.weekStart\\) \\{ adopted\\.current = body\\.weekStart; setWeekStart\\(body\\.weekStart\\) \\}/.test(cwh)",
+    'the screen asks through api.get(path, params), which drops an undefined weekStart, and adopts the week the server answers (shifts/ClientWeekHours.tsx load)'],
+  [String.raw`/const mins = \(t: any\) => Number\(t\.minutes_per_week\) \|\| 0;/.test(cp) && /sum \+ \(Number\(t\.minutes_per_week\) \|\| 0\)/.test(ctm)`,
+    String.raw`/const mins = \(t: CareTask\) => Number\(t\.minutesPerWeek\) \|\| 0/.test(cp) && /sum \+ \(Number\(t\.minutesPerWeek\) \|\| 0\)/.test(ctm)`,
+    "the task rows are camelCase: minutesPerWeek (clients/CarePlans.tsx, clients/CareTasksManager.tsx)"],
+  [String.raw`!/\(t\.weekly_frequency \|\| 1\) \* \(t\.allotted_minutes \|\| 0\)/.test(cp + ctm))`,
+    String.raw`!/\(t\.weeklyFrequency \|\| 1\) \* \(t\.allottedMinutes \|\| 0\)/.test(cp + ctm))`,
+    "the old re-count looked for in the camelCase spelling the screens use (the assessment-import preview's parseInt(String(t.weeklyFrequency)) × parseInt(String(t.allottedMinutes)) is the import's own count, as in the template)"],
+  [String.raw`!/allowOverpayment|overpay/i.test(bd))`,
+    String.raw`!/allowOverpayment|overpay/i.test(bd + src('frontend/src/components/admin/BillingEngine.tsx')))`,
+    "both unified screens with a Record Payment form (billing/BillingDashboard.tsx and billing/BillingEngine.tsx) are looked at"],
+] as [string, string, string][]))
+
 for (const [key, changes] of Object.entries(ADAPT)) {
   const [suite, file] = key.split('/')
   const OUT = ROOT + 'tests/unified/' + suite + '/'
   mkdirSync(OUT, { recursive: true })
-  let s = readFileSync(ROOT + 'tests/' + suite + '/' + file, 'utf8')
-  for (const [from, to, why] of changes) {
+  // Line endings normalised on both sides: git stores the suite files with LF and a Windows checkout writes CRLF, so an
+  // entry spanning two lines matched on one checkout only.
+  let s = readFileSync(ROOT + 'tests/' + suite + '/' + file, 'utf8').replace(/\r\n/g, '\n')
+  for (const [rawFrom, to, why] of changes) {
+    const from = rawFrom.replace(/\r\n/g, '\n')
     const n = s.split(from).length - 1
     if (n !== 1) throw new Error(`${file}: expected the pattern once, found ${n}: ${from}`)
-    s = s.replace(from, `${to} /* unified: ${why} */`)
+    // A function, so a "$" in the new text is never read as a replacement pattern.
+    s = s.replace(from, () => `${to.replace(/\r\n/g, '\n')} /* unified: ${why} */`)
   }
   const header = `// ADAPTED COPY of tests/${suite}/${file}, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the\n// ${changes.length} read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps\n// running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.\n`
   writeFileSync(OUT + file, header + s)

@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/incidents.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 7 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 11 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — the incident case file (ported from CVHC v64 + v68), through the real routes.
 //
@@ -532,11 +532,11 @@ check('return summary says exactly what happened', back.json.summary ===
 
 // ── 12. no agency identity or state hard-coded in the ported code ────────────────────
 {
-  const root = process.env.FACTORY_ROOT + 'templates/crm-homecare/'
+  const root = process.env.FACTORY_ROOT + 'apps/unified/' /* unified: the incident code moved to apps/unified (server/crm/homecare/{office,core}, server/data/homecareIncidents.ts, web/src/crm/pages/homecare/{office,visits/caregiver,lib}) */
   const files = [
-    'backend/src/routes/incidents.ts', 'backend/src/services/incidentPdf.ts', 'backend/src/services/scheduleOccurrences.ts', 'backend/src/config/incidentOptions.ts',
-    ...readdirSync(root + 'frontend/src/components/admin').filter((f) => /^Incident/.test(f)).map((f) => `frontend/src/components/admin/${f}`),
-    'frontend/src/components/caregiver/IncidentReportForm.tsx', 'frontend/src/utils/incidentOptions.ts',
+    'server/crm/homecare/office/incidents.ts', 'server/crm/homecare/core/incidentPdf.ts', 'server/crm/homecare/core/scheduleOccurrences.ts', 'server/crm/homecare/core/incidentOptions.ts', 'server/data/homecareIncidents.ts', /* unified: the routes, the packet, the schedule engine, the options, and the incidents' raw SQL (server/data/homecareIncidents.ts) */
+    ...readdirSync(root + 'web/src/crm/pages/homecare/office').filter((f) => /^Incident/.test(f)).map((f) => `web/src/crm/pages/homecare/office/${f}`), /* unified: the incident screens are office/Incident*.tsx */
+    'web/src/crm/pages/homecare/visits/caregiver/IncidentReportForm.tsx', 'web/src/crm/pages/homecare/lib/incidentOptions.ts', /* unified: the caregiver's field report and the screens' option helpers */
   ]
   for (const f of files) {
     // Comments may say where a rule came from; code and screen text may not name the source agency.

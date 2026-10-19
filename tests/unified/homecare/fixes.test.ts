@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/fixes.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 4 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 14 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — six loose ends after the catch-up merge, through the real routes.
 //   1. a caregiver WRITES care (MAR, vitals, ADLs, checklist tasks, visit photos, visit notes, client
@@ -33,6 +33,7 @@ await setupSchema()
 
 const ROOT = (process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/'
 const src = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
+const usrc = (p: string) => readFileSync((process.env.FACTORY_ROOT || '') + 'apps/unified/' + p, 'utf8').replace(/\r\n/g, '\n') /* unified: usrc reads the unified app’s files (the screens moved to apps/unified/web/src/crm/pages/homecare/ (people/, visits/, clients/)) */
 
 const [ag] = await db.insert(agencies).values({ name: 'Fixes Care', slug: 'fixes', state: 'WI', timezone: 'UTC' } as any).returning()
 const mkUser = async (role: string, tag: string) => (await db.insert(users).values({
@@ -199,9 +200,9 @@ await insEntry('te_cg1_served', cg1.id, served.id)
   check('2. the office, sending no rate, gets the agency rate', Number(t4.json.ratePerMile) === 0.725, t4.json)
   const pr = await A('POST', '/api/payroll/calculate', { startDate: TODAY, endDate: TODAY })
   check("2. payroll's mileage, with no rate asked for, is the agency rate (not a fixed $0.67)", pr.status === 200 && Number(pr.json.mileageRate) === 0.725, pr.json?.mileageRate)
-  const pp = src('frontend/src/components/admin/PayrollProcessing.tsx')
+  const pp = usrc('web/src/crm/pages/homecare/people/PayrollProcessing.tsx') /* unified: Payroll is people/PayrollProcessing.tsx */
   check("2. Payroll → Settings loads and saves the agency rate (GET/PUT /api/company { mileageRate })",
-    /a\?\.mileageRate \?\? a\?\.mileage_rate/.test(pp) && /JSON\.stringify\(\{ mileageRate: s \}\)/.test(pp) && /onClick=\{saveSettings\}/.test(pp))
+    /api\.get\('\/api\/company'\)/.test(pp) && /const n = Number\(a\?\.mileageRate\)/.test(pp) && /await api\.put\('\/api\/company', \{ mileageRate: s \}\)/.test(pp) && /onClick=\{saveSettings\}/.test(pp)) /* unified: the screen reads GET /api/company's camelCase mileageRate (RULEBOOK §2; server/crm/homecare/office/companyFields.ts) and saves through the app's api client */
 }
 
 // ══ 3. the caregiver's client card ═══════════════════════════════════════════════════════════════
@@ -238,7 +239,7 @@ await insEntry('te_cg1_served', cg1.id, served.id)
   check('3. an empty note is refused', (await CG1('POST', `/api/clients/${served.id}/visit-notes`, { note: '   ' })).status === 400)
   const saved = await q1(sql`SELECT caregiver_id FROM client_visit_notes WHERE client_id = ${served.id}`)
   check('3. a note is the caller\'s', saved?.caregiver_id === cg1.id, saved)
-  const modal = src('frontend/src/components/CaregiverClientModal.tsx')
+  const modal = usrc('web/src/crm/pages/homecare/visits/CaregiverClientModal.tsx') /* unified: the card is visits/CaregiverClientModal.tsx (opened from visits/CaregiverDashboard.tsx) */
   check('3. CaregiverClientModal calls these two paths', /\/api\/clients\/\$\{clientId\}\/caregiver-view/.test(modal) && /\/api\/clients\/\$\{clientId\}\/visit-notes/.test(modal))
 }
 
@@ -254,14 +255,14 @@ await insEntry('te_cg1_served', cg1.id, served.id)
   check('4. …and clear', cleared.medical_notes === null && cleared.care_preferences === null, cleared)
   const created = await A('POST', '/api/clients', { firstName: 'New', lastName: 'Client', medicalNotes: 'Hard of hearing' })
   check('4. a new client keeps its medical notes too', created.status === 201 && created.json.medicalNotes === 'Hard of hearing', created.json)
-  const m = src('frontend/src/components/admin/EditClientModal.tsx')
+  const m = usrc('web/src/crm/pages/homecare/clients/EditClientModal.tsx') /* unified: Edit Client is clients/EditClientModal.tsx */
   check('4. the modal opens with what is on file and sends both fields',
-    /medicalNotes: v\('medicalNotes', 'medical_notes'\)/.test(m) && /carePreferences: v\('carePreferences', 'care_preferences'\)/.test(m)
+    /medicalNotes: client\.medicalNotes \|\| ''/.test(m) && /carePreferences: client\.carePreferences \|\| ''/.test(m) /* unified: the client is read camelCase (RULEBOOK §2): the template's v() read either spelling */
       && /medicalNotes: formData\.medicalNotes \|\| null/.test(m) && /carePreferences: formData\.carePreferences \|\| null/.test(m))
   check('4. the columns are in schema.ts and the 0023 migration (journal idx 22, after 0022)',
-    /medicalNotes: text\('medical_notes'\)/.test(src('backend/db/schema.ts')) && /care_preferences/.test(src('backend/db/migrations/0023_fixes.sql'))
+    /medicalNotes: text\('medical_notes'\),\s*carePreferences: text\('care_preferences'\)/.test(usrc('server/db/schema/homecare.ts')) && /CREATE TABLE IF NOT EXISTS "clients" \([^;]*"medical_notes" text,\s*"care_preferences" text,/.test(usrc('server/db/migrations/0007_homecare.sql')) /* unified: the unified schema has both columns on clients (server/db/schema/homecare.ts), created by its home-care migration 0007_homecare; the template's 0023_fixes is not a unified migration */
       // the pair, wherever it sits — a later migration (0024_callrail_signing_key, 10/15) follows it
-      && ((es: any[]) => { const i = es.findIndex((e) => e.tag === '0023_fixes'); return i > 0 && `${es[i - 1].idx}:${es[i - 1].tag},${es[i].idx}:${es[i].tag}` === '21:0022_integration,22:0023_fixes' })(JSON.parse(src('backend/db/migrations/meta/_journal.json')).entries))
+      && JSON.parse(usrc('server/db/migrations/meta/_journal.json')).entries.some((e: any) => e.idx === 7 && e.tag === '0007_homecare')) /* unified: the unified journal lists 0007_homecare at idx 7 */
 }
 
 // ══ 5. my-shifts: dated visits from the one engine ═══════════════════════════════════════════════
@@ -295,7 +296,7 @@ await insEntry('te_cg1_served', cg1.id, served.id)
   check("5. the colleague's covered day is not on the colleague's list", !(c2.json || []).some((s: any) => s.id === cg2s && s.date === addDays(TODAY, 2)), c2.json)
   const miss = await CG1('POST', '/api/emergency/miss-report', { scheduleId: mine[1].id, date: mine[1].date, reason: 'Car broke down', alternativeContact: '' })
   check('5. the picked row (pattern id + date) is what the miss report accepts', miss.status === 201, miss.json)
-  const form = src('frontend/src/components/caregiver/ShiftMissReport.tsx')
+  const form = usrc('web/src/crm/pages/homecare/visits/caregiver/ShiftMissReport.tsx') /* unified: the miss report is visits/caregiver/ShiftMissReport.tsx */
   check('5. the miss-report form keys and selects a row by pattern AND date', /key=\{`\$\{shift\.id\}:\$\{shift\.date\}`\}/.test(form) && /form\.scheduleId === shift\.id && form\.date ===/.test(form))
 }
 
@@ -321,11 +322,10 @@ await insEntry('te_cg1_served', cg1.id, served.id)
   const preview = jwt.sign({ role: 'client', clientId: served.id, impersonation: true }, process.env.JWT_SECRET!, { expiresIn: '1h' })
   const pw = await bearer(preview)('POST', '/api/portal/visit-requests', { note: 'x' })
   check('6. the portal preview token is read-only the same way', pw.status === 403 && pw.json?.error === 'Portal preview is read-only', pw)
-  const idx = src('backend/src/index.ts')
-  const at = idx.indexOf("app.use('/api/*', refuseViewAsWrites)")
-  const firstRoute = idx.indexOf('app.route(')
-  const firstApiHandler = idx.search(/app\.(get|post|put|patch|delete|all)\('\/api\//)
-  check('6. src/index.ts mounts it on /api/* above every route', at > 0 && at < firstRoute && at < firstApiHandler, { at, firstRoute, firstApiHandler })
+  const appSrc = usrc('server/app.ts'), signIn = usrc('server/crm/homecare/office/signIn.ts')
+  const wrap = signIn.slice(signIn.indexOf('export function withHomecareSessions('), signIn.indexOf('export function createStaffPickerRoutes('))
+  const at = wrap.indexOf('await refuseViewAsWrites(c, '), realAt = wrap.indexOf('return real(c, ')
+  check('6. src/index.ts mounts it on /api/* above every route', /const realAuth = vertical\.crm\?\.homecare \? withHomecareSessions\(sharedAuth, /.test(appSrc) && /const authenticate = deps\.testing\?\.authenticate \? deps\.testing\.authenticate\(realAuth\) : realAuth/.test(appSrc) && at > 0 && realAt > at, { at, realAt }) /* unified: the unified app has no app-wide /api/* use: View As's refusal runs inside the app's one authenticate for a home-care tenant (withHomecareSessions, server/crm/homecare/office/signIn.ts, wired in server/app.ts), before the shared sign-in and so before every signed-in route; held behaviourally by apps/unified/tests/homecare-office.test.ts ('View As and signing out', 'View As in a cookie session') */
 }
 
 console.log(`\nhomecare-fixes: ${passed} passed, ${failed} failed`)

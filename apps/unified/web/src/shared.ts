@@ -20,6 +20,7 @@ export { ForgotPasswordPage } from '@twomiah/tenant-ui/src/auth/ForgotPasswordPa
 export { ResetPasswordPage } from '@twomiah/tenant-ui/src/auth/ResetPasswordPage'
 export { ProtectedRoute, PublicRoute } from '@twomiah/tenant-ui/src/auth/ProtectedRoute'
 export { PaywallScreen } from '@twomiah/tenant-ui/src/auth/PaywallScreen'
+export { isAccountLocked, setTrialBypassPaths } from '@twomiah/tenant-ui/src/auth/trialStatus'
 export { MyAccountPage } from '@twomiah/tenant-ui/src/account/MyAccountPage'
 export { AuditLogPage } from '@twomiah/tenant-ui/src/audit/AuditLogPage'
 export { BillingPage } from '@twomiah/tenant-ui/src/settings/BillingPage'

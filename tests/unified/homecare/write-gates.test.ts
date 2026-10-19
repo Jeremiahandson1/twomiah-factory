@@ -1,5 +1,5 @@
 // ADAPTED COPY of tests/homecare/write-gates.test.ts, for the unified app (tests/unified/harness/adapted.ts). Unchanged except the
-// 12 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
+// 15 read(s) marked "unified:", where the rulebook's reply shapes replaced the template's. The original keeps
 // running against the template; tests/unified/harness/unified-divergences.ts names the assertions this copy stands in for.
 // crm-homecare — every WRITE route is gated, and a new ungated one fails this file.
 //
@@ -699,9 +699,9 @@ const TODAY = new Date().toISOString().slice(0, 10)
 
 // The front end's time-off page now posts a time-off REQUEST, not an absence with no date.
 {
-  const fe = readFileSync((process.env.FACTORY_ROOT || '') + 'templates/crm-homecare/frontend/src/components/CaregiverDashboard.tsx', 'utf8')
-  const fn = fe.slice(fe.indexOf('const handleRequestTimeOff'), fe.indexOf('const handlePageClick'))
-  check('CaregiverDashboard: Request Time Off posts to /api/pto (it posted a dateless absence and failed)', fn.includes('fetch(`${API_BASE_URL}/api/pto`') && !fn.includes('fetch(`${API_BASE_URL}/api/absences'), fn.slice(0, 300))
+  const fe = readFileSync((process.env.FACTORY_ROOT || '') + 'apps/unified/web/src/crm/pages/homecare/visits/CaregiverDashboard.tsx', 'utf8') /* unified: the caregiver's app is visits/CaregiverDashboard.tsx */
+  const fn = fe.slice(fe.indexOf('const handleRequestTimeOff'), fe.indexOf('const goTo = ')) /* unified: the handler after it in the moved screen is goTo (there is no handlePageClick) */
+  check('CaregiverDashboard: Request Time Off posts to /api/pto (it posted a dateless absence and failed)', fe.indexOf('const handleRequestTimeOff') > 0 && fe.indexOf('const goTo = ') > fe.indexOf('const handleRequestTimeOff') && fn.includes("api.post('/api/pto', { type: 'pto', startDate: newTimeOff.startDate, endDate: newTimeOff.endDate") && !fn.includes('/api/absences'), fn.slice(0, 300)) /* unified: the screen calls the app's api client (no token, no fetch): a time-off request with its dates to /api/pto, never /api/absences */
 }
 
 console.log(`\nhomecare-write-gates: ${passed} passed, ${failed} failed`)

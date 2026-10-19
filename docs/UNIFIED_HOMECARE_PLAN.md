@@ -107,6 +107,9 @@ View As landed (2026-10-19): the header's View As for staff and a client's porta
 cookie beside the office's own (`docs/CUTOVER_LEDGER.md`). The caregiver Full Profile's overview is built; the screens'
 whole-list pickers walk the server's pages.
 
-Next: the template's built-in help articles as home care's guides on /crm/help; the suite's screen-source checks pointed
-at the moved screens; then the browser check of every home-care screen, every role, both themes, phone and desktop (seen
-already: the office dashboard's section headings are dark green on the dark theme's ground).
+Help, the suite and the gates landed (2026-10-19): home care's guides (and every vertical's own day-one help), the
+suite's screen reads pointed at the moved files, a caregiver write-gate walk over the app's own route table.
+
+Next: the browser check of every home-care screen, every role, both themes, phone and desktop (seen already: the office
+dashboard's section headings are dark green on the dark theme's ground). Noted for it: the mobile caregiver app reads
+list replies as bare arrays (asList), so it must be pointed at a unified tenant only once it reads { data, pagination }.

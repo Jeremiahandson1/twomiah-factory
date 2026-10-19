@@ -27,6 +27,8 @@ export interface Mount {
   access: Access
   /** The feature id (shared feature registry) that switches this module on; absent = always on. */
   feature?: string | string[]
+  /** The vertical add-on that owns it ('homecare'), for checks that walk one add-on's routes; absent = the engine's. */
+  addon?: string
 }
 
 export interface Gates {

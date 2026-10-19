@@ -76,11 +76,18 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
       why: "1) /me is the shared sign-in's (packages/tenant-backend auth.ts) and does not name the agency's zone; every signed-in role, a caregiver included, reads it at GET /api/company (effectiveTimezone, server/crm/homecare/office/companyFields.ts), which is what the screens read (web/src/crm/pages/homecare/lib/HomecareFrame.tsx). 2) It imports template files that moved: the call volume report is the shared server/crm/comms/calltrackingService.ts switched by CrmSettings.callers ('clients', on the agency's clock); the frontend helpers agencyClock / datetime / serviceTypes are web/src/crm/pages/homecare/lib/; it reads the screens' source at their template paths (they are billing/PortalClaimDays.tsx, office/ReportsAnalytics.tsx, portals/FamilyPortal.tsx, typed to the camelCase replies: linkedClients, plan.serviceType). 3) It writes call_log by agency_id (the column is company_id, RULEBOOK §4). 4) Replies are camelCase (RULEBOOK §2): portal claim days' linkedClients, the revenue report's byServiceType rows' serviceType. Same zone, same figures.",
       heldBy: "tests/unified/homecare/r5-agency-clock.test.ts (the adapted copy: the zone read as a caregiver at GET /api/company, imports and screen reads pointed at the moved files, every reply read through templateShape; run by adapted.ts — 26 of 26) and apps/unified/tests/homecare-office.test.ts (every role, a caregiver included, reads the zone in use at GET /api/company; a home-care caller is a client)",
     },
+    // Files with no adapted copy whose SOURCE checks read the template's own screens and session code (the template's
+    // files are still there, so those checks pass — on code the unified app does not ship). The same behaviour on the
+    // unified app is held by apps/unified/tests: session-fetch.test.ts and first-sign-in-token.test.ts by
+    // homecare-office.test.ts "the screens' one client" and "the wiring the browser runs" (one cookie-mode client, a 401
+    // refreshed once and replayed, a lock opening the lock page, sign-in saying why); account-lock.test.ts's screen half
+    // by those and "a cancelled agency is locked by the server"; hire-credentials.test.ts's by homecare-hr.test.ts "the
+    // hire's login on screen". Every adapted copy reads the moved files (tests/unified/harness/adapt.ts, 2026-10-19).
     // hr group (server/crm/homecare/hr).
     'hire-credentials.test.ts': {
       assertions: [/^emailed: the caregiver login exists/],
       why: "A hire's login is stored with the unified caregiver seat, `field` (moved tenants keep `caregiver`; verticals/homecare/settings.ts maps both onto the field rung, and the shared team module stores `field` too — canonicalRole). Same login, same rights; the assertion reads role === 'caregiver'.",
-      heldBy: "apps/unified/tests/homecare-hr.test.ts (a hire: role field, in the hiring company)",
+      heldBy: "apps/unified/tests/homecare-hr.test.ts (a hire: role field, in the hiring company; the hire dialog's login and the public pages' tabs, on the moved screens)",
     },
     // A whole-file entry: the template reads a list reply as an array (list.json[0] of the public careers list), which
     // throws on { data, pagination } and stops the file before its summary.
@@ -124,7 +131,7 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     'account-lock.test.ts': {
       assertions: [/^locked: …and so is the caregiver, who is sent nothing else from settings/],
       why: "Sign-in is the shared one (packages/tenant-backend auth.ts): /me sends every role the company's settings with the secrets stripped (redactCompanySettings) — product and trialEndsAt among them — where home care's own /me sent accountLock alone. The lock itself reaches the caregiver (the assertion's first half).",
-      heldBy: "apps/unified/tests/homecare-office.test.ts (/me tells a caregiver the agency's lock and no secret)",
+      heldBy: "apps/unified/tests/homecare-office.test.ts (/me tells a caregiver the agency's lock and no secret; 'a cancelled agency is locked by the server…' and 'the wiring the browser runs' for the lock page, its ways out and the boot pull)",
     },
     'admin-model.test.ts': {
       assertions: [/^…with homecare's own message/],
@@ -143,7 +150,7 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     },
     'incidents.test.ts': {
       why: "The case file answers camelCase in list replies (RULEBOOK §2, §3), its paths refuse with 'Permission denied' (care-compliance), and section 3 replays the template's migration 0019 backfill on old-shape rows, which throws on the unified schema.",
-      heldBy: "tests/unified/homecare/incidents.test.ts (the adapted copy, each reply read through templateShape, section 3 not run; run by adapted.ts — 153 of 153) and apps/unified/tests/homecare-office.test.ts",
+      heldBy: "tests/unified/homecare/incidents.test.ts (the adapted copy, each reply read through templateShape, section 3 not run; run by adapted.ts — 154 of 154) and apps/unified/tests/homecare-office.test.ts",
     },
     'fixes.test.ts': {
       why: "It reads the template's agencies table by raw SQL, and replies the template's way (lists as arrays, snake_case keys). One deliberate change: an id that is not one of the office's own clients is refused (403) like another company's, never a 404 that would tell them apart. And POST /api/matching/apply-schedule, a stub that applied nothing, is not moved (404).",
@@ -151,7 +158,7 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     },
     'integration.test.ts': {
       why: "It drives most groups' routes and reads their replies the template's way (lists as arrays, snake_case keys, { caregivers } and { entries } lists), and raw SQL on the template's agencies and users tables.",
-      heldBy: "tests/unified/homecare/integration.test.ts (the adapted copy, run by adapted.ts — 150 of 150)",
+      heldBy: "tests/unified/homecare/integration.test.ts (the adapted copy, run by adapted.ts — 152 of 152)",
     },
     'write-gates.test.ts': {
       why: "Part 3 drives every group's routes and reads their replies the template's way; call tracking and Paid Ads follow their features (the fixture's agency had only ai_receptionist); /api/subscription (routes/saasBilling.ts) is the app's billing module, /api/billing, and /api/help's articles are the knowledge base, /api/support/kb (routes/help.ts not moved).",

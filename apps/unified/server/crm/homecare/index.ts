@@ -22,8 +22,9 @@ export function homecareMounts(d: CrmDeps): Mount[] {
   if (!d.settings?.homecare) return []
   const core = createHomecareCore(d)
   d.services.addJob(() => core.startJobs())
-  // Each group's routes, from its own folder (one owner per folder while they move).
-  return [
+  // Each group's routes, from its own folder (one owner per folder while they move), each named as the add-on's so a
+  // check can walk home care's routes alone (tests/homecare-write-gates.test.ts).
+  return ([
     ...clientsMounts(core, d),
     ...schedulingMounts(core, d),
     ...planningMounts(core, d),
@@ -33,5 +34,5 @@ export function homecareMounts(d: CrmDeps): Mount[] {
     ...hrMounts(core, d),
     ...portalsMounts(core, d),
     ...officeMounts(core, d),
-  ]
+  ] as Mount[]).map((m) => ({ ...m, addon: 'homecare' }))
 }

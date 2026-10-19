@@ -63,7 +63,7 @@ export function accountLockReason(company: TrialCompany): 'subscription_ended' |
 }
 
 /** Routes a trial-expired user can still reach (upgrade path + paywall + logout) */
-const TRIAL_BYPASS_PREFIXES = [
+let TRIAL_BYPASS_PREFIXES = [
   '/crm/paywall',
   '/crm/settings/billing',
   '/crm/billing',
@@ -71,6 +71,16 @@ const TRIAL_BYPASS_PREFIXES = [
   '/logout',
 ];
 
+/**
+ * An app whose addresses differ names its own ways out of the lock. The unified app does: its subscription page is
+ * /crm/settings/billing, and /crm/billing is a home-care agency's visit invoicing — which a locked agency must not be
+ * let into (the screens filled with "subscription has ended" refusals in place of the lock page).
+ */
+export function setTrialBypassPaths(paths: string[]): void {
+  TRIAL_BYPASS_PREFIXES = [...paths];
+}
+
+/** Whole path segments: '/crm/billing' is not '/crm/billing-engine'. */
 export function isTrialBypassPath(path: string): boolean {
-  return TRIAL_BYPASS_PREFIXES.some(p => path.startsWith(p));
+  return TRIAL_BYPASS_PREFIXES.some(p => path === p || path.startsWith(p + '/'));
 }
