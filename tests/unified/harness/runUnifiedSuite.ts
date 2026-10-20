@@ -21,6 +21,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync, read
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { UNIFIED_DIVERGENCES } from './unified-divergences.ts'
+import { withoutLiveKeys } from '../../../apps/unified/tests/noLiveKeys.ts'
 
 export interface UnifiedSuiteOptions {
   /** Repo root, with a trailing slash. */
@@ -282,7 +283,7 @@ export default svc
   for (const f of tests) {
     const r = spawnSync('bun', [f], {
       cwd: SB, encoding: 'utf8', shell: true,
-      env: { ...process.env, TZ: 'UTC', NODE_ENV: 'test', FACTORY_ROOT: o.root, ANTHROPIC_API_KEY: '', SUITE_TEMPLATE: o.template, SUITE_UNIFIED: '1' },
+      env: { ...withoutLiveKeys(process.env), TZ: 'UTC', NODE_ENV: 'test', FACTORY_ROOT: o.root, SUITE_TEMPLATE: o.template, SUITE_UNIFIED: '1' },
     })
     const out = ((r.stdout || '') + (r.stderr || '')).replace(/\u001b\[[0-9;]*m/g, '')
     const line = out.split(/\r?\n/).reverse().find((l) => /\d+ passed, \d+ failed/.test(l)) || ''

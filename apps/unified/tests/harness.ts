@@ -6,6 +6,10 @@ import * as schema from '../server/db/schema/index.ts'
 import { MIGRATIONS } from '../server/db/migrate.ts'
 import { createApp } from '../server/app.ts'
 import { loadVertical } from '../server/core/vertical.ts'
+import { blankLiveKeys } from './noLiveKeys.ts'
+
+// No live outside service from a test, whatever the shell holds (noLiveKeys.ts).
+blankLiveKeys()
 
 process.env.JWT_SECRET ||= 'test-access-secret'
 process.env.JWT_REFRESH_SECRET ||= 'test-refresh-secret'
