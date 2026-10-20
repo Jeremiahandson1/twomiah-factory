@@ -44,6 +44,20 @@ describe('allowed', () => {
       { status: 'M', path: 'packages/tenant-backend/package.json' },
     ], head)).toEqual([])
   })
+
+  test('since the merge into main: the unified app\'s own files changed, moved and deleted', () => {
+    expect(run([
+      { status: 'M', path: 'apps/unified/server/app.ts' },
+      { status: 'D', path: 'apps/unified/server/crm/store/lib/crypto.ts' },
+      { status: 'A', path: 'apps/unified/server/core/crypto.ts' },
+      { status: 'M', path: 'tests/unified/factory/factory.test.ts' },
+      { status: 'D', path: 'tests/unified/factory/old.test.ts' },
+      { status: 'M', path: 'apps/api/src/unified/build.ts' },
+      { status: 'M', path: 'scripts/check-unified-fence.ts' },
+      { status: 'M', path: '.github/workflows/unified.yml' },
+      { status: 'M', path: 'docs/CUTOVER_LEDGER.md' },
+    ])).toEqual([])
+  })
 })
 
 describe('refused', () => {
@@ -73,6 +87,9 @@ describe('refused', () => {
   test('deleting anything, shared code included', () => {
     expect(run([{ status: 'D', path: 'templates/crm-salon/backend/src/index.ts' }]).length).toBe(1)
     expect(run([{ status: 'D', path: 'packages/tenant-ui/src/api/client.ts' }]).length).toBe(1)
+    // the unified app's own places opening up did not open the Factory's or the templates' scripts and workflow
+    expect(run([{ status: 'D', path: 'scripts/check-feature-vocabulary.ts' }]).length).toBe(1)
+    expect(run([{ status: 'A', path: 'scripts/check-anything.ts' }]).length).toBe(1)
   })
 
   test("a shared package's manifest changing more than its library list", () => {

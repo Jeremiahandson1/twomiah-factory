@@ -106,6 +106,11 @@ modified or deleted. The existing files it may change:
 - **Cutover (owner's "go", 2026-10-20):** the live Factory (`apps/api/src`, `apps/api/schema.sql`, `apps/api/migrations`,
   `apps/platform/src`, `tests/shared`) gains the unified path behind a switch (`UNIFIED_SIGNUPS`: off, test, all) that
   starts **off**: merged and deployed, nothing changes for any business until it is turned.
+- **The unified app's own places, once merged (2026-10-20):** `engine` was merged into `main`, so the unified app's
+  files exist there too and changing one reads as an existing file changed. Its own places — `apps/unified/`,
+  `apps/api/src/unified/`, `tests/unified/`, `scripts/check-unified-*.ts`, `.github/workflows/unified.yml`, `docs/` —
+  may be changed and deleted as freely as they were added. The templates, the rest of `scripts/` and
+  `build-check.yml`'s jobs keep the rule above.
 - `apps/mobile/` and its tests `tests/mobile/`, the phone app: it has no users yet, so it changes with the unified app
   (owner, 2026-10-19) — its files may be changed, added or deleted.
 - The four guards that check the shared feature registry and shared defaults (`scripts/check-feature-vocabulary.ts`,

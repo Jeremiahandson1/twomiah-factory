@@ -16,8 +16,14 @@ export interface FenceViolation { path: string; detail: string }
  * and service, Update Code), added beside the Factory and wired in at cutover (owner's yes, 2026-10-18). No existing
  * Factory file may change (MODIFY_ALLOWED has none), so nothing live can import it before then.
  */
-/** Existing files that may be deleted: only the phone app's (owner, 2026-10-19 — it has no users yet). */
-const DELETE_ALLOWED = [/^apps\/mobile\//, /^tests\/mobile\//]
+/**
+ * The unified app's own places. Since engine was merged into main (2026-10-20) their files exist on main too, so a change
+ * to one reads as an existing file changed: they may be changed and deleted as freely as they were added — the same
+ * places, not new ones. The templates and the rest of the Factory keep their own rule below.
+ */
+const UNIFIED_OWN = [/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//]
+/** Existing files that may be deleted: the phone app's (owner, 2026-10-19 — it has no users yet) and the unified app's own. */
+const DELETE_ALLOWED = [/^apps\/mobile\//, /^tests\/mobile\//, ...UNIFIED_OWN]
 const ADD_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
 /** Existing files that may change: the shared code (the engine), its manifests, the lockfile, the spec, build-check's trigger. */
 // apps/mobile (and its tests, tests/mobile): the phone app has no users yet, so it is changed with the unified app instead of waiting (owner, 2026-10-19).
@@ -26,7 +32,7 @@ const ADD_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/pl
 // Cutover (owner's "go", 2026-10-20): the live Factory gains the unified path behind an off/test/all switch that starts
 // off — its routes, services, the Factory database's schema and the platform screens may change; nothing reaches a
 // customer until the switch is turned.
-const MODIFY_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/schema\.sql$/, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary|composer-facts|trade-detect-slugs)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/]
+const MODIFY_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/schema\.sql$/, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary|composer-facts|trade-detect-slugs)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/, ...UNIFIED_OWN]
 const DEP_KEYS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
 
 export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path: string) => string | null): FenceViolation[] {

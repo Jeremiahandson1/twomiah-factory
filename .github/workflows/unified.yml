@@ -63,6 +63,10 @@ jobs:
         run: bun install
       - name: A test signup, built, updated and torn down
         run: bun test --timeout 900000 tests/unified/factory/build.test.ts
+      # The Factory's other unified pieces — the deploy, domains, the CRM add-on, site addresses, teardown, names, the
+      # tree, routes, provisioning — and the tenant-select guard. They ran only by hand until 2026-10-20.
+      - name: The Factory's unified path, and every handler reading the tenant columns it selected
+        run: bun test --timeout 300000 $(ls tests/unified/factory/*.test.ts | grep -v build.test.ts)
 
   # The step-3 measure (SPEC §0): the base CRM's own behaviour suite, unchanged, against the unified app. A file passes,
   # or every assertion it fails is a documented divergence (tests/unified/harness/unified-divergences.ts) whose
