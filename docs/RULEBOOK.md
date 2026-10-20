@@ -104,7 +104,7 @@ modified or deleted. The existing files it may change:
 - `docs/SPEC_UNIFIED_PRODUCT.md`, the design this branch builds.
 - `bun.lock`, which the install regenerates.
 - `apps/mobile/` and its tests `tests/mobile/`, the phone app: it has no users yet, so it changes with the unified app
-  (owner, 2026-10-19).
+  (owner, 2026-10-19) — its files may be changed, added or deleted.
 - The four guards that check the shared feature registry and shared defaults (`scripts/check-feature-vocabulary.ts`,
   `check-not-ready-features.ts`, `check-parked-features.ts`, `check-vertical-vocabulary.ts`), only when a change to
   `packages/*/src` changes what they check — so `build-check.yml` keeps meaning something on `engine`.

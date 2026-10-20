@@ -16,6 +16,8 @@ export interface FenceViolation { path: string; detail: string }
  * and service, Update Code), added beside the Factory and wired in at cutover (owner's yes, 2026-10-18). No existing
  * Factory file may change (MODIFY_ALLOWED has none), so nothing live can import it before then.
  */
+/** Existing files that may be deleted: only the phone app's (owner, 2026-10-19 — it has no users yet). */
+const DELETE_ALLOWED = [/^apps\/mobile\//, /^tests\/mobile\//]
 const ADD_ALLOWED = [/^apps\/mobile\//, /^tests\/mobile\//,/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
 /** Existing files that may change: the shared code (the engine), its manifests, the lockfile, the spec, build-check's trigger. */
 // apps/mobile (and its tests, tests/mobile): the phone app has no users yet, so it is changed with the unified app instead of waiting (owner, 2026-10-19).
@@ -41,6 +43,8 @@ export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path:
         if (why) out.push({ path: ch.path, detail: why })
       }
     } else if (s === 'D') {
+      // The phone app has no users, so it changes freely — removing its dispensary and unreachable screens included.
+      if (DELETE_ALLOWED.some((r) => r.test(ch.path))) continue
       out.push({ path: ch.path, detail: 'an existing file deleted; nothing is removed before cutover' })
     } else {
       out.push({ path: ch.path, detail: `change type ${ch.status}${ch.from ? ' from ' + ch.from : ''}: only additions and the listed edits are allowed` })
