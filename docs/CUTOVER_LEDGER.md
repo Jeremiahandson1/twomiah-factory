@@ -478,3 +478,25 @@ Built after (owner: "fix this stuff", "do what the pros do", 2026-10-19/20; CI g
   a device build to prove background delivery, the permission dialogs and the Android notification.
 - Still not built: driver/fleet route tracking (`/api/tracking/*`) — no CRM ever had it; crew locations cover the office's
   "where is everyone".
+
+## The data move (apps/api/src/unified/move, 2026-10-20)
+
+Built and tested for the three industries with customers: contractor (Higgs), home care (547), bar (Amber Inn).
+`schema.ts` compares the layouts, `copy.ts` copies every shared table from one read-only snapshot of the old database
+into the new one in one transaction (text values cast in SQL; forward links set in a second pass; counts checked; any
+failure leaves the new database empty), `steps/trades.ts` (contractor, bar) and `steps/homecare.ts` do each industry's
+data steps. The tests build the old database the way a live one really is (migrations + prune-legacy + reconcile —
+`apps/unified/tests/templateLive.ts`). move-crm 2, move-crm-steps 10, move-bar 6, move-homecare 12.
+
+Before each real move:
+- A read-only look at that business's live database layout (table/column names, no customer rows) against what the
+  tests built; any difference is handled before the move.
+- The move refuses rather than guess: two sent invoices sharing a number, a required link to a deleted record (e.g.
+  AIA forms whose project was deleted), a duplicate under a unique rule, an unknown role, more than one agency.
+  Each is fixed in the old app first, with the owner.
+- Customers with upcoming bookings get their new booking link (old six-character codes do not carry — the new link can
+  cancel, a guessable code must not). Emailing customers is the owner's yes, each time.
+- Bookings that allowed more than one at a time: the owner sets hours per person. An old quickbooks_connection row:
+  the owner reconnects QuickBooks. The QuickBooks link moves only when the new service uses the same Intuit app.
+- Still to build: the Factory's cutover command that runs a move (old URL → new database), freezes the old app during
+  it, and points the domain over after — with the owner's check before each business.
