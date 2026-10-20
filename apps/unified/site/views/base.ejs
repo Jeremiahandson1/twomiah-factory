@@ -165,7 +165,8 @@
   <% if (_tGtm) { %>
   <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','<%= _tGtm %>');</script>
   <% } %>
-  <% if (_tGa || _tAds) { %>
+  <%/* With a Tag Manager container, every Google tag lives inside it: nothing printed beside it (docs/TRACKING_STANDARD.md). */%>
+  <% if (!_tGtm && (_tGa || _tAds)) { %>
   <script async src="https://www.googletagmanager.com/gtag/js?id=<%= _tGa || _tAds %>"></script>
   <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());<% if (_tGa) { %>gtag('config','<%= _tGa %>');<% } %><% if (_tAds) { %>gtag('config','<%= _tAds %>');<% } %></script>
   <% } %>
@@ -179,6 +180,11 @@
 <body>
 <%/* The frame needs a title for screen readers (the bar template's fix, for every design). */%>
 <% if (settings.googleTagManagerId) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= settings.googleTagManagerId %>" height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript><% } %>
+<%/* The one #form-success on the page (docs/TRACKING_STANDARD.md): hidden from load, shown by twomiahLeadSent() only when
+     the server accepted a lead. A Tag Manager Element Visibility trigger on #form-success is how Google counts a form
+     conversion, so every lead form on every page calls it — never a form's own id. */%>
+<div id="form-success" role="status" aria-live="polite" style="display:none;position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:9999;max-width:min(92vw,28rem);color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;padding:12px 16px;border-radius:8px;font:500 15px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.12)">Thanks — we got your message.</div>
+<script>window.twomiahLeadSent=function(t){var e=document.getElementById('form-success');if(!e)return;if(t)e.textContent=t;e.style.display='block';clearTimeout(e._h);e._h=setTimeout(function(){e.style.display='none'},10000)};</script>
   <%/* Skip link: the first thing a keyboard or screen-reader user reaches,
        hidden until focused. Fixed colours so it reads on every theme. */%>
   <style>.skip-link{position:absolute;left:8px;top:-100px;z-index:10000;padding:10px 16px;background:#111;color:#fff;font:600 15px/1.2 system-ui,sans-serif;border-radius:6px;text-decoration:none}.skip-link:focus{top:8px;outline:3px solid #fff;outline-offset:2px}#main:focus{outline:none}</style>

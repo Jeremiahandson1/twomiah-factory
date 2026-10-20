@@ -39,8 +39,12 @@ and google did it. because when you did it it didnt work"). Read from that live 
    pagead2.googlesyndication.com) — checked in GTM Preview on a staging copy before a site goes live.
 7. **Ad click ids survive.** Every redirect keeps the query string, so `gclid` reaches the landing page.
 
-## Where the unified app stands (2026-10-20 copy test, scratchpad claflin/compare.tsv)
+## Where the unified app stands
 
-Prints the GTM head snippet and noscript. To meet this standard it still needs: the shared `#form-success` element on
-every lead form (rule 5), a CSP that allows the Google hosts (rule 6, unverified whether it blocks them today), and no GA4
-printed when a GTM container is set (rule 1).
+Meets it (2026-10-20, held by `apps/unified/tests/tracking-standard.test.ts`):
+- rule 1 — with a container set, no GA4/Ads snippet is printed beside it (`site/views/base.ejs`);
+- rule 5 — every page carries the one hidden `#form-success` and `twomiahLeadSent()`; every scripted lead form (contact,
+  ask-about-a-unit, care finder) calls it when the server saved the lead; a plain post lands on a page that loads the
+  container and shows `#form-success` — only for a saved lead, never for a bot's quiet "thanks" (`server/site/enquiryHandler.ts`);
+- rule 6 — the site policy allows every host Google lists for Tag Manager, GA4 with Ads features and Ads conversions
+  (`server/http/guards.ts`). Not yet checked in GTM Preview against a real container on a staging site.

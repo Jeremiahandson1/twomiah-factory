@@ -4,7 +4,7 @@
 // for is kept; the enquiry is saved where the business works its leads (core/enquiry.ts) and the owner is emailed.
 import type { Context } from 'hono'
 import { asc } from 'drizzle-orm'
-import { company } from '../db/schema/index.ts'
+import { company, website } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
 import type { createEnquiries } from '../core/enquiry.ts'
 import { fail, done } from '../http/reply.ts'
@@ -23,15 +23,28 @@ function clientIp(c: Context): string {
   return c.req.header('CF-Connecting-IP') || c.req.header('X-Real-IP') || 'unknown'
 }
 
-/** The page a visitor sees after a no-script form post: one line and a way back. */
-function replyPage(ok: boolean, text: string, referer?: string): string {
+/** A Tag Manager container id as Google issues them; anything else is never written into a page. */
+const GTM_ID = /^GTM-[A-Z0-9]{4,12}$/
+
+/**
+ * The page a visitor sees after a no-script form post: one line and a way back. When the site has a Tag Manager
+ * container the page loads it and, for a lead the server accepted, shows the one #form-success — so a plain post counts as
+ * a conversion exactly as a scripted form does (docs/TRACKING_STANDARD.md rule 5). This page carried no container at
+ * all before, so the catering, party and Regulars forms counted nowhere.
+ */
+function replyPage(ok: boolean, text: string, referer?: string, gtm?: string | null, saved = ok): string {
   let back = '/'
   try { if (referer) back = new URL(referer).pathname || '/' } catch {}
-  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+  const tm = gtm && GTM_ID.test(gtm) ? gtm : null
+  const head = tm
+    ? `<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${tm}');</script>`
+    : ''
+  const noscript = tm ? `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${tm}" height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript>` : ''
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' + head +
     '<meta name="robots" content="noindex"><title>' + (ok ? 'Thank you' : 'Please try again') + '</title>' +
     '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f7f5;color:#1a1a1a}' +
     'main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}</style></head>' +
-    '<body><main><h1>' + (ok ? 'Thank you.' : 'That didn’t go through.') + '</h1><p>' + escHtml(text) + '</p>' +
+    '<body>' + noscript + '<main><h1>' + (ok ? 'Thank you.' : 'That didn’t go through.') + '</h1>' + (saved ? '<p id="form-success" role="status">' : '<p>') + escHtml(text) + '</p>' +
     '<p><a href="' + escHtml(back) + '">' + (ok ? 'Back to the site' : 'Go back and try again') + '</a></p></main></body></html>'
 }
 
@@ -43,8 +56,14 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
     const isJson = (c.req.header('content-type') || '').includes('application/json')
     // A browser posting without script gets a page back, not raw JSON.
     const wantsPage = !isJson && (c.req.header('accept') || '').includes('text/html')
-    const reply = (ok: boolean, text: string, status: 200 | 400 | 429 | 500 = ok ? 200 : 400) =>
-      wantsPage ? c.html(replyPage(ok, text, c.req.header('referer')), status) : ok ? done(c, text) : fail(c, status as 400 | 429 | 500, text)
+    // `saved` false: the quiet "thanks" a bot gets — never shown as a lead, so it never counts as a conversion.
+    const reply = async (ok: boolean, text: string, status: 200 | 400 | 429 | 500 = ok ? 200 : 400, saved = ok) =>
+      wantsPage ? c.html(replyPage(ok, text, c.req.header('referer'), await tagManager(), saved), status) : ok ? done(c, text) : fail(c, status as 400 | 429 | 500, text)
+    /** The site's Tag Manager container, for the reply page. */
+    async function tagManager(): Promise<string | null> {
+      const [w] = await db.select({ gtm: website.googleTagManagerId }).from(website).limit(1).catch(() => [] as any[])
+      return w?.gtm || null
+    }
 
     // The limit first, so a flood never reaches the database or the mail.
     const ip = clientIp(c)
@@ -61,9 +80,9 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
       const body = (isJson ? await c.req.json().catch(() => ({})) : await c.req.parseBody({ all: true })) as Record<string, any>
       // Bots fill every field, including the hidden one; a real person takes longer than 1.5s. Both get a quiet
       // "thanks" so the bot learns nothing.
-      if (String(body.website || body.honeypot || '').trim()) return reply(true, THANKS)
+      if (String(body.website || body.honeypot || '').trim()) return reply(true, THANKS, 200, false)
       const stamp = parseInt(String(body.t || '0'), 10)
-      if (stamp > 0 && Date.now() - stamp < 1500) return reply(true, THANKS)
+      if (stamp > 0 && Date.now() - stamp < 1500) return reply(true, THANKS, 200, false)
 
       const one = (v: any) => (Array.isArray(v) ? v.map(String).join(', ') : String(v ?? '')).trim()
       const email = one(body.email)

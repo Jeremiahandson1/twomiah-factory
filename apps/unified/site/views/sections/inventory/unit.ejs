@@ -63,7 +63,7 @@
     var b = f.querySelector('button[type="submit"]'), s = f.querySelector('.unit__status'); b.disabled = true
     fetch(f.action, { method: 'POST', body: new FormData(f), headers: { Accept: 'application/json' } })
       .then(function (r) { return r.json().catch(function () { return {} }).then(function (d) { return { ok: r.ok, d: d } }) })
-      .then(function (x) { s.hidden = false; s.textContent = x.ok ? (x.d.message || 'Sent — thanks.') : (x.d.error || 'That didn’t go through. Please try again.'); if (!x.ok) b.disabled = false })
+      .then(function (x) { s.hidden = false; s.textContent = x.ok ? (x.d.message || 'Sent — thanks.') : (x.d.error || 'That didn’t go through. Please try again.'); if (!x.ok) b.disabled = false; else if (window.twomiahLeadSent) window.twomiahLeadSent(s.textContent) })
       .catch(function () { s.hidden = false; s.textContent = 'That didn’t go through. Please check your connection.'; b.disabled = false })
   })
 })();</script>

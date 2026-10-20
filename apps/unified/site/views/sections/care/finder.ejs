@@ -125,7 +125,7 @@
     });
     fetch('/api/leads', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
       // Only say "Thank you" when the request was actually saved.
-      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); f.querySelector('.cf-error').hidden = true; steps().forEach(function(s){ s.hidden = true; }); f.querySelector('.cf-done').hidden = false; })
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); f.querySelector('.cf-error').hidden = true; steps().forEach(function(s){ s.hidden = true; }); f.querySelector('.cf-done').hidden = false; if (window.twomiahLeadSent) window.twomiahLeadSent(); })
       .catch(function(){ f.querySelector('.cf-error').hidden = false; });
   });
 })();

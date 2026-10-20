@@ -34,8 +34,13 @@ export const CSP = [
  * the Facebook pixel and Clarity and then refused to load any of them. Framed only by itself (the editor's preview).
  * Moving the inline scripts to nonces is in docs/CUTOVER_LEDGER.md.
  */
-const TRACKING_SCRIPTS = 'https://www.googletagmanager.com https://www.google-analytics.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net https://www.clarity.ms https://*.clarity.ms'
-const TRACKING_CONNECT = 'https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://stats.g.doubleclick.net https://www.facebook.com https://*.clarity.ms'
+// Google's own lists for Tag Manager, GA4 with Ads features and Google Ads conversions
+// (developers.google.com/tag-platform/security/guides/csp, read 2026-10-20; docs/TRACKING_STANDARD.md rule 6): the Ads
+// conversion script comes from www.google.com and its pings go to google.com, googleadservices.com and doubleclick —
+// without them a lead counted nowhere. Images already allow every https host. Country domains (google.ca, …) must be
+// listed one by one; the businesses here are US, so google.com is the one their visitors' pings use.
+const TRACKING_SCRIPTS = 'https://www.googletagmanager.com https://www.google-analytics.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com https://connect.facebook.net https://www.clarity.ms https://*.clarity.ms'
+const TRACKING_CONNECT = 'https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://stats.g.doubleclick.net https://www.google.com https://*.google.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://*.g.doubleclick.net https://ad.doubleclick.net https://pagead2.googlesyndication.com https://www.facebook.com https://*.clarity.ms'
 export const SITE_CSP = [
   "default-src 'self'",
   "img-src 'self' data: https:",

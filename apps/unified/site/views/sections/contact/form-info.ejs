@@ -98,6 +98,7 @@
             s.hidden = false;
             if (x.ok) {
               s.textContent = x.d.message || 'Thanks \u2014 your message was sent.';
+              if (window.twomiahLeadSent) window.twomiahLeadSent(s.textContent);
               f.querySelectorAll('input:not([type="hidden"]), textarea').forEach(function(i){ i.value = ''; });
             } else { s.textContent = x.d.error || 'That didn\u2019t go through. Please try again.'; b.disabled = false; }
           })

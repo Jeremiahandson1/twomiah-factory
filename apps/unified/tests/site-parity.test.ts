@@ -27,7 +27,9 @@ const TEMPLATES = path.resolve(import.meta.dir, '..', '..', '..', 'templates')
 const DESIGNS = ['bar', 'contractor', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'rv', 'showcase', 'vet'] as const
 const designOf = (family: typeof DESIGNS[number]): SiteContext['design'] => (family === 'contractor' || family === 'rv' || family === 'vet' ? 'classic' : family)
 const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ejs', 'sections/contact/form-info.ejs', 'sections/tools/estimator.ejs',
-  'sections/hero/split.ejs', 'sections/cta/split.ejs', 'sections/about/story.ejs'])
+  'sections/hero/split.ejs', 'sections/cta/split.ejs', 'sections/about/story.ejs',
+  // docs/TRACKING_STANDARD.md: a saved lead shows the page's one #form-success (Google's conversion trigger).
+  'sections/inventory/unit.ejs', 'sections/care/finder.ejs'])
 
 /** Each template's words, as its own views and server said them. */
 const WORDS: Record<string, SiteContext['words']> = {
@@ -87,6 +89,14 @@ async function renderOld(design: string, sections: any[], currentPath: string, o
  */
 const barFixes = (html: string) => html.replace(/ role="img" aria-label="[^"]*"/g, '').replace(/ title="Google Tag Manager"/g, '')
 
+/**
+ * docs/TRACKING_STANDARD.md, taken for every design: the page's one hidden #form-success and the function that shows it
+ * (base.ejs), and each scripted lead form's call to it. The templates' pages don't have them.
+ */
+const trackingStandard = (html: string) => html
+  .replace(/<div id="form-success"[^>]*>[^<]*<\/div>\s*<script>window\.twomiahLeadSent=[^<]*<\/script>/, '')
+  .replace(/\s*if \(window\.twomiahLeadSent\) window\.twomiahLeadSent\([^)]*\);/g, '')
+
 const sameAssetVersion = (html: string) => html.replace(/\/styles\/(main|fonts)\.css\?v=[^"]*/g, '/styles/$1.css?v=V')
 /** The contact form's one intended change: the message box posts as `message` (the server reads both). */
 const messageField = (html: string) => html.replace(/for="cf-project"/g, 'for="cf-message"').replace(/id="cf-project" name="project"/g, 'id="cf-message" name="message"')
@@ -138,7 +148,7 @@ describe('each design\'s sample pages render as the template rendered them', () 
         const mine = await renderSections(ctxFor(design), sections, { title: 'Home' }, { currentPath: '/', origin, sectionErrors: errors, facts: sampleFacts(design) })
         const theirs = await renderOld(design, sections, '/', origin)
         expect(errors).toEqual([])
-        expect(squash(barFixes(sameAssetVersion(mine)))).toBe(squash(barFixes(sameAssetVersion(messageField(theirs)))))
+        expect(squash(barFixes(sameAssetVersion(trackingStandard(mine))))).toBe(squash(barFixes(sameAssetVersion(messageField(theirs)))))
       })
     }
   }
@@ -152,7 +162,7 @@ describe('the contact form in each vertical\'s words', () => {
       const mine = await ejs.renderFile(path.join(VIEWS, 'sections/contact/form-info.ejs'), { data, settings: SETTINGS, words: WORDS[design], ...(design === 'bar' ? { isFirst: false } : {}) }) as string
       const theirs = await ejs.renderFile(path.join(TEMPLATES, 'website-premium-' + design, 'views/sections/contact/form-info.ejs'), { data, settings: SETTINGS }) as string
       // Their copies differ only in the comments that explain them; what renders must match.
-      expect(squash(mine)).toBe(squash(messageField(theirs)))
+      expect(squash(trackingStandard(mine))).toBe(squash(messageField(theirs)))
       expect(mine).toContain('name="message"')
       expect(mine).toContain(WORDS[design].contactMessageLabel.replace(/'/g, '&#39;'))
     })
