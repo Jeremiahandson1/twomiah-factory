@@ -103,6 +103,10 @@ modified or deleted. The existing files it may change:
 - `packages/*/package.json`, only to declare libraries the shared code imports.
 - `docs/SPEC_UNIFIED_PRODUCT.md`, the design this branch builds.
 - `bun.lock`, which the install regenerates.
+- `apps/mobile/`, the phone app: it has no users yet, so it changes with the unified app (owner, 2026-10-19).
+- The four guards that check the shared feature registry and shared defaults (`scripts/check-feature-vocabulary.ts`,
+  `check-not-ready-features.ts`, `check-parked-features.ts`, `check-vertical-vocabulary.ts`), only when a change to
+  `packages/*/src` changes what they check — so `build-check.yml` keeps meaning something on `engine`.
 
 Anything moved out of existing code (rather than imported) is listed in
 `docs/CUTOVER_LEDGER.md`, so the original is deleted at cutover and no second copy

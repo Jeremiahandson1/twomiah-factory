@@ -16,9 +16,12 @@ export interface FenceViolation { path: string; detail: string }
  * and service, Update Code), added beside the Factory and wired in at cutover (owner's yes, 2026-10-18). No existing
  * Factory file may change (MODIFY_ALLOWED has none), so nothing live can import it before then.
  */
-const ADD_ALLOWED = [/^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
+const ADD_ALLOWED = [/^apps\/mobile\//, /^apps\/unified\//, /^apps\/api\/src\/unified\//, /^tests\/unified\//, /^scripts\/check-unified-[^/]+\.ts$/, /^\.github\/workflows\/unified\.yml$/, /^docs\//, /^packages\/[^/]+\/src\//]
 /** Existing files that may change: the shared code (the engine), its manifests, the lockfile, the spec, build-check's trigger. */
-const MODIFY_ALLOWED = [/^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/]
+// apps/mobile: the phone app has no users yet, so it is changed with the unified app instead of waiting (owner, 2026-10-19).
+// The four registry/shared-default guards: a change to the shared code they check must update them in the same push, or
+// build-check fails on engine (PLAN_TIERS retired; invoicing's quoteJobs pinned) — 2026-10-19.
+const MODIFY_ALLOWED = [/^apps\/mobile\//, /^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/]
 const DEP_KEYS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
 
 export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path: string) => string | null): FenceViolation[] {

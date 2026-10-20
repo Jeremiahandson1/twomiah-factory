@@ -228,8 +228,10 @@ const PINNED: Record<string, { module: string; fields: string[] }> = {
   defaultDocumentsConfig: { module: 'files', fields: ['projects', 'types', 'markup', 'versions'] },
   // Thirteen fields, not one. `projects: true` and `jobs: true` here are contractor-shaped — every
   // template does state both, which is why invoicing has no restaurant-style defect; the pin is what
-  // keeps it that way if a fourteenth field arrives.
-  defaultConfig: { module: 'invoicing', fields: ['clientLabel', 'clientPath', 'jobPath', 'projects', 'jobs', 'tips', 'quoteSites', 'quoteEquipment', 'quoteCustomerMessage', 'quoteDecline', 'extraInvoiceStatuses', 'quoteNamePlaceholder', 'quickbooks'] },
+  // keeps it that way if a fourteenth field arrives. The fourteenth, `quoteJobs` (a quote picks one of the customer's
+  // jobs — roofing's quotes are for a job): false here; no template states it, so every one keeps what it had before
+  // the field existed, and only the unified app's roofing sets it (verticals/roof/settings.ts). Decided 2026-10-19.
+  defaultConfig: { module: 'invoicing', fields: ['clientLabel', 'clientPath', 'jobPath', 'projects', 'jobs', 'tips', 'quoteSites', 'quoteEquipment', 'quoteCustomerMessage', 'quoteDecline', 'quoteJobs', 'extraInvoiceStatuses', 'quoteNamePlaceholder', 'quickbooks'] },
   defaultReportingConfig: { module: 'reporting', fields: ['jobsLabel', 'jobs', 'quotes', 'projects', 'team', 'eventsPipeline', 'dealership'] },
   defaultJobsDashboardConfig: { module: 'reporting', fields: ['jobsLabel', 'jobsPath', 'todayBoard', 'projects'] },
 }
