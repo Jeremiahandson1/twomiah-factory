@@ -49,6 +49,15 @@ export interface VerticalSettings {
   booking?: {
     /** Whether the booking form asks for the customer's address when the owner hasn't said (the trades go to the address). Absent: asked. */
     requireAddress?: boolean
+    /**
+     * Where a booking lands besides the booking list. 'practice' is the vet's book: the pet becomes a chart under its
+     * owner (found again by the owner and the pet's name) and the booking an appointment for both, in the booking's own
+     * transaction (server/crm/vet/onlineBooking.ts; templates/crm-vet routes/booking.ts appointmentCalendar). Absent:
+     * the booking list only.
+     */
+    calendar?: 'practice'
+    /** The public form asks for the pet and refuses a booking without its name (templates/crm-vet requirePet). With calendar 'practice'. */
+    requirePet?: boolean
   }
 }
 
@@ -198,8 +207,9 @@ export interface CrmSettings {
   /**
    * Where a website enquiry goes: 'pipeline' is a dealership's sales pipeline — a sales lead at new, on the customer's
    * existing contact when the email (or a phone nothing contradicts) matches, and the same message sent again within
-   * 30 days kept as the open lead it already made (templates/crm-rv routes/webhooks.ts, T59). Absent: the Lead Inbox
-   * when it's on, else a lead contact.
+   * 30 days kept as the open lead it already made (templates/crm-rv routes/webhooks.ts, T59). It takes an email or a
+   * phone (the website chat's phone-only lead), and a `unitOfInterest` whose stock number links the lead to that unit.
+   * Absent: the Lead Inbox when it's on, else a lead contact.
    */
   websiteEnquiries?: 'pipeline'
   /**

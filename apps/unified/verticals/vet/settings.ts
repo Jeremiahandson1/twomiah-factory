@@ -55,8 +55,10 @@ const vet: VerticalSettings = {
   extraRolePermissions: { field: ['contacts:create', 'contacts:update', 'invoices:read', 'invoices:create', 'invoices:update', 'sms:send'] },
   // The clinic's older seat name.
   roleMapping: { staff: 'field' },
-  // A pet owner booking online is not asked for an address (templates/crm-vet routes/booking.ts requireAddress: false).
-  booking: { requireAddress: false },
+  // A pet owner booking online is not asked for an address, is asked for the pet, and the booking becomes the pet's chart
+  // and an appointment in the practice's book (templates/crm-vet routes/booking.ts: requireAddress: false, requirePet,
+  // appointmentCalendar with its patient).
+  booking: { requireAddress: false, calendar: 'practice', requirePet: true },
   crm: {
     patients: true,
     dashboard: 'practice',

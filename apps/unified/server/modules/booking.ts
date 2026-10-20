@@ -14,6 +14,7 @@ import { createBookingExtras, type BookingExtras } from '../booking/extras.ts'
 import { createBookingWebhooks } from '../booking/webhooks.ts'
 import { createHappenings } from '../booking/happenings.ts'
 import { bookingTemplates } from '../booking/emails.ts'
+import { createPracticeBooking } from '../crm/vet/onlineBooking.ts'
 
 const FEATURE = 'online_booking'
 
@@ -27,6 +28,8 @@ async function guard<T>(c: Context, fn: () => Promise<T>) {
 const body = async (c: Context): Promise<Record<string, any>> => (c.req.header('content-type') || '').includes('application/json') ? await c.req.json().catch(() => ({})) : await c.req.parseBody().catch(() => ({})) as any
 const pageOf = (c: Context) => ({ page: Math.max(1, Number(c.req.query('page')) || 1), limit: Math.min(500, Math.max(1, Number(c.req.query('limit')) || 100)) })
 const allOf = <T>(rows: T[]) => ({ page: 1, limit: Math.max(rows.length, 1), total: rows.length })
+/** The vertical's own questions' answers from a form (BookingAddOn.questions). */
+const answersOf = (engine: BookingEngine, b: Record<string, any>) => Object.fromEntries(engine.questions.map((q) => [q.name, b[q.name]]))
 
 /** What a customer's page may see of a booking (never another customer's details: it is reached by its token). */
 const publicBooking = (b: BookingRow, engine: BookingEngine, cutoffOpen: boolean) => ({
@@ -41,8 +44,10 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   const webhooks = createBookingWebhooks({ db, logger })
   const happen = createHappenings({ db, email, logger, webhooks })
   const engine = createBookingEngine({
-    // The vertical's answer (VerticalSettings.booking: basic says no, templates/crm-basic T42); salon and vet still by id.
-    db, requireAddressDefault: deps.vertical.booking?.requireAddress ?? (deps.vertical.id !== 'salon' && deps.vertical.id !== 'vet'), deposits: deps.deposits, externalBusy: deps.externalBusy,
+    // The vertical's answers (VerticalSettings.booking): whether the address is asked (basic, salon, vet, bar say no —
+    // templates/crm-basic T42), and where a booking lands besides the list (the vet's practice book).
+    db, requireAddressDefault: deps.vertical.booking?.requireAddress ?? true, deposits: deps.deposits, externalBusy: deps.externalBusy,
+    addOn: deps.vertical.booking?.calendar === 'practice' ? createPracticeBooking({ requirePet: deps.vertical.booking.requirePet === true }) : undefined,
     onHappening: (h) => { void happen(h) },
   })
   const extras = createBookingExtras({ db, engine, email, logger, webhooks })
@@ -89,7 +94,7 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   }))
   admin.post('/bookings', may('bookings:create'), (c) => guard(c, async () => {
     const b = await body(c)
-    const r = await engine.book(co(c), { ...b, service: String(b.serviceId || b.service || '') } as any, { by: 'staff', assignedUserId: b.assignedUserId || null, override: b.override === true })
+    const r = await engine.book(co(c), { ...b, service: String(b.serviceId || b.service || ''), answers: answersOf(engine, b) } as any, { by: 'staff', assignedUserId: b.assignedUserId || null, override: b.override === true })
     return one(c, await engine.withNames(r.booking), 201)
   }))
   admin.get('/bookings/:id', may('bookings:read'), async (c) => {
@@ -167,6 +172,7 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
     const r = await engine.book(id, {
       service: c.req.param('slug'), date: b.date, time: b.time, name: b.name, email: b.email, phone: b.phone, address: b.address, zip: b.zip, notes: b.notes,
       tipPercent: b.tipPercent != null && b.tipPercent !== '' ? Number(b.tipPercent) : null, sourcePath: b.sourcePath, sourceReferrer: b.sourceReferrer, sourceVariant: b.sourceVariant,
+      answers: answersOf(engine, b),
     }, { by: 'customer' })
     return one(c, { token: r.booking.token, status: r.booking.status, deposit: r.deposit }, 201)
   }) as Promise<Response>))

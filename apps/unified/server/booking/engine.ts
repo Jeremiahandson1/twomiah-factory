@@ -36,8 +36,32 @@ export interface DepositProvider {
   createIntent(args: { companyId: string; bookingId: string; amount: number; customerEmail: string; customerName: string; description: string }): Promise<{ paymentIntentId: string; clientSecret: string; publishableKey?: string } | null>
 }
 
+/** One of a vertical's own questions on the public booking form (a vet's pet). */
+export interface BookingQuestion {
+  /** The form field and the key in BookInput.answers. */
+  name: string
+  label: string
+  placeholder?: string
+  maxLength: number
+  /** Set: a customer's booking without an answer is refused with this sentence. */
+  requiredMessage?: string
+}
+
+/**
+ * A vertical's own part in a booking (VerticalSettings.booking.calendar): its questions on the form, and what the
+ * booking becomes in its own records. The CRMs' engine did this with a calendar per template (packages/tenant-backend
+ * booking/calendars.ts); here the booking row is always the engine's, and the add-on writes beside it.
+ */
+export interface BookingAddOn {
+  questions: BookingQuestion[]
+  /** Inside the booking's transaction, after its row is written: throwing undoes the booking. */
+  booked(tx: any, b: { companyId: string; contactId: string; booking: BookingRow; service: ServiceRow; answers: Record<string, string> }): Promise<void>
+}
+
 export interface EngineDeps {
   db: any
+  /** The vertical's own part in a booking, when it has one. */
+  addOn?: BookingAddOn
   /** The vertical's answer to "ask for the address?" when the business hasn't set its own. */
   requireAddressDefault: boolean
   /** Busy times on people's own calendars (Google, Outlook), when any are connected. */
@@ -66,6 +90,8 @@ export interface BookInput {
   sourcePath?: string | null
   sourceReferrer?: string | null
   sourceVariant?: string | null
+  /** Answers to the vertical's own questions (BookingAddOn.questions), by name. */
+  answers?: Record<string, unknown> | null
 }
 
 const ACTIVE = ['pending', 'confirmed'] as const
@@ -96,6 +122,8 @@ const text = (v: unknown, max: number) => (typeof v === 'string' ? (v.trim() ? v
 export function createBookingEngine(deps: EngineDeps) {
   const { db } = deps
   const now = deps.now ?? (() => Date.now())
+  /** The vertical's own questions on the booking form (none for most). */
+  const questions: BookingQuestion[] = deps.addOn?.questions ?? []
 
   async function emit(h: BookingHappening) {
     try { await deps.onHappening?.(h) } catch { /* the change is saved; a message that failed is logged where it is sent */ }
@@ -461,9 +489,16 @@ export function createBookingEngine(deps: EngineDeps) {
     const zip = String(input.zip || '').trim().slice(0, 10) || null
     if (!name) throw new BookingError('Please enter your name.')
     if (!EMAIL_RE.test(email)) throw new BookingError('Please enter a valid email address.')
+    const answers: Record<string, string> = {}
+    for (const q of questions) {
+      const v = input.answers?.[q.name]
+      const a = typeof v === 'string' ? v.trim().slice(0, q.maxLength) : ''
+      if (a) answers[q.name] = a
+    }
     if (customer) {
       if (s.requirePhone && !phone) throw new BookingError('Please enter a phone number.')
       if (requireAddress(s) && !address) throw new BookingError('Please enter the address.')
+      for (const q of questions) if (q.requiredMessage && !answers[q.name]) throw new BookingError(q.requiredMessage)
       const w = window(s)
       if (input.date < w.first) throw new BookingError('That date is in the past.')
       if (input.date > w.last) throw new BookingError(`Please choose a date within ${s.maxDaysOut} days.`)
@@ -501,6 +536,7 @@ export function createBookingEngine(deps: EngineDeps) {
         // The engine's clock, not the database's: the deposit hold is measured from it.
         createdAt: new Date(now()), updatedAt: new Date(now()),
       }).returning()
+      if (deps.addOn) await deps.addOn.booked(tx, { companyId, contactId, booking: made, service: svc, answers })
       return made
     })
 
@@ -652,7 +688,7 @@ export function createBookingEngine(deps: EngineDeps) {
   }
 
   return {
-    settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, selfServiceOpen,
+    settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, selfServiceOpen, questions,
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService,
     getHours, setHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
     availableDates, availableTimes, expireHolds,

@@ -75,6 +75,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
           <label>Email<input type="email" name="email" required autocomplete="email"></label>
           <label>Phone${settings.requirePhone ? '' : ' (optional)'}<input type="tel" name="phone" ${settings.requirePhone ? 'required' : ''} autocomplete="tel"></label>
           <label>Address${requireAddress ? '' : ' (optional)'}<input type="text" name="address" ${requireAddress ? 'required' : ''} autocomplete="street-address"></label>
+          ${engine.questions.map((q) => `<label>${escHtml(q.label)}<input type="text" name="${escHtml(q.name)}" maxlength="${q.maxLength}"${q.placeholder ? ` placeholder="${escHtml(q.placeholder)}"` : ''}${q.requiredMessage ? ' required' : ''}></label>`).join('\n          ')}
           <label>Anything we should know? (optional)<textarea name="notes" rows="3"></textarea></label>
           ${tips.length ? `<div class="book-tip"><span class="book-tip__label">Add a tip (optional)</span><div class="book-tip-row" role="group" aria-label="Tip">
             <button type="button" data-tip="" class="book-tip-btn is-active" aria-pressed="true">None</button>
