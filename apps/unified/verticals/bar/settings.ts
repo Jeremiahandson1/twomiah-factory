@@ -198,11 +198,14 @@ const bar: VerticalSettings = {
     // No Jobber export and no Angi account behind a bar: the domain, QuickBooks, Stripe and texting (OnboardingWizard.tsx, T41).
     onboarding: { integrations: ['dns', 'quickbooks', 'stripe', 'twilio'] },
   },
-  // The bar's own site is templates/website-premium-bar (the Tonight board, the menu and taps read live from
-  // /api/public/bar). Its look is not one of the site designs yet; the closest is the showcase's. Its contact section
-  // says Address, asks for "Your message", and answers an empty one with "Please write a short message."
+  // The bar's own site, templates/website-premium-bar: its leather-book design, and its sections reading the night
+  // (the Tonight board, the menu and taps, hours, what's on) straight from the bar add-on. Its contact section says
+  // Address, asks for "Your message", and answers an empty one with "Please write a short message."
   site: {
-    design: 'showcase',
+    design: 'bar',
+    facts: 'bar',
+    // The header's Visit button (templates/website-premium-bar base.ejs).
+    ctaHref: '/visit',
     words: {
       contactAddressLabel: 'Address',
       contactMessageLabel: 'Your message',

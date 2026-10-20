@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { page, post, portfolioItem } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
-import { accentOnLight, DEFAULT_ACCENT } from '../core/brandColour.ts'
+import { accentOnLight, DEFAULT_ACCENT, ensureDark } from '../core/brandColour.ts'
 import { countView } from '../data/pageViews.ts'
 import { loadSiteContext, type SiteContext } from './context.ts'
 import { renderSections, renderBody, homePlaceholder, markdownToHtml, siteOrigin, escHtml, escXml, type PageMeta } from './render.ts'
@@ -18,6 +18,7 @@ import { RESERVED_SLUGS } from './slugs.ts'
 import { PUBLIC_PHOTO_PREFIX, type PhotoStore } from './admin.ts'
 import type { Storefront } from '../crm/store/index.ts'
 import { servesWhileClosed, unavailablePage } from './shop.ts'
+import type { SiteFacts, PageFacts } from './facts.ts'
 
 const SITE_DIR = path.join(import.meta.dir, '..', '..', 'site')
 const BASE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'main.css'), 'utf8')
@@ -29,6 +30,17 @@ const STORE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'store
 const CART_JS = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', 'cart.ts'), 'utf8'))
 const DESIGN_CSS = new Map<string, string>()
 for (const f of fs.readdirSync(path.join(SITE_DIR, 'designs'))) DESIGN_CSS.set(f.replace(/\.css$/, ''), fs.readFileSync(path.join(SITE_DIR, 'designs', f), 'utf8'))
+// A cover design's own files (the bar's, templates/website-premium-bar build/): its self-hosted faces and their sheet, the
+// speakeasy overlay's sheet (loaded on the first knock), and the scripts its sections name — the Tonight board's poller,
+// the speakeasy door, the story's book. Served to any site; only a page that has the section asks for them.
+// The base as a cover design's fallback layer. An !important inside a layer beats every unlayered !important, so the
+// base's .mobile-nav__cta colour would win over the design's own; the base keeps its !important only on [hidden] rules,
+// where it hides a card the base itself displays.
+const BASE_CSS_UNDER_A_COVER = BASE_CSS.replace(/([^{}]+)\{([^{}]*)\}/g, (m, sel: string, body: string) => /\[hidden\]/.test(sel) ? m : sel + '{' + body.replace(/\s*!important/g, '') + '}')
+const FONTS_DIR = path.join(SITE_DIR, 'public', 'fonts')
+const FONT_FILES = new Set(fs.readdirSync(FONTS_DIR).filter((f) => f.endsWith('.woff2')))
+const STYLES = new Map(['fonts.css', 'speakeasy.css'].map((f) => [f, fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', f), 'utf8')]))
+const SCRIPTS = new Map(['live', 'speakeasy', 'book'].map((f) => [f + '.js', new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(SITE_DIR, 'public', 'scripts', f + '.ts'), 'utf8'))]))
 
 
 function areaSlug(name: string): string {
@@ -58,20 +70,29 @@ const projectCard = (p: any) => {
   return { slug: p.slug, title: p.title, location: p.location || '', summary: p.summary || '', image: p.coverImageUrl || photos[0] || '' }
 }
 
-/** The stylesheet: the base, then the site's design, with the company's colours filled in. */
+/**
+ * The stylesheet: the base, then the site's design, with the company's colours filled in. A cover design is a whole look
+ * of its own (COVER_DESIGNS): the base goes beneath it as a CSS layer, so every rule of the design wins, in its own
+ * order, and the base styles only what the design never does (the booking pages, a section its template lacked).
+ */
 export function siteStylesheet(ctx: SiteContext): string {
   const accent = ctx.colours.accent || DEFAULT_ACCENT
-  const css = BASE_CSS + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (ctx.options.shop ? '\n' + STORE_CSS : '')
+  const base = ctx.options.cover ? '@layer base {\n' + BASE_CSS_UNDER_A_COVER + '\n}' : BASE_CSS
+  const css = base + (DESIGN_CSS.has(ctx.design) ? '\n' + DESIGN_CSS.get(ctx.design) : '') + (ctx.options.shop ? '\n' + STORE_CSS : '')
   return css
     .replaceAll('{{PRIMARY_COLOR}}', ctx.colours.primary)
+    // The design's dark band, kept dark whatever the owner picked, as the Factory's generator filled it.
+    .replaceAll('{{SECONDARY_COLOR}}', ensureDark(ctx.colours.secondary || '#1e3a5f'))
     .replaceAll('{{ACCENT_COLOR_ON_LIGHT}}', accentOnLight(accent))
     .replaceAll('{{ACCENT_COLOR}}', accent)
 }
 
-export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; enquiries: ReturnType<typeof createEnquiryHandler>; store: PhotoStore; shop?: Storefront | null }) {
+export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; enquiries: ReturnType<typeof createEnquiryHandler>; store: PhotoStore; shop?: Storefront | null; facts?: SiteFacts | null }) {
   const { db, vertical } = deps
   const app = new Hono()
   const shop = deps.shop ?? null
+  // The live facts the vertical's own sections read (SiteSettings.facts: the bar's night), from its add-on.
+  const facts = deps.facts ?? null
 
   // A store whose subscription has ended is closed to shoppers: its pages answer one plain page instead of a shop with a
   // checkout that fails (templates/website-store storeStatus.ts). The order-received page, the API, the admin and the
@@ -114,10 +135,13 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     if (c.req.header('sec-fetch-dest') === 'iframe' && c.req.header('sec-fetch-site') === 'same-origin') return
     countView(db, ctx.companyId, pathname)
   }
-  /** Render, count the visit, answer. */
-  async function page200(c: Context, ctx: SiteContext, pathname: string, sections: any[], meta: PageMeta) {
+  /** This page's live facts, when the vertical's sections read them. */
+  const factsOf = async (ctx: SiteContext) => (facts ? { page: await facts.load(ctx.companyId, ctx.settings), source: facts } : null)
+  /** Render, count the visit, answer. A page the facts made passes the facts it was made from. */
+  async function page200(c: Context, ctx: SiteContext, pathname: string, sections: any[], meta: PageMeta, pageFacts?: { page: PageFacts; source: SiteFacts; about?: unknown }) {
     count(c, ctx, pathname)
-    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx) }))
+    const f = pageFacts ?? await factsOf(ctx)
+    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx), facts: f }))
   }
 
   // ── Assets ────────────────────────────────────────────────────────────────
@@ -144,6 +168,22 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       ...(safe ? {} : { 'Content-Disposition': 'attachment' }),
       'Cache-Control': 'public, max-age=31536000, immutable',
     })
+  })
+
+  app.get('/fonts/:file', (c) => {
+    const file = c.req.param('file')
+    if (!FONT_FILES.has(file)) return c.notFound()
+    return c.body(fs.readFileSync(path.join(FONTS_DIR, file)), 200, { 'Content-Type': 'font/woff2', 'Cache-Control': 'public, max-age=31536000, immutable' })
+  })
+  app.get('/styles/:file', (c, next) => {
+    const css = STYLES.get(c.req.param('file'))
+    if (css === undefined) return next()
+    return c.body(css, 200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'public, max-age=86400' })
+  })
+  app.get('/scripts/:file', (c, next) => {
+    const js = SCRIPTS.get(c.req.param('file'))
+    if (js === undefined) return next()
+    return c.body(js, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=3600' })
   })
 
   // RFC 9116: every tenant points at the one coordinated disclosure page.
@@ -400,6 +440,13 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
         if (!pageRows.some((r: any) => r.slug === 'inventory')) urls.push(`  <url><loc>${escXml(origin + '/inventory')}</loc></url>`)
         for (const u of units) urls.push(`  <url><loc>${escXml(origin + '/inventory/' + u.slug)}</loc></url>`)
       }
+      // The pages the vertical's facts make: a bar's signature items and the eras of its story. Never fails the sitemap.
+      if (facts) {
+        try {
+          const f = await facts.load(ctx.companyId, ctx.settings)
+          for (const p of facts.sitemapPaths(f, new Set(pageRows.map((r: any) => r.slug)))) urls.push(`  <url><loc>${escXml(origin + p)}</loc></url>`)
+        } catch { /* a sitemap never fails over the facts */ }
+      }
       const areas = serviceAreasOf(ctx.settings)
       if (areas.length) {
         urls.push(`  <url><loc>${escXml(origin + '/service-areas')}</loc></url>`)
@@ -484,6 +531,22 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     const p = await loadPage(ctx.companyId, slug)
     if (!p || !p.isPublished) return c.notFound()
     return page200(c, ctx, '/' + slug, Array.isArray(p.sections) ? p.sections : [], p)
+  })
+
+  // ── Nested pages ─────────────────────────────────────────────────────────
+  // A page the vertical's facts make (templates/website-premium-bar server-static.ts): /story/<era>, an era of the
+  // story timeline, and /<menu-section>/<item>, a signature item's own page (its photo, story, price and MenuItem
+  // JSON-LD) — built from the menu itself, so there is nothing to keep in sync. Anything else falls through to 404.
+  const NESTED_TAKEN = new Set([...RESERVED_SLUGS, 'projects', 'inventory', 'product', 'checkout', 'shop', 'cart'])
+  if (facts) app.get('/:a/:b', async (c, next) => {
+    const { a, b } = c.req.param()
+    if (NESTED_TAKEN.has(a)) return next()
+    const ctx = await ctxOf()
+    if (!ctx) return next()
+    const f = await factsOf(ctx)
+    const made = f ? facts.nestedPage(f.page, a, b, ctx.settings.companyName) : null
+    if (!f || !made) return next()
+    return page200(c, ctx, made.path, made.sections, made.meta, { ...f, about: made.about })
   })
 
   return app

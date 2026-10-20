@@ -5,7 +5,8 @@
   // One section for every vertical. Where the site templates differed, it was only in words — the address label
   // ("Office" for trades, "Address" elsewhere) and what the message box asks — which now come from the vertical's
   // settings (`words`, server/core/vertical.ts). The message box posts as `message` in every vertical; the
-  // contractor copy still posted `project`, which the server reads too.
+  // contractor copy still posted `project`, which the server reads too. Its heading is the page's h1 when the section
+  // opens the page (isFirst, home.ejs) and an h2 below another section's — the bar's copy was always h2.
   const heading = data.heading || 'Start a conversation'
   const intro = data.intro || ''
   const phone = data.phone || ''
@@ -15,11 +16,12 @@
   const responsePromise = data.responsePromise || ''
   // Always the enquiry endpoint (saved where the business works its leads, and emailed to the owner).
   const formAction = '/api/leads'
+  const H = typeof isFirst !== 'undefined' && isFirst === false ? 'h2' : 'h1'
 %>
 <section class="contact-section">
   <div class="container contact-section__grid">
     <div class="contact-section__copy">
-      <h1 class="contact-section__title"><%= heading %></h1>
+      <<%= H %> class="contact-section__title"><%= heading %></<%= H %>>
       <% if (intro) { %><p class="contact-section__intro"><%= intro %></p><% } %>
 
       <div class="contact-section__details">

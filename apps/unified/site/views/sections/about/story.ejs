@@ -1,22 +1,28 @@
 <%
   // Founder/firm story section: portrait + multi-paragraph narrative.
   // The voice piece — where the customer reads the people behind the work.
+  //
+  // One section for every vertical, merged from the two the site templates had: the bar's (a page with no portrait
+  // drops the column by class, styled in the stylesheet) and the rest's, whose title was always the page's h1 — the
+  // bar's was always h2, under its Tonight board. It is the h1 when the story opens the page (isFirst, home.ejs), so a
+  // page has one h1 either way.
   const eyebrow = data.eyebrow || ''
   const title = data.title || 'Our story'
   const portrait = data.portrait || ''
   const paragraphs = Array.isArray(data.paragraphs) ? data.paragraphs : []
   const signature = data.signature || ''
   const stats = Array.isArray(data.stats) ? data.stats : []
+  const H = typeof isFirst !== 'undefined' && isFirst === false ? 'h2' : 'h1'
 %>
 <section class="story">
   <%/* No portrait = no portrait column. The composer only sets one from the
        owner's own photos — a stock face beside the founder's story reads as
        the founder — so an empty value is normal, not an error. */%>
-  <div class="container story__grid"<% if (!portrait) { %> style="grid-template-columns: 1fr; max-width: 820px"<% } %>>
+  <div class="container story__grid<%= portrait ? '' : ' story__grid--noportrait' %>">
     <% if (portrait) { %><div class="story__portrait" style="background-image: url('<%= portrait %>')"></div><% } %>
     <div class="story__copy">
       <% if (eyebrow) { %><div class="story__eyebrow"><%= eyebrow %></div><% } %>
-      <h1 class="story__title"><%= title %></h1>
+      <<%= H %> class="story__title"><%= title %></<%= H %>>
       <% for (const p of paragraphs) { %>
         <p class="story__paragraph"><%= p %></p>
       <% } %>

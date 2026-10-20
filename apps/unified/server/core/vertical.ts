@@ -282,14 +282,21 @@ export interface CrmSettings {
  * The site designs: the distinct looks of the premium template families (site/designs/<id>.css on top of the base).
  * 'classic' is the base alone — the contractor, RV and vet templates all served it, so it is one look, not three.
  */
-export const SITE_DESIGNS = ['classic', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase'] as const
+export const SITE_DESIGNS = ['classic', 'bar', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'showcase'] as const
 export type SiteDesign = typeof SITE_DESIGNS[number]
 
 /** What the website settings call each design. */
 export const SITE_DESIGN_LABELS: Record<SiteDesign, string> = {
-  classic: 'Classic', dispensary: 'Dispensary', fieldservice: 'Field service', homecare: 'Home care',
+  classic: 'Classic', bar: 'Bar & tavern', dispensary: 'Dispensary', fieldservice: 'Field service', homecare: 'Home care',
   landscaping: 'Landscaping', roofing: 'Roofing', showcase: 'Showcase',
 }
+
+/**
+ * Designs that are a whole look of their own rather than the base with a few overrides: the bar's dark leather book
+ * (templates/website-premium-bar). Its stylesheet is laid over the base, which is kept beneath it as a CSS layer only
+ * for what it doesn't style; the page wears the book's cover frame and self-hosted faces (base.ejs `siteOptions.cover`).
+ */
+export const COVER_DESIGNS: ReadonlySet<SiteDesign> = new Set<SiteDesign>(['bar'])
 
 export interface SiteSettings {
   /** The design a new site starts with; the owner's site row can choose another. */
@@ -305,6 +312,15 @@ export interface SiteSettings {
   }
   /** A text-size control in the corner of every page (home care: readers who want larger type). */
   textSizeToggle?: boolean
+  /** Where the header's button goes when the site names no page: a bar's is its Find us page, '/visit'. Absent: '/contact'. */
+  ctaHref?: string
+  /**
+   * The live facts the site's own sections read, from the vertical's add-on in the same database: 'bar' is the bar's
+   * night — the Tonight board, the taps, the menu, the hours, what's on, the speakeasy door — read through
+   * server/crm/bar/barSite.ts (templates/website-premium-bar lib/bar.ts fetched them from the bar CRM over HTTP).
+   * Absent: the sections have only their own data.
+   */
+  facts?: 'bar'
 }
 
 /**

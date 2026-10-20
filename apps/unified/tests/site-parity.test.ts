@@ -3,7 +3,10 @@
 //
 //   1. The section library is the templates' own files: each one byte-identical to every template copy, except the
 //      ones merged on purpose (before/after slider, contact form, base layout, and the instant-estimator section: the
-//      site and the CRM are one app, so the widget loads from the site's own /estimator.js and needs no CRM origin).
+//      site and the CRM are one app, so the widget loads from the site's own /estimator.js and needs no CRM origin;
+//      the bar's fixes taken for every design: the split hero and split CTA drop the empty picture box, the story drops
+//      its portrait column by class, and the story's and contact form's heading is the page's h1 only when the section
+//      opens the page).
 //   2. Each design's sample pages, through the templates' views and through the unified app: the same HTML.
 //   3. The contact form says each vertical's words and posts `message`, as the vertical's template did.
 //   4. Each design's stylesheet keeps every rule its template served, except the ones styling markup no longer
@@ -16,16 +19,19 @@ import ejs from 'ejs'
 import { renderSections, VIEWS, absolutizeHrefs } from '../server/site/render.ts'
 import { siteStylesheet } from '../server/site/routes.ts'
 import type { SiteContext } from '../server/site/context.ts'
-import { accentOnLight, DEFAULT_ACCENT } from '../server/core/brandColour.ts'
+import { accentOnLight, DEFAULT_ACCENT, ensureDark } from '../server/core/brandColour.ts'
+import type { SiteFacts } from '../server/site/facts.ts'
 
 const TEMPLATES = path.resolve(import.meta.dir, '..', '..', '..', 'templates')
 // The template families compared (website-premium-<family>), and the design each one's look is in the unified app.
-const DESIGNS = ['contractor', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'rv', 'showcase', 'vet'] as const
+const DESIGNS = ['bar', 'contractor', 'dispensary', 'fieldservice', 'homecare', 'landscaping', 'roofing', 'rv', 'showcase', 'vet'] as const
 const designOf = (family: typeof DESIGNS[number]): SiteContext['design'] => (family === 'contractor' || family === 'rv' || family === 'vet' ? 'classic' : family)
-const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ejs', 'sections/contact/form-info.ejs', 'sections/tools/estimator.ejs'])
+const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ejs', 'sections/contact/form-info.ejs', 'sections/tools/estimator.ejs',
+  'sections/hero/split.ejs', 'sections/cta/split.ejs', 'sections/about/story.ejs'])
 
 /** Each template's words, as its own views and server said them. */
 const WORDS: Record<string, SiteContext['words']> = {
+  bar: { contactAddressLabel: 'Address', contactMessageLabel: 'Your message', contactMessageRequired: 'Please write a short message.' },
   contractor: { contactAddressLabel: 'Office', contactMessageLabel: "What you're working on", contactMessageRequired: 'Tell us a bit about your project.' },
   landscaping: { contactAddressLabel: 'Office', contactMessageLabel: "What you're working on", contactMessageRequired: 'Tell us a bit about your project.' },
   roofing: { contactAddressLabel: 'Office', contactMessageLabel: "What you're working on", contactMessageRequired: 'Tell us a bit about your project.' },
@@ -50,8 +56,19 @@ const SETTINGS = {
 function ctxFor(design: typeof DESIGNS[number]): SiteContext {
   return {
     companyId: 'co_test', slug: 'westridge', settings: SETTINGS, design: designOf(design), words: WORDS[design],
-    options: { textSizeToggle: design === 'homecare', shop: false }, colours: { primary: SETTINGS.primaryColor, accent: SETTINGS.accentColor },
+    options: { textSizeToggle: design === 'homecare', shop: false, cover: design === 'bar', ctaHref: design === 'bar' ? '/visit' : '/contact' },
+    colours: { primary: SETTINGS.primaryColor, accent: SETTINGS.accentColor, secondary: SETTINGS.secondaryColor },
   }
+}
+
+/**
+ * The bar's pages carry their own JSON-LD (its facts: crm/bar/barSite.ts) where its template printed the one its server
+ * built; the sample pages have no bar section, so both are handed the same block and the layout around it is compared.
+ */
+const BAR_JSONLD = '{"@context":"https://schema.org","@type":"BarOrPub","name":"Westridge Builders"}'
+const sampleFacts = (design: string) => design !== 'bar' ? null : {
+  page: { site: {}, live: null, settings: {} },
+  source: { load: async () => ({ site: {}, live: null, settings: {} }), jsonLd: () => BAR_JSONLD, nestedPage: () => null, sitemapPaths: () => [] } as SiteFacts,
 }
 
 /** The page as the template's own server built it (server-static.ts renderSections), from the template's views. */
@@ -61,11 +78,16 @@ async function renderOld(design: string, sections: any[], currentPath: string, o
   const firstHero = sections.find((s) => s && s.type === 'hero')
   const lcpImage = typeof firstHero?.data?.image === 'string' ? firstHero.data.image : ''
   const body = await ejs.renderFile(path.join(views, 'home.ejs'), { homepage: { sections }, settings }) as string
-  const html = await ejs.renderFile(path.join(views, 'base.ejs'), { body, assetV: 'V', settings, crmApiUrl: '', currentPath, lcpImage }) as string
+  const html = await ejs.renderFile(path.join(views, 'base.ejs'), { body, assetV: 'V', settings, crmApiUrl: '', currentPath, lcpImage, ...(design === 'bar' ? { jsonLd: BAR_JSONLD } : {}) }) as string
   return absolutizeHrefs(html)
 }
+/**
+ * The bar template's fixes taken for every design, which the other templates' pages don't have yet: the split hero's
+ * and split CTA's picture is labelled (role="img"), and the Tag Manager frame has a title.
+ */
+const barFixes = (html: string) => html.replace(/ role="img" aria-label="[^"]*"/g, '').replace(/ title="Google Tag Manager"/g, '')
 
-const sameAssetVersion = (html: string) => html.replace(/\/styles\/main\.css\?v=[^"]*/g, '/styles/main.css?v=V')
+const sameAssetVersion = (html: string) => html.replace(/\/styles\/(main|fonts)\.css\?v=[^"]*/g, '/styles/$1.css?v=V')
 /** The contact form's one intended change: the message box posts as `message` (the server reads both). */
 const messageField = (html: string) => html.replace(/for="cf-project"/g, 'for="cf-message"').replace(/id="cf-project" name="project"/g, 'id="cf-message" name="message"')
 /** Whitespace between tags differs where EJS control flow moved, and an apostrophe from the vertical's words is escaped as &#39;; the text does not differ. */
@@ -113,10 +135,10 @@ describe('each design\'s sample pages render as the template rendered them', () 
         const sections = JSON.parse(fs.readFileSync(file, 'utf8')).sections
         const origin = 'https://westridge.example'
         const errors: Array<{ section: string; error: string }> = []
-        const mine = await renderSections(ctxFor(design), sections, { title: 'Home' }, { currentPath: '/', origin, sectionErrors: errors })
+        const mine = await renderSections(ctxFor(design), sections, { title: 'Home' }, { currentPath: '/', origin, sectionErrors: errors, facts: sampleFacts(design) })
         const theirs = await renderOld(design, sections, '/', origin)
         expect(errors).toEqual([])
-        expect(squash(sameAssetVersion(mine))).toBe(squash(sameAssetVersion(messageField(theirs))))
+        expect(squash(barFixes(sameAssetVersion(mine)))).toBe(squash(barFixes(sameAssetVersion(messageField(theirs)))))
       })
     }
   }
@@ -126,7 +148,8 @@ describe('the contact form in each vertical\'s words', () => {
   const data = { heading: 'Start a conversation', intro: 'Tell us about it.', phone: '608-555-0142', email: 'build@westridge.example', address: '12 Main St, Verona, WI', hours: ['Mon–Fri 7–5'], responsePromise: 'We reply within a day.' }
   for (const design of DESIGNS) {
     test(design, async () => {
-      const mine = await ejs.renderFile(path.join(VIEWS, 'sections/contact/form-info.ejs'), { data, settings: SETTINGS, words: WORDS[design] }) as string
+      // The bar's copy titled the section h2 wherever it stood; the merged one does below another section (isFirst false).
+      const mine = await ejs.renderFile(path.join(VIEWS, 'sections/contact/form-info.ejs'), { data, settings: SETTINGS, words: WORDS[design], ...(design === 'bar' ? { isFirst: false } : {}) }) as string
       const theirs = await ejs.renderFile(path.join(TEMPLATES, 'website-premium-' + design, 'views/sections/contact/form-info.ejs'), { data, settings: SETTINGS }) as string
       // Their copies differ only in the comments that explain them; what renders must match.
       expect(squash(mine)).toBe(squash(messageField(theirs)))
@@ -155,6 +178,7 @@ describe('each design\'s stylesheet keeps every rule its template served', () =>
       const accent = SETTINGS.accentColor || DEFAULT_ACCENT
       const theirs = fs.readFileSync(path.join(TEMPLATES, 'website-premium-' + design, 'build/styles/main.css'), 'utf8')
         .replaceAll('{{PRIMARY_COLOR}}', SETTINGS.primaryColor).replaceAll('{{ACCENT_COLOR_ON_LIGHT}}', accentOnLight(accent)).replaceAll('{{ACCENT_COLOR}}', accent)
+        .replaceAll('{{SECONDARY_COLOR}}', ensureDark(SETTINGS.secondaryColor))
       const mine = rules(siteStylesheet(ctxFor(design)))
       const lost: string[] = []
       for (const [selector, blocks] of rules(theirs)) {

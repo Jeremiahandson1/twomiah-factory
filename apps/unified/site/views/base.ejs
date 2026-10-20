@@ -1,12 +1,64 @@
-<!doctype html>
-<html lang="en">
+<%
+  // The page around the sections, for every design. A cover design (siteOptions.cover: the bar's leather book,
+  // server/core/vertical.ts COVER_DESIGNS) wears its own frame, as templates/website-premium-bar's base.ejs drew it:
+  // dark first, its self-hosted faces, the owner's cover art, the brass caps and corners around the page, the header
+  // that folds into its menu button when the row doesn't fit, and the one-page anchors. Every other design is the
+  // premium templates' shared layout, unchanged.
+  var cover = typeof siteOptions !== 'undefined' && siteOptions && siteOptions.cover;
+  var seoTitle = settings.seoTitle || settings.companyName || 'Website';
+  var seoDescription = settings.seoDescription || '';
+  var canonicalBase = (settings.siteOrigin || '').replace(/\/+$/, '');
+  var canonical = canonicalBase ? canonicalBase + (currentPath || '/') : '';
+  var pageJsonLd = typeof jsonLd !== 'undefined' && jsonLd ? jsonLd : '';
+  // Where the header's button goes when the site names no page: the vertical's own (a bar's Find us page), else contact.
+  var ctaHref = settings.contactHref || (typeof siteOptions !== 'undefined' && siteOptions && siteOptions.ctaHref) || '/contact';
+  if (cover) {
+    // Theme: the leather cover (bar.css "THE COVER") is dark in every mode, so 'auto' pins the dark palette too.
+    // Following a phone's light setting put dark ink straight on black leather (intro text, nav) and failed contrast.
+    // 'light' is still honoured when the owner picks it on purpose.
+    var theme = settings.theme === 'light' ? 'light' : 'dark';
+    // Typography from settings. Each family also needs a real fallback stack in CSS (bar.css) — these vars only
+    // override the family name.
+    var fD = settings.fontDisplay || 'Cinzel Decorative';
+    var fE = settings.fontEyebrow || 'Cinzel';
+    var fB = settings.fontBody || 'Lora';
+    var fM = settings.fontMono || 'Special Elite';
+    var spec = {
+      'Cinzel': 'Cinzel:wght@400;600',
+      'Lora': 'Lora:ital,wght@0,400;0,600;1,400',
+      'Bodoni Moda': 'Bodoni+Moda:wght@700;900',
+      'Libre Baskerville': 'Libre+Baskerville:ital,wght@0,400;0,700;1,400',
+      'Cormorant Garamond': 'Cormorant+Garamond:ital,wght@0,400;0,600;1,400',
+      'Courier Prime': 'Courier+Prime:wght@400;700',
+    };
+    var seen = {};
+    var families = [fD, fE, fB, fM, 'Great Vibes'].filter(function (n) { if (!n || seen[n]) return false; seen[n] = true; return true; });
+    // Self-hosted faces (site/public/fonts + styles/fonts.css). Anything else falls back to a Google Fonts request.
+    var selfHosted = { 'Limelight': 'Limelight-400', 'Cinzel': 'Cinzel-400', 'Cinzel Decorative': 'CinzelDecorative-700', 'Lora': 'Lora-400', 'Special Elite': 'SpecialElite-400', 'Great Vibes': 'GreatVibes-400' };
+    var remote = families.filter(function (n) { return !selfHosted[n]; });
+    var coverFontsHref = remote.length ? 'https://fonts.googleapis.com/css2?family=' + remote.map(function (n) { return spec[n] || String(n).replace(/ /g, '+'); }).join('&family=') + '&display=swap' : '';
+    var useLocal = families.some(function (n) { return !!selfHosted[n]; });
+    var q = function (n) { return "'" + String(n).replace(/'/g, '') + "'"; };
+    // Metric-matched local fallbacks so the swap from system font to web font doesn't shift layout (CLS).
+    var fallback = {
+      'Limelight': { local: 'Georgia', size: '119.5%' },
+      'Cinzel': { local: 'Georgia', size: '118.6%' },
+      'Cinzel Decorative': { local: 'Georgia', size: '132.5%' },
+      'Lora': { local: 'Georgia', size: '102.9%' },
+      'Special Elite': { local: 'Courier New', size: '87.7%' },
+    };
+    var stack = function (n, generic) { var f = fallback[n]; return q(n) + (f ? ", '" + n + " Fallback', " : ", ") + generic; };
+  }
+%><!doctype html>
+<html lang="en"<% if (cover) { %> data-theme="<%= theme %>"<% } %>>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <% var seoTitle = settings.seoTitle || settings.companyName || 'Website'; %>
-  <% var seoDescription = settings.seoDescription || ''; %>
-  <% var canonicalBase = (settings.siteOrigin || '').replace(/\/+$/, ''); %>
-  <% var canonical = canonicalBase ? canonicalBase + (currentPath || '/') : ''; %>
+  <% if (cover) { %>
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#121010" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+  <% } %>
   <%
     // Social cards need an absolute URL, and Facebook/X ignore SVG — so an SVG
     // logo (including the synthesized /images/logo.svg) gives way to the page's
@@ -32,8 +84,10 @@
   <meta name="twitter:description" content="<%= seoDescription %>">
   <% if (ogImage) { %><meta name="twitter:image" content="<%= ogImage %>"><% } %>
   <% if (settings.faviconUrl) { %><link rel="icon" href="<%= settings.faviconUrl %>"><% } %>
+  <% if (settings.appleTouchIconUrl) { %><link rel="apple-touch-icon" href="<%= settings.appleTouchIconUrl %>"><% } %>
   <%
-    // Business markup for Google (schema.org LocalBusiness). Only the facts in
+    // Business markup for Google (schema.org LocalBusiness), unless the page brings its own (a vertical's facts: the
+    // bar's BarOrPub with its bar and kitchen hours, its menu and events; jsonLd, printed below). Only the facts in
     // the owner's settings — name, phone, email, area, logo — and nothing is
     // filled in when a field is empty. The AREA only (city, state): the street
     // in settings.address is often the owner's home, and the site itself never
@@ -42,7 +96,7 @@
     // out rather than guessed. The synthesized /images/logo.svg is a
     // placeholder, never the business's logo.
     var _ld = null;
-    if (canonicalBase && settings.companyName) {
+    if (!pageJsonLd && canonicalBase && settings.companyName) {
       _ld = { '@context': 'https://schema.org', '@type': 'LocalBusiness', name: settings.companyName, url: canonicalBase + '/' };
       if (settings.phone) _ld.telephone = settings.phone;
       if (settings.email) _ld.email = settings.email;
@@ -58,6 +112,36 @@
   <% if (typeof lcpImage !== 'undefined' && lcpImage) { %>
     <link rel="preload" as="image" href="<%= lcpImage %>" fetchpriority="high">
   <% } %>
+  <% if (cover) { %>
+  <% if (useLocal) { %>
+  <% [fD, fB, fM].forEach(function (n) { if (selfHosted[n]) { %><link rel="preload" as="font" type="font/woff2" href="/fonts/<%= selfHosted[n] %>.woff2" crossorigin>
+  <% } }) %>
+  <link rel="stylesheet" href="/styles/fonts.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
+  <% } %>
+  <% if (coverFontsHref) { %>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <% } %>
+  <link rel="stylesheet" href="/styles/main.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
+  <style>
+    <% families.forEach(function (n) { var f = fallback[n]; if (!f) return; %>@font-face { font-family: '<%= n %> Fallback'; src: local('<%= f.local %>'); size-adjust: <%= f.size %>; }
+    <% }) %>:root {
+      --font-display: <%- stack(fD, "'Georgia', serif") %>;
+      --font-eyebrow: <%- stack(fE, "'Georgia', serif") %>;
+      --font-body: <%- stack(fB, "'Georgia', 'Times New Roman', serif") %>;
+      --font-mono: <%- stack(fM, "'Courier New', ui-monospace, monospace") %>;
+      <%
+        // The owner's cover art (uploaded photos), when they have it — see bar.css "THE COVER".
+        var _art = settings.brandArt && typeof settings.brandArt === 'object' ? settings.brandArt : {};
+        var _u = function (v) { return typeof v === 'string' && /^(\/|https:\/\/)[^'"()\s<>]+$/.test(v) ? "url('" + v + "')" : ''; };
+      %><% if (_u(_art.leather)) { %>--art-leather: <%- _u(_art.leather) %>;<% } %><% if (_u(_art.corner)) { %>--art-corner: <%- _u(_art.corner) %>;<% } %><% if (_u(_art.rivet)) { %>--art-rivet: <%- _u(_art.rivet) %>;<% } %>
+    }
+  </style>
+  <% if (coverFontsHref) { %>
+  <link rel="stylesheet" href="<%= coverFontsHref %>" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="<%= coverFontsHref %>"></noscript>
+  <% } %>
+  <% } else { %>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
@@ -71,6 +155,10 @@
   %>
   <link rel="stylesheet" href="<%= fontsHref %>" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="<%= fontsHref %>"></noscript>
+  <% } %>
+  <% if (pageJsonLd) { %>
+  <script type="application/ld+json"><%- pageJsonLd %></script>
+  <% } %>
   <%/* Tracking — PLAIN standard snippets on purpose (Tag Assistant / Ads
        verification detect these; the deferred loader is opt-in elsewhere). */%>
   <% const _tGtm = settings.googleTagManagerId || ''; const _tGa = settings.googleAnalyticsId || ''; const _tAds = settings.googleAdsId || ''; const _tFb = settings.facebookPixelId || ''; const _tCl = settings.microsoftClarityId || ''; %>
@@ -89,17 +177,22 @@
   <% } %>
 </head>
 <body>
-<% if (settings.googleTagManagerId) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= settings.googleTagManagerId %>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript><% } %>
+<%/* The frame needs a title for screen readers (the bar template's fix, for every design). */%>
+<% if (settings.googleTagManagerId) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= settings.googleTagManagerId %>" height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript><% } %>
   <%/* Skip link: the first thing a keyboard or screen-reader user reaches,
        hidden until focused. Fixed colours so it reads on every theme. */%>
   <style>.skip-link{position:absolute;left:8px;top:-100px;z-index:10000;padding:10px 16px;background:#111;color:#fff;font:600 15px/1.2 system-ui,sans-serif;border-radius:6px;text-decoration:none}.skip-link:focus{top:8px;outline:3px solid #fff;outline-offset:2px}#main:focus{outline:none}</style>
   <a class="skip-link" href="#main">Skip to content</a>
+  <% if (cover) { %>
+  <%/* The book cover: brass caps and corner flourishes frame the page (bar.css "THE COVER"). */%>
+  <div class="cover"><span class="cap cap--tl" aria-hidden="true"></span><span class="cap cap--tr" aria-hidden="true"></span><span class="cap cap--bl" aria-hidden="true"></span><span class="cap cap--br" aria-hidden="true"></span><span class="flourish flourish--tl" aria-hidden="true"></span><span class="flourish flourish--tr" aria-hidden="true"></span><span class="flourish flourish--bl" aria-hidden="true"></span><span class="flourish flourish--br" aria-hidden="true"></span>
+  <% } %>
   <header class="site-header">
     <div class="container header-inner">
-      <%/* An uploaded logo replaces the text wordmark. /images/logo.svg is the
-           generator's synthesized placeholder (initial + name), never a real
-           logo, so it keeps the text wordmark. */%>
-      <% var headerLogo = settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : ''; %>
+      <%/* An uploaded logo replaces the text wordmark — the owner's header lettering first (a photo tagged
+           header-logo; the bar's facts). /images/logo.svg is the generator's synthesized placeholder (initial +
+           name), never a real logo, so it keeps the text wordmark. */%>
+      <% var headerLogo = settings.headerLogoUrl || (settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : ''); %>
       <a class="brand<%= headerLogo ? ' brand--logo' : '' %>" href="<%= settings.homeHref || '/' %>"><% if (headerLogo) { %><img src="<%= headerLogo %>" alt="<%= settings.companyName || 'Home' %>" style="display:block;height:44px;width:auto;max-width:min(340px,58vw);"><% } else { %><%= settings.companyName || 'Your Company' %><% } %></a>
       <nav class="primary-nav" aria-label="Primary">
         <% (settings.nav || []).forEach(function(item) { %>
@@ -110,18 +203,52 @@
         <%/* A store's cart, with how many items are in it (/scripts/cart.js fills the count from the saved cart). */%>
         <a class="header-cart" href="/cart" aria-label="View cart"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg><span class="header-cart__count" data-cart-count data-cart-count-hide-empty style="display:none">0</span></a>
       <% } %>
-      <a class="header-cta" href="<%= settings.contactHref || '/contact' %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
+      <%/* A cover site with no menu items is a one-page site (a bar "opening soon"): no button pointing at a page that
+           is not published, and no menu toggle opening an empty menu. (Amber Inn, 10/17) */%>
+      <% var onePage = cover && !(settings.nav || []).length; %>
+      <% if (!onePage) { %>
+      <a class="header-cta" href="<%= ctaHref %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
       <button class="mobile-nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-nav">
         <span></span><span></span><span></span>
       </button>
+      <% } %>
     </div>
     <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile primary" hidden>
       <% (settings.nav || []).forEach(function(item) { %>
         <a href="<%= item.href %>"<%- currentPath && currentPath === ('/' + String(item.href || '').replace(/^\//, '')) ? ' aria-current="page"' : '' %>><%= item.label %></a>
       <% }) %>
-      <a class="mobile-nav__cta" href="<%= settings.contactHref || '/contact' %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
+      <a class="mobile-nav__cta" href="<%= ctaHref %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
     </nav>
   </header>
+  <% if (cover) { %>
+  <script>
+    (function(){
+      var btn = document.querySelector('.mobile-nav-toggle');
+      var nav = document.getElementById('mobile-nav');
+      if (!btn || !nav) return;
+      btn.addEventListener('click', function(){
+        var open = !nav.hasAttribute('hidden');
+        if (open) { nav.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); btn.classList.remove('is-open'); btn.setAttribute('aria-label','Open menu'); }
+        else { nav.removeAttribute('hidden'); btn.setAttribute('aria-expanded','true'); btn.classList.add('is-open'); btn.setAttribute('aria-label','Close menu'); }
+      });
+      nav.querySelectorAll('a').forEach(function(a){
+        a.addEventListener('click', function(){ nav.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); btn.classList.remove('is-open'); });
+      });
+      // Above the phone breakpoint, a long name or many links may not fit one row: switch to the menu button
+      // (.is-compact, main.css) instead of wrapping. Items overflow into the row's padding, not its scroll
+      // width, so each one's right edge is measured against the content edge.
+      var head = btn.closest('.site-header'), row = btn.parentNode;
+      function fit(){
+        head.classList.remove('is-compact');
+        var end = row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight), over = false;
+        for (var i = 0; i < row.children.length; i++) { var r = row.children[i].getBoundingClientRect(); if (r.width && r.right > end + 1) over = true; }
+        if (over) head.classList.add('is-compact');
+      }
+      fit(); window.addEventListener('resize', fit);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+    })();
+  </script>
+  <% } else { %>
   <script>
     (function(){
       var btn = document.querySelector('.mobile-nav-toggle');
@@ -138,6 +265,7 @@
       });
     })();
   </script>
+  <% } %>
 
   <main id="main" tabindex="-1">
     <%- body %>
@@ -147,11 +275,21 @@
     <div class="container footer-inner">
       <div>
         <div class="footer-brand"><%= settings.companyName || 'Your Company' %></div>
+        <% if (cover) { %>
+        <% if (settings.tagline) { %><div class="footer-tagline"><%= settings.tagline %></div><% } %>
+        <% if (settings.address) { %><div class="footer-address"><%= settings.address %></div><% } %>
+        <% if (settings.established) { %><div class="footer-est">Est. <%= settings.established %></div><% } %>
+        <% } else { %>
         <div class="footer-tagline"><%= settings.tagline || '' %></div>
+        <% } %>
       </div>
       <div class="footer-contact">
-        <% if (settings.phone) { %><a href="tel:<%= settings.phone %>"><%= settings.phone %></a><% } %>
+        <% if (settings.phone) { %><a href="tel:<%= cover ? String(settings.phone).replace(/[^\d+]/g, '') : settings.phone %>"><%= settings.phone %></a><% } %>
         <% if (settings.email) { %><a href="mailto:<%= settings.email %>"><%= settings.email %></a><% } %>
+        <% if (cover) { (Array.isArray(settings.sameAs) ? settings.sameAs : []).forEach(function (u) {
+             var label = /facebook/i.test(u) ? 'Facebook' : /instagram/i.test(u) ? 'Instagram' : /untappd/i.test(u) ? 'Untappd' : /yelp/i.test(u) ? 'Yelp' : 'Link'; %>
+          <a href="<%= u %>" rel="noopener" target="_blank"><%= label %></a>
+        <% }) } %>
       </div>
     </div>
     <% if (typeof settings !== 'undefined' && settings && Array.isArray(settings.photoCredits) && settings.photoCredits.length) { %>
@@ -165,6 +303,9 @@
   </div>
   <% } %>
   </footer>
+  <% if (cover) { %>
+  </div>
+  <% } %>
   <%# A text-size control for readers who want larger type (home care sites; the vertical's settings switch it on). %>
   <% if (typeof siteOptions !== 'undefined' && siteOptions.textSizeToggle) { %>
   <div class="text-size-toggle" role="group" aria-label="Adjust text size">
@@ -193,5 +334,47 @@
   <% } %>
   <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><script src="/scripts/ab.js" defer></script><% } %>
   <% if (typeof siteOptions !== 'undefined' && siteOptions.shop) { %><script src="/scripts/cart.js?v=<%= assetV %>" defer></script><% } %>
+  <% if (cover) { %>
+  <script>
+    // ── Single-page nav: smooth scroll, URL hash sync, active highlight ──
+    (function(){
+      var anchors = document.querySelectorAll('.onepage-anchor');
+      if (anchors.length === 0) return;  // multi-page mode, skip everything below
+
+      // Smooth scroll on nav link click. Use the standard hash navigation
+      // but offset by the sticky header height. The scrollMarginTop on
+      // .onepage-anchor in CSS handles that natively.
+      // The skip link keeps the browser's own jump — it has to move keyboard focus.
+      document.querySelectorAll('a[href^="#"]:not(.skip-link)').forEach(function(a){
+        a.addEventListener('click', function(e){
+          var id = a.getAttribute('href').slice(1);
+          if (!id) return;
+          var el = document.getElementById(id);
+          if (!el) return;
+          e.preventDefault();
+          history.replaceState(null, '', '#' + id);
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+      var navLinks = document.querySelectorAll('.primary-nav a[href^="#"], .mobile-nav a[href^="#"]');
+      var byId = {};
+      navLinks.forEach(function(a){
+        var id = a.getAttribute('href').slice(1);
+        if (id) (byId[id] = byId[id] || []).push(a);
+      });
+      var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(en){
+          if (!en.isIntersecting) return;
+          var id = en.target.id;
+          Object.keys(byId).forEach(function(k){
+            byId[k].forEach(function(a){ a.classList.toggle('is-active', k === id); });
+          });
+          history.replaceState(null, '', '#' + id);
+        });
+      }, { rootMargin: '-30% 0px -55% 0px', threshold: 0 });
+      anchors.forEach(function(el){ io.observe(el); });
+    })();
+  </script>
+  <% } %>
 </body>
 </html>

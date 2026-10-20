@@ -1,0 +1,56 @@
+<%
+  // Social-feed section. V1: server-rendered grid of placeholder tiles
+  // pulled from settings.recentInstagramPosts (an array of { url, image,
+  // caption } populated by a background job that hits the Instagram
+  // Basic Display API on a cron, gated on the owner's IG OAuth token
+  // being connected from admin). When the OAuth isn't set up yet,
+  // gracefully falls back to a "follow on Instagram" call-to-action.
+  const heading = data.heading || 'Latest from the truck'
+  const intro = data.intro || ''
+  const handle = (data.handle || '').replace(/^@/, '')
+  const platform = (data.platform || 'instagram').toLowerCase()
+  const limit = Math.max(3, Math.min(12, parseInt(data.limit || 9, 10) || 9))
+  if (!handle) return
+
+  const profileUrl = platform === 'instagram'
+    ? 'https://instagram.com/' + handle
+    : platform === 'tiktok'
+      ? 'https://tiktok.com/@' + handle
+      : '#'
+
+  // settings.recentInstagramPosts is populated by the IG cron when
+  // settings.instagramTokenSet is true. Falls through to follow CTA
+  // otherwise.
+  const posts = Array.isArray(settings && settings.recentInstagramPosts)
+    ? settings.recentInstagramPosts.slice(0, limit)
+    : []
+%>
+<section id="social" class="social social--feed">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+      <a class="social__handle mono" href="<%= profileUrl %>" target="_blank" rel="noopener">@<%= handle %></a>
+    </div>
+    <% if (posts.length > 0) { %>
+      <ul class="social__grid" role="list">
+        <% for (const post of posts) { %>
+          <li class="social__tile">
+            <a href="<%= post.url || profileUrl %>" target="_blank" rel="noopener" aria-label="<%= post.caption ? post.caption.slice(0, 80) : 'Instagram post' %>">
+              <% if (post.image) { %>
+                <img src="<%= post.image %>" alt="<%= post.caption ? post.caption.slice(0, 120) : '' %>" loading="lazy" width="400" height="400" decoding="async">
+              <% } else { %>
+                <div class="social__tile-placeholder">No image</div>
+              <% } %>
+            </a>
+          </li>
+        <% } %>
+      </ul>
+    <% } else { %>
+      <div class="social__empty">
+        <p>Follow us on Instagram for daily location updates, menu changes, and behind-the-truck snapshots.</p>
+        <a class="btn btn--lg btn--primary" href="<%= profileUrl %>" target="_blank" rel="noopener">Follow @<%= handle %></a>
+      </div>
+    <% } %>
+  </div>
+</section>

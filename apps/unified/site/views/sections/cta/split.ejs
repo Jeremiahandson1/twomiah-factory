@@ -10,8 +10,8 @@
   const bullets = Array.isArray(data.bullets) ? data.bullets : []
 %>
 <section class="cta cta--split" id="<%= data.id || 'contact' %>">
-  <div class="cta__split-grid">
-    <div class="cta__split-image" style="background-image: url('<%= image %>')"></div>
+  <div class="cta__split-grid<%= image ? '' : ' cta__split-grid--noimage' %>">
+    <% if (image) { %><div class="cta__split-image" style="background-image: url('<%= image %>')" role="img" aria-label="<%= data.imageAlt || '' %>"></div><% } %>
     <div class="cta__split-copy">
       <h2 class="cta__heading"><%= heading %></h2>
       <% if (subtitle) { %><p class="cta__subtitle"><%= subtitle %></p><% } %>

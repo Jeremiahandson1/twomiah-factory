@@ -9,7 +9,7 @@ import type { VerticalSettings } from '../core/vertical.ts'
 import type { createEnquiries } from '../core/enquiry.ts'
 import { fail, done } from '../http/reply.ts'
 import { escHtml } from './render.ts'
-import { BAR_FORMS } from '../crm/bar/enquiry.ts'
+import { BAR_FORMS, BAR_FORM_THANKS } from '../crm/bar/enquiry.ts'
 
 const WINDOW_MS = 10 * 60 * 1000
 const MAX_PER_WINDOW = 5
@@ -104,7 +104,8 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
       const enquiry = { name, email, phone, message, source, form, ip, ...(interest ? { interest } : {}) }
       await enquiries.record(co.id, enquiry)
       void enquiries.notifyOwner({ email: co.email, companyName: co.name }, enquiry)
-      return reply(true, THANKS)
+      // The bar's own forms answer in its words ("You're on the list."); every other form says thanks.
+      return reply(true, (ownForm && BAR_FORM_THANKS[one(body.formType)]) || THANKS)
     } catch (err: any) {
       console.error('[enquiry] not saved:', err?.message)
       return reply(false, 'Could not save your message. Please try again.', 500)

@@ -4,7 +4,7 @@
 import { asc, eq } from 'drizzle-orm'
 import { company, website } from '../db/schema/index.ts'
 import type { VerticalSettings, SiteDesign } from '../core/vertical.ts'
-import { SITE_DESIGNS } from '../core/vertical.ts'
+import { SITE_DESIGNS, COVER_DESIGNS } from '../core/vertical.ts'
 
 export interface SiteContext {
   companyId: string
@@ -14,9 +14,13 @@ export interface SiteContext {
   settings: Record<string, any>
   design: SiteDesign
   words: VerticalSettings['site']['words']
-  /** textSizeToggle: the reader's text-size buttons (home care). shop: a store's cart in the header, its script and its pages. */
-  options: { textSizeToggle: boolean; shop: boolean }
-  colours: { primary: string; accent: string | null }
+  /**
+   * textSizeToggle: the reader's text-size buttons (home care). shop: a store's cart in the header, its script and its pages.
+   * cover: the design is a whole look of its own, framed as the bar's leather book (COVER_DESIGNS; base.ejs). ctaHref: where
+   * the header's button goes (SiteSettings.ctaHref).
+   */
+  options: { textSizeToggle: boolean; shop: boolean; cover: boolean; ctaHref: string }
+  colours: { primary: string; accent: string | null; secondary: string | null }
 }
 
 /**
@@ -38,8 +42,8 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     slug: co.slug,
     design,
     words: vertical.site.words,
-    options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store },
-    colours: { primary: co.primaryColor, accent: s?.accentColor ?? null },
+    options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: COVER_DESIGNS.has(design), ctaHref: vertical.site.ctaHref || '/contact' },
+    colours: { primary: co.primaryColor, accent: s?.accentColor ?? null, secondary: co.secondaryColor ?? null },
     settings: {
       companyName: co.name,
       phone: co.phone || '',

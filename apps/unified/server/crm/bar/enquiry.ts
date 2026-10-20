@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm'
 import { contact } from '../../db/schema/index.ts'
 import { createEvent, validateEventInput, DATE_RE, MAX_EVENT_NAME } from '../restaurant/eventBooking.ts'
 import { phoneKey } from './barLoyalty.ts'
+import { EMAIL_CONSENT_TEXT } from './barSite.ts'
 
 /** The form's own answers, as the visitor sent them. */
 export type BarForm = Record<string, string | undefined>
@@ -64,10 +65,16 @@ export async function joinRegulars(db: any, companyId: string, f: BarForm, visit
     const custom: Record<string, any> = guest.customFields && typeof guest.customFields === 'object' ? { ...guest.customFields } : {}
     const month = Number(f.birthdayMonth), day = Number(f.birthdayDay)
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) custom.birthday = { month, day }
-    // Consent to email is recorded only with an email to send to.
-    if (clip(f.consentText, 1000) && clip(f.email, 200)) {
+    // Consent to email is recorded only with an email to send to. The site's own sign-up (site/views/sections/regulars/
+    // signup.ejs) sends its ticked box, emailConsent=yes, and the words recorded are the ones that box showed
+    // (EMAIL_CONSENT_TEXT), never words the post claims; where it was ticked is 'website:<page>', as the website
+    // template forwarded it (templates/website-premium-bar server-static.ts handleBarForm).
+    const ticked = f.emailConsent === 'yes'
+    const consentText = ticked ? EMAIL_CONSENT_TEXT : clip(f.consentText, 1000)
+    const consentSource = ticked ? 'website:' + (clip(f.source, 190) || '/regulars') : clip(f.consentSource, 200)
+    if (consentText && clip(f.email, 200)) {
       const evidence = {
-        channel: 'email', text: clip(f.consentText, 1000), source: clip(f.consentSource, 200) || clip(visitor.page, 200) || 'website',
+        channel: 'email', text: consentText, source: consentSource || clip(visitor.page, 200) || 'website',
         ip: clip(visitor.ip, 80), at: new Date().toISOString(),
       }
       custom.marketingConsent = [...(Array.isArray(custom.marketingConsent) ? custom.marketingConsent : []), evidence]
@@ -79,3 +86,6 @@ export async function joinRegulars(db: any, companyId: string, f: BarForm, visit
 
 /** The forms this module answers, and what each needs from the visitor: a name and a way to reach them. */
 export const BAR_FORMS = new Set(['party', 'regulars'])
+
+/** What the visitor is told once the form is saved, in the bar's words (the website template's replies). */
+export const BAR_FORM_THANKS: Record<string, string> = { party: "Got it. We'll call you back about your party.", regulars: "You're on the list." }

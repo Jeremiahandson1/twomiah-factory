@@ -5,6 +5,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Context } from 'hono'
 import type { SiteContext } from './context.ts'
+import type { PageFacts, SiteFacts } from './facts.ts'
 
 export const VIEWS = path.join(import.meta.dir, '..', '..', 'site', 'views')
 
@@ -35,6 +36,11 @@ export interface RenderOptions {
   extraNav?: Array<{ label: string; href: string }>
   /** Collects sections that failed to render (tests read it; the page itself still renders). */
   sectionErrors?: Array<{ section: string; error: string }>
+  /**
+   * The vertical's live facts for this page (SiteSettings.facts, facts.ts): what its sections read as `site` and `live`,
+   * and the page's JSON-LD. `about` is what a page the facts made is about (a signature item).
+   */
+  facts?: { page: PageFacts; source: SiteFacts; about?: unknown } | null
 }
 
 /** Any section list through home.ejs + base.ejs: a stored page, or one the server builds (service areas, a project). */
@@ -45,30 +51,44 @@ export async function renderSections(ctx: SiteContext, sections: any[], meta: Pa
   for (const item of extraNav) {
     if (!nav.some((n: any) => '/' + String(n?.href || '').replace(/^\//, '') === item.href)) nav = [...nav, item]
   }
+  const facts = o.facts?.page ?? null
   const effective = {
     ...settings,
+    ...(facts ? facts.settings : {}),
     nav,
     siteOrigin: origin,
     seoTitle: meta.metaTitle || settings.seoTitle || meta.title,
     seoDescription: meta.metaDescription || settings.seoDescription || '',
   }
   // The first hero's image is almost always the mobile Largest Contentful Paint: preloading it lets the browser
-  // fetch it while parsing instead of waiting for the section to render.
-  const firstHero = sections.find((s) => s && s.type === 'hero')
-  const lcpImage = typeof firstHero?.data?.image === 'string' ? firstHero.data.image : ''
+  // fetch it while parsing instead of waiting for the section to render. A page that opens with the Tonight board
+  // (the bar's home) has no hero: its cover or lettering image is the LCP.
+  const firstHero = sections.find((s) => s && (s.type === 'hero' || s.type === 'tonight'))
+  const pick = (...vals: unknown[]) => (vals.find((v) => typeof v === 'string' && v) as string | undefined) || ''
+  const lcpImage = firstHero?.type === 'tonight'
+    ? pick(firstHero.data?.coverImageSmall, firstHero.data?.coverImage, firstHero.data?.titleImageSmall, firstHero.data?.titleImage, firstHero.data?.art)
+    : pick(firstHero?.data?.image)
   const homepage = { sections }
-  const body = await ejs.renderFile(path.join(VIEWS, 'home.ejs'), { homepage, settings: effective, words: ctx.words, sectionErrors: o.sectionErrors ?? [] }) as string
-  return wrap(ctx, body, effective, currentPath, lcpImage)
+  // Each section gets its own data, the site's settings and words, and — for a vertical whose sections read live facts
+  // — `site` and `live`; `md` renders an owner's markdown; `currentPath` is the page the form posts from.
+  const body = await ejs.renderFile(path.join(VIEWS, 'home.ejs'), {
+    homepage, settings: effective, words: ctx.words, sectionErrors: o.sectionErrors ?? [],
+    site: facts ? facts.site : null, live: facts ? facts.live : null, md: markdownToHtml, currentPath,
+  }) as string
+  const jsonLd = facts && o.facts ? o.facts.source.jsonLd(facts, { slug: currentPath.replace(/^\//, '') || 'home', title: meta.title || '', sections, settings: effective, about: o.facts.about }) : ''
+  return wrap(ctx, body, effective, currentPath, lcpImage, jsonLd)
 }
 
 /** A body already built (the blog) inside the site's layout. */
 export async function renderBody(ctx: SiteContext, body: string, settingsOverrides: Record<string, any>, currentPath: string): Promise<string> {
-  return wrap(ctx, body, { ...ctx.settings, ...settingsOverrides }, currentPath, '')
+  return wrap(ctx, body, { ...ctx.settings, ...settingsOverrides }, currentPath, '', '')
 }
 
-async function wrap(ctx: SiteContext, body: string, settings: Record<string, any>, currentPath: string, lcpImage: string): Promise<string> {
+async function wrap(ctx: SiteContext, body: string, settings: Record<string, any>, currentPath: string, lcpImage: string, jsonLd: string): Promise<string> {
   const html = await ejs.renderFile(path.join(VIEWS, 'base.ejs'), {
     body, settings, currentPath, lcpImage,
+    // The page's own JSON-LD from the vertical's facts (the bar's BarOrPub, menu, events); '': the layout's LocalBusiness.
+    jsonLd,
     assetV: assetVersion(ctx),
     siteOptions: ctx.options,
     // A/B experiments (scripts/ab.js) are a CRM ads feature; they return with the ads module (CUTOVER_LEDGER).
