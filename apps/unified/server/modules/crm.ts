@@ -45,6 +45,7 @@ import type { CrmSettings } from '../core/vertical.ts'
 import type { Mount } from '../http/registry.ts'
 import { fail } from '../http/reply.ts'
 import type { Realtime } from '../core/realtime.ts'
+import type { PhonePush } from '../core/phonePush.ts'
 import type { Logger } from '../core/logger.ts'
 import { cleanText, cleanLines, escapeHtml } from '../core/sanitize.ts'
 import type { CrmServices } from '../crm/services.ts'
@@ -80,6 +81,7 @@ export interface CrmModuleDeps {
   permissions: any
   features: { requireEnabledFeature: (f: string | string[]) => any; isFeatureEnabled: any; enabledFeaturesFor: any }
   realtime: Realtime
+  phonePush: PhonePush
   services: CrmServices
   /** Called when the owner or the Factory changes the switched-on features (the ads connector listens). */
   adsConnector: ReturnType<typeof createAdsConnector>
@@ -88,7 +90,7 @@ export interface CrmModuleDeps {
 }
 
 export function createCrmModules(deps: CrmModuleDeps): Mount[] {
-  const { db, audit, logger, authenticate, permissions, features, realtime, services: s, settings: v } = deps
+  const { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v } = deps
   // A customer's service sites and the equipment at them (field service, landscaping, basic, bar).
   const sites = !!v.serviceSites
   const blankToUndefined = z.string().optional().transform((x) => (x === '' ? undefined : x))
@@ -101,7 +103,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     await next()
   }
   const live = { emitToCompany: realtime.emitToCompany, EVENTS: realtime.EVENTS }
-  const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, services: s, settings: v }
+  const own: CrmDeps = { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v }
   // Home care's own routers on two paths the CRM also serves — its client portal (/api/portal) and its texting screen
   // (/api/sms) — answer first, composed in front of the CRM's router: one mount per path (RULEBOOK §6), the CRM's
   // customer portal (/p/:token/…) and Twilio's webhooks still reached (server/crm/homecare/portals/index.ts).

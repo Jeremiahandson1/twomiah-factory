@@ -32,13 +32,16 @@ export async function bootTenant(opts: { vertical?: string; adminDist?: string }
   const vertical = await loadVertical(opts.vertical ?? 'contractor')
   const store = memoryStore()
   const { app, services } = createApp({ db, vertical, store, adminDist: opts.adminDist })
+  // Phone notifications are recorded, never sent to Expo (noLiveKeys.ts is for keys; Expo needs none).
+  const pushed: any[] = []
+  services.phonePush.setTransport(async (msgs) => { pushed.push(...msgs); return msgs.map(() => ({ status: 'ok' as const, id: 'test' })) })
   const call = (path: string, init: RequestInit & { json?: unknown } = {}) => {
     const headers = new Headers(init.headers)
     let body = init.body
     if (init.json !== undefined) { headers.set('content-type', 'application/json'); body = JSON.stringify(init.json) }
     return app.request(path, { ...init, headers, body })
   }
-  return { client, db, app, services, call, schema, store }
+  return { client, db, app, services, call, schema, store, pushed }
 }
 
 /** The company and its owner, as the Factory provisions them. */

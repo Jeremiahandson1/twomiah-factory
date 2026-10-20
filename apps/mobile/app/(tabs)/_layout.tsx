@@ -12,6 +12,7 @@ import { useSocket } from '../../src/socket/SocketContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
 import { useCareOptional } from '../../src/care/CareContext'
 import { useAuth } from '../../src/auth/AuthContext'
+import { usePushNotifications } from '../../src/hooks/usePushNotifications'
 
 /** All possible tab screen names (must match filenames in this directory) */
 const ALL_TABS = [
@@ -24,7 +25,11 @@ const ALL_TABS = [
 
 export default function TabLayout() {
   const t = useTheme()
-  const { tabs } = useVertical()
+  const { tabs, vertical } = useVertical()
+  // This phone's push token, for every vertical (POST /api/push/expo-token — apps/unified/server/core/phonePush.ts): a
+  // tech is told of a job assigned or rescheduled, the office of a new lead, a caregiver of a visit. Registered here,
+  // where every signed-in person passes, not on one vertical's first tab (roofing opens on the pipeline).
+  usePushNotifications({ registerWithServer: true, fallbackRoute: vertical === 'homecare' ? '/(care)/notifications' : '/(tabs)/notifications' })
   // Twomiah Care: unread messages and a visit in progress show on their tabs.
   const care = useCareOptional()
   const careBadge = (name: string): number | string | undefined => {

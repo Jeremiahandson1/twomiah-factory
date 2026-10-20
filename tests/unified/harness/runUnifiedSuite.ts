@@ -233,7 +233,7 @@ export default e
 import { db } from '../../db/index.ts'
 import { services as s } from '../unified.ts'
 import logger from '${rel}/../server/core/logger.ts'
-export const crmDeps: any = { db, audit: s.audit, logger, authenticate: s.authenticate, permissions: s.permissions, features: s.features, realtime: s.realtime, services: s.crm }
+export const crmDeps: any = { db, audit: s.audit, logger, authenticate: s.authenticate, permissions: s.permissions, features: s.features, realtime: s.realtime, phonePush: s.phonePush, services: s.crm }
 `)
   // The suite's own extra files (a vertical's services the tests import by the template's paths).
   for (const [p, src] of Object.entries(o.sandboxFiles || {})) {

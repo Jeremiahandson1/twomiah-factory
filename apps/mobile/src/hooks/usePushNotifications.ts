@@ -16,9 +16,8 @@ Notifications.setNotificationHandler({
 
 /**
  * registerWithServer: tell the server this phone's Expo push token (POST /api/push/expo-token { token, platform } —
- * apps/unified/server/crm/homecare/portals/notifications.ts). Only home care sends phone notifications (visitNotify.ts);
- * the trade CRMs never did (no live template sends to a phone), so a trade screen leaves this off. Taps on a
- * notification are routed either way.
+ * apps/unified/server/core/phonePush.ts, every vertical). The tab layout turns it on once for everyone signed in: a tech
+ * hears of a job assigned or rescheduled, the office of a new lead, a caregiver of a visit. Taps are routed by `type`.
  */
 export function usePushNotifications(opts: { registerWithServer?: boolean; fallbackRoute?: string } = {}) {
   const registerWithServer = opts.registerWithServer === true

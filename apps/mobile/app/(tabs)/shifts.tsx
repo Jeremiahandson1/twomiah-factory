@@ -12,7 +12,6 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useAuth } from '../../src/auth/AuthContext'
-import { usePushNotifications } from '../../src/hooks/usePushNotifications'
 import { useCare } from '../../src/care/CareContext'
 import { nextUp, type Visit } from '../../src/care/schedule'
 import { formatDuration, formatTime12, formatYmdLong, formatYmdShort } from '../../src/care/time'
@@ -111,9 +110,6 @@ export default function TodayScreen() {
   const care = useCare()
   const [sending, setSending] = useState(false)
   const warnTone = useTone('warning')
-  // Registers this phone's Expo token: POST /api/push/expo-token { token, platform }
-  // (apps/unified/server/crm/homecare/portals/notifications.ts), so shift reminders reach the caregiver.
-  usePushNotifications({ registerWithServer: true, fallbackRoute: '/(care)/notifications' })
 
   // Re-render each minute so "next up" and "starting soon" stay true.
   const [, tick] = useState(0)

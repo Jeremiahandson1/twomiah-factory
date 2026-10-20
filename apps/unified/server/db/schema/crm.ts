@@ -219,6 +219,24 @@ export const job = pgTable('job', {
   index('job_subcontractor_id_idx').on(t.subcontractorId),
 ])
 
+/**
+ * What each job was last announced to its person as — who it is assigned to and when it is scheduled (crm/notify/
+ * jobAssignments.ts). A job that differs from its row here has been assigned or rescheduled since, by whichever screen or
+ * route, and its person gets a phone notification. Filled from the jobs that existed when it was made (migration 0015),
+ * so nobody is told about work they already had.
+ */
+export const jobPushState = pgTable('job_push_state', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  /** One row per job. */
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  assigneeId: text('assignee_id'),
+  /** 'YYYY-MM-DD HH:MM' (or the day alone) — data/phonePush.ts SCHEDULED_FOR, the one place it is computed. */
+  scheduledFor: text('scheduled_for'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('job_push_state_job_id_idx').on(t.jobId),
+])
+
 export const quote = pgTable('quote', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   number: text('number').notNull(),

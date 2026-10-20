@@ -16,7 +16,6 @@ import { StatCard } from '../../src/components/StatCard'
 import { SkeletonList, SkeletonStatGrid } from '../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../src/components/AnimatedCard'
 import { useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
-import { usePushNotifications } from '../../src/hooks/usePushNotifications'
 
 /**
  * What /api/dashboard/stats actually sends — which is NOT one shape. (T59)
@@ -51,8 +50,6 @@ export default function DashboardScreen() {
   const [todayJobs, setTodayJobs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-
-  usePushNotifications()
 
   const load = useCallback(async () => {
     // Today's work is the shared jobs module's /api/jobs/today. Roofing's job module has no such route (it would read

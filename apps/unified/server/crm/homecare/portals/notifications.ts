@@ -18,11 +18,10 @@
 //     { success, message } (the template's { message } is not one of the four shapes); POST /unsubscribe likewise.
 import { Hono, type Context } from 'hono'
 import { and, desc, eq, inArray, or, count } from 'drizzle-orm'
-import { notifications, notificationPreferences, pushSubscriptions, expoPushTokens, user } from '../../../db/schema/index.ts'
+import { notifications, notificationPreferences, pushSubscriptions, user } from '../../../db/schema/index.ts'
 import { fail, list, one, done } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { notificationSummary } from '../../../data/homecarePortals.ts'
-import { isExpoToken } from '../core/visitNotify.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 
@@ -309,29 +308,8 @@ export function createPushRoutes(_core: HomecareCore, d: CrmDeps) {
     return one(c, sub)
   })
 
-  // POST /expo-token { token, platform? } — the caregiver app's Expo push token for this device. A token belongs to
-  // one person: signing in on a phone someone else used moves it to the caller.
-  app.post('/expo-token', mine, async (c) => {
-    const me = c.get('user')
-    const { token, platform } = await c.req.json().catch(() => ({} as any))
-    if (!isExpoToken(token)) return fail(c, 400, 'token must be an Expo push token (ExponentPushToken[…])')
-    const plat = typeof platform === 'string' && ['ios', 'android', 'web'].includes(platform) ? platform : null
-    const [row] = await db.insert(expoPushTokens).values({ companyId: me.companyId, userId: me.userId, token, platform: plat })
-      .onConflictDoUpdate({ target: expoPushTokens.token, set: { companyId: me.companyId, userId: me.userId, platform: plat, lastSeenAt: new Date() } })
-      .returning()
-    return one(c, { success: true, id: row.id }, 201)
-  })
-
-  // DELETE /expo-token { token } — signed out on this device.
-  app.delete('/expo-token', mine, async (c) => {
-    const me = c.get('user')
-    const { token } = await c.req.json().catch(() => ({} as any))
-    if (!token) return fail(c, 400, 'token is required')
-    const r = await db.delete(expoPushTokens)
-      .where(and(eq(expoPushTokens.token, String(token)), eq(expoPushTokens.userId, me.userId), eq(expoPushTokens.companyId, me.companyId)))
-      .returning({ id: expoPushTokens.id })
-    return one(c, { success: true, removed: r.length })
-  })
+  // POST/DELETE /expo-token — the phone's push token — is the shared mount for every vertical (core/phonePush.ts,
+  // /api/push/expo-token): the same rules, one place.
 
   // POST /unsubscribe — this person's web push is off.
   app.post('/unsubscribe', mine, async (c) => {

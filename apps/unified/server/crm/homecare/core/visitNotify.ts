@@ -11,7 +11,7 @@
 // through the app's logger.
 import { and, eq, inArray } from 'drizzle-orm'
 import { reportSmsUsage } from '@twomiah/tenant-backend'
-import { notifications, clientNotifications, user, auditLogs, pushSubscriptions, expoPushTokens } from '../../../db/schema/index.ts'
+import { notifications, clientNotifications, user, auditLogs, pushSubscriptions } from '../../../db/schema/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { NotificationPrefs } from './notificationPrefs.ts'
 
@@ -25,13 +25,11 @@ export function toE164(phone: unknown): string | null {
   return null
 }
 
-// Expo's public push service needs no key. Messages go in batches of 100; the reply carries one ticket per message, in
-// order — a DeviceNotRegistered ticket means the app was removed, so that token is deleted.
-export const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
-export const isExpoToken = (t: unknown) => typeof t === 'string' && /^(ExponentPushToken|ExpoPushToken)\[[^\]]+\]$/.test(t)
+// Phones are reached through the shared sender (core/phonePush.ts), which every vertical uses.
+import { EXPO_PUSH_URL, isExpoToken, type ExpoTransport } from '../../../core/phonePush.ts'
+export { EXPO_PUSH_URL, isExpoToken }
 
 type SmsResult = { status: 'sent' | 'logged' | 'failed'; sid: string | null; error: string | null }
-type ExpoTicket = { status: 'ok' | 'error'; id?: string; message?: string; details?: { error?: string } }
 
 
 export function createVisitNotify(d: CrmDeps, prefs: NotificationPrefs) {
@@ -104,36 +102,13 @@ export function createVisitNotify(d: CrmDeps, prefs: NotificationPrefs) {
     return sent
   }
 
-  // ── Expo push (the caregiver app) ──────────────────────────────────────────────────────
-  let expoTransport = async (messages: any[]): Promise<ExpoTicket[]> => {
-    const res = await fetch(EXPO_PUSH_URL, {
-      method: 'POST', headers: { accept: 'application/json', 'accept-encoding': 'gzip, deflate', 'content-type': 'application/json' },
-      body: JSON.stringify(messages),
+  // ── Expo push (the caregiver app): the shared sender, core/phonePush.ts ──────────────────
+  const sendExpoPush = (userId: string, payload: Record<string, unknown>): Promise<number> =>
+    d.phonePush.send(null, [userId], {
+      title: String(payload.title ?? ''),
+      body: String(payload.body ?? payload.message ?? ''),
+      data: (payload.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>,
     })
-    const body: any = await res.json().catch(() => ({}))
-    return Array.isArray(body?.data) ? body.data : []
-  }
-
-  async function sendExpoPush(userId: string, payload: Record<string, unknown>): Promise<number> {
-    const tokens: { id: string; token: string }[] = await d.db.select({ id: expoPushTokens.id, token: expoPushTokens.token }).from(expoPushTokens).where(eq(expoPushTokens.userId, userId))
-    if (!tokens.length) return 0
-    const title = String(payload.title ?? '')
-    const body = String(payload.body ?? payload.message ?? '')
-    const data = (payload.data && typeof payload.data === 'object' ? payload.data : {}) as Record<string, unknown>
-    let sent = 0
-    for (let i = 0; i < tokens.length; i += 100) {
-      const batch = tokens.slice(i, i + 100)
-      const tickets = await expoTransport(batch.map((t) => ({ to: t.token, title, body, data, sound: 'default' })))
-      for (let k = 0; k < batch.length; k++) {
-        const tk = tickets[k]
-        if (tk?.status === 'ok') sent++
-        else if (tk?.details?.error === 'DeviceNotRegistered') {
-          await d.db.delete(expoPushTokens).where(eq(expoPushTokens.id, batch[k].id)).catch(() => {})
-        }
-      }
-    }
-    return sent
-  }
 
   /** Web push and Expo push to one person. Returns how many devices it reached; never throws. */
   async function sendPush(userId: string | null | undefined, payload: Record<string, unknown>): Promise<number> {
@@ -182,7 +157,7 @@ export function createVisitNotify(d: CrmDeps, prefs: NotificationPrefs) {
     /** Test hooks. */
     _setSmsSender(fn: typeof sendSmsImpl) { sendSmsImpl = fn },
     _setPushSender(fn: typeof sendPushImpl) { sendPushImpl = fn },
-    _setExpoTransport(fn: typeof expoTransport) { expoTransport = fn },
+    _setExpoTransport(fn: ExpoTransport) { d.phonePush.setTransport(fn) },
   }
 }
 

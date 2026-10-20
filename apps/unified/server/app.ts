@@ -33,6 +33,8 @@ import { errorHandler } from './http/errors.ts'
 import { fail, one } from './http/reply.ts'
 import { createLive, LIVE_SOCKET_PATH } from './http/live.ts'
 import { createDownloadLinks, DOWNLOAD_PATH } from './http/downloads.ts'
+import { createPhonePush } from './core/phonePush.ts'
+import { createPhoneRules } from './crm/notify/phoneRules.ts'
 import { withHomecareSessions } from './crm/homecare/office/signIn.ts'
 
 const NOT_FOUND_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found</title>' +
@@ -84,6 +86,11 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   const downloads = createDownloadLinks({ fetchApp: (req) => app.fetch(req) })
   const adsConnector = createCrmAdsConnector()
   const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled, settings: vertical.crm ?? BASE_CRM })
+  // Phone notifications, every vertical: the sender and the phones (core/phonePush.ts), and who is told what — a job
+  // assigned or rescheduled, a new lead (crm/notify/phoneRules.ts). The job scan is timed work: boot only, never tests.
+  const phonePush = createPhonePush({ db, logger })
+  const phoneRules = createPhoneRules({ db, phonePush, realtime, permissions, companyId: () => companyId(), logger })
+  crm.addJob(() => phoneRules.start())
   const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler, realtime, adsConnector })
   // Card deposits and people's own calendars join with the CRM's payments and calendar sync (CUTOVER_LEDGER).
   const bookings = createBookingModule({ db, vertical, email, logger, permissions })
@@ -151,7 +158,9 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     // Bookings: the owner's book, the public booking API, the scheduled messages.
     ...bookingMounts(bookings, companyId),
     // The CRM: contacts, jobs, quotes, invoices and every module the shared code carries.
-    ...createCrmModules({ db, audit, logger, authenticate, permissions, features, realtime, services: crm, adsConnector, settings: vertical.crm ?? BASE_CRM }),
+    // This phone's push token, for every vertical (core/phonePush.ts) — before any module's own /api/push.
+    { path: '/api/push/expo-token', access: 'user', router: phonePush.tokenRoutes },
+    ...createCrmModules({ db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: crm, adsConnector, settings: vertical.crm ?? BASE_CRM }),
     // The website's admin: pages, settings, photos, blog, portfolio, visits.
     { path: '/api/site', access: 'user', router: createSiteAdmin({ db, permissions, store, vertical }) },
     // The admin screens: their page at /login and /crm/*, their files at /crm-assets/*. Before the website.
@@ -195,5 +204,5 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     ? fail(c, 404, `Route not found: ${c.req.method} ${c.req.path}`)
     : c.html(NOT_FOUND_PAGE, 404))
 
-  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings, crm, realtime, live, mounts, refreshSubscription: companyModules.refreshSubscription } }
+  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings, crm, realtime, live, phonePush, phoneRules, mounts, refreshSubscription: companyModules.refreshSubscription } }
 }

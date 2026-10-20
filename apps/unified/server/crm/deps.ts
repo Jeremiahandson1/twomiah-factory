@@ -2,6 +2,7 @@
 // updates and the CRM's shared services. One object, so a module's factory signature never grows a parameter list.
 import type { Logger } from '../core/logger.ts'
 import type { Realtime } from '../core/realtime.ts'
+import type { PhonePush } from '../core/phonePush.ts'
 import type { CrmServices } from './services.ts'
 import type { CrmSettings } from '../core/vertical.ts'
 
@@ -15,6 +16,8 @@ export interface CrmDeps {
   permissions: any
   features: { requireEnabledFeature: (f: string | string[]) => any; isFeatureEnabled: (companyId: string, f: string | string[]) => Promise<boolean>; enabledFeaturesFor: (companyId: string) => Promise<string[]> }
   realtime: Realtime
+  /** Phone notifications (core/phonePush.ts): one send to every phone a person signed in on. */
+  phonePush: PhonePush
   services: CrmServices
   /** The vertical's switches (VerticalSettings.crm), for a module whose words or behaviour differ by vertical. */
   settings?: CrmSettings
