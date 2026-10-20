@@ -47,13 +47,14 @@ describe('allowed', () => {
 })
 
 describe('refused', () => {
-  test('changing live code: a template, the Factory, the platform', () => {
+  test('changing live code: a template (the Factory and its screens open at cutover, behind the switch)', () => {
     const v = run([
       { status: 'M', path: 'templates/crm/backend/src/index.ts' },
       { status: 'M', path: 'apps/api/src/services/generator.ts' },
       { status: 'M', path: 'apps/platform/src/App.tsx' },
+      { status: 'M', path: 'apps/api/package.json' },
     ])
-    expect(v.map((x) => x.path)).toEqual(['templates/crm/backend/src/index.ts', 'apps/api/src/services/generator.ts', 'apps/platform/src/App.tsx'])
+    expect(v.map((x) => x.path)).toEqual(['templates/crm/backend/src/index.ts', 'apps/api/package.json'])
   })
 
   test('build-check.yml changing a job, not just its trigger', () => {
@@ -63,9 +64,10 @@ describe('refused', () => {
 
   test('a new file dropped into live code', () => {
     expect(run([{ status: 'A', path: 'templates/crm/backend/src/routes/new.ts' }]).length).toBe(1)
-    // The Factory takes new files only in its unified/ folder, and none of its existing files may change to use them.
-    expect(run([{ status: 'A', path: 'apps/api/src/services/newDeploy.ts' }]).length).toBe(1)
-    expect(run([{ status: 'M', path: 'apps/api/src/routes/factory.ts' }]).length).toBe(1)
+    // Cutover: the Factory's source takes the unified path (owner's go, 2026-10-20); a template still takes nothing.
+    expect(run([{ status: 'A', path: 'apps/api/src/services/newDeploy.ts' }]).length).toBe(0)
+    expect(run([{ status: 'M', path: 'apps/api/src/routes/factory.ts' }]).length).toBe(0)
+    expect(run([{ status: 'D', path: 'apps/api/src/routes/factory.ts' }]).length).toBe(1)
   })
 
   test('deleting anything, shared code included', () => {
