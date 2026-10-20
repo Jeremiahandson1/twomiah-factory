@@ -162,10 +162,15 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     // AVIF too: a store's product photos are uploaded as they are (crm/store/catalog/products.ts, the template's
     // routes/media.ts served AVIF inline); the website's own uploads are re-encoded to JPEG or PNG.
     const safe = /^image\/(jpeg|png|webp|gif|avif)$/.test(obj.contentType)
+    // An SVG (a logo moved from a premium site's /images) is shown as an image, as the template served it; it can carry
+    // script, so it goes with a policy that runs none and loads nothing even when opened directly. In an <img> a
+    // browser never runs an SVG's script anyway.
+    const svg = obj.contentType === 'image/svg+xml'
     return c.body(obj.body as any, 200, {
-      'Content-Type': safe ? obj.contentType : 'application/octet-stream',
+      'Content-Type': safe || svg ? obj.contentType : 'application/octet-stream',
       'X-Content-Type-Options': 'nosniff',
-      ...(safe ? {} : { 'Content-Disposition': 'attachment' }),
+      ...(svg ? { 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" } : {}),
+      ...(safe || svg ? {} : { 'Content-Disposition': 'attachment' }),
       'Cache-Control': 'public, max-age=31536000, immutable',
     })
   })

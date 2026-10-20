@@ -182,6 +182,11 @@ describe('a contractor site (website-premium-contractor) beside its CRM', () => 
     expect(new Uint8Array(await img.arrayBuffer())).toEqual(JPEG(1))
     expect(new Uint8Array(await (await get('/media/photos/old-2.jpg')).arrayBuffer())).toEqual(JPEG(2))
     expect((await get('/media/photos/logo-1.png')).headers.get('content-type')).toBe('image/png')
+    // An SVG shows as an image (the moved badge), never runs or loads anything when opened directly.
+    const svg = await get('/media/photos/site/images/badge.svg')
+    expect(svg.headers.get('content-type')).toBe('image/svg+xml')
+    expect(svg.headers.get('content-disposition')).toBeNull()
+    expect(svg.headers.get('content-security-policy')).toBe("default-src 'none'; style-src 'unsafe-inline'; sandbox")
   })
 
   test('the photo library: rows for the stored files, a missing file kept and reported, the off-site one left out', async () => {
