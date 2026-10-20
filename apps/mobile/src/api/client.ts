@@ -16,31 +16,38 @@ let refreshToken: string | null = null
 let apiUrl: string = ''
 let refreshPromise: Promise<boolean> | null = null
 
+/**
+ * Readable after the phone's first unlock since it started, not only while it is unlocked: background location
+ * (src/location/tracking.ts) posts from a phone locked in a pocket, and with the default (when unlocked) it could not read
+ * the sign-in. Still in the device's keychain/keystore, never backed up to another device.
+ */
+const STORE = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
+
 // ── Token Storage ────────────────────────────────────────────────────────────
 
 export async function loadTokens() {
-  accessToken = await SecureStore.getItemAsync(KEYS.ACCESS_TOKEN)
-  refreshToken = await SecureStore.getItemAsync(KEYS.REFRESH_TOKEN)
-  apiUrl = (await SecureStore.getItemAsync(KEYS.API_URL)) || ''
+  accessToken = await SecureStore.getItemAsync(KEYS.ACCESS_TOKEN, STORE)
+  refreshToken = await SecureStore.getItemAsync(KEYS.REFRESH_TOKEN, STORE)
+  apiUrl = (await SecureStore.getItemAsync(KEYS.API_URL, STORE)) || ''
 }
 
 export async function saveTokens(access: string, refresh: string) {
   accessToken = access
   refreshToken = refresh
-  await SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, access)
-  await SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, refresh)
+  await SecureStore.setItemAsync(KEYS.ACCESS_TOKEN, access, STORE)
+  await SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, refresh, STORE)
 }
 
 export async function saveApiUrl(url: string) {
   apiUrl = url.replace(/\/$/, '')
-  await SecureStore.setItemAsync(KEYS.API_URL, apiUrl)
+  await SecureStore.setItemAsync(KEYS.API_URL, apiUrl, STORE)
 }
 
 export async function clearTokens() {
   accessToken = null
   refreshToken = null
-  await SecureStore.deleteItemAsync(KEYS.ACCESS_TOKEN)
-  await SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN)
+  await SecureStore.deleteItemAsync(KEYS.ACCESS_TOKEN, STORE)
+  await SecureStore.deleteItemAsync(KEYS.REFRESH_TOKEN, STORE)
 }
 
 export function getAccessToken() { return accessToken }

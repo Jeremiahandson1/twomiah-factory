@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { loadTokens, clearTokens, getApiUrl, getRefreshToken, post, get } from '../api/client'
 import { signInWithPassword, completeMfaSignIn, type MfaChallenge } from './signIn'
+import { stopTracking } from '../location/tracking'
 
 /** The last signed-in profile, so the app opens without a connection (tokens stay in SecureStore). */
 const PROFILE_KEY = 'twomiah_session_profile_v1'
@@ -127,6 +128,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [apply])
 
   const logout = useCallback(async () => {
+    // Location sharing ends with the session, before the tokens go (src/location/tracking.ts).
+    await stopTracking()
     // This device's refresh token: with none, the server signs the person out of EVERY device
     // (packages/tenant-backend auth.ts POST /logout).
     await post('/api/auth/logout', { refreshToken: getRefreshToken() }).catch(() => {})

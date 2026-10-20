@@ -20,6 +20,7 @@ import { useTheme } from '../../src/theme/ThemeContext'
 import { useSocket, useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
 import { useAuth } from '../../src/auth/AuthContext'
 import { SkeletonList } from '../../src/components/SkeletonLoader'
+import { LocationCard } from '../../src/location/LocationCard'
 
 interface Notification {
   id: string
@@ -123,6 +124,8 @@ export default function NotificationsScreen() {
         <FlatList
           data={notifications}
           keyExtractor={item => item.id}
+          // The person's own location switches — shown only to a trade business with gps_tracking.
+          ListHeaderComponent={<LocationCard />}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.primary} />}

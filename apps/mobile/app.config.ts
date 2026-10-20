@@ -28,6 +28,15 @@ export interface VariantSpec {
   cameraPermission: string
   locationPermission: string
   /**
+   * Background location ("Always"), for the person's own "Share my location while working" switch
+   * (src/location/tracking.ts): the iOS "Always" prompt text, or null for a variant that never tracks in
+   * the background. Only trade apps whose businesses can have gps_tracking carry it: Twomiah Build and the
+   * generic app. NOT Twomiah Care (a caregiver's location is recorded at clock-in / clock-out for EVV) and
+   * NOT Twomiah Roofer (roofing is not offered gps_tracking, so the switch never shows; both stores refuse an
+   * app that declares background location it never uses).
+   */
+  backgroundLocationPermission: string | null
+  /**
    * This variant's EAS project (expo.dev, account jeremiahandson). One project per variant, because an
    * EAS project is bound to ONE slug — a single shared EAS_PROJECT_ID, which is what this file used to
    * read, fails `eas build` / `eas update` with a slug mismatch on two of the three apps. Project ids
@@ -62,6 +71,8 @@ export const VARIANTS: Record<Variant, VariantSpec> = {
     lockedVertical: 'contractor',
     cameraPermission: 'Allow Twomiah Build to capture job site photos and scan documents',
     locationPermission: 'Allow Twomiah Build to verify field check-ins at job sites',
+    backgroundLocationPermission:
+      'Only if you turn on location sharing in the app: Twomiah Build uses your location while you work, even when the app is closed, to clock you in and out at job sites and show your office where the crew is',
     easProjectId: 'd914c704-9047-414f-ad1b-27b7e3099b68',
   },
   roofer: {
@@ -73,6 +84,7 @@ export const VARIANTS: Record<Variant, VariantSpec> = {
     lockedVertical: 'roofing',
     cameraPermission: 'Allow Twomiah Roofer to capture roof photos and damage documentation',
     locationPermission: 'Allow Twomiah Roofer to verify canvass routes and on-site check-ins',
+    backgroundLocationPermission: null,
     easProjectId: '4c6bd5f4-6680-451c-b3d7-d4c31eae44f4',
   },
   care: {
@@ -85,6 +97,7 @@ export const VARIANTS: Record<Variant, VariantSpec> = {
     lockedVertical: 'homecare',
     cameraPermission: 'Allow Twomiah Care to take visit photos and incident photos for your agency',
     locationPermission: 'Allow Twomiah Care to record your location when you clock in and out of a visit, so your agency can verify the visit (EVV)',
+    backgroundLocationPermission: null,
     easProjectId: CARE_EAS_PROJECT_ID,
   },
   generic: {
@@ -96,6 +109,8 @@ export const VARIANTS: Record<Variant, VariantSpec> = {
     lockedVertical: null,
     cameraPermission: 'Take job site photos and scan documents',
     locationPermission: 'Clock in at job sites and verify field check-ins',
+    backgroundLocationPermission:
+      'Only if you turn on location sharing in the app: your business uses your location while you work, even when the app is closed, to clock you in and out at job sites and show the office where the crew is',
     easProjectId: 'd8c46085-a58c-4fd7-9913-6f33e95fa4f7',
   },
 }
@@ -128,6 +143,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const v = VARIANTS[variant]
   if (!hasEasProject(v) && isEasBuild()) throw new Error(CARE_EAS_PROJECT_MISSING)
   const projectId = hasEasProject(v) ? v.easProjectId : undefined
+  const bg = v.backgroundLocationPermission
 
   return {
     ...config,
@@ -166,7 +182,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       infoPlist: {
         NSCameraUsageDescription: v.cameraPermission,
         NSLocationWhenInUseUsageDescription: v.locationPermission,
-        NSLocationAlwaysUsageDescription: v.locationPermission,
+        NSLocationAlwaysUsageDescription: bg || v.locationPermission,
+        ...(bg ? { NSLocationAlwaysAndWhenInUseUsageDescription: bg } : {}),
       },
     },
     android: {
@@ -181,6 +198,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'ACCESS_COARSE_LOCATION',
         'RECEIVE_BOOT_COMPLETED',
         'VIBRATE',
+        ...(bg ? ['ACCESS_BACKGROUND_LOCATION', 'FOREGROUND_SERVICE', 'FOREGROUND_SERVICE_LOCATION'] : []),
       ],
       googleServicesFile: fs.existsSync(
         path.join(__dirname, `google-services.${variant}.json`),
@@ -192,7 +210,19 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-router',
       'expo-secure-store',
       ['expo-camera', { cameraPermission: v.cameraPermission }],
-      ['expo-location', { locationWhenInUsePermission: v.locationPermission }],
+      [
+        'expo-location',
+        bg
+          ? {
+              locationWhenInUsePermission: v.locationPermission,
+              locationAlwaysAndWhenInUsePermission: bg,
+              locationAlwaysPermission: bg,
+              isIosBackgroundLocationEnabled: true,
+              isAndroidBackgroundLocationEnabled: true,
+              isAndroidForegroundServiceEnabled: true,
+            }
+          : { locationWhenInUsePermission: v.locationPermission },
+      ],
       [
         'expo-notifications',
         {
@@ -217,6 +247,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       appVariant: variant,
       appName: v.appName,
       primaryColor: v.primaryColor,
+      // The app shows the location switch only in a build that declares background location.
+      ...(bg ? { backgroundLocation: true } : {}),
       // Only emit lockedVertical for branded variants; generic stays multi-vertical.
       ...(v.lockedVertical ? { lockedVertical: v.lockedVertical } : {}),
     },

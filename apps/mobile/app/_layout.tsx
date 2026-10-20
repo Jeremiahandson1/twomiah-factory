@@ -15,7 +15,10 @@ import { SocketProvider } from '../src/socket/SocketContext'
 import { OfflineProvider } from '../src/offline/OfflineContext'
 import { OfflineBanner } from '../src/components/OfflineBanner'
 import { WrongAppGate, NoPhoneAppGate } from '../src/vertical/WrongAppGate'
-import { useLocationReporter } from '../src/hooks/useLocationReporter'
+// Defines the background location task at launch — the OS may start the app in the background just to
+// deliver locations, with no screen mounted (src/location/tracking.ts).
+import '../src/location/tracking'
+import { useTrackingSync } from '../src/location/useTrackingSync'
 import { CareProvider } from '../src/care/CareContext'
 
 function AuthGate() {
@@ -25,10 +28,10 @@ function AuthGate() {
   const router = useRouter()
   const t = useTheme()
 
-  // While signed in, report this technician's location to the CRM (foreground). Not for home care:
-  // that backend has no /api/geofencing route — a caregiver's location is recorded on the visit
-  // itself (clock-in / clock-out fixes and breadcrumbs, src/care/CareContext.tsx).
-  useLocationReporter(vertical !== 'homecare')
+  // Location sharing follows the person's own switch (Alerts → Location): running when they turned it
+  // on and the phone allows "Always", stopped otherwise. Never for home care — a caregiver's location
+  // is recorded on the visit itself (clock-in / clock-out fixes, src/care/CareContext.tsx).
+  useTrackingSync()
 
   React.useEffect(() => {
     if (isLoading) return
