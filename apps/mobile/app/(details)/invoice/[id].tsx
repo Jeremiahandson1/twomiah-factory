@@ -5,7 +5,7 @@
  * server's own `balance`, `lineItems` [{ description, quantity, unitPrice, total }] and `payments` [{ amount, method,
  * paidAt }] — every figure decimal DOLLARS. POST /:id/payments takes { amount, method } in DOLLARS too: $12.34 is 12.34
  * (sending cents recorded a payment 100 times too big). Sending and recording a payment need invoices:update. The PDF
- * opens in the phone's browser on a one-time download link (src/api/client.ts openDownload).
+ * opens in the phone's browser on a one-time download link (src/api/download.ts openDownload).
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -17,7 +17,8 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet'
 import { useTheme } from '../../../src/theme/ThemeContext'
-import { get, post, openDownload } from '../../../src/api/client'
+import { get, post } from '../../../src/api/client'
+import { openDownload } from '../../../src/api/download'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { StatusBadge } from '../../../src/components/StatusBadge'
 import { SkeletonList } from '../../../src/components/SkeletonLoader'

@@ -4,7 +4,7 @@
  * GET /api/quotes/:id (packages/tenant-backend invoicing/quotes.ts) answers `lineItems` [{ description, quantity,
  * unitPrice, total }] and subtotal / taxAmount / discount / total — all decimal DOLLARS (strings). Send, approve and
  * reject need quotes:update; converting raises an invoice, invoices:create. The PDF opens in the phone's browser on a
- * one-time download link (src/api/client.ts openDownload).
+ * one-time download link (src/api/download.ts openDownload).
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -15,7 +15,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
-import { get, post, openDownload } from '../../../src/api/client'
+import { get, post } from '../../../src/api/client'
+import { openDownload } from '../../../src/api/download'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { StatusBadge } from '../../../src/components/StatusBadge'
 import { SkeletonList } from '../../../src/components/SkeletonLoader'
