@@ -141,7 +141,12 @@ export function createGeofencingService(d: CrmDeps) {
   }
 
   /** A location update: records the state at each active geofence and clocks in or out on a crossing. */
-  async function processLocationUpdate(userId: string, companyId: string, { lat, lng, accuracy }: { lat: number; lng: number; accuracy?: number }) {
+  /**
+   * One location from the person's phone: logged, each geofence's in/out recorded, and — only when the person switched
+   * auto clock on (user_settings.auto_clock_enabled; the template clocked everyone who shared a location) — clocked in on
+   * entering a job site and out on leaving it.
+   */
+  async function processLocationUpdate(userId: string, companyId: string, { lat, lng, accuracy }: { lat: number; lng: number; accuracy?: number }, opts: { autoClock: boolean } = { autoClock: false }) {
     const actions: Array<{ type: string; geofence: string; entryId: string; jobId?: string | null; projectId?: string | null; hours?: string | null }> = []
     const geofences = await getGeofences(companyId, { active: true })
 
@@ -157,6 +162,7 @@ export function createGeofencingService(d: CrmDeps) {
       const wasInside = lastState?.inside || false
       await recordGeofenceState(userId, fence.id, isInside, { lat, lng, accuracy: accuracy ?? null, distance })
 
+      if (!opts.autoClock) continue
       if (isInside && !wasInside) {
         // Entered: clock in.
         if (!activeEntry) {

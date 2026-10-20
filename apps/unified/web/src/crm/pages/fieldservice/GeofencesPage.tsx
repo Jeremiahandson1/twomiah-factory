@@ -2,11 +2,11 @@
 import { useState, useEffect } from 'react'
 import { 
   MapPin, Plus, Edit2, Trash2, Loader2, Target, 
-  Navigation, Settings, CheckCircle, XCircle
+  Navigation, Settings, CheckCircle, XCircle, Users, ExternalLink
 } from 'lucide-react';
 import type { FormEvent } from 'react'
 import { api } from '../../../api'
-import { useMayWrite, useToast, useConfirm } from '../../../shared'
+import { useMayWrite, useKnownPermission, useToast, useConfirm } from '../../../shared'
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
@@ -140,10 +140,13 @@ export default function GeofencesPage() {
       <div className="bg-blue-50 rounded-xl p-4 dark:bg-blue-950/40">
         <h3 className="font-medium text-blue-900 mb-2 dark:text-blue-300">How Geofencing Works</h3>
         <p className="text-sm text-blue-700 dark:text-blue-300">
-          When team members enter a geofenced area, they're automatically clocked in to the associated job.
-          When they leave, they're automatically clocked out. This creates accurate timesheets without manual entry.
+          Each team member chooses in their phone app whether to share their location while working, and whether to be
+          clocked in and out automatically. Someone who turned auto clock on is clocked in to the job when they enter its
+          geofence and out when they leave, and their phone tells them it happened.
         </p>
       </div>
+
+      <CrewLocations />
 
       {/* Filters */}
       <div className="flex gap-2">
@@ -508,4 +511,66 @@ function GeofenceFormModal({ geofence, onSave, onClose }: {
       </div>
     </div>
   );
+}
+
+type CrewMember = { userId: string; name: string; role: string; lat: number | null; lng: number | null; accuracy: number | null; seenAt: string | null; onTheClock: boolean }
+
+/** "5 min ago", "2 h ago", or the date — how long since the phone last reported. */
+function ago(iso: string | null): string {
+  if (!iso) return 'No location yet'
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins} min ago`
+  if (mins < 24 * 60) return `${Math.round(mins / 60)} h ago`
+  return new Date(iso).toLocaleDateString()
+}
+
+/**
+ * Where's the crew (GET /api/geofencing/crew, team:read): everyone sharing their location from the phone app — their own
+ * switch — with when it last reported, whether they're on the clock, and a link that opens the spot in a map.
+ */
+function CrewLocations() {
+  const mayRead = useKnownPermission('team:read')
+  const [crew, setCrew] = useState<CrewMember[] | null>(null)
+  useEffect(() => {
+    if (!mayRead) return
+    let gone = false
+    const load = () => api.get('/api/geofencing/crew').then((r: any) => { if (!gone) setCrew(Array.isArray(r?.data) ? r.data : []) }).catch(() => { if (!gone) setCrew([]) })
+    load()
+    const iv = setInterval(load, 60_000)
+    return () => { gone = true; clearInterval(iv) }
+  }, [mayRead])
+  if (!mayRead) return null
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 dark:bg-slate-900 dark:border-slate-700">
+      <div className="flex items-center gap-2 mb-3">
+        <Users className="w-5 h-5 text-gray-700 dark:text-slate-300" />
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Where's the crew</h2>
+      </div>
+      {crew === null ? (
+        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+      ) : crew.length === 0 ? (
+        <p className="text-sm text-gray-600 dark:text-slate-400">Nobody is sharing their location. Each person turns it on in the phone app (Alerts › Location).</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 dark:divide-slate-800">
+          {crew.map((m) => (
+            <li key={m.userId} className="py-2 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium text-gray-900 truncate dark:text-slate-100">{m.name}</p>
+                <p className="text-sm text-gray-600 dark:text-slate-400">
+                  {ago(m.seenAt)}{m.onTheClock ? ' · on the clock' : ''}
+                </p>
+              </div>
+              {m.lat != null && m.lng != null && (
+                <a href={`https://www.google.com/maps/search/?api=1&query=${m.lat},${m.lng}`} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-sm text-orange-700 hover:underline shrink-0 dark:text-orange-300">
+                  <MapPin className="w-4 h-4" /> Map <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }

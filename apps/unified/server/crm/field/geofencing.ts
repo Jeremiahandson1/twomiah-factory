@@ -10,6 +10,7 @@ import type { AppEnv } from '../../http/env.ts'
 import { done, fail, list, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createGeofencingService } from './geofencingService.ts'
+import { crewLocations } from '../../data/crewLocations.ts'
 
 const all = <T,>(c: any, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
 
@@ -101,7 +102,13 @@ export function createGeofencingRoutes(d: CrmDeps) {
     if (!settings.locationTrackingEnabled) return one(c, { actions: [], tracking: false })
     const actions = await geofencing.processLocationUpdate(user.userId, user.companyId, {
       lat: parseFloat(lat), lng: parseFloat(lng), accuracy: parseFloat(accuracy) || 0,
-    })
+    }, { autoClock: !!settings.autoClockEnabled })
+    // The person hears about an automatic clock in or out on their phone (it happened in their pocket).
+    for (const a of actions) {
+      const title = a.type === 'clock_in' ? 'Clocked in' : 'Clocked out'
+      const body = a.type === 'clock_in' ? `You arrived at ${a.geofence}` : `You left ${a.geofence}${a.hours ? ` — ${a.hours} h` : ''}`
+      void d.phonePush.send(user.companyId, [user.userId], { title, body, data: { type: 'time_entry', id: a.entryId } })
+    }
     return one(c, { actions, tracking: true })
   })
 
@@ -151,6 +158,14 @@ export function createGeofencingRoutes(d: CrmDeps) {
   app.get('/events', async (c) => {
     const user = c.get('user')
     return all(c, await geofencing.getGeofenceEvents(user.userId, { startDate: c.req.query('startDate'), endDate: c.req.query('endDate') }))
+  })
+
+  // Where's the crew: each person sharing their location (their own switch), their latest spot, and whether they are on
+  // the clock — for the office (team:read). Nobody who has not switched tracking on is listed.
+  app.get('/crew', requirePermission('team:read'), async (c) => {
+    const user = c.get('user')
+    const rows = await crewLocations(d.db, user.companyId)
+    return list(c, rows, { page: 1, limit: rows.length || 1, total: rows.length })
   })
 
   // Someone else's location history: team:read.
