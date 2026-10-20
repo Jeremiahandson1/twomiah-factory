@@ -60,3 +60,11 @@ export const BASE_STARTER: StarterContent = {
 export function starterCategories(starter: StarterContent, industry?: string | null): string[] {
   return (industry && starter.pricebookCategories.byIndustry[industry]) || starter.pricebookCategories.default
 }
+
+/**
+ * The help desk's rows a starter writes for a company (support_knowledge_base): at signup (modules/provision.ts) and when
+ * a live business moves in (apps/api/src/unified/move/steps). One list, one numbering, wherever it is written.
+ */
+export function starterArticleRows(starter: StarterContent, companyId: string) {
+  return starter.helpArticles.map((a, i) => ({ ...a, tags: [] as string[], sortOrder: i + 1, companyId }))
+}

@@ -11,7 +11,7 @@ import { z } from 'zod'
 import { withoutNotReady } from '@twomiah/tenant-backend'
 import { company, user, supportKnowledgeBase, pricebookCategory, website, page, canvassingScript } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
-import { BASE_STARTER, starterCategories } from '../core/starter.ts'
+import { BASE_STARTER, starterArticleRows, starterCategories } from '../core/starter.ts'
 import { SITE_DESIGNS } from '../core/vertical.ts'
 import { fail, one, done } from '../http/reply.ts'
 import { invalid } from '../http/errors.ts'
@@ -108,10 +108,8 @@ export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings
         phone: o.phone, role: 'owner',
       }).returning({ id: user.id })
 
-      const articles = starter.helpArticles
-      if (articles.length) {
-        await tx.insert(supportKnowledgeBase).values(articles.map((a, i) => ({ ...a, tags: [], sortOrder: i + 1, companyId: created.id })))
-      }
+      const articles = starterArticleRows(starter, created.id)
+      if (articles.length) await tx.insert(supportKnowledgeBase).values(articles)
       const categories = starterCategories(starter, input.industry)
       if (categories.length) {
         await tx.insert(pricebookCategory).values(categories.map((name, i) => ({ name, sortOrder: i, companyId: created.id })))

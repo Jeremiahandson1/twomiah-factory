@@ -72,7 +72,9 @@ export async function moveTenant(o: MoveOptions): Promise<MoveReport> {
         const fromType = from && from.how === 'convert' ? from.from : tt.columns.get(c)?.type
         return fromType === 'timestamp with time zone' ? `to_char(${q(c)} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US') AS ${q(c)}` : `${q(c)}::text AS ${q(c)}`
       }).join(', ')
-      const order = tt.primaryKey.length ? tt.primaryKey.map(q).join(', ') : copied.map(q).join(', ')
+      // Pages in the new key's order when the old table has it; otherwise (no key, or a key the move makes — home care's
+      // ai_receptionist_settings.id) in the rows' physical order, which one snapshot holds still.
+      const order = tt.primaryKey.length && tt.primaryKey.every((k) => copied.includes(k)) ? tt.primaryKey.map(q).join(', ') : 'ctid'
       const types = cols.map((c) => tt.columns.get(c)!.type)
       const total = Number((await o.read(`SELECT count(*)::int AS n FROM ${q(table)}`)).rows[0].n)
       const perInsert = Math.max(1, Math.min(batchRows, Math.floor(60000 / Math.max(1, cols.length))))
