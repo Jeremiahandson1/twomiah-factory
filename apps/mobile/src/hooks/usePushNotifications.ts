@@ -15,13 +15,13 @@ Notifications.setNotificationHandler({
 })
 
 /**
- * registerWithServer: post the Expo push token to POST /api/push/subscribe. Off for home care — that
- * backend's /api/push/subscribe stores ONE web-push subscription per user and its sender is web-push
- * only, so an Expo token would overwrite the caregiver's browser subscription and still never be
- * delivered. Taps on notifications are still routed; registration waits for an Expo-aware endpoint.
+ * registerWithServer: tell the server this phone's Expo push token (POST /api/push/expo-token { token, platform } —
+ * apps/unified/server/crm/homecare/portals/notifications.ts). Only home care sends phone notifications (visitNotify.ts);
+ * the trade CRMs never did (no live template sends to a phone), so a trade screen leaves this off. Taps on a
+ * notification are routed either way.
  */
 export function usePushNotifications(opts: { registerWithServer?: boolean; fallbackRoute?: string } = {}) {
-  const registerWithServer = opts.registerWithServer !== false
+  const registerWithServer = opts.registerWithServer === true
   const fallbackRoute = opts.fallbackRoute || '/(tabs)/notifications'
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null)
   const [notification, setNotification] = useState<Notifications.Notification | null>(null)
@@ -77,7 +77,6 @@ export function usePushNotifications(opts: { registerWithServer?: boolean; fallb
         invoice_paid: '/(details)/invoice/',
         invoice_updated: '/(details)/invoice/',
         payment: '/(details)/invoice/',
-        order: '/(details)/order/',
         lead: '/(details)/lead/',
       }
 
@@ -126,12 +125,7 @@ async function registerForPush(registerWithServer: boolean): Promise<string | nu
 
   if (!registerWithServer) return token
 
-  // Register token with CRM backend
-  await post('/api/push/subscribe', {
-    token,
-    platform: Platform.OS,
-    deviceName: Device.deviceName,
-  })
+  await post('/api/push/expo-token', { token, platform: Platform.OS })
 
   return token
 }

@@ -11,6 +11,7 @@ import { useTheme } from '../../src/theme/ThemeContext'
 import { useSocket } from '../../src/socket/SocketContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
 import { useCareOptional } from '../../src/care/CareContext'
+import { useAuth } from '../../src/auth/AuthContext'
 
 /** All possible tab screen names (must match filenames in this directory) */
 const ALL_TABS = [
@@ -18,8 +19,6 @@ const ALL_TABS = [
   'service-calls', 'schedule',
   'shifts', 'care-schedule', 'time-clock', 'messages', 'more-homecare',
   'pipeline', 'canvass',
-  'orders', 'products', 'customers', 'loyalty', 'more-dispensary',
-  'checkin-queue', 'driver', 'ai-chat', 'pos-mobile',
   'units', 'parts', 'ai-trade',
 ]
 
@@ -39,7 +38,9 @@ export default function TabLayout() {
     return undefined
   }
 
-  const activeNames = new Set(tabs.map(tab => tab.name))
+  // A tab the seat may not use is not shown (a field tech has no quotes:read; the RV floor seat cannot appraise).
+  const { can } = useAuth()
+  const activeNames = new Set(tabs.filter(tab => !tab.permission || can(tab.permission)).map(tab => tab.name))
   const tabMap = new Map(tabs.map(tab => [tab.name, tab]))
 
   return (

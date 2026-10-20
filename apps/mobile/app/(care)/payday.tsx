@@ -1,6 +1,8 @@
 /**
  * Payday verification — confirm or dispute the last pay period's hours before payroll runs.
- *   GET  /api/payroll-verification/me/pending   { pending } — null unless the agency has it switched on
+ *   GET  /api/payroll-verification/me/pending   { pending } — null unless the agency has it switched on; pending =
+ *        { payPeriodStart, payPeriodEnd, payDate, totalHours, hourlyRate, grossPay,
+ *          shifts: [{ id, shiftDate, scheduledStart, scheduledEnd, payableMinutes, clientFirst, clientLast }] }
  *   POST /api/payroll-verification/me/verify    { payPeriodStart, payPeriodEnd, confirmed, disputeReason?, reportedTotalHours, reportedGrossPay }
  * Never blocks the clock: this is a screen the caregiver opens from a card, with "Remind me later".
  */
@@ -63,10 +65,10 @@ export default function PaydayScreen() {
       {shifts.map((s) => (
         <View key={s.id} style={[styles.shift, { borderColor: t.border, backgroundColor: t.surface }]}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.shiftDate, { color: t.text }]}>{formatYmdShort(String(s.shiftDate || s.shift_date).slice(0, 10))} · {`${s.clientFirst || s.client_first || ''} ${String(s.clientLast || s.client_last || '').charAt(0)}.`.trim()}</Text>
-            <Text style={[styles.meta, { color: t.textSecondary }]}>Scheduled {formatTime12(s.scheduledStart || s.scheduled_start)} – {formatTime12(s.scheduledEnd || s.scheduled_end)}</Text>
+            <Text style={[styles.shiftDate, { color: t.text }]}>{formatYmdShort(String(s.shiftDate).slice(0, 10))} · {`${s.clientFirst || ''} ${String(s.clientLast || '').charAt(0)}.`.trim()}</Text>
+            <Text style={[styles.meta, { color: t.textSecondary }]}>Scheduled {formatTime12(s.scheduledStart)} – {formatTime12(s.scheduledEnd)}</Text>
           </View>
-          <Text style={[styles.paid, { color: t.text }]}>{formatDuration(Number(s.payableMinutes ?? s.payable_minutes) || 0)}</Text>
+          <Text style={[styles.paid, { color: t.text }]}>{formatDuration(Number(s.payableMinutes) || 0)}</Text>
         </View>
       ))}
 

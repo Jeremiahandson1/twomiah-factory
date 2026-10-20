@@ -1,23 +1,31 @@
 /**
- * Quick Add Lead — minimal form for roofing field canvassers.
- * Designed for speed: GPS auto-fill address, camera for property photo.
+ * Quick Add Lead — a roofing lead in two taps: GPS fills the address, the camera takes the property photo.
+ *
+ * A roofing lead is a homeowner (POST /api/contacts { name, phone, email, address…, type: 'lead', source, notes } —
+ * packages/tenant-backend contacts/contacts.ts) and a roofing job at the `lead` stage on the pipeline (POST /api/jobs
+ * { contactId, jobType, propertyAddress, city, state, zip, source, notes } — server/crm/roof/jobs.ts, where all four
+ * address parts are required). The photo goes on that job. POST /api/leads, which this screen used, is the website's
+ * public enquiry form: it filed a "website enquiry" in the Lead Inbox, not a lead on the board.
+ * Needs contacts:create and jobs:create (the office); the pipeline only offers this screen to a seat that has both.
  */
 
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Image,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Image, Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, Stack } from 'expo-router'
 import * as Location from 'expo-location'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
-import { post, uploadPhotos } from '../../../src/api/client'
+import { post } from '../../../src/api/client'
+import { uploadJobPhoto } from '../../../src/components/PhotoGallery'
 import { FilterChips } from '../../../src/components/FilterChips'
 import { useToast } from '../../../src/components/ToastProvider'
 import { useHaptics } from '../../../src/hooks/useHaptics'
 import { useLocation } from '../../../src/hooks/useLocation'
+import { useVertical } from '../../../src/vertical/VerticalContext'
 import { useCamera } from '../../../src/hooks/useCamera'
 
 const SOURCES = [
@@ -33,7 +41,8 @@ export default function QuickAddLeadScreen() {
   const t = useTheme()
   const toast = useToast()
   const haptics = useHaptics()
-  const { location, requestLocation, loading: locLoading } = useLocation()
+  const { requestLocation, loading: locLoading } = useLocation()
+  const { vertical } = useVertical()
   const { takePhoto } = useCamera()
 
   const [name, setName] = useState('')
@@ -75,47 +84,69 @@ export default function QuickAddLeadScreen() {
     }
   }
 
-  const handleSave = async () => {
+  /** The job on the pipeline for this homeowner, then its photo. */
+  const addToPipeline = async (contactId: string) => {
+    const sourceLabel = SOURCES.find(o => o.key === source)?.label || source
+    const res = await post('/api/jobs', {
+      contactId,
+      // A storm lead is an insurance job; every other door is a retail one (the web form's default).
+      jobType: source === 'storm' ? 'insurance' : 'retail',
+      propertyAddress: address.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      zip: zip.trim(),
+      source: sourceLabel,
+      notes: notes.trim() || undefined,
+    })
+    if (!res.ok) {
+      haptics.error()
+      toast.error(`The homeowner was saved, but the job was not: ${res.error || 'try again from Jobs'}`)
+      setSaving(false)
+      return
+    }
+    if (photo && res.data?.id) {
+      const up = await uploadJobPhoto(vertical, res.data.id, photo.uri)
+      if (!up.ok) toast.error(`Lead added; the photo did not upload (${up.error || 'try again on the job'})`)
+    }
+    haptics.success()
+    toast.success('Lead added')
+    setSaving(false)
+    if (res.data?.id) router.replace(`/(details)/job/${res.data.id}`)
+    else router.back()
+  }
+
+  const handleSave = async (allowDuplicate = false) => {
     if (!name.trim()) { toast.error('Name is required'); return }
     if (!phone.trim()) { toast.error('Phone is required'); return }
+    if (!address.trim() || !city.trim() || !state.trim() || !zip.trim()) { toast.error('The property address, city, state and ZIP are needed for the pipeline'); return }
 
     setSaving(true)
-    const body: any = {
-      firstName: name.trim().split(' ')[0],
-      lastName: name.trim().split(' ').slice(1).join(' ') || undefined,
+    const res = await post('/api/contacts', {
       name: name.trim(),
       phone: phone.trim(),
       email: email.trim() || undefined,
-      address: address.trim() || undefined,
-      city: city.trim() || undefined,
-      state: state.trim() || undefined,
-      zip: zip.trim() || undefined,
+      address: address.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      zip: zip.trim(),
       type: 'lead',
-      source,
+      source: SOURCES.find(o => o.key === source)?.label || source,
       notes: notes.trim() || undefined,
-      latitude: location?.latitude,
-      longitude: location?.longitude,
-    }
-
-    // Try /api/leads first, fall back to /api/contacts
-    let res = await post('/api/leads', body).catch(() => post('/api/contacts', body))
-    if (!res.ok) res = await post('/api/contacts', body)
-
-    if (res.ok) {
-      haptics.success()
-      toast.success('Lead added')
-
-      // Upload photo if taken
-      if (photo && res.data?.id) {
-        uploadPhotos(res.data.id, 'leadId', [{ uri: photo.uri }]).catch(() => {})
-      }
-
-      router.back()
-    } else {
-      haptics.error()
-      toast.error(res.error || 'Save failed')
-    }
+      ...(allowDuplicate ? { allowDuplicate: true } : {}),
+    })
+    if (res.ok && res.data?.id) { await addToPipeline(res.data.id); return }
     setSaving(false)
+    if (res.status === 409 && res.data?.existingId) {
+      // This phone or email is already a homeowner: put the job on them, or save a second record anyway.
+      Alert.alert('Already a contact', res.error || 'Someone already has this phone or email.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Use existing', onPress: () => { setSaving(true); addToPipeline(res.data.existingId) } },
+        { text: 'Save anyway', onPress: () => handleSave(true) },
+      ])
+      return
+    }
+    haptics.error()
+    toast.error(res.error || 'Save failed')
   }
 
   return (
@@ -123,7 +154,7 @@ export default function QuickAddLeadScreen() {
       <Stack.Screen options={{
         title: 'Quick Add Lead',
         headerRight: () => (
-          <TouchableOpacity onPress={handleSave} disabled={saving}>
+          <TouchableOpacity onPress={() => handleSave()} disabled={saving}>
             {saving ? <ActivityIndicator size="small" color={t.primary} /> : <Text style={{ color: t.primary, fontSize: 16, fontWeight: '600' }}>Save</Text>}
           </TouchableOpacity>
         ),

@@ -1,5 +1,8 @@
 /**
  * Service Calls — field service vertical. Similar to Jobs but with dispatch terminology.
+ *
+ * The shared jobs module (packages/tenant-backend jobs/jobs.ts): GET /api/jobs { data, pagination }, POST /:id/start and
+ * /:id/complete (jobs:update — the technician's own buttons). A new call needs jobs:create (the office).
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -7,9 +10,11 @@ import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl, Linking,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get, post } from '../../src/api/client'
+import { useAuth } from '../../src/auth/AuthContext'
 import { StatusBadge } from '../../src/components/StatusBadge'
 import { SearchBar } from '../../src/components/SearchBar'
 import { FilterChips } from '../../src/components/FilterChips'
@@ -21,8 +26,6 @@ import { EmptyState } from '../../src/components/EmptyState'
 import { useToast } from '../../src/components/ToastProvider'
 import { useDebounce } from '../../src/hooks/useDebounce'
 import { useHaptics } from '../../src/hooks/useHaptics'
-import { useCamera } from '../../src/hooks/useCamera'
-import { useLocation } from '../../src/hooks/useLocation'
 import { useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
 
 const FILTERS = [
@@ -37,8 +40,10 @@ export default function ServiceCallsScreen() {
   const t = useTheme()
   const toast = useToast()
   const haptics = useHaptics()
-  const { takePhoto } = useCamera()
-  const { requestLocation } = useLocation()
+  const router = useRouter()
+  const { can } = useAuth()
+  const canWork = can('jobs:update')
+  const canCreate = can('jobs:create')
   const [calls, setCalls] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -54,7 +59,7 @@ export default function ServiceCallsScreen() {
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
     const res = await get(`/api/jobs?${params}`)
     if (res.ok) {
-      const data = res.data.data || res.data
+      const data: any[] = Array.isArray(res.data?.data) ? res.data.data : []
       if (append) setCalls(prev => [...prev, ...data])
       else setCalls(data)
       setHasMore(data.length === 25)
@@ -67,11 +72,11 @@ export default function ServiceCallsScreen() {
   const onRefresh = async () => { setRefreshing(true); await loadCalls(1); setRefreshing(false) }
   const loadMore = () => { if (hasMore) { setPage(p => p + 1); loadCalls(page + 1, true) } }
 
-  useRealTimeEvent(EVENTS.JOB_UPDATED, () => loadCalls(1))
-  useRealTimeEvent(EVENTS.JOB_CREATED, () => loadCalls(1))
+  useRealTimeEvent(EVENTS.JOB_UPDATED, () => loadCalls(1), [loadCalls])
+  useRealTimeEvent(EVENTS.JOB_CREATED, () => loadCalls(1), [loadCalls])
+  useRealTimeEvent(EVENTS.JOB_STATUS_CHANGED, () => loadCalls(1), [loadCalls])
 
   const handleStart = async (call: any) => {
-    const loc = await requestLocation()
     const res = await post(`/api/jobs/${call.id}/start`)
     if (res.ok) {
       haptics.success()
@@ -104,17 +109,18 @@ export default function ServiceCallsScreen() {
   const renderCall = ({ item: call, index }: { item: any; index: number }) => {
     const swipeActions = []
     if (call.address) swipeActions.push({ icon: 'navigate', label: 'Navigate', color: '#3b82f6', onPress: () => navigate(call) })
-    if (call.status === 'scheduled' || call.status === 'dispatched') {
+    if (canWork && (call.status === 'scheduled' || call.status === 'dispatched')) {
       swipeActions.push({ icon: 'play', label: 'Start', color: '#22c55e', onPress: () => handleStart(call) })
     }
-    if (call.status === 'in_progress') {
+    if (canWork && call.status === 'in_progress') {
       swipeActions.push({ icon: 'checkmark-circle', label: 'Complete', color: '#8b5cf6', onPress: () => handleComplete(call) })
     }
 
     return (
       <AnimatedCard index={index}>
         <SwipeableRow rightActions={swipeActions}>
-          <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push(`/(details)/job/${call.id}`)}
+            style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
             <View style={styles.cardHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.title, { color: t.text }]} numberOfLines={1}>{call.title}</Text>
@@ -134,7 +140,7 @@ export default function ServiceCallsScreen() {
                 {call.address}{call.city ? `, ${call.city}` : ''}
               </Text>
             )}
-          </View>
+          </TouchableOpacity>
         </SwipeableRow>
       </AnimatedCard>
     )
@@ -160,7 +166,7 @@ export default function ServiceCallsScreen() {
         />
       )}
 
-      <FAB icon="add" onPress={() => toast.info('Create service call from the web dashboard')} />
+      {canCreate && <FAB icon="add" onPress={() => router.push('/(details)/job/form')} />}
     </SafeAreaView>
   )
 }

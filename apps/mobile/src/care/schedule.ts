@@ -1,18 +1,19 @@
 /**
  * The caregiver's visits, expanded from GET /api/schedules/:caregiverId?includeMovedIn=1.
  *
- * The home care backend has no caregiver-scoped "my occurrences" endpoint: the phone gets the raw
- * schedule rows (recurring patterns + one-time rows, each recurring row carrying its per-date
- * exceptions) and expands them itself, the way the agency's web caregiver page does. The rules
- * below mirror the server engine (crm-homecare backend/src/services/scheduleOccurrences.ts):
+ * The phone gets the raw schedule rows (recurring patterns + one-time rows, each carrying its per-date
+ * exceptions) and expands them itself, so the last good roster still works with no signal. The rows
+ * are the unified server's camelCase (apps/unified/server/data/homecareCore.ts SCHED_COLS / EXC_COLS:
+ * dates 'YYYY-MM-DD', times wall-clock 'HH:MM:SS'). The rules below mirror the server engine
+ * (apps/unified/server/data/homecareCore.ts, the occurrence CTE):
  *
- *  1. Recurring-ness is `day_of_week` being set — never `schedule_type`.
+ *  1. Recurring-ness is `dayOfWeek` being set — never `scheduleType`.
  *  2. Bi-weekly lives in `frequency` ('biweekly' or 'bi-weekly') and runs on its anchor fortnight:
- *     whole days from COALESCE(anchor_date, effective_date, created_at), floored to weeks, even = on.
- *  3. effective_date / end_date bound RECURRING rows only; a one-time row's date is its occurrence.
+ *     whole days from COALESCE(anchorDate, effectiveDate, createdAt), floored to weeks, even = on.
+ *  3. effectiveDate / endDate bound RECURRING rows only; a one-time row's date is its occurrence.
  *  4. A cancelled occurrence does not exist. A 'modified' one takes its override times / client, and
  *     one moved to another caregiver is not this caregiver's.
- *  5. A suspended schedule generates nothing on/after suspended_from.
+ *  5. A suspended schedule generates nothing on/after suspendedFrom.
  *  6. A row with no start or end time is not a visit.
  *
  * Pure — no React Native imports — so it runs under `bun run tests/mobile/care-app.test.ts`.
@@ -20,38 +21,38 @@
 import { addDaysYmd, dayDiff, dowOfYmd, minutesOf, isYmd } from './time'
 
 export interface ScheduleException {
-  exception_date: string
-  exception_type: string
-  override_start_time?: string | null
-  override_end_time?: string | null
-  override_caregiver_id?: string | null
-  override_client_id?: string | null
-  override_notes?: string | null
-  cancel_reason?: string | null
+  exceptionDate: string
+  exceptionType: string
+  overrideStartTime?: string | null
+  overrideEndTime?: string | null
+  overrideCaregiverId?: string | null
+  overrideClientId?: string | null
+  overrideNotes?: string | null
+  cancelReason?: string | null
 }
 
 export interface ScheduleRow {
   id: string
-  caregiver_id?: string | null
-  client_id: string
-  day_of_week: number | null
+  caregiverId?: string | null
+  clientId: string
+  dayOfWeek: number | null
   date: string | null
-  start_time: string | null
-  end_time: string | null
+  startTime: string | null
+  endTime: string | null
   frequency?: string | null
-  effective_date?: string | null
-  anchor_date?: string | null
-  end_date?: string | null
-  suspended_from?: string | null
-  created_at?: string | null
+  effectiveDate?: string | null
+  anchorDate?: string | null
+  endDate?: string | null
+  suspendedFrom?: string | null
+  createdAt?: string | null
   notes?: string | null
-  client_first_name?: string | null
-  client_last_name?: string | null
-  client_address?: string | null
-  client_city?: string | null
-  care_type_name?: string | null
-  is_training?: boolean | null
-  moved_in?: boolean | null
+  clientFirstName?: string | null
+  clientLastName?: string | null
+  clientAddress?: string | null
+  clientCity?: string | null
+  careTypeName?: string | null
+  isTraining?: boolean | null
+  movedIn?: boolean | null
   exceptions?: ScheduleException[]
 }
 
@@ -78,7 +79,7 @@ const ymd10 = (v: unknown): string | null => {
   return isYmd(s) ? s : null
 }
 
-export const isRecurring = (s: Pick<ScheduleRow, 'day_of_week'>) => s.day_of_week !== null && s.day_of_week !== undefined
+export const isRecurring = (s: Pick<ScheduleRow, 'dayOfWeek'>) => s.dayOfWeek !== null && s.dayOfWeek !== undefined
 
 /** Server rule 2: bi-weekly on the anchor's fortnight. */
 export function isBiweeklyOn(dateYmd: string, anchorYmd: string | null): boolean {
@@ -92,42 +93,42 @@ const isBiweekly = (f: unknown) => {
   return v === 'biweekly' || v === 'bi-weekly'
 }
 
-export const isSuspendedOn = (s: Pick<ScheduleRow, 'suspended_from'>, dateYmd: string) => {
-  const from = ymd10(s.suspended_from)
+export const isSuspendedOn = (s: Pick<ScheduleRow, 'suspendedFrom'>, dateYmd: string) => {
+  const from = ymd10(s.suspendedFrom)
   return !!from && dateYmd >= from
 }
 
 /** Does a RECURRING row produce a visit on this calendar date (before exceptions)? */
 export function recurringOn(s: ScheduleRow, dateYmd: string): boolean {
   if (!isRecurring(s)) return false
-  if (dowOfYmd(dateYmd) !== Number(s.day_of_week)) return false
-  const eff = ymd10(s.effective_date)
+  if (dowOfYmd(dateYmd) !== Number(s.dayOfWeek)) return false
+  const eff = ymd10(s.effectiveDate)
   if (eff && dateYmd < eff) return false
-  const end = ymd10(s.end_date)
+  const end = ymd10(s.endDate)
   if (end && dateYmd > end) return false
-  if (isBiweekly(s.frequency) && !isBiweeklyOn(dateYmd, ymd10(s.anchor_date) || eff || ymd10(s.created_at))) return false
+  if (isBiweekly(s.frequency) && !isBiweeklyOn(dateYmd, ymd10(s.anchorDate) || eff || ymd10(s.createdAt))) return false
   if (isSuspendedOn(s, dateYmd)) return false
   return true
 }
 
 /** Server rule 4. Returns the occurrence's times/client for that date, or null when it doesn't happen. */
 export function applyException(s: ScheduleRow, dateYmd: string): { startTime: string | null; endTime: string | null; clientId: string } | null {
-  const ex = (s.exceptions || []).find((e) => ymd10(e.exception_date) === dateYmd)
-  const base = { startTime: s.start_time, endTime: s.end_time, clientId: s.client_id }
+  const ex = (s.exceptions || []).find((e) => ymd10(e.exceptionDate) === dateYmd)
+  const base = { startTime: s.startTime, endTime: s.endTime, clientId: s.clientId }
   if (!ex) return base
-  if (ex.exception_type === 'cancelled') return null
-  if (ex.exception_type === 'modified') {
-    if (ex.override_caregiver_id && s.caregiver_id && !s.moved_in && ex.override_caregiver_id !== s.caregiver_id) return null
+  if (ex.exceptionType === 'cancelled') return null
+  if (ex.exceptionType === 'modified') {
+    if (ex.overrideCaregiverId && s.caregiverId && !s.movedIn && ex.overrideCaregiverId !== s.caregiverId) return null
     return {
-      startTime: ex.override_start_time || s.start_time,
-      endTime: ex.override_end_time || s.end_time,
-      clientId: ex.override_client_id || s.client_id,
+      startTime: ex.overrideStartTime || s.startTime,
+      endTime: ex.overrideEndTime || s.endTime,
+      clientId: ex.overrideClientId || s.clientId,
     }
   }
   return base
 }
 
-const nameOf = (s: ScheduleRow) => `${s.client_first_name || ''} ${s.client_last_name || ''}`.trim()
+const nameOf = (s: ScheduleRow) => `${s.clientFirstName || ''} ${s.clientLastName || ''}`.trim()
 
 /**
  * Every visit from `fromYmd` for `days` days, sorted by date then start. A moved-in (covering)
@@ -140,7 +141,7 @@ export function expandVisits(rows: ScheduleRow[], fromYmd: string, days: number,
   const push = (s: ScheduleRow, date: string) => {
     const occ = applyException(s, date)
     if (!occ || minutesOf(occ.startTime) == null || minutesOf(occ.endTime) == null) return
-    const sameClient = occ.clientId === s.client_id
+    const sameClient = occ.clientId === s.clientId
     out.push({
       key: `${s.id}|${date}|${occ.startTime}`,
       scheduleId: s.id,
@@ -149,13 +150,13 @@ export function expandVisits(rows: ScheduleRow[], fromYmd: string, days: number,
       endTime: String(occ.endTime),
       clientId: occ.clientId,
       clientName: (sameClient ? nameOf(s) : '') || clientNames[occ.clientId] || 'Client',
-      clientAddress: sameClient ? s.client_address || null : null,
-      clientCity: sameClient ? s.client_city || null : null,
+      clientAddress: sameClient ? s.clientAddress || null : null,
+      clientCity: sameClient ? s.clientCity || null : null,
       notes: s.notes || null,
-      careType: s.care_type_name || null,
+      careType: s.careTypeName || null,
       recurring: isRecurring(s),
-      movedIn: s.moved_in === true,
-      isTraining: s.is_training === true,
+      movedIn: s.movedIn === true,
+      isTraining: s.isTraining === true,
     })
   }
   for (const s of rows || []) {

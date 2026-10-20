@@ -2,7 +2,8 @@
  * The caregiver's day — one place that loads it, keeps it, and does the punches (Twomiah Care).
  *
  * Mounted for every signed-in session but only ACTIVE for the home care vertical. Everything the
- * caregiver screens show comes from here, against the crm-homecare backend:
+ * caregiver screens show comes from here, against the unified server's home care routes
+ * (apps/unified/server/crm/homecare): every reply is camelCase and every list is { data, pagination }:
  *
  *   GET  /api/schedules/:me?includeMovedIn=1     schedule rows (+ exceptions) → expanded on the phone
  *   GET  /api/clients                             the caregiver's own clients (server-scoped)
@@ -28,6 +29,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import NetInfo from '@react-native-community/netinfo'
 import * as Location from 'expo-location'
 import { useAuth } from '../auth/AuthContext'
+import { isFieldRole } from '../auth/roles'
 import { useVertical } from '../vertical/VerticalContext'
 import { useToast } from '../components/ToastProvider'
 import { careGet, careGetRetry, carePost, punchSender, asList } from './careApi'
@@ -42,10 +44,11 @@ import { formatClock, ymdOf } from './time'
 
 export const punchQueue = createPunchQueue(AsyncStorage as unknown as KV)
 
+/** GET /api/clients (a caregiver's own clients) — apps/unified/server/crm/homecare/clients/clients.ts. */
 export interface CareClient {
   id: string
-  first_name: string
-  last_name: string
+  firstName: string
+  lastName: string
   address?: string | null
   city?: string | null
   state?: string | null
@@ -53,18 +56,19 @@ export interface CareClient {
   phone?: string | null
   latitude?: number | string | null
   longitude?: number | string | null
-  assistance_needs?: string | null
+  assistanceNeeds?: string | null
   allergies?: string | null
-  service_type?: string | null
+  serviceType?: string | null
 }
 
+/** The open visit: GET /api/time-entries/active { id, clientId, startTime, clientName }, or a clock-in saved on the phone. */
 export interface ActiveVisit {
   id: string
-  client_id: string
-  start_time: string
-  client_name?: string | null
+  clientId: string
+  startTime: string
+  clientName?: string | null
   offline?: boolean
-  sandata_required?: boolean | null
+  sandataRequired?: boolean | null
 }
 
 export interface Fix { latitude: number; longitude: number; accuracy: number | null; at: number }
@@ -139,7 +143,8 @@ interface CareValue {
 
 const CareCtx = createContext<CareValue | null>(null)
 
-const CACHE_KEY = (u: string) => `twomiah_care_cache_v1_${u}`
+// v2: the cached rows are the unified server's camelCase; a v1 cache (the old snake_case rows) is never read.
+const CACHE_KEY = (u: string) => `twomiah_care_cache_v2_${u}`
 const SNOOZE_KEY = (u: string) => `twomiah_care_payday_snooze_v1_${u}`
 const NOTE_KEY = (id: string) => `twomiah_care_note_v1_${id}`
 const MAX_PHOTO_CHARS = 7_000_000 // the server's limit (~5 MB once decoded)
@@ -162,7 +167,8 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   }), [])
   const userId: string | null = (user as any)?.id || (user as any)?.userId || null
   const enabled = isAuthenticated && vertical === 'homecare' && !!userId
-  const isCaregiver = String(user?.role || '').toLowerCase() === 'caregiver'
+  // The field seat: the server stores a caregiver as 'field' (and older rows 'caregiver' / 'user').
+  const isCaregiver = isFieldRole(user?.role)
 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -225,9 +231,9 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   const clientById = useCallback((id: string | null | undefined) => clients.find((c) => c.id === id), [clients])
   const clientName = useCallback((id: string | null | undefined) => {
     const c = clients.find((x) => x.id === id)
-    if (c) return `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Client'
-    const s = schedules.find((x) => x.client_id === id)
-    if (s) return `${s.client_first_name || ''} ${s.client_last_name || ''}`.trim() || 'Client'
+    if (c) return `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Client'
+    const s = schedules.find((x) => x.clientId === id)
+    if (s) return `${s.clientFirstName || ''} ${s.clientLastName || ''}`.trim() || 'Client'
     return 'Client'
   }, [clients, schedules])
   const sandataClient = useCallback((id: string | null | undefined) => sandata?.clients?.find((c) => c.id === id), [sandata])
@@ -260,7 +266,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
         careGet('/api/payroll-verification/me/pending'),
       ])
       const nextSchedules: ScheduleRow[] | null = sch.ok ? asList<ScheduleRow>(sch.data) : null
-      const nextClients: CareClient[] | null = cl.ok ? asList<CareClient>(cl.data, 'clients') : null
+      const nextClients: CareClient[] | null = cl.ok ? asList<CareClient>(cl.data) : null
       if (nextSchedules) setSchedules(nextSchedules)
       if (nextClients) setClients(nextClients)
       setLoadFailed(!sch.ok || !cl.ok)
@@ -270,8 +276,8 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
         try {
           const prev = JSON.parse((await AsyncStorage.getItem(CACHE_KEY(userId))) || '{}')
           await AsyncStorage.setItem(CACHE_KEY(userId), JSON.stringify({
-            schedules: nextSchedules ? nextSchedules.map(({ client_address: _a, client_city: _c, ...s }) => s) : prev.schedules || [],
-            clients: nextClients ? nextClients.map((c) => ({ id: c.id, first_name: c.first_name, last_name: c.last_name })) : prev.clients || [],
+            schedules: nextSchedules ? nextSchedules.map(({ clientAddress: _a, clientCity: _c, ...s }) => s) : prev.schedules || [],
+            clients: nextClients ? nextClients.map((c) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName })) : prev.clients || [],
           }))
         } catch { /* the cache is a bonus */ }
       }
@@ -284,10 +290,10 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
       } else if (act.ok) {
         const d = act.data
         if (d && !Array.isArray(d) && d.id) {
-          const av = ctxData?.activeVisit && ctxData.activeVisit.time_entry_id === d.id ? ctxData.activeVisit.sandata_required : undefined
+          const av = ctxData?.activeVisit && ctxData.activeVisit.timeEntryId === d.id ? ctxData.activeVisit.sandataRequired : undefined
           setActive((prev) => ({
-            id: String(d.id), client_id: String(d.client_id), start_time: String(d.start_time), client_name: d.client_name || null,
-            sandata_required: av !== undefined ? av : prev && prev.id === d.id ? prev.sandata_required ?? null : null,
+            id: String(d.id), clientId: String(d.clientId), startTime: String(d.startTime), clientName: d.clientName || null,
+            sandataRequired: av !== undefined ? av : prev && prev.id === d.id ? prev.sandataRequired ?? null : null,
           }))
         } else {
           // The server has no open visit. A clock-in still saved on this phone is one.
@@ -466,7 +472,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const checkClockIn = useCallback(async (clientId: string): Promise<ClockInCheck> => {
-    const blocked = clockInBlocker({ clientId, active: activeRef.current, busy: clockingIn, activeClientName: activeRef.current ? (activeRef.current.client_name || clientName(activeRef.current.client_id)) : null })
+    const blocked = clockInBlocker({ clientId, active: activeRef.current, busy: clockingIn, activeClientName: activeRef.current ? (activeRef.current.clientName || clientName(activeRef.current.clientId)) : null })
     if (blocked) return { blocked, fix: null, denied: false, verdict: { status: 'unknown', reason: 'no_fix' } }
     const [{ fix, denied }, geo] = await Promise.all([getFix(6000), geofenceFor(clientId)])
     const c = clients.find((x) => x.id === clientId)
@@ -484,7 +490,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   // ── clock in ────────────────────────────────────────────────────────────────
   const clockIn = useCallback(async (clientId: string, fix: Fix | null): Promise<PunchResult> => {
     if (!userId) return { ok: false, error: 'Not signed in.' }
-    const blocked = clockInBlocker({ clientId, active: activeRef.current, busy: clockingIn, activeClientName: activeRef.current ? (activeRef.current.client_name || clientName(activeRef.current.client_id)) : null })
+    const blocked = clockInBlocker({ clientId, active: activeRef.current, busy: clockingIn, activeClientName: activeRef.current ? (activeRef.current.clientName || clientName(activeRef.current.clientId)) : null })
     if (blocked) return { ok: false, error: blocked }
     setClockingIn(true)
     punchGen.current++
@@ -496,18 +502,19 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
         const localId = newLocalId()
         const saved = await punchQueue.save({ userId, localId, kind: 'in', at: tapAt, clientId, latitude: fix?.latitude ?? null, longitude: fix?.longitude ?? null })
         if (!saved) return { ok: false, error: 'No signal, and this phone could not save the clock-in. Call the office with your start time.' }
-        setActive({ id: `${OFFLINE_PREFIX}${localId}`, offline: true, client_id: clientId, start_time: tapAt, client_name: name })
+        setActive({ id: `${OFFLINE_PREFIX}${localId}`, offline: true, clientId, startTime: tapAt, clientName: name })
         setPendingPunches(await punchQueue.count(userId))
         afterPunch('in', clientId, null)
         return { ok: true, queued: true, message: `No signal — clock-in saved on your phone at ${formatClock(tapAt)}. It sends by itself when you have signal.` }
       }
       if (!res.ok) return { ok: false, error: res.error || 'Clock-in failed.', code: res.data?.code }
+      // The new time entry (camelCase): id, clientId, startTime, sandataRequired — the server's EVV call for this visit.
       const d = res.data || {}
       setActive({
-        id: String(d.id), client_id: String(d.client_id || clientId), start_time: String(d.start_time || d.startTime || tapAt),
-        client_name: name, sandata_required: d.sandata_required ?? null,
+        id: String(d.id), clientId: String(d.clientId || clientId), startTime: String(d.startTime || tapAt),
+        clientName: name, sandataRequired: d.sandataRequired ?? null,
       })
-      afterPunch('in', clientId, d.sandata_required)
+      afterPunch('in', clientId, d.sandataRequired)
       if (!fix && d.id) startLateFix(String(d.id), 'clock_in')
       return { ok: true, message: fix ? `Clocked in with ${name}.` : `Clocked in with ${name} — location wasn't ready; still trying in the background.` }
     } finally {
@@ -549,7 +556,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const prev = prevActive.current
     prevActive.current = active
-    if (!prev || !active || !isOfflineId(prev.id) || isOfflineId(active.id) || prev.client_id !== active.client_id) return
+    if (!prev || !active || !isOfflineId(prev.id) || isOfflineId(active.id) || prev.clientId !== active.clientId) return
     if (visitNote) AsyncStorage.setItem(NOTE_KEY(active.id), visitNote).catch(() => {})
     AsyncStorage.removeItem(NOTE_KEY(prev.id)).catch(() => {})
     for (const p of photos) if (p.status === 'waiting' && p.dataUri) sendPhoto(active.id, p)
@@ -567,11 +574,11 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
     punchGen.current++
     cancelLateFix()
     const tapAt = new Date().toISOString()
-    const clientId = a.client_id
+    const clientId = a.clientId
     // Failed or waiting photos are retried at clock-out; one still sending finishes on its own.
     const unsent = photos.filter((p) => p.status === 'failed' || p.status === 'waiting')
     const finishSavedOffline = async (): Promise<PunchResult> => {
-      afterPunch('out', clientId, a.sandata_required)
+      afterPunch('out', clientId, a.sandataRequired)
       setActive(null); setPhotos([])
       AsyncStorage.removeItem(NOTE_KEY(a.id)).catch(() => {})
       setPendingPunches(await punchQueue.count(userId))
@@ -598,7 +605,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
       if (!fix) startLateFix(a.id, 'clock_out')
       let failed = 0
       for (const p of unsent) if (!p.dataUri || !(await sendPhoto(a.id, p))) failed++
-      const sandataRequired = res.data && res.data.sandata_required != null ? res.data.sandata_required : a.sandata_required
+      const sandataRequired = res.data && res.data.sandataRequired != null ? res.data.sandataRequired : a.sandataRequired
       afterPunch('out', clientId, sandataRequired)
       setActive(null); setPhotos([])
       AsyncStorage.removeItem(NOTE_KEY(a.id)).catch(() => {})
@@ -621,7 +628,7 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
 
   const visits = useMemo(() => {
     const names: Record<string, string> = {}
-    for (const c of clients) names[c.id] = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+    for (const c of clients) names[c.id] = `${c.firstName || ''} ${c.lastName || ''}`.trim()
     return expandVisits(schedules, today, 14, names)
   }, [schedules, clients, today])
   const todayVisits = useMemo(() => visits.filter((v) => v.date === today), [visits, today])
@@ -635,9 +642,9 @@ export function CareProvider({ children }: { children: React.ReactNode }) {
     active, recent, hoursThisWeek,
     unsignedDocs,
     swaps,
-    incomingSwaps: swaps.filter((s) => s.target_id === me && s.status === 'pending'),
-    clientRequests: requests.filter((r) => r.requested_by === 'client'),
-    myRequests: requests.filter((r) => r.requested_by === 'caregiver'),
+    incomingSwaps: swaps.filter((s) => s.targetId === me && s.status === 'pending'),
+    clientRequests: requests.filter((r) => r.requestedBy === 'client'),
+    myRequests: requests.filter((r) => r.requestedBy === 'caregiver'),
     unreadMessages, unreadNotifications,
     payday, paydayVisible: showPayday(payday, snooze, Date.now()), snoozePaydayNow, paydayResolved,
     pendingPunches, sendSavedPunches: flushNow,

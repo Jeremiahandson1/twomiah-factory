@@ -36,11 +36,12 @@ export interface Punch {
 /** The transport: POST `path` with `body`. status 0 = never reached the server. */
 export type PunchSender = (path: string, body: Record<string, unknown>) => Promise<{ status: number; data: any }>
 
+/** The open visit a saved clock-in stands for — the same field names as the server's open visit (CareContext ActiveVisit). */
 export interface OfflineSession {
   id: string
   offline: true
-  client_id: string
-  start_time: string
+  clientId: string
+  startTime: string
 }
 
 /** A response that never got a real answer from our server. */
@@ -110,7 +111,7 @@ export function createPunchQueue(kv: KV, key = 'twomiah_care_offline_punches_v1'
     const mine = await pending(userId)
     const ins = mine.filter((p) => p.kind === 'in' && !mine.some((o) => o.kind === 'out' && o.inLocalId === p.localId))
     const last = ins[ins.length - 1]
-    return last ? { id: `${OFFLINE_PREFIX}${last.localId}`, offline: true, client_id: String(last.clientId || ''), start_time: last.at } : null
+    return last ? { id: `${OFFLINE_PREFIX}${last.localId}`, offline: true, clientId: String(last.clientId || ''), startTime: last.at } : null
   }
 
   /**

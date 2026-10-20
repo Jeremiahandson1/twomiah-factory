@@ -49,8 +49,9 @@ function DocumentCard({ d, onDrawing }: { d: any; onDrawing: (v: boolean) => voi
   const [typedName, setTypedName] = useState(`${user?.firstName || ''} ${user?.lastName || ''}`.trim())
   const [saving, setSaving] = useState(false)
   const dangerTone = useTone('danger')
-  const isImage = IMAGE_TYPES.includes(String(d.file_type || '').toLowerCase())
-  const name = d.name || d.document_name || d.file_name || 'Document'
+  // GET /api/documents/unsigned/:me rows: { id, name, description, fileType, fileName, expirationDate, … }
+  const isImage = IMAGE_TYPES.includes(String(d.fileType || '').toLowerCase())
+  const name = d.name || d.fileName || 'Document'
 
   const expand = async () => {
     setOpen(true)
@@ -70,7 +71,7 @@ function DocumentCard({ d, onDrawing }: { d: any; onDrawing: (v: boolean) => voi
     <Card>
       <Text style={[styles.name, { color: t.text }]}>{name}</Text>
       {d.description ? <Text style={[styles.meta, { color: t.textSecondary }]}>{d.description}</Text> : null}
-      {d.expiration_date ? <Text style={[styles.meta, { color: dangerTone.text, fontWeight: '700' }]}>Expires {formatYmdShort(String(d.expiration_date).slice(0, 10))}</Text> : null}
+      {d.expirationDate ? <Text style={[styles.meta, { color: dangerTone.text, fontWeight: '700' }]}>Expires {formatYmdShort(String(d.expirationDate).slice(0, 10))}</Text> : null}
       {!open ? (
         <Button small style={{ marginTop: 10, alignSelf: 'flex-start' }} icon="create-outline" label="Read and sign" onPress={expand} />
       ) : (
@@ -81,7 +82,7 @@ function DocumentCard({ d, onDrawing }: { d: any; onDrawing: (v: boolean) => voi
                 : <Banner tone="warning" icon="alert-circle">The document didn't load. Check your signal, or read it on your agency's web portal.</Banner>
           ) : (
             <Banner tone="info" icon="document-text-outline">
-              {`This is a ${String(d.file_type || 'document').toUpperCase()} file. Read it on your agency's web portal (or ask the office for a copy) before you sign.`}
+              {`This is a ${String(d.fileType || 'document').toUpperCase()} file. Read it on your agency's web portal (or ask the office for a copy) before you sign.`}
             </Banner>
           )}
           <Choice label="I have read this document" selected={read} onPress={() => setRead((v) => !v)} />

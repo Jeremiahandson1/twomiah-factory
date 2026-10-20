@@ -27,20 +27,23 @@ export default function UnitsScreen() {
   const [search, setSearch] = useState('')
   const ds = useDebounce(search)
 
+  // GET /api/units answers { data, pagination } (apps/unified/server/crm/rv/units.ts) and searches make, model, VIN and
+  // stock number itself (?search=) — so a lot bigger than one page is still found, not just its newest 100 units.
+  const q = ds.trim()
   const load = useCallback(async () => {
-    const res = await get('/api/units?limit=100')
-    if (res.ok) { const data = res.data?.data || res.data || []; setUnits(Array.isArray(data) ? data : []) }
+    const params = new URLSearchParams({ limit: '100' })
+    if (q) params.set('search', q)
+    const res = await get(`/api/units?${params}`)
+    if (res.ok) { const data = res.data?.data; setUnits(Array.isArray(data) ? data : []) }
     setLoading(false)
-  }, [])
+  }, [q])
   useEffect(() => { load() }, [load])
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false) }
 
-  const q = ds.trim().toLowerCase()
-  const filtered = !q ? units : units.filter((u) => [u.year, u.make, u.modelName, u.model, u.stockNumber].filter(Boolean).join(' ').toLowerCase().includes(q))
-
   const render = ({ item: u, index }: { item: any; index: number }) => {
-    const name = [u.year, u.make, u.modelName || u.model].filter(Boolean).join(' ')
-    const price = u.internetPrice || u.price || u.salePrice
+    const name = [u.year, u.make, u.modelName].filter(Boolean).join(' ')
+    // The unit's advertised price is internetPrice, a decimal string ("45999.00") or null; there is no price/salePrice.
+    const price = u.internetPrice
     return (
       <AnimatedCard index={index}>
         <TouchableOpacity style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]} activeOpacity={0.7}
@@ -65,7 +68,7 @@ export default function UnitsScreen() {
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search inventory..." />
       {loading ? <SkeletonList count={6} /> : (
         <FlatList
-          data={filtered}
+          data={units}
           keyExtractor={(it, i) => it.id || String(i)}
           renderItem={render}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}

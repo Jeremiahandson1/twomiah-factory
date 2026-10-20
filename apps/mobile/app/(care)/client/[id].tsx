@@ -43,7 +43,7 @@ export default function ClientScreen() {
   }, [id, care.clientById])
   useEffect(() => { load() }, [load])
 
-  const name = client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : care.clientName(id)
+  const name = client ? `${client.firstName || ''} ${client.lastName || ''}`.trim() : care.clientName(id)
   const addr = fullAddress(client)
   const upcoming = care.visits.filter((v) => v.clientId === id).slice(0, 6)
 
@@ -65,11 +65,11 @@ export default function ClientScreen() {
         <SandataIdBox client={care.sandataClient(id)} />
       </Card>
 
-      {(client?.allergies || client?.assistance_needs || client?.service_type) && (
+      {(client?.allergies || client?.assistanceNeeds || client?.serviceType) && (
         <Card>
           {client?.allergies ? <Banner tone="danger" icon="medkit-outline" title="Allergies">{String(client.allergies)}</Banner> : null}
-          <KeyValue label="Assistance needs" value={client?.assistance_needs} />
-          <KeyValue label="Service" value={client?.service_type} />
+          <KeyValue label="Assistance needs" value={client?.assistanceNeeds} />
+          <KeyValue label="Service" value={client?.serviceType} />
         </Card>
       )}
 

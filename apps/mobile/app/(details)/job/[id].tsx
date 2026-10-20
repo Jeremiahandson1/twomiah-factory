@@ -1,82 +1,119 @@
 /**
- * Job Detail — full job info, status timeline, photos, notes, actions.
+ * Job Detail — the job, its progress, photos, notes and the actions this seat may take.
+ *
+ * Two job modules answer /api/jobs on the unified server (modules/crm.ts):
+ *   · the shared one (packages/tenant-backend jobs/jobs.ts) — contractor, basic, field service, landscaping: statuses
+ *     scheduled → dispatched → in_progress → completed moved by POST /:id/start, /dispatch, /complete (jobs:update);
+ *     `notes` is ONE text column, saved with PUT /:id { notes }; the person on it is `assignedTo` { name }.
+ *   · roofing's (server/crm/roof/jobs.ts) — the pipeline lead → … → collected moved by POST /:id/advance, ended by
+ *     POST /:id/close { status: lost|cancelled, lostReason } and undone by /:id/reopen; GET /:id answers `notes` as the
+ *     job's NOTE ROWS ({ id, body, createdAt }), added by POST /:id/notes { body }; the crew is `crew` { name,
+ *     foremanName }; the claim is claimNumber / insuranceCompany / adjusterName on the job itself.
+ * Every action here is jobs:update — the office and the field seat hold it, the read-only viewer does not.
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
 import {
-  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Linking, TextInput,
+  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Linking, TextInput, Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import DateTimePicker from '@react-native-community/datetimepicker'
 import { useTheme } from '../../../src/theme/ThemeContext'
 import { useVertical } from '../../../src/vertical/VerticalContext'
-import { get, post } from '../../../src/api/client'
+import { get, post, put } from '../../../src/api/client'
+import { useAuth } from '../../../src/auth/AuthContext'
 import { StatusBadge } from '../../../src/components/StatusBadge'
 import { SkeletonList } from '../../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../../src/components/AnimatedCard'
 import { ConfirmSheet } from '../../../src/components/ConfirmSheet'
 import { useToast } from '../../../src/components/ToastProvider'
 import { useHaptics } from '../../../src/hooks/useHaptics'
-import { useLocation } from '../../../src/hooks/useLocation'
 import { useRealTimeEvent, EVENTS } from '../../../src/socket/SocketContext'
 import { PhotoGallery } from '../../../src/components/PhotoGallery'
 
 const STATUS_STEPS = ['scheduled', 'dispatched', 'in_progress', 'completed']
+/** Roofing's pipeline, in order (server/crm/roof/validation.ts PIPELINE_STATUSES — Advance steps along it). */
+export const ROOF_STAGES = [
+  'lead', 'inspection_scheduled', 'inspected', 'measurement_ordered', 'proposal_sent',
+  'signed', 'material_ordered', 'in_production', 'final_inspection', 'invoiced', 'collected',
+]
+const ROOF_CLOSED = ['lost', 'cancelled']
+const label = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+const pad = (n: number) => String(n).padStart(2, '0')
+/** A wall-clock time with no zone: the roofing server reads it on the company's clock (validation.ts onCompanyClock). */
+const wallTime = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const t = useTheme()
   const { vertical } = useVertical()
+  const { can } = useAuth()
+  const isRoof = vertical === 'roofing'
+  // jobs:update — the office and the field seat hold it; the viewer reads only.
+  const canWork = can('jobs:update')
+  // A contractor's photos are documents (documents:create); every other vertical's are the job's (jobs:update).
+  const canAddPhotos = vertical === 'contractor' ? can('documents:create') : canWork
   const toast = useToast()
   const haptics = useHaptics()
-  const { requestLocation } = useLocation()
   const [job, setJob] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [showComplete, setShowComplete] = useState(false)
   const [noteText, setNoteText] = useState('')
-  const [addingNote, setAddingNote] = useState(false)
+  const [savingNote, setSavingNote] = useState(false)
+  const [closeReason, setCloseReason] = useState('')
+  const [showInspection, setShowInspection] = useState<null | 'date' | 'time'>(null)
+  const [inspectionAt, setInspectionAt] = useState(() => { const d = new Date(); d.setHours(10, 0, 0, 0); return d })
 
   const load = useCallback(async () => {
     const res = await get(`/api/jobs/${id}`)
-    if (res.ok) setJob(res.data)
+    if (res.ok) {
+      setJob(res.data)
+      // The shared job's notes are one text: the box edits it in place.
+      if (!isRoof) setNoteText(typeof res.data?.notes === 'string' ? res.data.notes : '')
+    }
     setLoading(false)
-  }, [id])
+  }, [id, isRoof])
 
   useEffect(() => { load() }, [load])
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false) }
 
-  useRealTimeEvent(EVENTS.JOB_UPDATED, load)
-  useRealTimeEvent(EVENTS.JOB_STATUS_CHANGED, load)
+  useRealTimeEvent(EVENTS.JOB_UPDATED, load, [load])
+  useRealTimeEvent(EVENTS.JOB_STATUS_CHANGED, load, [load])
 
-  const handleStart = async () => {
-    const loc = await requestLocation()
-    const res = await post(`/api/jobs/${id}/start`, loc ? { latitude: loc.latitude, longitude: loc.longitude } : undefined)
-    if (res.ok) { haptics.success(); toast.success('Job started'); load() }
-    else { haptics.error(); toast.error(res.error || 'Failed to start') }
+  const act = async (path: string, body: any, success: string) => {
+    const res = await post(`/api/jobs/${id}/${path}`, body)
+    if (res.ok) { haptics.success(); toast.success(success); load() }
+    else { haptics.error(); toast.error(res.error || 'That did not go through') }
+    return res.ok
   }
 
-  const handleComplete = async () => {
-    const res = await post(`/api/jobs/${id}/complete`)
-    if (res.ok) { haptics.success(); toast.success('Job completed'); load() }
-    else { haptics.error(); toast.error(res.error || 'Failed to complete') }
+  const handleSaveNote = async () => {
+    setSavingNote(true)
+    if (isRoof) {
+      const res = await post(`/api/jobs/${id}/notes`, { body: noteText.trim() })
+      if (res.ok) { toast.success('Note added'); setNoteText(''); load() }
+      else { toast.error(res.error || 'Failed to add note') }
+    } else {
+      const res = await put(`/api/jobs/${id}`, { notes: noteText })
+      if (res.ok) { toast.success('Notes saved'); load() }
+      else { toast.error(res.error || 'Failed to save notes') }
+    }
+    setSavingNote(false)
   }
 
-  const handleDispatch = async () => {
-    const res = await post(`/api/jobs/${id}/dispatch`)
-    if (res.ok) { haptics.success(); toast.success('Job dispatched'); load() }
-    else { haptics.error(); toast.error(res.error || 'Failed to dispatch') }
+  const scheduleInspection = async (at: Date) => {
+    const res = await put(`/api/jobs/${id}`, { inspectionDate: wallTime(at) })
+    if (res.ok) { haptics.success(); toast.success('Inspection scheduled'); load() }
+    else { haptics.error(); toast.error(res.error || 'Could not schedule the inspection') }
   }
 
-  const handleAddNote = async () => {
-    if (!noteText.trim()) return
-    setAddingNote(true)
-    const res = await post(`/api/jobs/${id}/notes`, { content: noteText.trim() })
-    if (res.ok) { toast.success('Note added'); setNoteText(''); load() }
-    else { toast.error(res.error || 'Failed to add note') }
-    setAddingNote(false)
+  const closeJob = async (status: 'lost' | 'cancelled') => {
+    if (!closeReason.trim()) { toast.error('Say why — close-rate reporting is built on it'); return }
+    if (await act('close', { status, lostReason: closeReason.trim() }, `Job closed as ${status}`)) setCloseReason('')
   }
 
   if (loading) {
@@ -97,17 +134,28 @@ export default function JobDetailScreen() {
     )
   }
 
-  const currentStep = STATUS_STEPS.indexOf(job.status)
+  const steps = isRoof ? ROOF_STAGES : STATUS_STEPS
+  const currentStep = steps.indexOf(job.status)
+  const roofClosed = isRoof && ROOF_CLOSED.includes(job.status)
+  const nextStage = isRoof && currentStep >= 0 && currentStep < ROOF_STAGES.length - 1 ? ROOF_STAGES[currentStep + 1] : null
+  // Roofing shows four stages around where the job is, not eleven dots across a phone.
+  const windowStart = Math.max(0, Math.min(currentStep - 1, ROOF_STAGES.length - 4))
+  const shownSteps = isRoof ? ROOF_STAGES.slice(windowStart, windowStart + 4) : STATUS_STEPS
+  const roofNotes: any[] = isRoof && Array.isArray(job.notes) ? job.notes : []
+  const hasClaim = isRoof && (job.jobType === 'insurance' || job.claimNumber || job.insuranceCompany)
+  const assignee: string = job.assignedTo?.name || [job.assignedTo?.firstName, job.assignedTo?.lastName].filter(Boolean).join(' ')
+  const savedNotes = typeof job.notes === 'string' ? job.notes : ''
+  const noteReady = isRoof ? !!noteText.trim() : noteText !== savedNotes
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
       <Stack.Screen options={{
         title: job.number || 'Job',
-        headerRight: () => (
+        headerRight: canWork ? () => (
           <TouchableOpacity onPress={() => router.push(`/(details)/job/form?id=${id}`)}>
             <Ionicons name="create-outline" size={22} color={t.text} />
           </TouchableOpacity>
-        ),
+        ) : undefined,
       }} />
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -119,7 +167,9 @@ export default function JobDetailScreen() {
             <View style={styles.headerRow}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.title, { color: t.text }]}>{job.title}</Text>
-                <Text style={[styles.jobNumber, { color: t.textSecondary }]}>{job.number}</Text>
+                <Text style={[styles.jobNumber, { color: t.textSecondary }]}>
+                  {job.number}{isRoof && job.jobType ? ` • ${label(job.jobType)}` : ''}
+                </Text>
               </View>
               <StatusBadge status={job.status} />
             </View>
@@ -127,50 +177,62 @@ export default function JobDetailScreen() {
         </AnimatedCard>
 
         {/* Status Timeline */}
-        <AnimatedCard index={1}>
-          <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
-            <Text style={[styles.sectionTitle, { color: t.text }]}>Progress</Text>
-            <View style={styles.timeline}>
-              {STATUS_STEPS.map((step, i) => {
-                const isActive = i <= currentStep
-                const isCurrent = i === currentStep
-                return (
-                  <View key={step} style={styles.timelineStep}>
-                    <View style={[
-                      styles.dot,
-                      { backgroundColor: isActive ? t.primary : t.border },
-                      isCurrent && styles.dotCurrent,
-                    ]} />
-                    <Text style={[
-                      styles.stepLabel,
-                      { color: isActive ? t.text : t.textMuted },
-                      isCurrent && { fontWeight: '700' },
-                    ]}>{step.replace('_', ' ')}</Text>
-                    {i < STATUS_STEPS.length - 1 && (
-                      <View style={[styles.connector, { backgroundColor: i < currentStep ? t.primary : t.border }]} />
-                    )}
-                  </View>
-                )
-              })}
+        {!roofClosed && (
+          <AnimatedCard index={1}>
+            <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+              <Text style={[styles.sectionTitle, { color: t.text }]}>Progress</Text>
+              <View style={styles.timeline}>
+                {shownSteps.map((step, i) => {
+                  const at = steps.indexOf(step)
+                  const isActive = at <= currentStep
+                  const isCurrent = at === currentStep
+                  return (
+                    <View key={step} style={styles.timelineStep}>
+                      <View style={[
+                        styles.dot,
+                        { backgroundColor: isActive ? t.primary : t.border },
+                        isCurrent && styles.dotCurrent,
+                      ]} />
+                      <Text style={[
+                        styles.stepLabel,
+                        { color: isActive ? t.text : t.textMuted },
+                        isCurrent && { fontWeight: '700' },
+                      ]}>{step.replace(/_/g, ' ')}</Text>
+                      {i < shownSteps.length - 1 && (
+                        <View style={[styles.connector, { backgroundColor: at < currentStep ? t.primary : t.border }]} />
+                      )}
+                    </View>
+                  )
+                })}
+              </View>
             </View>
-          </View>
-        </AnimatedCard>
+          </AnimatedCard>
+        )}
 
         {/* Info */}
         <AnimatedCard index={2}>
           <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
             <Text style={[styles.sectionTitle, { color: t.text }]}>Details</Text>
-            {job.contact && (
+            {job.contact ? (
               <TouchableOpacity style={styles.infoRow} onPress={() => router.push(`/(details)/contact/${job.contact.id || job.contactId}`)}>
                 <Ionicons name="person-outline" size={16} color={t.primary} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: t.textMuted }]}>Contact</Text>
-                  <Text style={[styles.infoValue, { color: t.primary }]}>{job.contact.name || [job.contact.firstName, job.contact.lastName].filter(Boolean).join(' ')}</Text>
+                  <Text style={[styles.infoLabel, { color: t.textMuted }]}>{isRoof ? 'Homeowner' : 'Contact'}</Text>
+                  <Text style={[styles.infoValue, { color: t.primary }]}>{job.contact.name}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={t.textMuted} />
               </TouchableOpacity>
-            )}
-            {job.address && (
+            ) : null}
+            {job.contact?.phone ? (
+              <TouchableOpacity style={styles.infoRow} onPress={() => Linking.openURL(`tel:${job.contact.phone}`)}>
+                <Ionicons name="call-outline" size={16} color={t.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.infoLabel, { color: t.textMuted }]}>Phone</Text>
+                  <Text style={[styles.infoValue, { color: t.primary }]}>{job.contact.phone}</Text>
+                </View>
+              </TouchableOpacity>
+            ) : null}
+            {job.address ? (
               <TouchableOpacity style={styles.infoRow} onPress={() => {
                 const addr = encodeURIComponent(`${job.address}, ${job.city || ''} ${job.state || ''} ${job.zip || ''}`)
                 Linking.openURL(`https://maps.google.com/?q=${addr}`)
@@ -182,69 +244,73 @@ export default function JobDetailScreen() {
                 </View>
                 <Ionicons name="navigate" size={16} color={t.textMuted} />
               </TouchableOpacity>
-            )}
-            {job.scheduledDate && (
-              <View style={styles.infoRow}>
-                <Ionicons name="calendar-outline" size={16} color={t.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: t.textMuted }]}>Scheduled</Text>
-                  <Text style={[styles.infoValue, { color: t.text }]}>
-                    {new Date(job.scheduledDate).toLocaleDateString()}{job.scheduledTime ? ` at ${job.scheduledTime}` : ''}
-                  </Text>
-                </View>
-              </View>
-            )}
-            {job.description && (
-              <View style={styles.infoRow}>
-                <Ionicons name="document-text-outline" size={16} color={t.textMuted} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.infoLabel, { color: t.textMuted }]}>Description</Text>
-                  <Text style={[styles.infoValue, { color: t.text }]}>{job.description}</Text>
-                </View>
-              </View>
-            )}
+            ) : null}
+            {job.scheduledDate ? (
+              <InfoRow icon="calendar-outline" label="Scheduled" t={t}
+                value={`${new Date(job.scheduledDate).toLocaleDateString()}${job.scheduledTime ? ` at ${job.scheduledTime}` : ''}`} />
+            ) : null}
+            {isRoof && job.inspectionDate ? (
+              <InfoRow icon="search-outline" label="Inspection" t={t} value={new Date(job.inspectionDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} />
+            ) : null}
+            {isRoof && job.installDate ? (
+              <InfoRow icon="hammer-outline" label="Install" t={t} value={new Date(job.installDate).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })} />
+            ) : null}
+            {isRoof && job.roofType ? (
+              <InfoRow icon="home-outline" label="Roof" t={t} value={`${job.roofType}${job.stories ? ` • ${job.stories} ${job.stories === 1 ? 'story' : 'stories'}` : ''}`} />
+            ) : null}
+            {job.description ? <InfoRow icon="document-text-outline" label="Description" t={t} value={job.description} /> : null}
+            {roofClosed && job.lostReason ? <InfoRow icon="close-circle-outline" label={`Closed as ${job.status}`} t={t} value={job.lostReason} /> : null}
           </View>
         </AnimatedCard>
 
-        {/* Assigned Team */}
-        {job.assignedTeam?.length > 0 && (
+        {/* Who is on it */}
+        {assignee || job.crew ? (
           <AnimatedCard index={3}>
             <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
               <Text style={[styles.sectionTitle, { color: t.text }]}>Crew</Text>
-              {job.assignedTeam.map((member: any) => (
-                <View key={member.id} style={styles.crewRow}>
+              {assignee ? (
+                <View style={styles.crewRow}>
                   <View style={[styles.crewAvatar, { backgroundColor: t.primaryLight }]}>
-                    <Text style={{ color: t.primary, fontWeight: '700', fontSize: 13 }}>
-                      {(member.firstName || member.name || '?')[0].toUpperCase()}
-                    </Text>
+                    <Text style={{ color: t.primary, fontWeight: '700', fontSize: 13 }}>{assignee[0].toUpperCase()}</Text>
                   </View>
-                  <Text style={[styles.crewName, { color: t.text }]}>
-                    {member.firstName ? `${member.firstName} ${member.lastName || ''}` : member.name}
-                  </Text>
+                  <Text style={[styles.crewName, { color: t.text }]}>{assignee}</Text>
                 </View>
-              ))}
+              ) : null}
+              {job.crew ? (
+                <View style={styles.crewRow}>
+                  <View style={[styles.crewAvatar, { backgroundColor: t.primaryLight }]}>
+                    <Text style={{ color: t.primary, fontWeight: '700', fontSize: 13 }}>{String(job.crew.name || '?')[0].toUpperCase()}</Text>
+                  </View>
+                  <View>
+                    <Text style={[styles.crewName, { color: t.text }]}>{job.crew.name}</Text>
+                    {job.crew.foremanName ? <Text style={{ color: t.textMuted, fontSize: 12 }}>Foreman: {job.crew.foremanName}</Text> : null}
+                  </View>
+                </View>
+              ) : null}
             </View>
           </AnimatedCard>
-        )}
+        ) : null}
 
-        {/* Insurance (roofing) */}
-        {vertical === 'roofing' && job.insuranceClaim && (
+        {/* Insurance (roofing) — the claim fields on the job itself */}
+        {hasClaim ? (
           <AnimatedCard index={4}>
             <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <Ionicons name="shield" size={18} color="#f59e0b" />
                 <Text style={[styles.sectionTitle, { color: t.text, marginBottom: 0 }]}>Insurance Claim</Text>
               </View>
-              {job.insuranceCompany && <Text style={{ color: t.textSecondary, fontSize: 13 }}>Carrier: {job.insuranceCompany}</Text>}
-              {job.claimNumber && <Text style={{ color: t.textSecondary, fontSize: 13, marginTop: 4 }}>Claim #: {job.claimNumber}</Text>}
+              {job.insuranceCompany ? <Text style={{ color: t.textSecondary, fontSize: 13 }}>Carrier: {job.insuranceCompany}</Text> : null}
+              {job.claimNumber ? <Text style={{ color: t.textSecondary, fontSize: 13, marginTop: 4 }}>Claim #: {job.claimNumber}</Text> : null}
+              {job.adjusterName ? <Text style={{ color: t.textSecondary, fontSize: 13, marginTop: 4 }}>Adjuster: {job.adjusterName}{job.adjusterPhone ? ` • ${job.adjusterPhone}` : ''}</Text> : null}
+              {!job.insuranceCompany && !job.claimNumber ? <Text style={{ color: t.textMuted, fontSize: 13 }}>No claim details yet</Text> : null}
             </View>
           </AnimatedCard>
-        )}
+        ) : null}
 
         {/* Photos */}
         <AnimatedCard index={5}>
           <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
-            <PhotoGallery entityType="jobId" entityId={id!} />
+            <PhotoGallery jobId={id!} canAdd={canAddPhotos} />
           </View>
         </AnimatedCard>
 
@@ -252,66 +318,142 @@ export default function JobDetailScreen() {
         <AnimatedCard index={6}>
           <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
             <Text style={[styles.sectionTitle, { color: t.text }]}>Notes</Text>
-            {(job.notes || []).map((note: any, i: number) => (
+            {isRoof ? roofNotes.map((note: any, i: number) => (
               <View key={note.id || i} style={[styles.noteRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border }]}>
-                <Text style={[styles.noteText, { color: t.text }]}>{note.content || note.text || note}</Text>
-                {note.createdAt && <Text style={[styles.noteMeta, { color: t.textMuted }]}>{new Date(note.createdAt).toLocaleString()}</Text>}
+                <Text style={[styles.noteText, { color: t.text }]}>{note.body}</Text>
+                {note.createdAt ? <Text style={[styles.noteMeta, { color: t.textMuted }]}>{new Date(note.createdAt).toLocaleString()}</Text> : null}
               </View>
-            ))}
-            <View style={styles.noteInput}>
-              <TextInput
-                style={[styles.noteField, { backgroundColor: t.background, color: t.text, borderColor: t.border }]}
-                placeholder="Add a note..."
-                placeholderTextColor={t.textMuted}
-                value={noteText}
-                onChangeText={setNoteText}
-                multiline
-              />
-              <TouchableOpacity
-                style={[styles.noteSend, { backgroundColor: t.primary, opacity: noteText.trim() ? 1 : 0.5 }]}
-                onPress={handleAddNote}
-                disabled={!noteText.trim() || addingNote}
-              >
-                <Ionicons name="send" size={16} color="#fff" />
-              </TouchableOpacity>
-            </View>
+            )) : !canWork ? (
+              <Text style={[styles.noteText, { color: savedNotes ? t.text : t.textMuted }]}>{savedNotes || 'No notes'}</Text>
+            ) : null}
+            {canWork && (
+              <View style={styles.noteInput}>
+                <TextInput
+                  style={[styles.noteField, !isRoof && styles.noteFieldTall, { backgroundColor: t.background, color: t.text, borderColor: t.border }]}
+                  placeholder={isRoof ? 'Add a note...' : 'Notes about this job...'}
+                  placeholderTextColor={t.textMuted}
+                  value={noteText}
+                  onChangeText={setNoteText}
+                  multiline
+                  textAlignVertical="top"
+                />
+                <TouchableOpacity
+                  style={[styles.noteSend, { backgroundColor: t.primary, opacity: noteReady ? 1 : 0.5 }]}
+                  onPress={handleSaveNote}
+                  disabled={savingNote || !noteReady}
+                >
+                  <Ionicons name={isRoof ? 'send' : 'checkmark'} size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </AnimatedCard>
 
-        {/* Actions */}
-        <AnimatedCard index={7}>
-          <View style={styles.actionsCol}>
-            {(job.status === 'scheduled' || job.status === 'dispatched') && (
-              <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#22c55e' }]} onPress={handleStart}>
-                <Ionicons name="play" size={20} color="#fff" />
-                <Text style={styles.actionBtnText}>Start Job</Text>
-              </TouchableOpacity>
-            )}
-            {job.status === 'scheduled' && (
-              <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#3b82f6' }]} onPress={handleDispatch}>
-                <Ionicons name="paper-plane" size={20} color="#fff" />
-                <Text style={styles.actionBtnText}>Dispatch</Text>
-              </TouchableOpacity>
-            )}
-            {job.status === 'in_progress' && (
-              <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#8b5cf6' }]} onPress={() => setShowComplete(true)}>
-                <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                <Text style={styles.actionBtnText}>Complete Job</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </AnimatedCard>
+        {/* Actions — jobs:update */}
+        {canWork && (
+          <AnimatedCard index={7}>
+            <View style={styles.actionsCol}>
+              {!isRoof && (job.status === 'scheduled' || job.status === 'dispatched') && (
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#22c55e' }]} onPress={() => act('start', undefined, 'Job started')}>
+                  <Ionicons name="play" size={20} color="#fff" />
+                  <Text style={styles.actionBtnText}>Start Job</Text>
+                </TouchableOpacity>
+              )}
+              {!isRoof && job.status === 'scheduled' && (
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#3b82f6' }]} onPress={() => act('dispatch', undefined, 'Job dispatched')}>
+                  <Ionicons name="paper-plane" size={20} color="#fff" />
+                  <Text style={styles.actionBtnText}>Dispatch</Text>
+                </TouchableOpacity>
+              )}
+              {!isRoof && job.status === 'in_progress' && (
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#8b5cf6' }]} onPress={() => setShowComplete(true)}>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={styles.actionBtnText}>Complete Job</Text>
+                </TouchableOpacity>
+              )}
+
+              {isRoof && job.status === 'lead' && (
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#0ea5e9' }]} onPress={() => setShowInspection('date')}>
+                  <Ionicons name="calendar" size={20} color="#fff" />
+                  <Text style={styles.actionBtnText}>{job.inspectionDate ? 'Reschedule Inspection' : 'Schedule Inspection'}</Text>
+                </TouchableOpacity>
+              )}
+              {isRoof && nextStage && (
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#22c55e' }]} onPress={() => act('advance', undefined, `Moved to ${label(nextStage)}`)}>
+                  <Ionicons name="arrow-forward-circle" size={20} color="#fff" />
+                  <Text style={styles.actionBtnText}>Advance to {label(nextStage)}</Text>
+                </TouchableOpacity>
+              )}
+              {isRoof && !roofClosed && job.status !== 'collected' && (
+                <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border, marginBottom: 0 }]}>
+                  <Text style={[styles.infoLabel, { color: t.textMuted, marginBottom: 6 }]}>Close this job</Text>
+                  <TextInput
+                    style={[styles.reasonField, { backgroundColor: t.background, color: t.text, borderColor: t.border }]}
+                    placeholder="Why? (e.g. went with another roofer)"
+                    placeholderTextColor={t.textMuted}
+                    value={closeReason}
+                    onChangeText={setCloseReason}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                    <TouchableOpacity style={[styles.actionBtnSm, { borderColor: '#ef4444' }]} onPress={() => closeJob('lost')}>
+                      <Text style={{ color: '#ef4444', fontWeight: '600' }}>Lost</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.actionBtnSm, { borderColor: t.textMuted }]} onPress={() => closeJob('cancelled')}>
+                      <Text style={{ color: t.textSecondary, fontWeight: '600' }}>Cancelled</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              {roofClosed && (
+                <TouchableOpacity style={[styles.actionBtnLg, { backgroundColor: '#3b82f6' }]} onPress={() => act('reopen', { status: 'lead' }, 'Job reopened')}>
+                  <Ionicons name="refresh" size={20} color="#fff" />
+                  <Text style={styles.actionBtnText}>Reopen as Lead</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </AnimatedCard>
+        )}
       </ScrollView>
+
+      {showInspection && (
+        <DateTimePicker
+          value={inspectionAt}
+          mode={showInspection}
+          minimumDate={showInspection === 'date' ? new Date() : undefined}
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(e: any, d?: Date) => {
+            if (e?.type === 'dismissed' || !d) { setShowInspection(null); return }
+            const next = new Date(inspectionAt)
+            if (showInspection === 'date') next.setFullYear(d.getFullYear(), d.getMonth(), d.getDate())
+            else next.setHours(d.getHours(), d.getMinutes(), 0, 0)
+            setInspectionAt(next)
+            if (showInspection === 'date') setShowInspection('time')
+            else { setShowInspection(null); scheduleInspection(next) }
+          }}
+        />
+      )}
 
       <ConfirmSheet
         visible={showComplete}
         onClose={() => setShowComplete(false)}
-        onConfirm={handleComplete}
+        onConfirm={() => { act('complete', undefined, 'Job completed') }}
         title="Complete Job"
-        description="Mark this job as completed? This action cannot be undone."
+        description="Mark this job as completed?"
         confirmLabel="Complete"
       />
     </SafeAreaView>
+  )
+}
+
+function InfoRow({ icon, label: title, value, t }: { icon: string; label: string; value: string; t: any }) {
+  return (
+    <View style={styles.infoRow}>
+      <Ionicons name={icon as any} size={16} color={t.textMuted} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.infoLabel, { color: t.textMuted }]}>{title}</Text>
+        <Text style={[styles.infoValue, { color: t.text }]}>{value}</Text>
+      </View>
+    </View>
   )
 }
 
@@ -345,7 +487,9 @@ const styles = StyleSheet.create({
   noteMeta: { fontSize: 11, marginTop: 4 },
   noteInput: { flexDirection: 'row', gap: 8, marginTop: 8 },
   noteField: { flex: 1, borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, maxHeight: 80 },
+  noteFieldTall: { minHeight: 80, maxHeight: 160 },
   noteSend: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  reasonField: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14 },
   // Actions
   actionsCol: { gap: 10, marginBottom: 20 },
   actionBtnLg: {
@@ -353,4 +497,5 @@ const styles = StyleSheet.create({
     paddingVertical: 14, borderRadius: 10,
   },
   actionBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  actionBtnSm: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 8, borderWidth: 1 },
 })

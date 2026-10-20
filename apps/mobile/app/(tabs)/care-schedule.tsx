@@ -58,7 +58,7 @@ function VisitCard({ v, movePending }: { v: Visit; movePending: boolean }) {
 export default function ScheduleScreen() {
   const t = useTheme()
   const care = useCare()
-  const pendingMoves = useMemo(() => new Set(care.myRequests.map((r) => `${r.schedule_id}|${String(r.visit_date).slice(0, 10)}`)), [care.myRequests])
+  const pendingMoves = useMemo(() => new Set(care.myRequests.map((r) => `${r.scheduleId}|${String(r.visitDate).slice(0, 10)}`)), [care.myRequests])
   const byDate = useMemo(() => {
     const m: Record<string, Visit[]> = {}
     for (const v of care.visits) (m[v.date] ||= []).push(v)

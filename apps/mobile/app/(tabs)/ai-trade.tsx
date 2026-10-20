@@ -9,7 +9,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { post } from '../../src/api/client'
 
-const CONDITIONS = ['excellent', 'good', 'fair', 'poor']
+// The server's conditions (apps/unified/server/crm/rv/ai.ts CONDITIONS): the lowest is 'rough', not 'poor'.
+const CONDITIONS = ['excellent', 'good', 'fair', 'rough']
 const dollars = (n: any) => (n != null ? '$' + Number(n).toLocaleString() : '—')
 
 function Range({ label, v, t, hi }: any) {
@@ -30,9 +31,19 @@ export default function AiTradeScreen() {
   const [err, setErr] = useState('')
 
   async function go() {
-    if (!f.make || !f.model) { setErr('Enter at least a make and model.'); return }
+    const make = String(f.make).trim()
+    const model = String(f.model).trim()
+    if (!make || !model) { setErr('Enter at least a make and model.'); return }
+    // The server takes the year as a whole number (1900..next year) and refuses a string, so it goes as one.
+    const year = String(f.year).trim()
+    if (year && !/^\d{4}$/.test(year)) { setErr('Enter the year as four digits.'); return }
+    const mileage = String(f.mileageHours).trim()
     setLoading(true); setErr(''); setRes(null)
-    const r = await post('/api/ai-trade/appraise', f)
+    const r = await post('/api/ai-trade/appraise', {
+      make, model, condition: f.condition,
+      ...(year ? { year: Number(year) } : {}),
+      ...(mileage ? { mileageHours: mileage } : {}),
+    })
     if (r.ok && r.data?.appraisal) setRes(r.data)
     else setErr(r.data?.error || r.error || 'Appraisal failed')
     setLoading(false)

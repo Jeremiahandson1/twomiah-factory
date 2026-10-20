@@ -3,7 +3,7 @@
  * can run them under plain bun against a fake fetch (tests/mobile/sign-in-mfa.test.ts).
  *
  * Every CRM the app signs in to (the shared auth in packages/tenant-backend, and the forked sign-ins of
- * crm-dispensary, crm-roof and crm-homecare) answers POST /api/auth/login in one of two ways:
+ * crm-roof and crm-homecare) answers POST /api/auth/login in one of two ways:
  *   · a session — accessToken + refreshToken at the top level, beside the user (and company);
  *   · `{ mfaRequired: true, challengeId, expiresAt, methods, recoveryCodesAvailable, message }` with NO
  *     tokens, when the account has a verified authenticator.

@@ -1,5 +1,10 @@
 /**
  * Quotes — list with status filters, value display, quick actions.
+ *
+ * GET /api/quotes is { data, pagination }; GET /api/quotes/stats is { total, draft, sent, approved, declined|rejected,
+ * expired, totalValue, approvedValue } (packages/tenant-backend invoicing/quotes.ts) — no `pending`: waiting on the
+ * customer is draft + sent. Every figure is DOLLARS. The tab needs quotes:read (a field seat has none; the tab bar
+ * hides it, and this screen says so rather than show an empty list if it is reached anyway).
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -11,6 +16,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get, post } from '../../src/api/client'
+import { useAuth } from '../../src/auth/AuthContext'
 import { StatusBadge } from '../../src/components/StatusBadge'
 import { FilterChips } from '../../src/components/FilterChips'
 import { SkeletonList, SkeletonLine } from '../../src/components/SkeletonLoader'
@@ -29,6 +35,7 @@ const FILTERS = [
   { key: 'sent', label: 'Sent' },
   { key: 'approved', label: 'Approved' },
   { key: 'rejected', label: 'Rejected' },
+  { key: 'declined', label: 'Declined' },
 ]
 
 export default function QuotesScreen() {
@@ -36,6 +43,11 @@ export default function QuotesScreen() {
   const t = useTheme()
   const toast = useToast()
   const haptics = useHaptics()
+  const { can } = useAuth()
+  const canRead = can('quotes:read')
+  const canCreate = can('quotes:create')
+  const canSend = can('quotes:update')
+  const canInvoice = can('invoices:create')
   const [quotes, setQuotes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -45,6 +57,7 @@ export default function QuotesScreen() {
   const [stats, setStats] = useState<any>(null)
 
   const loadQuotes = useCallback(async (p = 1, append = false) => {
+    if (!canRead) { setLoading(false); return }
     const params = new URLSearchParams({ page: String(p), limit: '25' })
     if (filter !== 'all') params.set('status', filter)
     const [res, statsRes] = await Promise.all([
@@ -52,23 +65,23 @@ export default function QuotesScreen() {
       p === 1 ? get('/api/quotes/stats') : Promise.resolve(null),
     ])
     if (res.ok) {
-      const data = res.data.data || res.data
+      const data: any[] = Array.isArray(res.data?.data) ? res.data.data : []
       if (append) setQuotes(prev => [...prev, ...data])
       else setQuotes(data)
       setHasMore(data.length === 25)
     }
     if (statsRes?.ok) setStats(statsRes.data)
     setLoading(false)
-  }, [filter])
+  }, [filter, canRead])
 
   useEffect(() => { setLoading(true); setPage(1); loadQuotes(1) }, [loadQuotes])
 
   const onRefresh = async () => { setRefreshing(true); await loadQuotes(1); setRefreshing(false) }
   const loadMore = () => { if (hasMore) { setPage(p => p + 1); loadQuotes(page + 1, true) } }
 
-  useRealTimeEvent(EVENTS.QUOTE_CREATED, () => loadQuotes(1))
-  useRealTimeEvent(EVENTS.QUOTE_UPDATED, () => loadQuotes(1))
-  useRealTimeEvent(EVENTS.QUOTE_APPROVED, () => loadQuotes(1))
+  useRealTimeEvent(EVENTS.QUOTE_CREATED, () => loadQuotes(1), [loadQuotes])
+  useRealTimeEvent(EVENTS.QUOTE_UPDATED, () => loadQuotes(1), [loadQuotes])
+  useRealTimeEvent(EVENTS.QUOTE_APPROVED, () => loadQuotes(1), [loadQuotes])
 
   const handleSend = async (quote: any) => {
     const res = await post(`/api/quotes/${quote.id}/send`)
@@ -86,18 +99,20 @@ export default function QuotesScreen() {
     haptics.medium()
     const res = await post(`/api/quotes/${quote.id}/convert-to-invoice`)
     if (res.ok) {
-      toast.success(`Invoice ${res.data.number} created`)
+      toast.success(`Invoice ${res.data?.number || ''} created`)
+      if (res.data?.id) router.push(`/(details)/invoice/${res.data.id}`)
     } else {
       toast.error(res.error || 'Conversion failed')
     }
   }
 
-  const fmt = (val: number) => `$${(val / 100).toLocaleString(undefined, { minimumFractionDigits: 0 })}`
+  // Dollars, as the server keeps them (decimal strings).
+  const fmt = (val: unknown) => `$${(Number(val) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   const renderQuote = ({ item: quote, index }: { item: any; index: number }) => {
     const swipeActions = []
-    if (quote.status === 'draft') swipeActions.push({ icon: 'send', label: 'Send', color: '#3b82f6', onPress: () => handleSend(quote) })
-    if (quote.status === 'approved') swipeActions.push({ icon: 'receipt', label: 'Invoice', color: '#22c55e', onPress: () => handleConvert(quote) })
+    if (canSend && quote.status === 'draft') swipeActions.push({ icon: 'send', label: 'Send', color: '#3b82f6', onPress: () => handleSend(quote) })
+    if (canInvoice && quote.status === 'approved') swipeActions.push({ icon: 'receipt', label: 'Invoice', color: '#22c55e', onPress: () => handleConvert(quote) })
 
     return (
       <AnimatedCard index={index}>
@@ -112,7 +127,7 @@ export default function QuotesScreen() {
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[styles.amount, { color: t.text }]}>{fmt(quote.total || 0)}</Text>
+                <Text style={[styles.amount, { color: t.text }]}>{fmt(quote.total)}</Text>
                 <StatusBadge status={quote.status} />
               </View>
             </View>
@@ -127,15 +142,23 @@ export default function QuotesScreen() {
     )
   }
 
+  if (!canRead) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
+        <EmptyState icon="document-text-outline" title="Quotes are not part of your role" subtitle="Ask the office for a quote's details." />
+      </SafeAreaView>
+    )
+  }
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
       {/* Stats bar */}
       {stats && (
         <View style={[styles.statsBar, { backgroundColor: t.surface, borderColor: t.border }]}>
           <StatPill label="Total" value={stats.total} color={t.textSecondary} theme={t} />
-          <StatPill label="Pending" value={stats.pending} color="#f59e0b" theme={t} />
+          <StatPill label="Pending" value={(stats.draft ?? 0) + (stats.sent ?? 0)} color="#f59e0b" theme={t} />
           <StatPill label="Approved" value={stats.approved} color="#22c55e" theme={t} />
-          <StatPill label="Value" value={fmt(stats.totalValue || 0)} color={t.primary} theme={t} />
+          {stats.totalValue !== undefined && <StatPill label="Value" value={fmt(stats.totalValue)} color={t.primary} theme={t} />}
         </View>
       )}
 
@@ -156,7 +179,7 @@ export default function QuotesScreen() {
         />
       )}
 
-      <FAB icon="add" onPress={() => router.push('/(details)/quote/form')} />
+      {canCreate && <FAB icon="add" onPress={() => router.push('/(details)/quote/form')} />}
     </SafeAreaView>
   )
 }

@@ -21,14 +21,13 @@ import { usePushNotifications } from '../../src/hooks/usePushNotifications'
 /**
  * What /api/dashboard/stats actually sends — which is NOT one shape. (T59)
  *
- * The jobs-family CRMs (contractor, field service, landscaping) send contacts / newLeads / jobs /
- * quotes / invoices; dispensary sends customers and today.*; RV sends inventory / sales / service. This
- * screen read the jobs-family keys for everybody, so dispensary's four cards were all 0 and its
- * "Customers" read a `contacts` key dispensary never sends. Every key is optional because the server
- * drops what the caller may not see (invoices for a technician, newLeads without the Lead Inbox).
+ * The jobs-family CRMs (contractor, basic, field service, landscaping) send contacts / newLeads / jobs / quotes /
+ * invoices (packages/tenant-backend reporting/jobsDashboard.ts); roofing sends its own jobs.{open, inspectionsToday,
+ * installsToday} (server/crm/roof/field/dashboard.ts); the dealership sends inventory / sales / service
+ * (server/crm/rv/dashboard.ts). Every key is optional because the server drops what the caller may not see (invoices
+ * for a technician, newLeads without the Lead Inbox, the quotes' value without quotes:read).
  *
- * Money is DOLLARS on every one of them — invoice.total is decimal(12,2) and the web shows the same
- * figure unchanged. This screen divided it by 100, so $1,200 owed read "$12".
+ * Money is DOLLARS on every one of them — invoice.total is decimal(12,2) and the web shows the same figure unchanged.
  */
 interface Stats {
   contacts?: number
@@ -36,10 +35,8 @@ interface Stats {
   jobs?: { total?: number; today?: number; byStatus?: Record<string, number>; open?: number; inspectionsToday?: number; installsToday?: number }
   quotes?: { total?: number; pending?: number; approved?: number; totalValue?: number }
   invoices?: { total?: number; outstanding?: number; outstandingValue?: number }
-  // dispensary
-  customers?: number
-  today?: { revenue?: number; orderCount?: number; pendingOrders?: number }
   // rv
+  inventory?: { total?: number; available?: number }
   sales?: { openLeads?: number }
   service?: { openRepairOrders?: number }
 }
@@ -52,22 +49,21 @@ export default function DashboardScreen() {
   const { vertical } = useVertical()
   const [stats, setStats] = useState<Stats | null>(null)
   const [todayJobs, setTodayJobs] = useState<any[]>([])
-  const [unitCount, setUnitCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
   usePushNotifications()
 
   const load = useCallback(async () => {
-    const reqs: Promise<any>[] = [
+    // Today's work is the shared jobs module's /api/jobs/today. Roofing's job module has no such route (it would read
+    // "today" as a job id) and a dealership's jobs are not switched on (403), so neither asks.
+    const asksToday = vertical !== 'rv' && vertical !== 'roofing'
+    const [s, j] = await Promise.all([
       get('/api/dashboard/stats'),
-      get('/api/jobs/today').catch(() => ({ ok: false, data: [] } as any)),
-    ]
-    if (vertical === 'rv') reqs.push(get('/api/units?limit=200').catch(() => ({ ok: false, data: [] } as any)))
-    const [s, j, u] = await Promise.all(reqs)
-    if (s.ok) setStats(s.data)
-    if (j.ok) setTodayJobs(j.data || [])
-    if (u && u.ok) { const d = u.data?.data || u.data || []; setUnitCount(Array.isArray(d) ? d.length : 0) }
+      asksToday ? get('/api/jobs/today') : Promise.resolve(null),
+    ])
+    setStats(s.ok ? s.data : null)
+    if (j?.ok && Array.isArray(j.data)) setTodayJobs(j.data)
     setLoading(false)
   }, [vertical])
 
@@ -90,7 +86,7 @@ export default function DashboardScreen() {
   }
 
   const config = getVerticalConfig(vertical)
-  const statCards = getStatCards(vertical, stats, unitCount)
+  const statCards = getStatCards(vertical, stats)
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
@@ -142,14 +138,13 @@ export default function DashboardScreen() {
 function getVerticalConfig(vertical: string) {
   switch (vertical) {
     case 'homecare': return { todayLabel: "Today's Shifts", emptyMessage: 'No shifts scheduled for today' }
-    case 'dispensary': return { todayLabel: 'Recent Orders', emptyMessage: 'No orders yet today' }
     case 'fieldservice': return { todayLabel: "Today's Service Calls", emptyMessage: 'No service calls scheduled' }
     case 'rv': return { todayLabel: 'Recent Activity', emptyMessage: 'Nothing scheduled today' }
     default: return { todayLabel: "Today's Jobs", emptyMessage: 'No jobs scheduled for today' }
   }
 }
 
-function getStatCards(vertical: string, stats: Stats | null, unitCount = 0) {
+function getStatCards(vertical: string, stats: Stats | null) {
   if (!stats) return []
   switch (vertical) {
     // The keys the RV dashboard really sends (selected since T59 via detectVertical's RV-only features).
@@ -157,16 +152,10 @@ function getStatCards(vertical: string, stats: Stats | null, unitCount = 0) {
     // working number.
     case 'rv':
       return [
-        { label: 'Inventory', value: unitCount, icon: 'car-sport', color: '#3b82f6' },
+        // The dashboard's own count of units on the lot (inventory.total), not a second fetch of the unit list.
+        { label: 'Inventory', value: stats.inventory?.total ?? 0, icon: 'car-sport', color: '#3b82f6' },
         { label: 'Open Leads', value: stats.sales?.openLeads ?? 0, icon: 'people', color: '#8b5cf6' },
         { label: 'Open Repair Orders', value: stats.service?.openRepairOrders ?? 0, icon: 'construct', color: '#22c55e' },
-      ]
-    case 'dispensary':
-      return [
-        { label: 'Orders Today', value: stats.today?.orderCount ?? 0, icon: 'receipt', color: '#3b82f6' },
-        { label: 'Customers', value: stats.customers ?? 0, icon: 'people', color: '#8b5cf6' },
-        { label: 'Revenue Today', value: dollars(stats.today?.revenue), icon: 'cash', color: '#22c55e' },
-        { label: 'Pending Orders', value: stats.today?.pendingOrders ?? 0, icon: 'time', color: '#f59e0b' },
       ]
     case 'homecare':
       return [
@@ -192,7 +181,8 @@ function getStatCards(vertical: string, stats: Stats | null, unitCount = 0) {
         // The web's New leads tile: Lead Inbox rows still at `new`. Absent without the inbox → no card.
         ...(typeof stats.newLeads === 'number' ? [{ label: 'New Leads', value: stats.newLeads, icon: 'mail-unread', color: '#ec4899' }] : []),
         { label: 'Open Quotes', value: stats.quotes?.pending ?? 0, icon: 'document-text', color: '#f59e0b' },
-        { label: 'Active Jobs', value: (stats.jobs?.byStatus?.scheduled ?? 0) + (stats.jobs?.byStatus?.in_progress ?? 0), icon: 'construct', color: '#22c55e' },
+        // Still to do: everything not finished or called off (the server's jobs.open — scheduled, dispatched, in progress…).
+        { label: 'Active Jobs', value: stats.jobs?.open ?? 0, icon: 'construct', color: '#22c55e' },
         // Sent only to somebody who may see money; a technician gets no card rather than "$0".
         ...(stats.invoices ? [{ label: 'Outstanding', value: dollars(stats.invoices.outstandingValue), icon: 'cash', color: '#8b5cf6' }] : []),
       ]

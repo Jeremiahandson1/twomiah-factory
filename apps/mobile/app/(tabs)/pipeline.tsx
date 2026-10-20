@@ -1,67 +1,86 @@
 /**
- * Pipeline — roofing sales pipeline with horizontal kanban-style stages.
+ * Pipeline — roofing's jobs, grouped by pipeline stage.
+ *
+ * A roofer's pipeline IS its jobs: GET /api/jobs (server/crm/roof/jobs.ts) — every roofing job carries a stage from
+ * lead to collected (validation.ts PIPELINE_STATUSES), the same board the web's PipelineBoard draws. /api/leads, which
+ * this screen read before, is the Lead Inbox (website enquiries and marketplace leads), not the roofing pipeline, and
+ * its rows have no stage. A row's contact is { id, name }; its estimatedValue is DOLLARS and is absent for a seat that
+ * may not see what work is worth (a field seat), so the figure shows only when the server sent it.
+ *
+ * Adding a lead (contact + job at `lead`) needs contacts:create and jobs:create — the office's.
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
 import {
-  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, FlatList,
+  View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get } from '../../src/api/client'
-import { StatusBadge } from '../../src/components/StatusBadge'
+import { useAuth } from '../../src/auth/AuthContext'
 import { SkeletonList } from '../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../src/components/AnimatedCard'
 import { AvatarCircle } from '../../src/components/AvatarCircle'
 import { FAB } from '../../src/components/FAB'
 import { EmptyState } from '../../src/components/EmptyState'
-import { useToast } from '../../src/components/ToastProvider'
+import { useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
 
+/** The pipeline, in order (server/crm/roof/validation.ts PIPELINE_STATUSES), and the two ways a job ends unpaid. */
 const STAGES = [
-  { key: 'new_lead', label: 'New Lead', color: '#3b82f6' },
-  { key: 'contacted', label: 'Contacted', color: '#f59e0b' },
-  { key: 'inspection_scheduled', label: 'Inspection', color: '#8b5cf6' },
-  { key: 'quote_sent', label: 'Quote Sent', color: '#06b6d4' },
-  { key: 'approved', label: 'Approved', color: '#22c55e' },
-  { key: 'in_progress', label: 'In Progress', color: '#ec4899' },
+  { key: 'lead', label: 'Lead', color: '#3b82f6' },
+  { key: 'inspection_scheduled', label: 'Inspection Scheduled', color: '#6366f1' },
+  { key: 'inspected', label: 'Inspected', color: '#8b5cf6' },
+  { key: 'measurement_ordered', label: 'Measurement Ordered', color: '#a855f7' },
+  { key: 'proposal_sent', label: 'Proposal Sent', color: '#f59e0b' },
+  { key: 'signed', label: 'Signed', color: '#22c55e' },
+  { key: 'material_ordered', label: 'Material Ordered', color: '#d97706' },
+  { key: 'in_production', label: 'In Production', color: '#06b6d4' },
+  { key: 'final_inspection', label: 'Final Inspection', color: '#14b8a6' },
+  { key: 'invoiced', label: 'Invoiced', color: '#ec4899' },
+  { key: 'collected', label: 'Collected', color: '#10b981' },
+  { key: 'lost', label: 'Lost', color: '#ef4444' },
+  { key: 'cancelled', label: 'Cancelled', color: '#94a3b8' },
 ]
+const PAGE = 500
 
 export default function PipelineScreen() {
   const router = useRouter()
   const t = useTheme()
-  const toast = useToast()
-  const [leads, setLeads] = useState<any[]>([])
+  const { can } = useAuth()
+  const canAddLead = can('contacts:create') && can('jobs:create')
+  const [jobs, setJobs] = useState<any[]>([])
+  const [total, setTotal] = useState(0)
+  const [failed, setFailed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [selectedStage, setSelectedStage] = useState<string | null>(null)
 
-  const loadLeads = useCallback(async () => {
-    // Try leads endpoint first, fallback to jobs
-    const res = await get('/api/leads?limit=100')
-    if (res.ok) {
-      setLeads(res.data.data || res.data || [])
+  const loadJobs = useCallback(async () => {
+    const res = await get(`/api/jobs?limit=${PAGE}`)
+    if (res.ok && Array.isArray(res.data?.data)) {
+      setJobs(res.data.data)
+      setTotal(Number(res.data.pagination?.total) || res.data.data.length)
+      setFailed(false)
     } else {
-      const fallback = await get('/api/jobs?limit=100')
-      if (fallback.ok) setLeads(fallback.data.data || fallback.data || [])
+      setFailed(true)
     }
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadLeads() }, [loadLeads])
+  useEffect(() => { loadJobs() }, [loadJobs])
+  useRealTimeEvent(EVENTS.JOB_CREATED, loadJobs, [loadJobs])
+  useRealTimeEvent(EVENTS.JOB_UPDATED, loadJobs, [loadJobs])
+  useRealTimeEvent(EVENTS.JOB_STATUS_CHANGED, loadJobs, [loadJobs])
 
-  const onRefresh = async () => { setRefreshing(true); await loadLeads(); setRefreshing(false) }
+  const onRefresh = async () => { setRefreshing(true); await loadJobs(); setRefreshing(false) }
 
-  // Group leads by stage
-  const grouped = STAGES.map(stage => ({
-    ...stage,
-    items: leads.filter(l => (l.status || l.stage) === stage.key),
-  }))
-
-  const filteredStages = selectedStage
-    ? grouped.filter(s => s.key === selectedStage)
-    : grouped
+  const grouped = STAGES.map(stage => ({ ...stage, items: jobs.filter(j => j.status === stage.key) }))
+  // Closed stages only appear when something is in them.
+  const visible = grouped.filter(s => !['lost', 'cancelled'].includes(s.key) || s.items.length > 0)
+  const filteredStages = selectedStage ? visible.filter(s => s.key === selectedStage) : visible
+  const money = (v: unknown) => `$${Math.round(Number(v) || 0).toLocaleString()}`
 
   if (loading) {
     return (
@@ -74,43 +93,43 @@ export default function PipelineScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
       {/* Stage pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.stagePills}
-      >
-        <TouchableOpacity
-          style={[styles.pill, !selectedStage && { backgroundColor: t.primary }]}
-          onPress={() => setSelectedStage(null)}
-        >
-          <Text style={[styles.pillText, { color: !selectedStage ? '#fff' : t.textSecondary }]}>
-            All ({leads.length})
-          </Text>
-        </TouchableOpacity>
-        {STAGES.map(stage => {
-          const count = leads.filter(l => (l.status || l.stage) === stage.key).length
-          const active = selectedStage === stage.key
-          return (
-            <TouchableOpacity
-              key={stage.key}
-              style={[styles.pill, active && { backgroundColor: stage.color }]}
-              onPress={() => setSelectedStage(active ? null : stage.key)}
-            >
-              <View style={[styles.pillDot, { backgroundColor: stage.color }]} />
-              <Text style={[styles.pillText, { color: active ? '#fff' : t.textSecondary }]}>
-                {stage.label} ({count})
-              </Text>
-            </TouchableOpacity>
-          )
-        })}
-      </ScrollView>
+      <View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stagePills}>
+          <TouchableOpacity
+            style={[styles.pill, !selectedStage && { backgroundColor: t.primary }]}
+            onPress={() => setSelectedStage(null)}
+          >
+            <Text style={[styles.pillText, { color: !selectedStage ? '#fff' : t.textSecondary }]}>All ({jobs.length})</Text>
+          </TouchableOpacity>
+          {visible.map(stage => {
+            const active = selectedStage === stage.key
+            return (
+              <TouchableOpacity
+                key={stage.key}
+                style={[styles.pill, active && { backgroundColor: stage.color }]}
+                onPress={() => setSelectedStage(active ? null : stage.key)}
+              >
+                <View style={[styles.pillDot, { backgroundColor: stage.color }]} />
+                <Text style={[styles.pillText, { color: active ? '#fff' : t.textSecondary }]}>
+                  {stage.label} ({stage.items.length})
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
+      </View>
 
-      {/* Lead cards */}
       <ScrollView
         contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.primary} />}
       >
-        {filteredStages.map(stage => {
+        {failed && (
+          <Text style={[styles.emptyStage, { color: '#ef4444', marginLeft: 0 }]}>The pipeline could not be loaded. Pull to refresh.</Text>
+        )}
+        {total > jobs.length && (
+          <Text style={[styles.emptyStage, { color: t.textMuted, marginLeft: 0 }]}>Showing the newest {jobs.length} of {total} jobs.</Text>
+        )}
+        {jobs.length > 0 && filteredStages.map(stage => {
           if (stage.items.length === 0 && selectedStage) return null
           return (
             <View key={stage.key} style={styles.stageSection}>
@@ -122,32 +141,30 @@ export default function PipelineScreen() {
                 </View>
               )}
               {stage.items.length === 0 ? (
-                <Text style={[styles.emptyStage, { color: t.textMuted }]}>No leads in this stage</Text>
+                <Text style={[styles.emptyStage, { color: t.textMuted }]}>No jobs at this stage</Text>
               ) : (
-                stage.items.map((lead, idx) => (
-                  <AnimatedCard key={lead.id} index={idx}>
+                stage.items.map((job, idx) => (
+                  <AnimatedCard key={job.id} index={idx}>
                     <TouchableOpacity style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}
-                      onPress={() => router.push(`/(details)/lead/${lead.id}`)} activeOpacity={0.7}>
+                      onPress={() => router.push(`/(details)/job/${job.id}`)} activeOpacity={0.7}>
                       <View style={styles.cardRow}>
-                        <AvatarCircle name={lead.contact?.name || lead.name} size={36} />
+                        <AvatarCircle name={job.contact?.name || job.title} size={36} />
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.leadName, { color: t.text }]}>
-                            {lead.contact?.name || lead.name || lead.title}
+                          <Text style={[styles.leadName, { color: t.text }]} numberOfLines={1}>
+                            {job.contact?.name || job.title}
                           </Text>
-                          <Text style={[styles.leadSub, { color: t.textSecondary }]}>
-                            {lead.address || lead.source || lead.number}
+                          <Text style={[styles.leadSub, { color: t.textSecondary }]} numberOfLines={1}>
+                            {job.number}{job.address ? ` • ${job.address}` : ''}
                           </Text>
                         </View>
-                        {lead.total && (
-                          <Text style={[styles.value, { color: t.text }]}>
-                            ${(lead.total / 100).toLocaleString()}
-                          </Text>
-                        )}
+                        {job.estimatedValue != null && Number(job.estimatedValue) > 0 ? (
+                          <Text style={[styles.value, { color: t.text }]}>{money(job.estimatedValue)}</Text>
+                        ) : null}
                       </View>
-                      {lead.insuranceClaim && (
+                      {job.jobType === 'insurance' && (
                         <View style={styles.insuranceTag}>
                           <Ionicons name="shield" size={12} color="#f59e0b" />
-                          <Text style={styles.insuranceText}>Insurance claim</Text>
+                          <Text style={styles.insuranceText}>Insurance{job.claimNumber ? ` • Claim ${job.claimNumber}` : ''}</Text>
                         </View>
                       )}
                     </TouchableOpacity>
@@ -157,12 +174,12 @@ export default function PipelineScreen() {
             </View>
           )
         })}
-        {leads.length === 0 && (
-          <EmptyState icon="funnel-outline" title="No leads yet" subtitle="Leads will appear here as they come in" />
+        {jobs.length === 0 && !failed && (
+          <EmptyState icon="funnel-outline" title="No jobs yet" subtitle="New leads appear here at the Lead stage" />
         )}
       </ScrollView>
 
-      <FAB icon="add" onPress={() => router.push('/(details)/lead/quick-add')} />
+      {canAddLead && <FAB icon="add" onPress={() => router.push('/(details)/lead/quick-add')} />}
     </SafeAreaView>
   )
 }

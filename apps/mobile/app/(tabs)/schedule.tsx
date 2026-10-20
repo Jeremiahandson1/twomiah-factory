@@ -1,5 +1,10 @@
 /**
- * Schedule — field service dispatch/calendar view.
+ * Schedule — field service / landscaping day view.
+ *
+ * GET /api/jobs?date=YYYY-MM-DD is the dispatch board's day filter (packages/tenant-backend jobs/jobs.ts); the
+ * `scheduledDate=` this screen sent was not a filter at all, so every day showed the first page of ALL jobs. The day is
+ * the phone's calendar day — toISOString() is the UTC one, a day ahead every evening in the Americas. `assignedTo` is a
+ * person { name }, not a string.
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -7,6 +12,7 @@ import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get } from '../../src/api/client'
@@ -15,17 +21,20 @@ import { SkeletonList } from '../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../src/components/AnimatedCard'
 import { EmptyState } from '../../src/components/EmptyState'
 
+const pad = (n: number) => String(n).padStart(2, '0')
+const dayOf = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+
 export default function ScheduleScreen() {
   const t = useTheme()
+  const router = useRouter()
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [jobs, setJobs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
   const loadSchedule = useCallback(async () => {
-    const dateStr = selectedDate.toISOString().split('T')[0]
-    const res = await get(`/api/jobs?scheduledDate=${dateStr}&limit=50`)
-    if (res.ok) setJobs(res.data.data || res.data || [])
+    const res = await get(`/api/jobs?date=${dayOf(selectedDate)}&limit=100`)
+    setJobs(res.ok && Array.isArray(res.data?.data) ? res.data.data : [])
     setLoading(false)
   }, [selectedDate])
 
@@ -70,7 +79,8 @@ export default function ScheduleScreen() {
           ) : (
             jobs.map((job, idx) => (
               <AnimatedCard key={job.id} index={idx}>
-                <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+                <TouchableOpacity activeOpacity={0.7} onPress={() => router.push(`/(details)/job/${job.id}`)}
+                  style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
                   <View style={styles.timeStrip}>
                     <Text style={[styles.time, { color: t.primary }]}>
                       {job.scheduledTime || 'TBD'}
@@ -89,14 +99,14 @@ export default function ScheduleScreen() {
                         {job.address}{job.city ? `, ${job.city}` : ''}
                       </Text>
                     )}
-                    {job.assignedTo && (
+                    {job.assignedTo?.name ? (
                       <View style={styles.techRow}>
                         <Ionicons name="person" size={12} color={t.textMuted} />
-                        <Text style={[styles.techName, { color: t.textMuted }]}>{job.assignedTo}</Text>
+                        <Text style={[styles.techName, { color: t.textMuted }]}>{job.assignedTo.name}</Text>
                       </View>
-                    )}
+                    ) : null}
                   </View>
-                </View>
+                </TouchableOpacity>
               </AnimatedCard>
             ))
           )}

@@ -60,13 +60,13 @@ function Hero() {
   const t = useTheme()
   const router = useRouter()
   const care = useCare()
-  const n = nextUp(care.todayVisits, nowMinutes(), care.active?.client_id)
+  const n = nextUp(care.todayVisits, nowMinutes(), care.active?.clientId)
   const success = useTone('success'), danger = useTone('danger'), warning = useTone('warning'), neutral = useTone('neutral')
 
   if (care.active && n.state !== 'in_progress' && n.state !== 'overdue') {
     // Clocked in to a visit that isn't on today's schedule.
     return (
-      <Banner tone="success" icon="time" title={`On a visit with ${care.active.client_name || care.clientName(care.active.client_id)}`} onPress={() => router.push('/(tabs)/time-clock' as any)}>
+      <Banner tone="success" icon="time" title={`On a visit with ${care.active.clientName || care.clientName(care.active.clientId)}`} onPress={() => router.push('/(tabs)/time-clock' as any)}>
         <BannerText tone="success">Tap to open the visit — tasks, notes, photos, clock out.</BannerText>
       </Banner>
     )
@@ -111,7 +111,9 @@ export default function TodayScreen() {
   const care = useCare()
   const [sending, setSending] = useState(false)
   const warnTone = useTone('warning')
-  usePushNotifications({ registerWithServer: false, fallbackRoute: '/(care)/notifications' })
+  // Registers this phone's Expo token: POST /api/push/expo-token { token, platform }
+  // (apps/unified/server/crm/homecare/portals/notifications.ts), so shift reminders reach the caregiver.
+  usePushNotifications({ registerWithServer: true, fallbackRoute: '/(care)/notifications' })
 
   // Re-render each minute so "next up" and "starting soon" stay true.
   const [, tick] = useState(0)
@@ -196,7 +198,7 @@ export default function TodayScreen() {
       <SectionTitle right={<Button small variant="ghost" label="Full schedule" onPress={() => router.push('/(tabs)/care-schedule' as any)} />}>Today's visits</SectionTitle>
       {care.todayVisits.length === 0
         ? <EmptyState icon="calendar-outline" title="Nothing scheduled today" />
-        : care.todayVisits.map((v) => <VisitRow key={v.key} v={v} active={care.active?.client_id === v.clientId} />)}
+        : care.todayVisits.map((v) => <VisitRow key={v.key} v={v} active={care.active?.clientId === v.clientId} />)}
 
       <SectionTitle>Quick actions</SectionTitle>
       <View style={styles.grid}>

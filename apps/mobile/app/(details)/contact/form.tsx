@@ -2,12 +2,17 @@
  * Create / Edit Contact form.
  * Route: /(details)/contact/form         — create mode
  * Route: /(details)/contact/form?id=xxx  — edit mode
+ *
+ * The server keeps ONE `name` per contact (packages/tenant-backend contacts/contacts.ts contactSchema: name is required),
+ * and the types it accepts are the vertical's (modules/crm.ts: CrmSettings.contacts.types — the shared four
+ * lead/client/subcontractor/vendor, a dealership's lead/customer/vendor). A create matching another contact's email or
+ * phone is a 409 carrying existingId: the person chooses to open that one or save anyway (allowDuplicate).
  */
 
 import React, { useState, useEffect } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
@@ -19,12 +24,15 @@ import { FilterChips } from '../../../src/components/FilterChips'
 import { useToast } from '../../../src/components/ToastProvider'
 import { useHaptics } from '../../../src/hooks/useHaptics'
 
+// Every key here is one the server accepts for that vertical (no vertical below sets CrmSettings.contacts.types except
+// the dealership, so they take the shared four); the labels are the web's (verticals/*/settings.ts screens.contacts).
 const TYPE_OPTIONS: Record<string, { key: string; label: string }[]> = {
   contractor: [{ key: 'lead', label: 'Lead' }, { key: 'client', label: 'Client' }, { key: 'subcontractor', label: 'Subcontractor' }, { key: 'vendor', label: 'Vendor' }],
-  fieldservice: [{ key: 'lead', label: 'Lead' }, { key: 'client', label: 'Client' }, { key: 'vendor', label: 'Vendor' }],
-  homecare: [{ key: 'client', label: 'Client' }, { key: 'caregiver', label: 'Caregiver' }, { key: 'referral', label: 'Referral' }],
-  roofing: [{ key: 'lead', label: 'Lead' }, { key: 'client', label: 'Client' }, { key: 'subcontractor', label: 'Sub' }, { key: 'vendor', label: 'Vendor' }],
-  dispensary: [{ key: 'customer', label: 'Customer' }, { key: 'vendor', label: 'Vendor' }],
+  basic: [{ key: 'lead', label: 'Lead' }, { key: 'client', label: 'Client' }, { key: 'vendor', label: 'Supplier' }],
+  fieldservice: [{ key: 'lead', label: 'Lead' }, { key: 'client', label: 'Customer' }, { key: 'vendor', label: 'Vendor' }],
+  landscaping: [{ key: 'lead', label: 'Lead' }, { key: 'client', label: 'Customer' }, { key: 'vendor', label: 'Vendor' }],
+  roofing: [{ key: 'lead', label: 'Lead' }, { key: 'client', label: 'Homeowner' }, { key: 'subcontractor', label: 'Sub' }, { key: 'vendor', label: 'Vendor' }],
+  rv: [{ key: 'lead', label: 'Lead' }, { key: 'customer', label: 'Customer' }, { key: 'vendor', label: 'Vendor' }],
 }
 
 export default function ContactFormScreen() {
@@ -36,8 +44,7 @@ export default function ContactFormScreen() {
   const toast = useToast()
   const haptics = useHaptics()
 
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [company, setCompany] = useState('')
@@ -56,8 +63,7 @@ export default function ContactFormScreen() {
       const res = await get(`/api/contacts/${id}`)
       if (res.ok) {
         const c = res.data
-        setFirstName(c.firstName || '')
-        setLastName(c.lastName || '')
+        setName(c.name || '')
         setEmail(c.email || '')
         setPhone(c.phone || '')
         setCompany(c.company || '')
@@ -72,21 +78,23 @@ export default function ContactFormScreen() {
     })()
   }, [id, isEdit])
 
-  const handleSave = async () => {
-    if (!firstName.trim()) { toast.error('First name is required'); return }
+  const handleSave = async (allowDuplicate = false) => {
+    if (!name.trim()) { toast.error('Name is required'); return }
     setSaving(true)
-    const body = {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim() || undefined,
-      phone: phone.trim() || undefined,
-      company: company.trim() || undefined,
-      address: address.trim() || undefined,
-      city: city.trim() || undefined,
-      state: state.trim() || undefined,
-      zip: zip.trim() || undefined,
+    // An edit sends '' for a box that was emptied, so clearing a phone or a note clears it (an absent key is left alone).
+    const field = (v: string) => (v.trim() || (isEdit ? '' : undefined))
+    const body: Record<string, unknown> = {
+      name: name.trim(),
+      email: field(email),
+      phone: field(phone),
+      company: field(company),
+      address: field(address),
+      city: field(city),
+      state: field(state),
+      zip: field(zip),
       type,
-      notes: notes.trim() || undefined,
+      notes: field(notes),
+      ...(allowDuplicate ? { allowDuplicate: true } : {}),
     }
     const res = isEdit
       ? await put(`/api/contacts/${id}`, body)
@@ -102,6 +110,13 @@ export default function ContactFormScreen() {
         if (newId) router.replace(`/(details)/contact/${newId}`)
         else router.back()
       }
+    } else if (res.status === 409 && res.data?.existingId) {
+      // Somebody already has this email or phone: open them, or save this one anyway.
+      Alert.alert('Possible duplicate', res.error || 'Another contact has this email or phone number.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open existing', onPress: () => router.replace(`/(details)/contact/${res.data.existingId}`) },
+        { text: 'Save anyway', onPress: () => handleSave(true) },
+      ])
     } else {
       haptics.error()
       toast.error(res.error || 'Save failed')
@@ -124,7 +139,7 @@ export default function ContactFormScreen() {
       <Stack.Screen options={{
         title: isEdit ? 'Edit Contact' : 'New Contact',
         headerRight: () => (
-          <TouchableOpacity onPress={handleSave} disabled={saving}>
+          <TouchableOpacity onPress={() => handleSave()} disabled={saving}>
             {saving ? <ActivityIndicator size="small" color={t.primary} /> : <Text style={{ color: t.primary, fontSize: 16, fontWeight: '600' }}>Save</Text>}
           </TouchableOpacity>
         ),
@@ -134,18 +149,9 @@ export default function ContactFormScreen() {
           <Text style={[styles.label, { color: t.textMuted }]}>Type</Text>
           <FilterChips options={types} selected={type} onSelect={setType} />
 
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.label, { color: t.textMuted }]}>First Name *</Text>
-              <TextInput style={[styles.input, { backgroundColor: t.surface, color: t.text, borderColor: t.border }]}
-                value={firstName} onChangeText={setFirstName} placeholder="First" placeholderTextColor={t.textMuted} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.label, { color: t.textMuted }]}>Last Name</Text>
-              <TextInput style={[styles.input, { backgroundColor: t.surface, color: t.text, borderColor: t.border }]}
-                value={lastName} onChangeText={setLastName} placeholder="Last" placeholderTextColor={t.textMuted} />
-            </View>
-          </View>
+          <Text style={[styles.label, { color: t.textMuted }]}>Name *</Text>
+          <TextInput style={[styles.input, { backgroundColor: t.surface, color: t.text, borderColor: t.border }]}
+            value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={t.textMuted} maxLength={200} />
 
           <Text style={[styles.label, { color: t.textMuted }]}>Email</Text>
           <TextInput style={[styles.input, { backgroundColor: t.surface, color: t.text, borderColor: t.border }]}
@@ -179,7 +185,7 @@ export default function ContactFormScreen() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.label, { color: t.textMuted }]}>ZIP</Text>
               <TextInput style={[styles.input, { backgroundColor: t.surface, color: t.text, borderColor: t.border }]}
-                value={zip} onChangeText={setZip} placeholder="00000" placeholderTextColor={t.textMuted} keyboardType="number-pad" maxLength={5} />
+                value={zip} onChangeText={setZip} placeholder="00000" placeholderTextColor={t.textMuted} keyboardType="numbers-and-punctuation" maxLength={10} />
             </View>
           </View>
 

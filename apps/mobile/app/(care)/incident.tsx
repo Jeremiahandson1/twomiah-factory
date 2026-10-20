@@ -37,7 +37,7 @@ export default function IncidentScreen() {
   const router = useRouter()
   const care = useCare()
   const [clients, setClients] = useState<any[] | null>(null)
-  const [f, setF] = useState({ clientId: care.active?.client_id || '', incidentType: '', incidentDate: care.today, incidentTime: '', description: '', injuriesOrDamage: '', actionsTaken: '', witnesses: '' })
+  const [f, setF] = useState({ clientId: care.active?.clientId || '', incidentType: '', incidentDate: care.today, incidentTime: '', description: '', injuriesOrDamage: '', actionsTaken: '', witnesses: '' })
   const [photos, setPhotos] = useState<{ uri: string; dataUri: string; fileName: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState<string | null>(null)
@@ -96,7 +96,7 @@ export default function IncidentScreen() {
       <SectionTitle>Client</SectionTitle>
       {clients === null ? <Text style={[styles.lead, { color: t.textSecondary }]}>Loading…</Text>
         : clients.length === 0 ? <Banner tone="warning" icon="people-outline">No clients found. Call the office to report this.</Banner>
-          : clients.map((c) => <Choice key={c.id} label={`${c.first_name || ''} ${c.last_name || ''}`.trim()} selected={f.clientId === c.id} onPress={() => set('clientId', c.id)} />)}
+          : clients.map((c) => <Choice key={c.id} label={`${c.firstName || ''} ${c.lastName || ''}`.trim()} selected={f.clientId === c.id} onPress={() => set('clientId', c.id)} />)}
 
       <SectionTitle>What happened?</SectionTitle>
       {TYPES.map((x) => <Choice key={x.value} label={x.label} selected={f.incidentType === x.value} onPress={() => set('incidentType', x.value)} />)}

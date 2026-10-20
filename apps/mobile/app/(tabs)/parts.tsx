@@ -20,13 +20,16 @@ export default function PartsScreen() {
   const t = useTheme()
   const [parts, setParts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  // live is false while the dealer has imported no catalogue: the server then answers a stand-in demo list
+  // (provider 'mock', apps/unified/server/crm/rv/parts.ts), whose prices are not the dealer's — said so, as the web does.
+  const [live, setLive] = useState(true)
   const [search, setSearch] = useState('')
   const ds = useDebounce(search)
 
   const load = useCallback(async () => {
     setLoading(true)
     const res = await get('/api/oem-parts/search?q=' + encodeURIComponent(ds.trim()))
-    if (res.ok) setParts(res.data?.parts || [])
+    if (res.ok) { setParts(Array.isArray(res.data?.parts) ? res.data.parts : []); setLive(res.data?.live !== false) }
     setLoading(false)
   }, [ds])
   useEffect(() => { load() }, [load])
@@ -52,10 +55,15 @@ export default function PartsScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
       <SearchBar value={search} onChangeText={setSearch} placeholder="Search parts (part #, name, unit)..." />
+      {!live ? (
+        <View style={[styles.demo, { borderColor: '#f59e0b', backgroundColor: '#f59e0b1f' }]}>
+          <Text style={[styles.demoText, { color: t.text }]}>Demo catalog — these are sample parts and prices, not yours. Import your parts on the web app to search your own.</Text>
+        </View>
+      ) : null}
       {loading ? <SkeletonList count={6} /> : (
         <FlatList
           data={parts}
-          keyExtractor={(it, i) => it.partNumber || String(i)}
+          keyExtractor={(it, i) => (it.partNumber ? it.partNumber + '|' + it.oem : String(i))}
           renderItem={render}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
           ListEmptyComponent={<EmptyState icon="construct-outline" title="No parts found" />}
@@ -74,4 +82,6 @@ const styles = StyleSheet.create({
   fit: { fontSize: 11, marginTop: 2 },
   price: { fontSize: 15, fontWeight: '700' },
   avail: { fontSize: 11 },
+  demo: { marginHorizontal: 16, marginTop: 8, padding: 10, borderRadius: 10, borderWidth: 1 },
+  demoText: { fontSize: 12, lineHeight: 17 },
 })

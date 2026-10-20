@@ -16,7 +16,8 @@ import { EmptyState } from '../../src/components/EmptyState'
 import { SkeletonList } from '../../src/components/SkeletonLoader'
 import { formatClock, formatYmdShort, ymdOf } from '../../src/care/time'
 
-const isNew = (n: any) => n.status === 'new' || (n.status == null && !n.isRead && !n.is_read)
+// GET /api/notifications rows: { id, title, message, isRead, status: new | handled | archived, createdAt }
+const isNew = (n: any) => n.status === 'new' || (n.status == null && !n.isRead)
 
 export default function NotificationsScreen() {
   const t = useTheme()
@@ -46,7 +47,7 @@ export default function NotificationsScreen() {
       {unread.length > 0 && <Button small variant="ghost" label={`Mark all ${unread.length} as read`} onPress={() => markRead('all')} style={{ alignSelf: 'flex-end' }} />}
       {list.length === 0 && !failed && <EmptyState icon="notifications-outline" title="No notifications" subtitle="Shift reminders and updates from your agency appear here." />}
       {list.map((n) => {
-        const when = n.createdAt || n.created_at
+        const when = n.createdAt
         const d = when ? new Date(when) : null
         const fresh = isNew(n)
         return (

@@ -1,6 +1,10 @@
 /**
  * Contacts — searchable list with type badges, tap to call/email.
  * Adapts label and filters per vertical.
+ *
+ * GET /api/contacts (packages/tenant-backend contacts/contacts.ts) is { data, pagination }; ?type must be one of the
+ * vertical's contact types or it is a 400 (checkFilter), so each vertical's chips are only the types it has. Adding a
+ * contact needs contacts:create and converting a lead contacts:update — the office's, not the field seat's.
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -13,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
 import { get, post } from '../../src/api/client'
+import { useAuth } from '../../src/auth/AuthContext'
 import { StatusBadge } from '../../src/components/StatusBadge'
 import { SearchBar } from '../../src/components/SearchBar'
 import { FilterChips } from '../../src/components/FilterChips'
@@ -32,8 +37,21 @@ const VERTICAL_FILTERS: Record<string, { key: string; label: string }[]> = {
     { key: 'all', label: 'All' }, { key: 'lead', label: 'Lead' }, { key: 'client', label: 'Client' },
     { key: 'subcontractor', label: 'Sub' }, { key: 'vendor', label: 'Vendor' },
   ],
+  basic: [
+    { key: 'all', label: 'All' }, { key: 'lead', label: 'Lead' }, { key: 'client', label: 'Client' },
+    { key: 'vendor', label: 'Supplier' },
+  ],
   fieldservice: [
     { key: 'all', label: 'All' }, { key: 'lead', label: 'Lead' }, { key: 'client', label: 'Customer' },
+    { key: 'vendor', label: 'Vendor' },
+  ],
+  landscaping: [
+    { key: 'all', label: 'All' }, { key: 'lead', label: 'Lead' }, { key: 'client', label: 'Customer' },
+    { key: 'vendor', label: 'Vendor' },
+  ],
+  // A dealership's types are lead / customer / vendor (verticals/rv settings.ts crm.contacts.types).
+  rv: [
+    { key: 'all', label: 'All' }, { key: 'lead', label: 'Lead' }, { key: 'customer', label: 'Customer' },
     { key: 'vendor', label: 'Vendor' },
   ],
   homecare: [
@@ -41,7 +59,7 @@ const VERTICAL_FILTERS: Record<string, { key: string; label: string }[]> = {
   ],
   roofing: [
     { key: 'all', label: 'All' }, { key: 'lead', label: 'Lead' }, { key: 'client', label: 'Homeowner' },
-    { key: 'subcontractor', label: 'Adjuster' },
+    { key: 'subcontractor', label: 'Sub' }, { key: 'vendor', label: 'Vendor' },
   ],
 }
 
@@ -51,6 +69,9 @@ export default function ContactsScreen() {
   const { vertical } = useVertical()
   const toast = useToast()
   const haptics = useHaptics()
+  const { can } = useAuth()
+  const canCreate = can('contacts:create')
+  const canConvert = can('contacts:update')
   const [contacts, setContacts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -69,7 +90,7 @@ export default function ContactsScreen() {
     const endpoint = vertical === 'homecare' ? '/api/clients' : '/api/contacts'
     const res = await get(`${endpoint}?${params}`)
     if (res.ok) {
-      const data = res.data.data || res.data
+      const data: any[] = Array.isArray(res.data?.data) ? res.data.data : []
       if (append) setContacts(prev => [...prev, ...data])
       else setContacts(data)
       setHasMore(data.length === 25)
@@ -82,15 +103,16 @@ export default function ContactsScreen() {
   const onRefresh = async () => { setRefreshing(true); await loadContacts(1); setRefreshing(false) }
   const loadMore = () => { if (hasMore) { setPage(p => p + 1); loadContacts(page + 1, true) } }
 
-  useRealTimeEvent(EVENTS.CONTACT_CREATED, () => loadContacts(1))
-  useRealTimeEvent(EVENTS.CONTACT_UPDATED, () => loadContacts(1))
+  useRealTimeEvent(EVENTS.CONTACT_CREATED, () => loadContacts(1), [loadContacts])
+  useRealTimeEvent(EVENTS.CONTACT_UPDATED, () => loadContacts(1), [loadContacts])
 
   const handleConvert = async (contact: any) => {
     haptics.medium()
     const res = await post(`/api/contacts/${contact.id}/convert`)
     if (res.ok) {
-      toast.success(`${contact.name} converted to client`)
-      setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, type: 'client' } : c))
+      // What a lead becomes is the vertical's (client, or a dealership's customer): the server says.
+      toast.success(`${contact.name} converted to ${res.data?.type || 'customer'}`)
+      setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, type: res.data?.type ?? c.type } : c))
     } else {
       toast.error(res.error || 'Conversion failed')
     }
@@ -132,7 +154,7 @@ export default function ContactsScreen() {
                   <Text style={[styles.qLabel, { color: t.textSecondary }]} numberOfLines={1}>{contact.email}</Text>
                 </TouchableOpacity>
               )}
-              {contact.type === 'lead' && (
+              {contact.type === 'lead' && canConvert && (
                 <TouchableOpacity style={[styles.qBtn, { borderColor: '#22c55e' }]} onPress={() => handleConvert(contact)}>
                   <Ionicons name="arrow-forward-circle" size={14} color="#22c55e" />
                   <Text style={[styles.qLabel, { color: '#22c55e' }]}>Convert</Text>
@@ -171,7 +193,7 @@ export default function ContactsScreen() {
         />
       )}
 
-      <FAB icon="add" onPress={() => router.push('/(details)/contact/form')} />
+      {canCreate && <FAB icon="add" onPress={() => router.push('/(details)/contact/form')} />}
     </SafeAreaView>
   )
 }

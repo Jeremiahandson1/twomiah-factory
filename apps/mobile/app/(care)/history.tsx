@@ -17,14 +17,15 @@ export default function HistoryScreen() {
     <CareScreen refreshing={care.refreshing} onRefresh={() => care.reload()}>
       {care.recent.length === 0 && <EmptyState icon="time-outline" title="No finished visits yet" />}
       {care.recent.map((v) => {
-        const s = new Date(v.start_time), e = v.end_time ? new Date(v.end_time) : null
+        // GET /api/time-entries/recent: { id, clientId, startTime, endTime, notes, hoursWorked, clientName }
+        const s = new Date(v.startTime), e = v.endTime ? new Date(v.endTime) : null
         return (
           <Card key={v.id}>
             <View style={styles.row}>
               <Text style={[styles.date, { color: t.text }]}>{isNaN(s.getTime()) ? '' : formatYmdShort(ymdOf(s))}</Text>
-              <Text style={[styles.hours, { color: t.text }]}>{v.hours_worked ? `${Number(v.hours_worked).toFixed(2)} h` : '—'}</Text>
+              <Text style={[styles.hours, { color: t.text }]}>{v.hoursWorked ? `${Number(v.hoursWorked).toFixed(2)} h` : '—'}</Text>
             </View>
-            <Text style={[styles.client, { color: t.text }]}>{v.client_name || care.clientName(v.client_id)}</Text>
+            <Text style={[styles.client, { color: t.text }]}>{v.clientName || care.clientName(v.clientId)}</Text>
             <Text style={[styles.meta, { color: t.textSecondary }]}>{formatClock(s)}{e ? ` – ${formatClock(e)}` : ''}</Text>
             {v.notes ? <Text style={[styles.meta, { color: t.textSecondary }]} numberOfLines={3}>{v.notes}</Text> : null}
           </Card>

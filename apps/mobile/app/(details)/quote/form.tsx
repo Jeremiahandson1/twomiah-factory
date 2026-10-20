@@ -1,6 +1,10 @@
 /**
  * Create Quote form with dynamic line items.
  * Route: /(details)/quote/form?contactId=yyy
+ *
+ * POST /api/quotes (packages/tenant-backend invoicing/quotes.ts quoteSchema): name, contactId, expiryDate (a calendar
+ * day), notes and `lineItems` [{ description, quantity, unitPrice }] — unitPrice in DOLLARS, as every money figure on
+ * the unified server is; the server works out the totals. Needs quotes:create (the office).
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -26,6 +30,7 @@ interface LineItem {
   key: string
   description: string
   quantity: string
+  /** dollars, as typed */
   rate: string
 }
 
@@ -55,20 +60,20 @@ export default function QuoteFormScreen() {
     if (!preContactId) return
     ;(async () => {
       const res = await get(`/api/contacts/${preContactId}`)
-      if (res.ok) setContactName(res.data.name || [res.data.firstName, res.data.lastName].filter(Boolean).join(' '))
+      if (res.ok) setContactName(res.data.name || '')
     })()
   }, [preContactId])
 
   const searchContacts = useCallback(async () => {
     if (!debouncedSearch.trim()) { setContacts([]); return }
     const res = await get(`/api/contacts?search=${encodeURIComponent(debouncedSearch)}&limit=10`)
-    if (res.ok) setContacts(res.data.data || res.data || [])
+    if (res.ok) setContacts(res.data?.data || [])
   }, [debouncedSearch])
   useEffect(() => { searchContacts() }, [searchContacts])
 
   const selectContact = (c: any) => {
     setContactId(c.id)
-    setContactName(c.name || [c.firstName, c.lastName].filter(Boolean).join(' '))
+    setContactName(c.name || '')
     contactSheetRef.current?.close()
   }
 
@@ -86,11 +91,13 @@ export default function QuoteFormScreen() {
     setItems(prev => prev.filter(i => i.key !== key))
   }
 
+  // Dollars, to the cent, as the server rounds each price (quotes.ts lineItemSchema).
   const subtotal = items.reduce((sum, i) => {
     const qty = parseFloat(i.quantity) || 0
-    const rate = Math.round(parseFloat(i.rate) * 100) || 0
-    return sum + qty * rate
+    const price = Math.round((parseFloat(i.rate) || 0) * 100) / 100
+    return sum + qty * price
   }, 0)
+  const pad = (n: number) => String(n).padStart(2, '0')
 
   const handleSave = async () => {
     if (!name.trim()) { toast.error('Quote name is required'); return }
@@ -98,7 +105,7 @@ export default function QuoteFormScreen() {
     const lineItems = items.filter(i => i.description.trim()).map(i => ({
       description: i.description.trim(),
       quantity: parseFloat(i.quantity) || 1,
-      rate: Math.round((parseFloat(i.rate) || 0) * 100),
+      unitPrice: Math.round((parseFloat(i.rate) || 0) * 100) / 100,
     }))
     if (lineItems.length === 0) { toast.error('Add at least one line item'); return }
 
@@ -106,9 +113,10 @@ export default function QuoteFormScreen() {
     const res = await post('/api/quotes', {
       name: name.trim(),
       contactId,
-      expiryDate: expiryDate.toISOString(),
+      // The day as the phone shows it; toISOString() is the UTC day, which is tomorrow after 7pm in Ohio.
+      expiryDate: `${expiryDate.getFullYear()}-${pad(expiryDate.getMonth() + 1)}-${pad(expiryDate.getDate())}`,
       notes: notes.trim() || undefined,
-      items: lineItems,
+      lineItems,
     })
     setSaving(false)
     if (res.ok) {
@@ -224,7 +232,7 @@ export default function QuoteFormScreen() {
           <View style={[styles.totals, { borderTopColor: t.border }]}>
             <View style={styles.totalRow}>
               <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>Total</Text>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>${(subtotal / 100).toFixed(2)}</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>${subtotal.toFixed(2)}</Text>
             </View>
           </View>
 
@@ -246,10 +254,10 @@ export default function QuoteFormScreen() {
             style={{ marginTop: 8 }}
             renderItem={({ item }) => (
               <TouchableOpacity style={styles.contactItem} onPress={() => selectContact(item)}>
-                <AvatarCircle name={item.name || [item.firstName, item.lastName].filter(Boolean).join(' ')} size={32} />
+                <AvatarCircle name={item.name} size={32} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>
-                    {item.name || [item.firstName, item.lastName].filter(Boolean).join(' ')}
+                    {item.name}
                   </Text>
                 </View>
               </TouchableOpacity>

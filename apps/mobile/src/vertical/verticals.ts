@@ -17,13 +17,15 @@ export interface TabDef {
   title: string
   icon: string
   activeIcon: string
+  /** Shown only to a seat the server grants this (useAuth().can) — the route behind the tab checks the same one. */
+  permission?: string
 }
 
 const CONTRACTOR_TABS: TabDef[] = [
-  { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid' },
-  { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer' },
-  { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people' },
-  { name: 'quotes', title: 'Quotes', icon: 'document-text-outline', activeIcon: 'document-text' },
+  { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },
+  { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer', permission: 'jobs:read' },
+  { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
+  { name: 'quotes', title: 'Quotes', icon: 'document-text-outline', activeIcon: 'document-text', permission: 'quotes:read' },
   { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
 ]
 
@@ -31,10 +33,10 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
   contractor: CONTRACTOR_TABS,
   basic: CONTRACTOR_TABS,
   fieldservice: [
-    { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid' },
-    { name: 'service-calls', title: 'Service Calls', icon: 'build-outline', activeIcon: 'build' },
-    { name: 'schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar' },
-    { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people' },
+    { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },
+    { name: 'service-calls', title: 'Service Calls', icon: 'build-outline', activeIcon: 'build', permission: 'jobs:read' },
+    { name: 'schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar', permission: 'jobs:read' },
+    { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
     { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
   ],
   // Twomiah Care — the caregiver's day: Today (next visit, alerts), Schedule (two weeks: swap, move,
@@ -48,25 +50,25 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
     { name: 'more-homecare', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
   ],
   roofing: [
-    { name: 'pipeline', title: 'Pipeline', icon: 'funnel-outline', activeIcon: 'funnel' },
-    { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer' },
-    { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people' },
-    { name: 'canvass', title: 'Canvass', icon: 'walk-outline', activeIcon: 'walk' },
+    { name: 'pipeline', title: 'Pipeline', icon: 'funnel-outline', activeIcon: 'funnel', permission: 'jobs:read' },
+    { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer', permission: 'jobs:read' },
+    { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
+    { name: 'canvass', title: 'Canvass', icon: 'walk-outline', activeIcon: 'walk', permission: 'canvassing:create' },
     { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
   ],
   landscaping: [
-    { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid' },
-    { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer' },
-    { name: 'schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar' },
-    { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people' },
+    { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },
+    { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer', permission: 'jobs:read' },
+    { name: 'schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar', permission: 'jobs:read' },
+    { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
     { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
   ],
   rv: [
-    { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid' },
+    { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },
     { name: 'units', title: 'Inventory', icon: 'car-sport-outline', activeIcon: 'car-sport' },
     { name: 'parts', title: 'Parts', icon: 'construct-outline', activeIcon: 'construct' },
-    { name: 'ai-trade', title: 'Trade', icon: 'cash-outline', activeIcon: 'cash' },
-    { name: 'contacts', title: 'Customers', icon: 'people-outline', activeIcon: 'people' },
+    { name: 'ai-trade', title: 'Trade', icon: 'cash-outline', activeIcon: 'cash', permission: 'contacts:update' },
+    { name: 'contacts', title: 'Customers', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
   ],
   unavailable: [],
 }

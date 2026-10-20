@@ -27,7 +27,7 @@ export default function ClientsScreen() {
           <Card key={c.id} onPress={() => router.push(`/(care)/client/${c.id}` as any)}>
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.name, { color: t.text }]}>{`${c.first_name || ''} ${c.last_name || ''}`.trim()}</Text>
+                <Text style={[styles.name, { color: t.text }]}>{`${c.firstName || ''} ${c.lastName || ''}`.trim()}</Text>
                 {fullAddress(c) ? <Text style={[styles.meta, { color: t.textSecondary }]}>{fullAddress(c)}</Text> : null}
                 {next ? <Text style={[styles.meta, { color: t.text }]}>Next visit {next.date === care.today ? 'today' : formatYmdShort(next.date)} at {formatTime12(next.startTime)}</Text> : null}
               </View>

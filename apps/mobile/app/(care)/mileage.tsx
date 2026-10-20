@@ -1,6 +1,6 @@
 /**
  * Mileage — miles driven for work.
- *   GET  /api/mileage?caregiverId=me   my entries ({ entries })
+ *   GET  /api/mileage?caregiverId=me   my entries ({ data: [{ date, miles, startLocation, endLocation, clientName }] })
  *   POST /api/mileage                  { caregiverId: me, date, startLocation, endLocation, miles, clientId?, notes? }
  * Miles only: the reimbursement amount is the office's (the server applies its own rate).
  */
@@ -28,7 +28,7 @@ export default function MileageScreen() {
   const load = useCallback(async () => {
     if (!care.userId) return
     const r = await careGet(`/api/mileage?caregiverId=${encodeURIComponent(care.userId)}&limit=30`)
-    if (r.ok) { setEntries(asList(r.data, 'entries').filter((e: any) => !e.caregiverId || e.caregiverId === care.userId)); setFailed(false) }
+    if (r.ok) { setEntries(asList(r.data).filter((e: any) => !e.caregiverId || e.caregiverId === care.userId)); setFailed(false) }
     else { setFailed(true); setEntries((p) => p || []) }
   }, [care.userId])
   useFocusEffect(useCallback(() => { load() }, [load]))
@@ -63,7 +63,7 @@ export default function MileageScreen() {
           <>
             <Text style={[styles.label, { color: t.text }]}>For a client (optional)</Text>
             {care.clients.map((c) => (
-              <Choice key={c.id} label={`${c.first_name || ''} ${c.last_name || ''}`.trim()} selected={f.clientId === c.id} onPress={() => setF({ ...f, clientId: f.clientId === c.id ? '' : c.id })} />
+              <Choice key={c.id} label={`${c.firstName || ''} ${c.lastName || ''}`.trim()} selected={f.clientId === c.id} onPress={() => setF({ ...f, clientId: f.clientId === c.id ? '' : c.id })} />
             ))}
           </>
         )}

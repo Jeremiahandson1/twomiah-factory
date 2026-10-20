@@ -26,7 +26,7 @@ export default function SandataHelpScreen() {
       {inSandata.length === 0 && <Text style={{ color: t.textSecondary, fontSize: 14 }}>None right now.</Text>}
       {inSandata.map((c) => (
         <Card key={c.id}>
-          <Text style={{ color: t.text, fontSize: 16, fontWeight: '700' }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim()}</Text>
+          <Text style={{ color: t.text, fontSize: 16, fontWeight: '700' }}>{`${c.firstName || ''} ${c.lastName || ''}`.trim()}</Text>
           <SandataIdBox client={c} />
         </Card>
       ))}

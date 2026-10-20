@@ -1,5 +1,12 @@
 /**
- * Notifications / Alerts — real-time via WebSocket, single fetch on connect.
+ * Notifications / Alerts — the live feed of what happens while the app is open.
+ *
+ * The events are the unified server's live updates (src/socket/SocketContext EVENTS — apps/unified/server/core/realtime.ts).
+ * There is NO stored notification history for the trades: GET /api/push/history does not exist on the unified server
+ * (its /api/push and /api/notifications are home care's alone, crm/homecare/portals/index.ts), and the server never
+ * sends a 'notification' event — so this screen asks for neither, and says the feed starts when the app opens.
+ * Quote and invoice events carry money and link to screens a field seat cannot open, so they are listed only for a
+ * seat with quotes:read / invoices:read.
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -11,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useSocket, useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
-import { get } from '../../src/api/client'
+import { useAuth } from '../../src/auth/AuthContext'
 import { SkeletonList } from '../../src/components/SkeletonLoader'
 
 interface Notification {
@@ -44,30 +51,23 @@ const EVENT_ICONS: Record<string, { icon: string; color: string }> = {
   'quote:sent': { icon: 'send', color: '#3b82f6' },
   'invoice:paid': { icon: 'cash', color: '#22c55e' },
   'contact:created': { icon: 'person-add', color: '#8b5cf6' },
+  'lead:created': { icon: 'mail-unread', color: '#ec4899' },
+  'payment:received': { icon: 'cash', color: '#22c55e' },
   'alert:created': { icon: 'warning', color: '#ef4444' },
-  'notification': { icon: 'notifications', color: '#3b82f6' },
 }
+const DEFAULT_ICON = { icon: 'notifications', color: '#3b82f6' }
 
 export default function NotificationsScreen() {
   const t = useTheme()
   const { connected } = useSocket()
+  const { can } = useAuth()
+  const seesQuotes = can('quotes:read')
+  const seesInvoices = can('invoices:read')
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  // Fetch existing notifications on mount
-  const load = useCallback(async () => {
-    // Try dedicated notifications endpoint; fall back to empty
-    const res = await get('/api/push/history')
-    if (res.ok && Array.isArray(res.data)) {
-      setNotifications(res.data)
-    }
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false) }
+  // Nothing to fetch: the feed is what arrives live. Pull-to-refresh clears what has been read.
+  const onRefresh = () => { setRefreshing(true); setNotifications(prev => prev.map(n => ({ ...n, read: true }))); setRefreshing(false) }
 
   // Real-time: prepend new events as they arrive
   const addNotification = useCallback((event: string, data: any) => {
@@ -75,7 +75,7 @@ export default function NotificationsScreen() {
       id: `rt-${Date.now()}-${Math.random()}`,
       type: event,
       title: formatEventTitle(event, data),
-      message: data?.message || data?.title || data?.name || JSON.stringify(data).slice(0, 80),
+      message: data?.message || data?.title || data?.name || data?.number || '',
       read: false,
       createdAt: new Date().toISOString(),
       data,
@@ -86,14 +86,15 @@ export default function NotificationsScreen() {
   // Subscribe to all relevant events
   useRealTimeEvent(EVENTS.JOB_CREATED, (d: any) => addNotification('job:created', d), [addNotification])
   useRealTimeEvent(EVENTS.JOB_STATUS_CHANGED, (d: any) => addNotification('job:statusChanged', d), [addNotification])
-  useRealTimeEvent(EVENTS.QUOTE_APPROVED, (d: any) => addNotification('quote:approved', d), [addNotification])
-  useRealTimeEvent(EVENTS.INVOICE_PAID, (d: any) => addNotification('invoice:paid', d), [addNotification])
+  useRealTimeEvent(EVENTS.QUOTE_APPROVED, (d: any) => { if (seesQuotes) addNotification('quote:approved', d) }, [addNotification, seesQuotes])
+  useRealTimeEvent(EVENTS.INVOICE_PAID, (d: any) => { if (seesInvoices) addNotification('invoice:paid', d) }, [addNotification, seesInvoices])
+  useRealTimeEvent(EVENTS.PAYMENT_RECEIVED, (d: any) => { if (seesInvoices) addNotification('payment:received', d) }, [addNotification, seesInvoices])
   useRealTimeEvent(EVENTS.CONTACT_CREATED, (d: any) => addNotification('contact:created', d), [addNotification])
+  useRealTimeEvent(EVENTS.LEAD_CREATED, (d: any) => addNotification('lead:created', d), [addNotification])
   useRealTimeEvent(EVENTS.ALERT_CREATED, (d: any) => addNotification('alert:created', d), [addNotification])
-  useRealTimeEvent(EVENTS.NOTIFICATION, (d: any) => addNotification('notification', d), [addNotification])
 
   const renderItem = ({ item }: { item: Notification }) => {
-    const eventStyle = EVENT_ICONS[item.type] || EVENT_ICONS['notification']
+    const eventStyle = EVENT_ICONS[item.type] || DEFAULT_ICON
     return (
       <View style={[styles.card, { backgroundColor: item.read ? t.surfaceAlt : t.surface, borderColor: t.border }]}>
         <View style={[styles.iconWrap, { backgroundColor: eventStyle.color + '18' }]}>
@@ -118,9 +119,7 @@ export default function NotificationsScreen() {
         </Text>
       </View>
 
-      {loading ? (
-        <SkeletonList count={5} />
-      ) : (
+      {(
         <FlatList
           data={notifications}
           keyExtractor={item => item.id}
@@ -132,7 +131,7 @@ export default function NotificationsScreen() {
               <Ionicons name="notifications-outline" size={48} color={t.textMuted} style={{ opacity: 0.5 }} />
               <Text style={{ color: t.textSecondary, fontSize: 16, fontWeight: '600' }}>No notifications yet</Text>
               <Text style={{ color: t.textMuted, fontSize: 14, textAlign: 'center' }}>
-                Updates will appear here in real time as jobs, quotes, and invoices change.
+                While the app is open, new jobs, status changes and new contacts appear here as they happen.
               </Text>
             </View>
           }
@@ -149,9 +148,10 @@ function formatEventTitle(event: string, data: any): string {
     case 'quote:approved': return `Quote ${data?.number || ''} approved`
     case 'quote:sent': return `Quote ${data?.number || ''} sent`
     case 'invoice:paid': return `Invoice ${data?.number || ''} paid`
+    case 'payment:received': return `Payment on ${data?.invoiceNumber || 'an invoice'}`
+    case 'lead:created': return `New lead${data?.name ? `: ${data.name}` : ''}`
     case 'contact:created': return `New contact: ${data?.name || ''}`
     case 'alert:created': return data?.customerName ? `Alert: ${data.customerName}` : 'New alert'
-    case 'notification': return data?.title || 'Notification'
     default: return event.replace(/:/g, ' ').replace(/^\w/, c => c.toUpperCase())
   }
 }

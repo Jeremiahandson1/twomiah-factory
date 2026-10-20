@@ -39,16 +39,16 @@ function ClientRequest({ r }: { r: any }) {
 
   return (
     <Card>
-      <Text style={[styles.title, { color: t.text }]}>{`${r.client_first_name || ''} ${r.client_last_name || ''}`.trim()}</Text>
+      <Text style={[styles.title, { color: t.text }]}>{`${r.clientFirstName || ''} ${r.clientLastName || ''}`.trim()}</Text>
       <Text style={[styles.meta, { color: t.text }]}>
-        {r.request_type === 'cancel' ? 'Wants to cancel' : 'Wants to move'} the visit on {formatYmdShort(r.visit_date)} at {formatTime12(r.original_start_time)}
+        {r.requestType === 'cancel' ? 'Wants to cancel' : 'Wants to move'} the visit on {formatYmdShort(r.visitDate)} at {formatTime12(r.originalStartTime)}
       </Text>
-      {r.request_type === 'reschedule' && r.proposed_date ? (
-        <Text style={[styles.meta, { color: t.text }]}>To: {formatYmdShort(r.proposed_date)}, {formatTime12(r.proposed_start_time)} – {formatTime12(r.proposed_end_time)}</Text>
+      {r.requestType === 'reschedule' && r.proposedDate ? (
+        <Text style={[styles.meta, { color: t.text }]}>To: {formatYmdShort(r.proposedDate)}, {formatTime12(r.proposedStartTime)} – {formatTime12(r.proposedEndTime)}</Text>
       ) : null}
-      {r.cancel_reason ? <Text style={[styles.meta, { color: t.textSecondary }]}>Reason: {r.cancel_reason}</Text> : null}
-      {r.request_reason ? <Text style={[styles.meta, { color: t.textSecondary }]}>"{r.request_reason}"</Text> : null}
-      {r.status === 'counter_offered' && <Text style={[styles.meta, { color: t.textSecondary }]}>You suggested {formatYmdShort(r.counter_date)} at {formatTime12(r.counter_start_time)} — waiting on the client.</Text>}
+      {r.cancelReason ? <Text style={[styles.meta, { color: t.textSecondary }]}>Reason: {r.cancelReason}</Text> : null}
+      {r.requestReason ? <Text style={[styles.meta, { color: t.textSecondary }]}>"{r.requestReason}"</Text> : null}
+      {r.status === 'counter_offered' && <Text style={[styles.meta, { color: t.textSecondary }]}>You suggested {formatYmdShort(r.counterDate)} at {formatTime12(r.counterStartTime)} — waiting on the client.</Text>}
       {counter ? (
         <View style={{ marginTop: 10 }}>
           <Field label="Suggested date (YYYY-MM-DD)" value={f.date} onChangeText={(v) => setF({ ...f, date: v })} autoCapitalize="none" />
@@ -64,7 +64,7 @@ function ClientRequest({ r }: { r: any }) {
         <View style={styles.actions}>
           <Button small variant="success" label="Approve" loading={busy} disabled={busy} onPress={() => resolve('approve')} />
           <Button small variant="secondary" label="Decline" disabled={busy} onPress={() => resolve('deny')} />
-          {r.request_type === 'reschedule' && <Button small variant="ghost" label="Suggest another time" disabled={busy} onPress={() => setCounter(true)} />}
+          {r.requestType === 'reschedule' && <Button small variant="ghost" label="Suggest another time" disabled={busy} onPress={() => setCounter(true)} />}
         </View>
       ) : null}
     </Card>
@@ -85,12 +85,12 @@ export default function RequestsScreen() {
       {care.myRequests.length === 0 && <EmptyState icon="git-compare-outline" title="Nothing waiting" subtitle="To ask to move a visit, open it on the Schedule tab and tap Move." />}
       {care.myRequests.map((r) => (
         <Card key={r.id}>
-          <Text style={[styles.title, { color: t.text }]}>{`${r.client_first_name || ''} ${r.client_last_name || ''}`.trim()}</Text>
+          <Text style={[styles.title, { color: t.text }]}>{`${r.clientFirstName || ''} ${r.clientLastName || ''}`.trim()}</Text>
           <Text style={[styles.meta, { color: t.text }]}>
-            {formatYmdShort(r.visit_date)} {formatTime12(r.original_start_time)} → {formatYmdShort(r.proposed_date)} {formatTime12(r.proposed_start_time)}–{formatTime12(r.proposed_end_time)}
+            {formatYmdShort(r.visitDate)} {formatTime12(r.originalStartTime)} → {formatYmdShort(r.proposedDate)} {formatTime12(r.proposedStartTime)}–{formatTime12(r.proposedEndTime)}
           </Text>
           {r.status === 'counter_offered'
-            ? <Banner tone="info" icon="chatbox-ellipses-outline">{`The office suggested ${formatYmdShort(r.counter_date)} at ${formatTime12(r.counter_start_time)}${r.counter_message ? ` — "${r.counter_message}"` : ''}. Call the office to confirm.`}</Banner>
+            ? <Banner tone="info" icon="chatbox-ellipses-outline">{`The office suggested ${formatYmdShort(r.counterDate)} at ${formatTime12(r.counterStartTime)}${r.counterMessage ? ` — "${r.counterMessage}"` : ''}. Call the office to confirm.`}</Banner>
             : <Text style={[styles.meta, { color: t.textSecondary }]}>Pending — work the original time until the office approves it.</Text>}
         </Card>
       ))}

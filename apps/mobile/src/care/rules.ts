@@ -6,7 +6,7 @@
 
 // ─── Clock-in guard ────────────────────────────────────────────────────────────────────────
 
-export interface OpenVisit { id: string; client_id?: string | null; client_name?: string | null; offline?: boolean }
+export interface OpenVisit { id: string; clientId?: string | null; clientName?: string | null; offline?: boolean }
 
 /**
  * Why a clock-in must not be sent, or null. The server would auto-close an open visit when the
@@ -16,7 +16,7 @@ export interface OpenVisit { id: string; client_id?: string | null; client_name?
 export function clockInBlocker(o: { clientId: string | null | undefined; active: OpenVisit | null | undefined; busy?: boolean; activeClientName?: string | null }): string | null {
   if (o.busy) return 'Working on it — no need to tap again.'
   if (o.active) {
-    const who = o.activeClientName || o.active.client_name || 'your current client'
+    const who = o.activeClientName || o.active.clientName || 'your current client'
     return `You're still clocked in with ${who}. Clock out of that visit first.`
   }
   if (!o.clientId) return 'Pick the client you are with.'

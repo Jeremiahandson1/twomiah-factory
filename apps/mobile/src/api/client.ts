@@ -151,20 +151,6 @@ export async function upload<T = any>(
   return { ok: true, status: res.status, data: data as T }
 }
 
-/** Upload photos for a job/lead/contact */
-export function uploadPhotos(entityId: string, entityType: 'jobId' | 'leadId' | 'contactId', photos: { uri: string; name?: string }[]) {
-  const fd = new FormData()
-  fd.append(entityType, entityId)
-  photos.forEach((photo, i) => {
-    fd.append('photos', {
-      uri: photo.uri,
-      type: 'image/jpeg',
-      name: photo.name || `photo_${Date.now()}_${i}.jpg`,
-    } as any)
-  })
-  return upload('/api/photos/bulk', fd)
-}
-
 // ── Convenience Methods ──────────────────────────────────────────────────────
 
 export const get = <T = any>(path: string) => api<T>(path)

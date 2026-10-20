@@ -1,6 +1,17 @@
 /**
- * PhotoGallery — reusable horizontal photo strip with upload.
- * Fetches photos for an entity, allows adding via camera/gallery.
+ * PhotoGallery — a job's photo strip with upload.
+ *
+ * Where a job's photos live on the unified server depends on the vertical (apps/unified/server/modules/crm.ts):
+ *   · basic, field service, landscaping and roofing keep them ON THE JOB — GET/POST /api/jobs/:id/photos (the job_photo
+ *     table; the web's job page reads the same rows), one file per POST in the form field `photo`. The rows' `url` is
+ *     /media/photos/…, served by the site's /media route.
+ *   · the contractor has no job photo routes; its photos are documents — GET /api/photos?jobId=…, POST /api/photos/bulk
+ *     with `jobId` + `photos`. Their url is /api/photos/:id/file, which needs the session (documents:read).
+ * Both are switched on by `photo_capture`. Either way the stored url is RELATIVE to the server, so it is joined to the
+ * server address here, and the Authorization header goes with the image request.
+ *
+ * A photo belongs to a job: /api/photos has no lead or contact filter (it reads ?jobId and ?projectId only), so the old
+ * leadId/contactId galleries listed every photo in the company.
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -9,85 +20,131 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../theme/ThemeContext'
-import { get, uploadPhotos, getApiUrl } from '../api/client'
+import { get, upload, getApiUrl, getAccessToken } from '../api/client'
 import { useCamera } from '../hooks/useCamera'
 import { useToast } from './ToastProvider'
 import { useHaptics } from '../hooks/useHaptics'
+import { useVertical } from '../vertical/VerticalContext'
+
+/** The verticals whose job carries its own photos (CrmSettings.jobs.photos, and roofing's job module). */
+const PHOTOS_ON_JOB = ['basic', 'fieldservice', 'landscaping', 'roofing']
+export const photosOnJob = (vertical: string) => PHOTOS_ON_JOB.includes(vertical)
+
+export interface JobPhoto {
+  id: string
+  url?: string | null
+  thumbnailUrl?: string | null
+  caption?: string | null
+}
+
+/** The photos of one job, as either store answers them (a bare array from the shared module, { data } from roofing's). */
+export async function loadJobPhotos(vertical: string, jobId: string): Promise<{ ok: boolean; photos: JobPhoto[] }> {
+  const res = photosOnJob(vertical)
+    ? await get(`/api/jobs/${jobId}/photos`)
+    : await get(`/api/photos?jobId=${encodeURIComponent(jobId)}`)
+  if (!res.ok) return { ok: false, photos: [] }
+  const rows = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.data) ? res.data.data : []
+  return { ok: true, photos: rows }
+}
+
+/** One photo onto a job, to the store this vertical keeps them in. */
+export function uploadJobPhoto(vertical: string, jobId: string, uri: string) {
+  const fd = new FormData()
+  const file = { uri, type: 'image/jpeg', name: `photo_${Date.now()}.jpg` } as any
+  if (photosOnJob(vertical)) {
+    fd.append('photo', file)
+    return upload(`/api/jobs/${jobId}/photos`, fd)
+  }
+  fd.append('jobId', jobId)
+  fd.append('photos', file)
+  return upload('/api/photos/bulk', fd)
+}
+
+/** An image source for a stored photo: the server address in front of its relative url, and the session beside it. */
+export function photoSource(photo: JobPhoto, thumbnail = false) {
+  const raw = (thumbnail && photo.thumbnailUrl) || photo.url || ''
+  const uri = /^https?:\/\//.test(raw) ? raw : `${getApiUrl()}${raw.startsWith('/') ? '' : '/'}${raw}`
+  const token = getAccessToken()
+  return token ? { uri, headers: { Authorization: `Bearer ${token}` } } : { uri }
+}
 
 interface Props {
-  entityType: 'jobId' | 'leadId' | 'contactId'
-  entityId: string
+  jobId: string
+  /** May this person add a photo? (jobs:update on a job's own photos; documents:create on the contractor's.) */
+  canAdd?: boolean
 }
 
-interface Photo {
-  id: string
-  url?: string
-  thumbnailUrl?: string
-  caption?: string
-}
-
-export function PhotoGallery({ entityType, entityId }: Props) {
+export function PhotoGallery({ jobId, canAdd = true }: Props) {
   const t = useTheme()
   const toast = useToast()
   const haptics = useHaptics()
+  const { vertical, hasFeature } = useVertical()
   const { takePhoto, pickImage } = useCamera()
-  const [photos, setPhotos] = useState<Photo[]>([])
+  const [photos, setPhotos] = useState<JobPhoto[]>([])
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [viewPhoto, setViewPhoto] = useState<Photo | null>(null)
+  const [viewPhoto, setViewPhoto] = useState<JobPhoto | null>(null)
+  const enabled = hasFeature('photo_capture')
 
   const loadPhotos = useCallback(async () => {
-    const res = await get(`/api/photos?${entityType}=${entityId}`)
-    if (res.ok) setPhotos(res.data.data || res.data || [])
+    if (!enabled) { setLoading(false); return }
+    const res = await loadJobPhotos(vertical, jobId)
+    setFailed(!res.ok)
+    if (res.ok) setPhotos(res.photos)
     setLoading(false)
-  }, [entityType, entityId])
+  }, [vertical, jobId, enabled])
 
   useEffect(() => { loadPhotos() }, [loadPhotos])
+
+  // Photo capture is switched off for this business: no strip, rather than one that is refused.
+  if (!enabled) return null
 
   const handleAdd = async (mode: 'camera' | 'gallery') => {
     const result = mode === 'camera' ? await takePhoto() : await pickImage()
     if (!result) return
     setUploading(true)
-    const res = await uploadPhotos(entityId, entityType, [{ uri: result.uri }])
+    const res = await uploadJobPhoto(vertical, jobId, result.uri)
     if (res.ok) {
       haptics.success()
       toast.success('Photo uploaded')
       loadPhotos()
     } else {
       haptics.error()
-      toast.error('Upload failed')
+      toast.error(res.error || 'Upload failed')
     }
     setUploading(false)
-  }
-
-  const getUrl = (photo: Photo, thumbnail = false) => {
-    if (thumbnail && photo.thumbnailUrl) return photo.thumbnailUrl
-    if (photo.url) return photo.url
-    const base = getApiUrl()
-    return thumbnail ? `${base}/api/photos/${photo.id}/thumbnail` : `${base}/api/photos/${photo.id}/file`
   }
 
   return (
     <View>
       <View style={styles.header}>
         <Text style={[styles.title, { color: t.text }]}>Photos ({photos.length})</Text>
-        <View style={styles.addBtns}>
-          <TouchableOpacity style={[styles.addBtn, { backgroundColor: t.primaryLight }]} onPress={() => handleAdd('camera')} disabled={uploading}>
-            <Ionicons name="camera" size={16} color={t.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.addBtn, { backgroundColor: t.primaryLight }]} onPress={() => handleAdd('gallery')} disabled={uploading}>
-            <Ionicons name="images" size={16} color={t.primary} />
-          </TouchableOpacity>
-        </View>
+        {canAdd && (
+          <View style={styles.addBtns}>
+            <TouchableOpacity style={[styles.addBtn, { backgroundColor: t.primaryLight }]} onPress={() => handleAdd('camera')} disabled={uploading}>
+              <Ionicons name="camera" size={16} color={t.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.addBtn, { backgroundColor: t.primaryLight }]} onPress={() => handleAdd('gallery')} disabled={uploading}>
+              <Ionicons name="images" size={16} color={t.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {loading ? (
         <ActivityIndicator style={{ marginVertical: 20 }} color={t.primary} />
+      ) : failed ? (
+        <Text style={{ color: t.textMuted, fontSize: 12 }}>Photos could not be loaded. Pull to refresh.</Text>
       ) : photos.length === 0 && !uploading ? (
-        <TouchableOpacity style={[styles.emptyBox, { borderColor: t.border }]} onPress={() => handleAdd('camera')}>
-          <Ionicons name="camera-outline" size={24} color={t.textMuted} />
-          <Text style={{ color: t.textMuted, fontSize: 12 }}>Tap to add first photo</Text>
-        </TouchableOpacity>
+        canAdd ? (
+          <TouchableOpacity style={[styles.emptyBox, { borderColor: t.border }]} onPress={() => handleAdd('camera')}>
+            <Ionicons name="camera-outline" size={24} color={t.textMuted} />
+            <Text style={{ color: t.textMuted, fontSize: 12 }}>Tap to add first photo</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={{ color: t.textMuted, fontSize: 12 }}>No photos yet</Text>
+        )
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
           {uploading && (
@@ -97,7 +154,7 @@ export function PhotoGallery({ entityType, entityId }: Props) {
           )}
           {photos.map(photo => (
             <TouchableOpacity key={photo.id} onPress={() => setViewPhoto(photo)}>
-              <Image source={{ uri: getUrl(photo, true) }} style={styles.thumb} />
+              <Image source={photoSource(photo, true)} style={styles.thumb} />
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -110,11 +167,11 @@ export function PhotoGallery({ entityType, entityId }: Props) {
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
           {viewPhoto && (
-            <Image source={{ uri: getUrl(viewPhoto) }} style={styles.fullImage} resizeMode="contain" />
+            <Image source={photoSource(viewPhoto)} style={styles.fullImage} resizeMode="contain" />
           )}
-          {viewPhoto?.caption && (
+          {viewPhoto?.caption ? (
             <Text style={styles.caption}>{viewPhoto.caption}</Text>
-          )}
+          ) : null}
         </View>
       </Modal>
     </View>

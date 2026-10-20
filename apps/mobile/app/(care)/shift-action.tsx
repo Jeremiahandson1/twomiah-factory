@@ -16,6 +16,7 @@ import { Text, StyleSheet, View, Alert } from 'react-native'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useCare } from '../../src/care/CareContext'
+import { isFieldRole } from '../../src/auth/roles'
 import { careGet, carePost, asList } from '../../src/care/careApi'
 import { CareScreen } from '../../src/care/screen'
 import { Banner, Button, Card, Choice, Field, SectionTitle } from '../../src/care/ui'
@@ -57,7 +58,8 @@ export default function ShiftActionScreen() {
   useEffect(() => {
     if (kind !== 'swap') return
     careGet('/api/messages/users').then((r) => {
-      setCoworkers(r.ok ? asList(r.data).filter((u: any) => String(u.role).toLowerCase() === 'caregiver' && u.id !== care.userId) : [])
+      // /api/messages/users answers { id, firstName, lastName, role }; a coworker is the field seat (role 'field').
+      setCoworkers(r.ok ? asList(r.data).filter((u: any) => isFieldRole(u.role) && u.id !== care.userId) : [])
     })
   }, [kind, care.userId])
 
@@ -133,7 +135,7 @@ export default function ShiftActionScreen() {
           <SectionTitle>Ask which coworker?</SectionTitle>
           {coworkers === null ? <Text style={[styles.meta, { color: t.textSecondary }]}>Loading coworkers…</Text>
             : coworkers.length === 0 ? <Banner tone="warning" icon="people-outline">No coworkers to choose from. Ask the office to arrange it.</Banner>
-              : coworkers.map((u) => <Choice key={u.id} label={`${u.firstName || u.first_name || ''} ${u.lastName || u.last_name || ''}`.trim()} selected={target === u.id} onPress={() => setTarget(u.id)} />)}
+              : coworkers.map((u) => <Choice key={u.id} label={`${u.firstName || ''} ${u.lastName || ''}`.trim()} selected={target === u.id} onPress={() => setTarget(u.id)} />)}
           <Field label="Reason (optional, but it helps)" value={note} onChangeText={setNote} multiline placeholder="Doctor appointment, family emergency…" />
         </>
       )}

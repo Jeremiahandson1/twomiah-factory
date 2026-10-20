@@ -88,7 +88,7 @@ export default function DealWorksheetScreen() {
           <Text style={[styles.payNote, { color: t.textMuted }]}>estimated @ 9.99% / {term} months</Text>
         </View>
 
-        <TouchableOpacity style={[styles.fiBtn, { backgroundColor: t.primary }]} onPress={() => router.push({ pathname: '/(details)/deal/fi', params: { financed: String(financed), unit: params.unit || '' } })}>
+        <TouchableOpacity style={[styles.fiBtn, { backgroundColor: t.primary }]} onPress={() => router.push({ pathname: '/(details)/deal/fi', params: { financed: String(financed), unit: params.unit || '', term: String(term) } })}>
           <Text style={styles.fiBtnText}>Submit to F&I →</Text>
         </TouchableOpacity>
       </ScrollView>

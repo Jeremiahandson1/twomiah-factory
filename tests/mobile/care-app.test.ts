@@ -44,7 +44,7 @@ console.log('offline punch queue')
   const q = createPunchQueue(memKV())
   await q.save({ localId: 'in1', userId: 'u1', kind: 'in', at: '2026-10-15T14:10:00.000Z', clientId: 'c1', latitude: 44.8, longitude: -91.5 })
   const sess = await q.offlineSession('u1')
-  check('a saved clock-in is the open visit on the phone', sess?.id === 'offline-in1' && sess.client_id === 'c1' && sess.start_time === '2026-10-15T14:10:00.000Z', sess)
+  check('a saved clock-in is the open visit on the phone', sess?.id === 'offline-in1' && sess.clientId === 'c1' && sess.startTime === '2026-10-15T14:10:00.000Z', sess)
   check('another caregiver on the same phone does not see it', (await q.offlineSession('u2')) === null && (await q.count('u2')) === 0)
 
   await q.save({ localId: 'out1', userId: 'u1', kind: 'out', at: '2026-10-15T16:00:00.000Z', inLocalId: 'in1', notes: 'Bathed, lunch' })
@@ -64,7 +64,7 @@ console.log('offline punch queue')
   check('a 401 keeps the punches (sign-in, then they send)', (await q.count('u1')) === 2)
 
   // Signal back: the clock-in goes first with its TAP time, then the clock-out against the new entry.
-  const up = fakeServer((path) => path.endsWith('/clock-in') ? { status: 201, data: { id: 'te_9', client_id: 'c1' } } : { status: 200, data: { id: 'te_9' } })
+  const up = fakeServer((path) => path.endsWith('/clock-in') ? { status: 201, data: { id: 'te_9', clientId: 'c1' } } : { status: 200, data: { id: 'te_9' } })
   const r1 = await q.flush({ userId: 'u1', send: up.send })
   check('both punches sent', r1.sent === 2 && r1.rejected.length === 0, r1)
   check('clock-in first, with offlineAt = the tap time and the GPS fix', up.calls[0].path === '/api/time-entries/clock-in'
@@ -129,41 +129,41 @@ console.log('schedule expansion (server engine rules on the phone)')
   const MON = '2026-10-12' // a Monday
   check('fixture: 2026-10-12 is a Monday', dowOfYmd(MON) === 1)
   const base = (o: Partial<ScheduleRow>): ScheduleRow => ({
-    id: 's', caregiver_id: 'me', client_id: 'c1', day_of_week: 1, date: null, start_time: '09:00:00', end_time: '12:00:00',
-    client_first_name: 'Ann', client_last_name: 'Lee', exceptions: [], ...o,
+    id: 's', caregiverId: 'me', clientId: 'c1', dayOfWeek: 1, date: null, startTime: '09:00:00', endTime: '12:00:00',
+    clientFirstName: 'Ann', clientLastName: 'Lee', exceptions: [], ...o,
   })
   const weekly = expandVisits([base({})], MON, 14)
   check('weekly Monday → two Mondays in 14 days', weekly.length === 2 && weekly[0].date === MON && weekly[1].date === '2026-10-19', weekly.map((v) => v.date))
   check('visit carries client name and times', weekly[0].clientName === 'Ann Lee' && weekly[0].startTime === '09:00:00')
 
-  const bi = expandVisits([base({ frequency: 'biweekly', anchor_date: '2026-10-05' })], MON, 21)
+  const bi = expandVisits([base({ frequency: 'biweekly', anchorDate: '2026-10-05' })], MON, 21)
   check('bi-weekly on the anchor fortnight (anchor Oct 5 → Oct 19, Nov 2; not Oct 12, 26)', bi.map((v) => v.date).join(',') === '2026-10-19', bi.map((v) => v.date))
-  check('"bi-weekly" spelling counts too', expandVisits([base({ frequency: 'bi-weekly', anchor_date: '2026-10-12' })], MON, 14).length === 1)
+  check('"bi-weekly" spelling counts too', expandVisits([base({ frequency: 'bi-weekly', anchorDate: '2026-10-12' })], MON, 14).length === 1)
   check('bi-weekly parity floors a date before the anchor', isBiweeklyOn('2026-10-04', '2026-10-05') === false && isBiweeklyOn('2026-09-28', '2026-10-05') === false && isBiweeklyOn('2026-09-21', '2026-10-05') === true)
 
-  check('effective_date bounds a recurring row', expandVisits([base({ effective_date: '2026-10-15' })], MON, 14).map((v) => v.date).join() === '2026-10-19')
-  check('end_date bounds a recurring row', expandVisits([base({ end_date: '2026-10-15' })], MON, 14).map((v) => v.date).join() === MON)
-  check('suspended_from stops it', expandVisits([base({ suspended_from: '2026-10-13' })], MON, 14).map((v) => v.date).join() === MON)
-  check('a cancelled date does not exist', expandVisits([base({ exceptions: [{ exception_date: MON, exception_type: 'cancelled' }] })], MON, 14).map((v) => v.date).join() === '2026-10-19')
-  const mod = expandVisits([base({ exceptions: [{ exception_date: MON, exception_type: 'modified', override_start_time: '10:00:00', override_end_time: '13:00:00' }] })], MON, 7)
+  check('effective_date bounds a recurring row', expandVisits([base({ effectiveDate: '2026-10-15' })], MON, 14).map((v) => v.date).join() === '2026-10-19')
+  check('end_date bounds a recurring row', expandVisits([base({ endDate: '2026-10-15' })], MON, 14).map((v) => v.date).join() === MON)
+  check('suspended_from stops it', expandVisits([base({ suspendedFrom: '2026-10-13' })], MON, 14).map((v) => v.date).join() === MON)
+  check('a cancelled date does not exist', expandVisits([base({ exceptions: [{ exceptionDate: MON, exceptionType: 'cancelled' }] })], MON, 14).map((v) => v.date).join() === '2026-10-19')
+  const mod = expandVisits([base({ exceptions: [{ exceptionDate: MON, exceptionType: 'modified', overrideStartTime: '10:00:00', overrideEndTime: '13:00:00' }] })], MON, 7)
   check('a modified date takes its override times', mod[0].startTime === '10:00:00' && mod[0].endTime === '13:00:00', mod[0])
-  check('a date moved to another caregiver is not mine', expandVisits([base({ exceptions: [{ exception_date: MON, exception_type: 'modified', override_caregiver_id: 'other' }] })], MON, 7).length === 0)
-  const moved = expandVisits([base({ exceptions: [{ exception_date: MON, exception_type: 'modified', override_client_id: 'c2' }] })], MON, 7, { c2: 'Bea Ray' })
+  check('a date moved to another caregiver is not mine', expandVisits([base({ exceptions: [{ exceptionDate: MON, exceptionType: 'modified', overrideCaregiverId: 'other' }] })], MON, 7).length === 0)
+  const moved = expandVisits([base({ exceptions: [{ exceptionDate: MON, exceptionType: 'modified', overrideClientId: 'c2' }] })], MON, 7, { c2: 'Bea Ray' })
   check('a date moved to another client shows that client', moved[0].clientId === 'c2' && moved[0].clientName === 'Bea Ray' && moved[0].clientAddress === null, moved[0])
 
-  const oneTime = base({ id: 'o', day_of_week: null, date: '2026-10-14', effective_date: '2026-11-01' })
+  const oneTime = base({ id: 'o', dayOfWeek: null, date: '2026-10-14', effectiveDate: '2026-11-01' })
   check('a one-time row is its own date (effective_date ignored)', expandVisits([oneTime], MON, 7).map((v) => v.date).join() === '2026-10-14')
   check('a one-time row outside the window is skipped', expandVisits([oneTime], '2026-10-20', 7).length === 0)
-  check('a row with no times is not a visit', expandVisits([base({ start_time: null })], MON, 7).length === 0)
-  const own = base({ id: 'own', day_of_week: 1 })
-  const cover = base({ id: 'cov', day_of_week: null, date: MON, moved_in: true })
+  check('a row with no times is not a visit', expandVisits([base({ startTime: null })], MON, 7).length === 0)
+  const own = base({ id: 'own', dayOfWeek: 1 })
+  const cover = base({ id: 'cov', dayOfWeek: null, date: MON, movedIn: true })
   check('a moved-in shift identical to my own is shown once', expandVisits([own, cover], MON, 1).length === 1)
   check('a moved-in shift on its own is shown, flagged', expandVisits([cover], MON, 1)[0]?.movedIn === true)
-  const sorted = expandVisits([base({ id: 'b', start_time: '13:00:00', end_time: '14:00:00' }), base({ id: 'a' })], MON, 1)
+  const sorted = expandVisits([base({ id: 'b', startTime: '13:00:00', endTime: '14:00:00' }), base({ id: 'a' })], MON, 1)
   check('sorted by start time', sorted.map((v) => v.scheduleId).join() === 'a,b')
-  check('hours total (incl. overnight wrap)', totalHours(expandVisits([base({ start_time: '22:00:00', end_time: '02:00:00' })], MON, 1)) === 4 && shiftMinutes('22:00', '02:00') === 240)
+  check('hours total (incl. overnight wrap)', totalHours(expandVisits([base({ startTime: '22:00:00', endTime: '02:00:00' })], MON, 1)) === 4 && shiftMinutes('22:00', '02:00') === 240)
 
-  const day = expandVisits([base({ id: 'a' }), base({ id: 'b', client_id: 'c2', start_time: '13:00:00', end_time: '15:00:00' })], MON, 1)
+  const day = expandVisits([base({ id: 'a' }), base({ id: 'b', clientId: 'c2', startTime: '13:00:00', endTime: '15:00:00' })], MON, 1)
   check('next up: before 9 → next/starting soon', nextUp(day, 8 * 60 + 40).state === 'starting_soon' && nextUp(day, 7 * 60).state === 'next')
   check('next up: during a visit not clocked in → due now', nextUp(day, 10 * 60).state === 'due_now')
   check('next up: clocked in → in progress; past end → overdue', nextUp(day, 10 * 60, 'c1').state === 'in_progress' && nextUp(day, 12 * 60 + 30, 'c1').state === 'overdue')
@@ -174,8 +174,8 @@ console.log('schedule expansion (server engine rules on the phone)')
 
 console.log('Sandata EVV prompts')
 {
-  const inS = { id: 'c1', first_name: 'Ann', last_name: 'Lee', in_sandata: true, medicaid_id: '1234567890' }
-  const notS = { id: 'c2', first_name: 'Bo', in_sandata: false, medicaid_id: null }
+  const inS = { id: 'c1', firstName: 'Ann', lastName: 'Lee', inSandata: true, medicaidId: '1234567890' }
+  const notS = { id: 'c2', firstName: 'Bo', inSandata: false, medicaidId: null }
   check('in_sandata is the server\'s call', needsSandata(inS) && !needsSandata(notS) && !needsSandata(null))
   check('visit needs Sandata: unknown (offline) → prompt', visitNeedsSandata(inS, null) && visitNeedsSandata(inS, undefined) && visitNeedsSandata(inS, true))
   check('visit needs Sandata: this week\'s EVV hours met → no', visitNeedsSandata(inS, false) === false && evvWeekMet(inS, false) === true)
@@ -185,7 +185,7 @@ console.log('Sandata EVV prompts')
   check('after a clock-in with EVV hours met: the "no Sandata" notice', sandataAfterPunch('in', inS, false)?.type === 'week_met')
   check('after a clock-out with EVV hours met: nothing', sandataAfterPunch('out', inS, false) === null)
   check('after a punch for a non-Sandata client: nothing', sandataAfterPunch('in', notS, null) === null)
-  check('Medicaid ID only when it looks like one', medicaidIdOf(inS) === '1234567890' && medicaidIdOf({ id: 'x', medicaid_id: 'ABC' }) === null)
+  check('Medicaid ID only when it looks like one', medicaidIdOf(inS) === '1234567890' && medicaidIdOf({ id: 'x', medicaidId: 'ABC' }) === null)
   const ctx = { sandataAgencyId: null, clients: [notS], activeVisit: null }
   check('one-time notice only for a caregiver with a client in Sandata, until dismissed',
     !showSandataNotice(ctx, false) && showSandataNotice({ ...ctx, clients: [inS] }, false) && !showSandataNotice({ ...ctx, clients: [inS] }, true) && !showSandataNotice(null, false))
@@ -197,8 +197,8 @@ console.log('Sandata EVV prompts')
 
 console.log('clock-in guard, geofence, payday, signature')
 {
-  check('a second open visit is refused', /still clocked in with Ann Lee/.test(clockInBlocker({ clientId: 'c2', active: { id: 'te1', client_id: 'c1' }, activeClientName: 'Ann Lee' }) || ''))
-  check('an offline open visit is refused too', !!clockInBlocker({ clientId: 'c2', active: { id: 'offline-x', client_id: 'c1', offline: true } }))
+  check('a second open visit is refused', /still clocked in with Ann Lee/.test(clockInBlocker({ clientId: 'c2', active: { id: 'te1', clientId: 'c1' }, activeClientName: 'Ann Lee' }) || ''))
+  check('an offline open visit is refused too', !!clockInBlocker({ clientId: 'c2', active: { id: 'offline-x', clientId: 'c1', offline: true } }))
   check('no client picked → refused; busy → refused; else allowed',
     !!clockInBlocker({ clientId: '', active: null }) && !!clockInBlocker({ clientId: 'c1', active: null, busy: true }) && clockInBlocker({ clientId: 'c1', active: null }) === null)
   check('offline clock-out needs a note; online does not', !!clockOutNoteBlocker({ offline: true, note: ' ' }) && clockOutNoteBlocker({ offline: true, note: 'ok' }) === null && clockOutNoteBlocker({ offline: false, note: '' }) === null)

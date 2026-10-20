@@ -34,15 +34,17 @@ function TaskRow({ task, onSet }: { task: any; onSet: (status: string, notes?: s
   const tone = useTone(s.tone)
   const [noteOpen, setNoteOpen] = useState(false)
   const [note, setNote] = useState(task.notes || '')
-  const weeklyDone = task.cadence === 'weekly' && task.done_this_week && task.status !== 'completed'
+  // GET /api/care-tasks/time-entry/:id rows (data/homecareClients.ts shiftChecklist): { taskId, taskName, description,
+  // category, allottedMinutes, cadence, status, notes, doneThisWeek }
+  const weeklyDone = task.cadence === 'weekly' && task.doneThisWeek && task.status !== 'completed'
   return (
     <View style={[styles.task, { borderColor: tone.border, backgroundColor: task.status === 'pending' ? t.surface : tone.bg }]}>
       <View style={styles.taskHead}>
         <Ionicons name={s.icon as any} size={20} color={task.status === 'pending' ? t.textSecondary : tone.text} />
         <View style={{ flex: 1 }}>
-          <Text style={[styles.taskName, { color: task.status === 'pending' ? t.text : tone.text }]}>{task.task_name}</Text>
+          <Text style={[styles.taskName, { color: task.status === 'pending' ? t.text : tone.text }]}>{task.taskName}</Text>
           <Text style={[styles.taskMeta, { color: task.status === 'pending' ? t.textSecondary : tone.text }]}>
-            {[task.category ? String(task.category).toUpperCase() : null, task.allotted_minutes > 0 ? `${task.allotted_minutes} min` : null, weeklyDone ? 'done earlier this week' : null].filter(Boolean).join(' · ')}
+            {[task.category ? String(task.category).toUpperCase() : null, task.allottedMinutes > 0 ? `${task.allottedMinutes} min` : null, weeklyDone ? 'done earlier this week' : null].filter(Boolean).join(' · ')}
           </Text>
         </View>
         <Text style={[styles.taskStatus, { color: task.status === 'pending' ? t.textSecondary : tone.text }]}>{s.label}</Text>
@@ -83,7 +85,7 @@ export function CareTaskChecklist({ timeEntryId }: { timeEntryId: string }) {
 
   const setStatus = async (taskId: string, status: string, notes?: string | null) => {
     const r = await carePut(`/api/care-tasks/time-entry/${timeEntryId}/${taskId}`, { status, notes: notes ?? null })
-    if (r.ok) setItems((prev) => (prev || []).map((x) => (x.task_id === taskId ? { ...x, status, notes: notes ?? x.notes } : x)))
+    if (r.ok) setItems((prev) => (prev || []).map((x) => (x.taskId === taskId ? { ...x, status, notes: notes ?? x.notes } : x)))
     else toast.error(r.error || 'Could not save that task.')
   }
 
@@ -103,9 +105,9 @@ export function CareTaskChecklist({ timeEntryId }: { timeEntryId: string }) {
         <View style={[styles.progressFill, { backgroundColor: t.primary, width: `${Math.round((done / items.length) * 100)}%` }]} />
       </View>
       <Text style={[styles.progressText, { color: t.textSecondary }]}>{done} of {items.length} done</Text>
-      {daily.map((task) => <TaskRow key={task.task_id} task={task} onSet={(s, n) => setStatus(task.task_id, s, n)} />)}
+      {daily.map((task) => <TaskRow key={task.taskId} task={task} onSet={(s, n) => setStatus(task.taskId, s, n)} />)}
       {weekly.length > 0 && <Text style={[styles.subhead, { color: t.textSecondary }]}>Weekly tasks</Text>}
-      {weekly.map((task) => <TaskRow key={task.task_id} task={task} onSet={(s, n) => setStatus(task.task_id, s, n)} />)}
+      {weekly.map((task) => <TaskRow key={task.taskId} task={task} onSet={(s, n) => setStatus(task.taskId, s, n)} />)}
     </View>
   )
 }
@@ -145,21 +147,23 @@ export function MedicationLog({ clientId, timeEntryId }: { clientId: string; tim
     setBusy(med.id)
     const r = await carePost('/api/medications/log', { medicationId: med.id, clientId, timeEntryId, status })
     setBusy(null)
-    if (r.ok) { toast.success(`${med.medication_name || med.name}: ${status.replace('_', ' ')}`); load() }
+    if (r.ok) { toast.success(`${med.medicationName || med.name}: ${status.replace('_', ' ')}`); load() }
     else toast.error(r.error || 'Could not record that.')
   }
   return (
     <View>
       <SectionTitle>Medications (MAR)</SectionTitle>
       {meds.map((med) => {
-        const mine = logs.filter((l) => l.medication_id === med.id)
+        // GET /api/medications/due/:clientId → { id, medicationName, name, dosage, route, frequency, instructions, isPrn };
+        // GET /api/medications/logs/time-entry/:id → { medicationId, status, administeredTime, administeredAt }.
+        const mine = logs.filter((l) => l.medicationId === med.id)
         const last = mine[mine.length - 1]
         return (
           <Card key={med.id}>
-            <Text style={[styles.medName, { color: t.text }]}>{med.medication_name || med.name}{med.is_prn ? ' (as needed)' : ''}</Text>
+            <Text style={[styles.medName, { color: t.text }]}>{med.medicationName || med.name}{med.isPrn ? ' (as needed)' : ''}</Text>
             <Text style={[styles.medMeta, { color: t.textSecondary }]}>{[med.dosage, med.route, med.frequency].filter(Boolean).join(' · ')}</Text>
             {med.instructions ? <Text style={[styles.medMeta, { color: t.text }]}>{med.instructions}</Text> : null}
-            {last ? <Text style={[styles.medLogged, { color: okTone.text }]}>Recorded this visit: {String(last.status).replace('_', ' ')} at {formatClock(last.administered_time || last.administered_at)}</Text> : null}
+            {last ? <Text style={[styles.medLogged, { color: okTone.text }]}>Recorded this visit: {String(last.status).replace('_', ' ')} at {formatClock(last.administeredTime || last.administeredAt)}</Text> : null}
             <View style={styles.taskActions}>
               {MAR_ACTIONS.map((a) => (
                 <Button key={a.status} small variant={a.status === 'given' ? 'success' : 'secondary'} label={a.label} loading={busy === med.id && a.status === 'given'} disabled={!!busy} onPress={() => record(med, a.status)} />
@@ -212,11 +216,13 @@ export function VitalsForm({ clientId, timeEntryId }: { clientId: string; timeEn
     else Alert.alert('Vitals not saved', r.error || 'Please check the numbers.')
   }
 
-  const last = latest && latest.recorded_at
-    ? [latest.systolic_bp && latest.diastolic_bp ? `BP ${latest.systolic_bp}/${latest.diastolic_bp}` : null,
+  // GET /api/medications/vitals/latest/:clientId and the POST's reply: { recordedAt, systolicBp, diastolicBp, pulse,
+  // temperatureF, oxygenSaturation, … } — the same names the form sends (VITAL_FIELDS).
+  const last = latest && latest.recordedAt
+    ? [latest.systolicBp && latest.diastolicBp ? `BP ${latest.systolicBp}/${latest.diastolicBp}` : null,
       latest.pulse ? `pulse ${latest.pulse}` : null,
-      latest.temperature_f ? `${latest.temperature_f}°F` : null,
-      latest.oxygen_saturation ? `SpO2 ${latest.oxygen_saturation}%` : null].filter(Boolean).join(', ')
+      latest.temperatureF ? `${latest.temperatureF}°F` : null,
+      latest.oxygenSaturation ? `SpO2 ${latest.oxygenSaturation}%` : null].filter(Boolean).join(', ')
     : ''
 
   return (

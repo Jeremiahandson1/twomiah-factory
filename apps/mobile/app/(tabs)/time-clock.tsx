@@ -37,14 +37,14 @@ function ActiveVisitView() {
   const [outOpen, setOutOpen] = useState(false)
   const [noteError, setNoteError] = useState<string | null>(null)
   useEffect(() => { const iv = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(iv) }, [])
-  const start = new Date(a.start_time).getTime()
+  const start = new Date(a.startTime).getTime()
   const elapsed = isNaN(start) ? 0 : (now - start) / 1000
-  const name = a.client_name || care.clientName(a.client_id)
-  const client = care.clientById(a.client_id)
+  const name = a.clientName || care.clientName(a.clientId)
+  const client = care.clientById(a.clientId)
   const offline = isOfflineId(a.id)
   const success = useTone('success')
   const dangerTone = useTone('danger')
-  const todays = care.todayVisits.find((v) => v.clientId === a.client_id)
+  const todays = care.todayVisits.find((v) => v.clientId === a.clientId)
 
   const doClockOut = async () => {
     setNoteError(null)
@@ -71,7 +71,7 @@ function ActiveVisitView() {
         <Text style={[styles.timerName, { color: success.text }]}>{name}</Text>
         <Text style={[styles.timer, { color: success.text }]}>{formatElapsed(elapsed)}</Text>
         <Text style={[styles.timerSub, { color: success.text }]}>
-          Since {formatClock(a.start_time)}{todays ? ` · scheduled ${formatTime12(todays.startTime)}–${formatTime12(todays.endTime)}` : ''}
+          Since {formatClock(a.startTime)}{todays ? ` · scheduled ${formatTime12(todays.startTime)}–${formatTime12(todays.endTime)}` : ''}
         </Text>
         {offline && <Text style={[styles.timerSub, { color: success.text, fontWeight: '700' }]}>Saved on this phone — sends when you have signal</Text>}
       </View>
@@ -80,7 +80,7 @@ function ActiveVisitView() {
           If you forgot to clock out, clock out now and tell the office the right time.
         </Banner>
       )}
-      <VisitSandata clientId={a.client_id} sandataRequired={a.sandata_required} />
+      <VisitSandata clientId={a.clientId} sandataRequired={a.sandataRequired} />
 
       {client && fullAddress(client) ? (
         <Button variant="secondary" icon="navigate" label="Directions to this client" onPress={() => openDirections(fullAddress(client))} style={{ marginBottom: 12 }} />
@@ -89,8 +89,8 @@ function ActiveVisitView() {
       <SectionTitle>Care tasks</SectionTitle>
       <CareTaskChecklist timeEntryId={a.id} />
 
-      <MedicationLog clientId={a.client_id} timeEntryId={a.id} />
-      <VitalsForm clientId={a.client_id} timeEntryId={a.id} />
+      <MedicationLog clientId={a.clientId} timeEntryId={a.id} />
+      <VitalsForm clientId={a.clientId} timeEntryId={a.id} />
       <VisitPhotos />
 
       <SectionTitle>Visit notes</SectionTitle>
@@ -150,7 +150,7 @@ function ClockInView() {
 
   const todayIds = useMemo(() => Array.from(new Set(care.todayVisits.map((v) => v.clientId))), [care.todayVisits])
   const list = useMemo(() => {
-    const all = care.clients.length ? care.clients : todayIds.map((id) => ({ id, first_name: care.clientName(id), last_name: '' } as any))
+    const all = care.clients.length ? care.clients : todayIds.map((id) => ({ id, firstName: care.clientName(id), lastName: '' } as any))
     const today = all.filter((c) => todayIds.includes(c.id))
     return showAll || !today.length ? all : today
   }, [care.clients, todayIds, showAll, care.clientName])
@@ -222,7 +222,7 @@ function ClockInView() {
             style={[styles.pick, { borderColor: on ? t.primary : t.border, backgroundColor: on ? t.primaryLight : t.surface }]}>
             <Ionicons name={on ? 'radio-button-on' : 'radio-button-off'} size={22} color={on ? t.primary : t.textSecondary} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.pickName, { color: t.text }]}>{`${c.first_name || ''} ${c.last_name || ''}`.trim()}</Text>
+              <Text style={[styles.pickName, { color: t.text }]}>{`${c.firstName || ''} ${c.lastName || ''}`.trim()}</Text>
               {v ? <Text style={[styles.pickSub, { color: t.textSecondary }]}>Today {formatTime12(v.startTime)} – {formatTime12(v.endTime)}</Text> : null}
             </View>
           </TouchableOpacity>

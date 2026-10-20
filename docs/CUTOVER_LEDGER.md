@@ -447,3 +447,31 @@ Found and fixed on the way:
   the retired feature tiers (PLAN_TIERS) are gone — plans are priced by seats.
 - the test harnesses blank every outside service's key from the shell (apps/unified/tests/noLiveKeys.ts): a test was
   calling the real Anthropic API.
+
+## Live updates and the phone app on the unified app (2026-10-19)
+
+**Live updates are wired** (`server/http/live.ts`): every change a module announces (`core/realtime.ts`) reaches the
+screens over a WebSocket on the tenant's own server (Hono's Bun adapter; no new library). Sign-in is the API's own: a
+signed-in screen asks `POST /api/live/ticket` for a one-time 30-second ticket and opens `/api/live-socket?ticket=…`; a
+socket is closed after 15 minutes (a signed-out, switched-off or password-changed person stops receiving within that
+time). `apps/unified/tests/live-updates.test.ts`: real Bun.serve + WebSocket — no sign-in no ticket, made-up ticket
+refused, a contact made through the API arrives, a ticket works once, one person's event reaches only them, another
+company's never arrive. Still to do: the web screens' "connected" dot and lead inbox use it (the phone app does).
+
+**The phone app (apps/mobile) works against the unified app** — it was broken against the live CRMs too (same shared
+code: a payment recorded 100×, sign-out ended every device), never noticed because nobody uses it yet. Fixed in this
+build (the fence allows `apps/mobile` and `tests/mobile`, owner 2026-10-19): sign-out ends only this device; the industry
+is the server's vertical id (bar, salon, vet, restaurant, store: a "use the web app" screen; dispensary screens removed);
+the server's permissions kept and tabs/actions a seat can't use hidden; lists read `{ data }`; camelCase fields; money
+in dollars; home care push registers at `/api/push/expo-token`; live updates over the new socket (socket.io removed).
+Proof, each against a real unified tenant with the app's exact requests: `apps/unified/tests/mobile-homecare.test.ts`
+(as a caregiver), `mobile-trades.test.ts` (contractor, field service, roofing, rv × owner, field seat, viewer),
+`mobile-rv.test.ts`; `tests/mobile/care-app.test.ts` fixtures moved to the camelCase shapes.
+
+Open, not built (none existed in the live CRMs either):
+- Phone push notifications for the trades (no trade CRM ever sent one; only home care does). The trades' Alerts tab is
+  the live-updates feed.
+- Quote/invoice PDF from the phone: the PDF routes need the session; a phone-opened browser has none. Needs a signed,
+  short-lived PDF link from the server.
+- Driver tracking (`/api/tracking/*`): no route in any CRM; the unreachable driver screen is deleted.
+- Job notes: the server's `cleanText` turns line breaks into spaces (shared code; the web has the same).

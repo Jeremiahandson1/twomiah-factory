@@ -12,17 +12,21 @@ import { useTheme } from '../../../src/theme/ThemeContext'
 import { get, post } from '../../../src/api/client'
 
 const money = (n: any) => '$' + (Math.round(Number(n)) || 0).toLocaleString()
+// The terms the server accepts (apps/unified/server/crm/rv/fi.ts TERMS); /submit refuses anything else.
+const TERMS = [24, 36, 48, 60, 72, 84, 120, 144, 180, 240]
 
 function Term({ label, v, t }: any) {
   return (<View style={{ flex: 1 }}><Text style={{ color: t.textMuted, fontSize: 11 }}>{label}</Text><Text style={{ color: t.text, fontSize: 15, fontWeight: '700' }}>{v}</Text></View>)
 }
 
 export default function MobileFIScreen() {
-  const params = useLocalSearchParams<{ financed: string; unit: string; customer: string }>()
+  const params = useLocalSearchParams<{ financed: string; unit: string; customer: string; term: string }>()
   const t = useTheme()
   const [name, setName] = useState(params.customer || '')
   const [products, setProducts] = useState<any[]>([])
   const [sel, setSel] = useState<Record<string, boolean>>({})
+  // The worksheet's term carries over (48/60/72 are all terms the server accepts); otherwise 60.
+  const [term, setTerm] = useState(() => (TERMS.includes(Number(params.term)) ? Number(params.term) : 60))
   const [loading, setLoading] = useState(false)
   const [res, setRes] = useState<any>(null)
   const [err, setErr] = useState('')
@@ -36,7 +40,7 @@ export default function MobileFIScreen() {
   async function submit() {
     if (!name.trim()) { setErr('Enter the applicant name.'); return }
     setLoading(true); setErr(''); setRes(null)
-    const r = await post('/api/fi/submit', { applicant: { name }, amountFinanced, products: products.filter((p) => sel[p.id]).map((p) => p.id) })
+    const r = await post('/api/fi/submit', { applicant: { name: name.trim() }, amountFinanced, term, products: products.filter((p) => sel[p.id]).map((p) => p.id) })
     if (r.ok && r.data?.result) setRes(r.data)
     else setErr(r.data?.error || r.error || 'Submit failed')
     setLoading(false)
@@ -44,6 +48,10 @@ export default function MobileFIScreen() {
 
   const d = res?.result
   const decColor = d?.decision === 'approved' ? '#22c55e' : d?.decision === 'declined' ? '#ef4444' : '#f59e0b'
+  // No lender connected: the server answers decision 'not_submitted', lender null and a reason — no rate, term or
+  // amount — so the terms show only when a lender actually sent them, and the reason shows whenever there is one.
+  const hasTerms = d && d.apr != null && d.termMonths != null && d.approvedAmount != null
+  const decLabel = d?.decision === 'not_submitted' ? 'NOT SUBMITTED' : String(d?.decision || '').toUpperCase()
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
@@ -70,6 +78,14 @@ export default function MobileFIScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <Text style={[styles.lbl, { color: t.textSecondary }]}>Term (months)</Text>
+          <View style={styles.termRow}>
+            {TERMS.map((m) => (
+              <TouchableOpacity key={m} onPress={() => setTerm(m)} style={[styles.termChip, { borderColor: term === m ? t.primary : t.border, backgroundColor: term === m ? t.primary + '22' : 'transparent' }]}>
+                <Text style={{ color: term === m ? t.primary : t.textSecondary, fontSize: 13, fontWeight: '600' }}>{m}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <View style={styles.amtRow}><Text style={{ color: t.textSecondary }}>Amount financed</Text><Text style={[styles.amt, { color: t.primary }]}>{money(amountFinanced)}</Text></View>
           <TouchableOpacity onPress={submit} disabled={loading} style={[styles.btn, { backgroundColor: t.primary, opacity: loading ? 0.6 : 1 }]}>
             {loading ? <ActivityIndicator color="#fff" /> : (
@@ -82,17 +98,17 @@ export default function MobileFIScreen() {
 
         {d ? (
           <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border, borderLeftWidth: 4, borderLeftColor: decColor }]}>
-            <Text style={[styles.dec, { color: decColor }]}>{String(d.decision).toUpperCase()}</Text>
-            <Text style={[styles.lender, { color: t.textSecondary }]}>{d.lender}</Text>
-            {d.decision !== 'declined' ? (
+            <Text style={[styles.dec, { color: decColor }]}>{decLabel}</Text>
+            {d.lender ? <Text style={[styles.lender, { color: t.textSecondary }]}>{d.lender}</Text> : null}
+            {hasTerms ? (
               <View style={styles.terms}>
                 <Term label="APR" v={d.apr + '%'} t={t} />
                 <Term label="Term" v={d.termMonths + ' mo'} t={t} />
                 <Term label="Approved" v={money(d.approvedAmount)} t={t} />
               </View>
-            ) : <Text style={{ color: t.textSecondary, marginTop: 6 }}>{d.reason}</Text>}
+            ) : null}
+            {d.reason ? <Text style={{ color: t.textSecondary, marginTop: 6 }}>{d.reason}</Text> : null}
             {d.stipulations?.length ? <Text style={[styles.stips, { color: t.textMuted }]}>Stips: {d.stipulations.join(', ')}</Text> : null}
-            {!res.live ? <Text style={[styles.demo, { color: t.textMuted }]}>Demo decision — live via RouteOne / DealerTrack on integration.</Text> : null}
           </View>
         ) : null}
       </ScrollView>
@@ -121,5 +137,6 @@ const styles = StyleSheet.create({
   lender: { fontSize: 13, marginTop: 2 },
   terms: { flexDirection: 'row', gap: 10, marginTop: 12 },
   stips: { fontSize: 11, marginTop: 12 },
-  demo: { fontSize: 10, marginTop: 10, fontStyle: 'italic' },
+  termRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  termChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
 })

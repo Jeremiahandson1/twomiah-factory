@@ -1,5 +1,10 @@
 /**
  * Contact Detail — view contact info, quick actions, related jobs/quotes/invoices.
+ *
+ * GET /api/contacts/:id (packages/tenant-backend contacts/contacts.ts) is the row — one `name`, no avatar — plus the
+ * related lists THIS seat may open: `jobs` always, `quotes` only with quotes:read and `invoices` only with invoices:read
+ * (a field seat gets neither). Their totals are decimal DOLLARS. Editing, deleting and converting need contacts:update /
+ * contacts:delete, which the office holds and a field seat does not, so those controls are the office's.
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -10,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
-import { useVertical } from '../../../src/vertical/VerticalContext'
+import { useAuth } from '../../../src/auth/AuthContext'
 import { get, del, post } from '../../../src/api/client'
 import { StatusBadge } from '../../../src/components/StatusBadge'
 import { AvatarCircle } from '../../../src/components/AvatarCircle'
@@ -25,7 +30,10 @@ export default function ContactDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const t = useTheme()
-  const { vertical } = useVertical()
+  const { can } = useAuth()
+  // The seat's own permissions from sign-in: the office holds contacts:update / :delete; field and viewer do not.
+  const canEdit = can('contacts:update')
+  const canDelete = can('contacts:delete')
   const toast = useToast()
   const haptics = useHaptics()
   const [contact, setContact] = useState<any>(null)
@@ -61,7 +69,7 @@ export default function ContactDetailScreen() {
     const res = await post(`/api/contacts/${id}/convert`)
     if (res.ok) {
       haptics.success()
-      toast.success('Converted to client')
+      toast.success('Converted')
       load()
     } else {
       haptics.error()
@@ -89,17 +97,18 @@ export default function ContactDetailScreen() {
     )
   }
 
-  const name = [contact.firstName, contact.lastName].filter(Boolean).join(' ') || contact.name || 'Unknown'
+  const name = contact.name || 'Unknown'
+  const money = (v: unknown) => `$${(Number(v) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
       <Stack.Screen options={{
         title: name,
-        headerRight: () => (
+        headerRight: canEdit ? () => (
           <TouchableOpacity onPress={() => router.push(`/(details)/contact/form?id=${id}`)}>
             <Ionicons name="create-outline" size={22} color={t.text} />
           </TouchableOpacity>
-        ),
+        ) : undefined,
       }} />
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -108,7 +117,7 @@ export default function ContactDetailScreen() {
         {/* Header */}
         <AnimatedCard index={0}>
           <View style={[styles.header, { backgroundColor: t.surface, borderColor: t.border }]}>
-            <AvatarCircle name={name} avatar={contact.avatar} size={56} />
+            <AvatarCircle name={name} size={56} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.name, { color: t.text }]}>{name}</Text>
               {contact.company && <Text style={[styles.company, { color: t.textSecondary }]}>{contact.company}</Text>}
@@ -159,6 +168,7 @@ export default function ContactDetailScreen() {
           <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
             <Text style={[styles.sectionTitle, { color: t.text }]}>Details</Text>
             {contact.phone && <InfoRow icon="call-outline" label="Phone" value={contact.phone} t={t} />}
+            {contact.mobile && <InfoRow icon="phone-portrait-outline" label="Mobile" value={contact.mobile} t={t} />}
             {contact.email && <InfoRow icon="mail-outline" label="Email" value={contact.email} t={t} />}
             {contact.address && (
               <InfoRow icon="location-outline" label="Address"
@@ -200,8 +210,8 @@ export default function ContactDetailScreen() {
                 <TouchableOpacity key={quote.id} style={styles.relatedRow}
                   onPress={() => router.push(`/(details)/quote/${quote.id}`)}>
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.relatedTitle, { color: t.text }]}>{quote.name || quote.number}</Text>
-                    <Text style={[styles.relatedSub, { color: t.textMuted }]}>${((quote.total || 0) / 100).toFixed(2)}</Text>
+                    <Text style={[styles.relatedTitle, { color: t.text }]}>{quote.number}</Text>
+                    <Text style={[styles.relatedSub, { color: t.textMuted }]}>{money(quote.total)}</Text>
                   </View>
                   <StatusBadge status={quote.status} />
                 </TouchableOpacity>
@@ -220,7 +230,7 @@ export default function ContactDetailScreen() {
                   onPress={() => router.push(`/(details)/invoice/${inv.id}`)}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.relatedTitle, { color: t.text }]}>{inv.number}</Text>
-                    <Text style={[styles.relatedSub, { color: t.textMuted }]}>${((inv.total || 0) / 100).toFixed(2)}</Text>
+                    <Text style={[styles.relatedSub, { color: t.textMuted }]}>{money(inv.total)}</Text>
                   </View>
                   <StatusBadge status={inv.status} />
                 </TouchableOpacity>
@@ -229,23 +239,25 @@ export default function ContactDetailScreen() {
           </AnimatedCard>
         )}
 
-        {/* Convert to Client (roofing leads) */}
-        {(contact.type === 'lead') && (
+        {/* Convert a lead to a customer (POST /:id/convert, contacts:update) */}
+        {contact.type === 'lead' && canEdit && (
           <AnimatedCard index={6}>
             <TouchableOpacity style={[styles.convertBtn, { backgroundColor: t.primary }]} onPress={handleConvert}>
               <Ionicons name="arrow-forward-circle" size={20} color="#fff" />
-              <Text style={styles.convertText}>Convert to Client</Text>
+              <Text style={styles.convertText}>Convert to Customer</Text>
             </TouchableOpacity>
           </AnimatedCard>
         )}
 
-        {/* Delete */}
-        <AnimatedCard index={7}>
-          <TouchableOpacity style={styles.deleteBtn} onPress={() => setShowDelete(true)}>
-            <Ionicons name="trash-outline" size={18} color="#ef4444" />
-            <Text style={styles.deleteText}>Delete Contact</Text>
-          </TouchableOpacity>
-        </AnimatedCard>
+        {/* Delete (contacts:delete) */}
+        {canDelete && (
+          <AnimatedCard index={7}>
+            <TouchableOpacity style={styles.deleteBtn} onPress={() => setShowDelete(true)}>
+              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+              <Text style={styles.deleteText}>Delete Contact</Text>
+            </TouchableOpacity>
+          </AnimatedCard>
+        )}
       </ScrollView>
 
       <ConfirmSheet

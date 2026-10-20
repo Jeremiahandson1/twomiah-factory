@@ -1,18 +1,18 @@
 /**
  * New message to the office.
- *   GET  /api/messages/users     active users — the office ones (admin / owner) are offered
- *   POST /api/messages/send      { subject, body, recipientIds }
+ *   GET  /api/messages/users     active users { id, firstName, lastName, role } — the office ones
+ *                                (manager / admin / owner: isOfficeRole) are offered
+ *   POST /api/messages/send      { subject, body, recipientIds } → { thread, message }
  */
 import React, { useEffect, useState } from 'react'
 import { Text, StyleSheet, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useToast } from '../../src/components/ToastProvider'
+import { isOfficeRole } from '../../src/auth/roles'
 import { careGet, carePost, asList } from '../../src/care/careApi'
 import { CareScreen } from '../../src/care/screen'
 import { Banner, Button, Choice, Field, SectionTitle } from '../../src/care/ui'
-
-const OFFICE = new Set(['admin', 'owner'])
 
 export default function ComposeScreen() {
   const t = useTheme()
@@ -26,7 +26,7 @@ export default function ComposeScreen() {
 
   useEffect(() => {
     careGet('/api/messages/users').then((r) => {
-      const list = r.ok ? asList(r.data).filter((u: any) => OFFICE.has(String(u.role).toLowerCase())) : []
+      const list = r.ok ? asList(r.data).filter((u: any) => isOfficeRole(u.role)) : []
       setOffice(list)
       setTo(new Set(list.map((u: any) => u.id))) // the whole office by default
     })

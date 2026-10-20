@@ -23,8 +23,10 @@ export default function SwapsScreen() {
   const care = useCare()
   const [busy, setBusy] = useState<string | null>(null)
   const me = care.userId
-  const incoming = care.swaps.filter((s) => s.target_id === me)
-  const outgoing = care.swaps.filter((s) => s.requester_id === me)
+  // GET /api/shift-swaps rows: { id, requesterId, targetId, shiftDate, startTime, endTime, status, reason,
+  //   clientFirstName, clientLastName, requesterFirstName, requesterLastName, targetFirstName, targetLastName }
+  const incoming = care.swaps.filter((s) => s.targetId === me)
+  const outgoing = care.swaps.filter((s) => s.requesterId === me)
 
   const act = async (s: any, path: string, body: any, ok: string) => {
     setBusy(s.id)
@@ -36,12 +38,12 @@ export default function SwapsScreen() {
   const row = (s: any, mine: boolean) => (
     <Card key={s.id}>
       <View style={styles.head}>
-        <Text style={[styles.date, { color: t.text }]}>{formatYmdLong(s.shift_date)}</Text>
+        <Text style={[styles.date, { color: t.text }]}>{formatYmdLong(s.shiftDate)}</Text>
         <StatusBadge status={s.status === 'accepted' ? 'approved' : s.status === 'rejected' ? 'rejected' : s.status === 'cancelled' ? 'cancelled' : s.status} label={s.status === 'accepted' ? 'Accepted — office to approve' : undefined} />
       </View>
-      <Text style={[styles.meta, { color: t.text }]}>{formatTime12(s.start_time)} – {formatTime12(s.end_time)} · {`${s.client_first_name || ''} ${s.client_last_name || ''}`.trim()}</Text>
+      <Text style={[styles.meta, { color: t.text }]}>{formatTime12(s.startTime)} – {formatTime12(s.endTime)} · {`${s.clientFirstName || ''} ${s.clientLastName || ''}`.trim()}</Text>
       <Text style={[styles.meta, { color: t.textSecondary }]}>
-        {mine ? `You asked ${`${s.target_first_name || ''} ${s.target_last_name || ''}`.trim() || 'a coworker'}` : `${`${s.requester_first_name || ''} ${s.requester_last_name || ''}`.trim() || 'A coworker'} asked you to take it`}
+        {mine ? `You asked ${`${s.targetFirstName || ''} ${s.targetLastName || ''}`.trim() || 'a coworker'}` : `${`${s.requesterFirstName || ''} ${s.requesterLastName || ''}`.trim() || 'A coworker'} asked you to take it`}
       </Text>
       {s.reason ? <Text style={[styles.meta, { color: t.textSecondary }]}>"{s.reason}"</Text> : null}
       {!mine && s.status === 'pending' && (

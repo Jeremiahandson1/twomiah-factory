@@ -1,6 +1,7 @@
 /**
  * Open shifts — visits the office posted for anyone (or offered to this caregiver).
  *   GET  /api/open-shifts/available     open, today or later, visible to me
+ *                                        { id, shiftDate, startTime, endTime, clientFirstName, clientLastName, bonusAmount, urgency, notes }
  *   POST /api/open-shifts/:id/claim      first tap wins; "It's yours" when the office set first-come,
  *                                        otherwise pending the office's approval
  */
@@ -30,7 +31,7 @@ export default function OpenShiftsScreen() {
   useFocusEffect(useCallback(() => { load() }, [load]))
 
   const claim = (s: any) => {
-    Alert.alert('Take this shift?', `${s.client_first_name || ''} ${s.client_last_name || ''} — ${formatYmdLong(s.shift_date || s.date)}, ${formatTime12(s.start_time)} – ${formatTime12(s.end_time)}`, [
+    Alert.alert('Take this shift?', `${s.clientFirstName || ''} ${s.clientLastName || ''} — ${formatYmdLong(s.shiftDate)}, ${formatTime12(s.startTime)} – ${formatTime12(s.endTime)}`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Take it', onPress: async () => {
@@ -52,10 +53,10 @@ export default function OpenShiftsScreen() {
       {list.map((s) => (
         <Card key={s.id}>
           {s.urgency === 'urgent' || s.urgency === 'critical' ? <Banner tone="danger" icon="flash">Urgent — coverage needed</Banner> : null}
-          <Text style={[styles.date, { color: t.text }]}>{formatYmdLong(s.shift_date || s.date)}</Text>
-          <Text style={[styles.time, { color: t.text }]}>{formatTime12(s.start_time)} – {formatTime12(s.end_time)}</Text>
-          <Text style={[styles.meta, { color: t.textSecondary }]}>{`${s.client_first_name || ''} ${s.client_last_name || ''}`.trim() || 'Client'}</Text>
-          {Number(s.bonus_amount) > 0 ? <Text style={[styles.meta, { color: t.text, fontWeight: '700' }]}>Bonus ${Number(s.bonus_amount).toFixed(2)}</Text> : null}
+          <Text style={[styles.date, { color: t.text }]}>{formatYmdLong(s.shiftDate)}</Text>
+          <Text style={[styles.time, { color: t.text }]}>{formatTime12(s.startTime)} – {formatTime12(s.endTime)}</Text>
+          <Text style={[styles.meta, { color: t.textSecondary }]}>{`${s.clientFirstName || ''} ${s.clientLastName || ''}`.trim() || 'Client'}</Text>
+          {Number(s.bonusAmount) > 0 ? <Text style={[styles.meta, { color: t.text, fontWeight: '700' }]}>Bonus ${Number(s.bonusAmount).toFixed(2)}</Text> : null}
           {s.notes ? <Text style={[styles.meta, { color: t.textSecondary }]}>{s.notes}</Text> : null}
           <Button style={{ marginTop: 12 }} label="Take this shift" icon="hand-right-outline" loading={busy === s.id} disabled={!!busy} onPress={() => claim(s)} />
         </Card>

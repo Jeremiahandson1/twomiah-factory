@@ -61,6 +61,9 @@ interface AuthState {
   completeMfa: (challengeId: string, code: string) => Promise<{ ok: boolean; error?: string; restart?: boolean; usedRecoveryCode?: boolean }>
   logout: () => Promise<void>
   refresh: () => Promise<void>
+  /** What this person may do, as the server decides it (sign-in and /api/auth/me send `permissions`): `*`, a
+   * resource's `x:*`, or the exact `x:action` — the server's own rule (packages/tenant-backend auth/permissions.ts). */
+  can: (permission: string) => boolean
 }
 
 const AuthContext = createContext<AuthState>({} as AuthState)
@@ -69,12 +72,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [company, setCompany] = useState<Company | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [permissions, setPermissions] = useState<string[]>([])
 
   const apply = useCallback(async (data: any) => {
     const u = userOf(data)
     setUser(u)
     setCompany(data?.company || null)
-    if (u) await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify({ user: u, company: data?.company || null })).catch(() => {})
+    const perms = Array.isArray(data?.permissions) ? data.permissions.map(String) : []
+    setPermissions(perms)
+    if (u) await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify({ user: u, company: data?.company || null, permissions: perms })).catch(() => {})
   }, [])
 
   // Try to restore session on mount
@@ -94,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // themselves still need the saved tokens.
             const saved = await AsyncStorage.getItem(PROFILE_KEY).catch(() => null)
             const p = saved ? JSON.parse(saved) : null
-            if (p?.user) { setUser(p.user); setCompany(p.company || null) }
+            if (p?.user) { setUser(p.user); setCompany(p.company || null); setPermissions(Array.isArray(p.permissions) ? p.permissions : []) }
           }
         }
       } finally {
@@ -127,6 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearTokens()
     await AsyncStorage.removeItem(PROFILE_KEY).catch(() => {})
     setUser(null)
+    setPermissions([])
     setCompany(null)
   }, [])
 
@@ -135,8 +142,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (res.ok && userOf(res.data)) await apply(res.data)
   }, [apply])
 
+  const can = useCallback((permission: string) => {
+    // No list (a profile saved before the app kept one): show, and let the server answer — hiding is a courtesy, the
+    // server is the gate.
+    if (!permissions.length) return true
+    if (permissions.includes('*') || permissions.includes(permission)) return true
+    return permissions.includes(permission.split(':')[0] + ':*')
+  }, [permissions])
+
   return (
-    <AuthContext.Provider value={{ user, company, isAuthenticated: !!user, isLoading, login, completeMfa, logout, refresh }}>
+    <AuthContext.Provider value={{ user, company, isAuthenticated: !!user, isLoading, login, completeMfa, logout, refresh, can }}>
       {children}
     </AuthContext.Provider>
   )
