@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import FormError, { errorText } from '../../ui/FormError'
+import { useLiveConnected, useLiveEvent } from '../../../live'
 
 /**
  * What the register, the grill screen and the close-out share: the look (Tonight's — big targets, pressed with a
@@ -58,16 +59,22 @@ export function Dialog({ title, onClose, children, wide }: { title: string; onCl
   );
 }
 
-/** Re-read on a timer, and whenever the screen comes back into view. `event` names what the server announces. */
-export function useLive(_event: 'bar:register' | 'bar:kitchen', reload: () => void, everyMs = 15000) {
+/**
+ * Re-read the moment the server announces `event` (server/crm/bar barRegister/barKitchen emit it on every change; live.ts
+ * delivers it), whenever the screen comes back into view, and — only while the live connection is down — on a timer.
+ */
+export function useLive(event: 'bar:register' | 'bar:kitchen', reload: () => void, everyMs = 15000) {
   const ref = useRef(reload);
   ref.current = reload;
+  const live = useLiveConnected();
+  useLiveEvent(event, () => ref.current());
   useEffect(() => {
+    if (live) { ref.current(); return }
     const t = setInterval(() => { if (document.visibilityState === 'visible') ref.current(); }, everyMs);
     const onShow = () => { if (document.visibilityState === 'visible') ref.current(); };
     document.addEventListener('visibilitychange', onShow);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', onShow); };
-  }, [everyMs]);
+  }, [everyMs, live]);
 }
 
 /**

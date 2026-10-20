@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Loader2, BellRing, Phone, Mail, Check, ArrowRightCircle } from 'lucide-react'
 import { api } from '../../../api'
+import { useLiveEvent } from '../../../live'
 // A refusal renders on the page, not in a native pop-up — the shared one, so a vertical cannot
 // drift back to alert(). (T58d)
 import { PageError, errorText } from '../../../shared'
@@ -53,6 +54,8 @@ export default function AlertsPage() {
   }, [showAll]);
 
   useEffect(() => { load(); }, [load]);
+  // A customer of yours just checked into service: the alert is for you alone (server/crm/rv emitToUser), shown at once.
+  useLiveEvent('alert:created', () => { void load() });
 
   // The server's reason, not a generic failure: it may be saying the alert is already dismissed, or
   // that the lead it would convert to no longer exists.

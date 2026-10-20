@@ -11,6 +11,7 @@ import { verticalScreens } from './crm/vertical'
 import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
 import type { ShellConfig } from './shared'
+import { useLiveConnection, subscribeLive } from './live'
 
 /** Where the admin opens. */
 export const HOME = '/crm'
@@ -43,7 +44,12 @@ const verticalShell = (): ShellConfig => {
   }
 }
 const SHELL_HERE = verticalShell()
-export const Shell = () => <AppShell api={api} auth={useAuth()} config={SHELL_HERE} />
+/** The shell, with the tab's live-updates connection (live.ts) open while someone is signed in — its dot shows it. */
+export const Shell = () => {
+  const auth = useAuth()
+  const connected = useLiveConnection(!!auth.user)
+  return <AppShell api={api} auth={auth} connected={connected} config={SHELL_HERE} />
+}
 
 /** The admin's front page: the CRM's dashboard where the business has one; else the website for those who look after it; else their account. */
 export function Home() {
@@ -67,7 +73,8 @@ export const MyAccount = () => <MyAccountPage api={api} toast={useToast()} />
 export const Billing = () => <BillingPage />
 export const EmailAliases = () => <EmailAliasesPage />
 // The vertical's lead platforms and words (screens.leads), as the Lead Sources page has them.
-export const LeadInbox = () => <LeadInboxPage api={api} toast={useToast()} config={verticalScreens().leads as any} />
+// A new or changed lead shows at once (live.ts; the server announces lead:created / lead:updated).
+export const LeadInbox = () => <LeadInboxPage api={api} toast={useToast()} config={verticalScreens().leads as any} subscribe={subscribeLive} />
 
 export function AuditLog() {
   const { company, can } = useAuth()
