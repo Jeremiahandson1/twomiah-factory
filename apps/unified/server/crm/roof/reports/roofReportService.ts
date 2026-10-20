@@ -322,7 +322,9 @@ export function createRoofReportService(d: CrmDeps) {
 
   /** The Factory's review queue is told of a report that needs a person to check it (non-blocking). */
   async function notifyFactoryNewReport(reportId: string, address: string, city: string, state: string, companyId: string) {
-    const factoryUrl = process.env.FACTORY_API_URL || process.env.FACTORY_SYNC_URL
+    // FACTORY_URL: the one name the build sets and every other Factory call reads (the template read FACTORY_API_URL or
+    // FACTORY_SYNC_URL, which no build set, so no report ever reached the review queue).
+    const factoryUrl = (process.env.FACTORY_URL || '').replace(/\/+$/, '')
     const factoryKey = process.env.FACTORY_SYNC_KEY
     if (!factoryUrl || !factoryKey) return
     try {

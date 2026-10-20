@@ -20,7 +20,7 @@ import { createBookingModule, bookingMounts } from './modules/booking.ts'
 import { createCrmModules, createCrmAdsConnector } from './modules/crm.ts'
 import { createCrmServices } from './crm/services.ts'
 import { createRealtime } from './core/realtime.ts'
-import { createSiteAdmin, type PhotoStore } from './site/admin.ts'
+import { createSiteAdmin, createSeedPhotosRoute, type PhotoStore } from './site/admin.ts'
 import { createSiteRoutes } from './site/routes.ts'
 import { createStorefront } from './crm/store/index.ts'
 import { createBarSite } from './crm/bar/barSite.ts'
@@ -96,6 +96,9 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler, realtime, adsConnector })
   // Card deposits and people's own calendars join with the CRM's payments and calendar sync (CUTOVER_LEDGER).
   const bookings = createBookingModule({ db, vertical, email, logger, permissions })
+  // Its reminders, rebook nudges and review requests go out on its own clock (the premium sites waited for the Factory's
+  // three crons, which reach only `<slug>-site` addresses). Boot only, never tests; the Factory's door stays.
+  crm.addJob(() => bookings.startJobs())
 
   /** One company per tenant database (SPEC §2): the oldest row is the business. */
   async function companyId(): Promise<string | null> {
@@ -165,6 +168,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     ...createCrmModules({ db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: crm, adsConnector, settings: vertical.crm ?? BASE_CRM }),
     // The website's admin: pages, settings, photos, blog, portfolio, visits.
     { path: '/api/site', access: 'user', router: createSiteAdmin({ db, permissions, store, vertical }) },
+    // The photos the business gave at signup, copied in by the Factory after the build (site/admin.ts).
+    { path: '/api/internal/seed-photos', access: 'factory', router: createSeedPhotosRoute({ db, store, companyId }) },
     // The admin screens: their page at /login and /crm/*, their files at /crm-assets/*. Before the website.
     {
       path: '/', admin: true, access: 'public',

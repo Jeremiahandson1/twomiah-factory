@@ -1,5 +1,6 @@
 // Bookings' doors: the owner's API (/api/booking), the public one the booking pages call (/api/book), and the
-// Factory's scheduled pass (/api/internal/booking-jobs). All behind the 'online_booking' feature through the registry
+// Factory's door to the scheduled pass (/api/internal/booking-jobs; the pass also runs hourly on its own, startJobs).
+// The owner's and public APIs are behind the 'online_booking' feature through the registry
 // — the public half answers 404 when it is off, so nobody can tell what exists (SPEC §5.2).
 import { Hono, type Context } from 'hono'
 import { list, one, fail, done } from '../http/reply.ts'
@@ -139,7 +140,18 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   pub.use('/services/:slug', createRateLimiter(60 * 60 * 1000, 10, isWrite))
   pub.use('/services/:slug/waitlist', createRateLimiter(60 * 60 * 1000, 10, isWrite))
   pub.use('/bookings/*', createRateLimiter(60 * 60 * 1000, 30, isWrite))
-  return { engine, extras, admin, pub, webhooks }
+  // The scheduled messages (booking/extras.ts runJobs): a reminder the day before, the rebook nudge, the review request.
+  // One pass at a time — the clock and the Factory's door share it — so a booking can't be sent the same thing twice
+  // by two passes reading it before either marks it sent.
+  let running: ReturnType<BookingExtras['runJobs']> | null = null
+  const runJobs = () => running ?? (running = extras.runJobs().finally(() => { running = null }))
+  /** Hourly from a minute after boot: the reminder looks 20–28 hours ahead, so every booking falls in one pass. */
+  function startJobs() {
+    const pass = () => { runJobs().catch((e: any) => logger.error('[bookings] scheduled messages failed', { error: e?.message })) }
+    setTimeout(pass, 60_000)
+    setInterval(pass, 60 * 60 * 1000)
+  }
+  return { engine, extras, admin, pub, webhooks, runJobs, startJobs }
 }
 
 /** The mounts, once the public router has its company (one company per tenant database). */
@@ -206,7 +218,7 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
     return c.body(ics, 200, { 'Content-Type': 'text/calendar; charset=utf-8', 'Cache-Control': 'private, max-age=300' })
   })
 
-  const jobs = new Hono().post('/', async (c) => one(c, await extras.runJobs()))
+  const jobs = new Hono().post('/', async (c) => one(c, await m.runJobs()))
 
   return [
     { path: '/api/booking', access: 'user', feature: FEATURE, router: m.admin },

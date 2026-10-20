@@ -57,7 +57,7 @@ const setEnv = (k: string, v: string | undefined) => { if (!(k in env)) env[k] =
 
 beforeAll(async () => {
   setEnv('GOOGLE_SOLAR_API_KEY', 'test-key')
-  for (const k of ['GOOGLE_MAPS_API_KEY', 'NEARMAP_API_KEY', 'REPLICATE_API_TOKEN', 'FACTORY_API_URL', 'FACTORY_SYNC_URL']) setEnv(k, undefined)
+  for (const k of ['GOOGLE_MAPS_API_KEY', 'NEARMAP_API_KEY', 'REPLICATE_API_TOKEN', 'FACTORY_URL']) setEnv(k, undefined)
   setEnv('FACTORY_SYNC_KEY', 'factory-key-test')
   setEnv('FRONTEND_URL', 'https://roof.test')
   globalThis.fetch = (async (input: any) => {

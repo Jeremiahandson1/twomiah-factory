@@ -12,10 +12,10 @@ const CONTACT = { type: 'contact', variant: 'form-info', data: { heading: 'Get i
 const site = (set: Record<string, unknown>) => t.db.update(t.schema.website).set(set as any).where(eq(t.schema.website.companyId, companyId))
 const page = async (p = '/') => { const r = await t.call(p); return { body: await r.text(), csp: r.headers.get('content-security-policy') || '' } }
 let ip = 10
-const plainPost = (fields: Record<string, string>) => t.call('/api/leads', {
+const plainPost = async (fields: Record<string, string>): Promise<string> => (await t.call('/api/leads', {
   method: 'POST', body: new URLSearchParams(fields),
   headers: { Accept: 'text/html', 'X-Forwarded-For': `192.0.2.${ip++}`, 'content-type': 'application/x-www-form-urlencoded' },
-}).then((r) => r.text())
+})).text()
 
 beforeAll(async () => {
   t = await bootTenant()

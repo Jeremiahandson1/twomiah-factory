@@ -66,6 +66,66 @@ const SETTINGS_TEXT: Array<[keyof typeof website.$inferInsert, number]> = [
   ['googleTagManagerId', 40], ['googleAnalyticsId', 40], ['googleAdsId', 40], ['facebookPixelId', 40], ['microsoftClarityId', 40],
 ]
 
+/**
+ * One picture into the website's library: web-friendly (a PNG with transparency stays PNG; everything else becomes a
+ * JPEG at quality 82, turned upright), stored under the public prefix, and its row made. Null when it isn't an image.
+ * The owner's upload and the Factory's intake photos (createSeedPhotosRoute) both come through here.
+ */
+export async function savePublicPhoto(deps: { db: any; store: PhotoStore }, raw: Buffer, input: { companyId: string; userId: string | null; originalName: string | null; tag?: unknown; alt?: unknown }) {
+  let meta: Awaited<ReturnType<ReturnType<typeof sharp>["metadata"]>>
+  try { meta = await sharp(raw).metadata() } catch { return null }
+  const keepPng = meta.format === 'png' && !!meta.hasAlpha
+  const out = keepPng ? raw : await sharp(raw).rotate().jpeg({ quality: 82, mozjpeg: true }).toBuffer()
+  const contentType = keepPng ? 'image/png' : 'image/jpeg'
+  const key = PUBLIC_PHOTO_PREFIX + crypto.randomUUID() + (keepPng ? '.png' : '.jpg')
+  await deps.store.put(key, out, contentType)
+  const tag = typeof input.tag === 'string' && input.tag.trim() ? input.tag.trim().slice(0, 40) : null
+  const [row] = await deps.db.insert(photo).values({
+    companyId: input.companyId, userId: input.userId, filename: key, originalName: input.originalName,
+    mimeType: contentType, size: out.length, width: meta.width ?? null, height: meta.height ?? null,
+    tags: tag ? [tag] : [], isPublic: true, publicUrl: '/media/' + key,
+    alt: typeof input.alt === 'string' && input.alt.trim() ? input.alt.trim().slice(0, 300) : null,
+  }).returning()
+  return row
+}
+
+/**
+ * /api/internal/seed-photos — the photos a business gave at signup, copied into its own library (the premium sites'
+ * server-static.ts seed-photos). The Factory sends short-lived signed links to its intake storage after the build,
+ * `{ photos: [{ url, tag?, alt? }] }`; each is fetched, made web-friendly and kept, so the site's pictures outlive the
+ * links. Answers `{ seeded, errors? }`, which the Factory logs. The registry checks the key.
+ */
+export function createSeedPhotosRoute(deps: { db: any; store: PhotoStore; companyId: () => Promise<string | null> }) {
+  return new Hono().post('/', async (c) => {
+    const body = await c.req.json().catch(() => null) as { photos?: Array<{ url?: unknown; tag?: unknown; alt?: unknown }> } | null
+    if (!body) return fail(c, 400, 'Invalid JSON')
+    const incoming = Array.isArray(body.photos) ? body.photos : []
+    if (!incoming.length) return one(c, { seeded: 0 })
+    const companyId = await deps.companyId()
+    if (!companyId) return fail(c, 409, 'This business is not set up yet', 'not_provisioned')
+    let seeded = 0
+    const errors: Array<{ url: string; error: string }> = []
+    for (const p of incoming.slice(0, 50)) {
+      const url = typeof p?.url === 'string' ? p.url : ''
+      if (!/^https?:\/\//i.test(url)) { if (url) errors.push({ url, error: 'not a web address' }); continue }
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(30_000) })
+        if (!res.ok) throw new Error('fetch failed: ' + res.status)
+        const raw = Buffer.from(await res.arrayBuffer())
+        // The intake took 8 MB a file (apps/api routes/factory/intake.ts); the same ceiling as the owner's upload.
+        if (raw.length > MAX_IMAGE_BYTES) throw new Error('larger than 8 MB')
+        const name = decodeURIComponent(new URL(url).pathname.split('/').pop() || '').slice(0, 200) || null
+        const row = await savePublicPhoto(deps, raw, { companyId, userId: null, originalName: name, tag: p.tag, alt: p.alt })
+        if (!row) throw new Error('not an image')
+        seeded++
+      } catch (e: any) {
+        errors.push({ url, error: e?.message || String(e) })
+      }
+    }
+    return one(c, errors.length ? { seeded, errors } : { seeded })
+  })
+}
+
 export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoStore; vertical: VerticalSettings }) {
   const { db, store } = deps
   const may = deps.permissions.requirePermission as (p: string) => any
@@ -205,24 +265,11 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     if (!file || typeof (file as any).arrayBuffer !== 'function') return fail(c, 400, 'Choose a photo to upload.')
     if (file.size > MAX_IMAGE_BYTES) return fail(c, 400, 'That photo is too large (8 MB at most).')
     if (file.type && !IMAGE_TYPES.has(file.type)) return fail(c, 400, 'Use a JPG, PNG, WebP or GIF.')
-    const raw = Buffer.from(await file.arrayBuffer())
-    let meta: Awaited<ReturnType<ReturnType<typeof sharp>["metadata"]>>
-    try { meta = await sharp(raw).metadata() } catch { return fail(c, 400, "That file isn't an image we can read.") }
-    // Web-friendly: a PNG with transparency stays PNG; everything else becomes a JPEG at quality 82, turned upright.
-    const keepPng = meta.format === 'png' && !!meta.hasAlpha
-    const out = keepPng ? raw : await sharp(raw).rotate().jpeg({ quality: 82, mozjpeg: true }).toBuffer()
-    const contentType = keepPng ? 'image/png' : 'image/jpeg'
-    const key = PUBLIC_PHOTO_PREFIX + crypto.randomUUID() + (keepPng ? '.png' : '.jpg')
-    await store.put(key, out, contentType)
-    const tag = typeof body.tag === 'string' && body.tag.trim() ? body.tag.trim().slice(0, 40) : null
     const user = c.get('user')
-    const [row] = await db.insert(photo).values({
-      companyId: user.companyId, userId: user.userId, filename: key, originalName: file.name || null,
-      mimeType: contentType, size: out.length, width: meta.width ?? null, height: meta.height ?? null,
-      tags: tag ? [tag] : [], isPublic: true, publicUrl: '/media/' + key,
-      alt: typeof body.alt === 'string' && body.alt.trim() ? body.alt.trim().slice(0, 300) : null,
-    }).returning()
-    return one(c, row, 201)
+    const row = await savePublicPhoto({ db, store }, Buffer.from(await file.arrayBuffer()), {
+      companyId: user.companyId, userId: user.userId, originalName: file.name || null, tag: body.tag, alt: body.alt,
+    })
+    return row ? one(c, row, 201) : fail(c, 400, "That file isn't an image we can read.")
   })
 
   app.patch('/photos/:id', may('site:update'), async (c) => {

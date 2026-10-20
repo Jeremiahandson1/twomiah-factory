@@ -111,7 +111,7 @@ what must happen to the original at cutover, so no second copy survives
 - **Google / Outlook calendar sync** (busy times and pushing bookings to people's calendars): `externalBusy` is the seam; the OAuth is the Factory's. Tokens go in `calendar_connection`, encrypted.
 - **Texts** (confirmation, reminder, review request) with the CRM's messaging; email only until then.
 - **The embed** (`book-embed.js`, the CRMs' `booking-widget.js`).
-- **The Factory** must call `POST /api/internal/booking-jobs` hourly (reminders, rebook, review requests) and switch on `online_booking` for website tenants that take bookings. Its old per-site cron endpoints (`booking-reminders`, `booking-rebook-reminders`, `booking-review-requests`) go.
+- **Booking messages run themselves** (2026-10-20): the unified app sends its reminders, rebook nudges and review requests on its own hourly timer (`modules/booking.ts`, one run at a time; `POST /api/internal/booking-jobs` stays for a manual run). The Factory's per-site crons skip unified tenants (`ourPremiumSiteOrigin` → null). The Factory still switches on `online_booking` for website tenants that take bookings.
 - **The website's security policy** allows inline scripts (`http/guards.ts` SITE_CSP), as the live sites do; moving the layout's and sections' inline scripts to nonces is a later hardening.
 
 **Found in the live templates while moving, not fixed (fenced):**
