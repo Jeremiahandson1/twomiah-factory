@@ -74,7 +74,12 @@ export function createHosts(cfg: HostConfig, fetchImpl: Fetch) {
 
     /** A new private repo in the org. A name that turns out to be taken is an error, never "use that one". */
     async createRepo(name: string, description: string): Promise<{ fullName: string }> {
-      const res = await github('/orgs/' + cfg.githubOrg + '/repos', { method: 'POST', body: JSON.stringify({ name, description, private: true }) })
+      const request = JSON.stringify({ name, description, private: true })
+      let res = await github('/orgs/' + cfg.githubOrg + '/repos', { method: 'POST', body: request })
+      // GITHUB_ORG may be a personal account (Twomiah's is): GitHub answers 404 for /orgs/<a user>, and the repo is made
+      // under the account the token belongs to, as services/deploy.ts createGitHubRepo does. Only on 404 — a taken name
+      // or a refused token is still an error, never "try the other place".
+      if (res.status === 404) res = await github('/user/repos', { method: 'POST', body: request })
       if (!res.ok) return fail('GitHub repo creation for ' + name, res)
       const body: any = await res.json()
       return { fullName: body.full_name }

@@ -1,5 +1,5 @@
 /**
- * A unified tenant's repo: the unified app and the two shared packages it imports, laid out exactly as they are tested
+ * A unified tenant's repo: the unified app and the shared packages it imports, laid out exactly as they are tested
  * in the monorepo (apps/unified beside packages/*, a small workspace). Nothing about the business is written into it —
  * its facts go into its database (POST /api/internal/provision) and its settings onto its service — so every tenant's
  * repo at one version is the same code, and Update Code is the same push for all of them.
@@ -10,8 +10,34 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 
-/** The shared packages the unified app imports (apps/unified/package.json `workspace:*`). */
-export const SHARED_PACKAGES = ['tenant-backend', 'tenant-ui']
+/**
+ * The monorepo packages the unified app depends on — every `workspace:` dependency in apps/unified/package.json, and
+ * theirs in turn — as directory names under packages/. Read from the manifests, never listed by hand: a fixed list
+ * (tenant-backend, tenant-ui) missed @twomiah/roof-core when roofing came in, and every tenant's install then failed
+ * (found by a dry run before the first Render build, 2026-10-19).
+ */
+export function workspacePackages(root: string): string[] {
+  const byName = new Map<string, string>()
+  const pkgsDir = path.join(root, 'packages')
+  for (const d of fs.readdirSync(pkgsDir, { withFileTypes: true })) {
+    const manifest = path.join(pkgsDir, d.name, 'package.json')
+    if (d.isDirectory() && fs.existsSync(manifest)) byName.set(JSON.parse(fs.readFileSync(manifest, 'utf8')).name, d.name)
+  }
+  const wanted = new Set<string>()
+  const visit = (manifestPath: string) => {
+    const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    for (const [dep, range] of Object.entries({ ...(m.dependencies || {}), ...(m.devDependencies || {}) })) {
+      if (!String(range).startsWith('workspace:')) continue
+      const dir = byName.get(dep)
+      if (!dir) throw new Error(`workspace dependency ${dep} is not a package under packages/`)
+      if (wanted.has(dir)) continue
+      wanted.add(dir)
+      visit(path.join(pkgsDir, dir, 'package.json'))
+    }
+  }
+  visit(path.join(root, 'apps', 'unified', 'package.json'))
+  return [...wanted].sort()
+}
 
 /** Never copied: installs, builds, the test suites and their sandboxes, local settings. */
 const SKIP_NAMES = new Set(['node_modules', 'dist', '.suite', '.git', '.env', '.DS_Store', '.turbo'])
@@ -37,12 +63,12 @@ function copyDir(src: string, dest: string, top: boolean, counter: { n: number }
 }
 
 /** The tenant repo's root package.json: the workspace, and the monorepo's security overrides. */
-export function rootManifest(monorepo: { packageManager?: string; overrides?: Record<string, string> }) {
+export function rootManifest(monorepo: { packageManager?: string; overrides?: Record<string, string> }, packages: string[]) {
   return {
     name: 'twomiah-tenant',
     private: true,
     ...(monorepo.packageManager ? { packageManager: monorepo.packageManager } : {}),
-    workspaces: ['apps/unified', ...SHARED_PACKAGES.map((p) => 'packages/' + p)],
+    workspaces: ['apps/unified', ...packages.map((p) => 'packages/' + p)],
     ...(monorepo.overrides ? { overrides: monorepo.overrides } : {}),
   }
 }
@@ -59,7 +85,8 @@ export function buildTenantTree(root: string, dest: string, version: string, opt
 
   const counter = { n: 0 }
   copyDir(app, path.join(dest, 'apps', 'unified'), true, counter)
-  for (const p of SHARED_PACKAGES) {
+  const packages = workspacePackages(root)
+  for (const p of packages) {
     const src = path.join(root, 'packages', p)
     if (!fs.existsSync(path.join(src, 'src'))) throw new Error(`shared package ${p} not found at ${src}`)
     fs.mkdirSync(path.join(dest, 'packages', p), { recursive: true })
@@ -68,7 +95,7 @@ export function buildTenantTree(root: string, dest: string, version: string, opt
   }
 
   const monorepo = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
-  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify(rootManifest(monorepo), null, 2) + '\n')
+  fs.writeFileSync(path.join(dest, 'package.json'), JSON.stringify(rootManifest(monorepo, packages), null, 2) + '\n')
   fs.writeFileSync(path.join(dest, '.gitignore'), 'node_modules\ndist\n.env\n')
   fs.writeFileSync(path.join(dest, 'apps', 'unified', 'VERSION'), version + '\n')
   counter.n += 3
