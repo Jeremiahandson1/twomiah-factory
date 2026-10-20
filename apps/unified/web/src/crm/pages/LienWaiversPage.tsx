@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { Shield, Plus, Check, X, Loader2 } from 'lucide-react'
 import { api } from '../../api'
+import { useAuth } from '../../shared'
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -23,6 +24,8 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function LienWaiversPage() {
+  // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
+  const projectsOn = useAuth().hasFeature('projects')
   const [waivers, setWaivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -33,7 +36,7 @@ export default function LienWaiversPage() {
   const load = async () => {
     try {
       // Projects is its own module; switched off it answers 403 and the page simply offers no project.
-      const [{ data }, projRes] = await Promise.all([api.get('/api/lien-waivers'), api.get('/api/projects').catch(() => ({ data: [] }))]);
+      const [{ data }, projRes] = await Promise.all([api.get('/api/lien-waivers'), (projectsOn ? api.get('/api/projects') : Promise.resolve({ data: [] })).catch(() => ({ data: [] }))]);
       setWaivers(data || []); setProjects(projRes.data || projRes || []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };

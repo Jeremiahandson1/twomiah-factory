@@ -7,7 +7,7 @@ import {
   Loader2, Image, ArrowUpRight, ArrowDownRight, Filter
 } from 'lucide-react';
 import { api } from '../../api'
-import { usePrompt, useToast } from '../../shared'
+import { usePrompt, useToast, useAuth } from '../../shared'
 
 interface SelectionsPageProps {
   projectId?: string;
@@ -71,6 +71,8 @@ const STATUS_CONFIG: Record<string, { label: string; chip: string; icon: React.C
  * Project Selections Page
  */
 export default function SelectionsPage({ projectId: propProjectId }: SelectionsPageProps) {
+  // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
+  const projectsOn = useAuth().hasFeature('projects')
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [projectId, setProjectId] = useState<string>(propProjectId || '');
   const [selections, setSelections] = useState<SelectionItem[]>([]);
@@ -91,7 +93,7 @@ export default function SelectionsPage({ projectId: propProjectId }: SelectionsP
   // Load projects for standalone route (no projectId prop)
   useEffect(() => {
     if (!propProjectId) {
-      api.get('/api/projects?limit=100').then((res: Record<string, unknown>) => {
+      (projectsOn ? api.get('/api/projects?limit=100') : Promise.resolve({ data: [] })).then((res: Record<string, unknown>) => {
         const data = (res?.data || res || []) as ProjectItem[];
         setProjects(data);
         /**

@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { DollarSign, Plus, Check, Loader2 } from 'lucide-react'
 import { api } from '../../api'
+import { useAuth } from '../../shared'
 
 const STATUS_COLORS: Record<string, string> = {
   active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
@@ -21,6 +22,8 @@ const REQ_STATUS_COLORS: Record<string, string> = {
 };
 
 export default function DrawSchedulesPage() {
+  // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
+  const projectsOn = useAuth().hasFeature('projects')
   const [schedules, setSchedules] = useState<any[]>([]);
   const [selected, setSelected] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -34,7 +37,7 @@ export default function DrawSchedulesPage() {
   const load = async () => {
     try {
       // Projects is its own module; switched off it answers 403 and the page simply offers no project.
-      const [{ data }, projRes] = await Promise.all([api.get('/api/draw-schedules'), api.get('/api/projects').catch(() => ({ data: [] }))]);
+      const [{ data }, projRes] = await Promise.all([api.get('/api/draw-schedules'), (projectsOn ? api.get('/api/projects') : Promise.resolve({ data: [] })).catch(() => ({ data: [] }))]);
       setSchedules(data || []); setProjects(projRes.data || projRes || []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };

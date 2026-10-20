@@ -51,7 +51,9 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function SubmittalsPage() {
   // POST / asks submittals:create; submit, approve, revise and reject ask submittals:update. (T43 viewer round, T68)
-  const { can } = useAuth();
+  const { can, hasFeature } = useAuth();
+  // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
+  const projectsOn = hasFeature('projects');
   const [submittals, setSubmittals] = useState<Submittal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -76,7 +78,7 @@ export default function SubmittalsPage() {
       const [{ data }, projRes] = await Promise.all([
         api.get('/api/submittals'),
         // Projects is its own module; switched off it answers 403 and the page simply offers no project.
-        api.get('/api/projects').catch(() => ({ data: [] })),
+        (projectsOn ? api.get('/api/projects') : Promise.resolve({ data: [] })).catch(() => ({ data: [] })),
       ]);
       setSubmittals(data || []);
       setProjects(projRes.data || projRes || []);

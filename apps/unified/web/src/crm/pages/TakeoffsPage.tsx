@@ -6,7 +6,7 @@ import {
   Download, Layers, Square, ArrowRight
 } from 'lucide-react';
 import { api } from '../../api'
-import { useConfirm, useToast } from '../../shared'
+import { useConfirm, useToast, useAuth } from '../../shared'
 
 interface TakeoffsPageProps {
   projectId?: string;
@@ -82,6 +82,8 @@ const MEASUREMENT_LABELS: Record<string, string> = {
  * Material Takeoff Page
  */
 export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageProps) {
+  // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
+  const projectsOn = useAuth().hasFeature('projects')
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [projectId, setProjectId] = useState<string>(propProjectId || '');
   const [sheets, setSheets] = useState<SheetItem[]>([]);
@@ -129,7 +131,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
   // Load projects for standalone route (no projectId prop)
   useEffect(() => {
     if (!propProjectId) {
-      api.get('/api/projects?limit=100').then((res: Record<string, unknown>) => {
+      (projectsOn ? api.get('/api/projects?limit=100') : Promise.resolve({ data: [] })).then((res: Record<string, unknown>) => {
         const data = (res?.data || res || []) as ProjectItem[];
         setProjects(data);
         /**

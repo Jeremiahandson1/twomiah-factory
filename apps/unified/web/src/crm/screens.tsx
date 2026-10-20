@@ -54,38 +54,49 @@ export function ContactDetail() {
   const { hasFeature, can } = useAuth()
   return <ContactDetailPage api={client} toast={useToast()} config={{ ...v().contacts, hasFeature, can } as any} />
 }
+/** The job screens pick a unit from the equipment list only where equipment_tracking is on (/api/equipment is its, on the server). */
+const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, hasFeature, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
 export function Jobs() {
   const { hasFeature, can } = useAuth()
-  return <JobsPage api={client} toast={useToast()} config={{ ...v().jobs, hasFeature, can } as any} />
+  return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can } as any} />
 }
 export function JobDetail() {
   const { hasFeature } = useAuth()
   // Photos are photo_capture's on the server (/api/jobs/:id/photos), so here too.
-  return <JobDetailPage api={client} toast={useToast()} config={{ ...v().jobs, photos: !!v().jobs.photos && hasFeature('photo_capture'), hasFeature } as any} />
+  return <JobDetailPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), photos: !!v().jobs.photos && hasFeature('photo_capture') } as any} />
 }
 /**
- * The quote and invoice lists offer the price book where the vertical prices from it AND the business has it switched on
- * (pricebook, or field service's flat-rate book): asking a business without it was refused on every visit (found
- * building field service, basic and landscaping tenants on Render, 2026-10-19).
+ * The quote and invoice screens offer a list only where the vertical has it AND the business has its feature switched on —
+ * the price book (pricebook, or field service’s flat-rate book), projects, jobs. Asking a business without one was refused
+ * on every visit (the price book on field service, basic and landscaping; projects on contractor — found building tenants
+ * on Render, 2026-10-19), and a link or button to a switched-off page leads nowhere.
  */
-const withPricebook = (hasFeature: (f: string) => boolean) => ({ ...v().invoicing, pricebook: !!v().invoicing.pricebook && (hasFeature('pricebook') || hasFeature('flat_rate_pricebook')), hasFeature })
+const invoicingFor = (hasFeature: (f: string) => boolean) => {
+  const i = v().invoicing as any
+  return { ...i, hasFeature,
+    pricebook: !!i.pricebook && (hasFeature('pricebook') || hasFeature('flat_rate_pricebook')),
+    projects: !!i.projects && hasFeature('projects'),
+    jobs: !!i.jobs && hasFeature('jobs'),
+    quoteJobs: !!i.quoteJobs && hasFeature('jobs'),
+    quoteEquipment: !!i.quoteEquipment && hasFeature('equipment_tracking') }
+}
 export function Quotes() {
   const { company, hasFeature } = useAuth()
-  return <QuotesPage api={client} toast={useToast()} settings={settingsOf(company)} config={withPricebook(hasFeature) as any} />
+  return <QuotesPage api={client} toast={useToast()} settings={settingsOf(company)} config={invoicingFor(hasFeature) as any} />
 }
 export function QuoteDetail() {
-  const { company } = useAuth()
-  return <QuoteDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={v().invoicing} />
+  const { company, hasFeature } = useAuth()
+  return <QuoteDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={invoicingFor(hasFeature) as any} />
 }
 export function Invoices() {
   const { company, hasFeature } = useAuth()
-  return <InvoicesPage api={client} toast={useToast()} settings={settingsOf(company)} config={withPricebook(hasFeature) as any} />
+  return <InvoicesPage api={client} toast={useToast()} settings={settingsOf(company)} config={invoicingFor(hasFeature) as any} />
 }
 export function InvoiceDetail() {
   // hasFeature and can: the QuickBooks sync follows the quickbooks feature (the field-service, basic and bar copies'
   // InvoiceDetailPage.tsx passed them; the base CRM's didn't, and it offers no QuickBooks button here).
   const { company, hasFeature, can } = useAuth()
-  return <InvoiceDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...v().invoicing, hasFeature, can } as any} />
+  return <InvoiceDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...invoicingFor(hasFeature), can } as any} />
 }
 export function Schedule() {
   const { hasFeature } = useAuth()
