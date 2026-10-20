@@ -454,7 +454,8 @@ export default function CustomerDetailPage() {
         headers: { 'Authorization': 'Bearer ' + session.access_token },
       })
       const result = await res.json()
-      if (res.ok && result.success) { showToast('Code updated successfully — deploying now'); load() }
+      // A unified tenant's update runs in the background (started: true); the job shows it until the new code is live.
+      if (res.ok && result.success) { showToast(result.started ? (result.message || 'Update started') : 'Code updated successfully — deploying now'); load() }
       else { showToast(result.errors?.[0] || result.error || 'Update failed', 'error') }
     } catch { showToast('Update failed', 'error') }
     finally { setDeploying(false) }

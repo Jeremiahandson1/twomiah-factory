@@ -197,6 +197,29 @@ factory.post('/customers/:id/redeploy', requireRole('owner', 'admin'), async (c)
 })
 
 
+/**
+ * A unified tenant's Update Code, started and answered at once like the deploy above: it waits for the new code to
+ * answer (minutes), and a request held that long is cut by Render's edge (~100s) — the platform said "Update failed"
+ * while the update went on (2026-10-20). The latest job reads 'deploying' meanwhile, then 'complete' or 'failed' with
+ * the reason; a second click while one runs is refused.
+ */
+async function startUnifiedUpdate(c: any, tenant: any) {
+  const { data: job } = await supabase.from('factory_jobs').select('id, status').eq('tenant_id', tenant.id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (!job) return c.json({ error: 'No build recorded for this tenant — deploy it first' }, 400)
+  if (job.status === 'deploying') return c.json({ error: 'An update or deploy is already running for this tenant' }, 409)
+  await supabase.from('factory_jobs').update({ status: 'deploying', error_message: null }).eq('id', job.id)
+  updateUnifiedTenantCode(tenant.id)
+    .then(async (r) => {
+      console.log('[UpdateCode] Unified', tenant.slug, r.success ? 'live' : 'failed', JSON.stringify(r.steps))
+      await supabase.from('factory_jobs').update(r.success ? { status: 'complete', error_message: null } : { status: 'failed', error_message: r.errors.join('; ').slice(0, 2000) }).eq('id', job.id)
+    })
+    .catch(async (err: any) => {
+      console.error('[UpdateCode] Unified', tenant.slug, 'threw:', err?.message)
+      await supabase.from('factory_jobs').update({ status: 'failed', error_message: String(err?.message || err).slice(0, 2000) }).eq('id', job.id)
+    })
+  return c.json({ success: true, started: true, status: 'deploying', message: 'Update started — the new code is live in a few minutes.' })
+}
+
 // ─── Update Code (safe — no data loss) ──────────────────────────────────────
 // Regenerates code from template and pushes to existing repo + redeploys.
 // Does NOT touch the database, does NOT recreate services.
@@ -207,8 +230,8 @@ factory.post('/customers/:id/update-code', requireRole('owner', 'admin'), async 
 
   const { data: tenant } = await supabase.from('tenants').select('*').eq('id', id).single()
   if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
-  // A unified tenant: the unified app at this Factory's version, its missing settings added first.
-  if (isUnifiedTenant(tenant)) return c.json(await updateUnifiedTenantCode(tenant.id))
+  // A unified tenant: the unified app at this Factory's version, its missing settings added first — in the background.
+  if (isUnifiedTenant(tenant)) return startUnifiedUpdate(c, tenant)
 
   const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
 
@@ -419,10 +442,7 @@ factory.post('/customers/:id/resync-shared-code', requireRole('owner', 'admin'),
     const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
     if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
     // A unified tenant has no vendored shared code: its whole app is one version, so this is its Update Code.
-    if (isUnifiedTenant(tenant)) {
-      const r = await updateUnifiedTenantCode(tenant.id)
-      return c.json({ success: r.success, steps: r.steps, errors: r.errors })
-    }
+    if (isUnifiedTenant(tenant)) return startUnifiedUpdate(c, tenant)
 
     const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
     if (!job) return c.json({ error: 'No previous build found for this tenant.' }, 400)
