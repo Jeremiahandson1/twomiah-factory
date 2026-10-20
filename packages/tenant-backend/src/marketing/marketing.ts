@@ -13,6 +13,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, desc, count, sql, gte, ilike, inArray, asc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+import { publicApiBase } from '../publicOrigin'
 
 export interface MarketingTables { campaign: any; contact: any; emailLog: any }
 export interface MailMessage { to: string; subject: string; html: string; fromName?: string; fromEmail?: string }
@@ -90,7 +91,7 @@ const camelSequence = (s: any) => s ? ({ ...s, companyId: s.company_id ?? s.comp
 export function createMarketingService(deps: MarketingServiceDeps) {
   const { db, tables: t, sendRaw, isFeatureEnabled, sequencesEnabled } = deps
   const env = deps.env || process.env
-  const publicBase = () => String(env.API_BASE_URL || env.FRONTEND_URL || '').replace(/\/$/, '')
+  const publicBase = () => publicApiBase(env as Record<string, string | undefined>)
 
   // ─── templates ─────────────────────────────────────────────────────────────
   async function createTemplate(companyId: string, data: { name: string; subject: string; body: string; category?: string }) {

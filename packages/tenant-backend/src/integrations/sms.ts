@@ -8,6 +8,7 @@
 import { Hono } from 'hono'
 import { eq, and, or, desc, asc, count, sum, sql, gt, isNull, inArray } from 'drizzle-orm'
 import { withoutPortalCredential } from '../contacts/contacts'
+import { publicApiBase } from '../publicOrigin'
 import { formatPhoneE164, isDialablePhone, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioConfigFor, twilioConfigured, companyTwilioNumbers, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
 
 export interface SmsTables { smsConversation: any; smsMessage: any; smsTemplate: any; contact: any; company: any; job: any; user: any;
@@ -21,7 +22,7 @@ export interface SmsServiceDeps {
   usage?: SmsUsage
   /** Twilio credentials; default = TWILIO_* env. */
   twilio?: TwilioConfig
-  /** Public API origin for status callbacks; default API_BASE_URL. */
+  /** Public API origin for status callbacks; default publicApiBase() (API_URL, …). */
   apiBaseUrl?: string
   /** Where the customer-facing review link in the "completed" text points; default CUSTOMER_PORTAL_URL. */
   portalUrl?: string
@@ -122,11 +123,14 @@ export function createSmsService(deps: SmsServiceDeps) {
     try {
       const conf = await cfg()
       const client = await twilioClient(conf)
+      // The delivery report comes back to this tenant — only with a full address: Twilio refuses the text outright
+      // for a relative one, so without an address the text goes without the report.
+      const base = (deps.apiBaseUrl || publicApiBase()).replace(/\/+$/, '')
       twilioResponse = await client.messages.create({
         body: message,
         to: formattedPhone,
         ...twilioSender(conf),
-        statusCallback: `${deps.apiBaseUrl || process.env.API_BASE_URL || ''}/api/sms/webhook/status`,
+        ...(/^https?:\/\//.test(base) ? { statusCallback: `${base}/api/sms/webhook/status` } : {}),
       })
     } catch (error: any) {
       status = 'failed'

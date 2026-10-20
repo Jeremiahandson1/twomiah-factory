@@ -9,6 +9,7 @@
 import { Hono } from 'hono'
 import { eq, and, lte, gte, isNull, count, sql } from 'drizzle-orm'
 import { twilioClient, twilioConfigFor, twilioSender, type TwilioConfig } from './twilio'
+import { publicApiBase } from '../publicOrigin'
 
 export interface ReviewsTables { reviewRequest: any; company: any; contact: any; job?: any }
 export interface ReviewsServiceDeps {
@@ -48,7 +49,7 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
   const report = deps.usage?.reportSmsUsage || (() => {})
   /** The company's own Twilio account (Settings → Integrations) or the platform's. */
   const cfgFor = (companyRow: any): TwilioConfig => deps.twilio || twilioConfigFor(companyRow)
-  const apiBase = () => deps.apiBaseUrl || process.env.API_BASE_URL || process.env.FRONTEND_URL || ''
+  const apiBase = () => deps.apiBaseUrl || publicApiBase()
   const trackingUrl = (requestId: string) => `${apiBase()}/api/reviews/track/${requestId}/click`
   const firstName = (name: any) => String(name || '').split(' ')[0] || 'there'
 

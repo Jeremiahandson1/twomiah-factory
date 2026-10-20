@@ -12,7 +12,7 @@ import path from 'node:path'
  *   server: 2026-10-18, 205 (packages/tenant-backend and what it reaches).
  *   web:    2026-10-18, 0 (the tenant-ui screens the admin imports through web/src/shared.ts).
  */
-export const PACKAGES_BASELINE: Record<string, number> = { 'tsconfig.json': 205, 'web/tsconfig.json': 0 }
+export const PACKAGES_BASELINE: Record<string, number> = { 'tsconfig.json': 204, 'web/tsconfig.json': 0 }
 
 const app = path.resolve(import.meta.dir, '..', 'apps', 'unified')
 let failed = false
