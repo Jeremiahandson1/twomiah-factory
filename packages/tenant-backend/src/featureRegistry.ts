@@ -326,48 +326,13 @@ export function getFeaturesForTemplate(template: string): FeatureDef[] {
 }
 
 /**
- * The sensible LEAN starting set a new tenant is provisioned with — core features only.
- * Every non-core feature's code still ships with the tenant (the generator never strips
- * CRM frontend pages, and index.ts statically imports every backend route), so owners
- * turn extras on anytime from Settings → Features. This keeps the initial sidebar clean
- * instead of dumping all ~40 modules on a brand-new tenant.
+ * What a new business starts with: its industry's whole CRM — every feature its template offers except paid Add-on
+ * Products and not-ready (hidden) features. The same list as getFeaturesForPlan, since plans are priced by seats only.
+ * (Owner, 2026-10-20: a contractor that signs up gets the construction CRM, not a nine-screen core. The old lean
+ * core-only start, plus the per-template extras roof and bar needed to work at all, are gone; Higgs ran 59 of 61.)
  */
-/**
- * Templates whose lean start is too lean — the core set alone does not give a working product.
- *
- * `core` is a GLOBAL flag on a feature, so it cannot say "essential for roofers, optional for
- * everyone else". For crm-roof that gap is structural: the core set is contacts, jobs, quotes,
- * invoices, scheduling, dashboard, google_business and branded_email — which leaves out
- * `pipeline_board`, and the pipeline board is roof's INDEX ROUTE, the first screen after login. It
- * also leaves out crews, materials and the insurance workflow, which is most of what makes this a
- * roofing CRM rather than a generic one.
- *
- * That did not show while nothing was gated — every module answered regardless of the flag. Now that
- * the switches actually work, a brand-new roofer would sign up to a stripped product.
- *
- * So roof starts with what a roofer needs on day one — the board, crews, the lead inbox, the portal — listed in
- * DEFAULT_EXTRAS below. Other templates keep the deliberate core-only lean start; add one there only when its core set
- * genuinely cannot stand alone.
- */
-
-/**
- * Per template, the non-core features a new business starts with because its own core screens lean on them.
- * crm-roof: see above. crm-bar (Bar Run 1, 10/17): the register's "Add a regular" is the Regulars (loyalty_rewards);
- * the tablet's PIN clock writes punches that only Time (time_tracking) shows; and Reports is where its sales over a
- * week or a month are (pages/bar/SalesReport.tsx). A new bar had all three off, and the owner found them under Features.
- */
-export const DEFAULT_EXTRAS: Record<string, string[]> = {
-  'crm-roof': ['contacts', 'pipeline_board', 'quotes', 'invoices', 'scheduling', 'dashboard', 'documents', 'client_portal', 'lead_inbox', 'crews'],
-  'crm-bar': ['loyalty_rewards', 'time_tracking', 'reports'],
-}
-
 export function getDefaultFeaturesForTemplate(template: string): string[] {
-  const core = FEATURE_REGISTRY.filter(f => f.core && f.templates.includes(template)).map(f => f.id)
-  // an id is only added if the template is actually OFFERED it — a list naming something the template does not have
-  // would otherwise switch on a flag with nothing behind it
-  const extraIds = DEFAULT_EXTRAS[template] ?? []
-  const offered = new Set(FEATURE_REGISTRY.filter(f => f.templates.includes(template)).map(f => f.id))
-  return [...new Set([...core, ...extraIds.filter(id => offered.has(id))])]
+  return includedByDefault(template)
 }
 
 /**

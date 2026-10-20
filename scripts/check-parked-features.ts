@@ -4,7 +4,7 @@
 //   1. the registry entry is `hidden` and offered to NO template — so it is off the tenant's
 //      Settings › Features page (GET /api/company/features/catalog reads the registry), off every
 //      public/advertisable list, and never a default;
-//   2. no template's starting extras name it, and no plan resolves to it;
+//   2. no template's signup default names it, and no plan resolves to it;
 //   3. the Factory keeps no hand-typed feature catalogue that could list it (GET /api/factory/features was one,
 //      calling the Visualizer "Home Visualizer" and missing a third of the CRM; removed 2026-10-13);
 //   4. the Factory wizard does not offer it.
@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 const ROOT = decodeURIComponent(new URL('../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
-const { FEATURE_REGISTRY, DEFAULT_EXTRAS, getAdvertisableFeatures, getFeaturesForPlan, getDefaultFeaturesForTemplate } = await import(pathToFileURL(ROOT + 'packages/tenant-backend/src/featureRegistry.ts').href)
+const { FEATURE_REGISTRY, getAdvertisableFeatures, getFeaturesForPlan, getDefaultFeaturesForTemplate } = await import(pathToFileURL(ROOT + 'packages/tenant-backend/src/featureRegistry.ts').href)
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
@@ -27,7 +27,6 @@ for (const id of PARKED) {
   if (!def) { fail(`${id} must stay in the registry so the gates that use it are known vocabulary`); continue }
   if (!def.hidden) fail(`${id} must be hidden: true — it is not ready to sell`)
   if (def.templates.length) fail(`${id} must be offered to no template (found: ${def.templates.join(', ')})`)
-  for (const [template, ids] of Object.entries(DEFAULT_EXTRAS as Record<string, string[]>)) if (ids.includes(id)) fail(`${template}'s starting extras still seed ${id}`)
   if ((getAdvertisableFeatures() as any[]).some((f) => f.id === id)) fail(`${id} must not be advertisable`)
   for (const template of [...new Set((FEATURE_REGISTRY as any[]).flatMap((f) => f.templates as string[]))]) {
     if ((getDefaultFeaturesForTemplate(template) as string[]).includes(id)) fail(`${template} starts with ${id}`)

@@ -382,9 +382,8 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       status: 'pending',
       products: [...signupProducts],
       ...(premiumPages ? { preview_premium_pages: premiumPages } : {}),
-      // Seed a lean, sensible default (core features for the trade) rather than an empty
-      // list — an empty list is what used to get back-filled to ALL ~40 modules. All other
-      // feature code still ships, so the owner toggles extras on in Settings → Features.
+      // The signup pages send no list, so the business starts with its industry's whole ready CRM
+      // (getDefaultFeaturesForTemplate: everything the template offers except paid add-ons and not-ready features).
       features: (Array.isArray(body.features) && body.features.length)
         ? body.features
         : getDefaultFeaturesForTemplate(crmTemplateFor(body.industry)),
@@ -461,7 +460,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
         ...signupImages(body.branding),
       },
       features: {
-        // The list the tenant row was given above (the signup's choice, or the template's lean default) — the CRM's
+        // The list the tenant row was given above (the signup's choice, or the template's starting default) — the CRM's
         // seed starts the company on exactly this, so the build and the Factory never disagree.
         crm: (Array.isArray(tenant.features) && tenant.features.length ? tenant.features : body.features) || [],
       },

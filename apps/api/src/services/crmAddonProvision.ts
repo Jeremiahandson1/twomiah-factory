@@ -136,7 +136,7 @@ async function doProvision(tenantId: string): Promise<{ success: boolean; crmUrl
     content: {},
   }
   const zip = await generate({ id: tenant.id, ...config } as any)
-  // A row with no list yet: record the one the seed started the CRM on (the template's lean default), so the
+  // A row with no list yet: record the one the seed started the CRM on (the template's starting default — its whole ready CRM), so the
   // Factory's Features page shows what the CRM has.
   if (zip.crmFeatures?.length && !(Array.isArray(tenant.features) && tenant.features.length)) {
     const { error: fErr } = await supabase.from('tenants').update({ features: zip.crmFeatures }).eq('id', tenant.id)

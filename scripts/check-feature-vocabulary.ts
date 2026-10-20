@@ -16,7 +16,7 @@ import { pathToFileURL } from 'url'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const REG_FILE = path.join(ROOT, 'packages/tenant-backend/src/featureRegistry.ts')
-const { FEATURE_REGISTRY, DEFAULT_EXTRAS } = await import(pathToFileURL(REG_FILE).href)
+const { FEATURE_REGISTRY } = await import(pathToFileURL(REG_FILE).href)
 type Def = { id: string; templates: string[]; core: boolean; hidden?: boolean; category: string }
 const registry = new Map<string, Def>((FEATURE_REGISTRY as Def[]).map((f) => [f.id, f]))
 
@@ -45,14 +45,6 @@ const err = (m: string) => errors.push(m), info = (m: string) => infos.push(m)
   const api = fs.readFileSync(path.join(ROOT, 'apps/api/src/config/featureRegistry.ts'), 'utf8')
   if (!/export \* from '.*packages\/tenant-backend\/src\/featureRegistry\.ts'/.test(api) || api.includes('FEATURE_REGISTRY: FeatureDef[] = ['))
     err('apps/api/src/config/featureRegistry.ts must only re-export packages/tenant-backend/src/featureRegistry.ts')
-  // A template's starting extras: a typo or an id the template is not offered is dropped silently at signup, so it
-  // is refused here instead.
-  for (const [template, ids] of Object.entries(DEFAULT_EXTRAS as Record<string, string[]>))
-    for (const id of ids) {
-      const d = registry.get(id)
-      if (!d) err(`registry DEFAULT_EXTRAS ${template}: unknown id '${id}'`)
-      else if (!d.templates.includes(template)) err(`registry DEFAULT_EXTRAS ${template}: '${id}' is not offered to ${template} (templates: ${d.templates.join(', ') || 'none'})`)
-    }
 }
 
 const walk = (d: string, out: string[] = []) => {

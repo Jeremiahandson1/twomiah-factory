@@ -866,8 +866,8 @@ export function injectTokens(content: string, tokens: Record<string, string>): s
 
 /**
  * Two lists, which used to be one:
- *   · `seed` — what the company STARTS with: exactly the Factory's list (tenants.features — the signup's lean set, or
- *     what staff chose), or the template's lean default when none was given. The seed writes it once, at company
+ *   · `seed` — what the company STARTS with: exactly the Factory's list (tenants.features — the signup's starting set, or
+ *     what staff chose), or the template's starting default (its whole ready CRM) when none was given. The seed writes it once, at company
  *     creation (db/seed.template.ts never re-applies it).
  *   · `code` — what ships: everything the plan allows plus the seed, so a feature the owner turns on later has its
  *     code. Only the file strip reads it.

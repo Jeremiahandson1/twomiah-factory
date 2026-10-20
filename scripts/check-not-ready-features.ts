@@ -6,14 +6,14 @@
 // A feature marked `hidden: true` in the registry is not ready. It reached a live tenant anyway: the roof
 // report (measurement_reports) sat in crm-roof's PRO plan tier, and the Paid Ads Hub was on two tenants
 // although no CRM is offered it. Every path that can switch a feature on is held here:
-//   1. no template's starting extras list one, and every plan of every template RESOLVES to none (the real functions run);
+//   1. every plan of every template RESOLVES to none (the real functions run);
 //   2. no template's signup default contains one;
 //   3. the owner's Settings › Features save filters them, in the shared route and both forks;
 //   4. the Factory's admin feature save drops them, and the generator filters the deployed list.
 //   bun scripts/check-not-ready-features.ts
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { FEATURE_REGISTRY, DEFAULT_EXTRAS, getFeaturesForPlan, getDefaultFeaturesForTemplate } from '../packages/tenant-backend/src/featureRegistry.ts'
+import { FEATURE_REGISTRY, getFeaturesForPlan, getDefaultFeaturesForTemplate } from '../packages/tenant-backend/src/featureRegistry.ts'
 const ROOT = decodeURIComponent(new URL('../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8').replace(/\r\n/g, '\n')
 let failed = 0
@@ -25,10 +25,6 @@ const templates = [...new Set(FEATURE_REGISTRY.flatMap((f) => f.templates))]
 const PLANS = ['website', 'starter10', 'team25', 'business50', 'no-such-plan']
 
 // 1 + 2
-for (const [t, ids] of Object.entries(DEFAULT_EXTRAS)) {
-  const bad = ids.filter((id) => hidden.has(id))
-  if (bad.length) fail(`DEFAULT_EXTRAS['${t}'] lists not-ready feature(s): ${bad.join(', ')}`)
-}
 let resolved = 0
 for (const t of templates) {
   for (const p of PLANS) {
