@@ -30,7 +30,7 @@ import { z } from 'zod'
 import { and, asc, count, desc, eq, ilike, inArray, or, gt } from 'drizzle-orm'
 import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney } from '@twomiah/tenant-backend'
 import { company, contact, crew, invoice, job, jobNote, jobPhoto, measurementReport, quote, smsConversation, smsMessage } from '../../db/schema/index.ts'
-import { cleanText } from '../../core/sanitize.ts'
+import { cleanText, cleanLines } from '../../core/sanitize.ts'
 import { invalid } from '../../http/errors.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
@@ -104,7 +104,7 @@ const jobSchema = z.object({
   totalSquares: z.coerce.number().optional(),
   source: z.string().optional(),
   priority: z.string().optional(),
-  notes: cleanText().optional(),
+  notes: cleanLines().optional(),
 })
 type JobInput = z.infer<typeof jobSchema>
 
@@ -396,7 +396,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const me = c.get('user')
     const id = c.req.param('id')
     if (!(await ownJob(me.companyId, id))) return fail(c, 404, 'Job not found')
-    const parsed = z.object({ body: cleanText(1), isInternal: z.boolean().default(true) }).safeParse(await c.req.json().catch(() => null))
+    const parsed = z.object({ body: cleanLines(1), isInternal: z.boolean().default(true) }).safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     const [note] = await db.insert(jobNote).values({ companyId: me.companyId, jobId: id, userId: me.userId, body: parsed.data.body, isInternal: parsed.data.isInternal } as any).returning()
     return one(c, note, 201)

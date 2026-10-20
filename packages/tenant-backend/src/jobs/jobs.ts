@@ -103,6 +103,8 @@ export interface JobDeps {
   emitToCompany: (companyId: string, event: string, data: any) => void
   EVENTS: { JOB_CREATED: string; JOB_UPDATED: string; JOB_DELETED: string; JOB_STATUS_CHANGED: string }
   cleanText: (min?: number) => z.ZodTypeAny
+  /** For the multi-line fields (description, notes): markup stripped, line breaks kept. Absent: cleanText. */
+  cleanLines?: (min?: number) => z.ZodTypeAny
   options?: JobOptions
 }
 
@@ -148,6 +150,7 @@ const JOB_MONEY_PERMISSION = 'quotes:update'
 
 export function createJobRoutes(deps: JobDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, cleanText } = deps
+  const cleanLines = deps.cleanLines ?? cleanText
   const maySetJobMoney = async (c: any) => {
     if (!deps.canSee) return true
     const u = c.get('user') as any
@@ -169,7 +172,7 @@ export function createJobRoutes(deps: JobDeps) {
   const jobSchema = z.object({
     // a title is a line, not an essay — 500 characters went in unchecked (T21 L1)
     title: cleanText(1).pipe(z.string().max(200, 'Title must be 200 characters or fewer')),
-    description: cleanText().optional(),
+    description: cleanLines().optional(),
     projectId: z.string().optional().transform(emptyToUndef as any),
     contactId: z.string().optional().transform(emptyToUndef as any),
     assignedToId: z.string().optional().transform(emptyToUndef as any),
@@ -211,7 +214,7 @@ export function createJobRoutes(deps: JobDeps) {
     city: z.string().optional(),
     state: z.string().optional(),
     zip: z.string().optional(),
-    notes: cleanText().optional(),
+    notes: cleanLines().optional(),
     ...(t.location && t.job.locationId ? { locationId: z.string().optional().transform(emptyToUndef as any) } : {}),
     ...(o.extraFields || {}),
   })

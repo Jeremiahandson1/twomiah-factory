@@ -681,7 +681,7 @@ export default function JobDetailPage() {
                 {notes.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No notes yet</p>}
                 {notes.map((note, i) => (
                   <div key={note.id || i} className="bg-gray-50 rounded-lg p-3 dark:bg-slate-900">
-                    <p className="text-sm text-gray-900 dark:text-slate-100">{note.body}</p>
+                    <p className="text-sm text-gray-900 whitespace-pre-wrap dark:text-slate-100">{note.body}</p>
                     <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-slate-400">
                       {note.createdAt && <span>{new Date(note.createdAt).toLocaleString()}</span>}
                     </div>

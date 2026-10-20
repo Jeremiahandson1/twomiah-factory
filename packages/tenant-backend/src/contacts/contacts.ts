@@ -100,6 +100,8 @@ export interface ContactDeps {
   audit: { log: (entry: any) => any; diff: (before: any, after: any) => any; ACTIONS: Record<string, string> }
   /** the template's `cleanText(min)` zod helper (strips markup) */
   cleanText: (min?: number) => z.ZodTypeAny
+  /** For the multi-line fields (notes, access notes): markup stripped, line breaks kept. Absent: cleanText. */
+  cleanLines?: (min?: number) => z.ZodTypeAny
   /** May this person do X? (role list + per-user grants.) Decides which related lists a contact read carries. */
   canSee?: (role: string, permission: string, userId?: string) => Promise<boolean>
   options?: ContactOptions
@@ -188,6 +190,7 @@ export const withoutPaymentInternals = (row: any) => {
 
 export function createContactRoutes(deps: ContactDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, audit, cleanText } = deps
+  const cleanLines = deps.cleanLines ?? cleanText
   const o = deps.options || {}
   const types = (o.types && o.types.length ? o.types : DEFAULT_CONTACT_TYPES) as [string, ...string[]]
   const defaultType = o.defaultType || 'lead'
@@ -210,7 +213,7 @@ export function createContactRoutes(deps: ContactDeps) {
     state: cleanText().optional().refine((v: unknown) => !v || normaliseState(v) !== null, { message: STATE_ERROR }).transform((v: unknown) => (v ? normaliseState(v)! : v)),
     zip: cleanText().optional().refine((v: unknown) => !v || normaliseZip(v) !== null, { message: ZIP_ERROR }).transform((v: unknown) => (v ? normaliseZip(v)! : v)),
     source: cleanText().optional(),
-    notes: cleanText().optional(),
+    notes: cleanLines().optional(),
     tags: z.array(cleanText()).optional(),
     ...(o.extraFields || {}),
   })
@@ -313,7 +316,7 @@ export function createContactRoutes(deps: ContactDeps) {
       city: cleanText().optional(),
       state: cleanText().optional().refine((v: unknown) => !v || normaliseState(v) !== null, { message: STATE_ERROR }).transform((v: unknown) => (v ? normaliseState(v)! : v)),
       zip: cleanText().optional().refine((v: unknown) => !v || normaliseZip(v) !== null, { message: ZIP_ERROR }).transform((v: unknown) => (v ? normaliseZip(v)! : v)),
-      accessNotes: cleanText().optional(),
+      accessNotes: cleanLines().optional(),
     })
     const findSite = async (siteId: string, companyId: string) => {
       const [row] = await db.select().from(site).where(and(eq(site.id, siteId), eq(site.companyId, companyId))).limit(1)

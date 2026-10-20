@@ -46,7 +46,7 @@ import type { Mount } from '../http/registry.ts'
 import { fail } from '../http/reply.ts'
 import type { Realtime } from '../core/realtime.ts'
 import type { Logger } from '../core/logger.ts'
-import { cleanText, escapeHtml } from '../core/sanitize.ts'
+import { cleanText, cleanLines, escapeHtml } from '../core/sanitize.ts'
 import type { CrmServices } from '../crm/services.ts'
 import type { CrmDeps } from '../crm/deps.ts'
 import { siteRecordsMounts } from '../crm/siteRecords/index.ts'
@@ -114,7 +114,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const factoryApiClient = createFactoryApiClient() as any
 
   const contacts = createContactRoutes({
-    db, tables: { contact, company }, authenticate, requirePermission, canSee, ...live, audit, cleanText,
+    db, tables: { contact, company }, authenticate, requirePermission, canSee, ...live, audit, cleanText, cleanLines,
     options: {
       // SMS opt-out lives on the contact row; the shared sender refuses to text a contact carrying it (T35 N1).
       extraFields: { optedOutSms: z.boolean().optional() },
@@ -176,7 +176,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       job, project, contact, user, timeEntry, teamMember, location,
       ...(sites ? { equipment } : {}), ...(v.jobs?.photos ? { jobPhoto } : {}), ...(v.jobs?.billing ? { invoice, invoiceLineItem } : {}),
     },
-    authenticate, requirePermission, canSee, ...live, cleanText,
+    authenticate, requirePermission, canSee, ...live, cleanText, cleanLines,
     options: {
       // a job also points at a piece of equipment and a service site
       ...(sites ? { extraFields: { equipmentId: blankToUndefined, siteId: blankToUndefined } } : {}),

@@ -766,7 +766,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           {siteDetail.accessNotes && (
             <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
               <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-300 uppercase mb-1">Access Notes</p>
-              <p className="text-sm text-yellow-800 dark:text-yellow-100">{siteDetail.accessNotes}</p>
+              <p className="text-sm text-yellow-800 whitespace-pre-wrap dark:text-yellow-100">{siteDetail.accessNotes}</p>
             </div>
           )}
           <div className="space-y-4">

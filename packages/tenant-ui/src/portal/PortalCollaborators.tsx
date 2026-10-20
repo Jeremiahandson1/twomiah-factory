@@ -46,12 +46,12 @@ function JobCard({ job, busy, onComplete }: { job: SubJob; busy: boolean; onComp
           <div className="min-w-0">
             <p className="font-medium text-gray-900 dark:text-slate-100">{job.number} — {job.title}</p>
             {job.projectName && <p className="text-sm text-gray-500 dark:text-slate-400">Project: {job.projectNumber ? `${job.projectNumber} · ` : ''}{job.projectName}</p>}
-            {job.description && <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">{job.description}</p>}
+            {job.description && <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap dark:text-slate-400">{job.description}</p>}
             <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500 dark:text-slate-400">
               {job.scheduledDate && <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" />{formatDate(job.scheduledDate)}{job.scheduledTime ? ` · ${job.scheduledTime}` : ''}</span>}
               {addr && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{addr}</span>}
             </div>
-            {job.notes && <p className="text-xs text-gray-500 mt-2 italic dark:text-slate-400">{job.notes}</p>}
+            {job.notes && <p className="text-xs text-gray-500 mt-2 italic whitespace-pre-wrap dark:text-slate-400">{job.notes}</p>}
           </div>
         </div>
         <div className="text-right shrink-0">

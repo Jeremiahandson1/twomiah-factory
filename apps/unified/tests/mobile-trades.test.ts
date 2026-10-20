@@ -161,8 +161,8 @@ describe('contractor (shared jobs, photos as documents)', () => {
   test("job notes: the field seat saves the text with PUT { notes }; there is no POST /notes on the shared module", async () => {
     const saved = await call('field', 'PUT', `/api/jobs/${ids.job}`, { notes: 'Gate code 1234\nDog in yard' })
     expect(saved.status).toBe(200)
-    // The server's cleanText folds the line break to a space (server/core/sanitize.ts stripHtml); the text is kept.
-    expect((await call('field', 'GET', `/api/jobs/${ids.job}`)).body.notes).toBe('Gate code 1234 Dog in yard')
+    // Notes keep the person's line breaks (server/core/sanitize.ts cleanLines).
+    expect((await call('field', 'GET', `/api/jobs/${ids.job}`)).body.notes).toBe('Gate code 1234\nDog in yard')
     expect((await call('field', 'POST', `/api/jobs/${ids.job}/notes`, { content: 'x' })).status).toBe(404)
   })
 

@@ -14,8 +14,27 @@ export function stripHtml(value: string): string {
     .trim()
 }
 
-/** zod string that strips markup; `min` > 0 rejects values that were ONLY markup. */
+/** zod string that strips markup; `min` > 0 rejects values that were ONLY markup. One line: every run of whitespace,
+ * line breaks included, becomes one space — for names, titles, addresses. */
 export const cleanText = (min = 0) => z.string().transform(stripHtml).pipe(min > 0 ? z.string().min(min) : z.string())
+
+/** Markup stripped as stripHtml does, but the person's line breaks kept: spaces within a line collapse, each line is
+ * trimmed, and a run of blank lines becomes one. For notes and descriptions (a job's notes typed on the phone as a
+ * list came back as one run-on line, 2026-10-19). */
+export function stripHtmlKeepLines(value: string): string {
+  const text = String(value)
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?[a-zA-Z][^>]*>/g, '')
+    .replace(/<\/?[^>]*>/g, '')
+    .replace(/javascript:/gi, '')
+    .replace(/\r\n?/g, '\n')
+  return text.split('\n').map((line) => line.replace(/[^\S\n]+/g, ' ').trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+/** cleanText for a multi-line field (notes, description): markup stripped, line breaks kept. */
+export const cleanLines = (min = 0) => z.string().transform(stripHtmlKeepLines).pipe(min > 0 ? z.string().min(min) : z.string())
 
 /** Escape a value for interpolation into HTML (receipts, public pages, emails). */
 export function escapeHtml(value: unknown): string {
