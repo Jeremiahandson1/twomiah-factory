@@ -495,8 +495,9 @@ Before each real move:
 - The move refuses rather than guess: two sent invoices sharing a number, a required link to a deleted record (e.g.
   AIA forms whose project was deleted), a duplicate under a unique rule, an unknown role, more than one agency.
   Each is fixed in the old app first, with the owner.
-- Customers with upcoming bookings get their new booking link (old six-character codes do not carry — the new link can
-  cancel, a guessable code must not). Emailing customers is the owner's yes, each time.
+- Booking confirmation codes do not carry (the new link can cancel; a guessable code must not). The owner says no customer
+  has an upcoming booking (2026-10-20), so nothing to send; the move report lists any booking with a future date so a
+  new one made before cutover is not missed.
 - Bookings that allowed more than one at a time: the owner sets hours per person. An old quickbooks_connection row:
   the owner reconnects QuickBooks. The QuickBooks link moves only when the new service uses the same Intuit app.
 - Still to build: the Factory's cutover command that runs a move (old URL → new database), freezes the old app during
