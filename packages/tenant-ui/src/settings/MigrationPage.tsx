@@ -89,7 +89,7 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
               <button key={p.id} onClick={() => selectProvider(p)} className="p-5 bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 text-left hover:border-orange-400 hover:shadow-md transition-all group">
                 <div className="flex items-start justify-between mb-3"><div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center"><Database className="w-5 h-5 text-blue-600 dark:text-blue-400" /></div>{p.hasApi && <span className="text-xs font-medium px-2 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full">Auto-Migrate</span>}</div>
                 <p className="font-semibold text-gray-900 dark:text-white">{p.name}</p><p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{p.description}</p>
-                <div className="flex items-center gap-1 mt-3 text-sm text-orange-600 dark:text-orange-200 font-medium opacity-0 group-hover:opacity-100 transition-opacity">Get started <ChevronRight className="w-4 h-4" /></div>
+                <div className="flex items-center gap-1 mt-3 text-sm text-orange-700 dark:text-orange-200 font-medium opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">Get started <ChevronRight className="w-4 h-4" /></div>
               </button>
             ))}
           </div>

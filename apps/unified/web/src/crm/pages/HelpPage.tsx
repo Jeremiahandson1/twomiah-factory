@@ -202,7 +202,7 @@ export default function HelpPage() {
                 <span className="text-gray-900 dark:text-white text-sm font-medium">{a.title}</span>
                 <div className="flex items-center gap-2 mt-0.5">
                   {a.category && <span className="text-xs text-gray-500 dark:text-slate-400">{a.category}</span>}
-                  {a.isFaq && <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1 py-0.5 rounded">FAQ</span>}
+                  {a.isFaq && <span className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200 px-1 py-0.5 rounded">FAQ</span>}
                   <span className="text-xs text-gray-600 dark:text-slate-400"><Eye size={10} className="inline" /> {a.viewCount}</span>
                 </div>
               </div>

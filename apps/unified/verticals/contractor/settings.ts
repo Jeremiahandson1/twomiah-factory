@@ -51,7 +51,8 @@ const contractor: VerticalSettings = {
     marketing: {},
     messages: {},
     agreements: {},
-    fleet: {},
+    // The live map of the drivers' vehicles (BASE_CRM fleet.gps).
+    fleet: { gps: true },
     reviews: {},
     migration: {},
     settings: {},

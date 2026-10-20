@@ -121,9 +121,9 @@ export function BookingCalendarPage() {
                       <Link key={b.id} to={`/crm/bookings/${b.id}`} draggable={mayUpdate && (b.status === 'confirmed' || b.status === 'pending')}
                         onDragStart={(e) => e.dataTransfer.setData('text/plain', b.id)}
                         className={'block px-2 py-1 rounded border text-xs ' + blockStyle(b.status)} title={`${b.customerName} — ${b.serviceName || ''}`}>
-                        <span className="font-mono opacity-80">{clock.time(b.startAt)}</span>{' '}
+                        <span className="font-mono">{clock.time(b.startAt)}</span>{' '}
                         <span className="font-semibold">{b.customerName}</span>
-                        {view === 'week' && <span className="block truncate opacity-90">{b.serviceName}</span>}
+                        {view === 'week' && <span className="block truncate">{b.serviceName}</span>}
                       </Link>
                     ))}
                     {view === 'month' && list.length > 3 && <div className="text-[11px] text-ink-soft px-1">+{list.length - 3} more</div>}

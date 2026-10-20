@@ -66,6 +66,9 @@ export const BASE_CRM: CrmSettings = {
   documents: { markup: true, types: ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'] },
   tech: { checklistType: 'site_checklist', checklistTitle: 'Site checklist' },
   portal: { disable: ['service'] },
+  // The live map and trips from the drivers' phones (the old contractor template had no feed; the unified app has it
+  // for every vertical, and the contractor offers fleet and gps_tracking).
+  fleet: { gps: true },
 }
 
 export interface CrmSettings {
@@ -99,7 +102,7 @@ export interface CrmSettings {
     recurrence?: boolean
   }
   fleet?: {
-    /** Vehicles' live locations and trips (GPS): the fleet module's location, trip and mileage endpoints answer for real. (field service, basic) */
+    /** Vehicles' live locations and trips (GPS): the fleet module's location, trip and mileage endpoints answer for real. (contractor, field service, basic) */
     gps?: boolean
   }
   leads?: {
