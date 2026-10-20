@@ -43,9 +43,6 @@ const VERTICAL_FILTERS: Record<string, { key: string; label: string }[]> = {
     { key: 'all', label: 'All' }, { key: 'lead', label: 'Lead' }, { key: 'client', label: 'Homeowner' },
     { key: 'subcontractor', label: 'Adjuster' },
   ],
-  dispensary: [
-    { key: 'all', label: 'All' },
-  ],
 }
 
 export default function ContactsScreen() {
@@ -149,7 +146,7 @@ export default function ContactsScreen() {
   }
 
   const placeholder = vertical === 'homecare' ? 'Search clients...'
-    : vertical === 'dispensary' ? 'Search customers...'
+    : vertical === 'rv' ? 'Search customers...'
     : 'Search contacts...'
 
   return (

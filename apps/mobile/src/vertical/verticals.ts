@@ -1,8 +1,16 @@
 /**
  * Tab definitions per vertical — controls which tabs appear in the bottom bar.
+ *
+ * The verticals are the unified app's ids (apps/unified/verticals/*, sent as company.vertical by /api/auth/login and
+ * /api/auth/me). `basic` (a general service business) uses the contractor's tabs. `unavailable` is a business whose
+ * industry has no phone screens (bar, salon, vet, restaurant, store): it is told to use the web app rather than shown
+ * another trade's screens. Dispensary is not in the unified app (owner, 2026-10-19), so the app has no dispensary tabs.
  */
 
-export type Vertical = 'contractor' | 'fieldservice' | 'homecare' | 'roofing' | 'landscaping' | 'dispensary' | 'rv'
+export type Vertical = 'contractor' | 'basic' | 'fieldservice' | 'homecare' | 'roofing' | 'landscaping' | 'rv' | 'unavailable'
+
+/** Every vertical the phone app has screens for. */
+export const PHONE_VERTICALS: Vertical[] = ['contractor', 'basic', 'fieldservice', 'homecare', 'roofing', 'landscaping', 'rv']
 
 export interface TabDef {
   name: string
@@ -11,14 +19,17 @@ export interface TabDef {
   activeIcon: string
 }
 
+const CONTRACTOR_TABS: TabDef[] = [
+  { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid' },
+  { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer' },
+  { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people' },
+  { name: 'quotes', title: 'Quotes', icon: 'document-text-outline', activeIcon: 'document-text' },
+  { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
+]
+
 export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
-  contractor: [
-    { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid' },
-    { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer' },
-    { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people' },
-    { name: 'quotes', title: 'Quotes', icon: 'document-text-outline', activeIcon: 'document-text' },
-    { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
-  ],
+  contractor: CONTRACTOR_TABS,
+  basic: CONTRACTOR_TABS,
   fieldservice: [
     { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid' },
     { name: 'service-calls', title: 'Service Calls', icon: 'build-outline', activeIcon: 'build' },
@@ -50,13 +61,6 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
     { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people' },
     { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
   ],
-  dispensary: [
-    { name: 'orders', title: 'Orders', icon: 'receipt-outline', activeIcon: 'receipt' },
-    { name: 'pos-mobile', title: 'POS', icon: 'card-outline', activeIcon: 'card' },
-    { name: 'ai-chat', title: 'AI Chat', icon: 'sparkles-outline', activeIcon: 'sparkles' },
-    { name: 'checkin-queue', title: 'Check-In', icon: 'people-outline', activeIcon: 'people' },
-    { name: 'more-dispensary', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
-  ],
   rv: [
     { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid' },
     { name: 'units', title: 'Inventory', icon: 'car-sport-outline', activeIcon: 'car-sport' },
@@ -64,15 +68,17 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
     { name: 'ai-trade', title: 'Trade', icon: 'cash-outline', activeIcon: 'cash' },
     { name: 'contacts', title: 'Customers', icon: 'people-outline', activeIcon: 'people' },
   ],
+  unavailable: [],
 }
 
 /** The first tab name per vertical (initial route) */
 export const VERTICAL_INITIAL_TAB: Record<Vertical, string> = {
   contractor: 'dashboard',
+  basic: 'dashboard',
   fieldservice: 'dashboard',
   homecare: 'shifts',
   roofing: 'pipeline',
   landscaping: 'dashboard',
-  dispensary: 'orders',
   rv: 'dashboard',
+  unavailable: '',
 }

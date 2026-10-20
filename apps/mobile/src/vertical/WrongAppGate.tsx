@@ -18,7 +18,34 @@ const VERTICAL_LABEL: Record<string, string> = {
   fieldservice: 'Twomiah Field Service',
   homecare: 'Twomiah Care',
   landscaping: 'Twomiah Landscaping',
-  dispensary: 'Twomiah Retail',
+  basic: 'Twomiah Build',
+  rv: 'the Twomiah app',
+}
+
+/**
+ * Shown when the business's industry has no phone screens (bar, salon, vet, restaurant, store — verticals.ts
+ * `unavailable`): it says so and points to the web app, instead of opening another trade's screens on its data.
+ */
+export function NoPhoneAppGate() {
+  const t = useTheme()
+  const { logout, company } = useAuth()
+  return (
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]}>
+      <View style={styles.container}>
+        <View style={[styles.iconCircle, { backgroundColor: t.primaryLight }]}>
+          <Ionicons name="desktop-outline" size={36} color={t.primary} />
+        </View>
+        <Text style={[styles.title, { color: t.text }]}>Use the web app for now</Text>
+        <Text style={[styles.body, { color: t.textSecondary }]}>
+          The phone app does not have screens for {company?.name || 'this business'}'s kind of work yet. Everything is
+          in the web app — open your company's link in a browser.
+        </Text>
+        <TouchableOpacity style={[styles.button, { backgroundColor: t.primary }]} onPress={logout} activeOpacity={0.85}>
+          <Text style={styles.buttonText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  )
 }
 
 export function WrongAppGate() {

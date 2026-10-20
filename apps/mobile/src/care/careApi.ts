@@ -49,9 +49,12 @@ export const punchSender: PunchSender = async (path, body) => {
   return { status: r.status, data: r.data }
 }
 
-/** A list response that may be a bare array or wrapped ({ data } / { entries } / …). */
+/**
+ * A list response: the unified app answers every list `{ data, pagination }` (apps/unified/server/http/reply.ts), so
+ * `data` is always read; a bare array and the other named keys still work.
+ */
 export function asList<T = any>(data: any, ...keys: string[]): T[] {
   if (Array.isArray(data)) return data
-  for (const k of keys) if (data && Array.isArray(data[k])) return data[k]
+  for (const k of ['data', ...keys]) if (data && Array.isArray(data[k])) return data[k]
   return []
 }

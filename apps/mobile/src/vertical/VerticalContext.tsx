@@ -14,7 +14,7 @@ import React, { createContext, useContext, useMemo } from 'react'
 import Constants from 'expo-constants'
 import { useAuth } from '../auth/AuthContext'
 import { detectVertical } from './detectVertical'
-import { Vertical, VERTICAL_TABS, VERTICAL_INITIAL_TAB, TabDef } from './verticals'
+import { Vertical, VERTICAL_TABS, VERTICAL_INITIAL_TAB, TabDef, PHONE_VERTICALS } from './verticals'
 
 interface VerticalContextValue {
   vertical: Vertical
@@ -27,9 +27,8 @@ interface VerticalContextValue {
   lockedVertical: Vertical | null
 }
 
-// 'rv' had tabs, an initial tab and screens in verticals.ts but was missing here, so no dealership could
-// ever reach them. (T59)
-const VALID_VERTICALS: Vertical[] = ['contractor', 'fieldservice', 'homecare', 'roofing', 'landscaping', 'dispensary', 'rv']
+// The one list (verticals.ts): a variant build may lock to any vertical the app has screens for.
+const VALID_VERTICALS: Vertical[] = PHONE_VERTICALS
 
 function readLockedVertical(): Vertical | null {
   const raw = (Constants.expoConfig?.extra as any)?.lockedVertical

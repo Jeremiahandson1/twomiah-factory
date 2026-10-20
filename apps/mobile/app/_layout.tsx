@@ -14,7 +14,7 @@ import { ToastProvider } from '../src/components/ToastProvider'
 import { SocketProvider } from '../src/socket/SocketContext'
 import { OfflineProvider } from '../src/offline/OfflineContext'
 import { OfflineBanner } from '../src/components/OfflineBanner'
-import { WrongAppGate } from '../src/vertical/WrongAppGate'
+import { WrongAppGate, NoPhoneAppGate } from '../src/vertical/WrongAppGate'
 import { useLocationReporter } from '../src/hooks/useLocationReporter'
 import { CareProvider } from '../src/care/CareContext'
 
@@ -50,6 +50,9 @@ function AuthGate() {
 
   if (isAuthenticated && verticalMismatch) {
     return <WrongAppGate />
+  }
+  if (isAuthenticated && vertical === 'unavailable') {
+    return <NoPhoneAppGate />
   }
 
   return (

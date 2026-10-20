@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { loadTokens, clearTokens, getApiUrl, post, get } from '../api/client'
+import { loadTokens, clearTokens, getApiUrl, getRefreshToken, post, get } from '../api/client'
 import { signInWithPassword, completeMfaSignIn, type MfaChallenge } from './signIn'
 
 /** The last signed-in profile, so the app opens without a connection (tokens stay in SecureStore). */
@@ -37,7 +37,8 @@ interface Company {
   logo?: string
   primaryColor?: string
   enabledFeatures: string[]
-  vertical?: 'contractor' | 'fieldservice' | 'homecare' | 'roofing' | 'landscaping' | 'dispensary' | 'rv'
+  /** The unified app's vertical id (apps/unified/verticals/*) — including ones with no phone screens. */
+  vertical?: string
   settings?: Record<string, any>
   phone?: string | null
   email?: string | null
@@ -120,7 +121,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [apply])
 
   const logout = useCallback(async () => {
-    await post('/api/auth/logout').catch(() => {})
+    // This device's refresh token: with none, the server signs the person out of EVERY device
+    // (packages/tenant-backend auth.ts POST /logout).
+    await post('/api/auth/logout', { refreshToken: getRefreshToken() }).catch(() => {})
     await clearTokens()
     await AsyncStorage.removeItem(PROFILE_KEY).catch(() => {})
     setUser(null)
