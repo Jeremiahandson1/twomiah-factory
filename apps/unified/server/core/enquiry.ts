@@ -20,6 +20,8 @@ export interface Enquiry {
   source: string | null
   /** The form's own answers as sent, for a vertical's own forms (CrmSettings.websiteForms). */
   form?: BarForm
+  /** The unit a dealership's visitor asked about (`unitOfInterest`, CrmSettings.websiteEnquiries 'pipeline'). */
+  interest?: string
   /** The visitor's address, kept as consent evidence. */
   ip?: string | null
 }
@@ -33,16 +35,17 @@ export const enquiryTemplates: Record<string, Template> = {
       <tr><td style="padding:28px 32px 16px;"><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#888;">${escHtml(e.companyName)} · new lead</div></td></tr>
       <tr><td style="padding:0 32px 12px;"><h2 style="margin:0;font-size:22px;color:#1a1a1a;">${escHtml(e.name)}</h2></td></tr>
       <tr><td style="padding:0 32px 24px;color:#3a3a3a;font-size:15px;line-height:1.6;">
-        <div><strong>Email:</strong> <a href="mailto:${escHtml(e.email)}" style="color:#1a1a1a;">${escHtml(e.email)}</a></div>
+        ${e.email ? `<div><strong>Email:</strong> <a href="mailto:${escHtml(e.email)}" style="color:#1a1a1a;">${escHtml(e.email)}</a></div>` : ''}
         ${e.phone ? `<div><strong>Phone:</strong> <a href="tel:${escHtml(e.phone)}" style="color:#1a1a1a;">${escHtml(e.phone)}</a></div>` : ''}
+        ${e.interest ? `<div><strong>Interested in:</strong> ${escHtml(e.interest)}</div>` : ''}
         ${e.source ? `<div style="margin-top:6px;color:#888;font-size:13px;">Submitted from: ${escHtml(e.source)}</div>` : ''}
         <div style="margin-top:18px;padding:14px 18px;background:#fafaf7;border-left:3px solid #f97316;border-radius:4px;white-space:pre-wrap;">${escHtml(e.message)}</div>
       </td></tr>
-      <tr><td style="padding:0 32px 24px;"><a href="mailto:${escHtml(e.email)}?subject=Re:%20your%20inquiry" class="button">Reply now</a></td></tr>
+      <tr><td style="padding:0 32px 24px;">${e.email ? `<a href="mailto:${escHtml(e.email)}?subject=Re:%20your%20inquiry" class="button">Reply now</a>` : e.phone ? `<a href="tel:${escHtml(e.phone)}" class="button">Call now</a>` : ''}</td></tr>
       <tr><td style="background:#fafaf7;padding:16px 32px;border-top:1px solid #eee;color:#888;font-size:12px;">This lead is also saved in your leads.</td></tr>
     </table>
   </body></html>`,
-    text: `New website lead from ${e.name} <${e.email}>${e.phone ? ' ' + e.phone : ''}\n\n${e.message}${e.source ? '\n\nSubmitted from: ' + e.source : ''}`,
+    text: `New website lead from ${e.name}${e.email ? ' <' + e.email + '>' : ''}${e.phone ? ' ' + e.phone : ''}${e.interest ? '\nInterested in: ' + e.interest : ''}\n\n${e.message}${e.source ? '\n\nSubmitted from: ' + e.source : ''}`,
   }),
 }
 

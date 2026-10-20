@@ -71,8 +71,13 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
       // The waitlist asks only for an email; the lead still needs a name the business can read.
       const name = one(body.name) || (source === 'service-area-waitlist' ? 'Service-area waitlist' : '')
       const phone = one(body.phone) || null
+      // A dealership's pipeline (CrmSettings.websiteEnquiries 'pipeline') takes the website chat's lead as the RV CRM
+      // did (templates/crm-rv routes/webhooks.ts; website-rv server-static.ts /api/chat): an email OR a phone, and the
+      // unit the visitor asked about (`unitOfInterest`), kept on its own so its stock number can link the unit.
+      const pipeline = vertical.crm?.websiteEnquiries === 'pipeline'
+      const interest = pipeline ? one(body.unitOfInterest).slice(0, 200) : ''
       // What they wrote, plus every other answer the form asked for (event date, headcount, ZIP, care type…).
-      const extras = Object.keys(body).filter((k) => !CONTROL.has(k) && one(body[k])).slice(0, 20)
+      const extras = Object.keys(body).filter((k) => !CONTROL.has(k) && !(pipeline && k === 'unitOfInterest') && one(body[k])).slice(0, 20)
         .map((k) => k.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').replace(/^./, (x) => x.toUpperCase()) + ': ' + one(body[k]).slice(0, 500))
       const message = [one(body.message || body.project || body.notes), ...extras].filter(Boolean).join('\n').slice(0, 5000)
 
@@ -83,6 +88,11 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
       if (ownForm) {
         if (email && !email.includes('@')) return reply(false, 'Valid email required.')
         if (!email && !phone) return reply(false, 'An email or a phone number, so we can reach you.')
+      } else if (pipeline) {
+        // An email or a phone, and something to go on: what they wrote, or the unit they asked about.
+        if (email && !email.includes('@')) return reply(false, 'Valid email required.')
+        if (!email && !phone) return reply(false, 'An email or a phone number, so we can reach you.')
+        if (!interest && (!message || message.length < 4)) return reply(false, vertical.site.words.contactMessageRequired)
       } else {
         if (!email || !email.includes('@')) return reply(false, 'Valid email required.')
         if (!message || message.length < 4) return reply(false, vertical.site.words.contactMessageRequired)
@@ -91,7 +101,7 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
       const [co] = await db.select({ id: company.id, name: company.name, email: company.email }).from(company).orderBy(asc(company.createdAt)).limit(1)
       if (!co) return reply(false, 'Could not save your message. Please try again.', 500)
       const form = ownForm ? Object.fromEntries(Object.keys(body).slice(0, 40).map((k) => [k, one(body[k]).slice(0, 2000)])) : undefined
-      const enquiry = { name, email, phone, message, source, form, ip }
+      const enquiry = { name, email, phone, message, source, form, ip, ...(interest ? { interest } : {}) }
       await enquiries.record(co.id, enquiry)
       void enquiries.notifyOwner({ email: co.email, companyName: co.name }, enquiry)
       return reply(true, THANKS)

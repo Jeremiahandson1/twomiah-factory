@@ -321,7 +321,7 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
   rv: {
     't59-website-lead-one-person.test.ts': {
       why: "Drives POST /api/webhooks/leads, the separate website's contact-form webhook (and its chat's phone-only, unitOfInterest posts). The website is the same app now; a dealership's enquiry goes straight into the sales pipeline (CrmSettings.websiteEnquiries 'pipeline', server/crm/rv/enquiry.ts), on the customer's existing contact by the same rule.",
-      heldBy: "apps/unified/tests/rv-enquiry.test.ts (one contact and one sales lead at new; the same message again is the same lead; another question is a second lead on the same contact; a different name on a shared phone is a second person; the Lead Inbox on doesn't divert it)",
+      heldBy: "apps/unified/tests/rv-enquiry.test.ts (one contact and one sales lead at new; the same message again is the same lead; another question is a second lead on the same contact; a different name on a shared phone is a second person; the Lead Inbox on doesn't divert it) and apps/unified/tests/rv-chat-enquiry.test.ts (the chat's phone-only lead is taken; unitOfInterest is on the notes and its stock number links this dealer's unit, case aside; an unknown stock number links nothing and the enquiry is still taken)",
     },
   },
   vet: {
