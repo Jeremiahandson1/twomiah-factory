@@ -31,6 +31,7 @@ const fakeFetch = (async (input: any, init: any = {}) => {
     refreshes++
     return json({ access_token: 'fresh-' + refreshes, expires_in: 3600, ...(url.includes('microsoft') ? { refresh_token: 'ms-refresh-2' } : {}) })
   }
+  if (url.endsWith('/calendar/v3/calendars/primary')) return json({ id: auth === 'no-email-token' ? 'not an address' : auth + '@gmail.com', summary: 'Primary' })
   if (url.includes('googleapis.com/calendar/v3') && method === 'GET') {
     return json({ items: (events[auth] || []).map((e) => ({ id: e.id, start: { dateTime: e.start }, end: { dateTime: e.end }, ...e.extra })) })
   }
@@ -77,6 +78,19 @@ describe('linking a calendar (the Factory\'s callback)', () => {
     expect(row.calendarId).toBe('primary')
     expect((await c.connectionsOf(ownerId)).map((x: any) => [x.provider, x.accountEmail])).toEqual([['google', 'owner@gmail.com']])
     expect(JSON.stringify(await c.connectionsOf(ownerId))).not.toContain('Enc')
+  })
+
+  test('a Google link without an email (the Factory asks for calendar access only) reads it from the primary calendar', async () => {
+    const [u] = await t.db.insert(t.schema.user).values({ companyId, email: 'helper@example.com', firstName: 'H', lastName: 'P', role: 'field', passwordHash: 'x' }).returning()
+    const c = cal()
+    await c.storeTokens({ userId: u.id, provider: 'google', accessToken: 'helper-token' })
+    expect((await c.connectionsOf(u.id))[0].accountEmail).toBe('helper-token@gmail.com')
+    // what comes back is not an address: no email, and the link still stands
+    await c.storeTokens({ userId: u.id, provider: 'google', accessToken: 'no-email-token' })
+    const [row] = await c.connectionsOf(u.id)
+    expect(row.accountEmail).toBeNull()
+    expect(row.provider).toBe('google')
+    await t.db.delete(t.schema.calendarConnection).where(eq(t.schema.calendarConnection.userId, u.id))
   })
 })
 

@@ -191,6 +191,13 @@ export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof 
       expiresAt: new Date(now() + ((Number(body.expiresInSec) || 3600) - 60) * 1000),
       calendarId: provider === 'google' ? (typeof body.calendarId === 'string' && body.calendarId ? body.calendarId : 'primary') : null,
     }
+    // The Factory asks Google for calendar access only, so its look-up of the account's email comes back empty; the
+    // primary calendar's id is that address. Best effort — the link stands without it.
+    if (!values.accountEmail && provider === 'google') {
+      const res = await http(`${GOOGLE_API}/calendars/primary`, { headers: { Authorization: 'Bearer ' + body.accessToken } }).catch(() => null)
+      const id = res?.ok ? String(((await res.json().catch(() => ({}))) as any).id || '') : ''
+      if (/^[^\s@]+@[^\s@]+$/.test(id)) values.accountEmail = id.slice(0, 320)
+    }
     const [row] = await db.insert(calendarConnection).values(values)
       .onConflictDoUpdate({ target: [calendarConnection.userId, calendarConnection.provider], set: { ...values, createdAt: new Date(now()) } })
       .returning({ id: calendarConnection.id })
