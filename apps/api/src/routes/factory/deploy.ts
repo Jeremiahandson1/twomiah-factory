@@ -146,8 +146,7 @@ factory.get('/customers/:id/deploy/stream', async (c) => {
 factory.post('/customers/:id/flip-to-crm', requireRole('owner', 'admin'), async (c) => {
   const tenantId = c.req.param('id')
   if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-  // '*': the engine column is read when the Factory DB has it.
-  const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).maybeSingle()
+  const { data: tenant } = await supabase.from('tenants').select('id, slug, products, industry, engine').eq('id', tenantId).maybeSingle()
   if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
   // A unified tenant's one app already is its CRM.
   if (isUnifiedTenant(tenant)) return c.json({ error: 'Tenant already has a CRM (it runs the unified app)' }, 409)

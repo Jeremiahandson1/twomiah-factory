@@ -63,9 +63,14 @@ check(!tradeFlagsFor('juice_bar').bar && !tradeFlagsFor('smoothie_bar').bar, 'ju
   const tonightData = site.pages.home[0]?.data || {}
   check(Object.keys(tonightData).every(k => ['title', 'eyebrow', 'intro', 'asHeading', 'tapsHref', 'menuHref', 'showTaps', 'showRoom'].includes(k)), 'the Tonight board carries framing only')
 
-  const intake = readFileSync(ROOT + 'apps/api/src/routes/factory/intake.ts', 'utf8')
-  const labels = intake.match(/const PREMIUM_PAGE_NAV_LABEL[^{]*\{([\s\S]*?)\n\}/)?.[1] || ''
-  const order = intake.match(/const order = \[([^\]]*)\]/)?.[1] || ''
+  // The nav labels and buildPremiumNav live in services/premiumSitePages.ts since the cutover (moved out of intake.ts so
+  // the unified build seeds the same pages). The order is read from inside buildPremiumNav itself — intake.ts has an
+  // unrelated `const order = [` of its own.
+  const pagesSrc = readFileSync(ROOT + 'apps/api/src/services/premiumSitePages.ts', 'utf8')
+  const labels = pagesSrc.match(/const PREMIUM_PAGE_NAV_LABEL[^{]*\{([\s\S]*?)\n\}/)?.[1] || ''
+  const navFn = pagesSrc.slice(pagesSrc.indexOf('function buildPremiumNav('))
+  const order = navFn.match(/const order = \[([^\]]*)\]/)?.[1] || ''
+  check(pagesSrc.includes('function buildPremiumNav(') && order.length > 0, 'buildPremiumNav and its order are found')
   for (const slug of Object.keys(site.pages).filter(s => s !== 'home' && s !== 'contact')) {
     check(new RegExp(`(^|\\s|')${slug}'?:`, 'm').test(labels), `nav label for the bar's /${slug} page`)
     check(order.includes(`'${slug}'`), `/${slug} is in buildPremiumNav's order`)

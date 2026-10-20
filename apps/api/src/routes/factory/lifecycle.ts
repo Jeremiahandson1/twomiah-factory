@@ -489,8 +489,8 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
     if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
 
     const { data: tenant, error: tErr } = await supabase.from('tenants')
-      // '*': includes tenants.engine once that column exists, and never fails before it does.
-      .select('*')
+      // engine: a unified tenant's domain points at its one service (unifiedDomainTargets).
+      .select('id, slug, name, email, admin_email, phone, address, city, state, zip, factory_sync_key, website_url, render_backend_url, cloudflare_zone_id, products, engine')
       .eq('id', tenantId).single()
     if (tErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
