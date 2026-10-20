@@ -22,11 +22,34 @@ function FieldInput({ spec, value, onChange }: { spec: FieldSpec; value: any; on
     case 'bool':
       return (
         <label className="flex items-center gap-2 text-sm text-ink">
-          <input type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} />
+          {/* As the page reads it: a defaultOn switch is on until it is set to false, any other only when set to true. */}
+          <input type="checkbox" checked={spec.defaultOn ? value !== false : value === true} onChange={(e) => onChange(e.target.checked)} />
           {spec.label}
           {spec.hint && <span className="text-muted text-xs">— {spec.hint}</span>}
         </label>
       )
+    case 'choices': {
+      const chosen = new Set(Array.isArray(value) ? value.map(String) : [])
+      return (
+        <fieldset>
+          <legend className="block text-xs font-semibold uppercase tracking-wider text-ink-soft mb-1.5">{spec.label}</legend>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {spec.options.map((o) => (
+              <label key={o.value} className="flex items-center gap-2 text-sm text-ink">
+                <input type="checkbox" checked={chosen.has(o.value)} onChange={(e) => {
+                  const next = new Set(chosen)
+                  if (e.target.checked) next.add(o.value); else next.delete(o.value)
+                  const list = spec.options.map((x) => x.value).filter((v) => next.has(v))
+                  onChange(list.length ? list : undefined)
+                }} />
+                {o.label}
+              </label>
+            ))}
+          </div>
+          {spec.hint && <Hint>{spec.hint}</Hint>}
+        </fieldset>
+      )
+    }
     case 'select':
       return (
         <div>

@@ -29,8 +29,31 @@ export interface PhotoStore {
   remove(key: string): Promise<void>
 }
 
-// Sections the server fills in itself (live menu, inventory, portfolio, service areas, tools) aren't offered in "Add a section".
-const SERVER_BUILT_SECTIONS = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator'])
+// Sections the server fills in itself (live menu, inventory, portfolio, service areas, tools, a bar's signature-item page,
+// which the bar's facts make at /<menu-section>/<item>) aren't offered in "Add a section".
+export const SERVER_BUILT_SECTIONS = new Set(['areas/list', 'projects/grid', 'projects/detail', 'menu/live', 'menu/item-hero', 'inventory/live', 'inventory/unit', 'tools/visualizer', 'tools/estimator'])
+
+/**
+ * Sections that work only on a vertical's own add-on, and are offered only to a vertical that has it: the ones that read
+ * the live facts (`site`/`live`, SiteSettings.facts — the bar's night, menu, taps, hours, events, story, speakeasy door)
+ * and the forms only that vertical's CRM takes (CrmSettings.websiteForms — the bar's party request and Regulars sign-up).
+ * On any other site they would draw an empty board or post a form nothing is waiting for. Every other section is the
+ * whole library's (tests/site-section-fields.test.ts holds every view that reads `site`/`live` to an entry here).
+ */
+export const ADDON_SECTIONS: Record<string, { facts?: 'bar'; websiteForms?: 'bar' }> = {
+  'tonight/board': { facts: 'bar' }, 'taps/wall': { facts: 'bar' }, 'menu/sections': { facts: 'bar' }, 'hours/table': { facts: 'bar' },
+  'events/list': { facts: 'bar' }, 'speakeasy/door': { facts: 'bar' },
+  'timeline/eras': { facts: 'bar' }, 'timeline/era': { facts: 'bar' }, 'timeline/book': { facts: 'bar' },
+  'regulars/signup': { facts: 'bar', websiteForms: 'bar' }, 'parties/inquiry-form': { websiteForms: 'bar' },
+}
+
+/** Whether this vertical's site can draw a section of the library. */
+export function offersSection(key: string, vertical: VerticalSettings): boolean {
+  if (SERVER_BUILT_SECTIONS.has(key)) return false
+  const needs = ADDON_SECTIONS[key]
+  if (!needs) return true
+  return (!needs.facts || vertical.site.facts === needs.facts) && (!needs.websiteForms || vertical.crm?.websiteForms === needs.websiteForms)
+}
 const POST_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,80}[a-z0-9])?$/
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -65,7 +88,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
       if (!fs.statSync(sub).isDirectory()) continue
       for (const f of fs.readdirSync(sub)) {
         const key = type + '/' + f.replace(/\.ejs$/, '')
-        if (f.endsWith('.ejs') && !SERVER_BUILT_SECTIONS.has(key)) types.push(key)
+        if (f.endsWith('.ejs') && offersSection(key, deps.vertical)) types.push(key)
       }
     }
     types.sort()

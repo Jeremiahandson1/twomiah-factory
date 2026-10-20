@@ -1,14 +1,19 @@
 // Editors for the trade sections (and the shared ones that had none), described as data. One generic
 // form (sectionForms/GenericSectionForm) renders any of these — a new section needs an entry here,
-// not a new component. Field keys are exactly what each views/sections/<type>/<variant>.ejs reads.
+// not a new component. Field keys are exactly what each views/sections/<type>/<variant>.ejs reads
+// (tests/site-section-fields.test.ts holds every `data.X` a view reads to a field here, or to a named reason it has none).
 //
 // What the site states is the owner's: these are the owner typing their own facts, so nothing here
 // is pre-filled with a claim.
 
 export type FieldSpec =
   | { key: string; label: string; kind: 'text' | 'textarea' | 'number' | 'image'; hint?: string; placeholder?: string }
-  | { key: string; label: string; kind: 'bool'; hint?: string }
+  // defaultOn: the view reads the switch as `data.X !== false` — on until the owner turns it off — so the box shows
+  // ticked for a section that has never said, as the page does.
+  | { key: string; label: string; kind: 'bool'; hint?: string; defaultOn?: boolean }
   | { key: string; label: string; kind: 'select'; options: Array<{ value: string; label: string }>; hint?: string }
+  // Any of a fixed set, saved as the chosen values in the options' order.
+  | { key: string; label: string; kind: 'choices'; options: Array<{ value: string; label: string }>; hint?: string }
   | { key: string; label: string; kind: 'cta'; hint?: string }
   | { key: string; label: string; kind: 'strings'; hint?: string; placeholder?: string; addLabel?: string; numbers?: boolean }
   | { key: string; label: string; kind: 'list'; item: FieldSpec[]; itemLabel: string; hint?: string; max?: number }
@@ -35,7 +40,9 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'beforeImage', label: 'Before photo', kind: 'image' }, { key: 'afterImage', label: 'After photo', kind: 'image' },
       { key: 'caption', label: 'Caption (optional)', kind: 'text' }, { key: 'location', label: 'Where (optional)', kind: 'text' },
       { key: 'material', label: 'Material (optional)', kind: 'text' }, { key: 'year', label: 'Year (optional)', kind: 'text' },
-    ] }],
+    ] },
+      { key: 'filters', label: 'Let visitors filter the pairs by (optional)', kind: 'choices', hint: 'A filter shows only when some pair has that filled in.',
+        options: [{ value: 'location', label: 'Where' }, { value: 'year', label: 'Year' }, { value: 'material', label: 'Material' }] }],
     defaultData: { heading: 'Before and after', intro: '', items: [] },
   },
   {
@@ -56,7 +63,7 @@ export const TRADE_SECTIONS: TradeSection[] = [
     type: 'age', variant: 'modal', label: 'Age gate',
     description: 'The "are you old enough" check every visitor sees first.',
     fields: [{ key: 'gateAge', label: 'Minimum age', kind: 'number' }, heading, { key: 'message', label: 'Message', kind: 'textarea' },
-      { key: 'stateSelector', label: 'Ask which state they are in', kind: 'bool' }, { key: 'exitUrl', label: 'Where under-age visitors are sent', kind: 'text' }],
+      { key: 'stateSelector', label: 'Ask which state they are in', kind: 'bool', defaultOn: true }, { key: 'exitUrl', label: 'Where under-age visitors are sent', kind: 'text' }],
     defaultData: { gateAge: 21, stateSelector: true },
   },
   {
@@ -94,7 +101,7 @@ export const TRADE_SECTIONS: TradeSection[] = [
     fields: [heading, intro, { key: 'fromMonthly', label: 'Lowest monthly payment', kind: 'number' }, { key: 'apr', label: 'APR (%)', kind: 'number' },
       { key: 'minLoanAmount', label: 'Smallest loan', kind: 'number' }, { key: 'maxLoanAmount', label: 'Largest loan', kind: 'number' },
       { key: 'maxTermMonths', label: 'Longest term (months)', kind: 'number' }, { key: 'ctaLabel', label: 'Button label (optional)', kind: 'text' },
-      { key: 'delightRain', label: 'Show the background animation', kind: 'bool' }],
+      { key: 'delightRain', label: 'Show the background animation', kind: 'bool', defaultOn: true }],
     defaultData: { heading: 'Financing', delightRain: true },
   },
   {
@@ -112,7 +119,7 @@ export const TRADE_SECTIONS: TradeSection[] = [
     fields: [heading, intro, { key: 'serviceZips', label: 'ZIP codes you serve', kind: 'strings', addLabel: 'Add ZIP' },
       { key: 'yesLabel', label: 'Message when served', kind: 'text', hint: '<ZIP> is replaced with what they typed.' },
       { key: 'yesHref', label: 'Button link when served', kind: 'text', placeholder: '/book or /contact' },
-      { key: 'noLabel', label: 'Message when not served', kind: 'text' }, { key: 'noEmail', label: 'Offer a "tell me when you expand" signup', kind: 'bool' }],
+      { key: 'noLabel', label: 'Message when not served', kind: 'text' }, { key: 'noEmail', label: 'Offer a "tell me when you expand" signup', kind: 'bool', defaultOn: true }],
     defaultData: { heading: 'Do we come to you?', serviceZips: [], noEmail: true },
   },
   // ── Food truck / restaurant ────────────────────────────────────────────
@@ -123,7 +130,9 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'name', label: 'Name', kind: 'text' }, { key: 'price', label: 'Price (optional)', kind: 'text' },
       { key: 'description', label: 'Description (optional)', kind: 'textarea' }, { key: 'image', label: 'Photo (optional)', kind: 'image' },
       { key: 'dietary', label: 'Dietary tags (optional)', kind: 'strings', placeholder: 'e.g. vegan', addLabel: 'Add tag' },
-    ] }],
+    ] },
+      { key: 'dietary_legend', label: 'Dietary key under the menu (optional)', kind: 'strings', placeholder: 'e.g. GF', addLabel: 'Add tag',
+        hint: 'The tags to explain, in this order. Blank: every tag your items use.' }],
     defaultData: { heading: 'Menu', items: [] },
   },
   {
@@ -199,7 +208,9 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'tier', label: 'Tier', kind: 'select', options: [{ value: '', label: '—' }, { value: 'basic', label: 'Basic' }, { value: 'standard', label: 'Standard' }, { value: 'premium', label: 'Premium' }] },
       { key: 'pricePerMonth', label: 'Price per month (optional)', kind: 'text' }, { key: 'includes', label: "What's included", kind: 'strings', addLabel: 'Add line' },
       { key: 'seasonOnly', label: 'Season (optional)', kind: 'text', placeholder: 'e.g. winter' }, { key: 'badge', label: 'Badge (optional)', kind: 'text' }, { key: 'note', label: 'Note (optional)', kind: 'text' },
-    ] }],
+    ] },
+      { key: 'currentSeason', label: 'Season to highlight', kind: 'select', options: [{ value: '', label: "By today's date" }, { value: 'spring', label: 'Spring' },
+        { value: 'summer', label: 'Summer' }, { value: 'fall', label: 'Fall' }, { value: 'winter', label: 'Winter' }] }],
     defaultData: { heading: 'Packages', items: [] },
   },
   {
@@ -215,7 +226,7 @@ export const TRADE_SECTIONS: TradeSection[] = [
     description: 'A banner after a storm, with the dates it hit.',
     fields: [heading, { key: 'subtitle', label: 'Subtitle (optional)', kind: 'textarea' }, { key: 'startDate', label: 'Storm date', kind: 'text', placeholder: 'e.g. 2026-10-02' },
       { key: 'endDate', label: 'Show until (optional)', kind: 'text', placeholder: 'e.g. 2026-11-15' }, { key: 'cta', label: 'Button', kind: 'cta' },
-      { key: 'dismissable', label: 'Visitors can close it', kind: 'bool' }],
+      { key: 'dismissable', label: 'Visitors can close it', kind: 'bool', defaultOn: true }],
     defaultData: { heading: '', dismissable: true },
   },
   // ── RV / vet / showcase ────────────────────────────────────────────────
@@ -274,18 +285,22 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'art', label: 'Picture beside the board (optional)', kind: 'image' },
       { key: 'artAlt', label: 'Picture description (optional)', kind: 'text' },
       { key: 'artCaption', label: 'Picture caption (optional)', kind: 'text' },
+      { key: 'artWidth', label: 'Picture width in pixels (optional)', kind: 'number', hint: 'Blank for 1400. With the height, it keeps the page from jumping as the picture loads.' },
+      { key: 'artHeight', label: 'Picture height in pixels (optional)', kind: 'number', hint: 'Blank for 2100.' },
       { key: 'tailLine', label: 'Closing line (optional)', kind: 'text' }, { key: 'tailSmall', label: 'Closing small print (optional)', kind: 'text' },
       { key: 'tailScript', label: 'Closing script line (optional)', kind: 'text' },
-      { key: 'showTaps', label: "Show what's on tap", kind: 'bool' }, { key: 'showRoom', label: 'Show how busy it is', kind: 'bool' },
+      { key: 'showLive', label: 'Show open or closed, and the live rows', kind: 'bool', defaultOn: true,
+        hint: 'off before you open; the name stays' },
+      { key: 'showTaps', label: "Show what's on tap", kind: 'bool', defaultOn: true }, { key: 'showRoom', label: 'Show how busy it is', kind: 'bool', defaultOn: true },
       { key: 'tapsHref', label: 'Tap list link', kind: 'text', hint: 'Leave blank for /taps.' }, { key: 'menuHref', label: 'Menu link', kind: 'text', hint: 'Leave blank for /menu.' },
-      { key: 'asHeading', label: "This is the page's main heading", kind: 'bool' }],
-    defaultData: { showTaps: true, showRoom: true, asHeading: true },
+      { key: 'asHeading', label: "This is the page's main heading", kind: 'bool', defaultOn: true }],
+    defaultData: { showLive: true, showTaps: true, showRoom: true, asHeading: true },
   },
   {
     type: 'menu', variant: 'sections', label: 'Menu — Full',
     description: 'The whole menu with real prices, grouped by section — live from your CRM, with what is 86ed tonight greyed out.',
     fields: [heading, intro, { key: 'kind', label: 'Show', kind: 'select', options: [{ value: 'all', label: 'Food and drink' }, { value: 'food', label: 'Food only' }, { value: 'drink', label: 'Drinks only' }] },
-      { key: 'showSignatureLinks', label: 'Link signature items to their own page', kind: 'bool' },
+      { key: 'showSignatureLinks', label: 'Link signature items to their own page', kind: 'bool', defaultOn: true },
       { key: 'asHeading', label: "This is the page's main heading", kind: 'bool' }],
     defaultData: { heading: 'The menu', kind: 'all', showSignatureLinks: true },
   },
@@ -293,14 +308,14 @@ export const TRADE_SECTIONS: TradeSection[] = [
     type: 'taps', variant: 'wall', label: 'Taps — What is pouring',
     description: 'Every line that is pouring right now — live from your CRM.',
     fields: [heading, intro, { key: 'leadOrigins', label: 'Countries to list first (optional)', kind: 'strings', addLabel: 'Add country', placeholder: 'e.g. Germany' },
-      { key: 'showPrices', label: 'Show prices', kind: 'bool' }, { key: 'emptyText', label: 'When nothing is listed (optional)', kind: 'text' },
+      { key: 'showPrices', label: 'Show prices', kind: 'bool', defaultOn: true }, { key: 'emptyText', label: 'When nothing is listed (optional)', kind: 'text' },
       { key: 'asHeading', label: "This is the page's main heading", kind: 'bool' }],
     defaultData: { heading: 'On tap', showPrices: true },
   },
   {
     type: 'hours', variant: 'table', label: 'Hours — Bar and kitchen',
     description: 'Bar and kitchen hours side by side, with special days coming up — from your CRM.',
-    fields: [heading, intro, { key: 'showHolidays', label: 'List special days coming up', kind: 'bool' },
+    fields: [heading, intro, { key: 'showHolidays', label: 'List special days coming up', kind: 'bool', defaultOn: true },
       { key: 'asHeading', label: "This is the page's main heading", kind: 'bool' }],
     defaultData: { heading: 'Hours', showHolidays: true },
   },
@@ -308,7 +323,7 @@ export const TRADE_SECTIONS: TradeSection[] = [
     type: 'timeline', variant: 'eras', label: 'Story — Timeline',
     description: 'Your history, one era at a time. Each era also gets its own page at /story/<its short name>.',
     fields: [{ key: 'eyebrow', label: 'Small line above the heading (optional)', kind: 'text' }, heading, intro,
-      { key: 'entries', label: 'Eras', kind: 'list', itemLabel: 'era', max: 24, item: [
+      { key: 'entries', label: 'Eras', kind: 'list', itemLabel: 'era', max: 24, hint: 'Keep this timeline on your Story page (/story): the era pages and the Story book read their eras from there.', item: [
         { key: 'slug', label: 'Short name for its page', kind: 'text', placeholder: 'e.g. 1920' },
         { key: 'yearStart', label: 'Year (blank for a claim, not a date)', kind: 'number' }, { key: 'yearEnd', label: 'Until (optional)', kind: 'number' },
         { key: 'title', label: 'Title', kind: 'text' }, { key: 'bodyMd', label: 'The story', kind: 'textarea' },
@@ -330,7 +345,7 @@ export const TRADE_SECTIONS: TradeSection[] = [
     type: 'timeline', variant: 'book', label: 'Story — Book',
     description: 'Your history as an old book: one chapter per era, turned page by page.',
     fields: [{ key: 'eyebrow', label: 'Small line above the title (optional)', kind: 'text' }, heading, intro,
-      { key: 'entries', label: 'Chapters', kind: 'list', itemLabel: 'chapter', max: 12, item: [
+      { key: 'entries', label: 'Chapters', kind: 'list', itemLabel: 'chapter', max: 12, hint: 'Once your Story page (/story) has a timeline, the book tells its eras instead; these are used only until then.', item: [
         { key: 'slug', label: 'Short name', kind: 'text' }, { key: 'yearStart', label: 'Year (optional)', kind: 'number' }, { key: 'yearEnd', label: 'Until (optional)', kind: 'number' },
         { key: 'title', label: 'Title', kind: 'text' }, { key: 'bodyMd', label: 'The story', kind: 'textarea' },
         { key: 'imageUrl', label: 'Plate (optional)', kind: 'image' }, { key: 'imageCredit', label: 'Plate credit (optional)', kind: 'text' },
@@ -370,7 +385,7 @@ export const TRADE_SECTIONS: TradeSection[] = [
       { key: 'price', label: 'Price (optional)', kind: 'text' }, { key: 'where', label: 'Where (optional)', kind: 'text' },
       { key: 'details', label: 'Details (optional)', kind: 'strings', addLabel: 'Add a line' },
       { key: 'image', label: 'Photo (optional)', kind: 'image' }, { key: 'imageAlt', label: 'Photo description (optional)', kind: 'text' },
-      { key: 'cta', label: 'Button (optional)', kind: 'cta' }, { key: 'asHeading', label: "This is the page's main heading", kind: 'bool' }],
+      { key: 'cta', label: 'Button (optional)', kind: 'cta' }, { key: 'asHeading', label: "This is the page's main heading", kind: 'bool', defaultOn: true }],
     defaultData: { details: [] },
   },
   {
