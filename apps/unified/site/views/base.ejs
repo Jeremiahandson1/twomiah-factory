@@ -5,6 +5,9 @@
   // that folds into its menu button when the row doesn't fit, and the one-page anchors. Every other design is the
   // premium templates' shared layout, unchanged.
   var cover = typeof siteOptions !== 'undefined' && siteOptions && siteOptions.cover;
+  // The booking pages framed on another website (/scripts/book-embed.js, ?embed=1): the page alone — no header, menu,
+  // footer or tracking (it would count the host's visitors twice), kept out of search, telling the frame its height.
+  var _embed = typeof embed !== 'undefined' && !!embed;
   var seoTitle = settings.seoTitle || settings.companyName || 'Website';
   var seoDescription = settings.seoDescription || '';
   var canonicalBase = (settings.siteOrigin || '').replace(/\/+$/, '');
@@ -71,7 +74,7 @@
   <title><%= seoTitle %></title>
   <meta name="description" content="<%= seoDescription %>">
   <% if (canonical) { %><link rel="canonical" href="<%= canonical %>"><% } %>
-  <meta name="robots" content="index, follow">
+  <meta name="robots" content="<%= _embed ? 'noindex, nofollow' : 'index, follow' %>">
   <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><meta name="twomiah-crm-url" content="<%= crmApiUrl %>"><% } %>
   <meta property="og:type" content="website">
   <meta property="og:title" content="<%= seoTitle %>">
@@ -161,7 +164,7 @@
   <% } %>
   <%/* Tracking — PLAIN standard snippets on purpose (Tag Assistant / Ads
        verification detect these; the deferred loader is opt-in elsewhere). */%>
-  <% const _tGtm = settings.googleTagManagerId || ''; const _tGa = settings.googleAnalyticsId || ''; const _tAds = settings.googleAdsId || ''; const _tFb = settings.facebookPixelId || ''; const _tCl = settings.microsoftClarityId || ''; %>
+  <% const _tGtm = _embed ? '' : settings.googleTagManagerId || ''; const _tGa = _embed ? '' : settings.googleAnalyticsId || ''; const _tAds = _embed ? '' : settings.googleAdsId || ''; const _tFb = _embed ? '' : settings.facebookPixelId || ''; const _tCl = _embed ? '' : settings.microsoftClarityId || ''; %>
   <% if (_tGtm) { %>
   <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','<%= _tGtm %>');</script>
   <% } %>
@@ -179,7 +182,7 @@
 </head>
 <body>
 <%/* The frame needs a title for screen readers (the bar template's fix, for every design). */%>
-<% if (settings.googleTagManagerId) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= settings.googleTagManagerId %>" height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript><% } %>
+<% if (_tGtm) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= _tGtm %>" height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript><% } %>
 <%/* The one #form-success on the page (docs/TRACKING_STANDARD.md): hidden from load, shown by twomiahLeadSent() only when
      the server accepted a lead. A Tag Manager Element Visibility trigger on #form-success is how Google counts a form
      conversion, so every lead form on every page calls it — never a form's own id. */%>
@@ -189,6 +192,7 @@
        hidden until focused. Fixed colours so it reads on every theme. */%>
   <style>.skip-link{position:absolute;left:8px;top:-100px;z-index:10000;padding:10px 16px;background:#111;color:#fff;font:600 15px/1.2 system-ui,sans-serif;border-radius:6px;text-decoration:none}.skip-link:focus{top:8px;outline:3px solid #fff;outline-offset:2px}#main:focus{outline:none}</style>
   <a class="skip-link" href="#main">Skip to content</a>
+  <% if (!_embed) { %>
   <% if (cover) { %>
   <%/* The book cover: brass caps and corner flourishes frame the page (bar.css "THE COVER"). */%>
   <div class="cover"><span class="cap cap--tl" aria-hidden="true"></span><span class="cap cap--tr" aria-hidden="true"></span><span class="cap cap--bl" aria-hidden="true"></span><span class="cap cap--br" aria-hidden="true"></span><span class="flourish flourish--tl" aria-hidden="true"></span><span class="flourish flourish--tr" aria-hidden="true"></span><span class="flourish flourish--bl" aria-hidden="true"></span><span class="flourish flourish--br" aria-hidden="true"></span>
@@ -272,11 +276,24 @@
     })();
   </script>
   <% } %>
+  <% } %>
 
   <main id="main" tabindex="-1">
     <%- body %>
   </main>
 
+  <% if (_embed) { %>
+  <script>
+    // Tells the page framing this one how tall it is, whenever that changes (/scripts/book-embed.js listens).
+    (function(){
+      if (window.parent === window) return;
+      var last = 0;
+      function post(){ var h = document.documentElement.scrollHeight; if (h !== last) { last = h; window.parent.postMessage({ type: 'twomiah-book-height', height: h }, '*'); } }
+      if (window.ResizeObserver) new ResizeObserver(post).observe(document.body);
+      window.addEventListener('load', post); post();
+    })();
+  </script>
+  <% } else { %>
   <footer class="site-footer">
     <div class="container footer-inner">
       <div>
@@ -337,6 +354,7 @@
       btns.forEach(function(b){ b.addEventListener('click', function(){ apply(b.dataset.size); }); });
     })();
   </script>
+  <% } %>
   <% } %>
   <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><script src="/scripts/ab.js" defer></script><% } %>
   <% if (typeof siteOptions !== 'undefined' && siteOptions.shop) { %><script src="/scripts/cart.js?v=<%= assetV %>" defer></script><% } %>

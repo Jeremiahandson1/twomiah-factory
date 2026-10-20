@@ -47,6 +47,11 @@ export interface BuildInput {
   integrationEnv?: EnvVar[] | ((serviceUrl: string) => EnvVar[])
   /** The Factory's own address, for the tenant's calls back. */
   factoryUrl: string
+  /**
+   * The business's own domain (tenants.domain), when it has one: the website's public address (SITE_URL — canonical
+   * links, the sitemap, the admin's app.<domain>). A rebuild must keep it; it used to reset SITE_URL to the Render address.
+   */
+  domain?: string | null
   /** What this tenant already owns; a rebuild finds its own repo, service and database here. */
   owned: Owned
   /** The monorepo, and the engine commit the tree is built from. */
@@ -75,7 +80,7 @@ export interface BuildResult {
 }
 
 /** The service's settings: the ones this build owns, then the secrets it keeps once made. */
-export function tenantEnv(input: { tenantId: string; vertical: string; databaseUrl: string; serviceUrl: string; factoryUrl: string; integrationEnv?: EnvVar[] }, current: Record<string, string>): { set: EnvVar[]; factorySyncKey: string } {
+export function tenantEnv(input: { tenantId: string; vertical: string; databaseUrl: string; serviceUrl: string; factoryUrl: string; domain?: string | null; integrationEnv?: EnvVar[] }, current: Record<string, string>): { set: EnvVar[]; factorySyncKey: string } {
   const keep = (key: string, make: () => string) => current[key] || make()
   const secrets: Record<string, string> = {
     JWT_SECRET: keep('JWT_SECRET', () => crypto.randomBytes(48).toString('base64')),
@@ -91,7 +96,7 @@ export function tenantEnv(input: { tenantId: string; vertical: string; databaseU
     DATABASE_URL: input.databaseUrl,
     FACTORY_URL: input.factoryUrl,
     FRONTEND_URL: input.serviceUrl,
-    SITE_URL: input.serviceUrl,
+    SITE_URL: input.domain ? 'https://' + input.domain : input.serviceUrl,
     API_URL: input.serviceUrl,
     BACKEND_URL: input.serviceUrl,
   }
@@ -179,7 +184,7 @@ export async function buildUnifiedTenant(input: BuildInput, io: BuildIo): Promis
   const dir = path.join(os.tmpdir(), `unified-${input.tenant.slug}-${Date.now()}`)
   const integrationFor = (serviceUrl: string) => typeof input.integrationEnv === 'function' ? input.integrationEnv(serviceUrl) : input.integrationEnv
   const envFor = (serviceUrl: string, now: Record<string, string>) =>
-    tenantEnv({ tenantId: input.tenant.id, vertical: input.vertical, databaseUrl, serviceUrl, factoryUrl: input.factoryUrl, integrationEnv: integrationFor(serviceUrl) }, now)
+    tenantEnv({ tenantId: input.tenant.id, vertical: input.vertical, databaseUrl, serviceUrl, factoryUrl: input.factoryUrl, domain: input.domain, integrationEnv: integrationFor(serviceUrl) }, now)
   let commit: string
   let serviceId = '', serviceUrl = '', factorySyncKey = ''
   try {

@@ -1,9 +1,10 @@
 // How the business takes bookings: the switches, the services, everyone's hours and days off, service areas, the
-// words customers see, the calendar feed, webhooks and bans. Each part saves on its own. The parts that are the
+// words customers see, the calendar feed, the person's own Google / Outlook calendar, webhooks and bans. Each part saves on its own. The parts that are the
 // owner's (services, switches, areas, words, feed, webhooks, bans) are behind bookings:settings; hours and days off,
 // the running of the book, behind bookings:update — as on the server.
 import { useEffect, useState, type FormEvent } from 'react'
-import { Plus, Trash2, Edit3, X, Copy, ExternalLink, RefreshCw } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Plus, Trash2, Edit3, X, Copy, ExternalLink, RefreshCw, CalendarCheck } from 'lucide-react'
 import { api } from '../api'
 import { PageError, useConfirm, useKnownPermission, useMayWrite, useToast } from '../shared'
 import { useBookingBasics, dollars, minutesWords, dateWords, type BookingSettings, type Service, type Person } from './common'
@@ -44,6 +45,8 @@ export function BookingSettingsPage() {
       {people.length > 1 && <fieldset disabled={!owner} className="min-w-0"><Zones people={people} /></fieldset>}
       <fieldset disabled={!owner} className="min-w-0"><Words settings={settings} onSaved={reload} /></fieldset>
       {owner && <Feed settings={settings} onSaved={reload} />}
+      {owner && <Embed services={services} />}
+      <MyCalendar />
       <Webhooks />
       <Bans />
     </div>
@@ -178,7 +181,7 @@ function ServiceDialog({ initial, onClose, onSaved }: { initial: Service | null;
             <div><label htmlFor="sv-depkind" className="label">Deposit</label><select id="sv-depkind" className="input" value={f.depositKind} onChange={set('depositKind')}><option value="none">None</option><option value="amount">A fixed amount</option><option value="percent">A percent of the price</option></select></div>
             {f.depositKind !== 'none' && field('deposit', f.depositKind === 'amount' ? 'Deposit ($)' : 'Deposit (%)', { type: 'number', min: 0 })}
           </div>
-          {f.depositKind !== 'none' && <p className="text-xs text-muted">Deposits are taken by card once card payments are set up for your account; until then the booking is made without one.</p>}
+          {f.depositKind !== 'none' && <p className="text-xs text-muted">The customer pays it by card on Stripe's page, into your own Stripe account — connect it under <a className="underline" href="/crm/settings/integrations">Settings › Integrations</a>. Until it is connected, bookings are made without a deposit.</p>}
           {field('tips', 'Tip choices (percent)', { placeholder: 'e.g. 15, 20, 25 — leave empty for none' })}
           {field('rebookIntervalDays', 'Ask to book again after (days)', { type: 'number', min: 1, placeholder: 'Never' })}
           <label className="flex items-center gap-2 text-sm text-ink"><input type="checkbox" checked={f.active} onChange={(e) => setF((x) => ({ ...x, active: e.target.checked }))} />Customers can book it</label>
@@ -362,6 +365,100 @@ function Feed({ settings, onSaved }: { settings: BookingSettings; onSaved: () =>
           <button type="button" className="btn-secondary btn-md" onClick={rotate}><RefreshCw className="w-4 h-4" />New address</button>
         </div>
       ) : <button type="button" className="btn-primary btn-md" onClick={rotate}>Make my calendar address</button>}
+    </Section>
+  )
+}
+
+const PROVIDER_NAMES: Record<string, string> = { google: 'Google Calendar', outlook: 'Outlook' }
+
+/**
+ * The signed-in person's own calendar (server/booking/calendars.ts): busy time there isn't offered to customers, and
+ * their bookings are put on it. Linking goes through the Factory's Google / Microsoft sign-in and comes back here with
+ * ?google= or ?outlook= set to connected or denied.
+ */
+function MyCalendar() {
+  const toast = useToast()
+  const confirm = useConfirm()
+  const [params, setParams] = useSearchParams()
+  const [rows, setRows] = useState<Array<{ id: string; provider: string; accountEmail: string | null }> | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  // Only the calendars this account can link (their sign-in app is set up); the others get no button.
+  const [offered, setOffered] = useState<string[]>([])
+  const load = () => api.get('/api/booking/calendar/connections').then((r: any) => setRows(r.data)).catch((e: Error) => setError(e.message))
+  useEffect(() => { api.get('/api/booking/calendar/providers').then((r: any) => setOffered(r.providers || [])).catch(() => setOffered([])) }, [])
+  useEffect(() => { load() }, [])
+  useEffect(() => {
+    for (const p of ['google', 'outlook']) {
+      const v = params.get(p)
+      if (!v) continue
+      if (v === 'connected') toast.success(`${PROVIDER_NAMES[p]} linked.`)
+      else toast.error(`${PROVIDER_NAMES[p]} wasn't linked — the sign-in was cancelled.`)
+      params.delete(p)
+      setParams(params, { replace: true })
+    }
+  }, [])
+  const link = async (provider: string) => {
+    setBusy(provider); setError(null)
+    try { const r = await api.get(`/api/booking/calendar/${provider}/connect-url`); window.location.assign(r.url) } catch (e: any) { setError(e.message); setBusy(null) }
+  }
+  const unlink = async (id: string, provider: string) => {
+    if (!(await confirm('Bookings stop going onto it, and its busy times stop blocking yours. Events already there stay.', { title: `Unlink ${PROVIDER_NAMES[provider]}?`, confirmText: 'Unlink' }))) return
+    try { await api.delete(`/api/booking/calendar/connections/${id}`); load() } catch (e: any) { setError(e.message) }
+  }
+  const linked = new Set((rows || []).map((r) => r.provider))
+  return (
+    <Section title="Your own calendar" intro="Link your Google or Outlook calendar: times you're busy there aren't offered to customers, and the bookings you're given are put on it. Only you can link or unlink yours.">
+      <PageError message={error} className="mb-3" />
+      {rows === null ? (!error && <p className="text-sm text-muted">Loading…</p>) : (
+        <>
+          {rows.length > 0 && (
+            <ul className="divide-y divide-line mb-3">
+              {rows.map((r) => (
+                <li key={r.id} className="py-2 flex flex-wrap items-center gap-3 text-sm">
+                  <CalendarCheck className="w-4 h-4 text-muted" aria-hidden="true" />
+                  <span className="flex-1 min-w-0 text-ink">{PROVIDER_NAMES[r.provider] || r.provider}{r.accountEmail && <span className="text-muted"> · {r.accountEmail}</span>}</span>
+                  <button type="button" onClick={() => unlink(r.id, r.provider)} className="btn-secondary btn-sm">Unlink</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {offered.length === 0 && rows.length === 0 && <p className="text-sm text-muted">Calendar linking isn't available for this account yet.</p>}
+            {offered.filter((p) => !linked.has(p)).map((p) => (
+              <button key={p} type="button" className="btn-secondary btn-md" disabled={busy !== null} onClick={() => link(p)}>
+                {busy === p ? 'Opening…' : `Link ${PROVIDER_NAMES[p]}`}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </Section>
+  )
+}
+
+/**
+ * Booking on the business's other website: the snippet that frames these booking pages there (/scripts/book-embed.js).
+ * The site's own address — the admin may be open at app.<domain>, which hands the website to the domain itself.
+ */
+function Embed({ services }: { services: Service[] }) {
+  const toast = useToast()
+  const site = window.location.origin.replace('://app.', '://')
+  const [service, setService] = useState('')
+  const code = `<div class="twomiah-book"${service ? ` data-service="${service}"` : ''}></div>\n<script src="${site}/scripts/book-embed.js" async></script>`
+  return (
+    <Section title="Booking on another website" intro="Paste this into another website you run (Wix, Squarespace, WordPress…) where the booking should appear. Customers book there without leaving that page.">
+      <div className="flex flex-wrap items-end gap-2 mb-3">
+        <div className="min-w-[220px]">
+          <label htmlFor="embed-service" className="label">Show</label>
+          <select id="embed-service" className="input" value={service} onChange={(e) => setService(e.target.value)}>
+            <option value="">Every service</option>
+            {services.filter((x) => x.active).map((x) => <option key={x.id} value={x.slug}>{x.name} only</option>)}
+          </select>
+        </div>
+        <button type="button" className="btn-secondary btn-md" onClick={() => { navigator.clipboard?.writeText(code).then(() => toast.success('Copied.')).catch(() => {}) }}><Copy className="w-4 h-4" />Copy</button>
+      </div>
+      <textarea readOnly aria-label="Code to paste" rows={3} className="input w-full font-mono text-xs" value={code} />
     </Section>
   )
 }

@@ -22,7 +22,7 @@ import {
 } from '../../db/schema/store.ts'
 import { lockLoyaltyMember, contactByEmail, countRewardUse } from '../../data/storeCore.ts'
 import type { CrmDeps } from '../deps.ts'
-import { decrypt as decryptString, decryptJSON } from './lib/crypto.ts'
+import { decrypt as decryptString, decryptJSON } from '../../core/crypto.ts'
 import type { PaymentProvider, ProviderCredentials } from './payments/types.ts'
 import { StripeProvider } from './payments/stripe.ts'
 import { SquareProvider } from './payments/square.ts'

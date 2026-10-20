@@ -78,7 +78,7 @@ export { jobCalendar, appointmentCalendar, normaliseSpecies } from './booking/ca
 export { createWidgetCatalog, createMenuCatalog } from './booking/catalog'
 export { BookingError } from './booking/types'
 export type { BookingDeps, BookingOptions, BookingTables, BookingCalendar, BookingCatalog, CatalogService, BookingStatus } from './booking/types'
-export { zonedWallTimeToUtc, tzParts, safeTz, isValidTz, formatWhen, addDays, isIsoDate, isRealDate, DAY_MS } from './booking/time'
+export { zonedWallTimeToUtc, tzParts, safeTz, isValidTz, formatWhen, addDays, isIsoDate, isRealDate, DAY_MS, minutesToHm } from './booking/time'
 
 // Reports + the jobs-family dashboard — one implementation for every CRM; the template injects its tables.
 export { createReportingRoutes, createReportingService, parseRange, ReportError } from './reporting/reporting'

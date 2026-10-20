@@ -29,7 +29,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, list, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { buildSupplierProvider, type StoreCore } from '../core.ts'
-import { encryptJSON } from '../lib/crypto.ts'
+import { encryptJSON } from '../../../core/crypto.ts'
 import type { SupplierCredentials } from '../suppliers/types.ts'
 
 const connectSchema = z.object({

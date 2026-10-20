@@ -335,4 +335,18 @@ describe('the settings the build owns', () => {
     const moved = tenantEnv({ tenantId: 't', vertical: 'bar', databaseUrl: 'postgres://b', serviceUrl: 'https://x', factoryUrl: 'https://f' }, current)
     expect(moved.set).toEqual([{ key: 'DATABASE_URL', value: 'postgres://b' }])
   })
+
+  test('a business with its own domain keeps it as the site address through a rebuild', () => {
+    const base = { tenantId: 't', vertical: 'crm', databaseUrl: 'postgres://a', serviceUrl: 'https://x.onrender.com', factoryUrl: 'https://f' }
+    const fresh = tenantEnv(base, {})
+    expect(fresh.set.find((v) => v.key === 'SITE_URL')?.value).toBe('https://x.onrender.com')
+    // wired: the domain is the site address; the service's own addresses stay Render's
+    const wired = Object.fromEntries(fresh.set.map((v) => [v.key, v.value]))
+    wired.SITE_URL = 'https://acme.com'
+    const rebuilt = tenantEnv({ ...base, domain: 'acme.com' }, wired)
+    expect(rebuilt.set).toEqual([])
+    // the old rule: a rebuild without the domain put the Render address back
+    expect(tenantEnv(base, wired).set).toEqual([{ key: 'SITE_URL', value: 'https://x.onrender.com' }])
+    expect(tenantEnv({ ...base, domain: 'acme.com' }, {}).set.find((v) => v.key === 'FRONTEND_URL')?.value).toBe('https://x.onrender.com')
+  })
 })

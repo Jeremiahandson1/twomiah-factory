@@ -27,6 +27,13 @@ import { createAppointmentReminders } from './salon/appointmentReminders.ts'
 import { bookOnDeposit } from './restaurant/eventBooking.ts'
 import { syncEventInvoiceDueDate, backfillEventInvoices } from './restaurant/eventLedger.ts'
 
+/** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
+export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
+export interface BookingDeposits {
+  paid(p: DepositPayment): Promise<'done' | 'refund' | 'unknown'>
+  refunded(p: DepositPayment): Promise<void>
+}
+
 export interface CrmServiceDeps {
   db: any
   email: EmailService
@@ -35,6 +42,8 @@ export interface CrmServiceDeps {
   isFeatureEnabled: (companyId: string, feature: string | string[]) => Promise<boolean>
   /** The vertical's switches (VerticalSettings.crm). */
   settings: CrmSettings
+  /** Tests only: a fake Stripe client (TestSeams.stripe); otherwise one is made from STRIPE_SECRET_KEY. */
+  stripe?: any
 }
 
 export function createCrmServices(deps: CrmServiceDeps) {
@@ -53,10 +62,15 @@ export function createCrmServices(deps: CrmServiceDeps) {
     // The job an invoice names first (invoice.job_id, everyone's column now), then the job raised from its quote.
     db, tables: { commission, commissionPlan, user, job, invoice, company }, invoiceJobLink: 'jobId',
   } as any)
+  // A paid booking deposit is the booking engine's (booking/engine.ts depositPaid); the booking module is made after
+  // these services, so it is handed in with useBookingDeposits. Until then a deposit is no booking of ours.
+  let bookingDeposits: BookingDeposits | null = null
   const stripeService = createStripeService({
-    db, tables: { contact, invoice, payment, company },
+    db, tables: { contact, invoice, payment, company }, ...(deps.stripe !== undefined ? { stripe: deps.stripe } : {}),
     options: {
       bookingCalendarKind: 'job',
+      onBookingDeposit: (p: DepositPayment) => (bookingDeposits ? bookingDeposits.paid(p) : Promise.resolve('unknown' as const)),
+      onBookingDepositRefunded: async (p: DepositPayment) => { await bookingDeposits?.refunded(p) },
       afterInvoicePayment: async (invoiceId: string) => {
         await commissionEarner.earnForInvoice(invoiceId)
         // An event's invoice (CrmSettings.events): money arriving online books the date too — an enquiry becomes
@@ -161,6 +175,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
     fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks,
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
     addJob(start: () => void) { moduleJobs.push(start) },
+    /** Where a paid booking deposit goes (the booking engine). */
+    useBookingDeposits(d: BookingDeposits) { bookingDeposits = d },
     /** The CRM's timed work, started once at boot (not in tests): what each template's index.ts started. */
     startJobs() {
       reviews.startReviewProcessor()

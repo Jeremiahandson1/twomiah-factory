@@ -13,7 +13,7 @@
  * ownership next time, the tenants row (addresses, database_url, sync key, admin email, features, website), Active only
  * once the new code answers and the business is in, the audit entries, the feature and subscription sync, the domain,
  * the ready or failure email, and the scrub of the plaintext password. Its integration settings are the template path's,
- * from the same functions (services/deploy.ts tenantIntegrationEnv, crmPlanEnv, googleOAuthEnv, crmServiceEnv,
+ * from the same functions (services/deploy.ts tenantIntegrationEnv, crmPlanEnv, calendarOAuthEnv, crmServiceEnv,
  * platformIntegrationEnv; services/quickbooksEnv.ts).
  *
  * Every outside call goes through `deps`, so the whole path runs against fakes (tests/unified/factory/factory.test.ts).
@@ -200,7 +200,8 @@ export async function unifiedIntegrationEnv(tenant: any, config: any, opts: { fa
   const plan = tenant.plan || config?.company?.plan || config?.plan || 'starter'
   const fixed: EnvVar[] = [
     ...d.crmPlanEnv(plan),
-    ...d.googleOAuthEnv(),
+    // The CRM's Google app (Business Profile) and the site's calendar apps: this one service is both.
+    ...d.calendarOAuthEnv(),
     ...(await d.tenantIntegrationEnv(tenant.id, integrations)),
     ...d.crmServiceEnv({ hasVisualizer, name: tenant.name, ownerEmail: config?.company?.email || tenant.email || '', domain: config?.company?.domain || '' }),
     ...(isStore && process.env.FACTORY_FROM_EMAIL ? [{ key: 'FACTORY_FROM_EMAIL', value: process.env.FACTORY_FROM_EMAIL }] : []),
@@ -417,7 +418,7 @@ export async function deployUnifiedTenant(tenantId: string, depsIn?: UnifiedDeps
 
     console.log('[Unified] Building', tenant.slug, 'as', vertical, 'at', deps.version.slice(0, 9))
     const result = await buildUnifiedTenant({
-      tenant: { id: tenant.id, slug: tenant.slug }, vertical, provision, integrationEnv, factoryUrl: deps.factoryUrl,
+      tenant: { id: tenant.id, slug: tenant.slug }, vertical, provision, integrationEnv, factoryUrl: deps.factoryUrl, domain: tenant.domain || null,
       owned, root: deps.root, version: deps.version, waitMs: deps.waitMs,
     }, deps.io)
     console.log('[Unified] Build steps for', tenant.slug + ':', JSON.stringify(result.steps))

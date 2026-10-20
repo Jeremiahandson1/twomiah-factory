@@ -17,6 +17,8 @@ import { createEnquiries, enquiryTemplates } from './core/enquiry.ts'
 import { createEnquiryHandler } from './site/enquiryHandler.ts'
 import { createCompanyModules } from './modules/company.ts'
 import { createBookingModule, bookingMounts } from './modules/booking.ts'
+import { createStripeDeposits } from './booking/deposits.ts'
+import { createBookingTexts } from './booking/texts.ts'
 import { createCrmModules, createCrmAdsConnector } from './modules/crm.ts'
 import { createCrmServices } from './crm/services.ts'
 import { createRealtime } from './core/realtime.ts'
@@ -30,8 +32,9 @@ import { createBookingPages } from './booking/pages.ts'
 import { BASE_CRM, type VerticalSettings } from './core/vertical.ts'
 import { mountAll, type Mount } from './http/registry.ts'
 import { createAdminScreens, HOMECARE_PAGES } from './http/adminScreens.ts'
-import { contentSecurityPolicy, sitePolicy, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
+import { contentSecurityPolicy, sitePolicy, frameOptions, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
 import { errorHandler } from './http/errors.ts'
+import { adminHostHandover } from './http/adminHost.ts'
 import { fail, one } from './http/reply.ts'
 import { createLive, LIVE_SOCKET_PATH } from './http/live.ts'
 import { createDownloadLinks, DOWNLOAD_PATH } from './http/downloads.ts'
@@ -59,6 +62,8 @@ export interface TestSeams {
   authenticate?: (real: MiddlewareHandler) => MiddlewareHandler
   /** false: the registry mounts every module without its feature gate. */
   featureGates?: boolean
+  /** A fake Stripe client for the card-payment code, so no test calls Stripe (tests/booking-deposits.test.ts). */
+  stripe?: any
 }
 
 export function createApp(deps: { db: any; vertical: VerticalSettings; store?: PhotoStore; adminDist?: string; testing?: TestSeams }) {
@@ -87,15 +92,21 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   // The app is made below; a link fetches through it (as the person who asked), so it is reached lazily.
   const downloads = createDownloadLinks({ fetchApp: (req) => app.fetch(req) })
   const adsConnector = createCrmAdsConnector()
-  const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled, settings: vertical.crm ?? BASE_CRM })
+  const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled, settings: vertical.crm ?? BASE_CRM, stripe: deps.testing?.stripe })
   // Phone notifications, every vertical: the sender and the phones (core/phonePush.ts), and who is told what — a job
   // assigned or rescheduled, a new lead (crm/notify/phoneRules.ts). The job scan is timed work: boot only, never tests.
   const phonePush = createPhonePush({ db, logger })
   const phoneRules = createPhoneRules({ db, phonePush, realtime, permissions, companyId: () => companyId(), logger })
   crm.addJob(() => phoneRules.start())
   const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler, realtime, adsConnector })
-  // Card deposits and people's own calendars join with the CRM's payments and calendar sync (CUTOVER_LEDGER).
-  const bookings = createBookingModule({ db, vertical, email, logger, permissions })
+  // Card deposits on the business's own Stripe account (booking/deposits.ts), paid deposits back to the booking engine;
+  // people's own calendars are the module's (booking/calendars.ts).
+  // Texts to the customer (confirmation, reminder, review request) through the CRM's own texting (booking/texts.ts).
+  const bookings = createBookingModule({ db, vertical, email, logger, permissions, deposits: createStripeDeposits(crm.stripeService), texts: createBookingTexts(crm.sms) })
+  crm.useBookingDeposits({
+    paid: (p) => bookings.engine.depositPaid(p.companyId, p.bookingId, p.paymentIntentId),
+    refunded: (p) => bookings.engine.depositRefunded(p.companyId, p.bookingId, p.paymentIntentId),
+  })
   // Its reminders, rebook nudges and review requests go out on its own clock (the premium sites waited for the Factory's
   // three crons, which reach only `<slug>-site` addresses). Boot only, never tests; the Factory's door stays.
   crm.addJob(() => bookings.startJobs())
@@ -112,7 +123,9 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   // the write floor sits right under it, so it can see whether a handler already logged.
   app.use('*', (c, next) => requestScope.run({ c }, next))
   app.use('*', createWriteAuditFloor({ db, schema, log: audit.log, scope: requestScope }))
-  app.use('*', secureHeaders({ crossOriginResourcePolicy: 'cross-origin' }))
+  // X-Frame-Options is frameOptions' (http/guards.ts): SAMEORIGIN everywhere but the booking embed.
+  app.use('*', secureHeaders({ crossOriginResourcePolicy: 'cross-origin', xFrameOptions: false }))
+  app.use('*', frameOptions)
   app.use('*', contentSecurityPolicy)
   app.use('/api/*', pagingGuard)
   app.use('*', cors({
@@ -191,6 +204,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     {
       path: '/', site: true, access: 'public',
       router: new Hono()
+        // On app.<domain> the website half hands over to the admin (http/adminHost.ts), as the templates' CRM service did.
+        .use('*', adminHostHandover())
         .use('*', sitePolicy)
         .route('/', createBookingPages({ engine: bookings.engine, ctxOf: () => loadSiteContext(db, vertical), isFeatureEnabled: features.isFeatureEnabled }))
         // A store's website reads its shop through the store add-on (crm/store createStorefront); a bar's sections read

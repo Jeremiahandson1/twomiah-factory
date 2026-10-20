@@ -14,7 +14,7 @@
 // expiry then cancelled it half an hour later without a word.
 import crypto from 'node:crypto'
 import { and, asc, desc, eq, gt, inArray, lt, ne, or, count } from 'drizzle-orm'
-import { addDays, isIsoDate, isRealDate, isValidTz, safeTz, tzParts, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
+import { addDays, isIsoDate, isRealDate, isValidTz, minutesToHm, safeTz, tzParts, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
 import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
 import { lockBookingDay } from '../data/bookingLock.ts'
@@ -32,9 +32,16 @@ export type BookingEvent = 'booking.created' | 'booking.rescheduled' | 'booking.
 export interface BookingHappening { event: BookingEvent; booking: BookingRow; service: ServiceRow | null; settings: SettingsRow; previousStartAt?: Date; by: 'customer' | 'staff' | 'system' }
 
 export interface DepositProvider {
-  /** Start taking the deposit. Null = can't (the provider refused); the booking then stands without one. */
-  createIntent(args: { companyId: string; bookingId: string; amount: number; customerEmail: string; customerName: string; description: string }): Promise<{ paymentIntentId: string; clientSecret: string; publishableKey?: string } | null>
+  /**
+   * The payment provider's own page for the deposit (Stripe Checkout, on the business's connected account). Null =
+   * can't (no card account, or the provider refused); a new booking then stands without one. `reference` is kept on the
+   * booking (payment_intent_id) until the payment's own id replaces it.
+   */
+  checkout(args: { companyId: string; bookingId: string; token: string; amount: number; customerEmail: string; customerName: string; description: string; expiresAt: Date }): Promise<{ url: string; reference: string } | null>
 }
+
+/** What a deposit payment came to: confirmed (or recorded), to be refunded, or no booking of ours. */
+export type DepositOutcome = 'done' | 'refund' | 'unknown'
 
 /** One of a vertical's own questions on the public booking form (a vet's pet). */
 export interface BookingQuestion {
@@ -353,7 +360,14 @@ export function createBookingEngine(deps: EngineDeps) {
    * Everything that decides one range of days: hours, days off, zones, and what is already on people's time (bookings
    * that hold time, and their own calendars). ONE loader for the slot list, the booking check and the reschedule.
    */
-  async function loadRange(companyId: string, s: SettingsRow, firstDate: string, lastDate: string, exec: any, exceptBookingId?: string) {
+  /** People's own calendars' busy time over these days — read before any transaction: it is an outside call. */
+  async function externalFor(companyId: string, s: SettingsRow, firstDate: string, lastDate: string) {
+    if (!deps.externalBusy) return []
+    const tz = tzOf(s)
+    return deps.externalBusy(companyId, zonedWallTimeToUtc(firstDate, '00:00', tz), zonedWallTimeToUtc(addDays(lastDate, 1), '00:00', tz)).catch(() => [])
+  }
+
+  async function loadRange(companyId: string, s: SettingsRow, firstDate: string, lastDate: string, exec: any, exceptBookingId?: string, externalBusy?: Awaited<ReturnType<typeof externalFor>>) {
     const tz = tzOf(s)
     const from = zonedWallTimeToUtc(firstDate, '00:00', tz), to = zonedWallTimeToUtc(addDays(lastDate, 1), '00:00', tz)
     const [hours, daysOff, zones, rows] = await Promise.all([
@@ -365,7 +379,8 @@ export function createBookingEngine(deps: EngineDeps) {
         .where(and(eq(booking.companyId, companyId), inArray(booking.status, [...ACTIVE]), lt(booking.startAt, to), gt(booking.endAt, from), ...(exceptBookingId ? [ne(booking.id, exceptBookingId)] : []))),
     ])
     const ours = new Set(rows.map((r: any) => r.b.externalEventId).filter(Boolean))
-    const external = deps.externalBusy ? (await deps.externalBusy(companyId, from, to).catch(() => [])).filter((e) => !ours.has(e.eventId)) : []
+    // Inside a transaction the caller hands it in (claim); otherwise it is read here.
+    const external = (externalBusy ?? await externalFor(companyId, s, firstDate, lastDate)).filter((e) => !ours.has(e.eventId))
     const own = deps.addOn?.busy ? await deps.addOn.busy(exec, companyId, from, to) : []
     return { tz, hours, daysOff, zones, bookings: rows, external, own }
   }
@@ -447,10 +462,10 @@ export function createBookingEngine(deps: EngineDeps) {
    * Is this time bookable, inside the day's lock — and if not, say which thing is wrong (the CRMs' T58d: a time never
    * offered isn't "just taken", and a time inside the notice isn't either). Returns who can take it.
    */
-  async function claim(tx: any, companyId: string, s: SettingsRow, svc: ServiceRow, date: string, time: string, zip: string | null, opts: { except?: string; customer: boolean; override?: boolean }) {
+  async function claim(tx: any, companyId: string, s: SettingsRow, svc: ServiceRow, date: string, time: string, zip: string | null, opts: { except?: string; customer: boolean; override?: boolean; external: Awaited<ReturnType<typeof externalFor>> }) {
     await lockBookingDay(tx, companyId, date)
     if (opts.override) return [] as Array<string | null>
-    const range = await loadRange(companyId, s, date, date, tx, opts.except)
+    const range = await loadRange(companyId, s, date, date, tx, opts.except, opts.external)
     const t = dayTimes(range, svc, s, date, zip)
     const minute = toMinutes(time)
     if (!t.offered.length) throw new BookingError('That day is not open for booking — please pick another date.', 409, 'closed')
@@ -535,8 +550,10 @@ export function createBookingEngine(deps: EngineDeps) {
     const tipPercent = input.tipPercent != null && Array.isArray(svc.tipPresets) && (svc.tipPresets as number[]).includes(Number(input.tipPercent)) ? Number(input.tipPercent) : null
     const tip = tipPercent && svc.price != null ? dollars(svc.price) * tipPercent / 100 : null
 
+    // People's calendars are read before the day is locked: an outside call never holds the lock.
+    const external = opts.override ? [] : await externalFor(companyId, s, input.date, input.date)
     const row: BookingRow = await db.transaction(async (tx: any) => {
-      const who = await claim(tx, companyId, s, svc, input.date, input.time, zip, { customer, override: opts.override })
+      const who = await claim(tx, companyId, s, svc, input.date, input.time, zip, { customer, override: opts.override, external })
       if (opts.assignedUserId && !opts.override && !who.includes(opts.assignedUserId) && !who.includes(null)) throw new BookingError("That person isn't free then.", 409, 'taken')
       const contactId = await contactFor(tx, companyId, { name, email, phone, address, zip })
       const [made] = await tx.insert(booking).values({
@@ -562,12 +579,12 @@ export function createBookingEngine(deps: EngineDeps) {
     })
 
     let final = row
-    let deposit: { amount: number; clientSecret: string; publishableKey?: string } | null = null
+    let deposit: { amount: number; url: string } | null = null
     if (takeDeposit) {
-      const intent = await deps.deposits!.createIntent({ companyId, bookingId: row.id, amount: depositOwed + (tip ?? 0), customerEmail: email, customerName: name, description: `Deposit for ${svc.name}` }).catch(() => null)
-      if (intent) {
-        ;[final] = await db.update(booking).set({ paymentIntentId: intent.paymentIntentId, updatedAt: new Date(now()) }).where(eq(booking.id, row.id)).returning()
-        deposit = { amount: depositOwed + (tip ?? 0), clientSecret: intent.clientSecret, publishableKey: intent.publishableKey }
+      const page = await openDeposit(row, svc, s)
+      if (page) {
+        ;[final] = await db.update(booking).set({ paymentIntentId: page.reference, updatedAt: new Date(now()) }).where(eq(booking.id, row.id)).returning()
+        deposit = { amount: depositOwed + (tip ?? 0), url: page.url }
       } else {
         // The deposit can't be taken now: the booking stands, and the owner collects it by hand.
         ;[final] = await db.update(booking).set({ status: 'confirmed', depositStatus: 'none', depositAmount: null, updatedAt: new Date(now()) }).where(eq(booking.id, row.id)).returning()
@@ -577,14 +594,80 @@ export function createBookingEngine(deps: EngineDeps) {
     return { booking: final, service: svc, deposit }
   }
 
-  /** A deposit paid (the payment provider's webhook): the hold becomes a booking. */
-  async function depositPaid(companyId: string, paymentIntentId: string) {
+  /** The provider's page for a booking's deposit (its amount and tip as booked), open until the hold runs out. */
+  async function openDeposit(b: BookingRow, svc: ServiceRow, s: SettingsRow) {
+    if (!deps.deposits || !b.depositAmount) return null
+    const amount = dollars(b.depositAmount) + (b.tipAmount ? dollars(b.tipAmount) : 0)
+    return deps.deposits.checkout({
+      companyId: b.companyId, bookingId: b.id, token: b.token, amount, customerEmail: b.customerEmail, customerName: b.customerName,
+      description: `Deposit for ${svc.name}`, expiresAt: new Date(b.createdAt.getTime() + s.depositHoldMinutes * 60_000),
+    }).catch(() => null)
+  }
+
+  /**
+   * The deposit page again, for a booking still waiting on it (the customer's own page, "Pay the deposit"): a new page
+   * each time, since the provider's page closes; the hold itself is not extended. Null when nothing is owed now.
+   */
+  async function depositPage(companyId: string, b: BookingRow): Promise<string | null> {
     const s = await settingsOf(companyId)
-    const [b] = await db.update(booking).set({ status: 'confirmed', depositStatus: 'paid', depositPaidAt: new Date(now()), updatedAt: new Date(now()) })
-      .where(and(eq(booking.companyId, companyId), eq(booking.paymentIntentId, paymentIntentId), eq(booking.status, 'pending'))).returning()
-    if (b) await mirror(db, b, 'status')
-    if (b) await emit({ event: 'booking.created', booking: b, service: b.serviceId ? await serviceById(companyId, b.serviceId) : null, settings: s, by: 'customer' })
-    return b ?? null
+    await expireHolds(companyId, s)
+    const [cur]: BookingRow[] = await db.select().from(booking).where(and(eq(booking.id, b.id), eq(booking.companyId, companyId))).limit(1)
+    if (!cur || cur.status !== 'pending' || cur.depositStatus !== 'pending' || !cur.serviceId) return null
+    const svc = await serviceById(companyId, cur.serviceId)
+    const page = svc ? await openDeposit(cur, svc, s) : null
+    if (!page) return null
+    await db.update(booking).set({ paymentIntentId: page.reference, updatedAt: new Date(now()) }).where(eq(booking.id, cur.id))
+    return page.url
+  }
+
+  /**
+   * A deposit paid (the payment provider's webhook), by booking. Waiting on it: the booking is confirmed. Its hold ran
+   * out first: confirmed again only if its time is still free and still ahead (the CRMs' late-deposit rule), otherwise
+   * refunded. Cancelled any other way: refunded. Never ours: unknown. Paid already (a retried webhook): nothing more.
+   */
+  async function depositPaid(companyId: string | null, bookingId: string, paymentId: string): Promise<DepositOutcome> {
+    const [b]: BookingRow[] = await db.select().from(booking).where(and(eq(booking.id, bookingId), ...(companyId ? [eq(booking.companyId, companyId)] : []))).limit(1)
+    if (!b) return 'unknown'
+    if (b.depositStatus === 'paid' || b.depositStatus === 'refunded') return 'done'
+    const s = await settingsOf(b.companyId)
+    const svc = b.serviceId ? await serviceById(b.companyId, b.serviceId) : null
+    const paid = { depositStatus: 'paid', depositPaidAt: new Date(now()), paymentIntentId: paymentId, updatedAt: new Date(now()) }
+    if (b.status === 'cancelled') {
+      // Only a hold that ran out comes back, and only to a time still free and ahead; a booking someone cancelled stays so.
+      if (b.depositStatus !== 'expired' || b.cancelledReason !== 'deposit_not_paid' || !svc || b.startAt.getTime() <= now()) return 'refund'
+      const at = tzParts(b.startAt, tzOf(s))
+      const external = await externalFor(b.companyId, s, at.date, at.date)
+      try {
+        const back: BookingRow = await db.transaction(async (tx: any) => {
+          await claim(tx, b.companyId, s, svc, at.date, minutesToHm(at.minutes), b.customerZip, { except: b.id, customer: false, external })
+          const [u] = await tx.update(booking).set({ ...paid, status: 'confirmed', cancelledAt: null, cancelledReason: null }).where(eq(booking.id, b.id)).returning()
+          await mirror(tx, u, 'status')
+          return u
+        })
+        await emit({ event: 'booking.created', booking: back, service: svc, settings: s, by: 'customer' })
+        return 'done'
+      } catch (e) {
+        if (e instanceof BookingError) return 'refund'
+        throw e
+      }
+    }
+    if (b.status === 'pending') {
+      const [u]: BookingRow[] = await db.update(booking).set({ ...paid, status: 'confirmed' }).where(and(eq(booking.id, b.id), eq(booking.status, 'pending'))).returning()
+      // changed under us (its hold ran out a moment ago): decide again on what it is now
+      if (!u) return depositPaid(companyId, bookingId, paymentId)
+      await mirror(db, u, 'status')
+      await emit({ event: 'booking.created', booking: u, service: svc, settings: s, by: 'customer' })
+      return 'done'
+    }
+    // Confirmed by hand, or already happened, while the customer paid: the money is recorded on it.
+    await db.update(booking).set(paid).where(eq(booking.id, b.id))
+    return 'done'
+  }
+
+  /** The refund depositPaid asked for, made: recorded on the booking. */
+  async function depositRefunded(companyId: string | null, bookingId: string, paymentId: string) {
+    await db.update(booking).set({ depositStatus: 'refunded', paymentIntentId: paymentId, updatedAt: new Date(now()) })
+      .where(and(eq(booking.id, bookingId), ...(companyId ? [eq(booking.companyId, companyId)] : [])))
   }
 
   // ── Changing a booking ────────────────────────────────────────────────────
@@ -619,8 +702,9 @@ export function createBookingEngine(deps: EngineDeps) {
     const tz = tzOf(s)
     const startAt = zonedWallTimeToUtc(date, time, tz)
     const endAt = new Date(startAt.getTime() + svc.durationMinutes * 60_000)
+    const external = opts.override ? [] : await externalFor(companyId, s, date, date)
     const updated: BookingRow = await db.transaction(async (tx: any) => {
-      const who = await claim(tx, companyId, s, svc, date, time, b.customerZip, { except: b.id, customer: opts.by === 'customer', override: opts.override })
+      const who = await claim(tx, companyId, s, svc, date, time, b.customerZip, { except: b.id, customer: opts.by === 'customer', override: opts.override, external })
       // Keep the person when they can still take it; otherwise whoever can.
       const assignedUserId = opts.override || who.includes(b.assignedUserId) || (who.includes(null) && !b.assignedUserId) ? b.assignedUserId : pickWho(who)
       const [u] = await tx.update(booking).set({ startAt, endAt, assignedUserId, reminderEmailSentAt: null, reminderSmsSentAt: null, updatedAt: new Date(now()) }).where(eq(booking.id, b.id)).returning()
@@ -723,7 +807,7 @@ export function createBookingEngine(deps: EngineDeps) {
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService,
     getHours, setHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
     availableDates, availableTimes, expireHolds,
-    book, depositPaid, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
+    book, depositPaid, depositRefunded, depositPage, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
     isBanned, emit,
   }
 }

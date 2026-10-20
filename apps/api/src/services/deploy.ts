@@ -1161,6 +1161,20 @@ export function googleOAuthEnv(): Array<{ key: string; value: string }> {
   ] : []
 }
 
+/**
+ * The calendar sign-in apps (Google, Microsoft), for a service that keeps people's calendars: it refreshes their tokens
+ * itself — the Factory did the first exchange (routes/factory/lifecycle.ts, one approved app each, one redirect).
+ */
+export function calendarOAuthEnv(): Array<{ key: string; value: string }> {
+  return [
+    ...googleOAuthEnv(),
+    ...(process.env.OUTLOOK_CALENDAR_CLIENT_ID && process.env.OUTLOOK_CALENDAR_CLIENT_SECRET ? [
+      { key: 'OUTLOOK_CALENDAR_CLIENT_ID', value: process.env.OUTLOOK_CALENDAR_CLIENT_ID },
+      { key: 'OUTLOOK_CALENDAR_CLIENT_SECRET', value: process.env.OUTLOOK_CALENDAR_CLIENT_SECRET },
+    ] : []),
+  ]
+}
+
 /** The visualizer, the ads page, the sending identity and Claude. */
 export function crmServiceEnv(opts: { hasVisualizer: boolean; name?: string; ownerEmail: string; domain: string }): Array<{ key: string; value: string }> {
   const out: Array<{ key: string; value: string }> = []
@@ -1763,17 +1777,8 @@ export async function deployCustomer(
           siteEnvVars.push({ key: 'COMPANY_NAME',          value: factoryCustomer.name || slug })
           // Photo uploads go to R2. Without it services/storage.ts falls back to local disk, which a redeploy wipes.
           siteEnvVars.push({ key: 'STORAGE_BACKEND',       value: 's3' })
-          // Pass through Google Calendar OAuth creds so the tenant can
-          // refresh access tokens. Initial token exchange is done by
-          // the Factory (one approved app, one redirect URI).
-          if (process.env.GOOGLE_CALENDAR_CLIENT_ID && process.env.GOOGLE_CALENDAR_CLIENT_SECRET) {
-            siteEnvVars.push({ key: 'GOOGLE_CALENDAR_CLIENT_ID',     value: process.env.GOOGLE_CALENDAR_CLIENT_ID })
-            siteEnvVars.push({ key: 'GOOGLE_CALENDAR_CLIENT_SECRET', value: process.env.GOOGLE_CALENDAR_CLIENT_SECRET })
-          }
-          if (process.env.OUTLOOK_CALENDAR_CLIENT_ID && process.env.OUTLOOK_CALENDAR_CLIENT_SECRET) {
-            siteEnvVars.push({ key: 'OUTLOOK_CALENDAR_CLIENT_ID',     value: process.env.OUTLOOK_CALENDAR_CLIENT_ID })
-            siteEnvVars.push({ key: 'OUTLOOK_CALENDAR_CLIENT_SECRET', value: process.env.OUTLOOK_CALENDAR_CLIENT_SECRET })
-          }
+          // The calendar sign-in apps, so the site can refresh people's calendar tokens itself.
+          siteEnvVars.push(...calendarOAuthEnv())
           // Pass through SMS internal URL so booking confirmations can
           // text the customer via the connected CRM's Twilio.
           if (results.apiUrl) {

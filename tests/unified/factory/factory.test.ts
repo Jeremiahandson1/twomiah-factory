@@ -63,7 +63,7 @@ describe('UNIFIED_SIGNUPS', () => {
 const ENV: Record<string, string> = {
   TWOMIAH_TWILIO_ACCOUNT_SID: 'AC-factory', TWOMIAH_TWILIO_AUTH_TOKEN: 'tw-token', TWOMIAH_TWILIO_PHONE: '+17155550000',
   TWOMIAH_RESEND_API_KEY: 're_factory', TWOMIAH_GOOGLE_MAPS_KEY: 'maps-key', TWOMIAH_NEARMAP_KEY: 'nearmap-key',
-  TWOMIAH_REPLICATE_TOKEN: 'r8-token', GOOGLE_CALENDAR_CLIENT_ID: 'gcal-id', GOOGLE_CALENDAR_CLIENT_SECRET: 'gcal-secret',
+  TWOMIAH_REPLICATE_TOKEN: 'r8-token', GOOGLE_CALENDAR_CLIENT_ID: 'gcal-id', GOOGLE_CALENDAR_CLIENT_SECRET: 'gcal-secret', OUTLOOK_CALENDAR_CLIENT_ID: 'ms-id', OUTLOOK_CALENDAR_CLIENT_SECRET: 'ms-secret',
   TWOMIAH_ADS_URL: 'https://ads.test', FACTORY_FROM_EMAIL: 'hello@twomiah.com', ANTHROPIC_API_KEY: 'sk-ant-test',
   STRIPE_SECRET_KEY: 'sk_test_factory', STRIPE_PUBLISHABLE_KEY: 'pk_test_factory', QBO_CLIENT_ID: 'qbo-id', QBO_CLIENT_SECRET: 'qbo-secret',
   R2_ACCOUNT_ID: 'r2acct', R2_ACCESS_KEY_ID: 'r2-key', R2_SECRET_ACCESS_KEY: 'r2-secret',
@@ -232,17 +232,18 @@ describe('integration env', () => {
     const url = 'https://acme-roofing-app.onrender.com'
     const envFor = await unifiedIntegrationEnv(tenant, config, { factoryUrl: 'https://factory.test', guessUrl: url })
     const got = Object.fromEntries(envFor(url).map((v) => [v.key, v.value]))
-    // The template CRM's Factory-side settings, in deployCustomer's order, then refreshPlatformIntegrationEnv's.
+    // The template CRM's Factory-side settings, in deployCustomer's order, then refreshPlatformIntegrationEnv's — with the
+    // site's calendar apps (Outlook beside Google), since the one service is the site too.
     const template: Record<string, string> = {}
     for (const v of [
-      ...deploySvc.crmPlanEnv('starter10'), ...deploySvc.googleOAuthEnv(), ...(await deploySvc.tenantIntegrationEnv('t-1', undefined)),
+      ...deploySvc.crmPlanEnv('starter10'), ...deploySvc.calendarOAuthEnv(), ...(await deploySvc.tenantIntegrationEnv('t-1', undefined)),
       ...deploySvc.crmServiceEnv({ hasVisualizer: false, name: 'Acme Roofing', ownerEmail: 'twomiah14+e2e@gmail.com', domain: '' }),
       ...quickbooksTenantEnv(url), ...deploySvc.platformIntegrationEnv(url, { customerHasStripeKey: false }),
     ]) if (!(v.key in template)) template[v.key] = v.value
     expect(got).toEqual(template)
     // …and those are the values the env gives (written out, not derived).
     expect(got).toMatchObject({
-      FEATURE_PACKAGE: 'starter10', GOOGLE_CALENDAR_CLIENT_ID: 'gcal-id', TWILIO_ACCOUNT_SID: 'AC-factory', TWILIO_AUTH_TOKEN: 'tw-token',
+      FEATURE_PACKAGE: 'starter10', GOOGLE_CALENDAR_CLIENT_ID: 'gcal-id', OUTLOOK_CALENDAR_CLIENT_ID: 'ms-id', TWILIO_ACCOUNT_SID: 'AC-factory', TWILIO_AUTH_TOKEN: 'tw-token',
       TWILIO_PHONE_NUMBER: '+17155550000', RESEND_API_KEY: 're_factory', GOOGLE_MAPS_API_KEY: 'maps-key', NEARMAP_API_KEY: 'nearmap-key',
       REPLICATE_API_TOKEN: 'r8-token', ADS_URL: 'https://ads.test', FROM_EMAIL: 'hello@twomiah.com', FROM_NAME: 'Acme Roofing',
       REPLY_TO_EMAIL: 'twomiah14+e2e@gmail.com', ANTHROPIC_API_KEY: 'sk-ant-test', API_URL: url, BACKEND_URL: url,

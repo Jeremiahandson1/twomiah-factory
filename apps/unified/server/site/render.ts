@@ -80,13 +80,14 @@ export async function renderSections(ctx: SiteContext, sections: any[], meta: Pa
 }
 
 /** A body already built (the blog) inside the site's layout. */
-export async function renderBody(ctx: SiteContext, body: string, settingsOverrides: Record<string, any>, currentPath: string): Promise<string> {
-  return wrap(ctx, body, { ...ctx.settings, ...settingsOverrides }, currentPath, '', '')
+/** A page from its body. `embed`: framed on another website — the page alone (views/base.ejs). */
+export async function renderBody(ctx: SiteContext, body: string, settingsOverrides: Record<string, any>, currentPath: string, opts: { embed?: boolean } = {}): Promise<string> {
+  return wrap(ctx, body, { ...ctx.settings, ...settingsOverrides }, currentPath, '', '', !!opts.embed)
 }
 
-async function wrap(ctx: SiteContext, body: string, settings: Record<string, any>, currentPath: string, lcpImage: string, jsonLd: string): Promise<string> {
+async function wrap(ctx: SiteContext, body: string, settings: Record<string, any>, currentPath: string, lcpImage: string, jsonLd: string, embed = false): Promise<string> {
   const html = await ejs.renderFile(path.join(VIEWS, 'base.ejs'), {
-    body, settings, currentPath, lcpImage,
+    body, settings, currentPath, lcpImage, embed,
     // The page's own JSON-LD from the vertical's facts (the bar's BarOrPub, menu, events); '': the layout's LocalBusiness.
     jsonLd,
     assetV: assetVersion(ctx),

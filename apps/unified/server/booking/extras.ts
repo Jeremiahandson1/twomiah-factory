@@ -2,21 +2,22 @@
 // numbers, the calendar feed, and the scheduled messages (reminders, "ready for the next one?", review requests).
 // Moved from the premium site (routes/admin.ts, server-static.ts) with its faults fixed — each named where it is.
 import crypto from 'node:crypto'
-import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, ne, gt } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, lt, lte, ne, gt } from 'drizzle-orm'
 import { tzParts, isRealDate, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
-import { booking, bookingService, bookingSeries, bookingWaitlist, bookingBan, bookingWebhook, bookingSettings } from '../db/schema/index.ts'
+import { booking, bookingService, bookingSeries, bookingWaitlist, bookingBan, bookingWebhook, bookingSettings, company } from '../db/schema/index.ts'
 import type { EmailService } from '../core/email.ts'
 import type { Logger } from '../core/logger.ts'
 import { BookingError, type BookingEngine, type BookInput } from './engine.ts'
 import { expandSeries, describeSeries, type Frequency } from './recurrence.ts'
 import { messageFor, icsOf, siteOrigin } from './happenings.ts'
 import { WEBHOOK_EVENTS, type BookingWebhooks } from './webhooks.ts'
+import { bookingTextFor, type BookingTexts } from './texts.ts'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
 const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? x : 0 }
 
-export function createBookingExtras(deps: { db: any; engine: BookingEngine; email: EmailService; logger: Logger; webhooks: BookingWebhooks; now?: () => number }) {
+export function createBookingExtras(deps: { db: any; engine: BookingEngine; email: EmailService; logger: Logger; webhooks: BookingWebhooks; texts?: BookingTexts; now?: () => number }) {
   const { db, engine, email, logger, webhooks } = deps
   const now = deps.now ?? (() => Date.now())
 
@@ -224,7 +225,8 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
   /**
    * One pass of every timed message, for every company in this database. Each message is stamped when it goes, so a
    * second pass never repeats one; a failed send isn't stamped and is tried next time.
-   *   reminder — between 20 and 28 hours before the start (an hourly pass can't miss the window).
+   *   reminder — between 20 and 28 hours before the start (an hourly pass can't miss the window), by email and by text
+   *              (each stamped on its own; a text the business can't send yet — no texting, no balance — is tried again).
    *   rebook   — the service's rebook interval after a completed visit, unless they've booked that service again.
    *   review   — one to three days after a completed visit, when the business has a review link.
    */
@@ -246,6 +248,21 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
       } catch (e: any) { logger.warn('Booking reminder failed', { id: b.id, error: e?.message }) }
     }
 
+    if (deps.texts) {
+      const dueText = await db.select().from(booking).where(and(eq(booking.status, 'confirmed'), isNull(booking.reminderSmsSentAt), isNotNull(booking.customerPhone), gte(booking.startAt, new Date(t + 20 * 3600_000)), lte(booking.startAt, new Date(t + 28 * 3600_000))))
+      const names = new Map<string, string>()
+      for (const b of dueText) {
+        const s = settingsOf.get(b.companyId); if (!s) continue
+        try {
+          if (!names.has(b.companyId)) names.set(b.companyId, (await db.select({ name: company.name }).from(company).where(eq(company.id, b.companyId)).limit(1))[0]?.name || '')
+          const m = messageFor(b, await svcOf(b.serviceId), s)
+          const r = await deps.texts.send(b, bookingTextFor.reminder({ companyName: names.get(b.companyId)!, serviceName: m.serviceName, when: m.when, manageUrl: m.manageUrl }))
+          if (r !== 'refused') await db.update(booking).set({ reminderSmsSentAt: new Date(t) }).where(eq(booking.id, b.id))
+          if (r === 'sent') sent.reminders++
+        } catch (e: any) { logger.warn('Booking reminder text failed', { id: b.id, error: e?.message }) }
+      }
+    }
+
     const done = await db.select({ b: booking, svc: bookingService }).from(booking).innerJoin(bookingService, eq(booking.serviceId, bookingService.id))
       .where(and(eq(booking.status, 'completed'), gte(booking.startAt, new Date(t - 800 * 86_400_000))))
     for (const { b, svc } of done) {
@@ -255,6 +272,12 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
         try {
           await email.send(b.customerEmail, 'bookingReviewRequest', messageFor(b, svc, s, { reviewLink: s.reviewLink }))
           await db.update(booking).set({ reviewRequestSentAt: new Date(t) }).where(eq(booking.id, b.id))
+          // …and by text, once, beside the email (the site sent both)
+          if (deps.texts) {
+            const [co] = await db.select({ name: company.name }).from(company).where(eq(company.id, b.companyId)).limit(1)
+            await deps.texts.send(b, bookingTextFor.review({ companyName: co?.name || '', customerName: b.customerName, reviewLink: s.reviewLink }))
+              .catch((e: any) => logger.warn('Booking review text failed', { id: b.id, error: e?.message }))
+          }
           sent.reviews++
         } catch (e: any) { logger.warn('Booking review request failed', { id: b.id, error: e?.message }) }
       }

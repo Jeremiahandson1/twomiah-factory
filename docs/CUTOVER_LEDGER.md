@@ -25,8 +25,8 @@ what must happen to the original at cutover, so no second copy survives
 
 ## Website pieces that arrive in later steps (not lost)
 
-- Bookings: step 2d — the engine, the owner's API, the public pages and messages are moved (section below); card deposits, Google/Outlook calendar sync, texts and the embed script are not yet.
-- The website admin and its API, photo uploads and the `/media/*` proxy: step 2c (done). `/customize/:token`: not yet.
+- Bookings: step 2d — the engine, the owner's API, the public pages and messages are moved (section below); card deposits, Google/Outlook calendar sync, texts and the embed followed on 2026-10-20 (the booking section).
+- The website admin and its API, photo uploads and the `/media/*` proxy: step 2c (done). `/customize/:token` is not moved, on purpose: it was a password-free edit link with no screen to get it and nothing that sent it (no premium admin page called `/customizer-link`; no Factory email held it). In the unified app the owner signs in and edits the website there, and a teammate gets a seat with the website's permissions.
 - The dispensary's live menu and pickup orders (`/menu`, `/api/order`): with the dispensary add-on (it is the CRM's own menu now).
 - The roofer's instant estimator (`/estimate`): with the roofing add-on.
 - A/B experiments (`scripts/ab.js`): with the CRM's ads module (step 3); until then the script isn't loaded.
@@ -55,8 +55,8 @@ what must happen to the original at cutover, so no second copy survives
   settings, photos, blog, portfolio, analytics. Every action now checks a permission
   (`site:read` / `site:update` / `site:delete` / `site:settings`, added to the shared
   matrix: admin `site:*`, manager content only). The company's own facts are edited
-  only in company settings. Not yet moved: the customize link (with the admin
-  screens), bookings (2d), domain buy/attach, CRM hand-off (gone: one app).
+  only in company settings. Not moved: the customize link (see "Website pieces" above — the owner's own sign-in does
+  it); bookings (2d), domain buy/attach, CRM hand-off (gone: one app).
 - `/media/*` serves only the public `photos/` prefix (the site's served any key; the
   one app's store also holds private CRM files).
 - The site's own sign-in (cookie sessions table, email verification, TOTP on the
@@ -106,11 +106,27 @@ what must happen to the original at cutover, so no second copy survives
 
 | `apps/unified/web/src/booking/**` (the owner's booking screens) | `templates/website-premium-*/admin/src/pages/Booking*.tsx`, `components/BookingOnboarding.tsx`; `packages/tenant-ui/src/booking/BookingsPage.tsx`, `BookingSettingsTab.tsx` | The book, one booking, the calendar (drag to move, checked), settings (switches, services, hours per person, days off, areas, wording, feed, webhooks, bans), waitlist, insights (numbers + customers), a repeating booking. Every date and time on the business's clock — the site's screens used the viewer's. Staff see who a booking is with without reading the team list. Measured in a browser: both themes, phone and desktop, owner / manager / staff. |
 
-**Still to come, not lost:**
-- **Card deposits** need the CRM's payments (Stripe Connect): `createBookingEngine({ deposits })` is the seam. Until then a service's deposit is stored and not charged.
-- **Google / Outlook calendar sync** (busy times and pushing bookings to people's calendars): `externalBusy` is the seam; the OAuth is the Factory's. Tokens go in `calendar_connection`, encrypted.
-- **Texts** (confirmation, reminder, review request) with the CRM's messaging; email only until then.
-- **The embed** (`book-embed.js`, the CRMs' `booking-widget.js`).
+**Moved 2026-10-20 (were "still to come"):**
+- **Card deposits** (`booking/deposits.ts`, `packages/tenant-backend payments/stripe.ts createBookingDepositCheckout`):
+  Stripe's own payment page, on the business's CONNECTED Stripe account only — without one there is no deposit and
+  the booking stands (the site took it on whatever key the site had). The payment comes back through the Factory's
+  Connect forwarder (`/api/stripe/factory-event` → `onBookingDeposit` → `engine.depositPaid`, by booking). A payment
+  after the hold ran out confirms only to a time still free and ahead, else it is refunded on the business's account;
+  a booking someone cancelled is refunded. The customer's page shows what is owed and "Pay the deposit" while held.
+- **Google / Outlook calendar sync** (`booking/calendars.ts`): busy time on a person's calendar is not offered (read
+  before the day's lock — an outside call never holds it); a booking goes on its person's calendar (else the first
+  linked), MOVES with it (the site left it at the old time) and comes off when cancelled. No guest invite to the
+  customer (the confirmation carries its own). Tokens encrypted (`core/crypto.ts`). Linking: the Factory's
+  `/calendar/{google,outlook}/auth` → its callback posts to `/api/internal/calendar/store-tokens` (`ourSiteOrigin`);
+  the return address must be the tenant's own admin by exact origin (`premiumSiteUrl.ts mayReturnTo`). The site's
+  change-notification channels are not moved: they only stamped a time.
+- **Texts** (`booking/texts.ts`): confirmation, the reminder the day before, the review request — through the CRM's
+  texting (opt-outs, the messaging balance, the business's texting set up), not a bare Twilio call.
+- **The embed** (`site/public/scripts/book-embed.ts`): the booking pages with `?embed=1` may be framed by other https
+  sites (`http/guards.ts EMBED_CSP`, `frameOptions`) and are the page alone (`views/base.ejs`). The site's embed never
+  worked (every page sent X-Frame-Options DENY) and had no snippet on any screen; Booking settings shows it now. The
+  CRMs' `booking-widget.js` snippet pointed at the old CRM service's own Render address, which goes when a business
+  moves: **when moving a business, ask whether it pasted that snippet anywhere** and give it the new one.
 - **Booking messages run themselves** (2026-10-20): the unified app sends its reminders, rebook nudges and review requests on its own hourly timer (`modules/booking.ts`, one run at a time; `POST /api/internal/booking-jobs` stays for a manual run). The Factory's per-site crons skip unified tenants (`ourPremiumSiteOrigin` → null). The Factory still switches on `online_booking` for website tenants that take bookings.
 - **The website's security policy** allows inline scripts (`http/guards.ts` SITE_CSP), as the live sites do; moving the layout's and sections' inline scripts to nonces is a later hardening.
 

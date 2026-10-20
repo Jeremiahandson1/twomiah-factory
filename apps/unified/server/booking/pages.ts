@@ -16,10 +16,13 @@ import { BookingError } from './engine.ts'
 import { whenText } from './emails.ts'
 import { icsOf } from './happenings.ts'
 import { renderBody, escHtml } from '../site/render.ts'
+import { EMBED_CSP } from '../http/guards.ts'
 import type { SiteContext } from '../site/context.ts'
 
 // The pages' script is TypeScript like everything else (RULEBOOK §1), turned into plain JavaScript once, at start.
 const SCRIPT = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(import.meta.dir, '..', '..', 'site', 'public', 'scripts', 'book-flow.ts'), 'utf8'))
+// The embed (another website showing the booking pages in a frame), served from the site like the picker's script.
+const EMBED_SCRIPT = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(import.meta.dir, '..', '..', 'site', 'public', 'scripts', 'book-embed.ts'), 'utf8'))
 const FEATURE = 'online_booking'
 const length = (m: number) => (m % 60 === 0 ? `${m / 60} hr` : m > 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m} min`)
 const price = (p: string | null) => (p == null ? '' : '$' + (Number(p) % 1 ? Number(p).toFixed(2) : String(Number(p))))
@@ -34,17 +37,29 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     if (!ctx || !(await deps.isFeatureEnabled(ctx.companyId, FEATURE))) return null
     return { ctx, settings: await engine.settingsOf(ctx.companyId) }
   }
-  /** In the site's layout. A customer's own pages (`private`) are kept out of search engines. */
+  /**
+   * In the site's layout. A customer's own pages (`private`) are kept out of search engines. Framed on another website
+   * (?embed=1, /scripts/book-embed.js): the page alone, and only these pages may be framed by other sites.
+   */
   async function html(c: Context, ctx: SiteContext, body: string, title: string, currentPath: string, priv = false) {
-    const h = await renderBody(ctx, body, { homeHref: '/', contactHref: '/contact', seoTitle: `${title} · ${ctx.settings.companyName}`, seoDescription: '' }, currentPath)
+    const embed = embedded(c)
+    const h = await renderBody(ctx, body, { homeHref: '/', contactHref: '/contact', seoTitle: `${title} · ${ctx.settings.companyName}`, seoDescription: '' }, currentPath, { embed })
+    if (embed) c.header('Content-Security-Policy', EMBED_CSP)
     if (!priv) return c.html(h)
     c.header('X-Robots-Tag', 'noindex, nofollow')
     c.header('Cache-Control', 'private, no-store')
     return c.html(h.replace('<meta name="robots" content="index, follow">', '<meta name="robots" content="noindex, nofollow">'))
   }
 
+  /** Framed on another website: the pages keep ?embed=1 among themselves; anything that leaves opens the whole window. */
+  const embedded = (c: Context) => c.req.query('embed') === '1'
+  const keep = (c: Context, sep: '?' | '&' = '?') => (embedded(c) ? sep + 'embed=1' : '')
+  const top = (c: Context) => (embedded(c) ? ' target="_top"' : '')
+
   const closed = (c: Context, ctx: SiteContext) => html(c, ctx, `<section class="book-empty"><div class="container"><h1>Online booking is closed</h1><p>Please <a href="/contact">get in touch</a> to arrange a time.</p></div></section>`, 'Book online', '/book')
 
+  // Cross-origin by design: it is loaded by the business's other website.
+  app.get('/scripts/book-embed.js', (c) => c.body(EMBED_SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300', 'Access-Control-Allow-Origin': '*' }))
   app.get('/scripts/book-flow.js', (c) => c.body(SCRIPT, 200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=300' }))
 
   app.get('/book', async (c) => {
@@ -54,16 +69,17 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     const body = !services.length
       ? '<section class="book-empty"><div class="container"><h1>Bookings opening soon</h1><p>Online booking is being set up. <a href="/contact">Get in touch</a> for now.</p></div></section>'
       : `<section class="book-services"><div class="container"><h1 class="book-services__title">${escHtml(s.settings.heroTitle || 'Book a service')}</h1>${s.settings.heroSubtitle ? `<p class="book-services__subtitle">${escHtml(s.settings.heroSubtitle)}</p>` : ''}<div class="book-services__grid">${services.map((x) => `
-          <a class="service-card" href="/book/${escHtml(x.slug)}"><div class="service-card__body"><h2 class="service-card__name">${escHtml(x.name)}</h2>${x.description ? `<p class="service-card__desc">${escHtml(x.description)}</p>` : ''}<div class="service-card__meta"><span>${length(x.durationMinutes)}</span>${x.price != null ? `<span class="service-card__price">${price(x.price)}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`).join('')}</div></div></section>`
+          <a class="service-card" href="/book/${escHtml(x.slug)}${keep(c)}"><div class="service-card__body"><h2 class="service-card__name">${escHtml(x.name)}</h2>${x.description ? `<p class="service-card__desc">${escHtml(x.description)}</p>` : ''}<div class="service-card__meta"><span>${length(x.durationMinutes)}</span>${x.price != null ? `<span class="service-card__price">${price(x.price)}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`).join('')}</div></div></section>`
     return html(c, s.ctx, body, 'Book online', '/book')
   })
 
   /** The picker, for a new booking or (with the booking) a new time for an existing one. */
-  function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow) {
+  function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow, embed = false) {
     const tips = Array.isArray(svc.tipPresets) && svc.price != null ? (svc.tipPresets as number[]) : []
     const data = [
       `data-service="${escHtml(svc.slug)}"`,
       moving ? `data-token="${escHtml(moving.token)}"` : '',
+      embed ? 'data-embed="1"' : '',
     ].filter(Boolean).join(' ')
     const details = moving ? `
         <form id="book-form" novalidate>
@@ -142,7 +158,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
         <div><span>When</span><strong>${escHtml(whenText(b.startAt, tz))}</strong></div>
         ${b.customerAddress ? `<div><span>Where</span><strong>${escHtml(b.customerAddress)}</strong></div>` : ''}
       </div>
-      <p class="book-thanks__addcal"><a href="/booking/${escHtml(b.token)}/ics">Add to your calendar</a> · <a href="/booking/${escHtml(b.token)}">Reschedule or cancel</a></p>
+      <p class="book-thanks__addcal"><a href="/booking/${escHtml(b.token)}/ics">Add to your calendar</a> · <a href="/booking/${escHtml(b.token)}"${top(c)}>Reschedule or cancel</a></p>
     </div></section>`
     return html(c, s.ctx, body, 'Booking confirmed', '/book/done', true)
   })
@@ -153,10 +169,10 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     const svc = await engine.serviceBySlug(s.ctx.companyId, c.req.param('slug'))
     if (!svc || !svc.active) return c.notFound()
     const body = `<section class="book-picker"><div class="container container--narrow">
-      <a class="book-picker__back" href="/book">← All services</a>
+      <a class="book-picker__back" href="/book${keep(c)}">← All services</a>
       <h1 class="book-picker__title">${escHtml(svc.name)}</h1>
       <p class="book-picker__desc">${svc.description ? escHtml(svc.description) + ' · ' : ''}${length(svc.durationMinutes)}${svc.price != null ? ' · ' + price(svc.price) : ''}</p>
-      ${picker(svc, s.settings, engine.requireAddress(s.settings))}
+      ${picker(svc, s.settings, engine.requireAddress(s.settings), undefined, embedded(c))}
     </div></section>`
     return html(c, s.ctx, body, `Book ${svc.name}`, '/book/' + svc.slug)
   })
@@ -170,8 +186,17 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
     const tz = safeTz(s.settings.timezone)
     const status = ({ pending: 'Waiting for the deposit', confirmed: 'Confirmed', cancelled: 'Cancelled', completed: 'Completed', no_show: 'Missed' } as Record<string, string>)[b.status] || b.status
     const open = engine.selfServiceOpen(b, s.settings)
+    // A deposit still owed: its amount, and how long the time is held for it (the engine releases it after that).
+    const owed = b.status === 'pending' && b.depositStatus === 'pending'
+    const holdEnds = new Date(b.createdAt.getTime() + s.settings.depositHoldMinutes * 60_000)
+    const held = owed && holdEnds.getTime() > Date.now()
+    const amount = price(String(Number(b.depositAmount || 0) + Number(b.tipAmount || 0)))
     const note = c.req.query('moved') ? '<p class="book-ok" role="status">Your booking has its new time. A confirmation is on its way.</p>'
       : c.req.query('cancelled') ? '<p class="book-ok" role="status">Your booking is cancelled.</p>'
+      : c.req.query('deposit') === 'paid' ? (b.depositStatus === 'paid'
+        ? '<p class="book-ok" role="status">Thank you — your deposit is paid and your booking is confirmed. A confirmation is on its way.</p>'
+        : '<p class="book-ok" role="status">Thank you — your payment is being confirmed. This usually takes a few seconds; refresh to see it.</p>')
+      : c.req.query('deposit') === 'cancelled' && held ? `<p class="book-error" role="alert">The deposit wasn't paid. Your time is held until ${escHtml(whenText(holdEnds, tz))} — pay below to keep it.</p>`
       : c.req.query('error') ? `<p class="book-error" role="alert">${escHtml(c.req.query('error')!)}</p>` : ''
     const body = `<section class="book-thanks"><div class="container container--narrow">
       <h1>Your booking</h1>
@@ -181,15 +206,32 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
         <div><span>When</span><strong>${escHtml(whenText(b.startAt, tz))}</strong></div>
         <div><span>Status</span><strong>${escHtml(status)}</strong></div>
         ${b.customerAddress ? `<div><span>Where</span><strong>${escHtml(b.customerAddress)}</strong></div>` : ''}
+        ${b.depositAmount ? `<div><span>Deposit</span><strong>${escHtml(amount)} · ${escHtml(({ pending: held ? 'not paid yet' : 'not paid — the hold ran out', paid: 'paid', refunded: 'refunded', expired: 'not paid — the hold ran out', none: 'not taken' } as Record<string, string>)[b.depositStatus] || b.depositStatus)}</strong></div>` : ''}
       </div>
+      ${held ? `<div class="book-actions"><a class="book-submit" href="/booking/${escHtml(b.token)}/pay"${top(c)}>Pay the ${escHtml(amount)} deposit</a></div>
+      <p class="book-thanks__lead">Your time is held until ${escHtml(whenText(holdEnds, tz))}. After that it is offered to others.</p>` : ''}
       ${open ? `<div class="book-actions">
-        ${svc?.active ? `<a class="book-submit book-submit--secondary" href="/booking/${escHtml(b.token)}/reschedule">Reschedule</a>` : ''}
-        <form method="post" action="/booking/${escHtml(b.token)}/cancel" data-confirm="Cancel this booking?"><button type="submit" class="book-submit book-submit--danger">Cancel booking</button></form>
+        ${svc?.active ? `<a class="book-submit book-submit--secondary" href="/booking/${escHtml(b.token)}/reschedule"${top(c)}>Reschedule</a>` : ''}
+        <form method="post" action="/booking/${escHtml(b.token)}/cancel" data-confirm="Cancel this booking?"${top(c)}><button type="submit" class="book-submit book-submit--danger">Cancel booking</button></form>
       </div>` : (b.status === 'confirmed' || b.status === 'pending') ? `<p class="book-thanks__lead">It's too close to the start to change this online. Please <a href="/contact">get in touch</a>.</p>` : ''}
       ${b.status !== 'cancelled' ? `<p class="book-thanks__addcal"><a href="/booking/${escHtml(b.token)}/ics">Add to your calendar</a></p>` : ''}
     </div></section>
     <script src="/scripts/book-flow.js" defer></script>`
     return html(c, s.ctx, body, 'Your booking', '/booking', true)
+  })
+
+  /** The deposit's payment page again (Stripe's; a new one each time — the last may have closed). */
+  app.get('/booking/:token/pay', async (c) => {
+    const s = await site(c); if (!s) return c.notFound()
+    const b = await engine.byToken(s.ctx.companyId, c.req.param('token'))
+    if (!b) return c.notFound()
+    const url = await engine.depositPage(s.ctx.companyId, b)
+    if (url) return c.redirect(url, 303)
+    const now = await engine.byToken(s.ctx.companyId, b.token)
+    const why = now?.depositStatus === 'paid' ? '' : now?.status === 'cancelled'
+      ? 'The time was not held any longer — please book again.'
+      : 'Card payment is not available right now — please get in touch.'
+    return c.redirect(`/booking/${b.token}${why ? '?error=' + encodeURIComponent(why) : ''}`, 303)
   })
 
   app.get('/booking/:token/reschedule', async (c) => {

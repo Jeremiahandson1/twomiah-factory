@@ -26,6 +26,9 @@
   if (!root) return
   var slug = root.getAttribute('data-service')
   var token = root.getAttribute('data-token') || ''
+  // Framed on another website (?embed=1): its pages stay in the frame; paying a deposit is a click on the booking's page
+  // there, which opens Stripe in the whole window (Stripe's page can't be framed, and the frame can't send the window there by itself).
+  var embed = root.getAttribute('data-embed') === '1'
   var $ = function (sel) { return root.querySelector(sel) }
   var stepDate = $('.book-step--date'), stepSlot = $('.book-step--slot'), stepForm = $('.book-step--form'), stepWait = $('.book-step--waitlist')
   var datesEl = document.getElementById('book-dates'), slotsEl = document.getElementById('book-slots')
@@ -134,7 +137,10 @@
         data.sourceReferrer = ref && ref.origin !== window.location.origin ? document.referrer : ''
       } catch (x) { /* no referrer */ }
       request = postJson(api, data).then(function (body) {
-        window.location.href = '/book/done?token=' + encodeURIComponent(body.token)
+        // A deposit is owed: on to Stripe's own payment page (it comes back to the booking's page); otherwise booked.
+        var pay = body.deposit && body.deposit.url
+        if (embed) window.location.href = (pay ? '/booking/' : '/book/done?token=') + encodeURIComponent(body.token) + (pay ? '?embed=1' : '&embed=1')
+        else window.location.href = typeof pay === 'string' && pay.indexOf('https://checkout.stripe.com/') === 0 ? pay : '/book/done?token=' + encodeURIComponent(body.token)
       })
     }
     request.catch(function (err) {

@@ -3,7 +3,7 @@
 // its adapted copies (adapted.ts). `@app/` is apps/unified.
 export const STORE_SANDBOX: Record<string, string> = {
   // The credentials' encryption and the payment adapters: moved as they were.
-  'src/lib/crypto.ts': "export * from '@app/server/crm/store/lib/crypto.ts'\n",
+  'src/lib/crypto.ts': "export * from '@app/server/core/crypto.ts'\n",
   'src/lib/money.ts': "export * from '@app/server/crm/store/lib/money.ts'\n",
   'src/payments/types.ts': "export * from '@app/server/crm/store/payments/types.ts'\n",
   'src/payments/stripe.ts': "export * from '@app/server/crm/store/payments/stripe.ts'\n",

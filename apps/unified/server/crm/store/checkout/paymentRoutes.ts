@@ -20,7 +20,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
-import { encryptJSON, encrypt, decrypt, decryptJSON } from '../lib/crypto.ts'
+import { encryptJSON, encrypt, decrypt, decryptJSON } from '../../../core/crypto.ts'
 import { REFUND_EVENTS as PAYPAL_REFUND_EVENTS } from '../payments/paypal.ts'
 
 const webhookBase = () => (process.env.BACKEND_URL || '').replace(/\/$/, '')

@@ -10,6 +10,7 @@ import type { Logger } from '../core/logger.ts'
 import type { BookingHappening, BookingRow, ServiceRow, SettingsRow } from './engine.ts'
 import { icsFor, whenText, type BookingMessage } from './emails.ts'
 import type { BookingWebhooks } from './webhooks.ts'
+import { bookingTextFor, type BookingTexts } from './texts.ts'
 
 /** The public site's address: links in messages point at it. */
 export const siteOrigin = () => String(process.env.SITE_URL || process.env.FRONTEND_URL || '').replace(/\/+$/, '')
@@ -29,7 +30,7 @@ export const icsOf = (b: BookingRow, svc: ServiceRow | null, companyName: string
   location: b.customerAddress, description: `Reschedule or cancel: ${siteOrigin()}/booking/${b.token}`, cancelled,
 })
 
-export function createHappenings(deps: { db: any; email: EmailService; logger: Logger; webhooks: BookingWebhooks }) {
+export function createHappenings(deps: { db: any; email: EmailService; logger: Logger; webhooks: BookingWebhooks; texts?: BookingTexts }) {
   const { db, email, logger, webhooks } = deps
 
   async function owner(companyId: string) {
@@ -65,6 +66,7 @@ export function createHappenings(deps: { db: any; email: EmailService; logger: L
         ...m, intro: s.confirmationEmailIntro, subject: s.confirmationEmailSubject, deposit: b.depositStatus === 'paid' && b.depositAmount ? `$${b.depositAmount}` : null,
       }, { attachments: [{ filename: 'booking.ics', content: icsOf(b, svc, co.name), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] }))
       if (s.notifyEmail && co.email) await quietly('owner email', email.send(co.email, 'bookingNewForOwner', m, { replyTo: { address: b.customerEmail, name: b.customerName } }))
+      if (deps.texts) await quietly('confirmation text', deps.texts.send(b, bookingTextFor.confirmed({ companyName: co.name, serviceName: m.serviceName, when: m.when, manageUrl: m.manageUrl })))
     }
     if (h.event === 'booking.rescheduled') {
       const moved = { ...m, previousWhen: h.previousStartAt ? whenText(h.previousStartAt, tz) : undefined }

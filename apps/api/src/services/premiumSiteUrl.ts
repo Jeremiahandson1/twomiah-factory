@@ -12,7 +12,8 @@
  */
 export function ourPremiumSiteOrigin(t: { slug?: string | null; website_url?: string | null; domain?: string | null; engine?: string | null }): string | null {
   // A unified tenant has no premium site: its one service is site and app (ourUnifiedOrigin), and it answers none of
-  // the premium site's endpoints the callers of this one use (calendar tokens, the booking crons — it runs its own).
+  // the premium site's endpoints the callers of this one use (the booking crons — it runs its own). For an endpoint both
+  // answer (seed photos, calendar tokens) use ourSiteOrigin.
   if (t.engine === 'unified') return null
   const slug = String(t.slug || '').toLowerCase()
   if (!slug) return null
@@ -43,6 +44,29 @@ export function ourUnifiedOrigin(t: { engine?: string | null; render_backend_url
  * The site we serve, for an endpoint BOTH kinds of site answer (POST /api/internal/seed-photos): the unified service
  * for a unified tenant, the premium site otherwise. Not for an endpoint only one of them has.
  */
+/**
+ * Whether a sign-in started from a tenant's admin may come back to `returnUrl` (the Factory's calendar sign-in): an
+ * exact origin, never a prefix — "starts with https://x.onrender.com" let https://x.onrender.com.evil.com through.
+ * A template tenant's admin is on its site (tenants.website_url, as before); a unified tenant's is its one service, or
+ * its domain — the apex, www, or app.<domain> — once one is attached.
+ */
+export function mayReturnTo(t: { website_url?: string | null; domain?: string | null; engine?: string | null; render_backend_url?: string | null }, returnUrl: string): boolean {
+  let back: URL
+  try { back = new URL(returnUrl) } catch { return false }
+  if (back.protocol === 'http:' && back.hostname === 'localhost') return true
+  if (back.protocol !== 'https:') return false
+  const origins = new Set<string>()
+  if (t.engine === 'unified') {
+    const own = ourUnifiedOrigin(t)
+    if (own) origins.add(own)
+    const domain = String(t.domain || '').toLowerCase().replace(/^https?:\/\//, '').replace(/[/:].*$/, '').replace(/^www\./, '')
+    if (domain) for (const h of [domain, 'www.' + domain, 'app.' + domain]) origins.add('https://' + h)
+  } else {
+    try { origins.add(new URL(String(t.website_url || '').trim()).origin) } catch { /* no site recorded */ }
+  }
+  return origins.has(back.origin)
+}
+
 export function ourSiteOrigin(t: { slug?: string | null; website_url?: string | null; domain?: string | null; engine?: string | null; render_backend_url?: string | null }): string | null {
   return t.engine === 'unified' ? ourUnifiedOrigin(t) : ourPremiumSiteOrigin(t)
 }

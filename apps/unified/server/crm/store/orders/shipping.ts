@@ -21,7 +21,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { DEFAULT_PARCEL, type StoreCore } from '../core.ts'
-import { encryptJSON } from '../lib/crypto.ts'
+import { encryptJSON } from '../../../core/crypto.ts'
 import { formatCents } from '../lib/money.ts'
 import { isFulfilment, mayMove, moveRefusal, refundRefusal, seatOf, orderForSeat } from './rules.ts'
 

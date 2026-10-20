@@ -1,3 +1,4 @@
+// Secrets at rest, AES-256-GCM on the tenant's own ENCRYPTION_KEY: the store's payment credentials, people's calendar tokens.
 // Moved from templates/crm-store/backend/src/lib/crypto.ts (docs/UNIFIED_STORE_PLAN.md).
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypto'
 

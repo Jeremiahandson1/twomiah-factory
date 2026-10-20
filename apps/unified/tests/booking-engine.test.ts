@@ -5,7 +5,7 @@
 //
 // PGlite has one connection, so the per-day lock can't be shown racing here (it serialises anyway); the lock is the
 // CRMs' engine's, proven on Postgres in their suite (fieldservice t58d: first customer wins, second gets "taken").
-import { describe, test, expect, beforeAll } from 'bun:test'
+import { describe, test, expect, beforeAll, afterEach } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
 import { createBookingEngine, BookingError, type BookingHappening } from '../server/booking/engine.ts'
@@ -17,12 +17,13 @@ let companyId = ''
 let ownerId = ''
 const happenings: BookingHappening[] = []
 let provider: 'ok' | 'fail' | 'none' = 'none'
+const opened: Array<{ bookingId: string; token: string; amount: number; expiresAt: Date; description: string }> = []
 
 const engine = () => createBookingEngine({
   db: t.db, requireAddressDefault: false, now: () => clock,
   onHappening: (h) => { happenings.push(h) },
   deposits: provider === 'none' ? undefined : {
-    createIntent: async ({ bookingId }) => (provider === 'ok' ? { paymentIntentId: 'pi_' + bookingId, clientSecret: 'secret' } : null),
+    checkout: async (a) => { opened.push(a); return provider === 'ok' ? { url: 'https://checkout.stripe.com/c/pay/cs_' + opened.length, reference: 'cs_' + opened.length } : null },
   },
 })
 const refusal = async (p: Promise<unknown>) => { try { await p; return null } catch (e) { return e instanceof BookingError ? e : (() => { throw e })() } }
@@ -170,6 +171,7 @@ describe("changing it", () => {
 })
 
 describe('deposits', () => {
+  afterEach(() => { clock = NOW })
   test('a deposit holds the time as pending; unpaid past the hold, the time is released', async () => {
     provider = 'ok'
     const e = engine()
@@ -177,7 +179,11 @@ describe('deposits', () => {
     const r = await e.book(companyId, { service: 'consultation', date: '2026-11-10', time: '09:00', ...who }, { by: 'customer' })
     expect(r.booking.status).toBe('pending')
     expect(r.booking.depositAmount).toBe('25.00')
-    expect(r.deposit?.clientSecret).toBe('secret')
+    // Stripe's page for it, held as long as the time is: 25 of the 100 price, the hold from the booking's own clock
+    expect(r.deposit?.url).toMatch(/^https:\/\/checkout\.stripe\.com\//)
+    expect(opened.at(-1)).toMatchObject({ bookingId: r.booking.id, token: r.booking.token, amount: 25, description: 'Deposit for Consultation' })
+    expect(opened.at(-1)!.expiresAt.getTime()).toBe(NOW + 30 * 60_000)
+    expect(r.booking.paymentIntentId).toBe('cs_' + opened.length)
     expect((await e.availableTimes(companyId, 'consultation', '2026-11-10')).map((x) => x.time)).not.toContain('09:00')
     clock = NOW + 31 * 60_000
     expect((await e.availableTimes(companyId, 'consultation', '2026-11-10')).map((x) => x.time)).toContain('09:00')
@@ -186,12 +192,71 @@ describe('deposits', () => {
     clock = NOW
   })
 
-  test('paid in time, the hold becomes a booking', async () => {
+  const row = async (id: string) => (await t.db.select().from(t.schema.booking).where(eq(t.schema.booking.id, id)))[0]
+
+  test('paid in time, the hold becomes a booking — once, however often Stripe tells us', async () => {
     provider = 'ok'
     const e = engine()
     const r = await e.book(companyId, { service: 'consultation', date: '2026-11-10', time: '10:00', ...who }, { by: 'customer' })
-    const paid = await e.depositPaid(companyId, r.booking.paymentIntentId!)
-    expect([paid?.status, paid?.depositStatus]).toEqual(['confirmed', 'paid'])
+    happenings.length = 0
+    expect(await e.depositPaid(companyId, r.booking.id, 'pi_1')).toBe('done')
+    const b = await row(r.booking.id)
+    expect([b.status, b.depositStatus, b.paymentIntentId]).toEqual(['confirmed', 'paid', 'pi_1'])
+    expect(happenings.map((h) => h.event)).toEqual(['booking.created'])
+    expect(await e.depositPaid(companyId, r.booking.id, 'pi_1')).toBe('done')
+    expect(happenings.length).toBe(1)
+    expect(await e.depositPaid(companyId, 'no-such-booking', 'pi_x')).toBe('unknown')
+  })
+
+  test('paid after its hold ran out: confirmed again if the time is still free and ahead', async () => {
+    provider = 'ok'
+    const e = engine()
+    const r = await e.book(companyId, { service: 'consultation', date: '2026-11-16', time: '09:00', ...who }, { by: 'customer' })
+    clock = NOW + 45 * 60_000
+    await e.availableTimes(companyId, 'consultation', '2026-11-16') // the hold is released
+    expect((await row(r.booking.id)).status).toBe('cancelled')
+    expect(await e.depositPaid(null, r.booking.id, 'pi_late')).toBe('done')
+    const b = await row(r.booking.id)
+    expect([b.status, b.depositStatus, b.cancelledReason]).toEqual(['confirmed', 'paid', null])
+    clock = NOW
+  })
+
+  test('paid after its hold ran out and the time was taken: refunded, and recorded so', async () => {
+    provider = 'ok'
+    const e = engine()
+    const r = await e.book(companyId, { service: 'consultation', date: '2026-11-16', time: '13:00', ...who }, { by: 'customer' })
+    clock = NOW + 45 * 60_000
+    await e.availableTimes(companyId, 'consultation', '2026-11-16')
+    provider = 'none'
+    await engine().book(companyId, { service: 'consultation', date: '2026-11-16', time: '13:00', name: 'Someone Else', email: 'else@example.com', phone: '608-555-0199' }, { by: 'customer' })
+    expect(await e.depositPaid(null, r.booking.id, 'pi_late2')).toBe('refund')
+    await e.depositRefunded(null, r.booking.id, 'pi_late2')
+    const b = await row(r.booking.id)
+    expect([b.status, b.depositStatus, b.paymentIntentId]).toEqual(['cancelled', 'refunded', 'pi_late2'])
+    expect(await e.depositPaid(null, r.booking.id, 'pi_late2')).toBe('done') // a retry changes nothing
+    clock = NOW
+  })
+
+  test('a booking someone cancelled is not brought back by a payment: refunded', async () => {
+    provider = 'ok'
+    const e = engine()
+    const r = await e.book(companyId, { service: 'consultation', date: '2026-11-12', time: '09:00', ...who }, { by: 'customer' })
+    await e.cancel(companyId, r.booking, { by: 'customer' })
+    expect(await e.depositPaid(companyId, r.booking.id, 'pi_c')).toBe('refund')
+  })
+
+  test('the customer can open the payment page again while the time is held, not after', async () => {
+    provider = 'ok'
+    const e = engine()
+    const r = await e.book(companyId, { service: 'consultation', date: '2026-11-12', time: '10:00', ...who }, { by: 'customer' })
+    const before = opened.length
+    const url = await e.depositPage(companyId, r.booking)
+    expect(url).toBe('https://checkout.stripe.com/c/pay/cs_' + (before + 1))
+    expect((await row(r.booking.id)).paymentIntentId).toBe('cs_' + (before + 1))
+    expect(opened.at(-1)!.expiresAt.getTime()).toBe(NOW + 30 * 60_000) // not extended
+    clock = NOW + 31 * 60_000
+    expect(await e.depositPage(companyId, r.booking)).toBeNull()
+    clock = NOW
   })
 
   test('a deposit that can\'t be taken leaves the booking standing, not quietly cancelled later', async () => {

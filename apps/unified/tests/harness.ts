@@ -25,13 +25,13 @@ export function memoryStore() {
   }
 }
 
-export async function bootTenant(opts: { vertical?: string; adminDist?: string } = {}) {
+export async function bootTenant(opts: { vertical?: string; adminDist?: string; stripe?: any } = {}) {
   const client = new PGlite()
   const db = drizzle(client, { schema })
   await migrate(db, { migrationsFolder: MIGRATIONS })
   const vertical = await loadVertical(opts.vertical ?? 'contractor')
   const store = memoryStore()
-  const { app, services } = createApp({ db, vertical, store, adminDist: opts.adminDist })
+  const { app, services } = createApp({ db, vertical, store, adminDist: opts.adminDist, ...(opts.stripe ? { testing: { stripe: opts.stripe } } : {}) })
   // Phone notifications are recorded, never sent to Expo (noLiveKeys.ts is for keys; Expo needs none).
   const pushed: any[] = []
   services.phonePush.setTransport(async (msgs) => { pushed.push(...msgs); return msgs.map(() => ({ status: 'ok' as const, id: 'test' })) })

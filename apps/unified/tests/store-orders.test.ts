@@ -19,7 +19,7 @@ import { bootTenant, seedOwner } from './harness.ts'
 import { createStoreCore } from '../server/crm/store/core.ts'
 import { createOrderRefunds } from '../server/crm/store/orders/refunds.ts'
 import { createOrderHooks } from '../server/crm/store/orders/index.ts'
-import { encryptJSON, encrypt } from '../server/crm/store/lib/crypto.ts'
+import { encryptJSON, encrypt } from '../server/core/crypto.ts'
 import { loadVertical } from '../server/core/vertical.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>

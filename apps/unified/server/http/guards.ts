@@ -54,6 +54,22 @@ export const SITE_CSP = [
   "form-action 'self'",
 ].join('; ')
 
+/**
+ * The booking pages framed on another website (/scripts/book-embed.js, ?embed=1): the site's policy, framed by any https
+ * page — the business's own other website, wherever it is. Only those pages; every other page stays framed by itself.
+ */
+export const EMBED_CSP = SITE_CSP.replace("frame-ancestors 'self'", "frame-ancestors 'self' https:")
+
+/**
+ * X-Frame-Options for browsers that don't read frame-ancestors: SAMEORIGIN, unless the page's own policy lets other
+ * sites frame it (the embed). Hono's secureHeaders set SAMEORIGIN on everything after the route had answered, so no
+ * page could ever be embedded — the premium site's DENY did the same, and its embed script never showed a booking.
+ */
+export const frameOptions: MiddlewareHandler = async (c, next) => {
+  await next()
+  if (!/frame-ancestors[^;]*https:/.test(c.res.headers.get('Content-Security-Policy') || '')) c.res.headers.set('X-Frame-Options', 'SAMEORIGIN')
+}
+
 /** The website's pages get the website's policy (unless a page set its own, like the Visualizer). */
 export const sitePolicy: MiddlewareHandler = async (c, next) => {
   await next()

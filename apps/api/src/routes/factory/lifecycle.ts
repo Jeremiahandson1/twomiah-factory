@@ -10,7 +10,7 @@ import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
 import { restartRefusal } from '../../services/subscriptionRestart'
 import { ownerFirstName } from '../../services/tenantOwner'
 import { registrantGaps } from '../../services/domainRegistrant'
-import { ourPremiumSiteOrigin } from '../../services/premiumSiteUrl'
+import { ourPremiumSiteOrigin, ourSiteOrigin, mayReturnTo } from '../../services/premiumSiteUrl'
 import { reconcileAliasesInBackground, ALIAS_TENANT_COLUMNS } from '../../services/emailAliasSync'
 import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
 
@@ -623,9 +623,9 @@ factory.get('/calendar/google/auth', async (c) => {
   const returnUrl = c.req.query('return') || ''
   if (!tenantId || !userId || !returnUrl) return c.json({ error: 'tenant, user, return are required' }, 400)
   // Verify tenant exists and the return URL points to it (anti-redirect-abuse)
-  const { data: tenant } = await supabase.from('tenants').select('id, website_url').eq('id', tenantId).single()
+  const { data: tenant } = await supabase.from('tenants').select('id, website_url, domain, engine, render_backend_url').eq('id', tenantId).single()
   if (!tenant) return c.json({ error: 'tenant not found' }, 404)
-  if (!returnUrl.startsWith(tenant.website_url || '') && !returnUrl.startsWith('http://localhost')) {
+  if (!mayReturnTo(tenant, returnUrl)) {
     return c.json({ error: 'return URL must point to your tenant site' }, 400)
   }
   const state = newOauthState({ tenantId, userId, returnUrl })
@@ -680,9 +680,9 @@ factory.get('/calendar/google/callback', async (c) => {
   } catch { /* non-fatal */ }
 
   // Forward tokens to the tenant
-  const { data: tenant } = await supabase.from('tenants').select('slug, website_url, domain, factory_sync_key').eq('id', entry.tenantId).single()
-  // The owner's calendar tokens + the tenant's key: only to a site we serve.
-  const site = tenant ? ourPremiumSiteOrigin(tenant) : null
+  const { data: tenant } = await supabase.from('tenants').select('slug, website_url, domain, engine, render_backend_url, factory_sync_key').eq('id', entry.tenantId).single()
+  // The owner's calendar tokens + the tenant's key: only to a site we serve — the premium site, or the unified service.
+  const site = tenant ? ourSiteOrigin(tenant) : null
   if (!site || !tenant?.factory_sync_key) {
     return c.html('<p>Tenant routing not configured.</p>', 502)
   }
@@ -817,9 +817,9 @@ factory.get('/calendar/outlook/auth', async (c) => {
   const userId = c.req.query('user')
   const returnUrl = c.req.query('return') || ''
   if (!tenantId || !userId || !returnUrl) return c.json({ error: 'tenant, user, return are required' }, 400)
-  const { data: tenant } = await supabase.from('tenants').select('id, website_url').eq('id', tenantId).single()
+  const { data: tenant } = await supabase.from('tenants').select('id, website_url, domain, engine, render_backend_url').eq('id', tenantId).single()
   if (!tenant) return c.json({ error: 'tenant not found' }, 404)
-  if (!returnUrl.startsWith(tenant.website_url || '') && !returnUrl.startsWith('http://localhost')) {
+  if (!mayReturnTo(tenant, returnUrl)) {
     return c.json({ error: 'return URL must point to your tenant site' }, 400)
   }
   const state = newOauthState({ tenantId, userId, returnUrl })
@@ -871,9 +871,9 @@ factory.get('/calendar/outlook/callback', async (c) => {
     if (ures.ok) { const ud: any = await ures.json(); externalEmail = ud.mail || ud.userPrincipalName || '' }
   } catch { /* non-fatal */ }
 
-  const { data: tenant } = await supabase.from('tenants').select('slug, website_url, domain, factory_sync_key').eq('id', entry.tenantId).single()
-  // The owner's calendar tokens + the tenant's key: only to a site we serve.
-  const site = tenant ? ourPremiumSiteOrigin(tenant) : null
+  const { data: tenant } = await supabase.from('tenants').select('slug, website_url, domain, engine, render_backend_url, factory_sync_key').eq('id', entry.tenantId).single()
+  // The owner's calendar tokens + the tenant's key: only to a site we serve — the premium site, or the unified service.
+  const site = tenant ? ourSiteOrigin(tenant) : null
   if (!site || !tenant?.factory_sync_key) {
     return c.html('<p>Tenant routing not configured.</p>', 502)
   }

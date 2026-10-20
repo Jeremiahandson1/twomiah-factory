@@ -37,19 +37,29 @@ export interface StripeServiceOptions {
    * (crm-restaurant) moves the event invoice's due date here; other verticals pass nothing.
    */
   afterInvoicePayment?: (invoiceId: string) => Promise<void>
+  /**
+   * The unified app keeps its bookings in its own engine (apps/unified/server/booking/engine.ts), not the CRMs'
+   * online_booking: a paid deposit is handed to it. 'refund' = the booking can't stand (its hold expired and the time
+   * was taken, or it was cancelled): the money goes back, then onBookingDepositRefunded records it. Absent: the CRMs'
+   * own online_booking path below, unchanged.
+   */
+  onBookingDeposit?: (p: { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }) => Promise<'done' | 'refund' | 'unknown'>
+  onBookingDepositRefunded?: (p: { bookingId: string; companyId: string | null; paymentIntentId: string }) => Promise<void>
 }
 
 export interface StripeServiceDeps {
   db: any
   tables: StripeTables
   options: StripeServiceOptions
+  /** A Stripe client in place of the one made from STRIPE_SECRET_KEY — tests only, so none calls Stripe itself. */
+  stripe?: Stripe | null
 }
 
 export function createStripeService(deps: StripeServiceDeps) {
   const { db, tables: { contact, invoice, payment, company }, options } = deps
   const afterInvoicePayment = options.afterInvoicePayment
 
-  const stripe = process.env.STRIPE_SECRET_KEY
+  const stripe = deps.stripe !== undefined ? deps.stripe : process.env.STRIPE_SECRET_KEY
     ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
     : null
 
@@ -347,6 +357,42 @@ export function createStripeService(deps: StripeServiceDeps) {
   }
 
   /**
+   * A booking deposit on Stripe's own payment page (Checkout), on the business's CONNECTED account only — the money
+   * is theirs, never the platform's: without a connected account there is no deposit (null) and the booking stands
+   * without one. The premium sites took it the same way (lib/stripe-deposit.ts), on whatever key the site had.
+   * payment_intent.succeeded carries booking_id (kind booking_deposit) back through the Connect forwarder.
+   */
+  async function createBookingDepositCheckout(params: {
+    bookingId: string
+    companyId: string
+    amount: number
+    customerEmail: string
+    description: string
+    successUrl: string
+    cancelUrl: string
+    /** When the page stops taking payment: Stripe allows 30 minutes to 24 hours from now. */
+    expiresAt: Date
+  }): Promise<{ url: string; sessionId: string; stripeAccount: string } | null> {
+    if (!stripe) return null
+    const stripeAccount = await connectedAccountFor(params.companyId)
+    if (!stripeAccount) return null
+    const metadata = { booking_id: params.bookingId, company_id: params.companyId, kind: 'booking_deposit' }
+    const min = Date.now() + 31 * 60_000, max = Date.now() + 23.5 * 3600_000
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer_email: params.customerEmail,
+      line_items: [{ quantity: 1, price_data: { currency: 'usd', unit_amount: Math.round(params.amount * 100), product_data: { name: params.description } } }],
+      payment_intent_data: { description: params.description, metadata },
+      metadata,
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      expires_at: Math.floor(Math.min(max, Math.max(min, params.expiresAt.getTime())) / 1000),
+    }, requestOpts(stripeAccount))
+    if (!session.url) return null
+    return { url: session.url, sessionId: session.id, stripeAccount }
+  }
+
+  /**
    * Save a card for a customer without charging it (agreement autopay
    * enrolment). Nothing stored a payment method before, which is why automatic
    * billing could not exist.
@@ -484,6 +530,24 @@ export function createStripeService(deps: StripeServiceDeps) {
    */
   async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent, stripeAccount: string | null = null) {
     const { invoice_id, booking_id } = paymentIntent.metadata
+
+    // The unified app's bookings: its engine decides; a refund it asks for is made here, on the right account.
+    if (booking_id && options.onBookingDeposit) {
+      const p = { bookingId: booking_id, companyId: paymentIntent.metadata.company_id || null, paymentIntentId: paymentIntent.id, amount: paymentIntent.amount / 100 }
+      const outcome = await options.onBookingDeposit(p)
+      if (outcome === 'refund') {
+        try {
+          await stripe!.refunds.create({ payment_intent: paymentIntent.id }, requestOpts(stripeAccount))
+        } catch (err: any) {
+          // a Stripe retry of this webhook finds it refunded already: that is success
+          if (!/already.*refund/i.test(err?.message || '')) throw err
+        }
+        await options.onBookingDepositRefunded?.(p)
+        console.log('[Stripe] Deposit for a booking that cannot stand — refunded:', booking_id, p.amount)
+        return { handled: true, booking_id, refunded: true }
+      }
+      return { handled: outcome !== 'unknown', booking_id }
+    }
 
     // Booking deposit: confirm the booking — with the late-payment guard.
     if (booking_id) {
@@ -811,6 +875,7 @@ export function createStripeService(deps: StripeServiceDeps) {
     getPublishableKey,
     // every named export is also reachable from the default import — routes call stripeService.<fn>()
     createBookingDepositIntent,
+    createBookingDepositCheckout,
     createSetupIntent,
     listSavedPaymentMethods,
     chargeInvoiceOffSession,

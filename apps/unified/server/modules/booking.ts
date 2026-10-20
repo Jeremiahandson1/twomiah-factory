@@ -16,6 +16,8 @@ import { createBookingWebhooks } from '../booking/webhooks.ts'
 import { createHappenings } from '../booking/happenings.ts'
 import { bookingTemplates } from '../booking/emails.ts'
 import { createPracticeBooking } from '../crm/vet/onlineBooking.ts'
+import { createCalendars, PROVIDERS, type Calendars, type Provider } from '../booking/calendars.ts'
+import type { BookingTexts } from '../booking/texts.ts'
 
 const FEATURE = 'online_booking'
 
@@ -38,20 +40,22 @@ const publicBooking = (b: BookingRow, engine: BookingEngine, cutoffOpen: boolean
   depositStatus: b.depositStatus, canChange: cutoffOpen,
 })
 
-export function createBookingModule(deps: { db: any; vertical: VerticalSettings; email: EmailService; logger: Logger; permissions: any; deposits?: DepositProvider; externalBusy?: Parameters<typeof createBookingEngine>[0]['externalBusy'] }) {
+export function createBookingModule(deps: { db: any; vertical: VerticalSettings; email: EmailService; logger: Logger; permissions: any; deposits?: DepositProvider; calendars?: Calendars; texts?: BookingTexts }) {
   const { db, email, logger, permissions } = deps
+  // People's own Google / Outlook calendars: their busy time, and their bookings put on them (booking/calendars.ts).
+  const calendars = deps.calendars ?? createCalendars({ db, logger })
   const may = permissions.requirePermission as (p: string) => any
   email.register(bookingTemplates)
   const webhooks = createBookingWebhooks({ db, logger })
-  const happen = createHappenings({ db, email, logger, webhooks })
+  const happen = createHappenings({ db, email, logger, webhooks, texts: deps.texts })
   const engine = createBookingEngine({
     // The vertical's answers (VerticalSettings.booking): whether the address is asked (basic, salon, vet, bar say no —
     // templates/crm-basic T42), and where a booking lands besides the list (the vet's practice book).
-    db, requireAddressDefault: deps.vertical.booking?.requireAddress ?? true, deposits: deps.deposits, externalBusy: deps.externalBusy,
+    db, requireAddressDefault: deps.vertical.booking?.requireAddress ?? true, deposits: deps.deposits, externalBusy: calendars.externalBusy,
     addOn: deps.vertical.booking?.calendar === 'practice' ? createPracticeBooking({ requirePet: deps.vertical.booking.requirePet === true }) : undefined,
-    onHappening: (h) => { void happen(h) },
+    onHappening: (h) => { void happen(h); void calendars.onHappening(h) },
   })
-  const extras = createBookingExtras({ db, engine, email, logger, webhooks })
+  const extras = createBookingExtras({ db, engine, email, logger, webhooks, texts: deps.texts })
 
   // ── The owner's API ───────────────────────────────────────────────────────
   const admin = new Hono<AppEnv>()
@@ -130,6 +134,19 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   admin.patch('/webhooks/:id', may('bookings:settings'), (c) => guard(c, async () => { const w = await extras.updateWebhook(co(c), c.req.param('id'), await body(c)); return w ? one(c, w) : fail(c, 404, 'Not found') }))
   admin.delete('/webhooks/:id', may('bookings:settings'), async (c) => (await extras.removeWebhook(co(c), c.req.param('id'))) ? done(c) : fail(c, 404, 'Not found'))
 
+  // A person's own calendar: linked through the Factory's sign-in, which comes back to the page it was started from.
+  admin.get('/calendar/connections', may('bookings:read'), async (c) => { const rows = await calendars.connectionsOf(c.get('user').userId); return list(c, rows, allOf(rows)) })
+  admin.get('/calendar/providers', may('bookings:read'), (c) => one(c, { providers: calendars.providers() }))
+  admin.get('/calendar/:provider/connect-url', may('bookings:read'), (c) => {
+    const provider = c.req.param('provider') as Provider
+    if (!PROVIDERS.includes(provider)) return fail(c, 404, 'Not found')
+    const host = c.req.header('Host') || ''
+    const proto = c.req.header('X-Forwarded-Proto') || (host.startsWith('localhost') ? 'http' : 'https')
+    const url = calendars.connectUrl(provider, c.get('user').userId, `${proto}://${host}/crm/bookings/settings`)
+    return url ? one(c, { url }) : fail(c, 503, 'Calendar linking isn\'t set up for this account yet — contact support.')
+  })
+  admin.delete('/calendar/connections/:id', may('bookings:read'), async (c) => (await calendars.disconnect(c.get('user').userId, c.req.param('id'))) ? done(c) : fail(c, 404, 'Not found'))
+
   admin.get('/customers', may('bookings:read'), async (c) => { const rows = await extras.customers(co(c)); return list(c, rows, allOf(rows)) })
   admin.get('/analytics', may('bookings:read'), async (c) => one(c, await extras.analytics(co(c), Math.min(365, Math.max(7, Number(c.req.query('days')) || 90)))))
 
@@ -151,7 +168,7 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     setTimeout(pass, 60_000)
     setInterval(pass, 60 * 60 * 1000)
   }
-  return { engine, extras, admin, pub, webhooks, runJobs, startJobs }
+  return { engine, extras, admin, pub, webhooks, runJobs, startJobs, calendars }
 }
 
 /** The mounts, once the public router has its company (one company per tenant database). */
@@ -219,10 +236,16 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
   })
 
   const jobs = new Hono().post('/', async (c) => one(c, await m.runJobs()))
+  // The Factory's calendar sign-in posts a person's tokens here (booking/calendars.ts storeTokens).
+  const calendarTokens = new Hono().post('/', async (c) => {
+    const r = await m.calendars.storeTokens(await body(c))
+    return 'error' in r ? fail(c, 400, r.error) : one(c, { connectionId: r.id })
+  })
 
   return [
     { path: '/api/booking', access: 'user', feature: FEATURE, router: m.admin },
     { path: '/api/book', access: 'public', feature: FEATURE, router: pub },
     { path: '/api/internal/booking-jobs', access: 'factory', router: jobs },
+    { path: '/api/internal/calendar/store-tokens', access: 'factory', router: calendarTokens },
   ]
 }
