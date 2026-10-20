@@ -4,7 +4,7 @@
 //   1. the registry entry is `hidden` and offered to NO template — so it is off the tenant's
 //      Settings › Features page (GET /api/company/features/catalog reads the registry), off every
 //      public/advertisable list, and never a default;
-//   2. no plan tier names it — v1 tiers push raw id lists straight into a new tenant;
+//   2. no template's starting extras name it, and no plan resolves to it;
 //   3. the Factory keeps no hand-typed feature catalogue that could list it (GET /api/factory/features was one,
 //      calling the Visualizer "Home Visualizer" and missing a third of the CRM; removed 2026-10-13);
 //   4. the Factory wizard does not offer it.
@@ -13,9 +13,9 @@
 //   bun scripts/check-parked-features.ts
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
+const ROOT = decodeURIComponent(new URL('../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const read = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
-const { FEATURE_REGISTRY, PLAN_TIERS, getAdvertisableFeatures, getFeaturesForPlan } = await import(pathToFileURL(ROOT + 'packages/tenant-backend/src/featureRegistry.ts').href)
+const { FEATURE_REGISTRY, DEFAULT_EXTRAS, getAdvertisableFeatures, getFeaturesForPlan, getDefaultFeaturesForTemplate } = await import(pathToFileURL(ROOT + 'packages/tenant-backend/src/featureRegistry.ts').href)
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
@@ -27,12 +27,11 @@ for (const id of PARKED) {
   if (!def) { fail(`${id} must stay in the registry so the gates that use it are known vocabulary`); continue }
   if (!def.hidden) fail(`${id} must be hidden: true — it is not ready to sell`)
   if (def.templates.length) fail(`${id} must be offered to no template (found: ${def.templates.join(', ')})`)
-  for (const [template, tiers] of Object.entries(PLAN_TIERS as Record<string, Record<string, string[]>>)) {
-    for (const [tier, ids] of Object.entries(tiers)) if (ids.includes(id)) fail(`${template} plan tier "${tier}" still seeds ${id}`)
-  }
+  for (const [template, ids] of Object.entries(DEFAULT_EXTRAS as Record<string, string[]>)) if (ids.includes(id)) fail(`${template}'s starting extras still seed ${id}`)
   if ((getAdvertisableFeatures() as any[]).some((f) => f.id === id)) fail(`${id} must not be advertisable`)
-  for (const template of Object.keys(PLAN_TIERS as Record<string, unknown>)) {
-    for (const plan of [...Object.keys((PLAN_TIERS as any)[template]), 'business50', 'team25', 'starter10', 'not-a-plan']) {
+  for (const template of [...new Set((FEATURE_REGISTRY as any[]).flatMap((f) => f.templates as string[]))]) {
+    if ((getDefaultFeaturesForTemplate(template) as string[]).includes(id)) fail(`${template} starts with ${id}`)
+    for (const plan of ['website', 'starter10', 'team25', 'business50', 'not-a-plan']) {
       if ((getFeaturesForPlan(template, plan) as string[]).includes(id)) fail(`${template}/${plan} resolves to a feature list containing ${id}`)
     }
   }
@@ -66,4 +65,4 @@ for (const t of ['crm-roof', 'crm-homecare']) {
 }
 
 if (failed) { console.error(`\nparked features: ${failed} check(s) FAILED`); process.exit(1) }
-console.log(`parked features: ${PARKED.join(', ')} — hidden, offered to no template, in no plan tier, in no Factory catalogue`)
+console.log(`parked features: ${PARKED.join(', ')} — hidden, offered to no template, in no plan or starting set, in no Factory catalogue`)

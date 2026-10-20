@@ -36,7 +36,7 @@ export type { AccountDeps } from './account'
 
 // The feature registry — the one feature vocabulary shared by the Factory and every tenant.
 export {
-  FEATURE_REGISTRY, FEATURE_MAP, PLAN_TIERS,
+  FEATURE_REGISTRY, FEATURE_MAP,
   getCategories, getFeaturesForTemplate, getDefaultFeaturesForTemplate,
   getAdvertisableFeatures, getAdvertisableFeaturesForTemplate, getFeaturesForPlan, withoutNotReady,
 } from './featureRegistry'

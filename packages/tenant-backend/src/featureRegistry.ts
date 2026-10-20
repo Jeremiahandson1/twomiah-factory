@@ -17,7 +17,7 @@ export type FeatureDef = {
   templates: string[] // which CRM templates support this feature: 'crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive'
   /**
    * If true, the feature is NOT READY: hidden from public surfaces (signup wizard, pricing pages, plan
-   * upsell, marketing copy) and never switched on — not by a plan tier, a signup, an owner's Settings ›
+   * upsell, marketing copy) and never switched on — not by a plan, a signup, an owner's Settings ›
    * Features, or the Factory's admin feature save. (Owner, 2026-10-09: "don't use projects that don't
    * work right yet.") check-not-ready-features.ts holds every one of those paths. Set to false to launch.
    */
@@ -157,7 +157,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Twomiah Ads — NOT ready (2026-09-17). The page, the routes and the connector all still exist in the templates
   // and every surface is gated on this id; the id stays in the vocabulary so those gates are not "unknown". Offered
   // to NO template and hidden, so it cannot be seeded by a plan, shown on a tenant's Features page, or picked in the
-  // Factory wizard. Put the templates back (and re-add it to the plan tiers below) when the service is ready.
+  // Factory wizard. Put the templates back when the service is ready.
   { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management — not yet available', category: 'Marketing', core: false, templates: [], hidden: true },
   { id: 'google_reviews', name: 'Review Requests', description: 'Automated review requests after a visit', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-bar'] },
   { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet', 'crm-bar'] },
@@ -263,7 +263,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'tech_mobile_view', name: 'Technician / Crew Mobile View', description: 'Mobile-first field view: today\'s jobs, directions, on my way / on site / done, photos and a checklist', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm'] },
   { id: 'commission_tracking', name: 'Commission Tracking', description: 'Commission plans for sales reps and crews: earned by hand or automatically when an invoice is paid, approved, paid out, with statements', category: 'Finance', core: false, templates: ['crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm'] },
 
-  // Construction pages that ship in crm and were already sold in the construction tier below
+  // Construction pages that ship in crm
   { id: 'lien_waivers', name: 'Lien Waivers', description: 'Conditional and unconditional lien waiver tracking per payment', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'draw_schedules', name: 'Draw Schedules', description: 'Construction-loan draw schedules and draw requests', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'aia_forms', name: 'AIA G702/G703 Billing', description: 'Application and certificate for payment with continuation sheet', category: 'Construction', core: false, templates: ['crm'] },
@@ -295,7 +295,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'soc2', name: 'SOC 2 Controls', description: 'Security controls dashboard and evidence log', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
 
   // Add-on Products
-  // Paid add-on — offered ONLY to contractor (crm) and roofer (crm-roof). Never a plan-tier freebie.
+  // Paid add-on — offered ONLY to contractor (crm) and roofer (crm-roof). Never included in a plan.
   { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-roof'] },
   // Instant Roof Estimator — NOT ready (2026-08-20). Its routes/pages still exist in crm and
   // crm-roof and every surface is gated on this id. Offered to NO template and hidden, so it can
@@ -345,31 +345,27 @@ export function getFeaturesForTemplate(template: string): FeatureDef[] {
  * That did not show while nothing was gated — every module answered regardless of the flag. Now that
  * the switches actually work, a brand-new roofer would sign up to a stripped product.
  *
- * The starter tier already curates exactly this: what someone on the entry plan is sold. So roof's
- * defaults are core ∪ starter. Other templates keep the deliberate core-only lean start; add one here
- * only when its core set genuinely cannot stand alone.
+ * So roof starts with what a roofer needs on day one — the board, crews, the lead inbox, the portal — listed in
+ * DEFAULT_EXTRAS below. Other templates keep the deliberate core-only lean start; add one there only when its core set
+ * genuinely cannot stand alone.
  */
-/** Which templates take their starter tier as the default. Read LAZILY — see below. */
-const DEFAULTS_FROM_STARTER = new Set(['crm-roof'])
 
 /**
- * The same gap, for a template with no starter tier to borrow from: non-core features its own core screens lean on.
- * crm-bar (Bar Run 1, 10/17): the register's "Add a regular" is the Regulars (loyalty_rewards); the tablet's PIN
- * clock writes punches that only Time (time_tracking) shows; and Reports is where its sales over a week or a month
- * are (pages/bar/SalesReport.tsx). A new Starter bar had all three off, and the owner found them under Features.
+ * Per template, the non-core features a new business starts with because its own core screens lean on them.
+ * crm-roof: see above. crm-bar (Bar Run 1, 10/17): the register's "Add a regular" is the Regulars (loyalty_rewards);
+ * the tablet's PIN clock writes punches that only Time (time_tracking) shows; and Reports is where its sales over a
+ * week or a month are (pages/bar/SalesReport.tsx). A new bar had all three off, and the owner found them under Features.
  */
-const DEFAULT_EXTRAS: Record<string, string[]> = {
+export const DEFAULT_EXTRAS: Record<string, string[]> = {
+  'crm-roof': ['contacts', 'pipeline_board', 'quotes', 'invoices', 'scheduling', 'dashboard', 'documents', 'client_portal', 'lead_inbox', 'crews'],
   'crm-bar': ['loyalty_rewards', 'time_tracking', 'reports'],
 }
 
 export function getDefaultFeaturesForTemplate(template: string): string[] {
   const core = FEATURE_REGISTRY.filter(f => f.core && f.templates.includes(template)).map(f => f.id)
-  // PLAN_TIERS is declared further down this file. `const` is not hoisted, so reading it at module
-  // scope here would throw at import time and take the whole tenant down at boot; it is read inside
-  // the function, where evaluation order is no longer a question.
-  const extraIds = [...(DEFAULTS_FROM_STARTER.has(template) ? (PLAN_TIERS[template]?.starter ?? []) : []), ...(DEFAULT_EXTRAS[template] ?? [])]
-  // and an id is only added if the template is actually OFFERED it — a tier listing something the
-  // template does not have would otherwise switch on a flag with nothing behind it
+  // an id is only added if the template is actually OFFERED it — a list naming something the template does not have
+  // would otherwise switch on a flag with nothing behind it
+  const extraIds = DEFAULT_EXTRAS[template] ?? []
   const offered = new Set(FEATURE_REGISTRY.filter(f => f.templates.includes(template)).map(f => f.id))
   return [...new Set([...core, ...extraIds.filter(id => offered.has(id))])]
 }
@@ -387,131 +383,12 @@ export function getAdvertisableFeaturesForTemplate(template: string): FeatureDef
   return FEATURE_REGISTRY.filter(f => f.templates.includes(template) && !f.hidden)
 }
 
-// Plan tier → feature IDs. Each tier includes all features from lower tiers.
-// Feature IDs MUST match what the sidebar checks in AppLayout.tsx.
-// Each tier is cumulative — includes all lower tier features.
-export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
-  crm: {
-    starter: [
-      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard',
-      'time_tracking', 'expense_tracking', 'documents', 'online_payments', 'client_portal',
-    ],
-    pro: [
-      'two_way_texting', 'gps_tracking', 'route_optimization', 'online_booking',
-      'google_reviews', 'pricebook', 'quickbooks', 'recurring_jobs',
-      'service_dispatch', 'drag_drop_calendar', 'lead_inbox',
-      'service_agreements', // agreements page
-      'tech_mobile_view',
-    ],
-    business: [
-      'inventory', 'equipment_tracking', 'fleet', 'warranties',
-      'multi_location', 'commission_tracking',
-      'email_marketing', 'call_tracking', 'consumer_financing',
-      'reports', 'job_costing', 'photo_capture', 'referral_program',
-      'ai_receptionist',
-    ],
-    construction: [
-      'projects', 'rfis', 'change_orders', 'punch_lists', 'daily_logs', 'inspections',
-      'bid_management', 'takeoff_tools', 'selections',
-      'submittals', 'lien_waivers', 'draw_schedules', 'aia_forms', 'gantt_charts',
-      'custom_dashboards', 'map_view',
-    ],
-    enterprise: [], // visualizer + instant_estimator removed — add-ons, not tier-bundled
-  },
-  'crm-fieldservice': {
-    starter: [
-      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard',
-      'time_tracking', 'online_payments', 'client_portal', 'documents',
-    ],
-    pro: [
-      'two_way_texting', 'gps_tracking', 'route_optimization', 'online_booking',
-      'google_reviews', 'pricebook', 'quickbooks', 'recurring_jobs',
-      'service_dispatch', 'drag_drop_calendar', 'lead_inbox',
-      'dispatch_board', 'flat_rate_pricebook', 'service_agreements',
-      'tech_mobile_view',
-    ],
-    business: [
-      'equipment_tracking', 'fleet', 'parts_tracking',
-      'maintenance_contracts', 'warranties', 'inventory',
-      'expense_tracking', 'reports', 'job_costing', 'photo_capture',
-      'call_tracking', 'email_marketing', 'referral_program',
-      'ai_receptionist',
-    ],
-    fleet: [
-      'multi_location', 'commission_tracking', 'map_view',
-    ],
-    enterprise: [], // visualizer not offered to fieldservice
-  },
-  'crm-landscaping': {
-    starter: [
-      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard',
-      'time_tracking', 'online_payments', 'client_portal', 'documents',
-    ],
-    pro: [
-      'two_way_texting', 'gps_tracking', 'recurring_jobs', 'drag_drop_calendar',
-      'service_dispatch', 'photo_capture', 'google_reviews',
-      'lead_inbox', 'online_booking', 'tech_mobile_view', 'recurring_routes',
-    ],
-    business: [
-      'route_optimization', 'job_costing', 'service_agreements', 'pricebook',
-      'quickbooks', 'expense_tracking', 'reports', 'map_view', 'area_pricing',
-    ],
-    fleet: [
-      'equipment_tracking', 'fleet', 'dispatch_board', 'multi_location',
-      'call_tracking', 'email_marketing', 'referral_program',
-      'ai_receptionist', 'snow_billing',
-    ],
-    enterprise: [],
-  },
-  'crm-roof': {
-    starter: [
-      'contacts', 'pipeline_board', 'quotes', 'invoices', 'scheduling', 'dashboard',
-      // 'documents' was promised here while roof mounted no route and rendered no page. It is wired
-      // up now — the same shared module five other templates use — so the plan keeps its promise.
-      'documents', 'client_portal', 'lead_inbox', 'crews',
-    ],
-    pro: [
-      // 'measurement_reports' (the roof report) taken out: it is hidden — not ready — and a plan must not
-      // switch on what the owner has said cannot be used yet. (Owner, 2026-10-09)
-      'pricebook', 'google_reviews',
-      'two_way_texting', 'quickbooks',
-    ],
-    business: [
-      // 'call_tracking' dropped: roof has the API but no call-tracking screen — the AI receptionist
-      // page is its only consumer, so the sellable surface is `ai_receptionist` (storm tier), and
-      // listing both sold the same thing twice under a name with nothing behind it.
-      'insurance_workflow', 'materials', 'reports',
-      'photo_capture', 'consumer_financing',
-    ],
-    storm: [
-      'storm_lead_gen', 'canvassing_tool', 'ai_receptionist',
-    ],
-    enterprise: [], // visualizer removed — paid add-on, not tier-bundled
-  },
-  'crm-homecare': {
-    starter: [
-      'contacts', 'invoices', 'scheduling', 'team', 'dashboard', 'time_tracking', 'documents',
-    ],
-    pro: [
-      'two_way_texting', 'lead_inbox', 'gps_tracking',
-    ],
-    business: [
-      'quickbooks', 'reports', 'call_tracking',
-    ],
-    agency: [
-      'ai_receptionist',
-    ],
-    enterprise: [],
-  },
-}
-
 /**
- * Pricing model v2 (2026-07) seat-tiered plans: every feature is included and
- * free to toggle — EXCEPT paid Add-on Products (Exterior Visualizer, Instant
- * Roof Estimator: off by default everywhere, sold separately) and features
- * still flagged hidden. The unknown-plan fallback shares this filter: v2 plans
- * used to miss the v1 tier map and fall into "give ALL features", which shipped
- * every fleet-QA tenant with the paid add-ons switched on.
+ * What a business may switch on: every feature its template offers — EXCEPT paid Add-on Products (Exterior Visualizer,
+ * Instant Roof Estimator: off by default everywhere, sold separately) and features still flagged hidden (not ready).
+ * Plans are priced by seats (website, starter10, team25, business50), never by features, so the plan does not change
+ * the list. The old feature-tier lists (starter/pro/business/construction/storm/enterprise) were the retired pricing and
+ * are gone (owner, 2026-10-19). An unknown plan name gets the same list: a typo must never switch on a paid add-on.
  */
 function includedByDefault(template: string): string[] {
   return getFeaturesForTemplate(template)
@@ -519,33 +396,7 @@ function includedByDefault(template: string): string[] {
     .map(f => f.id)
 }
 
-const V2_PLANS = new Set(['website', 'starter10', 'team25', 'business50'])
-
-/**
- * Get all feature IDs a plan tier unlocks for a given template.
- * Each v1 tier includes all lower-tier features (cumulative); v2 seat tiers
- * all resolve to everything-except-paid-add-ons.
- */
-export function getFeaturesForPlan(template: string, plan: string): string[] {
-  if (V2_PLANS.has(plan)) return includedByDefault(template)
-
-  const tiers = PLAN_TIERS[template]
-  if (!tiers) return includedByDefault(template)
-
-  const tierOrder = Object.keys(tiers)
-  const planIndex = tierOrder.indexOf(plan)
-
-  if (planIndex === -1) {
-    // Unknown plan — everything except paid add-ons / hidden. Never the raw
-    // full list: a plan-name typo must not silently enable paid add-ons.
-    return includedByDefault(template)
-  }
-
-  const features: string[] = []
-  for (let i = 0; i <= planIndex; i++) {
-    features.push(...tiers[tierOrder[i]])
-  }
-  // A tier never switches on what is not ready, whatever its list says — the same rule includedByDefault
-  // applies to the v2 plans. check-not-ready-features.ts keeps the lists clean too. (Owner, 2026-10-09)
-  return features.filter((id) => !FEATURE_MAP[id]?.hidden)
+/** Every plan: includedByDefault. The plan argument stays for the callers that pass one. */
+export function getFeaturesForPlan(template: string, _plan?: string): string[] {
+  return includedByDefault(template)
 }
