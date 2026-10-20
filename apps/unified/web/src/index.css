@@ -280,3 +280,12 @@ select, option { color: inherit; background-color: inherit; }
  * (bookings, commissions). Pinned to its container's top-left, it can't; screen readers read it the same.
  */
 .sr-only { left: 0; top: 0; }
+
+/* The map credit (Leaflet | © OpenStreetMap — required, so it has to be readable) on every Leaflet map: fleet, home
+   care's visit and history maps, roofing's pins. Leaflet draws it on 80% white with #0078A8 links over the tiles —
+   3.33:1 on the dark theme (live sweep, test tenant two). A solid ground and a link ink that read on it, in both
+   themes. `html` first: leaflet.css loads after this sheet, so the same selector alone would lose to it. */
+html .leaflet-container .leaflet-control-attribution { background: rgb(255 255 255 / 0.95); color: #334155; }
+html .leaflet-container .leaflet-control-attribution a { color: #0c4a6e; }
+html.dark .leaflet-container .leaflet-control-attribution { background: rgb(15 23 42 / 0.92); color: #cbd5e1; }
+html.dark .leaflet-container .leaflet-control-attribution a { color: #93c5fd; }
