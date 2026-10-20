@@ -2207,7 +2207,8 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
 
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('id, slug, products, website_url, domain, factory_sync_key, intake_data, engine')
+      // Every column: the build below reads the preview, the industry, the intake and the company's details.
+      .select('*')
       .eq('id', id)
       .maybeSingle()
     if (!tenant) return c.json({ error: 'Intake not found' }, 404)

@@ -398,8 +398,9 @@ async function handleDomainRegistration(opts: {
   console.log('[Domain] Processing registration:', domain, 'for tenant', tenantId, paymentIntent ? '(paid)' : '(operator, at cost)')
 
   const { data: tenant, error: tErr } = await supabase.from('tenants')
-    // engine: a unified tenant's domain points at its one service (unifiedDomainTargets).
-    .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, sendgrid_domain_auth_id, render_backend_url, products, website_url, engine')
+    // What this reads: the registrant (registrantGaps — name, contact, postal address), the services (render_backend_url;
+    // engine — unifiedDomainTargets), the address reconcile's (domain, products, website_url, key, zone).
+    .select('id, slug, name, email, admin_email, phone, address, city, state, zip, domain, products, website_url, factory_sync_key, cloudflare_zone_id, render_backend_url, engine')
     .eq('id', tenantId).single()
   if (tErr || !tenant) {
     console.error('[Domain] Tenant not found during registration:', tenantId)

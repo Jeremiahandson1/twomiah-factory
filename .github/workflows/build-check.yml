@@ -352,6 +352,17 @@ jobs:
       - name: every CRM mounts the read-back; the Factory reconciles on attach, buy, deploy, activation and hourly
         run: bun run scripts/check-email-alias-readback.ts
 
+  tenant-select-reads:
+    name: A Factory handler reads only the tenant columns it selected
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: every tenant.<column> read after a named select is in that select
+        run: bun run scripts/check-tenant-select-reads.ts
+
   premium-admin-nav-routes:
     name: Every premium admin sidebar item opens its page
     runs-on: ubuntu-latest
