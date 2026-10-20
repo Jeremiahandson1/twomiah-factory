@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import type { TasksApi, TasksPageProps } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
-import { useMayWrite } from '../auth/PermissionsContext';
+import { useMayWrite, useKnownPermission } from '../auth/PermissionsContext';
 
 // UTC-safe date formatting (carried from the templates' utils/date). Date-only values are stored as
 // UTC midnight; parsing the date part at LOCAL midnight avoids shifting viewers west of UTC a day back.
@@ -54,6 +54,7 @@ interface UserData {
   id: string;
   firstName: string;
   lastName: string;
+  isActive?: boolean;
 }
 
 interface ProjectData {
@@ -415,23 +416,30 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
   const [users, setUsers] = useState<UserData[]>([]);
   const [projects, setProjects] = useState<ProjectData[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
+  // A task is assigned to a person who signs in (tasks.assigned_to_id is a user's id), so the list is the company's
+  // sign-ins — GET /api/company/users (users:read or team:read). It was /api/team, the crew roster: its ids are not
+  // users' and its rows have no first/last name, so names showed blank and an assigned task reached nobody's "My
+  // tasks"; a staff seat (neither permission) was refused outright (live sweep, test tenant two, 2026-10-20). Without
+  // either permission the choice is "Myself"; asked only once the permission list has arrived.
+  const mayListPeople = useKnownPermission('users:read');
+  const mayListTeam = useKnownPermission('team:read');
+  const canList = mayListPeople === null || mayListTeam === null ? null : mayListPeople || mayListTeam;
 
   useEffect(() => {
-    loadOptions();
+    api.get('/api/projects?status=active&limit=100')
+      .then((r: unknown) => setProjects(((r as Record<string, unknown>).data || []) as ProjectData[]))
+      .catch(() => setProjects([]));
   }, []);
 
-  const loadOptions = async () => {
-    try {
-      const [usersRes, projectsRes] = await Promise.all([
-        api.get('/api/team'),
-        api.get('/api/projects?status=active&limit=100').catch(() => ({ data: [] })),
-      ]);
-      setUsers(((usersRes as Record<string, unknown>).data || usersRes || []) as UserData[]);
-      setProjects(((projectsRes as Record<string, unknown>).data || []) as ProjectData[]);
-    } catch (error: unknown) {
-      console.error('Failed to load options:', error);
-    }
-  };
+  useEffect(() => {
+    if (!canList) return;
+    api.get('/api/company/users')
+      .then((r: unknown) => {
+        const rows = (Array.isArray(r) ? r : ((r as Record<string, unknown>).data || [])) as UserData[];
+        setUsers(rows.filter((u) => u.isActive !== false));
+      })
+      .catch(() => setUsers([]));
+  }, [canList]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -527,6 +535,10 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                   {users.map((u: UserData) => (
                     <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
                   ))}
+                  {/* Someone the list doesn't hold (a staff seat sees no list): the task keeps them, named. */}
+                  {form.assignedToId && !users.some((u) => u.id === form.assignedToId) && (
+                    <option value={form.assignedToId}>{task?.assignedTo?.firstName || 'Someone else'}</option>
+                  )}
                 </select>
               </div>
               {/* Only offered where there is something to offer. A CRM with no projects — a clinic, a

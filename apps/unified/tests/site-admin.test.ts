@@ -36,6 +36,15 @@ describe('who may do what', () => {
     expect((await as('manager', '/api/site/settings', { method: 'PATCH', json: { tagline: 'x' } })).status).toBe(403)
     expect((await as('manager', '/api/site/pages/about', { method: 'DELETE' })).status).toBe(403)
   })
+
+  test('"Finish your site": a manager ticks an item off — only that tick changes; staff cannot', async () => {
+    await as('owner', '/api/site/settings', { method: 'PATCH', json: { contentGaps: [{ id: 'photos', label: 'Photos', unlocks: 'A gallery' }, { id: 'hours', label: 'Hours', unlocks: 'Opening times' }] } })
+    const r = await as('manager', '/api/site/content-gaps/photos/done', { method: 'POST' })
+    expect(r.status).toBe(200)
+    expect((await r.json()).contentGaps).toEqual([{ id: 'photos', label: 'Photos', unlocks: 'A gallery', done: true }, { id: 'hours', label: 'Hours', unlocks: 'Opening times' }])
+    expect((await as('manager', '/api/site/content-gaps/nonsense/done', { method: 'POST' })).status).toBe(404)
+    expect((await as('staff', '/api/site/content-gaps/hours/done', { method: 'POST' })).status).toBe(403)
+  })
 })
 
 describe('pages', () => {

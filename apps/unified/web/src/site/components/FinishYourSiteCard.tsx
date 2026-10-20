@@ -42,7 +42,8 @@ export function FinishYourSiteCard() {
     setGaps(next)
     setError(null)
     try {
-      await api.patch('/api/site/settings', { contentGaps: next })
+      // its own door: a manager edits content but not the site's settings
+      await api.post(`/api/site/content-gaps/${encodeURIComponent(id)}/done`, {})
     } catch (e: any) {
       setGaps(gaps)
       setError(e.message)

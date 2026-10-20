@@ -249,6 +249,21 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
     return one(c, updated)
   })
 
+  /**
+   * "Finish your site" (web/src/site/components/FinishYourSiteCard.tsx): ticking an item off is content work — whoever may
+   * edit the site's content may do it (a manager), without the site's settings (site:settings, owner and admin), which
+   * the checklist used to save through and a manager was refused (live sweep, 2026-10-20). Only that item's tick changes.
+   */
+  app.post('/content-gaps/:id/done', may('site:update'), async (c) => {
+    const row = await siteRow(c.get('user').companyId)
+    const gaps: any[] = Array.isArray(row.contentGaps) ? row.contentGaps : []
+    const id = c.req.param('id')
+    if (!gaps.some((g) => g?.id === id)) return fail(c, 404, 'No such item')
+    const contentGaps = gaps.map((g) => (g?.id === id ? { ...g, done: true } : g))
+    const [updated] = await db.update(website).set({ contentGaps, updatedAt: new Date() }).where(eq(website.id, row.id)).returning()
+    return one(c, { contentGaps: updated.contentGaps })
+  })
+
   // ── Photos (the website's library: public photos) ────────────────────────
   app.get('/photos', may('site:read'), async (c) => {
     const tag = c.req.query('tag')
