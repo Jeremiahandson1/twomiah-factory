@@ -14,10 +14,12 @@ import { composeSite } from '../../services/sectionComposer'
 import { parseIntakeFacts, type ContentGap } from '../../services/composerFacts'
 import { renderPremiumPage, pickPremiumTemplateDir, safeColor } from '../../services/premiumSiteRenderer'
 import { collectImageUrls, heroCreditsForUrls } from '../../config/heroLibrary'
+import { buildPremiumNav, premiumSitePages, premiumServiceAreas } from '../../services/premiumSitePages'
 import { composeInstant } from '../../services/instantComposer'
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../../services/unsplashPlus'
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
+import { engineForSignup, isUnifiedTenant } from '../../unified/factory'
 import { getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
 import { crmTemplateFor, deployProductsForVertical, verticalFor } from '../../config/industryRouting'
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
@@ -335,8 +337,14 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     const premiumSite = signupWebsiteEngine() === 'premium' && verticalFor(body.industry) !== 'store'
       && requestedProducts.some((x) => String(x).startsWith('website'))
     const signupProducts = premiumSite ? deployProductsForVertical(body.industry, requestedProducts) : requestedProducts
+    // Which engine builds this business — decided once, here, from UNIFIED_SIGNUPS (unified/factory.ts). Off (the
+    // default): 'templates', and this signup runs exactly as it always has. A unified tenant's site is composed now
+    // too, the same way, so its build seeds the site with it.
+    const engine = engineForSignup({ industry: body.industry, email: body.email, admin_email: body.admin_email })
+    const unifiedSite = engine === 'unified' && verticalFor(body.industry) !== 'store'
+      && requestedProducts.some((x) => String(x).startsWith('website'))
     let premiumPages: Record<string, any> | null = null
-    if (premiumSite) {
+    if (premiumSite || unifiedSite) {
       const site = composeInstant({
         businessName: body.name.trim(), businessType: body.industry || 'other',
         city: body.city || undefined, state: body.state || undefined,
@@ -385,6 +393,8 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       notes: notesWithTimezone(body.notes, signupZone),
       admin_password: body.admin_password || null,
       website_theme: body.website_theme || null,
+      // Only a unified signup names its engine; every other row takes the column's default ('templates').
+      ...(engine === 'unified' ? { engine } : {}),
     }
 
     let { data: tenant, error: insertErr } = await supabase.from('tenants').insert(tenantRecord).select().single()
@@ -392,7 +402,9 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // yet, retry without it so the code can ship ahead of the migration.
     if (insertErr && insertErr.code === '42703') {
       console.warn('[Signup] Unknown column on insert, retrying without billing_status:', insertErr.message)
-      const { billing_status: _, ...fallback } = tenantRecord
+      // engine too: a Factory DB without migrations/2026-10-20_tenants_engine.sql builds this business on the templates.
+      if (tenantRecord.engine) console.error('[Signup] tenants.engine is missing (run migrations/2026-10-20_tenants_engine.sql) — this signup takes the templates')
+      const { billing_status: _, engine: _engine, ...fallback } = tenantRecord
       const retry = await supabase.from('tenants').insert(fallback).select().single()
       tenant = retry.data
       insertErr = retry.error
@@ -463,6 +475,17 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
     // fires after checkout completes (webhook, or the race-resolution below).
     ;(async () => {
       try {
+       if (isUnifiedTenant(tenant)) {
+        // A unified tenant has no package to generate: its build is the unified app at the Factory's version
+        // (unified/factory.ts). The job is recorded all the same — the deploy's record, and the owner's name and
+        // chosen password (scrubbed once the business holds its hash), as for a template signup.
+        const { error: jobErr } = await supabase.from('factory_jobs').insert({
+          tenant_id: tenant.id, template: 'unified', deployment_model: body.deployment_model || 'saas', status: 'pending',
+          features: body.features || [], branding: genConfig.branding, config: genConfig,
+        })
+        if (jobErr) console.error('[Signup] Unified job insert error:', jobErr.message)
+        else console.log('[Signup] Unified tenant recorded for', tenant.slug, '— awaiting payment before deploy')
+       } else {
         console.log('[Signup] Auto-generating build for tenant:', tenant.id, tenant.slug)
         const genResult = await generate(genConfig)
         const storage = await uploadZip(genResult.zipPath, genResult.zipName)
@@ -489,6 +512,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
           }
         }
         console.log('[Signup] Build generated for', tenant.slug, '— awaiting payment before deploy')
+       }
 
         // Pay-then-deploy race resolution: the build must exist before we can
         // deploy, and payment can land on either side of generation. If the
@@ -1210,84 +1234,6 @@ const PREMIUM_PAGE_TITLES: Record<string, string> = {
   venue: 'The venue', vendors: 'Vendors',
 }
 
-// Nav labels per page slug. 'home' is omitted (it's the brand logo).
-// 'contact' is omitted because the header CTA points to /contact already
-// — including it in nav doubles up. Vertical-specific slugs get the
-// human-readable label for the food truck / dispensary / etc.
-const PREMIUM_PAGE_NAV_LABEL: Record<string, string> = {
-  // RV dealer + vet pages: in their recipes, but with no label they never reached the nav.
-  inventory: 'Inventory',
-  service: 'Service',
-  team: 'Our team',
-  menu: 'Menu',
-  // Bar pages: in BAR_PAGE_RECIPES, but with no label they never reached the nav.
-  taps: 'On tap',
-  events: 'Events',
-  parties: 'Private parties',
-  story: 'Our story',
-  shop: 'Shop',
-  guides: 'Guides',
-  services: 'Services',
-  schedule: 'Find us',
-  catering: 'Catering',
-  strains: 'Strains',
-  deals: 'Deals',
-  visit: 'Visit',
-  quote: 'Estimator',
-  storm: 'Storm damage',
-  projects: 'Projects',
-  packages: 'Packages',
-  'find-care': 'Find care',
-  caregivers: 'Caregivers',
-  coverage: 'Coverage',
-  emergency: 'Emergency',
-  pricing: 'Pricing',
-  reservations: 'Reservations',
-  'private-dining': 'Private dining',
-  // Salon / spa
-  stylists: 'Our team',
-  gallery: 'Gallery',
-  // Fitness
-  classes: 'Classes',
-  trainers: 'Trainers',
-  // Hotel
-  rooms: 'Rooms',
-  amenities: 'Amenities',
-  local: 'The area',
-  // Events / venue
-  venue: 'The venue',
-  vendors: 'Vendors',
-  'service-areas': 'Service areas',
-  about: 'About',
-}
-
-function buildPremiumNav(
-  pageSlugs: string[],
-  layoutMode: 'single-page' | 'multi-page' = 'multi-page',
-): Array<{ label: string; href: string }> {
-  // Stable per-vertical order: the thing they sell first (menu/services/
-  // strains), then secondary funnels (find us/catering/deals/visit), then
-  // about.
-  const order = ['emergency', 'inventory', 'menu', 'taps', 'events', 'parties', 'shop', 'guides', 'services', 'service', 'rooms', 'venue', 'find-care', 'classes', 'packages', 'quote', 'pricing', 'reservations', 'private-dining', 'strains', 'caregivers', 'coverage', 'projects', 'storm', 'schedule', 'amenities', 'local', 'vendors', 'stylists', 'team', 'trainers', 'catering', 'deals', 'gallery', 'visit', 'service-areas', 'story', 'about']
-  const present = new Set(pageSlugs)
-  const out: Array<{ label: string; href: string }> = []
-  for (const slug of order) {
-    if (present.has(slug) && PREMIUM_PAGE_NAV_LABEL[slug]) {
-      // Single-page verticals use anchor hrefs (#menu) so the renderer's
-      // path-prefix logic emits them as in-page links. Multi-page stays
-      // with route hrefs which get prefixed with the preview base path.
-      const href = layoutMode === 'single-page' ? '#' + slug : slug
-      out.push({ label: PREMIUM_PAGE_NAV_LABEL[slug], href })
-    }
-  }
-  // Single-page sites benefit from a "Contact" anchor link in nav since
-  // there's no separate /contact page to navigate to via the header CTA.
-  if (layoutMode === 'single-page' && present.has('contact')) {
-    out.push({ label: 'Contact', href: '#contact' })
-  }
-  return out
-}
-
 async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
   const { data: tenant } = await supabase
     .from('tenants')
@@ -1835,11 +1781,6 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     heldPages?: string[]
     contentGaps?: ContentGap[]
   }
-  const composedPages = composed.pages || {}
-  // Pages the facts check left with nothing real on them (no photos of the
-  // owner's work for /projects, …). Seeded so the owner can fill them in the
-  // admin, but unpublished and out of the nav until they do.
-  const heldPages = new Set(Array.isArray(composed.heldPages) ? composed.heldPages : [])
 
   // Uploaded brand assets. The generator writes an uploaded logo to
   // build/images/brand-logo.<ext> and an uploaded favicon to build/favicon.png;
@@ -1854,36 +1795,10 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     : null
   const uploadedFavicon = typeof jobBranding.favicon === 'string' && jobBranding.favicon.startsWith('data:')
 
-  // Page set is whatever the composer actually produced. Generic verticals
-  // get home/about/services/contact; food trucks get home/menu/about/
-  // schedule/catering/contact; future verticals will define their own.
-  // Falls back to the generic 4-page set when no composition exists yet
-  // (e.g. first boot before AI compose completes).
-  const PAGE_TITLE_BY_SLUG: Record<string, string> = {
-    home: 'Home', about: 'About', services: 'Services', contact: 'Contact',
-    menu: 'Menu', schedule: 'Find us', catering: 'Catering',
-  }
-  const FALLBACK_SLUGS = ['home', 'about', 'services', 'contact']
-  const composedSlugs = Object.keys(composedPages)
-  const slugs = composedSlugs.length > 0 ? composedSlugs : FALLBACK_SLUGS
-  const pages = slugs.map((slug, i) => ({
-    slug,
-    title: PAGE_TITLE_BY_SLUG[slug] || slug.charAt(0).toUpperCase() + slug.slice(1),
-    sections: composedPages[slug]?.sections || [],
-    navOrder: i,
-    isPublished: !heldPages.has(slug),
-  }))
+  // The composer's page set, held pages unpublished (services/premiumSitePages.ts — the unified build seeds the same list).
+  const pages = premiumSitePages(composed)
 
-  // Places the owner serves — their town + the intake's "areas you serve" — for the site's
-  // /service-areas pages. Only trades that go to the customer, and only when the owner named more
-  // than their own town (one area is just the home page again). Owner-supplied names only.
-  const SERVICE_AREA_VERTICALS = new Set(['contractor', 'roofing', 'landscaping', 'fieldservice', 'homecare', 'basic'])
-  const intakeIn = ((tenant as any).intake_data?.intake || {}) as { nearbyCities?: unknown }
-  const nearby = (Array.isArray(intakeIn.nearbyCities) ? intakeIn.nearbyCities : []).map((v) => String(v || '').trim()).filter(Boolean)
-  const homeArea = [tenant.city, tenant.state].filter(Boolean).join(', ')
-  const serviceAreas = SERVICE_AREA_VERTICALS.has(verticalFor(tenant.industry)) && nearby.length
-    ? [...new Set([homeArea, ...nearby].filter(Boolean))].slice(0, 24)
-    : []
+  const serviceAreas = premiumServiceAreas(tenant)
 
   // Standard CMS-defaults for a fresh tenant. The composer doesn't
   // currently emit settings — we synthesize them from the tenant row.

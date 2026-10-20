@@ -479,3 +479,13 @@ alter table tenants add column if not exists health_checked_at timestamptz;
 alter table tenants add column if not exists health_detail jsonb;
 alter table tenants add column if not exists health_alerted_at timestamptz;
 create index if not exists idx_tenants_health_status on tenants(health_status);
+
+-- Which engine a tenant runs (migrations/2026-10-20_tenants_engine.sql): 'templates' (the per-vertical template
+-- services) or 'unified' (apps/unified, apps/api/src/unified/factory.ts). Set once at signup from UNIFIED_SIGNUPS.
+alter table tenants add column if not exists engine text not null default 'templates';
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'tenants_engine_check') then
+    alter table tenants add constraint tenants_engine_check check (engine in ('templates', 'unified'));
+  end if;
+end $$;

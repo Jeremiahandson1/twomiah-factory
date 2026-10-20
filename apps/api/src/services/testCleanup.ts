@@ -10,10 +10,14 @@
  */
 import { supabase } from '../middleware/auth'
 import { S3Client, ListBucketsCommand, ListObjectsV2Command, DeleteObjectsCommand, DeleteBucketCommand } from '@aws-sdk/client-s3'
-import { deleteZone } from './cloudflare'
+import { deleteZone, detachTwomiahSubdomain } from './cloudflare'
 import { deleteDomainAuth as deleteSendGridAuth } from './sendgrid'
 import factoryStripe from './factoryStripe'
 import { BAR_INDUSTRIES } from '../config/industryRouting'
+import { loadOwnedResources, ownsServiceDirectly, ownsRepo, type OwnedResources } from './resourceOwnership'
+import { unifiedNames } from '../unified/names'
+import { teardownUnifiedTenant } from '../unified/teardown'
+import { createHosts, hostConfigFromEnv, type Hosts } from '../unified/hosts'
 
 const RENDER_API = 'https://api.render.com/v1'
 function renderHeaders() {
@@ -189,7 +193,56 @@ async function deleteTenantR2Buckets(slug: string): Promise<{ deleted: string[];
   return out
 }
 
-export async function hardDeleteTestTenant(tenantId: string): Promise<CleanupResult> {
+/**
+ * A unified tenant's own service, repo and database server (unified/names.ts), removed through teardownUnifiedTenant —
+ * each ONLY when the Factory recorded it as this tenant's (services/resourceOwnership.ts): a recorded id, the service at
+ * the tenant's stored URL, the repo that service is built from, the database at tenants.database_url. Never the
+ * templates' guessed names. Anything else with the name is left and reported. Records that cannot be read, or hosts
+ * that cannot be asked, delete nothing.
+ */
+export async function teardownUnifiedTestTenant(
+  tenant: { id: string; slug: string },
+  deps: { loadOwned?: (tenantId: string) => Promise<OwnedResources>; hosts?: Hosts } = {},
+): Promise<CleanupStep[]> {
+  const steps: CleanupStep[] = []
+  let names
+  try { names = unifiedNames(tenant.slug) } catch (e: any) { return [{ step: 'unified_teardown', status: 'error', detail: e.message }] }
+  let owned: OwnedResources
+  try { owned = await (deps.loadOwned || loadOwnedResources)(tenant.id) } catch (e: any) {
+    return [{ step: 'unified_teardown', status: 'error', detail: "the records of what is this tenant's could not be read (" + e.message + ') — nothing was deleted' }]
+  }
+  let hosts: Hosts
+  try { hosts = deps.hosts || createHosts(hostConfigFromEnv(), (url, init) => fetch(url, init)) } catch (e: any) {
+    return [{ step: 'unified_teardown', status: 'error', detail: e.message + ' — nothing was deleted' }]
+  }
+  const repo = hosts.repoFullName(names.repo)
+  let service: any, db: any, repoThere: boolean
+  try {
+    service = await hosts.findService(names.service)
+    db = await hosts.findDatabase(names.database)
+    repoThere = !!(await hosts.getRepo(repo))
+  } catch (e: any) {
+    return [{ step: 'unified_teardown', status: 'error', detail: 'could not look the names up (' + e.message + ') — nothing was deleted' }]
+  }
+  const known = service ? [service] : []
+  const mineService = !!service && ownsServiceDirectly(owned, service)
+  const r = await teardownUnifiedTenant(
+    { tenantId: tenant.id, repo: repoThere ? repo : null, serviceId: service?.id ?? null, databaseId: db?.id ?? null },
+    {
+      serviceIds: new Set([...owned.serviceIds, ...(mineService ? [service.id] : [])]),
+      repos: new Set(ownsRepo(owned, repo, known) ? [...owned.repos, repo.toLowerCase()] : owned.repos),
+      databaseIds: owned.databaseIds,
+    },
+    { hosts, push: async () => { throw new Error('a teardown pushes nothing') }, sleep: async () => {} },
+  )
+  for (const x of r.removed) steps.push({ step: 'unified_removed', status: 'ok', detail: x })
+  for (const x of r.left) steps.push({ step: 'unified_left', status: 'warning', detail: x })
+  for (const x of r.errors) steps.push({ step: 'unified_error', status: 'error', detail: x })
+  if (!service && !db && !repoThere) steps.push({ step: 'unified_teardown', status: 'skipped', detail: `no ${names.service} service, ${names.database} database or ${repo} repo` })
+  return steps
+}
+
+export async function hardDeleteTestTenant(tenantId: string, deps: Parameters<typeof teardownUnifiedTestTenant>[1] = {}): Promise<CleanupResult> {
   const steps: CleanupStep[] = []
   // maybeSingle(), not single(): a tenant that's already gone (e.g. swept by the
   // orphan-cleanup cron, or a double-clicked teardown) returns 0 rows. single()
@@ -230,58 +283,68 @@ export async function hardDeleteTestTenant(tenantId: string): Promise<CleanupRes
     steps.push({ step: 'stripe_cancel', status: 'skipped', detail: 'no subscription' })
   }
 
-  // ─── 2) Render services (web + api, with vertical suffix variants) ──
-  const serviceNames = deriveServiceNames(slug, tenant.industry)
-  let serviceDeletedCount = 0
-  let serviceTryCount = 0
-  for (const name of serviceNames) {
-    const result = await deleteRenderServiceByName(name)
-    serviceTryCount++
-    if (result.deleted) serviceDeletedCount++
-  }
-  steps.push({
-    step: 'render_services',
-    status: serviceDeletedCount > 0 ? 'ok' : 'skipped',
-    detail: `${serviceDeletedCount}/${serviceTryCount} candidate names deleted`,
-  })
-
-  // ─── 3) Render Postgres (vertical-suffix DB + premium site DB) ────
-  const dbCandidates = new Set<string>([slug + '-db', slug + '-site-db'])
-  for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive', '-rv', '-vet', '-salon', '-bar', '-events', '-shop', '-basic']) {
-    dbCandidates.add(slug + s + '-db')
-  }
-  let dbDeleted = 0
-  for (const name of dbCandidates) {
-    const r = await deleteRenderPostgresByName(name)
-    if (r.deleted) dbDeleted++
-  }
-  steps.push({
-    step: 'render_postgres',
-    status: dbDeleted > 0 ? 'ok' : 'skipped',
-    detail: `${dbDeleted} database(s) deleted`,
-  })
-
-  // ─── 3.5) GitHub repo ────────────────────────────────────────────────
-  // Deleting the Render services leaves the repo behind, and a private repo
-  // per throwaway tenant piles up quietly. deploy.ts names it <GITHUB_ORG>/<slug>;
-  // tenants.github_repo holds the full name when the deploy recorded it.
-  const repoFullName = tenant.github_repo
-    || (process.env.GITHUB_ORG ? process.env.GITHUB_ORG + '/' + slug : null)
-  if (repoFullName) {
-    try {
-      const { deleteGitHubRepo } = await import('./deploy')
-      const deleted = await deleteGitHubRepo(repoFullName)
-      steps.push({
-        step: 'github_repo',
-        // Already gone is a fine outcome for an idempotent teardown.
-        status: deleted === false ? 'warning' : 'ok',
-        detail: repoFullName + (deleted === false ? ' (not deleted — check the token has delete_repo scope)' : ''),
-      })
-    } catch (e: any) {
-      steps.push({ step: 'github_repo', status: 'warning', detail: repoFullName + ': ' + e.message })
-    }
+  // A unified tenant (tenants.engine = 'unified'): its own service, repo and database server, owned-only — never the
+  // templates' guessed names below. Its records are kept when a delete fails, so a retry can still prove what is its own.
+  const unified = tenant.engine === 'unified'
+  let keepRecords = false
+  if (unified) {
+    const unifiedSteps = await teardownUnifiedTestTenant({ id: tenantId, slug }, deps)
+    steps.push(...unifiedSteps)
+    keepRecords = unifiedSteps.some((x) => x.status === 'error')
   } else {
-    steps.push({ step: 'github_repo', status: 'skipped', detail: 'no repo name and no GITHUB_ORG' })
+    // ─── 2) Render services (web + api, with vertical suffix variants) ──
+    const serviceNames = deriveServiceNames(slug, tenant.industry)
+    let serviceDeletedCount = 0
+    let serviceTryCount = 0
+    for (const name of serviceNames) {
+      const result = await deleteRenderServiceByName(name)
+      serviceTryCount++
+      if (result.deleted) serviceDeletedCount++
+    }
+    steps.push({
+      step: 'render_services',
+      status: serviceDeletedCount > 0 ? 'ok' : 'skipped',
+      detail: `${serviceDeletedCount}/${serviceTryCount} candidate names deleted`,
+    })
+
+    // ─── 3) Render Postgres (vertical-suffix DB + premium site DB) ────
+    const dbCandidates = new Set<string>([slug + '-db', slug + '-site-db'])
+    for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive', '-rv', '-vet', '-salon', '-bar', '-events', '-shop', '-basic']) {
+      dbCandidates.add(slug + s + '-db')
+    }
+    let dbDeleted = 0
+    for (const name of dbCandidates) {
+      const r = await deleteRenderPostgresByName(name)
+      if (r.deleted) dbDeleted++
+    }
+    steps.push({
+      step: 'render_postgres',
+      status: dbDeleted > 0 ? 'ok' : 'skipped',
+      detail: `${dbDeleted} database(s) deleted`,
+    })
+
+    // ─── 3.5) GitHub repo ────────────────────────────────────────────────
+    // Deleting the Render services leaves the repo behind, and a private repo
+    // per throwaway tenant piles up quietly. deploy.ts names it <GITHUB_ORG>/<slug>;
+    // tenants.github_repo holds the full name when the deploy recorded it.
+    const repoFullName = tenant.github_repo
+      || (process.env.GITHUB_ORG ? process.env.GITHUB_ORG + '/' + slug : null)
+    if (repoFullName) {
+      try {
+        const { deleteGitHubRepo } = await import('./deploy')
+        const deleted = await deleteGitHubRepo(repoFullName)
+        steps.push({
+          step: 'github_repo',
+          // Already gone is a fine outcome for an idempotent teardown.
+          status: deleted === false ? 'warning' : 'ok',
+          detail: repoFullName + (deleted === false ? ' (not deleted — check the token has delete_repo scope)' : ''),
+        })
+      } catch (e: any) {
+        steps.push({ step: 'github_repo', status: 'warning', detail: repoFullName + ': ' + e.message })
+      }
+    } else {
+      steps.push({ step: 'github_repo', status: 'skipped', detail: 'no repo name and no GITHUB_ORG' })
+    }
   }
 
   // ─── 3.6) R2 bucket ──────────────────────────────────────────────────
@@ -324,6 +387,21 @@ export async function hardDeleteTestTenant(tenantId: string): Promise<CleanupRes
     }
   } else {
     steps.push({ step: 'sendgrid_domain_auth', status: 'skipped', detail: 'no domain auth' })
+  }
+
+  // ─── 5.5) The <slug>.twomiah.app record (a no-op when that zone is not configured) ──
+  if (unified) {
+    try {
+      await detachTwomiahSubdomain(slug)
+      steps.push({ step: 'twomiah_subdomain', status: 'ok' })
+    } catch (e: any) {
+      steps.push({ step: 'twomiah_subdomain', status: 'warning', detail: e.message })
+    }
+  }
+
+  if (keepRecords) {
+    steps.push({ step: 'records_kept', status: 'skipped', detail: "the job and tenant rows are kept: they are the proof of what is this tenant's, for the retry" })
+    return { tenantId, slug, steps, success: false }
   }
 
   // ─── 6) factory_jobs rows for this tenant ────────────────────────────

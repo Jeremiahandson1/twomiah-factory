@@ -398,7 +398,8 @@ async function handleDomainRegistration(opts: {
   console.log('[Domain] Processing registration:', domain, 'for tenant', tenantId, paymentIntent ? '(paid)' : '(operator, at cost)')
 
   const { data: tenant, error: tErr } = await supabase.from('tenants')
-    .select('id, slug, name, email, admin_email, phone, address, city, state, zip, factory_sync_key, website_url, render_backend_url, cloudflare_zone_id, products')
+    // '*': the engine column too, when the Factory DB has it (a unified tenant's domain points at its one service).
+    .select('*')
     .eq('id', tenantId).single()
   if (tErr || !tenant) {
     console.error('[Domain] Tenant not found during registration:', tenantId)
@@ -470,6 +471,8 @@ async function handleDomainRegistration(opts: {
       backendSlug: renderSlug(tenant.render_backend_url),
       adminEmailForDmarc: tenant.admin_email || tenant.email || undefined,
       existingCloudflareZoneId: tenant.cloudflare_zone_id || undefined,
+      // A unified tenant: @, www and app at its one service (null for a template tenant — nothing changes there).
+      ...(await (await import('../../services/deploy')).unifiedDomainTargets(tenant)),
     })
     if (wire.cloudflareZoneId) {
       await supabase.from('tenants').update({ cloudflare_zone_id: wire.cloudflareZoneId }).eq('id', tenantId)

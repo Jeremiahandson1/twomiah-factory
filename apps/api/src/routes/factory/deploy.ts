@@ -10,9 +10,12 @@ import fs from 'fs'
 import path from 'path'
 import { getProductDefaults } from '../../config/pricing'
 import { hardDeleteTestTenant, cleanupOrphanTestTenants } from '../../services/testCleanup'
-import { ourPremiumSiteOrigin } from '../../services/premiumSiteUrl'
+import { ourSiteOrigin } from '../../services/premiumSiteUrl'
 import { reconcileAliasesInBackground } from '../../services/emailAliasSync'
 import { type FactoryApp, UUID_RE, checkCronSecret, secureEquals, logTenantAudit } from './shared'
+// A tenant whose tenants.engine is 'unified' (set once at signup from UNIFIED_SIGNUPS) is built and updated by
+// unified/factory.ts; every other tenant takes the template paths below, unchanged.
+import { isUnifiedTenant, deployUnifiedTenant, updateUnifiedTenantCode } from '../../unified/factory'
 
 export function registerDeployRoutes(factory: FactoryApp) {
 factory.post('/customers/:id/deploy', requireRole('owner', 'admin'), async (c) => {
@@ -143,8 +146,11 @@ factory.get('/customers/:id/deploy/stream', async (c) => {
 factory.post('/customers/:id/flip-to-crm', requireRole('owner', 'admin'), async (c) => {
   const tenantId = c.req.param('id')
   if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-  const { data: tenant } = await supabase.from('tenants').select('id, slug, products, industry').eq('id', tenantId).maybeSingle()
+  // '*': the engine column is read when the Factory DB has it.
+  const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).maybeSingle()
   if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+  // A unified tenant's one app already is its CRM.
+  if (isUnifiedTenant(tenant)) return c.json({ error: 'Tenant already has a CRM (it runs the unified app)' }, 409)
   const products: string[] = tenant.products || []
   if (!products.some((p: string) => p === 'website' || p.startsWith('website'))) return c.json({ error: 'Tenant has no website to flip' }, 400)
   if (products.some((p: string) => p === 'crm' || p.startsWith('crm-'))) return c.json({ error: 'Tenant already has a CRM' }, 409)
@@ -202,6 +208,8 @@ factory.post('/customers/:id/update-code', requireRole('owner', 'admin'), async 
 
   const { data: tenant } = await supabase.from('tenants').select('*').eq('id', id).single()
   if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+  // A unified tenant: the unified app at this Factory's version, its missing settings added first.
+  if (isUnifiedTenant(tenant)) return c.json(await updateUnifiedTenantCode(tenant.id))
 
   const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
 
@@ -337,6 +345,17 @@ factory.post('/customers/:id/regenerate', requireRole('owner', 'admin', 'editor'
     const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
     if (!job) return c.json({ error: 'No previous build found. Generate a package first.' }, 400)
 
+    // A unified tenant has no package to generate: it is built again from this Factory's version (deployUnifiedTenant).
+    if (isUnifiedTenant(tenant)) {
+      if (!isConfigured()) return c.json({ error: 'Deploy not configured', missing: getMissingConfig() }, 400)
+      const { data: active } = await supabase.from('factory_jobs').select('id').eq('tenant_id', tenantId).eq('status', 'deploying')
+      if (active?.length) return c.json({ error: 'A deployment is already in progress for this tenant' }, 409)
+      const { error: deployStatusErr } = await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', job.id)
+      if (deployStatusErr) return c.json({ error: 'Failed to update job status' }, 500)
+      runDeploy(tenant, job).catch(err => console.error('[Deploy] Background error:', err.message))
+      return c.json({ success: true, message: 'Building again and deploying' })
+    }
+
     const config: GenerateConfig = job.config || buildConfigFromTenantAndJob(tenant, job)
 
     console.log('[Factory] Regenerating for', tenant.slug)
@@ -400,6 +419,11 @@ factory.post('/customers/:id/resync-shared-code', requireRole('owner', 'admin'),
 
     const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
     if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
+    // A unified tenant has no vendored shared code: its whole app is one version, so this is its Update Code.
+    if (isUnifiedTenant(tenant)) {
+      const r = await updateUnifiedTenantCode(tenant.id)
+      return c.json({ success: r.success, steps: r.steps, errors: r.errors })
+    }
 
     const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
     if (!job) return c.json({ error: 'No previous build found for this tenant.' }, 400)
@@ -458,6 +482,22 @@ function buildConfigFromTenantAndJob(tenant: any, job: any): GenerateConfig {
 }
 
 export async function runDeploy(tenant: any, job: any, options: { region?: string; plan?: string; dbPlan?: string } = {}) {
+  // A unified tenant is built by unified/factory.ts — every step below has its equivalent there. Every caller of
+  // runDeploy (the deploy button, regenerate, triggerAutoDeploy: the Stripe webhook, the comp promo, signup's race)
+  // passes through here, so this is the one branch they need.
+  if (isUnifiedTenant(tenant)) {
+    try {
+      const r = await deployUnifiedTenant(tenant.id)
+      if (!r.success) console.error('[Deploy] Unified build failed for', tenant.slug, ':', r.errors.join('; '))
+    } catch (err: any) {
+      // Only reached when the build could not start at all (its settings unreadable): marked failed, staff told.
+      console.error('[Deploy] Unified build could not start for', tenant.slug, ':', err?.message)
+      await supabase.from('factory_jobs').update({ status: 'failed' }).eq('id', job.id)
+      await supabase.from('tenants').update({ status: 'deploy_failed' }).eq('id', tenant.id)
+      notifyDeployFailed(tenant, err?.message || String(err)).catch(() => {})
+    }
+    return
+  }
   // Fire a "still working" email if the deploy hasn't completed in 15 minutes.
   // Cleared on every exit path so we never double-send.
   const stillWorkingTimer = setTimeout(() => {
@@ -849,7 +889,8 @@ export async function triggerAutoDeploy(tenantId: string) {
   // tenant's photo library via /api/internal/seed-photos so the photos
   // survive past the 30-day signed-URL window.
   runDeploy(tenant, job, {}).then(
-    () => seedIntakePhotosIfPremium(tenantId).catch((e) =>
+    // A unified tenant's build seeds its photos itself, once provisioned (unified/factory.ts).
+    () => (isUnifiedTenant(tenant) ? Promise.resolve() : seedIntakePhotosIfPremium(tenantId)).catch((e) =>
       console.warn('[AutoDeploy] Post-deploy seed-photos call failed for', tenant.slug, ':', e?.message || e)
     ),
     (err) => {
@@ -864,18 +905,21 @@ export async function triggerAutoDeploy(tenantId: string) {
 // new tenant's /api/internal/seed-photos endpoint so they're copied to
 // the tenant's own R2 bucket. Skips non-premium tenants — standard
 // tenants don't have this endpoint.
-async function seedIntakePhotosIfPremium(tenantId: string): Promise<void> {
+export async function seedIntakePhotosIfPremium(tenantId: string): Promise<void> {
+  // '*': the row's engine column is read when it exists (a Factory DB without the 2026-10-20 migration has none).
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, slug, products, website_url, domain, factory_sync_key, intake_data')
+    .select('*')
     .eq('id', tenantId)
     .single()
   if (!tenant) return
   const products: string[] = Array.isArray(tenant.products) ? tenant.products : []
-  if (!products.includes('website-premium')) return
+  // A unified tenant's one service has the photo library (POST /api/internal/seed-photos) whenever it has a website.
+  const unified = isUnifiedTenant(tenant)
+  if (unified ? !products.some((p) => String(p).startsWith('website')) : !products.includes('website-premium')) return
   // The site's own address. This read render_frontend_url, which is the CRM's (or nothing on a
   // site-only deploy) — so intake photos never reached a premium site's library.
-  const site = ourPremiumSiteOrigin(tenant)
+  const site = ourSiteOrigin(tenant)
   if (!site) {
     console.warn('[SeedPhotos] No deployed site address for', tenant.slug, '— skipping')
     return

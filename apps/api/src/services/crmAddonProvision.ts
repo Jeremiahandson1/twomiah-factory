@@ -64,6 +64,12 @@ async function doProvision(tenantId: string): Promise<{ success: boolean; crmUrl
   const { data: tenant, error: tErr } = await supabase.from('tenants').select('*').eq('id', tenantId).maybeSingle()
   if (tErr || !tenant) throw new Error('Tenant lookup failed: ' + (tErr?.message || 'not found'))
 
+  // A unified tenant's one service already is its CRM (apps/unified): there is nothing to add, and no premium site to
+  // ask for the owner's credentials.
+  if (tenant.engine === 'unified') {
+    console.log('[CrmAddon]', tenant.slug, 'is a unified tenant — its app already has the CRM')
+    return { success: true }
+  }
   if (!tenant.products?.includes('website-premium')) {
     throw new Error('Tenant does not have website-premium — CRM add-on is a premium-only upgrade path')
   }

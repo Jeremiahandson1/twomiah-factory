@@ -39,8 +39,12 @@ export interface BuildInput {
   vertical: string
   /** The body of the tenant's POST /api/internal/provision (apps/unified/server/modules/provision.ts). */
   provision: Record<string, unknown>
-  /** The Factory's integration settings for this tenant (Twilio, email, maps…), computed by the caller. */
-  integrationEnv?: EnvVar[]
+  /**
+   * The Factory's integration settings for this tenant (Twilio, email, maps…), computed by the caller — or computed from
+   * the service's address, for the settings that carry it (QuickBooks' return address), since a new service's address is
+   * Render's to give.
+   */
+  integrationEnv?: EnvVar[] | ((serviceUrl: string) => EnvVar[])
   /** The Factory's own address, for the tenant's calls back. */
   factoryUrl: string
   /** What this tenant already owns; a rebuild finds its own repo, service and database here. */
@@ -62,6 +66,8 @@ export interface BuildResult {
     serviceId: string
     serviceUrl: string
     databaseId: string
+    /** The service's DATABASE_URL (Render's internal address), recorded as tenants.database_url as for a template tenant. */
+    databaseUrl: string
     commit: string
     version: string
     factorySyncKey: string
@@ -109,12 +115,20 @@ export async function waitForCommit(hosts: Hosts, sleep: (ms: number) => Promise
   return { ok: false, seen }
 }
 
-/** Waits until Render says the database is available; its last status otherwise. */
-async function waitForDatabase(hosts: Hosts, sleep: (ms: number) => Promise<void>, id: string, waitMs: number): Promise<{ ok: boolean; status: string }> {
+/**
+ * Waits until Render says the database is available; its last status otherwise. A suspended database (Render's
+ * `suspended` field, which can read 'suspended' while `status` still reads 'available') is not usable and is never
+ * waited on — the same rule as services/resourceOwnership.ts databaseUsable, so the build stops and says so instead of
+ * booting the tenant on a database that does not answer.
+ */
+export async function waitForDatabase(hosts: Hosts, sleep: (ms: number) => Promise<void>, id: string, waitMs: number): Promise<{ ok: boolean; status: string }> {
   const every = 10_000
   let status = 'unknown'
   for (let waited = 0; waited <= waitMs; waited += every) {
-    status = String((await hosts.getDatabase(id))?.status || 'unknown')
+    const db = await hosts.getDatabase(id)
+    status = String(db?.status || 'unknown')
+    const suspended = db?.suspended !== undefined && db?.suspended !== null && db.suspended !== 'not_suspended'
+    if (suspended) return { ok: false, status: 'suspended (' + String(db.suspended) + ')' }
     if (status === 'available') return { ok: true, status }
     if (/suspend|fail|error/i.test(status)) return { ok: false, status }
     await sleep(every)
@@ -163,8 +177,9 @@ export async function buildUnifiedTenant(input: BuildInput, io: BuildIo): Promis
   // 3. The code and the service. A service that exists gets this build's commands and settings BEFORE the push, so
   // the deploy the push starts is the only one and carries them; a new service is made after it, from the pushed code.
   const dir = path.join(os.tmpdir(), `unified-${input.tenant.slug}-${Date.now()}`)
+  const integrationFor = (serviceUrl: string) => typeof input.integrationEnv === 'function' ? input.integrationEnv(serviceUrl) : input.integrationEnv
   const envFor = (serviceUrl: string, now: Record<string, string>) =>
-    tenantEnv({ tenantId: input.tenant.id, vertical: input.vertical, databaseUrl, serviceUrl, factoryUrl: input.factoryUrl, integrationEnv: input.integrationEnv }, now)
+    tenantEnv({ tenantId: input.tenant.id, vertical: input.vertical, databaseUrl, serviceUrl, factoryUrl: input.factoryUrl, integrationEnv: integrationFor(serviceUrl) }, now)
   let commit: string
   let serviceId = '', serviceUrl = '', factorySyncKey = ''
   try {
@@ -194,8 +209,12 @@ export async function buildUnifiedTenant(input: BuildInput, io: BuildIo): Promis
       const made = await hosts.createService({ name: names.service, repoFullName, envVars: env.set })
       serviceId = made.id; serviceUrl = made.url; factorySyncKey = env.factorySyncKey
       if (made.url !== guessUrl) {
-        // Its own address differs: corrected, and deployed again so the service runs with it.
-        await hosts.setEnv(serviceId, envFor(made.url, Object.fromEntries(env.set.map((v) => [v.key, v.value]))).set)
+        // Its own address differs: corrected, and deployed again so the service runs with it — the integration settings
+        // that carry the address too (they were given the guess, and tenantEnv never overwrites an integration setting).
+        const guessed = new Map((integrationFor(guessUrl) || []).map((v) => [v.key, v.value]))
+        const moved = (integrationFor(made.url) || []).filter((v) => guessed.get(v.key) !== v.value)
+        const fixed = envFor(made.url, Object.fromEntries(env.set.map((v) => [v.key, v.value]))).set
+        await hosts.setEnv(serviceId, [...fixed, ...moved.filter((v) => !fixed.some((f) => f.key === v.key))])
         await hosts.deploy(serviceId)
       }
       steps.push({ step: 'service', status: 'ok', detail: 'made ' + names.service + ' at ' + serviceUrl })
@@ -206,7 +225,7 @@ export async function buildUnifiedTenant(input: BuildInput, io: BuildIo): Promis
     fs.rmSync(dir, { recursive: true, force: true })
   }
 
-  const record = { repo: repoFullName, serviceId, serviceUrl, databaseId, commit, version: input.version, factorySyncKey }
+  const record = { repo: repoFullName, serviceId, serviceUrl, databaseId, databaseUrl, commit, version: input.version, factorySyncKey }
 
   // 4. Live: the commit just pushed answers (not merely a deploy called live).
   const live = await waitForCommit(hosts, io.sleep, serviceUrl, commit, waitMs)

@@ -21,6 +21,7 @@ import {
   CRM_API_SUFFIXES, emptyOwnership, loadOwnedResources, ownsService, ownsRepo, ownsDatabase, databaseUsable,
   type OwnedResources,
 } from './resourceOwnership'
+import { unifiedNames } from '../unified/names'
 
 const RENDER_API = 'https://api.render.com/v1'
 const GITHUB_API = 'https://api.github.com'
@@ -99,7 +100,7 @@ export function crmBackendStartCommand(): string {
  * existing endpoint for this URL is deleted and recreated — its old secret
  * is unrecoverable and would silently fail verification forever.
  */
-async function ensureStripeWebhookEndpoint(secretKey: string, webhookUrl: string): Promise<{ secret?: string; endpointId?: string; error?: string }> {
+export async function ensureStripeWebhookEndpoint(secretKey: string, webhookUrl: string): Promise<{ secret?: string; endpointId?: string; error?: string }> {
   const sh = (path: string, init?: RequestInit) => fetchWithTimeout('https://api.stripe.com/v1' + path, {
     ...init,
     headers: { Authorization: 'Bearer ' + secretKey, ...(init?.body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}) },
@@ -177,7 +178,7 @@ function cloudflareHeaders(): Record<string, string> {
   }
 }
 
-function isR2Configured(): boolean {
+export function isR2Configured(): boolean {
   // Bucket creation now uses the R2 S3 API (CreateBucket) with the R2 access
   // key/secret, so the Cloudflare REST API token is NOT required for R2 anymore.
   // (R2 API "S3 tokens" can't be used as REST Bearer tokens; the S3 creds can.)
@@ -524,7 +525,7 @@ async function createR2Bucket(slug: string): Promise<string> {
 }
 
 /** `created: false` when the bucket already existed — a deploy's rollback must not delete a bucket it did not make. */
-async function createR2BucketReport(slug: string): Promise<{ bucketName: string; created: boolean }> {
+export async function createR2BucketReport(slug: string): Promise<{ bucketName: string; created: boolean }> {
   const accountId = process.env.R2_ACCOUNT_ID!
   const bucketName = slug + '-media'
 
@@ -568,7 +569,7 @@ async function deleteR2Bucket(bucketName: string): Promise<void> {
 }
 
 /** Returns the R2 env vars to inject into a deployed Render service */
-function getR2EnvVars(bucketName: string): Array<{ key: string; value: string }> {
+export function getR2EnvVars(bucketName: string): Array<{ key: string; value: string }> {
   const accountId = process.env.R2_ACCOUNT_ID!
   return [
     { key: 'R2_ACCOUNT_ID', value: accountId },
@@ -1073,6 +1074,121 @@ export interface DeployResult {
   blocked?: string[]
 }
 
+// ─── A CRM's Factory-side settings ────────────────────────────────────────────
+// Each piece of a CRM backend's environment that comes from the Factory, as deployCustomer assembles it — exported so
+// the unified build (apps/api/src/unified/factory.ts) gives a unified tenant exactly the same values, from this code.
+
+/**
+ * The integration keys: the tenant's own (config.integrations) where it gave one, else the Factory's shared key.
+ * Pattern: tenant-provided key wins; fall back to a shared factory key when set.
+ * Stripe is intentionally NOT fallback'd — tenant Stripe collects payments from
+ * the tenant's customers into the tenant's bank. Factory Stripe bills the tenant
+ * their $599/mo. Mixing them would route customer payments to us.
+ */
+export async function tenantIntegrationEnv(tenantId: string, integrations: any): Promise<Array<{ key: string; value: string }>> {
+  const integrationEnvVars: Array<{ key: string; value: string }> = []
+  const twilioSid = integrations?.twilio?.accountSid || process.env.TWOMIAH_TWILIO_ACCOUNT_SID || ''
+  const twilioToken = integrations?.twilio?.authToken || process.env.TWOMIAH_TWILIO_AUTH_TOKEN || ''
+  const twilioPhone = integrations?.twilio?.phoneNumber || process.env.TWOMIAH_TWILIO_PHONE || ''
+  if (twilioSid) integrationEnvVars.push({ key: 'TWILIO_ACCOUNT_SID', value: twilioSid })
+  if (twilioToken) integrationEnvVars.push({ key: 'TWILIO_AUTH_TOKEN', value: twilioToken })
+  if (twilioPhone) integrationEnvVars.push({ key: 'TWILIO_PHONE_NUMBER', value: twilioPhone })
+
+  // A2P 10DLC: once this tenant's own brand + campaign are approved, route SMS
+  // through their registered Messaging Service (a compliant 10DLC sender)
+  // instead of a bare from-number. Only injected when approved, so it's a
+  // harmless no-op for tenants without A2P set up. NOTE: activating this end
+  // to end still needs the CRM send path to prefer TWILIO_MESSAGING_SERVICE_SID
+  // over TWILIO_PHONE_NUMBER — a separate per-CRM pass (it changes send behavior).
+  try {
+    const { supabase } = await import('../middleware/auth')
+    const { data: a2pRow } = await supabase.from('tenants')
+      .select('a2p_status, a2p_messaging_service_sid')
+      .eq('id', tenantId).single()
+    if (a2pRow?.a2p_status === 'approved' && a2pRow.a2p_messaging_service_sid) {
+      integrationEnvVars.push({ key: 'TWILIO_MESSAGING_SERVICE_SID', value: a2pRow.a2p_messaging_service_sid })
+    }
+  } catch (e: any) {
+    console.warn('[Deploy] A2P messaging-service lookup skipped:', e?.message || e)
+  }
+  const resendKey = resendKeyFor(integrations)
+  if (resendKey) integrationEnvVars.push({ key: 'RESEND_API_KEY', value: resendKey })
+  if (integrations?.stripe?.secretKey) {
+    integrationEnvVars.push({ key: 'STRIPE_SECRET_KEY', value: integrations.stripe.secretKey })
+    if (integrations.stripe.publishableKey) integrationEnvVars.push({ key: 'STRIPE_PUBLISHABLE_KEY', value: integrations.stripe.publishableKey })
+    if (integrations.stripe.webhookSecret) integrationEnvVars.push({ key: 'STRIPE_WEBHOOK_SECRET', value: integrations.stripe.webhookSecret })
+  }
+  const googleMapsKey = integrations?.googleMaps?.apiKey || process.env.TWOMIAH_GOOGLE_MAPS_KEY || ''
+  if (googleMapsKey) integrationEnvVars.push({ key: 'GOOGLE_MAPS_API_KEY', value: googleMapsKey })
+  if (integrations?.sentry?.dsn) integrationEnvVars.push({ key: 'SENTRY_DSN', value: integrations.sentry.dsn })
+  // Read by the CRMs' email services; it used to reach them only through the committed .env.
+  if (integrations?.sendgrid?.apiKey?.trim()) integrationEnvVars.push({ key: 'SENDGRID_API_KEY', value: integrations.sendgrid.apiKey.trim() })
+  // Roof estimator: Nearmap high-res imagery + SAM 2 AI segmentation (shared factory keys)
+  const nearmapKey = integrations?.nearmap?.apiKey || process.env.TWOMIAH_NEARMAP_KEY || ''
+  if (nearmapKey) integrationEnvVars.push({ key: 'NEARMAP_API_KEY', value: nearmapKey })
+  const replicateToken = integrations?.replicate?.apiToken || process.env.TWOMIAH_REPLICATE_TOKEN || ''
+  if (replicateToken) integrationEnvVars.push({ key: 'REPLICATE_API_TOKEN', value: replicateToken })
+  return integrationEnvVars
+}
+
+/** The Resend key: the tenant's own, else the Factory's (the CRM and the premium site both get it). */
+export function resendKeyFor(integrations: any): string {
+  return integrations?.resendKey || process.env.TWOMIAH_RESEND_API_KEY || process.env.RESEND_API_KEY || ''
+}
+
+/** The shared Exterior Visualizer's address. */
+export function visionServiceUrl(): string {
+  return process.env.TWOMIAH_VISION_URL || 'https://home-visualizer.onrender.com'
+}
+
+/** The plan's package and seat cap. */
+export function crmPlanEnv(tenantPlan: string): Array<{ key: string; value: string }> {
+  return [
+    { key: 'FEATURE_PACKAGE', value: tenantPlan },
+    // Seat cap for this plan. Emitted ONLY when the plan maps to a known
+    // seat count (see config/planSeats.ts); an unmapped or legacy plan
+    // leaves SEAT_LIMIT unset, and the CRM then enforces no cap rather
+    // than guessing a number and locking a paying customer out.
+    ...(seatsForPlan(tenantPlan) ? [{ key: 'SEAT_LIMIT', value: String(seatsForPlan(tenantPlan)) }] : []),
+  ]
+}
+
+/** Google OAuth client — lets the CRM refresh GBP/calendar tokens itself. */
+export function googleOAuthEnv(): Array<{ key: string; value: string }> {
+  return process.env.GOOGLE_CALENDAR_CLIENT_ID && process.env.GOOGLE_CALENDAR_CLIENT_SECRET ? [
+    { key: 'GOOGLE_CALENDAR_CLIENT_ID', value: process.env.GOOGLE_CALENDAR_CLIENT_ID },
+    { key: 'GOOGLE_CALENDAR_CLIENT_SECRET', value: process.env.GOOGLE_CALENDAR_CLIENT_SECRET },
+  ] : []
+}
+
+/** The visualizer, the ads page, the sending identity and Claude. */
+export function crmServiceEnv(opts: { hasVisualizer: boolean; name?: string; ownerEmail: string; domain: string }): Array<{ key: string; value: string }> {
+  const out: Array<{ key: string; value: string }> = []
+  if (opts.hasVisualizer) {
+    out.push({ key: 'VISION_URL', value: visionServiceUrl() })
+  }
+  // Always include ADS_URL so the ads page works from first deploy
+  out.push({ key: 'ADS_URL', value: process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com' })
+  // Sending identity. Without this the CRM falls back to
+  // noreply@<their domain>, which the mail provider rejects until that
+  // domain is verified — so nothing the CRM sent ever left the building.
+  // Send from our verified domain and let replies go to the owner.
+  {
+    const ownerEmail = opts.ownerEmail
+    const tenantDomain = (opts.domain || '').replace(/^https?:\/\//, '').replace(/\/$/, '')
+    const verifiedSender = process.env.FACTORY_FROM_EMAIL || ''
+    const fromEmail = process.env.TENANT_VERIFY_OWN_DOMAIN === 'true' && tenantDomain
+      ? 'noreply@' + tenantDomain
+      : verifiedSender
+    if (fromEmail) out.push({ key: 'FROM_EMAIL', value: fromEmail })
+    if (opts.name) out.push({ key: 'FROM_NAME', value: opts.name })
+    if (ownerEmail) out.push({ key: 'REPLY_TO_EMAIL', value: ownerEmail })
+  }
+  // AI features in the CRM (AI Reports, AI support) call Claude directly.
+  if (process.env.ANTHROPIC_API_KEY) out.push({ key: 'ANTHROPIC_API_KEY', value: process.env.ANTHROPIC_API_KEY })
+  return out
+}
+
 export async function deployCustomer(
   factoryCustomer: {
     id: string; slug: string; name?: string; industry?: string
@@ -1334,54 +1450,15 @@ export async function deployCustomer(
     // Stripe is intentionally NOT fallback'd — tenant Stripe collects payments from
     // the tenant's customers into the tenant's bank. Factory Stripe bills the tenant
     // their $599/mo. Mixing them would route customer payments to us.
-    const integrationEnvVars: Array<{ key: string; value: string }> = []
+    // (tenantIntegrationEnv, above — the unified build gives its tenants the same list.)
     const integrations = factoryCustomer.config?.integrations
-    const twilioSid = integrations?.twilio?.accountSid || process.env.TWOMIAH_TWILIO_ACCOUNT_SID || ''
-    const twilioToken = integrations?.twilio?.authToken || process.env.TWOMIAH_TWILIO_AUTH_TOKEN || ''
-    const twilioPhone = integrations?.twilio?.phoneNumber || process.env.TWOMIAH_TWILIO_PHONE || ''
-    if (twilioSid) integrationEnvVars.push({ key: 'TWILIO_ACCOUNT_SID', value: twilioSid })
-    if (twilioToken) integrationEnvVars.push({ key: 'TWILIO_AUTH_TOKEN', value: twilioToken })
-    if (twilioPhone) integrationEnvVars.push({ key: 'TWILIO_PHONE_NUMBER', value: twilioPhone })
-
-    // A2P 10DLC: once this tenant's own brand + campaign are approved, route SMS
-    // through their registered Messaging Service (a compliant 10DLC sender)
-    // instead of a bare from-number. Only injected when approved, so it's a
-    // harmless no-op for tenants without A2P set up. NOTE: activating this end
-    // to end still needs the CRM send path to prefer TWILIO_MESSAGING_SERVICE_SID
-    // over TWILIO_PHONE_NUMBER — a separate per-CRM pass (it changes send behavior).
-    try {
-      const { supabase } = await import('../middleware/auth')
-      const { data: a2pRow } = await supabase.from('tenants')
-        .select('a2p_status, a2p_messaging_service_sid')
-        .eq('id', factoryCustomer.id).single()
-      if (a2pRow?.a2p_status === 'approved' && a2pRow.a2p_messaging_service_sid) {
-        integrationEnvVars.push({ key: 'TWILIO_MESSAGING_SERVICE_SID', value: a2pRow.a2p_messaging_service_sid })
-      }
-    } catch (e: any) {
-      console.warn('[Deploy] A2P messaging-service lookup skipped:', e?.message || e)
-    }
-    const resendKey = integrations?.resendKey || process.env.TWOMIAH_RESEND_API_KEY || process.env.RESEND_API_KEY || ''
-    if (resendKey) integrationEnvVars.push({ key: 'RESEND_API_KEY', value: resendKey })
-    if (integrations?.stripe?.secretKey) {
-      integrationEnvVars.push({ key: 'STRIPE_SECRET_KEY', value: integrations.stripe.secretKey })
-      if (integrations.stripe.publishableKey) integrationEnvVars.push({ key: 'STRIPE_PUBLISHABLE_KEY', value: integrations.stripe.publishableKey })
-      if (integrations.stripe.webhookSecret) integrationEnvVars.push({ key: 'STRIPE_WEBHOOK_SECRET', value: integrations.stripe.webhookSecret })
-    }
-    const googleMapsKey = integrations?.googleMaps?.apiKey || process.env.TWOMIAH_GOOGLE_MAPS_KEY || ''
-    if (googleMapsKey) integrationEnvVars.push({ key: 'GOOGLE_MAPS_API_KEY', value: googleMapsKey })
-    if (integrations?.sentry?.dsn) integrationEnvVars.push({ key: 'SENTRY_DSN', value: integrations.sentry.dsn })
-    // Read by the CRMs' email services; it used to reach them only through the committed .env.
-    if (integrations?.sendgrid?.apiKey?.trim()) integrationEnvVars.push({ key: 'SENDGRID_API_KEY', value: integrations.sendgrid.apiKey.trim() })
-    // Roof estimator: Nearmap high-res imagery + SAM 2 AI segmentation (shared factory keys)
-    const nearmapKey = integrations?.nearmap?.apiKey || process.env.TWOMIAH_NEARMAP_KEY || ''
-    if (nearmapKey) integrationEnvVars.push({ key: 'NEARMAP_API_KEY', value: nearmapKey })
-    const replicateToken = integrations?.replicate?.apiToken || process.env.TWOMIAH_REPLICATE_TOKEN || ''
-    if (replicateToken) integrationEnvVars.push({ key: 'REPLICATE_API_TOKEN', value: replicateToken })
+    const integrationEnvVars = await tenantIntegrationEnv(factoryCustomer.id, integrations)
+    const resendKey = resendKeyFor(integrations) // the premium site's too (below)
 
     // Pre-compute visualizer flag so we can include VISION_URL in initial env vars for both CRM and website
     // Visualizer/estimator are contractor/roofing-only add-ons — never for a store.
     const hasVisualizerFeature = !isStore && (products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer'))
-    const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://home-visualizer.onrender.com'
+    const sharedVisionUrl = visionServiceUrl()
 
     // Step 5 & 6: CRM backend + frontend
     if (products.some(p => p === 'crm' || p.startsWith('crm-'))) {
@@ -1393,45 +1470,20 @@ export async function deployCustomer(
           { key: 'JWT_REFRESH_SECRET', value: jwtRefreshSecret },
           { key: 'ENCRYPTION_KEY', value: encryptionKey },
           { key: 'PORT', value: '10000' },
-          { key: 'FEATURE_PACKAGE', value: tenantPlan },
-          // Seat cap for this plan. Emitted ONLY when the plan maps to a known
-          // seat count (see config/planSeats.ts); an unmapped or legacy plan
-          // leaves SEAT_LIMIT unset, and the CRM then enforces no cap rather
-          // than guessing a number and locking a paying customer out.
-          ...(seatsForPlan(tenantPlan) ? [{ key: 'SEAT_LIMIT', value: String(seatsForPlan(tenantPlan)) }] : []),
+          ...crmPlanEnv(tenantPlan),
           { key: 'FACTORY_SYNC_KEY', value: factorySyncKey },
           { key: 'TENANT_ID', value: factoryCustomer.id },
           { key: 'FACTORY_URL', value: process.env.TWOMIAH_FACTORY_URL || process.env.FACTORY_PUBLIC_URL || 'https://twomiah-factory.onrender.com' },
-          // Google OAuth client — lets the CRM refresh GBP/calendar tokens itself.
-          ...(process.env.GOOGLE_CALENDAR_CLIENT_ID && process.env.GOOGLE_CALENDAR_CLIENT_SECRET ? [
-            { key: 'GOOGLE_CALENDAR_CLIENT_ID', value: process.env.GOOGLE_CALENDAR_CLIENT_ID },
-            { key: 'GOOGLE_CALENDAR_CLIENT_SECRET', value: process.env.GOOGLE_CALENDAR_CLIENT_SECRET },
-          ] : []),
+          ...googleOAuthEnv(),
           ...integrationEnvVars,
           ...r2EnvVars,
         ]
-        if (hasVisualizerFeature) {
-          backendEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
-        }
-        // Always include ADS_URL so the ads page works from first deploy
-        backendEnvVars.push({ key: 'ADS_URL', value: process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com' })
-        // Sending identity. Without this the CRM falls back to
-        // noreply@<their domain>, which the mail provider rejects until that
-        // domain is verified — so nothing the CRM sent ever left the building.
-        // Send from our verified domain and let replies go to the owner.
-        {
-          const ownerEmail = (factoryCustomer as any)?.config?.company?.email || (factoryCustomer as any)?.email || ''
-          const tenantDomain = ((factoryCustomer as any)?.config?.company?.domain || '').replace(/^https?:\/\//, '').replace(/\/$/, '')
-          const verifiedSender = process.env.FACTORY_FROM_EMAIL || ''
-          const fromEmail = process.env.TENANT_VERIFY_OWN_DOMAIN === 'true' && tenantDomain
-            ? 'noreply@' + tenantDomain
-            : verifiedSender
-          if (fromEmail) backendEnvVars.push({ key: 'FROM_EMAIL', value: fromEmail })
-          if (factoryCustomer.name) backendEnvVars.push({ key: 'FROM_NAME', value: factoryCustomer.name })
-          if (ownerEmail) backendEnvVars.push({ key: 'REPLY_TO_EMAIL', value: ownerEmail })
-        }
-        // AI features in the CRM (AI Reports, AI support) call Claude directly.
-        if (process.env.ANTHROPIC_API_KEY) backendEnvVars.push({ key: 'ANTHROPIC_API_KEY', value: process.env.ANTHROPIC_API_KEY })
+        backendEnvVars.push(...crmServiceEnv({
+          hasVisualizer: hasVisualizerFeature,
+          name: factoryCustomer.name,
+          ownerEmail: (factoryCustomer as any)?.config?.company?.email || (factoryCustomer as any)?.email || '',
+          domain: (factoryCustomer as any)?.config?.company?.domain || '',
+        }))
         // If this tenant has a premium website, the CRM SchedulePage
         // pulls bookings from it. URL is predictable from the slug.
         if (products.includes('website-premium')) {
@@ -2257,14 +2309,58 @@ export async function updateCustomerCode(
 export { CRM_API_SUFFIXES }
 
 /**
+ * Every Render web service and static site, paged. A page that cannot be read THROWS: for the unified lookup "could not
+ * tell" must never read as "no service" (a domain would be wired to nothing).
+ */
+async function listRenderWebServices(): Promise<any[]> {
+  const out: any[] = []
+  let cursor = ''
+  for (let page = 0; page < 50; page++) {
+    const res = await fetchWithTimeout(RENDER_API + '/services?type=web_service,static_site&limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''), { headers: renderHeaders() })
+    if (!res.ok) throw new Error('Render service list answered ' + res.status)
+    const batch = await res.json() as any[]
+    if (!Array.isArray(batch)) throw new Error('Render service list answered no list')
+    for (const item of batch) out.push(item.service || item)
+    cursor = batch[batch.length - 1]?.cursor || ''
+    if (!cursor || batch.length < 100) return out
+  }
+  throw new Error('Render service list did not end')
+}
+
+/**
+ * A unified tenant's one service: the one at its stored URL (tenants.render_backend_url, the Factory's record), else the
+ * one named exactly `<slug>-app` (unified/names.ts). Null when there is none; throws when Render cannot be read.
+ */
+async function findUnifiedService(slug: string, backendUrl?: string | null): Promise<any | null> {
+  const hostOf = (u?: string | null) => (u || '').replace(/^https?:\/\//, '').split('/')[0].toLowerCase()
+  const wantHost = hostOf(backendUrl)
+  let want = ''
+  try { want = unifiedNames(slug).service } catch { /* not a slug the unified build accepts: no service of its own */ }
+  let byName: any = null, byUrl: any = null
+  for (const svc of await listRenderWebServices()) {
+    if (wantHost && hostOf(svc.serviceDetails?.url) === wantHost) byUrl = svc
+    if (want && svc.name === want) byName = svc
+  }
+  return byUrl || byName
+}
+
+/**
  * The tenant's Render services, by role. `backendUrl` (tenants.render_backend_url) names the backend exactly — preferred,
  * because names can collide across tenants ("acme" + "-roof-api" is also tenant "acme-roof" + "-api"). Without it, the
- * backend is found by CRM_API_SUFFIXES.
+ * backend is found by CRM_API_SUFFIXES. A unified tenant (`engine: 'unified'`) is looked up by its own name instead, and
+ * there a Render list that cannot be read throws.
  */
-export async function findRenderServicesBySlug(slug: string, opts: { backendUrl?: string | null } = {}): Promise<Record<string, string>> {
+export async function findRenderServicesBySlug(slug: string, opts: { backendUrl?: string | null; engine?: string | null } = {}): Promise<Record<string, string>> {
   const serviceIds: Record<string, string> = {}
   const hostOf = (u?: string | null) => (u || '').replace(/^https?:\/\//, '').split('/')[0].toLowerCase()
   const wantBackendHost = hostOf(opts.backendUrl)
+  // A unified tenant (tenants.engine = 'unified') has ONE service, `<slug>-app` (unified/names.ts): its website at / and
+  // its admin at /login and /crm/* on the same host (apps/unified/server/app.ts). It is all three roles. Only that exact
+  // name, or the stored URL — never the templates' suffix list, whose names a unified tenant never has.
+  if (opts.engine === 'unified') {
+    const svc = await findUnifiedService(slug, opts.backendUrl)
+    return svc ? { app: svc.id, backend: svc.id, site: svc.id } : {}
+  }
   try {
     // Paged: the list used to stop at the first 100 services, so a tenant past that silently had "no services".
     const list: any[] = []
@@ -2410,6 +2506,24 @@ export interface WireDomainResult {
   sendgridDomainAuthId?: number
   steps: Array<{ step: string; status: string; detail?: string }>
   errors: string[]
+}
+
+/**
+ * Where a unified tenant's domain points: @, www and app.<domain> all at its ONE service. That is right for the unified
+ * app: it has no per-host routing — every host serves the website at / and the admin at /login and /crm/*
+ * (apps/unified/server/app.ts) — so app.<domain>/crm is the admin and <domain> the site. wireDomainInfrastructure then
+ * writes the three CNAMEs to the service's Render host, attaches the three names to it, and points its SITE_URL at the
+ * domain. Null for a template tenant: its callers keep their own lookup, unchanged.
+ * Throws when the service cannot be found or Render cannot be read — a domain is never wired to nothing.
+ */
+export async function unifiedDomainTargets(tenant: { slug: string; engine?: string | null; render_backend_url?: string | null }): Promise<Required<Pick<WireDomainOptions, 'siteServiceId' | 'backendServiceId' | 'siteSlug' | 'backendSlug'>> | null> {
+  if (tenant.engine !== 'unified') return null
+  const svc = await findUnifiedService(tenant.slug, tenant.render_backend_url)
+  if (!svc?.id) throw new Error('the unified service for ' + tenant.slug + ' was not found on Render')
+  const host = String(svc.serviceDetails?.url || '').replace(/^https?:\/\//, '').split('/')[0].toLowerCase()
+  const renderSlug = host.endsWith('.onrender.com') ? host.slice(0, -'.onrender.com'.length) : String(svc.slug || svc.name || '')
+  if (!renderSlug) throw new Error('the unified service for ' + tenant.slug + ' has no Render address')
+  return { siteServiceId: svc.id, backendServiceId: svc.id, siteSlug: renderSlug, backendSlug: renderSlug }
 }
 
 export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise<WireDomainResult> {

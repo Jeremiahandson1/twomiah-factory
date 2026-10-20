@@ -489,7 +489,8 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
     if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
 
     const { data: tenant, error: tErr } = await supabase.from('tenants')
-      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, sendgrid_domain_auth_id, render_backend_url, products, website_url')
+      // '*': includes tenants.engine once that column exists, and never fails before it does.
+      .select('*')
       .eq('id', tenantId).single()
     if (tErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
@@ -512,8 +513,11 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
 
     // Find the tenant's Render service IDs so we can attach Render custom
     // domains too. Reuses the wireDomainInfrastructure path that signup uses.
-    const { findRenderServicesBySlug, wireDomainInfrastructure } = await import('../../services/deploy')
-    const services = await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
+    const { findRenderServicesBySlug, wireDomainInfrastructure, unifiedDomainTargets } = await import('../../services/deploy')
+    // A unified tenant: its one service is the site and the app, and @, www and app all point at it (it throws when the
+    // service can't be found, before anything is saved). A template tenant: its services by name, as before.
+    const unified = await unifiedDomainTargets(tenant)
+    const services: Record<string, string> = unified ? {} : await findRenderServicesBySlug(tenant.slug, { backendUrl: tenant.render_backend_url })
     const siteServiceId = services.site || services['website-premium'] || services.website
     const backendServiceId = services.backend || services.api
 
@@ -525,6 +529,7 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
     const result = await wireDomainInfrastructure({
       domain,
       siteServiceId, backendServiceId,
+      ...unified,
       existingCloudflareZoneId: tenant.cloudflare_zone_id || undefined,
       existingSendgridDomainAuthId: tenant.sendgrid_domain_auth_id || undefined,
     })

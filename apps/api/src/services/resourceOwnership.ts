@@ -21,6 +21,8 @@
  * stops before it touches anything (deploy.ts preflightDeploy) and staff are told why.
  */
 
+import { unifiedNames } from '../unified/names'
+
 /** Every name a CRM backend is given at deploy (deploy.ts crmApiName): slug + one of these. */
 export const CRM_API_SUFFIXES = ['-api', '-care-api', '-wrench-api', '-drive-api', '-roof-api', '-landscape-api', '-leaf-api', '-rv-api', '-vet-api', '-salon-api', '-bar-api', '-events-api', '-shop-api', '-basic-api'] as const
 /** The legacy frontend/static names (deploy.ts crmFrontName) — the deploy cleans these up when they are the tenant's. */
@@ -125,13 +127,22 @@ export function databaseUsable(dbRow: { status?: string; suspended?: string } | 
 // ─── Slug allocation ─────────────────────────────────────────────────────────
 
 /** Every external name a tenant with this slug could be given by a deploy, across all verticals. */
-export function externalNamesForSlug(slug: string): { repo: string; services: string[]; databases: string[] } {
+export function externalNamesForSlug(slug: string): { repo: string; repos: string[]; services: string[]; databases: string[] } {
   const services = new Set<string>([slug, slug + '-site', slug + '-pricing-api', slug + '-vision'])
   for (const s of CRM_API_SUFFIXES) services.add(slug + s)
   for (const s of CRM_FRONT_SUFFIXES) services.add(slug + s)
   const databases = new Set<string>([slug + '-pricing-db'])
   for (const s of DB_SLUG_SUFFIXES) databases.add(slug + s + '-db')
-  return { repo: slug, services: [...services], databases: [...databases] }
+  // A unified tenant's repo, service and database server (unified/names.ts) — taken by anyone, the slug is not free.
+  const unified = unifiedNamesOrNull(slug)
+  const repos = [slug]
+  if (unified) { repos.push(unified.repo); services.add(unified.service); databases.add(unified.database) }
+  return { repo: slug, repos, services: [...services], databases: [...databases] }
+}
+
+/** The unified names for a slug, or null when the slug is not one unified/names.ts accepts (then it never builds one). */
+function unifiedNamesOrNull(slug: string) {
+  try { return unifiedNames(slug) } catch { return null }
 }
 
 /** Each lookup answers "does something with this name exist?" — and THROWS when it cannot tell. */
@@ -147,7 +158,7 @@ export async function slugIsFree(slug: string, lookups: SlugLookups): Promise<{ 
   try {
     if (await lookups.tenantSlugTaken(slug)) return { free: false, reason: 'a tenant has it' }
     const names = externalNamesForSlug(slug)
-    if (await lookups.repoExists(names.repo)) return { free: false, reason: 'GitHub repo ' + names.repo + ' exists' }
+    for (const n of names.repos) if (await lookups.repoExists(n)) return { free: false, reason: 'GitHub repo ' + n + ' exists' }
     for (const n of names.services) if (await lookups.serviceExists(n)) return { free: false, reason: 'Render service ' + n + ' exists' }
     for (const n of names.databases) if (await lookups.databaseExists(n)) return { free: false, reason: 'Render Postgres ' + n + ' exists' }
     return { free: true }
