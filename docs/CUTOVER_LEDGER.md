@@ -468,10 +468,13 @@ Proof, each against a real unified tenant with the app's exact requests: `apps/u
 (as a caregiver), `mobile-trades.test.ts` (contractor, field service, roofing, rv × owner, field seat, viewer),
 `mobile-rv.test.ts`; `tests/mobile/care-app.test.ts` fixtures moved to the camelCase shapes.
 
-Open, not built (none existed in the live CRMs either):
-- Phone push notifications for the trades (no trade CRM ever sent one; only home care does). The trades' Alerts tab is
-  the live-updates feed.
-- Quote/invoice PDF from the phone: the PDF routes need the session; a phone-opened browser has none. Needs a signed,
-  short-lived PDF link from the server.
-- Driver tracking (`/api/tracking/*`): no route in any CRM; the unreachable driver screen is deleted.
-- Job notes: the server's `cleanText` turns line breaks into spaces (shared code; the web has the same).
+Built after (owner: "fix this stuff", "do what the pros do", 2026-10-19/20; CI green on each):
+- Notes and descriptions keep their line breaks (`cleanLines`, e9828fe0a).
+- Quote/invoice PDFs from the phone: one-time 60-second download links fetched as the asker (`http/downloads.ts`, e17315a4a).
+- Phone notifications for every vertical: a job assigned or rescheduled by any path, a new lead to the seats that work
+  leads; home care sends through the same sender (`core/phonePush.ts`, `crm/notify/phoneRules.ts`, migration 0015, af3fa093f).
+- Location while working: the person's own switches (share location; auto clock at job sites), background tracking in
+  the trade apps, a phone notice on an auto clock in/out, the office's "Where's the crew" (268eb18a6, 839d753b9). Needs
+  a device build to prove background delivery, the permission dialogs and the Android notification.
+- Still not built: driver/fleet route tracking (`/api/tracking/*`) — no CRM ever had it; crew locations cover the office's
+  "where is everyone".
