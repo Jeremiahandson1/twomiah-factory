@@ -5,7 +5,7 @@
  * server's own `balance`, `lineItems` [{ description, quantity, unitPrice, total }] and `payments` [{ amount, method,
  * paidAt }] — every figure decimal DOLLARS. POST /:id/payments takes { amount, method } in DOLLARS too: $12.34 is 12.34
  * (sending cents recorded a payment 100 times too big). Sending and recording a payment need invoices:update. The PDF
- * needs the session, which a browser opened from the phone does not carry, so the phone does not offer it.
+ * opens in the phone's browser on a one-time download link (src/api/client.ts openDownload).
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -17,7 +17,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet'
 import { useTheme } from '../../../src/theme/ThemeContext'
-import { get, post } from '../../../src/api/client'
+import { get, post, openDownload } from '../../../src/api/client'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { StatusBadge } from '../../../src/components/StatusBadge'
 import { SkeletonList } from '../../../src/components/SkeletonLoader'
@@ -211,6 +211,11 @@ export default function InvoiceDetailScreen() {
         {/* Actions */}
         <AnimatedCard index={4}>
           <View style={styles.actionsCol}>
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#475569' }]}
+              onPress={async () => { const err = await openDownload(`/api/invoices/${id}/pdf`); if (err) { haptics.error(); toast.error(err) } }}>
+              <Ionicons name="document-outline" size={18} color="#fff" />
+              <Text style={styles.actionText}>View PDF</Text>
+            </TouchableOpacity>
             {canUpdate && invoice.status === 'draft' && (
               <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#3b82f6' }]}
                 onPress={() => setShowSendConfirm(true)}>

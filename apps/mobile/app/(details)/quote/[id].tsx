@@ -3,8 +3,8 @@
  *
  * GET /api/quotes/:id (packages/tenant-backend invoicing/quotes.ts) answers `lineItems` [{ description, quantity,
  * unitPrice, total }] and subtotal / taxAmount / discount / total — all decimal DOLLARS (strings). Send, approve and
- * reject need quotes:update; converting raises an invoice, invoices:create. The PDF (GET /:id/pdf) needs the session,
- * which a browser opened from the phone does not carry, so the phone does not offer it.
+ * reject need quotes:update; converting raises an invoice, invoices:create. The PDF opens in the phone's browser on a
+ * one-time download link (src/api/client.ts openDownload).
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
-import { get, post } from '../../../src/api/client'
+import { get, post, openDownload } from '../../../src/api/client'
 import { useAuth } from '../../../src/auth/AuthContext'
 import { StatusBadge } from '../../../src/components/StatusBadge'
 import { SkeletonList } from '../../../src/components/SkeletonLoader'
@@ -182,6 +182,11 @@ export default function QuoteDetailScreen() {
         {/* Actions */}
         <AnimatedCard index={4}>
           <View style={styles.actionsCol}>
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#475569' }]}
+              onPress={async () => { const err = await openDownload(`/api/quotes/${id}/pdf`); if (err) { haptics.error(); toast.error(err) } }}>
+              <Ionicons name="document-outline" size={18} color="#fff" />
+              <Text style={styles.actionText}>View PDF</Text>
+            </TouchableOpacity>
             {canUpdate && quote.status === 'draft' && (
               <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#3b82f6' }]}
                 onPress={() => setConfirmAction({ title: 'Send Quote', desc: 'Send this quote to the customer?', label: 'Send', action: () => doAction('send', 'Quote sent') })}>

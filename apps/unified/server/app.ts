@@ -32,6 +32,7 @@ import { contentSecurityPolicy, sitePolicy, pagingGuard, createRateLimiter, isWr
 import { errorHandler } from './http/errors.ts'
 import { fail, one } from './http/reply.ts'
 import { createLive, LIVE_SOCKET_PATH } from './http/live.ts'
+import { createDownloadLinks, DOWNLOAD_PATH } from './http/downloads.ts'
 import { withHomecareSessions } from './crm/homecare/office/signIn.ts'
 
 const NOT_FOUND_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found</title>' +
@@ -79,6 +80,8 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   const enquiryHandler = createEnquiryHandler({ db, vertical, enquiries })
   const realtime = createRealtime()
   const live = createLive({ realtime })
+  // The app is made below; a link fetches through it (as the person who asked), so it is reached lazily.
+  const downloads = createDownloadLinks({ fetchApp: (req) => app.fetch(req) })
   const adsConnector = createCrmAdsConnector()
   const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled, settings: vertical.crm ?? BASE_CRM })
   const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler, realtime, adsConnector })
@@ -139,6 +142,9 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     // Live updates (http/live.ts): the one-time ticket behind sign-in; the socket takes the ticket instead.
     { path: '/api/live', access: 'user', router: live.ticketRoutes },
     { path: LIVE_SOCKET_PATH, access: 'public', router: live.socketRoutes },
+    // One-time download links (http/downloads.ts): asked behind sign-in, fetched by the random token, as the asker.
+    { path: '/api/downloads', access: 'user', router: downloads.linkRoutes },
+    { path: DOWNLOAD_PATH, access: 'public', router: downloads.downloadRoutes },
     { path: '/api/auth/mfa-devices', access: 'user', router: createMfaRoutes({ db, authenticate, audit, issuer: vertical.mfaIssuer }) },
     // The company, its people, billing, email addresses, the lead inbox (and the public enquiry), the audit log.
     ...companyModules.mounts,
