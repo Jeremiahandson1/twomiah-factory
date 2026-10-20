@@ -63,17 +63,23 @@ export function JobDetail() {
   // Photos are photo_capture's on the server (/api/jobs/:id/photos), so here too.
   return <JobDetailPage api={client} toast={useToast()} config={{ ...v().jobs, photos: !!v().jobs.photos && hasFeature('photo_capture'), hasFeature } as any} />
 }
+/**
+ * The quote and invoice lists offer the price book where the vertical prices from it AND the business has it switched on
+ * (pricebook, or field service's flat-rate book): asking a business without it was refused on every visit (found
+ * building field service, basic and landscaping tenants on Render, 2026-10-19).
+ */
+const withPricebook = (hasFeature: (f: string) => boolean) => ({ ...v().invoicing, pricebook: !!v().invoicing.pricebook && (hasFeature('pricebook') || hasFeature('flat_rate_pricebook')), hasFeature })
 export function Quotes() {
-  const { company } = useAuth()
-  return <QuotesPage api={client} toast={useToast()} settings={settingsOf(company)} config={v().invoicing} />
+  const { company, hasFeature } = useAuth()
+  return <QuotesPage api={client} toast={useToast()} settings={settingsOf(company)} config={withPricebook(hasFeature) as any} />
 }
 export function QuoteDetail() {
   const { company } = useAuth()
   return <QuoteDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={v().invoicing} />
 }
 export function Invoices() {
-  const { company } = useAuth()
-  return <InvoicesPage api={client} toast={useToast()} settings={settingsOf(company)} config={v().invoicing} />
+  const { company, hasFeature } = useAuth()
+  return <InvoicesPage api={client} toast={useToast()} settings={settingsOf(company)} config={withPricebook(hasFeature) as any} />
 }
 export function InvoiceDetail() {
   // hasFeature and can: the QuickBooks sync follows the quickbooks feature (the field-service, basic and bar copies'

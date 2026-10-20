@@ -213,8 +213,17 @@ export async function buildUnifiedTenant(input: BuildInput, io: BuildIo): Promis
   if (!live.ok) { const r = stop('live', `${serviceUrl} did not answer with ${commit.slice(0, 9)} in time (last seen: ${live.seen ? live.seen.slice(0, 9) : 'no answer'})`); return { ...r, record } }
   steps.push({ step: 'live', status: 'ok', detail: serviceUrl + ' runs ' + commit.slice(0, 9) })
 
-  // 5. The business.
-  const p = await hosts.callTenant(serviceUrl, '/api/internal/provision', factorySyncKey, input.provision).catch((e: any) => ({ status: 0, body: { error: e.message } }))
+  // 5. The business. The call is safe to repeat (a provisioned tenant answers "already provisioned"), so a gateway answer
+  // — no answer, 502, 503, 504, as while Render swaps the instance that just went live — is asked again, a few times,
+  // before it fails the build. (The first home-care build on Render, 2026-10-19: live, then a 502 on this call.)
+  const retryable = (status: number) => status === 0 || status === 502 || status === 503 || status === 504
+  let p: { status: number; body: any } = { status: 0, body: {} }
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    p = await hosts.callTenant(serviceUrl, '/api/internal/provision', factorySyncKey, input.provision).catch((e: any) => ({ status: 0, body: { error: e.message } }))
+    if (!retryable(p.status) || attempt === 6) break
+    steps.push({ step: 'provision', status: 'skipped', detail: `attempt ${attempt}: the tenant answered ${p.status || 'nothing'}; asking again` })
+    await io.sleep(15_000)
+  }
   if (p.status !== 201 && p.status !== 200) {
     const r = stop('provision', `the tenant answered ${p.status}: ${p.body?.error || 'no answer'}${p.body?.fields ? ' ' + JSON.stringify(p.body.fields) : ''}`)
     return { ...r, record }
