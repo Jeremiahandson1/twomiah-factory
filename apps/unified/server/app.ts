@@ -31,6 +31,7 @@ import { createAdminScreens, HOMECARE_PAGES } from './http/adminScreens.ts'
 import { contentSecurityPolicy, sitePolicy, pagingGuard, createRateLimiter, isWrite } from './http/guards.ts'
 import { errorHandler } from './http/errors.ts'
 import { fail, one } from './http/reply.ts'
+import { createLive, LIVE_SOCKET_PATH } from './http/live.ts'
 import { withHomecareSessions } from './crm/homecare/office/signIn.ts'
 
 const NOT_FOUND_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found</title>' +
@@ -77,6 +78,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   const enquiries = createEnquiries({ db, email, logger, isFeatureEnabled: features.isFeatureEnabled, to: vertical.crm?.websiteEnquiries, forms: vertical.crm?.websiteForms })
   const enquiryHandler = createEnquiryHandler({ db, vertical, enquiries })
   const realtime = createRealtime()
+  const live = createLive({ realtime })
   const adsConnector = createCrmAdsConnector()
   const crm = createCrmServices({ db, email, audit, logger, isFeatureEnabled: features.isFeatureEnabled, settings: vertical.crm ?? BASE_CRM })
   const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler, realtime, adsConnector })
@@ -134,6 +136,9 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
         options: { vertical: vertical.id, visionUrl: vertical.visionUrl },
       }),
     },
+    // Live updates (http/live.ts): the one-time ticket behind sign-in; the socket takes the ticket instead.
+    { path: '/api/live', access: 'user', router: live.ticketRoutes },
+    { path: LIVE_SOCKET_PATH, access: 'public', router: live.socketRoutes },
     { path: '/api/auth/mfa-devices', access: 'user', router: createMfaRoutes({ db, authenticate, audit, issuer: vertical.mfaIssuer }) },
     // The company, its people, billing, email addresses, the lead inbox (and the public enquiry), the audit log.
     ...companyModules.mounts,
@@ -184,5 +189,5 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
     ? fail(c, 404, `Route not found: ${c.req.method} ${c.req.path}`)
     : c.html(NOT_FOUND_PAGE, 404))
 
-  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings, crm, realtime, mounts, refreshSubscription: companyModules.refreshSubscription } }
+  return { app, services: { audit, email, permissions, features, authenticate, companyId, enquiries, bookings, crm, realtime, live, mounts, refreshSubscription: companyModules.refreshSubscription } }
 }

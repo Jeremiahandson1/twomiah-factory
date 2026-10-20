@@ -21,7 +21,8 @@ services.crm.startJobs()
 void services.refreshSubscription()
 const port = Number(process.env.PORT) || 3001
 
-Bun.serve({ port, fetch: app.fetch })
+// websocket: the live-updates socket (http/live.ts) — Bun hands each request's server to the app, which upgrades it.
+Bun.serve({ port, fetch: app.fetch, websocket: services.live.websocket })
 logger.info(`Server running on port ${port}`, { vertical: vertical.id, env: process.env.NODE_ENV || 'development' })
 
 const shutdown = (signal: string) => { logger.info(`${signal} received, shutting down`); process.exit(0) }

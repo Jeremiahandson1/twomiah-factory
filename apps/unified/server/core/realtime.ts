@@ -1,8 +1,6 @@
 // Live updates: the event names and the one call every module makes when a record changes (from the CRM templates'
-// services/socket.ts). The CRMs pushed these over socket.io; the only screens listening were the lead inbox and the
-// "connected" dot. The unified server runs on Bun.serve, which socket.io's Node server doesn't attach to, so the
-// transport is not wired yet (CUTOVER_LEDGER, step 3): the calls are made and delivered to in-process listeners,
-// and the screens refresh on load as the lead inbox does today.
+// services/socket.ts). Delivered to the screens over a WebSocket by http/live.ts (the CRMs used socket.io, which does not
+// attach to Bun.serve); in-process listeners (tests) receive them too.
 export const EVENTS = {
   CONTACT_CREATED: 'contact:created',
   CONTACT_UPDATED: 'contact:updated',
