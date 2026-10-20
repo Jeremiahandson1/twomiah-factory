@@ -428,3 +428,22 @@ Decided on the way (the big platforms' way):
   owner's to read, and the owner's dashboard says it.
 **Cutover data step (store):** a saved punch-card reward named "Free service" (the service businesses' default that the
 template's Loyalty screen used to save) becomes "Free item"; any other name is the owner's and stays.
+
+## Switch-over step 1: real Factory builds on Render, every industry (2026-10-19)
+
+Each industry built by the Factory's unified build (apps/api/src/unified/build.ts) on Render and GitHub as a test
+tenant, signed in, every menu page opened in a browser, then torn down and checked gone (service, database, repo).
+Store also ran Update Code (129s, data kept), a refused update for a service not its own, and a rebuild of a built
+tenant ("Already provisioned"). All clean on the last run: store, vet (20 pages), home care (62), salon (20), roofing
+(23), contractor (19), field service (19), restaurant, RV, bar. Teardown left nothing every time.
+
+Found and fixed on the way:
+- home care's first build got a 502 from the setup call while Render swapped the new instance in: the build now asks
+  again on no answer/502/503/504, up to six times (tests/unified/factory/provision-retry.test.ts).
+- field service, basic and landscaping quote pages asked the price book with the price book off; contractor's asked
+  projects with projects off — refused on every visit. The quote, invoice, job and six project pages now ask a list
+  only where its feature is on.
+- a new business starts with what the live Factory builds that industry with (getDefaultFeaturesForTemplate, unchanged);
+  the retired feature tiers (PLAN_TIERS) are gone — plans are priced by seats.
+- the test harnesses blank every outside service's key from the shell (apps/unified/tests/noLiveKeys.ts): a test was
+  calling the real Anthropic API.
