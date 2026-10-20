@@ -16,6 +16,7 @@ import { pgTable, text, integer, boolean, numeric, timestamp, json, index, uniqu
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact } from './crm.ts'
+import { appointment } from './appointments.ts'
 
 const money = (name: string) => numeric(name, { precision: 12, scale: 2 })
 
@@ -210,6 +211,11 @@ export const booking = pgTable('booking', {
   externalProvider: text('external_provider'),
   cancelledAt: timestamp('cancelled_at'),
   cancelledReason: text('cancelled_reason'),
+  /**
+   * The appointment the booking made in a practice's book (VerticalSettings.booking.calendar 'practice'), kept in step
+   * when the booking is moved or its status changes — the CRMs' online_booking.appointment_id (templates/crm-vet).
+   */
+  appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -218,6 +224,7 @@ export const booking = pgTable('booking', {
   index('booking_company_id_status_idx').on(t.companyId, t.status),
   index('booking_series_id_idx').on(t.seriesId),
   index('booking_contact_id_idx').on(t.contactId),
+  index('booking_appointment_id_idx').on(t.appointmentId),
 ])
 
 /** "Tell me if a time opens up" for a service within some dates. */

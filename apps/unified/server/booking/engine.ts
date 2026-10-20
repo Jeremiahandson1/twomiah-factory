@@ -52,10 +52,20 @@ export interface BookingQuestion {
  * booking becomes in its own records. The CRMs' engine did this with a calendar per template (packages/tenant-backend
  * booking/calendars.ts); here the booking row is always the engine's, and the add-on writes beside it.
  */
+/** What an add-on's record links back onto the booking. */
+export type BookingLinks = Partial<Pick<BookingRow, 'appointmentId'>>
+
 export interface BookingAddOn {
   questions: BookingQuestion[]
   /** Inside the booking's transaction, after its row is written: throwing undoes the booking. */
-  booked(tx: any, b: { companyId: string; contactId: string; booking: BookingRow; service: ServiceRow; answers: Record<string, string> }): Promise<void>
+  booked(tx: any, b: { companyId: string; contactId: string; booking: BookingRow; service: ServiceRow; answers: Record<string, string> }): Promise<BookingLinks | void>
+  /** After the booking was moved ('moved') or its status changed ('status'), in the same transaction: keep the add-on's record in step. */
+  changed?(exec: any, b: BookingRow, change: 'moved' | 'status'): Promise<void>
+  /**
+   * Time already taken in the vertical's own book that the booking rows don't show (a practice's desk appointments).
+   * userId null takes the time from everybody. Never what a booking made itself: that is the booking's own time.
+   */
+  busy?(exec: any, companyId: string, from: Date, to: Date): Promise<Array<{ userId: string | null; start: Date; end: Date }>>
 }
 
 export interface EngineDeps {
@@ -124,6 +134,11 @@ export function createBookingEngine(deps: EngineDeps) {
   const now = deps.now ?? (() => Date.now())
   /** The vertical's own questions on the booking form (none for most). */
   const questions: BookingQuestion[] = deps.addOn?.questions ?? []
+
+  /** The add-on's record follows the booking (a practice's appointment): moved with it, its status with it. */
+  async function mirror(exec: any, b: BookingRow, change: 'moved' | 'status') {
+    if (deps.addOn?.changed) await deps.addOn.changed(exec, b, change)
+  }
 
   async function emit(h: BookingHappening) {
     try { await deps.onHappening?.(h) } catch { /* the change is saved; a message that failed is logged where it is sent */ }
@@ -330,6 +345,7 @@ export function createBookingEngine(deps: EngineDeps) {
       .set({ status: 'cancelled', depositStatus: 'expired', cancelledAt: new Date(now()), cancelledReason: 'deposit_not_paid', updatedAt: new Date(now()) })
       .where(and(eq(booking.companyId, companyId), eq(booking.status, 'pending'), eq(booking.depositStatus, 'pending'), lt(booking.createdAt, cutoff)))
       .returning()
+    for (const b of expired) await mirror(db, b, 'status')
     for (const b of expired) await emit({ event: 'booking.cancelled', booking: b, service: b.serviceId ? await serviceById(companyId, b.serviceId) : null, settings: s, by: 'system' })
   }
 
@@ -350,7 +366,8 @@ export function createBookingEngine(deps: EngineDeps) {
     ])
     const ours = new Set(rows.map((r: any) => r.b.externalEventId).filter(Boolean))
     const external = deps.externalBusy ? (await deps.externalBusy(companyId, from, to).catch(() => [])).filter((e) => !ours.has(e.eventId)) : []
-    return { tz, hours, daysOff, zones, bookings: rows, external }
+    const own = deps.addOn?.busy ? await deps.addOn.busy(exec, companyId, from, to) : []
+    return { tz, hours, daysOff, zones, bookings: rows, external, own }
   }
   type Range = Awaited<ReturnType<typeof loadRange>>
 
@@ -375,7 +392,7 @@ export function createBookingEngine(deps: EngineDeps) {
       const d = onDay(r.b.startAt, r.b.endAt, date, range.tz)
       if (d) busy.push({ userId: r.b.assignedUserId, startMinute: d.s, endMinute: d.e, padBefore: r.before ?? 0, padAfter: r.after ?? 0, serviceId: r.b.serviceId })
     }
-    for (const x of range.external) {
+    for (const x of [...range.external, ...range.own]) {
       const d = onDay(x.start, x.end, date, range.tz)
       if (d) busy.push({ userId: x.userId, startMinute: d.s, endMinute: d.e })
     }
@@ -536,7 +553,11 @@ export function createBookingEngine(deps: EngineDeps) {
         // The engine's clock, not the database's: the deposit hold is measured from it.
         createdAt: new Date(now()), updatedAt: new Date(now()),
       }).returning()
-      if (deps.addOn) await deps.addOn.booked(tx, { companyId, contactId, booking: made, service: svc, answers })
+      const links = deps.addOn ? await deps.addOn.booked(tx, { companyId, contactId, booking: made, service: svc, answers }) : undefined
+      if (links && Object.keys(links).length) {
+        const [linked] = await tx.update(booking).set(links).where(eq(booking.id, made.id)).returning()
+        return linked
+      }
       return made
     })
 
@@ -561,6 +582,7 @@ export function createBookingEngine(deps: EngineDeps) {
     const s = await settingsOf(companyId)
     const [b] = await db.update(booking).set({ status: 'confirmed', depositStatus: 'paid', depositPaidAt: new Date(now()), updatedAt: new Date(now()) })
       .where(and(eq(booking.companyId, companyId), eq(booking.paymentIntentId, paymentIntentId), eq(booking.status, 'pending'))).returning()
+    if (b) await mirror(db, b, 'status')
     if (b) await emit({ event: 'booking.created', booking: b, service: b.serviceId ? await serviceById(companyId, b.serviceId) : null, settings: s, by: 'customer' })
     return b ?? null
   }
@@ -602,6 +624,7 @@ export function createBookingEngine(deps: EngineDeps) {
       // Keep the person when they can still take it; otherwise whoever can.
       const assignedUserId = opts.override || who.includes(b.assignedUserId) || (who.includes(null) && !b.assignedUserId) ? b.assignedUserId : pickWho(who)
       const [u] = await tx.update(booking).set({ startAt, endAt, assignedUserId, reminderEmailSentAt: null, reminderSmsSentAt: null, updatedAt: new Date(now()) }).where(eq(booking.id, b.id)).returning()
+      await mirror(tx, u, 'moved')
       return u
     })
     await emit({ event: 'booking.rescheduled', booking: updated, service: svc, settings: s, previousStartAt: b.startAt, by: opts.by })
@@ -611,11 +634,15 @@ export function createBookingEngine(deps: EngineDeps) {
   async function cancel(companyId: string, b: BookingRow, opts: { by: 'customer' | 'staff'; reason?: string | null }) {
     const s = await settingsOf(companyId)
     changeable(b, s, opts.by)
-    const [u] = await db.update(booking).set({
-      status: 'cancelled', cancelledAt: new Date(now()), cancelledReason: text(opts.reason, 300) ?? (opts.by === 'customer' ? 'customer' : 'staff'),
-      // An unpaid hold is released; a paid deposit stays recorded as paid — refunding it is a decision.
-      depositStatus: b.depositStatus === 'pending' ? 'expired' : b.depositStatus, updatedAt: new Date(now()),
-    }).where(eq(booking.id, b.id)).returning()
+    const u: BookingRow = await db.transaction(async (tx: any) => {
+      const [row] = await tx.update(booking).set({
+        status: 'cancelled', cancelledAt: new Date(now()), cancelledReason: text(opts.reason, 300) ?? (opts.by === 'customer' ? 'customer' : 'staff'),
+        // An unpaid hold is released; a paid deposit stays recorded as paid — refunding it is a decision.
+        depositStatus: b.depositStatus === 'pending' ? 'expired' : b.depositStatus, updatedAt: new Date(now()),
+      }).where(eq(booking.id, b.id)).returning()
+      await mirror(tx, row, 'status')
+      return row
+    })
     await emit({ event: 'booking.cancelled', booking: u, service: u.serviceId ? await serviceById(companyId, u.serviceId) : null, settings: s, by: opts.by })
     return u
   }
@@ -634,7 +661,11 @@ export function createBookingEngine(deps: EngineDeps) {
     }
     if (status === 'confirmed' && b.status === 'cancelled') throw new BookingError('A cancelled booking can’t be brought back — book the time again.', 409)
     const s = await settingsOf(companyId)
-    const [u] = await db.update(booking).set({ status, ...(status === 'confirmed' && b.depositStatus === 'pending' ? { depositStatus: 'none' } : {}), updatedAt: new Date(now()) }).where(eq(booking.id, b.id)).returning()
+    const u: BookingRow = await db.transaction(async (tx: any) => {
+      const [row] = await tx.update(booking).set({ status, ...(status === 'confirmed' && b.depositStatus === 'pending' ? { depositStatus: 'none' } : {}), updatedAt: new Date(now()) }).where(eq(booking.id, b.id)).returning()
+      await mirror(tx, row, 'status')
+      return row
+    })
     const event = status === 'completed' ? 'booking.completed' : status === 'no_show' ? 'booking.no_show' : 'booking.confirmed'
     await emit({ event, booking: u, service: u.serviceId ? await serviceById(companyId, u.serviceId) : null, settings: s, by: 'staff' })
     return u
