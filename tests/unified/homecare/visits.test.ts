@@ -523,8 +523,10 @@ const closeOpen = async (who: any) => q(sql`UPDATE time_entries SET end_time = N
 
   // client reschedule → caregiver counter → client accepts → the schedule moves
   const d2 = addDays(today, 5)
-  const pat2 = await insSched({ caregiver_id: cg1.id, client_id: clA.id, day_of_week: dow(d2), start: '13:00', end: '14:00', effective_date: today })
-  const rq = await asPortal('POST', '/api/portal/visits/reschedule-request', { source: 'schedule', scheduleId: pat2, visitDate: d2, caregiverId: cg1.id, startTime: '13:00', endTime: '14:00', proposedDate: d2, proposedStartTime: '15:00', proposedEndTime: '16:00' })
+  // 13:30, not 13:00: d2's weekday follows today, and every Wednesday (UTC) it fell on Monday — the same caregiver,
+  // client, day and hours as the bi-weekly pattern above, which the one-active-pattern rule rightly refused.
+  const pat2 = await insSched({ caregiver_id: cg1.id, client_id: clA.id, day_of_week: dow(d2), start: '13:30', end: '14:30', effective_date: today })
+  const rq = await asPortal('POST', '/api/portal/visits/reschedule-request', { source: 'schedule', scheduleId: pat2, visitDate: d2, caregiverId: cg1.id, startTime: '13:30', endTime: '14:30', proposedDate: d2, proposedStartTime: '15:00', proposedEndTime: '16:00' })
   check('the family asks to move a visit', rq.status === 201 && rq.json?.status === 'pending' && rq.json?.requested_by === 'client', rq.json)
   const otherCg = await as(cg2)('PUT', `/api/visit-change-requests/${rq.json.id}/resolve`, { action: 'approve' })
   check("a caregiver cannot answer a request about someone else's visit", otherCg.status === 404)

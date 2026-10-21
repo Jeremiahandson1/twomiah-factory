@@ -32,7 +32,14 @@ const ADD_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/pl
 // Cutover (owner's "go", 2026-10-20): the live Factory gains the unified path behind an off/test/all switch that starts
 // off — its routes, services, the Factory database's schema and the platform screens may change; nothing reaches a
 // customer until the switch is turned.
-const MODIFY_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/schema\.sql$/, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary|composer-facts|trade-detect-slugs)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/, ...UNIFIED_OWN]
+/**
+ * The CRM templates' behaviour suites' own test files (tests/<suite>/*.test.ts — not their harnesses, not the
+ * templates): a test can be wrong without the live code being so, and its fix touches nothing that runs. First needed
+ * 2026-10-20: homecare's visits.test.ts made a weekly shift on "today + 5 days", which every Wednesday (UTC) landed on
+ * the Monday of the same caregiver, client and hours as another — and the one-active-pattern rule refused it.
+ */
+const SUITE_TESTS = /^tests\/(bar|basic|crm|dispensary|fieldservice|homecare|landscaping|restaurant|roof|rv|salon|store|vet)\/[^/]+\.test\.ts$/
+const MODIFY_ALLOWED = [SUITE_TESTS, /^apps\/api\/src\//, /^apps\/api\/schema\.sql$/, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary|composer-facts|trade-detect-slugs)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/, ...UNIFIED_OWN]
 const DEP_KEYS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
 
 export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path: string) => string | null): FenceViolation[] {

@@ -111,6 +111,8 @@ modified or deleted. The existing files it may change:
   `apps/api/src/unified/`, `tests/unified/`, `scripts/check-unified-*.ts`, `.github/workflows/unified.yml`, `docs/` —
   may be changed and deleted as freely as they were added. The templates, the rest of `scripts/` and
   `build-check.yml`'s jobs keep the rule above.
+- **The CRM templates' behaviour suites' own test files** (`tests/<suite>/*.test.ts`, 2026-10-20): a test can be wrong
+  while the live code is right, and its fix runs nothing live. Their harnesses and the templates keep the rule above.
 - `apps/mobile/` and its tests `tests/mobile/`, the phone app: it has no users yet, so it changes with the unified app
   (owner, 2026-10-19) — its files may be changed, added or deleted.
 - The four guards that check the shared feature registry and shared defaults (`scripts/check-feature-vocabulary.ts`,

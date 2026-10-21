@@ -45,6 +45,13 @@ describe('allowed', () => {
     ], head)).toEqual([])
   })
 
+  test("a CRM template suite's own test file fixed — never its harness or the template", () => {
+    expect(run([{ status: 'M', path: 'tests/homecare/visits.test.ts' }])).toEqual([])
+    expect(run([{ status: 'M', path: 'tests/homecare/harness/run.ts' }]).length).toBe(1)
+    expect(run([{ status: 'M', path: 'templates/crm-homecare/backend/src/routes/schedules.ts' }]).length).toBe(1)
+    expect(run([{ status: 'D', path: 'tests/homecare/visits.test.ts' }]).length).toBe(1)
+  })
+
   test('since the merge into main: the unified app\'s own files changed, moved and deleted', () => {
     expect(run([
       { status: 'M', path: 'apps/unified/server/app.ts' },
