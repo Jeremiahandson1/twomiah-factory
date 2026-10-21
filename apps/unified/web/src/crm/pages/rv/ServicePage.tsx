@@ -247,7 +247,7 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer <span className="text-red-500 dark:text-red-400">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer <span className="text-red-700 dark:text-red-400">*</span></label>
               <select value={form.customerId} onChange={(e) => set('customerId', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select customer...</option>
                 {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

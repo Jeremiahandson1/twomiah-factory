@@ -292,7 +292,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patient <span className="text-red-500 dark:text-red-400">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patient <span className="text-red-700 dark:text-red-400">*</span></label>
               <select value={form.patientId} onChange={(e) => onPatient(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select patient...</option>
                 {patients.map((p) => (

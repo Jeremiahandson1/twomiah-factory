@@ -728,7 +728,7 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
     <ModalShell title="Edit Event" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-500 dark:text-red-400">*</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-700 dark:text-red-400">*</span></label>
           <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
         </div>
         <div>
@@ -958,7 +958,7 @@ function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: strin
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Time <span className="text-red-500 dark:text-red-400">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Time <span className="text-red-700 dark:text-red-400">*</span></label>
             <input type="time" value={form.time} onChange={(e) => set('time', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
           </div>
           <div>
@@ -969,7 +969,7 @@ function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: strin
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">What happens <span className="text-red-500 dark:text-red-400">*</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">What happens <span className="text-red-700 dark:text-red-400">*</span></label>
           <input type="text" value={form.title} onChange={(e) => set('title', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Guests arrive — canapes passed" required />
         </div>
         <div>
@@ -1027,7 +1027,7 @@ function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string
             <input type="text" value={form.label} onChange={(e) => set('label', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Deposit, Final balance..." />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount ($) <span className="text-red-500 dark:text-red-400">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount ($) <span className="text-red-700 dark:text-red-400">*</span></label>
             <input type="number" step="any" value={form.amount} onChange={(e) => set('amount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
           </div>
         </div>
@@ -1078,7 +1078,7 @@ function RecordPaymentModal({ invoiceId, installment, balance, onSave, onClose }
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount received ($) <span className="text-red-500 dark:text-red-400">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount received ($) <span className="text-red-700 dark:text-red-400">*</span></label>
             <input type="number" step="any" min="0" value={form.amount} onChange={(e) => set('amount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{money2(balance)} outstanding on the invoice</p>
           </div>

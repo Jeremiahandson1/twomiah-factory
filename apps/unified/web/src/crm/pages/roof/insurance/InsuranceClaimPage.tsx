@@ -682,12 +682,12 @@ export default function InsuranceClaimPage() {
           ) : (
             <div className="mt-5 text-left space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Claim number <span className="text-red-600 dark:text-red-400">*</span></label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Claim number <span className="text-red-700 dark:text-red-400">*</span></label>
                 <input autoFocus value={newClaim.claimNumber} onChange={(e) => setNewClaim({ ...newClaim, claimNumber: e.target.value })}
                   className="w-full text-sm border rounded-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700" placeholder="CLM-2026-0001" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Insurance company <span className="text-red-600 dark:text-red-400">*</span></label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Insurance company <span className="text-red-700 dark:text-red-400">*</span></label>
                 <input value={newClaim.insuranceCompany} onChange={(e) => setNewClaim({ ...newClaim, insuranceCompany: e.target.value })}
                   className="w-full text-sm border rounded-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700" placeholder="State Farm" />
               </div>

@@ -303,7 +303,7 @@ function EnrollModal({ plans, onSave, onClose }: { plans: WellnessPlan[]; onSave
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patient <span className="text-red-500 dark:text-red-400">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patient <span className="text-red-700 dark:text-red-400">*</span></label>
               <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select a patient…</option>
                 {patients.map((p) => (
@@ -312,7 +312,7 @@ function EnrollModal({ plans, onSave, onClose }: { plans: WellnessPlan[]; onSave
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan <span className="text-red-500 dark:text-red-400">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan <span className="text-red-700 dark:text-red-400">*</span></label>
               <select value={planId} onChange={(e) => setPlanId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select a plan…</option>
                 {plans.map((pl) => (
@@ -388,7 +388,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: WellnessPlan | null; onSav
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-700 dark:text-red-400">*</span></label>
               <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>

@@ -346,7 +346,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500 dark:text-red-400">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-700 dark:text-red-400">*</span></label>
               <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>
@@ -440,11 +440,11 @@ function EnrollModal({ plans, onSave, onClose }: { plans: Plan[]; onSave: () => 
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client <span className="text-red-500 dark:text-red-400">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client <span className="text-red-700 dark:text-red-400">*</span></label>
               <ClientPicker value={contactId} onChange={(id) => setContactId(id)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan <span className="text-red-500 dark:text-red-400">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan <span className="text-red-700 dark:text-red-400">*</span></label>
               <select value={planId} onChange={(e) => setPlanId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 {plans.map((p) => <option key={p.id} value={p.id}>{p.name || 'Untitled'}</option>)}
               </select>

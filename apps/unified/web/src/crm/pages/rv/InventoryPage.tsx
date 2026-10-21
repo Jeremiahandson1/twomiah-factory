@@ -840,7 +840,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Category — required, drives the form */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category <span className="text-red-500 dark:text-red-400">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category <span className="text-red-700 dark:text-red-400">*</span></label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
