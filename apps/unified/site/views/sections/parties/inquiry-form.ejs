@@ -28,6 +28,7 @@
           <div class="parties__field"><label class="parties__label" for="p-name">Your name</label><input id="p-name" type="text" name="name" required autocomplete="name"></div>
           <div class="parties__field"><label class="parties__label" for="p-phone">Phone (we call back)</label><input id="p-phone" type="tel" name="phone" required autocomplete="tel" inputmode="tel"></div>
         </div>
+        <%- smsConsent('enquiry') %>
         <div class="parties__row">
           <div class="parties__field"><label class="parties__label" for="p-email">Email (optional)</label><input id="p-email" type="email" name="email" autocomplete="email"></div>
           <div class="parties__field"><label class="parties__label" for="p-date">Date you have in mind</label><input id="p-date" type="date" name="requestedDate" min="<%= today %>"></div>

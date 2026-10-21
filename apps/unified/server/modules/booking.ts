@@ -18,6 +18,7 @@ import { bookingTemplates } from '../booking/emails.ts'
 import { createPracticeBooking } from '../crm/vet/onlineBooking.ts'
 import { createCalendars, PROVIDERS, type Calendars, type Provider } from '../booking/calendars.ts'
 import type { BookingTexts } from '../booking/texts.ts'
+import { ticked } from '../site/smsConsent.ts'
 
 const FEATURE = 'online_booking'
 
@@ -201,7 +202,7 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
     const r = await engine.book(id, {
       service: c.req.param('slug'), date: b.date, time: b.time, name: b.name, email: b.email, phone: b.phone, address: b.address, zip: b.zip, notes: b.notes,
       tipPercent: b.tipPercent != null && b.tipPercent !== '' ? Number(b.tipPercent) : null, sourcePath: b.sourcePath, sourceReferrer: b.sourceReferrer, sourceVariant: b.sourceVariant,
-      answers: answersOf(engine, b),
+      answers: answersOf(engine, b), smsConsent: ticked(b),
     }, { by: 'customer' })
     return one(c, { token: r.booking.token, status: r.booking.status, deposit: r.deposit }, 201)
   }) as Promise<Response>))

@@ -207,12 +207,16 @@ const crmOf = (t: TenantRow) => String(t.render_backend_url || '').replace(/\/+$
  * samples. It says only what the system does — the booking and contact forms carry the unticked "Text me" box
  * (site), the texts are the booking engine's own (booking/texts.ts), and the privacy and terms pages are the site's.
  */
+/** The words beside the booking form's "Text me" box — the unified app's site/smsConsent.ts consentWording('booking'),
+ *  word for word (tests/unified/factory/a2p.test.ts holds them together): the campaign quotes what the reviewer will see. */
+export const CONSENT_BOX_WORDING = 'Text me about my booking. Message frequency varies. Message and data rates may apply. Reply STOP to stop receiving texts, or HELP for help.'
+
 export function campaignContent(t: TenantRow, businessName: string) {
   const site = siteOf(t)
   const name = businessName.trim()
   return {
     Description: `${name} texts its own customers about the appointments and bookings they make: a confirmation when they book, a reminder the day before, updates about their visit, replies to the questions they text in, and — after a completed visit — a request for a review. Customers can reply to any text to reach ${name}.`,
-    MessageFlow: `Customers give their mobile number to ${name} when they book online or send an enquiry on ${site}. Each form has an unticked, optional checkbox: "Text me about my booking. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out, HELP for help." with a link to ${site}/privacy and ${site}/terms. Customers who text ${name} first are answered in that conversation. Consent is not a condition of purchase.`,
+    MessageFlow: `Customers give their mobile number to ${name} when they book online or send an enquiry on ${site}. Each form has an unticked, optional checkbox: "${CONSENT_BOX_WORDING}" with links to ${site}/privacy and ${site}/terms. Customers who text ${name} first are answered in that conversation. Consent is not a condition of purchase.`,
     MessageSamples: [
       `${name}: your appointment is booked for Thursday, October 22 at 8:00 AM. Change or cancel: ${site}/booking/abc123 Reply STOP to opt out.`,
       `${name}: a reminder of your appointment tomorrow at 8:00 AM. Change or cancel: ${site}/booking/abc123`,

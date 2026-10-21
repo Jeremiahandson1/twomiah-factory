@@ -18,6 +18,7 @@ import crypto from 'node:crypto'
 import ejs from 'ejs'
 import { renderSections, VIEWS, absolutizeHrefs } from '../server/site/render.ts'
 import { siteStylesheet } from '../server/site/routes.ts'
+import { consentBoxHtml } from '../server/site/smsConsent.ts'
 import type { SiteContext } from '../server/site/context.ts'
 import { accentOnLight, DEFAULT_ACCENT, ensureDark } from '../server/core/brandColour.ts'
 import type { SiteFacts } from '../server/site/facts.ts'
@@ -29,7 +30,9 @@ const designOf = (family: typeof DESIGNS[number]): SiteContext['design'] => (fam
 const MERGED = new Set(['base.ejs', 'home.ejs', 'sections/before_after/slider.ejs', 'sections/contact/form-info.ejs', 'sections/tools/estimator.ejs',
   'sections/hero/split.ejs', 'sections/cta/split.ejs', 'sections/about/story.ejs',
   // docs/TRACKING_STANDARD.md: a saved lead shows the page's one #form-success (Google's conversion trigger).
-  'sections/inventory/unit.ejs', 'sections/care/finder.ejs'])
+  'sections/inventory/unit.ejs', 'sections/care/finder.ejs',
+  // The "Text me" box on every form that asks for a phone (server/site/smsConsent.ts): carriers require it (2026-10-21).
+  'sections/catering/inquiry-form.ejs', 'sections/parties/inquiry-form.ejs', 'sections/regulars/signup.ejs'])
 
 /** Each template's words, as its own views and server said them. */
 const WORDS: Record<string, SiteContext['words']> = {
@@ -97,6 +100,14 @@ const trackingStandard = (html: string) => html
   .replace(/<div id="form-success"[^>]*>[^<]*<\/div>\s*<script>window\.twomiahLeadSent=[^<]*<\/script>/, '')
   .replace(/\s*if \(window\.twomiahLeadSent\) window\.twomiahLeadSent\([^)]*\);/g, '')
 
+/**
+ * Texting consent, taken for every design (2026-10-21): the "Text me" box beside every phone field (server/site/smsConsent.ts)
+ * and the footer's Privacy · Terms links (server/site/legal.ts). The templates' pages have neither.
+ */
+const textingConsent = (html: string) => html
+  .replace(/<label class="sms-consent">[\s\S]*?<\/label>/g, '')
+  .replace(/\s*<span class="footer-legal">[\s\S]*?<\/span>/g, '')
+
 const sameAssetVersion = (html: string) => html.replace(/\/styles\/(main|fonts)\.css\?v=[^"]*/g, '/styles/$1.css?v=V')
 /** The contact form's one intended change: the message box posts as `message` (the server reads both). */
 const messageField = (html: string) => html.replace(/for="cf-project"/g, 'for="cf-message"').replace(/id="cf-project" name="project"/g, 'id="cf-message" name="message"')
@@ -148,7 +159,7 @@ describe('each design\'s sample pages render as the template rendered them', () 
         const mine = await renderSections(ctxFor(design), sections, { title: 'Home' }, { currentPath: '/', origin, sectionErrors: errors, facts: sampleFacts(design) })
         const theirs = await renderOld(design, sections, '/', origin)
         expect(errors).toEqual([])
-        expect(squash(barFixes(sameAssetVersion(trackingStandard(mine))))).toBe(squash(barFixes(sameAssetVersion(messageField(theirs)))))
+        expect(squash(barFixes(sameAssetVersion(trackingStandard(textingConsent(mine)))))).toBe(squash(barFixes(sameAssetVersion(messageField(theirs)))))
       })
     }
   }
@@ -159,10 +170,12 @@ describe('the contact form in each vertical\'s words', () => {
   for (const design of DESIGNS) {
     test(design, async () => {
       // The bar's copy titled the section h2 wherever it stood; the merged one does below another section (isFirst false).
-      const mine = await ejs.renderFile(path.join(VIEWS, 'sections/contact/form-info.ejs'), { data, settings: SETTINGS, words: WORDS[design], ...(design === 'bar' ? { isFirst: false } : {}) }) as string
+      const mine = await ejs.renderFile(path.join(VIEWS, 'sections/contact/form-info.ejs'), { data, settings: SETTINGS, words: WORDS[design], smsConsent: consentBoxHtml, ...(design === 'bar' ? { isFirst: false } : {}) }) as string
       const theirs = await ejs.renderFile(path.join(TEMPLATES, 'website-premium-' + design, 'views/sections/contact/form-info.ejs'), { data, settings: SETTINGS }) as string
       // Their copies differ only in the comments that explain them; what renders must match.
-      expect(squash(trackingStandard(mine))).toBe(squash(messageField(theirs)))
+      expect(squash(trackingStandard(textingConsent(mine)))).toBe(squash(messageField(theirs)))
+      // …and the box is there, unticked
+      expect(mine).toContain('<input type="checkbox" name="smsConsent" value="yes">')
       expect(mine).toContain('name="message"')
       expect(mine).toContain(WORDS[design].contactMessageLabel.replace(/'/g, '&#39;'))
     })

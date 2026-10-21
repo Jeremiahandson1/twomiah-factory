@@ -146,6 +146,7 @@ export default function App() {
                         <Route path="settings/email-domain" element={<Crm.EmailDomain />} />
                         <Route path="settings/email-inbox" element={<Crm.EmailInbox />} />
                         <Route path="settings/integrations" element={<Crm.Integrations />} />
+                        <Route path="settings/texting" element={<Crm.Texting />} />
                         <Route path="settings/migration" element={<Crm.Migration />} />
                         <Route path="settings/import" element={<Crm.Import />} />
                         <Route path="projects" element={<ProjectsPage />} />

@@ -1,6 +1,7 @@
 // Rendering a public page: a section list through views/home.ejs into views/base.ejs, from the premium site's
 // server-static.ts (renderSections, absolutizeHrefs, markdownToHtml). The views are the site templates' own.
 import ejs from 'ejs'
+import { consentBoxHtml } from './smsConsent.ts'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import type { Context } from 'hono'
@@ -73,7 +74,7 @@ export async function renderSections(ctx: SiteContext, sections: any[], meta: Pa
   // — `site` and `live`; `md` renders an owner's markdown; `currentPath` is the page the form posts from.
   const body = await ejs.renderFile(path.join(VIEWS, 'home.ejs'), {
     homepage, settings: effective, words: ctx.words, sectionErrors: o.sectionErrors ?? [],
-    site: facts ? facts.site : null, live: facts ? facts.live : null, md: markdownToHtml, currentPath,
+    site: facts ? facts.site : null, live: facts ? facts.live : null, md: markdownToHtml, currentPath, smsConsent: consentBoxHtml,
   }) as string
   const jsonLd = facts && o.facts ? o.facts.source.jsonLd(facts, { slug: currentPath.replace(/^\//, '') || 'home', title: meta.title || '', sections, settings: effective, about: o.facts.about }) : ''
   return wrap(ctx, body, effective, currentPath, lcpImage, jsonLd)

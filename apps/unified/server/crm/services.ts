@@ -26,6 +26,7 @@ import { createVisitSubject } from './salon/reviewSubject.ts'
 import { createAppointmentReminders } from './salon/appointmentReminders.ts'
 import { bookOnDeposit } from './restaurant/eventBooking.ts'
 import { syncEventInvoiceDueDate, backfillEventInvoices } from './restaurant/eventLedger.ts'
+import { recordConsent, withdrawConsent } from '../site/smsConsent.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
 export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
@@ -87,7 +88,13 @@ export function createCrmServices(deps: CrmServiceDeps) {
       },
     },
   } as any)
-  const sms = createSmsService({ db, tables: { smsConversation, smsMessage, smsTemplate, contact, company, job, user, teamMember }, usage } as any)
+  const sms = createSmsService({
+    db, tables: { smsConversation, smsMessage, smsTemplate, contact, company, job, user, teamMember }, usage,
+    // A customer's own text: texting the business first is consent to be texted back; STOP withdraws it (site/smsConsent.ts).
+    onConsent: (companyId: string, phone: string, change: 'given' | 'withdrawn') => change === 'given'
+      ? recordConsent(db, companyId, { phone, source: 'texted_first' }).then(() => {})
+      : withdrawConsent(db, companyId, phone),
+  } as any)
   const reviews = createReviewsService({
     db, tables: { reviewRequest, company, contact, job }, sendRaw: (m: any) => email.sendRaw(m), usage: { reportSmsUsage },
     // Review requests go out through sendRaw(), which records nothing by design, so they were invisible to the usage

@@ -15,6 +15,7 @@ import { renderSections, renderBody, homePlaceholder, markdownToHtml, siteOrigin
 import { feedUnits, feedUrlOk, unitSpecs } from './inventoryFeed.ts'
 import type { createEnquiryHandler } from './enquiryHandler.ts'
 import { RESERVED_SLUGS } from './slugs.ts'
+import { privacyHtml, termsHtml } from './legal.ts'
 import { PUBLIC_PHOTO_PREFIX, type PhotoStore } from './admin.ts'
 import type { Storefront } from '../crm/store/index.ts'
 import { servesWhileClosed, unavailablePage } from './shop.ts'
@@ -375,6 +376,20 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
       contactCta(ctx),
     ], { title: 'Visualizer', metaTitle: 'Visualizer | ' + name, metaDescription: 'Try materials and colors on a photo of your home with ' + name + '.' })
   })
+
+  // ── The business's privacy policy and terms (site/legal.ts) ───────────────
+  for (const [pathname, title, html] of [['/privacy', 'Privacy Policy', privacyHtml], ['/terms', 'Terms', termsHtml]] as const) {
+    app.get(pathname, async (c) => {
+      const ctx = await ctxOf()
+      if (!ctx) return c.notFound()
+      count(c, ctx, pathname)
+      return c.html(await renderBody(ctx, html(ctx.settings as any), {
+        siteOrigin: siteOrigin(c), homeHref: '/', contactHref: '/contact',
+        seoTitle: title + ' · ' + ctx.settings.companyName,
+        seoDescription: title + ' for ' + ctx.settings.companyName + ', including how we text customers.',
+      }, pathname))
+    })
+  }
 
   // ── Blog ─────────────────────────────────────────────────────────────────
   app.get('/blog', async (c) => {

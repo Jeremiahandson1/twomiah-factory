@@ -25,10 +25,11 @@ export interface TextingFactory {
   resendTextingConfirmation(): Promise<any>
 }
 
-/** A Factory refusal carried through with its own words and status (a 402 "add funds first" stays a 402). */
+/** A Factory refusal carried through in its own words, status and code (a 402 "add funds first" stays a 402). */
 const passOn = (c: any, e: any) => {
   const status = Number(e?.status) >= 400 && Number(e?.status) < 600 ? Number(e.status) : 502
-  return c.json(e?.upstream && typeof e.upstream === 'object' ? e.upstream : { error: e?.message || 'Twomiah could not be reached' }, status)
+  const up = e?.upstream && typeof e.upstream === 'object' ? e.upstream : {}
+  return fail(c, status as any, String(up.rejectionReason || up.error || e?.message || 'Twomiah could not be reached'), typeof up.code === 'string' ? up.code : undefined)
 }
 
 export function createTextingRoutes(d: CrmDeps, factory: TextingFactory) {

@@ -25,6 +25,7 @@ import { dashboard as barDashboard, reportsAbove as barReportsAbove } from './ve
 import { dashboard as homecareDashboard } from './verticals/homecare'
 import { dashboard as roofDashboard } from './verticals/roof'
 import { dashboard as storeDashboard } from './verticals/store'
+import TextingPage from './pages/TextingPage'
 
 const v = verticalScreens
 const client = api as any
@@ -167,6 +168,8 @@ export const EmailInbox = () => <InboundMessagesPage />
 export const GoogleReviews = () => <GbpReviewsPage />
 // The vertical's words and panels for the page (VerticalScreens.integrations; the RV copy's integrationsConfig.ts), and its
 // lead sources.
+// Settings › Texting: the business's own registered number (pages/TextingPage.tsx).
+export const Texting = () => <TextingPage />
 export const Integrations = () => <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms) }} />
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />

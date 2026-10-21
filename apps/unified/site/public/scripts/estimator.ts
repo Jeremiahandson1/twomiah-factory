@@ -19,6 +19,8 @@
   // Determine API base from script src or same origin
   const scripts = document.getElementsByTagName('script');
   let apiBase = '';
+  // server/site/smsConsent.ts consentWording('estimate'), word for word (tests/sms-consent.test.ts holds them together).
+  const SMS_CONSENT_WORDING = 'Text me about my estimate. Message frequency varies. Message and data rates may apply. Reply STOP to stop receiving texts, or HELP for help.';
   for (let i = 0; i < scripts.length; i++) {
     if (scripts[i].src && scripts[i].src.includes('estimator.js')) {
       const url = new URL(scripts[i].src);
@@ -38,6 +40,9 @@
     .tw-est-title { font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 4px; }
     .tw-est-sub { font-size: 13px; color: #6b7280; margin-bottom: 16px; }
     .tw-est-field { margin-bottom: 12px; }
+    .tw-est-consent { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 1.45; color: #374151; margin: 0 0 12px; }
+    .tw-est-consent input { margin-top: 2px; }
+    .tw-est-consent a { color: inherit; text-decoration: underline; }
     .tw-est-label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 4px; font-weight: 500; }
     .tw-est-input { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none; transition: border-color .15s; }
     .tw-est-input:focus { border-color: var(--tw-color, #7c3aed); box-shadow: 0 0 0 3px rgba(124,58,237,.15); }
@@ -89,6 +94,9 @@
         '<div class="tw-est-field"><label class="tw-est-label">Name (optional)</label><input class="tw-est-input" id="tw-name"></div>' +
         '<div class="tw-est-field"><label class="tw-est-label">Phone (optional)</label><input class="tw-est-input" id="tw-phone" type="tel"></div>' +
       '</div>' +
+      // The "Text me" box (server/site/smsConsent.ts consentWording('estimate') — the same words, kept with the consent);
+      // its privacy and terms are the business's own, on its own site, wherever the widget is shown.
+      '<label class="tw-est-consent"><input type="checkbox" id="tw-sms"> <span>' + SMS_CONSENT_WORDING + ' <a href="' + apiBase + '/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="' + apiBase + '/terms" target="_blank" rel="noopener">Terms</a></span></label>' +
       '<div class="tw-est-field"><label class="tw-est-label">Email (optional)</label><input class="tw-est-input" id="tw-email" type="email"></div>' +
       '<button class="tw-est-btn" id="tw-submit">Get My Estimate</button>' +
       '<div id="tw-result"></div>' +
@@ -104,6 +112,7 @@
       var name = shadow.getElementById('tw-name').value.trim();
       var phone = shadow.getElementById('tw-phone').value.trim();
       var email = shadow.getElementById('tw-email').value.trim();
+      var smsConsent = !!shadow.getElementById('tw-sms').checked;
 
       if (!addr || !city || !state || !zip) {
         shadow.getElementById('tw-result').innerHTML = '<div class="tw-est-error">Please fill in all address fields.</div>';
@@ -116,7 +125,7 @@
       fetch(apiBase + '/api/estimator/estimate/' + slug, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address: addr, city: city, state: state, zip: zip, name: name, phone: phone, email: email }),
+        body: JSON.stringify({ address: addr, city: city, state: state, zip: zip, name: name, phone: phone, email: email, smsConsent: smsConsent }),
       })
         .then(function (r) { return r.json(); })
         .then(function (data) {

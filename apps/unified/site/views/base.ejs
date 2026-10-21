@@ -309,6 +309,8 @@
       <div class="footer-contact">
         <% if (settings.phone) { %><a href="tel:<%= cover ? String(settings.phone).replace(/[^\d+]/g, '') : settings.phone %>"><%= settings.phone %></a><% } %>
         <% if (settings.email) { %><a href="mailto:<%= settings.email %>"><%= settings.email %></a><% } %>
+        <%/* The business's privacy policy and terms (site/legal.ts): the carriers read them before approving its texting. */%>
+        <span class="footer-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></span>
         <% if (cover) { (Array.isArray(settings.sameAs) ? settings.sameAs : []).forEach(function (u) {
              var label = /facebook/i.test(u) ? 'Facebook' : /instagram/i.test(u) ? 'Instagram' : /untappd/i.test(u) ? 'Untappd' : /yelp/i.test(u) ? 'Yelp' : 'Link'; %>
           <a href="<%= u %>" rel="noopener" target="_blank"><%= label %></a>

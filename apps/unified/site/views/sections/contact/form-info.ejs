@@ -78,6 +78,7 @@
         <label for="cf-phone">Phone (optional)</label>
         <input id="cf-phone" name="phone" type="tel">
       </div>
+      <%- smsConsent('enquiry') %>
       <div class="contact-form__row">
         <label for="cf-message"><%= words.contactMessageLabel %></label>
         <textarea id="cf-message" name="message" rows="5" required></textarea>

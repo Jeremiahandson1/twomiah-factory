@@ -225,4 +225,11 @@ test('the campaign says what the business really sends, with its own pages', () 
   expect(c.HasEmbeddedLinks).toBe(true)
 })
 
+test('the campaign quotes the "Text me" box word for word, as the reviewer will see it on the site', async () => {
+  const { consentWording } = await import('../../../apps/unified/server/site/smsConsent.ts')
+  const { CONSENT_BOX_WORDING } = await import('../../../apps/api/src/services/a2p.ts')
+  expect(CONSENT_BOX_WORDING).toBe(consentWording('booking'))
+  expect(campaignContent({ id: 't', domain: 'acme.example' } as any, 'Acme').MessageFlow).toContain(consentWording('booking'))
+})
+
 test('restores fetch', () => { globalThis.fetch = realFetch })

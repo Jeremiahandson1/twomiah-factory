@@ -12,6 +12,9 @@ import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
 import type { ShellConfig } from './shared'
 import { useLiveConnection, subscribeLive } from './live'
+import { MessageSquare } from 'lucide-react'
+/** Settings › Texting: the business's own registered number (crm/pages/TextingPage.tsx; server crm/comms/texting.ts). */
+const TEXTING_SETTINGS = { to: '/crm/settings/texting', label: 'Texting', icon: MessageSquare, permission: 'company:read' }
 
 /** Where the admin opens. */
 export const HOME = '/crm'
@@ -67,7 +70,7 @@ export const ResetPassword = () => <ResetPasswordPage api={api} />
 
 export function Settings() {
   const auth = useAuth()
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, subPages: SETTINGS_SUB_PAGES, extraSubPages: [...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA] }} />
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA] }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />

@@ -19,10 +19,16 @@ export interface SmsSender {
   sendSMS(companyId: string, p: { contactId?: string; message: string }): Promise<any>
 }
 
-export function createBookingTexts(sms: SmsSender): BookingTexts {
+/**
+ * `consented`: has this number agreed to be texted by this business (site/smsConsent.ts — the "Text me" box on the
+ * booking, or texting the business first)? A number that has not is skipped, as an opt-out is: these texts are sent
+ * on the business's behalf without a person deciding, so they go only to someone who asked (A2P 10DLC).
+ */
+export function createBookingTexts(sms: SmsSender, consented: (companyId: string, phone: string) => Promise<boolean>): BookingTexts {
   return {
     async send(b, message) {
       if (!b.contactId || !b.customerPhone) return 'skipped'
+      if (!(await consented(b.companyId, b.customerPhone))) return 'skipped'
       const r = await sms.sendSMS(b.companyId, { contactId: b.contactId, message })
       if (r === null) return 'skipped'
       return r?.refused ? 'refused' : 'sent'

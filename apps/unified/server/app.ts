@@ -41,6 +41,7 @@ import { createDownloadLinks, DOWNLOAD_PATH } from './http/downloads.ts'
 import { createPhonePush } from './core/phonePush.ts'
 import { createPhoneRules } from './crm/notify/phoneRules.ts'
 import { withHomecareSessions } from './crm/homecare/office/signIn.ts'
+import { hasConsent } from './site/smsConsent.ts'
 
 const NOT_FOUND_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found</title>' +
   '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f7f5;color:#1a1a1a}main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}</style></head>' +
@@ -102,7 +103,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   // Card deposits on the business's own Stripe account (booking/deposits.ts), paid deposits back to the booking engine;
   // people's own calendars are the module's (booking/calendars.ts).
   // Texts to the customer (confirmation, reminder, review request) through the CRM's own texting (booking/texts.ts).
-  const bookings = createBookingModule({ db, vertical, email, logger, permissions, deposits: createStripeDeposits(crm.stripeService), texts: createBookingTexts(crm.sms) })
+  const bookings = createBookingModule({ db, vertical, email, logger, permissions, deposits: createStripeDeposits(crm.stripeService), texts: createBookingTexts(crm.sms, (co, phone) => hasConsent(db, co, phone)) })
   crm.useBookingDeposits({
     paid: (p) => bookings.engine.depositPaid(p.companyId, p.bookingId, p.paymentIntentId),
     refunded: (p) => bookings.engine.depositRefunded(p.companyId, p.bookingId, p.paymentIntentId),

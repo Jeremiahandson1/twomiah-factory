@@ -77,6 +77,7 @@
         <label class="cf-field"><span class="cf-label">Your name</span><input class="cf-input" type="text" name="name" autocomplete="name" required></label>
         <label class="cf-field"><span class="cf-label">Email</span><input class="cf-input" type="email" name="email" autocomplete="email" required></label>
         <label class="cf-field"><span class="cf-label">Phone (optional, but speeds things up)</span><input class="cf-input" type="tel" name="phone" autocomplete="tel"></label>
+        <%- smsConsent('enquiry') %>
         <% if (responsePromise) { %><div class="cf-promise"><%= responsePromise %></div><% } %>
         <div class="cf-actions"><button type="button" class="btn btn--ghost cf-back" data-from="5">Back</button><button type="submit" class="btn btn--xl btn--primary cf-submit"><%= ctaLabel %></button></div>
       </fieldset>

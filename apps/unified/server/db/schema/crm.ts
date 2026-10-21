@@ -56,6 +56,31 @@ export const contact = pgTable('contact', {
   index('contact_type_idx').on(t.type),
 ])
 
+// ==================== TEXTING CONSENT ====================
+
+/**
+ * Who agreed to be texted, by phone number (E.164): the record carriers ask a business to keep (A2P 10DLC). Keyed by
+ * the number, not by a contact or a lead — a website enquiry may land in the Lead Inbox, a dealership's pipeline or the
+ * bar's guest list, and becomes a contact later; the consent belongs to the number. Written when a visitor ticks
+ * "Text me" on a website form or a booking (site/smsConsent.ts), or texts the business first. Withdrawal is the
+ * carrier STOP and contact.optedOutSms; this is the "yes".
+ */
+export const smsConsent = pgTable('sms_consent', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  phone: text('phone').notNull(),
+  /** 'website_form' | 'booking' | 'texted_first' */
+  source: text('source').notNull(),
+  /** The page the box was ticked on, when it was a form. */
+  page: text('page'),
+  ip: text('ip'),
+  /** The words beside the box, as shown — the consent is to what it said. */
+  wording: text('wording'),
+  givenAt: timestamp('given_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('sms_consent_company_phone_idx').on(t.companyId, t.phone),
+])
+
 // ==================== LEAD INBOX ====================
 
 export const leadSource = pgTable('lead_source', {

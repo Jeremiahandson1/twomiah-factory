@@ -25,6 +25,7 @@ import type { AppEnv } from '../../../http/env.ts'
 import { fail, one, done } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { email as emailShape, optional } from '../validation.ts'
+import { recordConsent } from '../../../site/smsConsent.ts'
 
 const estimateSchema = z.object({
   address: z.string().min(1),
@@ -97,6 +98,11 @@ export function createEstimatorRoutes(d: CrmDeps) {
           } as any).returning()
           leadContactId = created?.id ?? null
         } catch { /* a duplicate or other insert error — the estimate still goes back */ }
+      }
+      // The widget's "Text me about my estimate" (site/smsConsent.ts; the box is in site/public/scripts/estimator.ts).
+      if (data.phone && body.smsConsent === true) {
+        await recordConsent(db, comp.id, { phone: data.phone, source: 'website_form', topic: 'estimate', page: c.req.header('referer') || null, ip: c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || null })
+          .catch(() => { /* the estimate still goes back */ })
       }
 
       // M8: the measurement is kept (no job yet, no credit spent — cost 0.00), so the rep who calls back has the squares

@@ -7,6 +7,7 @@
   //   md            the owner's markdown as HTML (an event's description, an era of the story)
   //   currentPath   the page, which a form names as where it was sent from
   //   isFirst       the section opens the page, so its heading is the page's h1 (the story, the contact section)
+  //   smsConsent    the "Text me" box for a form that asks for a phone (server/site/smsConsent.ts) — one wording everywhere
   //
   // A section that doesn't exist is skipped, so a composition naming a section this site lacks still renders the
   // rest. Any OTHER failure inside a section is logged and recorded on `sectionErrors` (the tests read it): the
@@ -16,6 +17,7 @@
   const _live = typeof live !== 'undefined' ? live : null
   const _md = typeof md === 'function' ? md : function (t) { return String(t || '') }
   const _path = typeof currentPath !== 'undefined' ? currentPath : ''
+  const _consent = typeof smsConsent === 'function' ? smsConsent : null
 %>
 <% sections.forEach(function (section, index) { %>
   <%
@@ -29,7 +31,7 @@
   %>
   <% if (onepageAnchor) { %><span id="<%= onepageAnchor %>" class="onepage-anchor" aria-hidden="true"></span><% } %>
   <% try { %>
-    <%- include('sections/' + type + '/' + variant, { data: data, settings: settings, words: words, site: _site, live: _live, md: _md, currentPath: _path, isFirst: index === 0 }) %>
+    <%- include('sections/' + type + '/' + variant, { data: data, settings: settings, words: words, site: _site, live: _live, md: _md, currentPath: _path, isFirst: index === 0, smsConsent: _consent }) %>
   <% } catch (e) {
        if (!/Could not find the include file/.test(String(e && e.message))) {
          console.error('[site] section ' + type + '/' + variant + ' failed: ' + (e && e.message));

@@ -18,6 +18,7 @@ import { addDays, isIsoDate, isRealDate, isValidTz, minutesToHm, safeTz, tzParts
 import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
 import { lockBookingDay } from '../data/bookingLock.ts'
+import { recordConsent } from '../site/smsConsent.ts'
 
 export class BookingError extends Error {
   constructor(message: string, public status = 400, public code?: string) { super(message); this.name = 'BookingError' }
@@ -109,6 +110,8 @@ export interface BookInput {
   sourceVariant?: string | null
   /** Answers to the vertical's own questions (BookingAddOn.questions), by name. */
   answers?: Record<string, unknown> | null
+  /** The customer ticked "Text me about my booking" (site/smsConsent.ts): the booking's texts go to them. */
+  smsConsent?: boolean
 }
 
 const ACTIVE = ['pending', 'confirmed'] as const
@@ -578,6 +581,8 @@ export function createBookingEngine(deps: EngineDeps) {
       return made
     })
 
+    // The customer's "Text me" (site/smsConsent.ts), kept by number — after the booking's transaction, never inside it.
+    if (customer && input.smsConsent && phone) await recordConsent(db, companyId, { phone, source: 'booking', topic: 'booking', page: text(input.sourcePath, 500) ?? null })
     let final = row
     let deposit: { amount: number; url: string } | null = null
     if (takeDeposit) {

@@ -9,6 +9,8 @@ export const RESERVED_SLUGS = new Set([
   'api', 'admin', 'crm', 'login', 'logout', 'auth', 'reset-password', 'forgot-password', 'uploads', 'media', 'images',
   'styles', 'scripts', 'static', 'assets', 'build', 'public', 'health', 'sitemap.xml', 'robots.txt', 'llms.txt',
   'blog', 'book', 'booking', 'customize', 'service-areas', 'visualize', 'portal', 'vendor', 'crm-assets',
+  // the business's privacy policy and terms (site/legal.ts) — the carriers read them before approving its texting
+  'privacy', 'terms',
 ])
 
 /** A single path segment: lowercase letters, numbers and hyphens. */

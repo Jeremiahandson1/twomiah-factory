@@ -18,6 +18,7 @@ import { icsOf } from './happenings.ts'
 import { renderBody, escHtml } from '../site/render.ts'
 import { EMBED_CSP } from '../http/guards.ts'
 import type { SiteContext } from '../site/context.ts'
+import { consentBoxHtml } from '../site/smsConsent.ts'
 
 // The pages' script is TypeScript like everything else (RULEBOOK §1), turned into plain JavaScript once, at start.
 const SCRIPT = new Bun.Transpiler({ loader: 'ts', target: 'browser' }).transformSync(fs.readFileSync(path.join(import.meta.dir, '..', '..', 'site', 'public', 'scripts', 'book-flow.ts'), 'utf8'))
@@ -90,6 +91,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
           <label>Name<input type="text" name="name" required autocomplete="name"></label>
           <label>Email<input type="email" name="email" required autocomplete="email"></label>
           <label>Phone${settings.requirePhone ? '' : ' (optional)'}<input type="tel" name="phone" ${settings.requirePhone ? 'required' : ''} autocomplete="tel"></label>
+          ${consentBoxHtml('booking')}
           <label>Address${requireAddress ? '' : ' (optional)'}<input type="text" name="address" ${requireAddress ? 'required' : ''} autocomplete="street-address"></label>
           ${engine.questions.map((q) => `<label>${escHtml(q.label)}<input type="text" name="${escHtml(q.name)}" maxlength="${q.maxLength}"${q.placeholder ? ` placeholder="${escHtml(q.placeholder)}"` : ''}${q.requiredMessage ? ' required' : ''}></label>`).join('\n          ')}
           <label>Anything we should know? (optional)<textarea name="notes" rows="3"></textarea></label>

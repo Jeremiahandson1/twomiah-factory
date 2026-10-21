@@ -291,6 +291,20 @@ a { color: inherit; text-decoration: none; }
 
 /* ── Blog ─────────────────────────────────────────────────────────────── */
 .blog-section { padding: var(--space) 0; }
+/* The business's privacy policy and terms (server/site/legal.ts): plain reading pages in the theme's own ink. */
+.legal-page { padding: var(--space) 0; }
+.legal-page__inner { max-width: 760px; }
+.legal-page h1 { font-family: var(--font-display, serif); font-size: clamp(32px, 4vw, 46px); margin: 0 0 8px; color: var(--ink); letter-spacing: -0.02em; }
+.legal-page__updated { color: var(--ink-soft); font-size: 14px; margin: 0 0 32px; }
+.legal-page h2 { font-size: 20px; margin: 32px 0 10px; color: var(--ink); }
+.legal-page p, .legal-page li { color: var(--ink); line-height: 1.65; }
+.legal-page a { color: inherit; text-decoration: underline; }
+.footer-legal { white-space: nowrap; }
+/* The "Text me" box on every form that asks for a phone (server/site/smsConsent.ts): the form's own ink, never faded. */
+.sms-consent { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 14px; font-size: 13px; line-height: 1.5; color: inherit; text-align: left; cursor: pointer; }
+.sms-consent input[type="checkbox"] { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--brand, currentColor); }
+.sms-consent a { color: inherit; text-decoration: underline; }
+#book-form label.sms-consent { flex-direction: row; gap: 10px; font-size: 13px; color: var(--ink); }
 .blog-section__title { font-family: var(--font-display, serif); font-size: clamp(36px, 4vw, 52px); margin: 0 0 40px; color: var(--ink); letter-spacing: -0.02em; }
 .blog-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px; }
 .blog-card { display: block; background: var(--white); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; text-decoration: none; color: var(--ink); transition: transform .2s, box-shadow .2s; }

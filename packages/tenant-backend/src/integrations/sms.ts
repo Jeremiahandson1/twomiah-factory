@@ -26,7 +26,16 @@ export interface SmsServiceDeps {
   apiBaseUrl?: string
   /** Where the customer-facing review link in the "completed" text points; default CUSTOMER_PORTAL_URL. */
   portalUrl?: string
+  /**
+   * A customer's texting consent changed by their own text: 'given' when they text the business (texting first, or
+   * START), 'withdrawn' on STOP. The unified app keeps it in its consent ledger (site/smsConsent.ts).
+   */
+  onConsent?: (companyId: string, phone: string, change: 'given' | 'withdrawn') => Promise<void>
 }
+
+/** The carriers' keywords (CTIA; Twilio's default opt-out handling answers the same words). */
+const OPT_OUT_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'])
+const OPT_IN_WORDS = new Set(['START', 'UNSTOP'])
 
 export function createSmsService(deps: SmsServiceDeps) {
   const { db, tables: t } = deps
@@ -171,7 +180,19 @@ export function createSmsService(deps: SmsServiceDeps) {
       lastMessageAt: new Date(), unreadCount: sql`${t.smsConversation.unreadCount} + 1`, status: 'active',
       contactId: conversation.contactId || matchedContactId || null,
     }).where(eq(t.smsConversation.id, conversation.id))
-    await processAutoResponders(comp.id, conversation, Body || '')
+    // STOP is the customer withdrawing: Twilio stops the texts at its end; the CRM records it too, so nothing here
+    // offers or tries a text to them again. START undoes it. Any other text is the customer texting first.
+    const word = String(Body || '').trim().toUpperCase()
+    const optingOut = OPT_OUT_WORDS.has(word)
+    if ((optingOut || OPT_IN_WORDS.has(word)) && (t.contact as any).optedOutSms) {
+      const last10 = formattedPhone.replace(/\D/g, '').slice(-10)
+      await db.update(t.contact).set({ optedOutSms: optingOut } as any).where(and(eq(t.contact.companyId, comp.id), or(
+        sql`regexp_replace(coalesce(${t.contact.mobile}, ''), '\\D', '', 'g') like ${'%' + last10}`,
+        sql`regexp_replace(coalesce(${t.contact.phone}, ''), '\\D', '', 'g') like ${'%' + last10}`,
+      )))
+    }
+    if (deps.onConsent) await deps.onConsent(comp.id, formattedPhone, optingOut ? 'withdrawn' : 'given').catch((e) => console.error('[sms] consent not recorded:', e?.message))
+    if (!optingOut) await processAutoResponders(comp.id, conversation, Body || '')
     return msg
   }
 

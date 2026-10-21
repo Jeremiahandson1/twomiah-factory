@@ -30,6 +30,7 @@
           <div class="parties__field"><label class="parties__label" for="r-name">Your name</label><input id="r-name" type="text" name="name" required maxlength="60" autocomplete="name"></div>
           <div class="parties__field"><label class="parties__label" for="r-phone">Phone (how the bar finds you)</label><input id="r-phone" type="tel" name="phone" required autocomplete="tel" inputmode="tel"></div>
         </div>
+        <%- smsConsent('enquiry') %>
         <fieldset class="parties__field regulars__bday">
           <legend class="parties__label">Birthday (optional)</legend>
           <div class="parties__row">

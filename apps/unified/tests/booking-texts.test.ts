@@ -107,7 +107,7 @@ describe('the review request', () => {
 describe('the real sender', () => {
   test('sent, opted out (null) and refused (no texting / no balance) read as such; no contact or phone is skipped', async () => {
     const asked: any[] = []
-    const make = (r: any) => createBookingTexts({ sendSMS: async (companyId, p) => { asked.push({ companyId, ...p }); return r } })
+    const make = (r: any, consented = true) => createBookingTexts({ sendSMS: async (companyId, p) => { asked.push({ companyId, ...p }); return r } }, async () => consented)
     const b = { companyId: 'co', contactId: 'ct', customerPhone: '608-555-0100' }
     expect(await make({ status: 'sent' }).send(b, 'hi')).toBe('sent')
     expect(asked[0]).toEqual({ companyId: 'co', contactId: 'ct', message: 'hi' })
@@ -115,5 +115,13 @@ describe('the real sender', () => {
     expect(await make({ status: 'refused', refused: true }).send(b, 'hi')).toBe('refused')
     expect(await make({ status: 'sent' }).send({ ...b, contactId: null }, 'hi')).toBe('skipped')
     expect(await make({ status: 'sent' }).send({ ...b, customerPhone: null }, 'hi')).toBe('skipped')
+  })
+
+  test('a number that never agreed to texts is skipped, and nothing is sent', async () => {
+    const asked: any[] = []
+    const texts = createBookingTexts({ sendSMS: async (companyId, p) => { asked.push({ companyId, ...p }); return { status: 'sent' } } }, async (co, phone) => co === 'co' && phone === '608-555-0199')
+    expect(await texts.send({ companyId: 'co', contactId: 'ct', customerPhone: '608-555-0100' }, 'hi')).toBe('skipped')
+    expect(asked).toEqual([])
+    expect(await texts.send({ companyId: 'co', contactId: 'ct', customerPhone: '608-555-0199' }, 'hi')).toBe('sent')
   })
 })

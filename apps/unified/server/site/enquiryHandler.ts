@@ -10,12 +10,13 @@ import type { createEnquiries } from '../core/enquiry.ts'
 import { fail, done } from '../http/reply.ts'
 import { escHtml } from './render.ts'
 import { BAR_FORMS, BAR_FORM_THANKS } from '../crm/bar/enquiry.ts'
+import { recordConsent, ticked, topicOf } from './smsConsent.ts'
 
 const WINDOW_MS = 10 * 60 * 1000
 const MAX_PER_WINDOW = 5
 const THANKS = "Got it — thanks. We'll be in touch soon."
 /** Form fields that are the form's own machinery or already read by name, so not repeated as "extra answers". */
-const CONTROL = new Set(['name', 'email', 'phone', 'project', 'message', 'notes', 'source', 'website', 'honeypot', 't'])
+const CONTROL = new Set(['name', 'email', 'phone', 'project', 'message', 'notes', 'source', 'website', 'honeypot', 't', 'smsConsent', 'smsConsentFor'])
 
 function clientIp(c: Context): string {
   const xff = c.req.header('X-Forwarded-For') || ''
@@ -122,6 +123,8 @@ export function createEnquiryHandler(deps: { db: any; vertical: VerticalSettings
       const form = ownForm ? Object.fromEntries(Object.keys(body).slice(0, 40).map((k) => [k, one(body[k]).slice(0, 2000)])) : undefined
       const enquiry = { name, email, phone, message, source, form, ip, ...(interest ? { interest } : {}) }
       await enquiries.record(co.id, enquiry)
+      // The "Text me" box (smsConsent.ts), kept by phone number wherever the enquiry itself went.
+      if (phone && ticked(body)) await recordConsent(db, co.id, { phone, source: 'website_form', topic: topicOf(body, 'enquiry'), page: source, ip })
       void enquiries.notifyOwner({ email: co.email, companyName: co.name }, enquiry)
       // The bar's own forms answer in its words ("You're on the list."); every other form says thanks.
       return reply(true, (ownForm && BAR_FORM_THANKS[one(body.formType)]) || THANKS)
