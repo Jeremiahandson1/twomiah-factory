@@ -34,6 +34,20 @@ export const TWILIO_COSTS = {
   perSegmentCents:        int('TWILIO_SMS_SEGMENT_CENTS', 1),      // ~$0.01/segment
 }
 
+/**
+ * What a business needs in its wallet to start texting (owner, 2026-10-21: "if it costs 19.50 to get set up, then they
+ * would need funds to use it too … it should be 25"): the one-time registration plus a little for its first texts.
+ */
+export const MESSAGING_START_CENTS = int('MESSAGING_START_CENTS', 2500)
+/**
+ * Auto-reload, the way Twilio bills its own customers: when the wallet can't cover a charge, the business's card on file
+ * is charged this much (plus the card fee) and the wallet is credited when Stripe says it was paid — so a wallet does
+ * not run up a debt Twomiah has already paid Twilio for.
+ */
+export const MESSAGING_RELOAD_CENTS = int('MESSAGING_RELOAD_CENTS', 2500)
+/** Below this, the daily check reloads (or, with no card, emails the owner). */
+export const MESSAGING_LOW_CENTS = int('MESSAGING_LOW_CENTS', 200)
+
 // Total one-time A2P registration cost debited from the wallet at submit time.
 export function a2pRegistrationCostCents(): number {
   return TWILIO_COSTS.brandRegistrationCents + TWILIO_COSTS.campaignVettingCents

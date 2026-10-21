@@ -52,3 +52,10 @@ export function fakeStore(seed: Record<string, Row[]> = {}) {
   }
   return { from: (t: string) => query(t), tables, writes }
 }
+
+/**
+ * ONE stand-in Factory DB for the test files that load the same Factory modules (services/a2p.ts, messagingWallet.ts):
+ * a module binds the `supabase` of the first file that loads it, so files that each made their own store saw each
+ * other's (bun runs them in one process). Each file reseeds its tables and sets its own `rpc` in beforeEach.
+ */
+export const sharedFactoryDb: ReturnType<typeof fakeStore> & { rpc?: (fn: string, args: any) => Promise<any> } = fakeStore()

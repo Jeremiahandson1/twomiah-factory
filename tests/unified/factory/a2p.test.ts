@@ -4,7 +4,7 @@
 // handed to that CRM. The Factory DB is a stand-in; the wallet is a recorder; nothing reaches Twilio.
 import { test, expect, mock, beforeEach, describe } from 'bun:test'
 import path from 'node:path'
-import { fakeStore } from './fakeStore.ts'
+import { sharedFactoryDb } from './fakeStore.ts'
 
 process.env.TWOMIAH_TWILIO_ACCOUNT_SID = 'AC-isv'
 process.env.TWOMIAH_TWILIO_AUTH_TOKEN = 'isv-token'
@@ -13,13 +13,9 @@ process.env.A2P_ENC_KEY = 'test-key'
 process.env.TWOMIAH_FACTORY_URL = 'https://factory.test'
 delete process.env.TWILIO_A2P_MOCK
 
-const supabase = fakeStore()
+const supabase = sharedFactoryDb
 const debits: Array<{ tenantId: string; cents: number; reason: string }> = []
 mock.module(path.resolve(import.meta.dir, '../../../apps/api/src/middleware/auth.ts'), () => ({ supabase, authenticate: async () => {}, requireRole: () => async () => {} }))
-mock.module(path.resolve(import.meta.dir, '../../../apps/api/src/services/messagingWallet.ts'), () => ({
-  debit: async (tenantId: string, cents: number, reason: string) => { debits.push({ tenantId, cents, reason }); return 0 },
-  credit: async () => 0,
-}))
 const { provisionA2p, advance, a2pDataProblem, campaignContent } = await import('../../../apps/api/src/services/a2p.ts')
 const { encryptJSON } = await import('../../../apps/api/src/lib/crypto.ts')
 
@@ -33,6 +29,8 @@ let seq = 0
 const sid = (p: string) => p + String(++seq).padStart(32 - p.length + 2, '0')
 const realFetch = globalThis.fetch
 beforeEach(() => {
+  // the wallet's own database call (messaging_wallet_apply), recorded — the wallet module itself is the real one
+  supabase.rpc = async (_fn: string, a: any) => { debits.push({ tenantId: a.p_tenant, cents: a.p_amount, reason: a.p_reason }); return { data: 0, error: null } }
   calls = []; seq = 0; debits.length = 0
   brand = { status: 'PENDING', identity_status: 'UNVERIFIED' }; campaignStatus = 'PENDING'; evaluation = 'compliant'
   globalThis.fetch = (async (input: any, init: any = {}) => {

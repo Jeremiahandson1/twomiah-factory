@@ -280,6 +280,18 @@ factory.post('/stripe/webhook', async (c) => {
       }
     }
 
+    // Texting wallet auto-reload paid (services/messagingWallet.ts reloadWallet): credit the wallet, once per invoice.
+    if (event.type === 'invoice.paid' && event.data?.object?.metadata?.purpose === 'messaging_wallet_reload') {
+      const inv = event.data.object
+      const cents = parseInt(inv.metadata?.topup_cents, 10)
+      if (inv.metadata?.tenant_id && Number.isFinite(cents) && cents > 0) {
+        const { creditOnce } = await import('../../services/messagingWallet')
+        const after = await creditOnce(inv.metadata.tenant_id, cents, 'auto_reload', String(inv.id))
+        if (after !== null) await supabase.from('tenants').update({ messaging_nudged_at: null }).eq('id', inv.metadata.tenant_id)
+        console.log('[Wallet] auto-reload', inv.id, after === null ? 'already credited' : 'credited ' + cents)
+      }
+    }
+
     // Domain renewal paid (services/domainRenewal.ts): renew it at Namecheap now, exactly once per invoice.
     // Awaited — the renewal is one Namecheap call, and Stripe retries on an error, which the claim makes safe.
     if (event.type === 'invoice.paid' && event.data?.object?.metadata?.purpose === 'domain_renewal') {
@@ -303,8 +315,9 @@ factory.post('/stripe/webhook', async (c) => {
       if (meta.addon === 'messaging_wallet_topup' && meta.tenant_id && meta.topup_cents) {
         const cents = parseInt(meta.topup_cents, 10)
         if (Number.isFinite(cents) && cents > 0) {
-          import('../../services/messagingWallet').then(({ credit }) =>
-            credit(meta.tenant_id, cents, 'topup', { stripeRef: String(session.payment_intent || session.id) })
+          // Once per payment: Stripe may deliver this event again, and each delivery used to credit again.
+          import('../../services/messagingWallet').then(({ creditOnce }) =>
+            creditOnce(meta.tenant_id, cents, 'topup', String(session.payment_intent || session.id))
           ).catch(err => console.error('[Wallet] Top-up credit failed:', err?.message || err))
           // Wallet recovered → clear the low-balance nudge so a future dip re-nudges.
           supabase.from('tenants').update({ messaging_nudged_at: null }).eq('id', meta.tenant_id).then(() => {}, () => {})

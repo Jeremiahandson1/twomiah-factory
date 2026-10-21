@@ -3,7 +3,7 @@ import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecre
 import { encryptJSON, decryptJSON, maskTail } from '../../lib/crypto'
 import { provisionA2p, pollA2pStatus, pollAllPendingA2p, resendOwnerConfirmation, a2pDataProblem, e164, type A2pData } from '../../services/a2p'
 import { debit } from '../../services/messagingWallet'
-import { TWILIO_COSTS } from '../../config/messagingCosts'
+import { TWILIO_COSTS, MESSAGING_START_CENTS } from '../../config/messagingCosts'
 
 // Each business's own texting registration (A2P 10DLC) — services/a2p.ts has the Twilio flow.
 //
@@ -30,7 +30,7 @@ async function summary(t: any) {
     approvedAt: t.a2p_approved_at || null,
     messagingEnabled: !!t.messaging_enabled,
     walletCents: t.messaging_wallet_cents ?? 0,
-    fees: { brandCents: TWILIO_COSTS.brandRegistrationCents, campaignVettingCents: TWILIO_COSTS.campaignVettingCents, monthlyCampaignCents: TWILIO_COSTS.monthlyCampaignCents, numberMonthlyCents: TWILIO_COSTS.numberMonthlyCents },
+    fees: { brandCents: TWILIO_COSTS.brandRegistrationCents, campaignVettingCents: TWILIO_COSTS.campaignVettingCents, monthlyCampaignCents: TWILIO_COSTS.monthlyCampaignCents, numberMonthlyCents: TWILIO_COSTS.numberMonthlyCents, startCents: MESSAGING_START_CENTS },
   }
 }
 
@@ -64,9 +64,13 @@ async function submitRegistration(tenantId: string, body: any, actor: string): P
     return { code: 400, json: { error: 'Send the registration details.' } }
   }
   if (!t.messaging_enabled) return { code: 402, json: { error: 'Switch texting on first ($10 a month).', code: 'messaging_disabled' } }
+  // To start texting the wallet holds the one-time registration AND something to text with (MESSAGING_START_CENTS,
+  // $25 — owner, 2026-10-21). Resuming a registration whose fees are already paid needs only what is still owed.
   const upfront = (t.a2p_brand_sid ? 0 : TWILIO_COSTS.brandRegistrationCents) + (t.a2p_campaign_sid ? 0 : TWILIO_COSTS.campaignVettingCents)
-  if ((t.messaging_wallet_cents ?? 0) < upfront) {
-    return { code: 402, json: { error: `Add at least $${(upfront / 100).toFixed(2)} to the messaging wallet first — Twilio's one-time registration fees.`, code: 'insufficient_wallet', requiredCents: upfront } }
+  const needed = t.a2p_brand_sid ? upfront : Math.max(MESSAGING_START_CENTS, upfront)
+  if ((t.messaging_wallet_cents ?? 0) < needed) {
+    const short = needed - (t.messaging_wallet_cents ?? 0)
+    return { code: 402, json: { error: `Add $${(short / 100).toFixed(2)} to your texting wallet first: $${(needed / 100).toFixed(2)} starts texting — $${(upfront / 100).toFixed(2)} for the one-time carrier registration, the rest for your first texts.`, code: 'insufficient_wallet', requiredCents: needed } }
   }
   const hadBrand = !!t.a2p_brand_sid
   const steps = await provisionA2p(tenantId)

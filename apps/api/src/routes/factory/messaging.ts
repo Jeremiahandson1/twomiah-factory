@@ -1,7 +1,9 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret, checkFactoryKey, FRONTEND_URL } from './shared'
 import factoryStripe from '../../services/factoryStripe'
-import { getLedger, debit, chargeMonthlyCampaignFees } from '../../services/messagingWallet'
+import { getLedger, debit, chargeMonthlyCampaignFees, reloadWallet } from '../../services/messagingWallet'
+import { withStripeFee } from '../../config/domainPricing'
+import { MESSAGING_LOW_CENTS } from '../../config/messagingCosts'
 import { MESSAGING_ENABLE_MONTHLY_CENTS, TWILIO_COSTS, AI_ENABLE_MONTHLY_CENTS, aiCostCents } from '../../config/messagingCosts'
 import { verifyPortalToken, portalUrlFor } from '../../lib/portal'
 import { notifyMessagingLowBalance } from '../../services/email'
@@ -13,6 +15,15 @@ import { notifyMessagingLowBalance } from '../../services/email'
 
 const MIN_TOPUP_CENTS = 500      // $5
 const MAX_TOPUP_CENTS = 50000    // $500
+
+/**
+ * A wallet top-up's Stripe line: the amount, plus Stripe's card fee on top, so the wallet receives every cent of it —
+ * Twomiah absorbed the fee (2.9% + 30¢) on every top-up (owner, 2026-10-21: fix it). The webhook credits `cents`.
+ */
+const topupCharge = (cents: number) => {
+  const charge = withStripeFee(cents)
+  return { amountCents: charge, description: `$${(cents / 100).toFixed(2)} for your texting wallet + $${((charge - cents) / 100).toFixed(2)} card processing` }
+}
 
 // Self-contained tenant billing page (no build step, no external assets). Reads
 // ?tenant= & ?t= from the URL and calls the token-authed self endpoints.
@@ -48,7 +59,7 @@ const SMS_BILLING_HTML = `<!doctype html>
   var tenant = q.get('tenant'), t = q.get('t');
   var API = location.origin + '/api/v1/factory/internal/messaging/self/' + tenant;
   function money(c){ return (c<0?'-$':'$') + (Math.abs(c)/100).toFixed(2); }
-  var LABEL = { topup:'Top-up', a2p_registration:'SMS registration', monthly_campaign:'Monthly fee', sms_segment:'SMS segments', ai_tokens:'AI tokens' };
+  var LABEL = { topup:'Top-up', auto_reload:'Auto-reload', a2p_registration:'SMS registration', a2p_brand:'Carrier registration (business)', a2p_campaign_vetting:'Carrier review (texting)', monthly_campaign:'Monthly fee', sms_segment:'SMS segments', ai_tokens:'AI tokens', test_grant:'Credit from Twomiah' };
   function el(h){ var d=document.createElement('div'); d.innerHTML=h; return d.firstElementChild; }
   async function api(path, method, body){
     var r = await fetch(API + path + (path.indexOf('?')<0?'?':'&') + 't=' + encodeURIComponent(t), {
@@ -73,7 +84,8 @@ const SMS_BILLING_HTML = `<!doctype html>
         (s.enabled || s.aiEnabled ?
           '<div class="card"><div class="row"><span class="muted">Wallet balance</span><span class="bal '+(bal<0?'neg':'')+'">'+money(bal)+'</span></div>'+
             (bal<0?'<p class="err">Negative balance — top up to keep sending.</p>':'')+
-            '<div class="row"><span class="muted">Add funds (USD)</span><span><input id="amt" type="number" min="5" max="500" value="20"> <button id="topup">Add</button></span></div>'+
+            '<div class="row"><span class="muted">Add funds (USD)</span><span><input id="amt" type="number" min="5" max="500" value="25"> <button id="topup">Add</button></span></div>'+
+            '<p class="muted">Card processing (2.9% + 30¢) is added at checkout, so your wallet receives the full amount. When your wallet runs low, we reload $25 from your card on file (plus card processing) and email a receipt.</p>'+
             (rows?'<table><thead><tr><th>Date</th><th>Item</th><th class="r">Amount</th><th class="r">Balance</th></tr></thead><tbody>'+rows+'</tbody></table>':'') +
           '</div>'
           : '<p class="muted">Enable a service above to fund your usage wallet.</p>');
@@ -176,9 +188,8 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     try {
       const { url } = await factoryStripe.createOneTimeCheckoutSession({
         customerId: t.stripe_customer_id,
-        amountCents: cents,
+        ...topupCharge(cents),
         productName: 'Messaging wallet top-up',
-        description: `$${(cents / 100).toFixed(2)} added to messaging usage wallet (at-cost SMS/A2P)`,
         successUrl: FRONTEND_URL + '/tenants/' + id + '?wallet=topped_up',
         cancelUrl: FRONTEND_URL + '/tenants/' + id + '?wallet=canceled',
         // The webhook credits the wallet on payment (see billing.ts).
@@ -351,8 +362,7 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     if (!t.stripe_customer_id) return c.json({ error: 'Enable messaging first' }, 400)
     if (!factoryStripe.isConfigured()) return c.json({ error: 'Stripe not configured' }, 400)
     const { url } = await factoryStripe.createOneTimeCheckoutSession({
-      customerId: t.stripe_customer_id, amountCents: cents, productName: 'Messaging wallet top-up',
-      description: `$${(cents / 100).toFixed(2)} added to messaging usage wallet`,
+      customerId: t.stripe_customer_id, ...topupCharge(cents), productName: 'Messaging wallet top-up',
       successUrl: FRONTEND_URL + '/tenants/' + t.id + '?wallet=topped_up', cancelUrl: FRONTEND_URL + '/tenants/' + t.id + '?wallet=canceled',
       metadata: { addon: 'messaging_wallet_topup', tenant_id: t.id, topup_cents: String(cents) },
     })
@@ -379,18 +389,23 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     try {
       const cutoff = new Date(Date.now() - 3 * 86_400_000).toISOString()
       const { data: rows } = await supabase.from('tenants')
-        .select('id, name, email, messaging_wallet_cents, messaging_nudged_at')
-        .eq('messaging_enabled', true).lt('messaging_wallet_cents', 200)
-      let nudged = 0
+        .select('id, name, email, stripe_customer_id, messaging_wallet_cents, messaging_nudged_at')
+        .eq('messaging_enabled', true).lt('messaging_wallet_cents', MESSAGING_LOW_CENTS)
+      let nudged = 0, reloaded = 0
       for (const t of rows || []) {
-        if (!t.email || (t.messaging_nudged_at && t.messaging_nudged_at > cutoff)) continue
+        if (t.messaging_nudged_at && t.messaging_nudged_at > cutoff) continue
         try {
-          await notifyMessagingLowBalance({ name: t.name, email: t.email }, portalUrlFor(t.id), t.messaging_wallet_cents ?? 0)
+          // Reload from the card on file first (services/messagingWallet.ts reloadWallet); only a business without a
+          // card, or whose card failed, is asked by email — with the Stripe invoice to pay when there is one.
+          const r = await reloadWallet(t, Math.max(0, -(t.messaging_wallet_cents ?? 0)))
           await supabase.from('tenants').update({ messaging_nudged_at: new Date().toISOString() }).eq('id', t.id)
+          if (r.paid) { reloaded++; continue }
+          if (!t.email) continue
+          await notifyMessagingLowBalance({ name: t.name, email: t.email }, r.hostedUrl || portalUrlFor(t.id), t.messaging_wallet_cents ?? 0)
           nudged++
         } catch (e: any) { console.error('[Messaging] low-balance nudge failed for', t.id, e?.message || e) }
       }
-      return c.json({ success: true, checked: (rows || []).length, nudged })
+      return c.json({ success: true, checked: (rows || []).length, reloaded, nudged })
     } catch (e: any) {
       return c.json({ error: e.message }, 500)
     }
