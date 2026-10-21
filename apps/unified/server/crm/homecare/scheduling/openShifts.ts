@@ -263,7 +263,7 @@ export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: S
     for (const cgId of caregiverIds.map(String)) {
       if (sms) {
         const phone = await personPhone(db, companyId, cgId)
-        if (phone && await core.notify.sendText({ phone, body: smsBody })) texted++
+        if (phone && await core.notify.sendText({ companyId, phone, body: smsBody })) texted++
       }
       try {
         await core.notify.notifyUser(companyId, cgId, 'open_shift_offer', title, message)

@@ -56,12 +56,12 @@ export function createOvertimeAlerts(d: CrmDeps, deps: { time: AgencyTime; profi
         const client = `${e.clFirst} ${String(e.clLast || '').charAt(0)}.`.trim()
         const scheduled = fmtDuration(Number(e.allottedMinutes))
         const overTxt = fmtDuration(over)
-        if (await notify.sendCaregiverAlert({ userId: e.caregiverId, alertType: 'overtime_alert', channel: 'sms', urgent: true, phone: e.cgPhone, body: `${prefix ? prefix + ': ' : ''}You're still clocked in with ${client} — ${overTxt} past your ${scheduled} visit (clocked in ${clockIn}). Please clock out if you're done.` })) sent++
+        if (await notify.sendCaregiverAlert({ companyId, userId: e.caregiverId, alertType: 'overtime_alert', channel: 'sms', urgent: true, phone: e.cgPhone, body: `${prefix ? prefix + ': ' : ''}You're still clocked in with ${client} — ${overTxt} past your ${scheduled} visit (clocked in ${clockIn}). Please clock out if you're done.` })) sent++
         if (top === OFFICE_THRESHOLD) {
           const msg = `${e.cgFirst} ${e.cgLast} is still clocked in with ${client} — ${overTxt} past a ${scheduled} visit (clocked in ${clockIn}).`
           const admins = await notify.notifyAdmins(companyId, 'overtime_alert', 'Still clocked in past scheduled time', msg)
           for (const a of admins) {
-            if (a.phone && await notify.sendCaregiverAlert({ userId: a.id, alertType: 'overtime_alert', channel: 'sms', urgent: true, phone: a.phone, body: `${prefix ? prefix + ': ' : ''}${msg}` })) sent++
+            if (a.phone && await notify.sendCaregiverAlert({ companyId, userId: a.id, alertType: 'overtime_alert', channel: 'sms', urgent: true, phone: a.phone, body: `${prefix ? prefix + ': ' : ''}${msg}` })) sent++
           }
         }
       } catch (err: any) { d.logger.error('[overtime-alerts] one entry', { error: err?.message }) }

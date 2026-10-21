@@ -52,9 +52,6 @@ export function createAiReceptionistService(d: CrmDeps) {
   // The providers' keys, read when used (the template read them once at import).
   const env = () => ({
     openai: process.env.OPENAI_API_KEY,
-    twilioSid: process.env.TWILIO_ACCOUNT_SID,
-    twilioToken: process.env.TWILIO_AUTH_TOKEN,
-    twilioFrom: process.env.TWILIO_PHONE_NUMBER,
   })
 
   // ── Rules ──
@@ -199,22 +196,13 @@ export function createAiReceptionistService(d: CrmDeps) {
   }
 
   // ── Replies ──
-  async function sendSMS(to: string, body: string) {
-    const { twilioSid, twilioToken, twilioFrom } = env()
-    if (!twilioSid || !twilioToken || !twilioFrom) {
-      logger.info('[AIReceptionist] Twilio not configured — skipping SMS')
-      return
-    }
+  // Through the business's one texting service: its own registered sender, a STOP honoured, the wallet metered, the
+  // reply kept in Messages. This posted to Twilio directly from the platform's shared number (2026-10-21).
+  async function sendSMS(companyId: string, to: string, body: string) {
     try {
-      const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
-        method: 'POST',
-        headers: {
-          Authorization: 'Basic ' + btoa(`${twilioSid}:${twilioToken}`),
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({ To: to, From: twilioFrom, Body: body }),
-      })
-      if (!response.ok) logger.error('[AIReceptionist] SMS send failed', { status: response.status })
+      const r: any = await d.services.sms.sendSMS(companyId, { toPhone: to, message: body })
+      if (r?.refused) logger.info('[AIReceptionist] SMS not sent', { reason: r.errorMessage })
+      else if (r?.status === 'failed') logger.error('[AIReceptionist] SMS send failed', { error: r.errorMessage })
     } catch (err: any) {
       logger.error('[AIReceptionist] SMS error', { error: err?.message })
     }
@@ -230,9 +218,9 @@ export function createAiReceptionistService(d: CrmDeps) {
     }
   }
 
-  async function sendAutoReply(channel: string, phone?: string, email?: string, message?: string) {
+  async function sendAutoReply(companyId: string, channel: string, phone?: string, email?: string, message?: string) {
     if (!message) return
-    if ((channel === 'sms' || channel === 'both') && phone) await sendSMS(phone, message)
+    if ((channel === 'sms' || channel === 'both') && phone) await sendSMS(companyId, phone, message)
     if ((channel === 'email' || channel === 'both') && email) await sendEmail(email, 'We received your call', message)
   }
 
@@ -290,10 +278,10 @@ export function createAiReceptionistService(d: CrmDeps) {
       const message = personalizeMessage(rule.messageTemplate, { companyName, callerName: callData.callerName })
       if (rule.delayMinutes > 0) {
         // A per-call delay, held in memory as the template did (lost on a restart; a job queue would keep it).
-        setTimeout(() => { sendAutoReply(rule.channel, callData.callerNumber, callData.callerEmail, message) }, rule.delayMinutes * 60 * 1000)
+        setTimeout(() => { sendAutoReply(companyId, rule.channel, callData.callerNumber, callData.callerEmail, message) }, rule.delayMinutes * 60 * 1000)
         logger.info(`[AIReceptionist] Scheduled ${rule.channel} reply in ${rule.delayMinutes}min for rule "${rule.name}"`)
       } else {
-        await sendAutoReply(rule.channel, callData.callerNumber, callData.callerEmail, message)
+        await sendAutoReply(companyId, rule.channel, callData.callerNumber, callData.callerEmail, message)
         logger.info(`[AIReceptionist] Sent ${rule.channel} reply for rule "${rule.name}"`)
       }
       await q.markCallAiResponded(db, callData.callLogId)

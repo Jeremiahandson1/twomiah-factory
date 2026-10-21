@@ -60,6 +60,10 @@ export function twilioConfigFor(companyRow: any): TwilioConfig {
     from: j.twilioPhoneNumber || companyRow?.twilioPhoneNumber || undefined,
   }
   if (own.accountSid && own.authToken) return { accountSid: own.accountSid, authToken: own.authToken, from: own.from || env.from, messagingServiceSid: undefined }
+  // The business's OWN registered sender on the platform's account (A2P 10DLC: its brand, campaign, Messaging Service
+  // and number, written here by the Factory once the carriers approve it). It is that business's alone — never the
+  // platform's shared number — so a reply comes back to it and its reputation is its own.
+  if (j.twilioMessagingServiceSid) return { accountSid: env.accountSid, authToken: env.authToken, from: own.from, messagingServiceSid: j.twilioMessagingServiceSid }
   return { ...env, from: own.from || env.from }
 }
 /** Every number a company row claims (column + integrations JSON), E.164. */

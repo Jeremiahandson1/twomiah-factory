@@ -26,7 +26,7 @@ export function createShiftReminders(d: CrmDeps, deps: { time: AgencyTime; notif
         if (!(await claimShiftReminder(d.db, companyId, s.id, date))) continue
         const body = `${s.clientFirst} ${s.clientLast} · ${s.startHm}–${s.endHm}`
         await deps.notify.sendCaregiverAlert({
-          userId: s.caregiverId, alertType: 'shift_reminder', channel: 'push', body,
+          companyId, userId: s.caregiverId, alertType: 'shift_reminder', channel: 'push', body,
           payload: { title: 'Shift in 1 hour', body, tag: `shift-reminder-${s.id}-${date}`,
             data: { type: 'shift_reminder', eventType: 'shift_reminder', urgent: false, scheduleId: s.id } },
         })

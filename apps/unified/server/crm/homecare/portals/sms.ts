@@ -19,6 +19,7 @@
 //   · templates are the company's; GET /messages is an empty list reply ({ data, pagination }; was { messages: [] }),
 //     GET /templates a list reply.
 import { Hono, type Context } from 'hono'
+import { twilioConfigured } from '@twomiah/tenant-backend'
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { smsTemplates, user, clients } from '../../../db/schema/index.ts'
 import { done, fail, list, one } from '../../../http/reply.ts'
@@ -28,7 +29,6 @@ import type { HomecareCore } from '../core/index.ts'
 
 const all = <T,>(c: Context, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
 const NOT_CONFIGURED = 'SMS not configured. Add Twilio credentials to enable SMS.'
-const twilioEnvReady = () => !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && (process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_MESSAGING_SERVICE_SID))
 
 export function createHomecareSmsRoutes(core: HomecareCore, d: CrmDeps) {
   const { db } = d
@@ -111,7 +111,8 @@ export function createHomecareSmsRoutes(core: HomecareCore, d: CrmDeps) {
     if (type !== 'caregiver' && type !== 'client') return fail(c, 400, "recipientType must be 'caregiver' or 'client'")
     if (!ids.length || !text) return fail(c, 400, 'Select recipients and enter a message')
     if (ids.length > 500) return fail(c, 400, 'At most 500 recipients per send')
-    if (!twilioEnvReady()) return fail(c, 503, NOT_CONFIGURED, 'sms_not_configured')
+    // The business's own sender, as sendSMS reads it (its registered number, or none yet) — not the platform's env.
+    if (!twilioConfigured(await d.services.sms.twilioConfigFor(me.companyId))) return fail(c, 503, NOT_CONFIGURED, 'sms_not_configured')
     let people: { id: string; phone: string | null }[]
     if (type === 'caregiver') {
       const rows = await db.select({ id: user.id, phone: user.phone, role: user.role }).from(user)
@@ -126,7 +127,7 @@ export function createHomecareSmsRoutes(core: HomecareCore, d: CrmDeps) {
     for (const p of people) {
       if (type === 'caregiver' && !(await core.prefs.shouldNotify(p.id, 'sms', 'message'))) { skipped++; continue }
       if (!p.phone) { skipped++; continue }
-      if (await core.notify.sendText({ phone: p.phone, body: text })) sent++
+      if (await core.notify.sendText({ companyId: me.companyId, phone: p.phone, body: text })) sent++
       else failed++
     }
     return one(c, { sent, skipped, failed, unknown: ids.length - people.length })

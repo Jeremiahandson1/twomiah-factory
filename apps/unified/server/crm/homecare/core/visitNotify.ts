@@ -10,7 +10,6 @@
 // reported through the shared messaging-usage module (packages/tenant-backend, the template's own copy); logs go
 // through the app's logger.
 import { and, eq, inArray } from 'drizzle-orm'
-import { reportSmsUsage } from '@twomiah/tenant-backend'
 import { notifications, clientNotifications, user, auditLogs, pushSubscriptions } from '../../../db/schema/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { NotificationPrefs } from './notificationPrefs.ts'
@@ -59,26 +58,23 @@ export function createVisitNotify(d: CrmDeps, prefs: NotificationPrefs) {
   }
 
   // ── SMS ────────────────────────────────────────────────────────────────────────────────
-  let sendSmsImpl = async (to: string, body: string): Promise<SmsResult> => {
-    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !(process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_MESSAGING_SERVICE_SID)) {
-      return { status: 'logged', sid: null, error: 'Twilio not configured' }
-    }
-    const twilio: any = await import('twilio')
-    const client = (twilio.default as any)(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-    const m = await client.messages.create({
-      ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: process.env.TWILIO_PHONE_NUMBER }),
-      to, body,
-    })
-    reportSmsUsage(Number(m.numSegments) || 1, m.sid)
-    return { status: 'sent', sid: m.sid, error: null }
+  // Through the business's one texting service (sendSMS): its own registered sender, a STOP honoured, the messaging
+  // wallet checked and metered, the text kept in Messages. This called Twilio directly from the platform's shared
+  // number, around all of that (2026-10-21).
+  let sendSmsImpl = async (to: string, body: string, companyId: string): Promise<SmsResult> => {
+    const r: any = await d.services.sms.sendSMS(companyId, { toPhone: to, message: body })
+    if (!r) return { status: 'logged', sid: null, error: 'opted out of texts' }
+    if (r.refused) return { status: 'logged', sid: null, error: r.errorMessage || 'Texting is not set up' }
+    if (r.status === 'failed') return { status: 'failed', sid: r.twilioSid ?? null, error: r.errorMessage || 'failed' }
+    return { status: 'sent', sid: r.twilioSid ?? null, error: null }
   }
 
   /** Send one text. true only when it actually went out. */
-  async function sendText({ phone, body }: { phone: unknown; body: string }): Promise<boolean> {
+  async function sendText({ companyId, phone, body }: { companyId: string; phone: unknown; body: string }): Promise<boolean> {
     const to = toE164(phone)
     if (!to) return false
     try {
-      const r = await sendSmsImpl(to, body)
+      const r = await sendSmsImpl(to, body, companyId)
       return r.status === 'sent'
     } catch (e: any) {
       log('SMS failed', e)
@@ -135,6 +131,7 @@ export function createVisitNotify(d: CrmDeps, prefs: NotificationPrefs) {
   // preferences (the channel switch, the shift-reminder switch, quiet hours — an urgent over-visit text still goes out
   // during quiet hours unless the person turned that off) are applied in exactly one place.
   async function sendCaregiverAlert(a: {
+    companyId: string
     userId: string | null | undefined
     alertType: 'shift_reminder' | 'overtime_alert'
     channel: 'push' | 'sms'
@@ -147,7 +144,7 @@ export function createVisitNotify(d: CrmDeps, prefs: NotificationPrefs) {
       const eventType = a.alertType === 'shift_reminder' ? 'shift_reminder' : null
       if (!(await prefs.shouldNotify(a.userId, a.channel, eventType, { urgent: !!a.urgent }))) return false
     }
-    if (a.channel === 'sms') return sendText({ phone: a.phone, body: a.body })
+    if (a.channel === 'sms') return sendText({ companyId: a.companyId, phone: a.phone, body: a.body })
     return (await sendPush(a.userId, a.payload || { title: a.body })) > 0
   }
 
