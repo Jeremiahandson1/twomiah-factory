@@ -41,6 +41,8 @@ const verticalShell = (): ShellConfig => {
       return item.section && sections[item.section] ? { ...renamed, section: sections[item.section] } : renamed
     }),
     ...(sc.searchPlaceholder ? { searchPlaceholder: sc.searchPlaceholder } : {}),
+    // A page left out of the menu is not this CRM's: typed in, it says so (another vertical's page on a shared feature).
+    routeAbsent: [...(SHELL.routeAbsent || []), ...hidden],
   }
 }
 const SHELL_HERE = verticalShell()

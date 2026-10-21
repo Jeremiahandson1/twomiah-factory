@@ -120,6 +120,10 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
     // flashed rather than navigating away, but it is the same race and the same answer: wait. (T18 M7)
     if (!company) return null
     const path = location.pathname.replace(/\/+$/, '')
+    // Not this CRM's page at all (config.routeAbsent): said before any role or permission question, which would
+    // otherwise send the reader off to ask for access to something their business does not have.
+    const absent = (config.routeAbsent || []).find((to) => path === to || path.startsWith(to + '/'))
+    if (absent) return { to: absent, label: labelFromPath(absent), features: [] as string[], reason: 'feature' as const }
     const candidates: { to: string; label: string; features?: string[] }[] = [
       ...config.nav.filter((i) => !i.external).map((i) => ({ to: i.to, label: i.label, features: i.features })),
       ...Object.entries(config.routeGates || {}).map(([to, features]) => ({ to, label: to.split('/').pop()!.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), features })),
@@ -158,7 +162,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
     const alwaysOn = new Set(candidates.filter((i) => !i.features?.length).map((i) => i.to))
     const blocked = blockedRoute(matches, hasFeature, alwaysOn)
     return blocked ? { ...blocked, reason: 'feature' as const } : null
-  }, [location.pathname, company, hasFeature, can, config.nav, config.routeGates, config.routeRoles, config.routePermissions, user?.role])
+  }, [location.pathname, company, hasFeature, can, config.nav, config.routeGates, config.routeRoles, config.routePermissions, config.routeAbsent, user?.role])
 
   /**
    * Is the blocked module one this product OFFERS and the shop has simply switched off? (Salon RR6)

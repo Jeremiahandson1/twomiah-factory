@@ -118,6 +118,12 @@ export interface ShellConfig {
    * several — checked by URL exactly like `permission` on a nav item. (T30 M-R1)
    */
   routePermissions?: Record<string, string>
+  /**
+   * Addresses this CRM does not have although the app mounts them — another business type's page that a shared
+   * feature would otherwise reach (the bar's /crm/regulars on a salon). Typed in, each says "isn't part of this CRM",
+   * as a page whose feature is not offered does. Hiding a page from the menu alone left it one URL away.
+   */
+  routeAbsent?: string[]
   brand?: {
     icon?: IconComponent
     /** Shown while the company has not loaded. Default "CRM". */
