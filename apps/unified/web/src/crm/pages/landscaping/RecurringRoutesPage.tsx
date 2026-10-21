@@ -168,7 +168,7 @@ export default function RecurringRoutesPage() {
             <div className="text-xs font-semibold text-gray-500 mb-2 dark:text-slate-400">{day.dayName}</div>
             <div className="space-y-2">
               {day.routes.map((r) => card(r))}
-              {day.routes.length === 0 && <div className="text-[11px] text-gray-400 dark:text-slate-500">—</div>}
+              {day.routes.length === 0 && <div className="text-[11px] text-gray-600 dark:text-slate-300">—</div>}
             </div>
           </div>
         ))}
