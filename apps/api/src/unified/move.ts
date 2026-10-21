@@ -218,7 +218,8 @@ export async function prepareMove(tenantId: string, o: { site: MoveSite; oldSite
   // One open move per business: an earlier one is built again (its own resources, found by ownership), not doubled.
   const { data: open } = await d.db.from('tenant_moves').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false })
   const live = (open || []).find((m: any) => !['failed', 'rolled_back'].includes(m.status))
-  if (live && !['preparing', 'ready'].includes(live.status)) throw new Error(`a move for ${t.slug} is already ${live.status}`)
+  // A rehearsed move may be built again (new code on the new service) — and is then 'ready': new code, new rehearsal.
+  if (live && !['preparing', 'ready', 'rehearsed'].includes(live.status)) throw new Error(`a move for ${t.slug} is already ${live.status}`)
   if (facts.problems.length) return { moveId: live?.id || '', success: false, steps: [], errors: facts.problems, facts }
 
   let moveId: string = live?.id
@@ -459,6 +460,13 @@ export async function switchMove(moveId: string, d: MoveDeps): Promise<{ ok: boo
     if (jErr || !jobRow) throw new Error('the job record: ' + (jErr?.message || 'no row'))
     undo.jobId = jobRow.id
     step('job', 'factory_jobs ' + jobRow.id)
+    // The features: the Factory's list, as every build ends (factory.ts deployUnifiedTenant) — not the old database's,
+    // which can be empty while the template read its package from elsewhere (547's agency held none).
+    const features: string[] = Array.isArray(tenant.features) ? tenant.features : []
+    if (!features.length) throw new Error('the Factory has no feature list for this business; the new app would show nothing')
+    const sync = await d.hosts.callTenant(newUrl, '/api/internal/sync-features', env.FACTORY_SYNC_KEY, { features })
+    if (sync.status !== 200) throw new Error(`the new service answered ${sync.status} to the feature sync: ${sync.body?.error || ''}`)
+    step('features', `${features.length} from the Factory's record`)
     // The move's settings leave the new service (the old database's address among them), with the deploy that applies it.
     await d.hosts.deleteEnv(newId, 'MOVE_SOURCE_DATABASE_URL')
     await d.hosts.deleteEnv(newId, 'MOVE_KIND')

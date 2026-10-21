@@ -32,7 +32,7 @@ const fresh = parseSitePackage({ fresh: { tagline: 'Built right', pages: [
 ] } })
 
 /** A premium site.db as the template builds it, with its settings, one page and one photo the old site serves. */
-function premiumPackage() {
+function premiumPackage(address = '1 Main St, Eau Claire, WI') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'move-run-'))
   const file = path.join(dir, 'site.db')
   const db = new Database(file, { create: true })
@@ -41,7 +41,7 @@ function premiumPackage() {
   for (const e of journal.entries) for (const s of fs.readFileSync(path.join(migrations, e.tag + '.sql'), 'utf8').split('--> statement-breakpoint')) if (s.trim()) db.exec(s)
   const t0 = Date.parse('2026-09-01T12:00:00Z')
   db.query(`INSERT INTO settings (id, company_name, tagline, phone, address, primary_color, nav, photo_credits, content_gaps, service_areas, updated_at)
-    VALUES ('s1', 'Amber-like Inn Bar & Grill', 'Supper club since 1946', '715-555-0199', '1 Main St, Eau Claire, WI', '#C79D67', '[]', '[]', '[]', '[]', ?)`).run(t0)
+    VALUES ('s1', 'Amber-like Inn Bar & Grill', 'Supper club since 1946', '715-555-0199', ?, '#C79D67', '[]', '[]', '[]', '[]', ?)`).run(address, t0)
   db.query(`INSERT INTO photos (id, url, storage_key, alt, content_type, created_at) VALUES ('ph1', '/media/photos/hero-1.jpg', 'photos/hero-1.jpg', 'The dining room', 'image/jpeg', ?)`).run(t0)
   db.query(`INSERT INTO pages (id, slug, title, is_published, nav_order, created_at, updated_at, sections) VALUES ('pg-home', 'home', 'Home', 1, 0, ?, ?, ?)`)
     .run(t0, t0, JSON.stringify([{ type: 'hero', variant: 'split', data: { title: 'Supper club', image: '/media/photos/hero-1.jpg' } }]))
@@ -145,6 +145,16 @@ describe('a records move with the old premium site, as it is', () => {
     expect(await count(dst, 'website')).toBe(0)
     expect(await count(dst, 'page')).toBe(0)
     expect([...store.objects.keys()]).toEqual([])
+  }, 180_000)
+
+  test("the site's address with a ZIP on the end: the CRM's own street, city and state are kept, not one state of 'WI 54703'", async () => {
+    const src = await contractor()
+    await src.query(`UPDATE company SET address = '1 Main St', city = 'Eau Claire', state = 'WI' WHERE id = 'co1'`)
+    const dst = await unifiedDb()
+    const { site, fetchImpl } = premiumPackage('1 Main St, Eau Claire, WI 54703')
+    const report = await runMove({ src: src.query, dst: dst.query, kind: 'crm', mode: 'move', site, store: memoryStore(), fetchImpl, writeFresh: async () => 0 })
+    expect((await dst.query(`SELECT address, city, state FROM company`)).rows).toEqual([{ address: '1 Main St', city: 'Eau Claire', state: 'WI' }])
+    expect(report.steps.find((x: any) => x.step === 'site: company')!.did).toContain(`address: the CRM's "1 Main St, Eau Claire, WI" kept — the site printed it with its ZIP`)
   }, 180_000)
 
   test('in the business\'s one bucket, a rehearsal never removes the file the old site still serves; a different file there is refused', async () => {

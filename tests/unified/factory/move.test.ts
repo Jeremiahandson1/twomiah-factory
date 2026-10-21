@@ -71,6 +71,7 @@ function world(over: { tenant?: Record<string, unknown>; crmEnv?: Record<string,
     },
     getJob: async (_: string, jobId: string) => ({ status: jobs.get(jobId)!.status, finishedAt: '2026-10-21T12:00:00Z' }),
     jobLog: async () => ['the job\'s last lines'],
+    callTenant: async (url: string, p: string, key: string, body: any) => { log.push(`call ${url}${p} key=${key} ${JSON.stringify(body)}`); return { status: 200, body: { success: true } } },
   }
   const d: MoveDeps = {
     db, hosts, io: { hosts, push: async () => 'c0ffee', sleep: async () => {} } as any,
@@ -177,6 +178,16 @@ describe('prepare', () => {
     const b = await prepareMove('t1', { site: 'fresh', oldSiteServiceId: 'srv-site' }, w.d)
     expect(b.moveId).toBe(a.moveId)
     expect(w.db.tables.tenant_moves.length).toBe(1)
+  })
+
+  test('built again after a rehearsal (new code), the move needs a new rehearsal before it can run', async () => {
+    const w = world()
+    const { moveId } = await prepareMove('t1', { site: 'fresh', oldSiteServiceId: 'srv-site' }, w.d)
+    await runMoveJob(moveId, 'check', w.d)
+    expect(w.db.tables.tenant_moves[0].status).toBe('rehearsed')
+    expect((await prepareMove('t1', { site: 'fresh', oldSiteServiceId: 'srv-site' }, w.d)).moveId).toBe(moveId)
+    expect(w.db.tables.tenant_moves[0].status).toBe('ready')
+    await expect(runMoveJob(moveId, 'move', w.d)).rejects.toThrow(/needs the move rehearsed; it is ready/)
   })
 
   test('with a problem, nothing is built', async () => {
@@ -296,6 +307,8 @@ describe('switch and rollback', () => {
     expect(w.db.tables.factory_jobs).toHaveLength(1)
     expect(w.db.tables.factory_jobs[0]).toMatchObject({ template: 'unified', status: 'complete', render_url: 'https://acme-app.onrender.com', render_service_ids: { backend: 'srv-new', database: 'dpg-new-a' } })
     expect(w.env['srv-new'].MOVE_SOURCE_DATABASE_URL).toBeUndefined()
+    // The Factory's feature list, not the old database's (547's agency held none).
+    expect(w.log).toContain('call https://acme-app.onrender.com/api/internal/sync-features key=new-key {"features":["contacts","jobs"]}')
     expect(w.log).toContain('deploy srv-new')
     expect(w.services['srv-site'].suspended).toBe('suspended')
     expect(w.services['srv-crm'].suspended).toBe('suspended')

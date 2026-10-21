@@ -241,6 +241,11 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
           const [street, city, state] = parts.length === 3 && parts.every((p) => p && p.trim() === p) ? parts : [siteAddr, null, null]
           const setAddr = () => write(`UPDATE company SET address = $1, city = $2, state = $3 WHERE id = $4`, [street, city, state, companyId])
           if (!crmLine) { await setAddr(); filled.push('address') }
+          // The same address with a ZIP on the end ("…, WI" and "…, WI 54703"): the CRM's fields say it already, and the
+          // split would put "WI 54703" in its state — kept, and the one difference the site will show is said.
+          else if (crmLine !== siteAddr && siteWins && new RegExp('^' + crmLine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\d{5}(-\\d{4})?$').test(siteAddr)) {
+            differ.push(`address: the CRM's "${crmLine}" kept — the site printed it with its ZIP ("${siteAddr}"); the new site prints it without`)
+          }
           else if (crmLine !== siteAddr && siteWins) { await setAddr(); differ.push(`address: the site's "${siteAddr}" replaced the CRM's "${crmLine}"`) }
           else if (crmLine !== siteAddr) differ.push(`address: the CRM's "${crmLine}" kept, the site had "${siteAddr}"`)
         }
