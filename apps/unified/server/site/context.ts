@@ -24,12 +24,15 @@ export interface SiteContext {
 }
 
 /**
- * The site's one-line address, exactly as the Factory has always seeded it (routes/factory/intake.ts site-bootstrap:
- * "street, city, state", no ZIP). base.ejs reads the last two parts as the city and state for Google's business
- * markup, so a ZIP on the end would land in the state.
+ * The site's one-line address as a US address is written: "street, city, ST 12345" — the ZIP with the state when the
+ * business has one (the old sites printed the owner's own line, ZIP included). The parts go to the views too
+ * (streetAddress, addressLocality, addressRegion, postalCode): base.ejs's business markup and the visit section read
+ * those, not a split of this line.
  */
-function addressLine(c: { address: string | null; city: string | null; state: string | null }): string {
-  return [c.address, c.city, c.state].filter((p) => p && String(p).trim()).join(', ')
+function addressLine(c: { address: string | null; city: string | null; state: string | null; zip: string | null }): string {
+  const t = (v: string | null) => (v ? String(v).trim() : '')
+  const region = [t(c.state), t(c.zip)].filter(Boolean).join(' ')
+  return [t(c.address), t(c.city), region].filter(Boolean).join(', ')
 }
 
 export async function loadSiteContext(db: any, vertical: VerticalSettings): Promise<SiteContext | null> {
@@ -49,6 +52,10 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
       phone: co.phone || '',
       email: co.email || '',
       address: addressLine(co),
+      streetAddress: co.address || '',
+      addressLocality: co.city || '',
+      addressRegion: co.state || '',
+      postalCode: co.zip || '',
       logoUrl: co.logo || '',
       primaryColor: co.primaryColor,
       secondaryColor: co.secondaryColor,

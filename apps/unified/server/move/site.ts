@@ -207,7 +207,7 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
       name: 'site: company',
       run: async ({ write }) => {
         for (const t of TARGETS) before.set(t, Number((await write(`SELECT count(*)::int AS n FROM ${q(t)}`)).rows[0].n))
-        const cos = (await write(`SELECT id, name, phone, email, address, city, state, logo, primary_color, secondary_color FROM company`)).rows
+        const cos = (await write(`SELECT id, name, phone, email, address, city, state, zip, logo, primary_color, secondary_color FROM company`)).rows
         if (cos.length !== 1) throw new Error(`The unified database has ${cos.length} companies; the site move needs the one the CRM move made`)
         const co = cos[0]
         companyId = co.id
@@ -233,21 +233,25 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
         // The logo is settled after the photos step (its address may be rewritten); remembered here.
         const siteAddr = String(s.address ?? '').trim()
         if (siteAddr) {
-          const crmLine = [co.address, co.city, co.state].filter((p: any) => p && String(p).trim()).join(', ')
-          // The site prints address, city and state joined by ", " (site/context.ts addressLine): the site's line goes in
-          // as "street, city, state" when it splits back to exactly itself, else whole as the street — either way the
-          // site prints the same line.
+          const t = (v: unknown) => (v == null ? '' : String(v).trim())
+          // The site prints "street, city, ST 12345" back from address, city, state and zip (site/context.ts addressLine).
+          const crmLine = [t(co.address), t(co.city), [t(co.state), t(co.zip)].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+          // The site's line into those fields: "street, city, ST 12345" when it splits back to exactly itself (the ZIP
+          // apart from the state), else whole as the street — either way the site prints the same line.
           const parts = siteAddr.split(', ')
-          const [street, city, state] = parts.length === 3 && parts.every((p) => p && p.trim() === p) ? parts : [siteAddr, null, null]
-          const setAddr = () => write(`UPDATE company SET address = $1, city = $2, state = $3 WHERE id = $4`, [street, city, state, companyId])
+          const whole = parts.length === 3 && parts.every((p) => p && p.trim() === p)
+          const tail = whole ? /^([A-Z]{2}) (\d{5}(?:-\d{4})?)$/.exec(parts[2]) : null
+          const street = whole ? parts[0] : siteAddr
+          const city = whole ? parts[1] : null
+          const state = whole ? (tail ? tail[1] : parts[2]) : null
+          const zip = tail ? tail[2] : null
+          const setAddr = () => write(`UPDATE company SET address = $1, city = $2, state = $3, zip = $4 WHERE id = $5`, [street, city, state, zip ?? (t(co.zip) || null), companyId])
           if (!crmLine) { await setAddr(); filled.push('address') }
-          // The same address with a ZIP on the end ("…, WI" and "…, WI 54703"): the CRM's fields say it already, and the
-          // split would put "WI 54703" in its state — kept, and the one difference the site will show is said.
-          else if (crmLine !== siteAddr && siteWins && new RegExp('^' + crmLine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' \\d{5}(-\\d{4})?$').test(siteAddr)) {
-            differ.push(`address: the CRM's "${crmLine}" kept — the site printed it with its ZIP ("${siteAddr}"); the new site prints it without`)
-          }
-          else if (crmLine !== siteAddr && siteWins) { await setAddr(); differ.push(`address: the site's "${siteAddr}" replaced the CRM's "${crmLine}"`) }
-          else if (crmLine !== siteAddr) differ.push(`address: the CRM's "${crmLine}" kept, the site had "${siteAddr}"`)
+          else if (crmLine === siteAddr) { /* the same */ }
+          // The CRM's address without the ZIP the site printed: the ZIP fills it, nothing else changes.
+          else if (zip && !t(co.zip) && crmLine + ' ' + zip === siteAddr) { await write(`UPDATE company SET zip = $1 WHERE id = $2`, [zip, companyId]); filled.push('ZIP') }
+          else if (siteWins) { await setAddr(); differ.push(`address: the site's "${siteAddr}" replaced the CRM's "${crmLine}"`) }
+          else differ.push(`address: the CRM's "${crmLine}" kept, the site had "${siteAddr}"`)
         }
         // Site sign-ins → the app's one set of users (the CRM's), by email. initDb.ts made the site's first admin from
         // ADMIN_EMAIL (the company email the Factory passed) with its own password; further admins were added by hand.

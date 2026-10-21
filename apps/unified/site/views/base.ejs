@@ -105,8 +105,10 @@
       if (settings.email) _ld.email = settings.email;
       var _areas = (Array.isArray(settings.serviceAreas) ? settings.serviceAreas : []).map(function (a) { return String((a && a.name) || a || '').trim(); }).filter(Boolean);
       if (_areas.length) _ld.areaServed = _areas.map(function (n) { return { '@type': 'Place', name: n }; });
+      // The city and state from their own fields (site/context.ts); a line split only where they are not given.
       var _area = String(settings.address || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-      if (_area.length >= 2) _ld.address = { '@type': 'PostalAddress', addressLocality: _area[_area.length - 2], addressRegion: _area[_area.length - 1] };
+      if (settings.addressLocality && settings.addressRegion) _ld.address = { '@type': 'PostalAddress', addressLocality: settings.addressLocality, addressRegion: settings.addressRegion };
+      else if (_area.length >= 2) _ld.address = { '@type': 'PostalAddress', addressLocality: _area[_area.length - 2], addressRegion: _area[_area.length - 1] };
       var _ldLogo = settings.logoUrl && settings.logoUrl !== '/images/logo.svg' ? settings.logoUrl : '';
       if (_ldLogo) { _ld.logo = _ldLogo.charAt(0) === '/' && _ldLogo.charAt(1) !== '/' ? canonicalBase + _ldLogo : _ldLogo; _ld.image = _ld.logo; }
     }

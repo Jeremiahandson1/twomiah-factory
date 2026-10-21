@@ -11,6 +11,8 @@ import * as schema from '../server/db/schema/index.ts'
 import { runMove } from '../server/move/run.ts'
 import { writeFreshSite, parseSitePackage } from '../server/move/siteSource.ts'
 import { memoryStore } from './harness.ts'
+import { loadSiteContext } from '../server/site/context.ts'
+import { loadVertical } from '../server/core/vertical.ts'
 import { liveTemplate, unifiedDb, putter, ROOT, type Db } from './templateLive.ts'
 
 const count = async (d: Db, table: string) => Number((await d.query(`SELECT count(*)::int AS n FROM "${table}"`)).rows[0].n)
@@ -147,14 +149,16 @@ describe('a records move with the old premium site, as it is', () => {
     expect([...store.objects.keys()]).toEqual([])
   }, 180_000)
 
-  test("the site's address with a ZIP on the end: the CRM's own street, city and state are kept, not one state of 'WI 54703'", async () => {
+  test("the site's address with its ZIP: the CRM's street, city and state kept, the ZIP filled — and the new site prints the same line", async () => {
     const src = await contractor()
-    await src.query(`UPDATE company SET address = '1 Main St', city = 'Eau Claire', state = 'WI' WHERE id = 'co1'`)
+    await src.query(`UPDATE company SET address = '1 Main St', city = 'Eau Claire', state = 'WI', zip = NULL WHERE id = 'co1'`)
     const dst = await unifiedDb()
     const { site, fetchImpl } = premiumPackage('1 Main St, Eau Claire, WI 54703')
     const report = await runMove({ src: src.query, dst: dst.query, kind: 'crm', mode: 'move', site, store: memoryStore(), fetchImpl, writeFresh: async () => 0 })
-    expect((await dst.query(`SELECT address, city, state FROM company`)).rows).toEqual([{ address: '1 Main St', city: 'Eau Claire', state: 'WI' }])
-    expect(report.steps.find((x: any) => x.step === 'site: company')!.did).toContain(`address: the CRM's "1 Main St, Eau Claire, WI" kept — the site printed it with its ZIP`)
+    expect((await dst.query(`SELECT address, city, state, zip FROM company`)).rows).toEqual([{ address: '1 Main St', city: 'Eau Claire', state: 'WI', zip: '54703' }])
+    expect(report.steps.find((x: any) => x.step === 'site: company')!.did).toContain('filled from the site: phone, ZIP')
+    const ctx = await loadSiteContext(drizzle(dst.db, { schema }), await loadVertical('bar'))
+    expect(ctx!.settings.address).toBe('1 Main St, Eau Claire, WI 54703')
   }, 180_000)
 
   test('in the business\'s one bucket, a rehearsal never removes the file the old site still serves; a different file there is refused', async () => {

@@ -518,8 +518,12 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     const contactLines = [
       s?.phone ? 'Phone: ' + oneLine(s.phone) : '',
       s?.email ? 'Email: ' + oneLine(s.email) : '',
-      // The area only: the street is often the owner's home.
-      (() => { const p = oneLine(s?.address).split(',').map((x) => x.trim()).filter(Boolean); return p.length >= 2 ? 'Area: ' + p.slice(-2).join(', ') : '' })(),
+      // The area only: the street is often the owner's home. City and state from their own fields (the line carries
+      // the ZIP with the state); a split of the line only where they are not given.
+      (() => {
+        if (s?.addressLocality && s?.addressRegion) return 'Area: ' + oneLine(s.addressLocality) + ', ' + oneLine(s.addressRegion)
+        const p = oneLine(s?.address).split(',').map((x) => x.trim()).filter(Boolean); return p.length >= 2 ? 'Area: ' + p.slice(-2).join(', ') : ''
+      })(),
     ].filter(Boolean)
     if (contactLines.length) lines.push(...contactLines.map((l) => '- ' + l), '')
     if (ctx) {
