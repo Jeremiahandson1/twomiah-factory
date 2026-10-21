@@ -14,7 +14,10 @@ let made = 0
 const fakeStripe = {
   checkout: { sessions: { create: async (args: any, opts: any) => { calls.push({ what: 'checkout', args, opts }); made++; return { id: 'cs_' + made, url: 'https://checkout.stripe.com/c/pay/cs_' + made } } } },
   refunds: { create: async (args: any, opts: any) => { calls.push({ what: 'refund', args, opts }); return { id: 're_1' } } },
+  // a deposit's PaymentIntent, as Stripe returns it: the booking it was for (createBookingDepositCheckout's metadata)
+  paymentIntents: { retrieve: async (id: string, opts: any) => { calls.push({ what: 'pi', args: id, opts }); return { id, metadata: depositMeta[id] || {} } } },
 }
+const depositMeta: Record<string, Record<string, string>> = {}
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = '', owner = '', day = ''
@@ -122,5 +125,27 @@ describe('with the business\'s own connected account', () => {
     const late = await t.call(`/booking/${token}/pay`)
     expect(late.status).toBe(303)
     expect(decodeURIComponent(late.headers.get('location')!)).toContain('please book again')
+  })
+
+  test('a paid deposit the owner refunds at Stripe is recorded on the booking; a part refund leaves it paid', async () => {
+    const token = (await (await book('13:00')).json()).token
+    const b = await row(token)
+    expect((await paid(b.id, 'pi_13')).status).toBe(200)
+    expect((await row(token)).depositStatus).toBe('paid')
+    depositMeta.pi_13 = { booking_id: b.id, company_id: companyId, kind: 'booking_deposit' }
+    // Stripe's charge.refunded, forwarded by the Factory: the charge itself carries no booking, its PaymentIntent does
+    const refunded = (full: boolean) => t.call('/api/stripe/factory-event', {
+      method: 'POST', headers: { 'X-Factory-Key': 'factory-key' },
+      json: { event: { type: 'charge.refunded', account: 'acct_biz', data: { object: { id: 'ch_13', payment_intent: 'pi_13', amount: 2500, amount_refunded: full ? 2500 : 1000, refunded: full, metadata: {} } } } },
+    })
+    calls.length = 0
+    expect((await refunded(false)).status).toBe(200)
+    expect(calls).toEqual([{ what: 'pi', args: 'pi_13', opts: { stripeAccount: 'acct_biz' } }])
+    expect((await row(token)).depositStatus).toBe('paid')
+    expect((await refunded(true)).status).toBe(200)
+    const after = await row(token)
+    expect([after.status, after.depositStatus]).toEqual(['confirmed', 'refunded'])
+    // the customer's own page says so
+    expect(await (await t.call(`/booking/${token}`)).text()).toContain('refunded')
   })
 })

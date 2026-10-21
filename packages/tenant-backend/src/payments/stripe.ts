@@ -690,6 +690,18 @@ export function createStripeService(deps: StripeServiceDeps) {
       return { handled: false }
     }
     const [paymentRow] = await db.select().from(payment).where(and(eq(payment.reference, paymentIntentId), sql`${payment.amount}::numeric > 0`)).limit(1)
+    // Not an invoice payment: a booking deposit refunded at Stripe — the owner's own dashboard, which is where a paid
+    // deposit is refunded — is recorded on the booking. This looked only for an invoice payment, so the booking said
+    // "$1 · paid" after the money had gone back (live $1 test, 2026-10-21). The deposit's PaymentIntent carries
+    // booking_id (createBookingDepositCheckout); a partial refund leaves the deposit recorded as paid.
+    if (!paymentRow && options.onBookingDepositRefunded) {
+      const meta = charge.metadata?.booking_id ? charge.metadata
+        : (await stripe!.paymentIntents.retrieve(paymentIntentId, requestOpts(stripeAccount))).metadata || {}
+      if (meta.booking_id) {
+        if (charge.refunded) await options.onBookingDepositRefunded({ bookingId: meta.booking_id, companyId: meta.company_id || null, paymentIntentId })
+        return { handled: true, booking_id: meta.booking_id, refunded: !!charge.refunded }
+      }
+    }
     if (!paymentRow) {
       console.log('[Stripe] Refund on a charge with no invoice payment behind it:', charge.id, paymentIntentId)
       return { handled: false, paymentIntentId }
