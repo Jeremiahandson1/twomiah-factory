@@ -510,12 +510,13 @@ describe('the payment connection', () => {
     expect(bad.status).toBe(400)
     expect(bad.json.error).toBe('Invalid payment credentials')
 
-    const conn = await as(owner)('POST', '/api/admin/payments/connect', { provider: 'paypal', mode: 'test', secretKey: 'sk2', publishableKey: 'pk2', webhookSecret: 'WH-TEST' })
+    const conn = await as(owner)('POST', '/api/admin/payments/connect', { provider: 'paypal', mode: 'test', secretKey: 'sk_plain_2', publishableKey: 'pk2', webhookSecret: 'WH-TEST' })
     expect(conn.status).toBe(200)
     expect(conn.json).toEqual({ config: { provider: 'paypal', mode: 'test', connected: true }, webhookConfigured: true, webhookNote: null })
     const rows: any[] = await t.db.select().from(S().paymentConfig).where(eq(S().paymentConfig.companyId, companyId))
     expect(rows.length).toBe(1)
-    expect(rows[0].credentialsEnc).not.toContain('sk2')
+    // '_' is outside base64's alphabet, so the ciphertext can never spell this key by chance ('sk2' did once, in CI).
+    expect(rows[0].credentialsEnc).not.toContain('sk_plain_2')
 
     expect((await as(owner)('POST', '/api/admin/payments/disconnect')).json).toEqual({ success: true })
     expect((await req('GET', '/api/public/settings')).json.checkoutEnabled).toBe(false)
