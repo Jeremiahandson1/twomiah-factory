@@ -1,11 +1,11 @@
-// The data move's trades steps (apps/api/src/unified/move/steps/trades.ts) on a bar tenant (templates/crm-bar): the
+// The data move's trades steps (apps/unified/server/move/steps/trades.ts) on a bar tenant (templates/crm-bar): the
 // template's database as a live tenant has it (templateLive.ts), a row for every step — the bar's own extras included
 // (user.location_id, contact.opted_out_sms, job.job_type, the takeoff measurements prune-legacy adds as bare numeric) —
 // moved into an empty unified database, and each value looked for where it should have landed.
 import { test, expect, beforeAll } from 'bun:test'
-import { planMove } from '../../api/src/unified/move/schema.ts'
-import { moveTenant, type MoveReport } from '../../api/src/unified/move/copy.ts'
-import { tradesMove } from '../../api/src/unified/move/steps/trades.ts'
+import { planMove } from '../server/move/schema.ts'
+import { moveTenant, type MoveReport } from '../server/move/copy.ts'
+import { tradesMove } from '../server/move/steps/trades.ts'
 import { liveTemplate, unifiedDb, putter, type Db } from './templateLive.ts'
 
 let src: Db

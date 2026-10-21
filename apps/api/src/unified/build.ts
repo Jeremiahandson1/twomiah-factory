@@ -37,8 +37,17 @@ export interface BuildInput {
   tenant: { id: string; slug: string }
   /** The vertical's id (apps/unified/server/core/vertical.ts loadVertical). */
   vertical: string
-  /** The body of the tenant's POST /api/internal/provision (apps/unified/server/modules/provision.ts). */
-  provision: Record<string, unknown>
+  /**
+   * The body of the tenant's POST /api/internal/provision (apps/unified/server/modules/provision.ts) — or null for a
+   * business moving in from the templates (unified/move.ts): its records arrive by the move job instead, into the empty
+   * database this build leaves.
+   */
+  provision: Record<string, unknown> | null
+  /**
+   * Secrets the service must have exactly (a move: the old service's ENCRYPTION_KEY, which the moved rows were
+   * encrypted with). They win over the service's own and over a new one.
+   */
+  carry?: Record<string, string>
   /**
    * The Factory's integration settings for this tenant (Twilio, email, maps…), computed by the caller — or computed from
    * the service's address, for the settings that carry it (QuickBooks' return address), since a new service's address is
@@ -80,8 +89,8 @@ export interface BuildResult {
 }
 
 /** The service's settings: the ones this build owns, then the secrets it keeps once made. */
-export function tenantEnv(input: { tenantId: string; vertical: string; databaseUrl: string; serviceUrl: string; factoryUrl: string; domain?: string | null; integrationEnv?: EnvVar[] }, current: Record<string, string>): { set: EnvVar[]; factorySyncKey: string } {
-  const keep = (key: string, make: () => string) => current[key] || make()
+export function tenantEnv(input: { tenantId: string; vertical: string; databaseUrl: string; serviceUrl: string; factoryUrl: string; domain?: string | null; integrationEnv?: EnvVar[]; carry?: Record<string, string> }, current: Record<string, string>): { set: EnvVar[]; factorySyncKey: string } {
+  const keep = (key: string, make: () => string) => input.carry?.[key] || current[key] || make()
   const secrets: Record<string, string> = {
     JWT_SECRET: keep('JWT_SECRET', () => crypto.randomBytes(48).toString('base64')),
     JWT_REFRESH_SECRET: keep('JWT_REFRESH_SECRET', () => crypto.randomBytes(48).toString('base64')),
@@ -184,7 +193,7 @@ export async function buildUnifiedTenant(input: BuildInput, io: BuildIo): Promis
   const dir = path.join(os.tmpdir(), `unified-${input.tenant.slug}-${Date.now()}`)
   const integrationFor = (serviceUrl: string) => typeof input.integrationEnv === 'function' ? input.integrationEnv(serviceUrl) : input.integrationEnv
   const envFor = (serviceUrl: string, now: Record<string, string>) =>
-    tenantEnv({ tenantId: input.tenant.id, vertical: input.vertical, databaseUrl, serviceUrl, factoryUrl: input.factoryUrl, domain: input.domain, integrationEnv: integrationFor(serviceUrl) }, now)
+    tenantEnv({ tenantId: input.tenant.id, vertical: input.vertical, databaseUrl, serviceUrl, factoryUrl: input.factoryUrl, domain: input.domain, integrationEnv: integrationFor(serviceUrl), carry: input.carry }, now)
   let commit: string
   let serviceId = '', serviceUrl = '', factorySyncKey = ''
   try {
@@ -237,7 +246,12 @@ export async function buildUnifiedTenant(input: BuildInput, io: BuildIo): Promis
   if (!live.ok) { const r = stop('live', `${serviceUrl} did not answer with ${commit.slice(0, 9)} in time (last seen: ${live.seen ? live.seen.slice(0, 9) : 'no answer'})`); return { ...r, record } }
   steps.push({ step: 'live', status: 'ok', detail: serviceUrl + ' runs ' + commit.slice(0, 9) })
 
-  // 5. The business. The call is safe to repeat (a provisioned tenant answers "already provisioned"), so a gateway answer
+  // 5. The business — unless it is moving in: then the database stays empty for the move job (unified/move.ts).
+  if (!input.provision) {
+    steps.push({ step: 'provision', status: 'skipped', detail: 'moving in: the records come by the move job' })
+    return { success: true, steps, errors, record }
+  }
+  // The call is safe to repeat (a provisioned tenant answers "already provisioned"), so a gateway answer
   // — no answer, 502, 503, 504, as while Render swaps the instance that just went live — is asked again, a few times,
   // before it fails the build. (The first home-care build on Render, 2026-10-19: live, then a 502 on this call.)
   const retryable = (status: number) => status === 0 || status === 502 || status === 503 || status === 504

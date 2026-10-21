@@ -63,6 +63,8 @@ export function createHosts(cfg: HostConfig, fetchImpl: Fetch) {
 
   return {
     repoFullName: (name: string) => cfg.githubOrg + '/' + name,
+    /** The region every tenant service and database server is built in. */
+    region: () => cfg.region || 'ohio',
 
     /** The repo, or null when GitHub says there is none. */
     async getRepo(fullName: string): Promise<any | null> {
@@ -73,6 +75,14 @@ export function createHosts(cfg: HostConfig, fetchImpl: Fetch) {
     },
 
     /** A new private repo in the org. A name that turns out to be taken is an error, never "use that one". */
+    /** A file's text on a repo's branch, or null when it has none. */
+    async getRepoFile(fullName: string, filePath: string, ref = 'main'): Promise<string | null> {
+      const res = await github('/repos/' + fullName + '/contents/' + filePath.split('/').map(encodeURIComponent).join('/') + '?ref=' + encodeURIComponent(ref), { headers: { Accept: 'application/vnd.github.raw' } })
+      if (res.status === 404) return null
+      if (!res.ok) return fail('GitHub file ' + fullName + '/' + filePath, res)
+      return res.text()
+    },
+
     async createRepo(name: string, description: string): Promise<{ fullName: string }> {
       const request = JSON.stringify({ name, description, private: true })
       let res = await github('/orgs/' + cfg.githubOrg + '/repos', { method: 'POST', body: request })
@@ -164,6 +174,59 @@ export function createHosts(cfg: HostConfig, fetchImpl: Fetch) {
         const res = await render('/services/' + id + '/env-vars/' + encodeURIComponent(v.key), { method: 'PUT', body: JSON.stringify({ value: v.value }) })
         if (!res.ok) await fail('Render env ' + v.key + ' on ' + id, res)
       }
+    },
+
+    /** Removes one setting (absent already: done). */
+    async deleteEnv(id: string, key: string): Promise<void> {
+      const res = await render('/services/' + id + '/env-vars/' + encodeURIComponent(key), { method: 'DELETE' })
+      if (!res.ok && res.status !== 404) await fail('Render env delete ' + key + ' on ' + id, res)
+    },
+
+    /** A one-off job on the service: its last build, its settings, the command given. Returns the job's id. */
+    async startJob(id: string, startCommand: string): Promise<string> {
+      const res = await render('/services/' + id + '/jobs', { method: 'POST', body: JSON.stringify({ startCommand }) })
+      if (!res.ok) await fail('Render job on ' + id, res)
+      return String(((await res.json()) as any).id)
+    },
+
+    /** The job's status ('pending' | 'running' | 'succeeded' | 'failed' | 'canceled') and when it finished. */
+    async getJob(id: string, jobId: string): Promise<{ status: string; finishedAt: string | null }> {
+      const res = await render('/services/' + id + '/jobs/' + jobId)
+      if (!res.ok) await fail('Render job ' + jobId, res)
+      const j = (await res.json()) as any
+      return { status: String(j.status || 'unknown'), finishedAt: j.finishedAt || null }
+    },
+
+    /** The job's last log lines, oldest first (what a job that never wrote its report said before it stopped). */
+    async jobLog(jobId: string, limit = 60): Promise<string[]> {
+      const res = await render('/logs?ownerId=' + encodeURIComponent(cfg.renderOwnerId) + '&resource=' + encodeURIComponent(jobId) + '&limit=' + limit + '&direction=backward')
+      if (!res.ok) return []
+      return (((await res.json()) as any).logs || []).map((l: any) => String(l.message ?? '')).reverse()
+    },
+
+    /** Stops the service answering (its instances stop; nothing is deleted). Resume brings it back as it was. */
+    async suspend(id: string): Promise<void> {
+      const res = await render('/services/' + id + '/suspend', { method: 'POST' })
+      if (!res.ok) await fail('Render suspend ' + id, res)
+    },
+    async resume(id: string): Promise<void> {
+      const res = await render('/services/' + id + '/resume', { method: 'POST' })
+      if (!res.ok) await fail('Render resume ' + id, res)
+    },
+
+    /** The custom domains on a service, by name. */
+    async customDomains(id: string): Promise<{ name: string; verified: boolean }[]> {
+      const res = await render('/services/' + id + '/custom-domains?limit=100')
+      if (!res.ok) await fail('Render custom domains of ' + id, res)
+      return ((await res.json()) as any[]).map((x) => x.customDomain || x).map((d) => ({ name: String(d.name).toLowerCase(), verified: d.verificationStatus === 'verified' }))
+    },
+    async addCustomDomain(id: string, name: string): Promise<void> {
+      const res = await render('/services/' + id + '/custom-domains', { method: 'POST', body: JSON.stringify({ name }) })
+      if (!res.ok && res.status !== 409) await fail('Render add ' + name + ' to ' + id, res)
+    },
+    async removeCustomDomain(id: string, name: string): Promise<void> {
+      const res = await render('/services/' + id + '/custom-domains/' + encodeURIComponent(name), { method: 'DELETE' })
+      if (!res.ok && res.status !== 404) await fail('Render remove ' + name + ' from ' + id, res)
     },
 
     /** A deploy of the newest commit (a changed setting reaches the service only through a deploy). */

@@ -5,7 +5,7 @@ import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
 import { asc } from 'drizzle-orm'
 import {
-  createAuthMiddleware, createPermissions, createEnabledFeatureGate, createWriteAuditFloor, createAuthRoutes, createMfaRoutes, createFileStorage,
+  createAuthMiddleware, createPermissions, createEnabledFeatureGate, createWriteAuditFloor, createAuthRoutes, createMfaRoutes,
 } from '@twomiah/tenant-backend'
 import * as schema from './db/schema/index.ts'
 import { company, user } from './db/schema/index.ts'
@@ -22,7 +22,7 @@ import { createBookingTexts } from './booking/texts.ts'
 import { createCrmModules, createCrmAdsConnector } from './modules/crm.ts'
 import { createCrmServices } from './crm/services.ts'
 import { createRealtime } from './core/realtime.ts'
-import { createSiteAdmin, createSeedPhotosRoute, type PhotoStore } from './site/admin.ts'
+import { createSiteAdmin, createSeedPhotosRoute, sharedPhotoStore, type PhotoStore } from './site/admin.ts'
 import { createSiteRoutes } from './site/routes.ts'
 import { createStorefront } from './crm/store/index.ts'
 import { createBarSite } from './crm/bar/barSite.ts'
@@ -47,11 +47,6 @@ const NOT_FOUND_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-
   '<style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f7f7f5;color:#1a1a1a}main{max-width:30rem;padding:2rem 1rem;text-align:center}h1{font-size:1.6rem;margin:0 0 .5rem}a{color:inherit;font-weight:600}</style></head>' +
   '<body><main><h1>That page isn’t here.</h1><p>It may have moved, or the link may be wrong.</p><p><a href="/">Go to the home page</a></p></main></body></html>'
 
-/** The shared R2 file storage, as the photo store the website uses. */
-function sharedPhotoStore(): PhotoStore {
-  const s = createFileStorage()
-  return { put: (k, b, t) => s.put(k, b, t), getObject: (k) => s.getObject(k), remove: async (k) => { s.deleteFile(k) } }
-}
 
 /**
  * Test seams, used only by the behaviour-suite harness (tests/unified/harness/runUnifiedSuite.ts), which runs the CRM

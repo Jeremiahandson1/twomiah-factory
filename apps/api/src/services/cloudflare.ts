@@ -115,6 +115,11 @@ export async function listDnsRecords(zoneId: string): Promise<Array<{ id: string
   return Array.isArray(result) ? result : []
 }
 
+/** Points an existing record somewhere else, in place (no moment without it). */
+export async function updateDnsRecord(zoneId: string, recordId: string, content: string): Promise<void> {
+  await cfFetch('/zones/' + zoneId + '/dns_records/' + recordId, { method: 'PATCH', body: JSON.stringify({ content }) })
+}
+
 export async function deleteDnsRecord(zoneId: string, recordId: string): Promise<void> {
   await cfFetch('/zones/' + zoneId + '/dns_records/' + recordId, { method: 'DELETE' })
 }

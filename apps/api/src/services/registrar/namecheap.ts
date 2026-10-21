@@ -93,6 +93,53 @@ async function callApi(command: string, extra: Record<string, string>): Promise<
   return xml
 }
 
+// ─── DNS host records (a domain on Namecheap's own DNS) ─────────────────────────
+// setHosts REPLACES every record of the domain, so a change is always: read them all, change the ones meant, write
+// them all back — with the same EmailType, or the domain's mail (FWD: Namecheap's own forwarding, MX: custom) stops.
+
+export interface NamecheapHost { name: string; type: string; address: string; mxPref: string; ttl: string }
+
+const xmlText = (s: string) => s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+
+/** namecheap.domains.dns.getHosts' answer: the mail setting, whether the domain uses Namecheap's DNS, and every record. */
+export function parseHosts(xml: string): { emailType: string; usingOurDns: boolean; hosts: NamecheapHost[] } {
+  const hosts = (xml.match(/<host\b[^>]*\/?>/gi) || []).map((h) => {
+    const a = (k: string) => xmlText((h.match(new RegExp('\\b' + k + '="([^"]*)"', 'i')) || [])[1] ?? '')
+    return { name: a('Name'), type: a('Type').toUpperCase(), address: a('Address'), mxPref: a('MXPref') || '10', ttl: a('TTL') || '1800' }
+  })
+  return {
+    emailType: attr(xml, 'DomainDNSGetHostsResult', 'EmailType') || '',
+    usingOurDns: (attr(xml, 'DomainDNSGetHostsResult', 'IsUsingOurDNS') || '').toLowerCase() === 'true',
+    hosts,
+  }
+}
+
+/** Second-level name and the rest: 547eauclairehomecare.com → ['547eauclairehomecare', 'com']. */
+function sldTld(domain: string): [string, string] {
+  const [sld, ...rest] = domain.toLowerCase().split('.')
+  if (!sld || !rest.length) throw new Error('not a domain: ' + domain)
+  return [sld, rest.join('.')]
+}
+
+export async function getDnsHosts(domain: string) {
+  const [SLD, TLD] = sldTld(domain)
+  return parseHosts(await callApi('namecheap.domains.dns.getHosts', { SLD, TLD }))
+}
+
+/** Writes the domain's WHOLE record set (see above): every record, and the mail setting read with them. */
+export async function setDnsHosts(domain: string, emailType: string, hosts: NamecheapHost[]): Promise<void> {
+  if (!emailType) throw new Error('the domain\'s mail setting (EmailType) was not read; refusing to write its records')
+  const [SLD, TLD] = sldTld(domain)
+  const extra: Record<string, string> = { SLD, TLD, EmailType: emailType }
+  hosts.forEach((h, i) => {
+    const n = String(i + 1)
+    extra['HostName' + n] = h.name; extra['RecordType' + n] = h.type; extra['Address' + n] = h.address; extra['TTL' + n] = h.ttl
+    if (h.type === 'MX') extra['MXPref' + n] = h.mxPref
+  })
+  const xml = await callApi('namecheap.domains.dns.setHosts', extra)
+  if (!/IsSuccess="true"/i.test(xml)) throw new Error('Namecheap setHosts did not say it succeeded: ' + xml.slice(0, 300))
+}
+
 // Minimal XML attr extractor — Namecheap responses are flat enough that a
 // regex scan beats pulling in a full XML parser dep. If structure gets
 // nested we'll swap to fast-xml-parser or similar.

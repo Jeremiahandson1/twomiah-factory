@@ -1,4 +1,4 @@
-// The data move on a home-care agency (apps/api/src/unified/move/steps/homecare.ts): the live template's database built
+// The data move on a home-care agency (apps/unified/server/move/steps/homecare.ts): the live template's database built
 // the way a Render boot builds it (templates/crm-homecare: its migrations in journal order, db/prune-legacy.ts, then
 // db/reconcile.ts from db/schema.ts — apps/api/src/services/deploy.ts dbReconcileStep; push is skipped there,
 // db/NO_DRIZZLE_PUSH), filled with an agency's rows, moved into an empty unified database, and read back — by value and
@@ -11,9 +11,9 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { and, eq, inArray, desc } from 'drizzle-orm'
 import { is, SQL } from 'drizzle-orm'
 import { getTableConfig, PgTable, PgDialect } from 'drizzle-orm/pg-core'
-import { readLayout, type Query } from '../../api/src/unified/move/schema.ts'
-import { moveTenant } from '../../api/src/unified/move/copy.ts'
-import { homecareMove } from '../../api/src/unified/move/steps/homecare.ts'
+import { readLayout, type Query } from '../server/move/schema.ts'
+import { moveTenant } from '../server/move/copy.ts'
+import { homecareMove } from '../server/move/steps/homecare.ts'
 import { reconcileSchema, type TableSpec } from '../../../packages/tenant-backend/src/schemaReconcile.ts'
 import { auditLog, user, supportKnowledgeBase } from '../server/db/schema/index.ts'
 import { activeCaregivers, caregiverPatterns, caregiverOccurrences } from '../server/data/homecareScheduling.ts'

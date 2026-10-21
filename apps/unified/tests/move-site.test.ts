@@ -1,4 +1,4 @@
-// The website's data move (apps/api/src/unified/move/site.ts): a premium site's SQLite file, built from the template's
+// The website's data move (apps/unified/server/move/site.ts): a premium site's SQLite file, built from the template's
 // own migration (templates/website-premium-*/db/migrations), filled the way a live site fills it, and its photo files in
 // a folder; moved into a unified database that already holds what the CRM move made (the company, its users, a lead the
 // site forwarded, the CRM widget's booking service and hours). Then the unified site is built on that database and its
@@ -14,7 +14,7 @@ import { createApp } from '../server/app.ts'
 import { loadVertical } from '../server/core/vertical.ts'
 import { memoryStore } from './harness.ts'
 import { unifiedDb, putter, ROOT, type Db } from './templateLive.ts'
-import { moveSite, filesFromDir, type SiteMoveReport } from '../../api/src/unified/move/site.ts'
+import { moveSite, filesFromDir, type SiteMoveReport } from '../server/move/site.ts'
 
 const VIEWS = path.join(ROOT, 'apps/unified/site/views/sections')
 const knownSection = (k: string) => fs.existsSync(path.join(VIEWS, k + '.ejs'))
@@ -208,8 +208,9 @@ describe('a contractor site (website-premium-contractor) beside its CRM', () => 
       tagline: 'Two Brothers. One Standard.', seo_title: 'Remodeling in Fort Worth', nav: [{ label: 'About', href: '/about' }, { label: 'Blog', href: '/blog' }], service_areas: ['Fort Worth', 'Keller'],
       contact_cta_label: 'Free estimate', accent_color: '#C9A227', google_analytics_id: 'G-TEST123', customizer_token: 'cust-tok',
     })
-    expect(await one(`SELECT name, phone, address, logo, primary_color, secondary_color FROM company`)).toEqual({
-      name: 'Higgs Heritage Builders', phone: '817-888-5135', address: '7061 Example Lane, Fort Worth, TX', logo: '/media/photos/logo-1.png', primary_color: '#B22234', secondary_color: '#0B0B0B',
+    // The site's one-line address goes in as street, city and state — which the site prints joined again, the same line.
+    expect(await one(`SELECT name, phone, address, city, state, logo, primary_color, secondary_color FROM company`)).toEqual({
+      name: 'Higgs Heritage Builders', phone: '817-888-5135', address: '7061 Example Lane', city: 'Fort Worth', state: 'TX', logo: '/media/photos/logo-1.png', primary_color: '#B22234', secondary_color: '#0B0B0B',
     })
     const d = did('site: company')
     expect(d).toContain(`name: the CRM's "Higgs Heritage Builders" kept, the site had "Higgs-like Builders LLC"`)

@@ -12,6 +12,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
+import { createFileStorage } from '@twomiah/tenant-backend'
 import { website, page, post, portfolioItem, photo, pageView, lead, contact } from '../db/schema/index.ts'
 import { SITE_DESIGNS, SITE_DESIGN_LABELS, type VerticalSettings } from '../core/vertical.ts'
 import { list, one, fail, done } from '../http/reply.ts'
@@ -27,6 +28,12 @@ export interface PhotoStore {
   put(key: string, body: Buffer, contentType: string): Promise<void>
   getObject(key: string): Promise<{ body: ArrayBuffer | Uint8Array | Buffer; contentType: string } | null>
   remove(key: string): Promise<void>
+}
+
+/** The business's own file storage (R2, from the service's settings) as the website's photo store — the app's, and the move's. */
+export function sharedPhotoStore(): PhotoStore {
+  const s = createFileStorage()
+  return { put: (k, b, t) => s.put(k, b, t), getObject: (k) => s.getObject(k), remove: async (k) => { s.deleteFile(k) } }
 }
 
 // Sections the server fills in itself (live menu, inventory, portfolio, service areas, tools, a bar's signature-item page,

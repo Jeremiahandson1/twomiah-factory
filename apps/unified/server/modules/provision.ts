@@ -73,6 +73,24 @@ export const provisionSchema = z.object({
   }).optional(),
 })
 export type ProvisionInput = z.infer<typeof provisionSchema>
+export type StartingSite = NonNullable<ProvisionInput['site']>
+
+/**
+ * A business's starting website: its site settings and pages. A new business gets it at provisioning; a business that
+ * moves in from the templates with a NEW site gets it after its records are copied (server/move/siteSource.ts) — the
+ * same rows, written the same way.
+ */
+export async function writeStartingSite(tx: any, companyId: string, site: StartingSite): Promise<number> {
+  const { pages, ...s } = site
+  await tx.insert(website).values({
+    companyId, tagline: s.tagline, seoTitle: s.seoTitle, seoDescription: s.seoDescription,
+    nav: s.nav ?? [], serviceAreas: s.serviceAreas ?? [], photoCredits: s.photoCredits ?? [], contentGaps: s.contentGaps ?? [],
+    ...(s.contactCtaLabel ? { contactCtaLabel: s.contactCtaLabel } : {}),
+    accentColor: s.accentColor ?? null, faviconUrl: s.faviconUrl ?? null, design: s.design ?? null,
+  })
+  if (pages.length) await tx.insert(page).values(pages.map((p) => ({ ...p, companyId })))
+  return pages.length
+}
 
 export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings; forgetFeatures: () => void }) {
   const { db, vertical } = deps
@@ -119,18 +137,7 @@ export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings
         await tx.insert(canvassingScript).values(scripts.map((sc) => ({ ...sc, companyId: created.id })))
       }
 
-      if (input.site) {
-        const { pages, ...s } = input.site
-        await tx.insert(website).values({
-          companyId: created.id, tagline: s.tagline, seoTitle: s.seoTitle, seoDescription: s.seoDescription,
-          nav: s.nav ?? [], serviceAreas: s.serviceAreas ?? [], photoCredits: s.photoCredits ?? [], contentGaps: s.contentGaps ?? [],
-          ...(s.contactCtaLabel ? { contactCtaLabel: s.contactCtaLabel } : {}),
-          accentColor: s.accentColor ?? null, faviconUrl: s.faviconUrl ?? null, design: s.design ?? null,
-        })
-        if (pages.length) {
-          await tx.insert(page).values(pages.map((p) => ({ ...p, companyId: created.id })))
-        }
-      }
+      if (input.site) await writeStartingSite(tx, created.id, input.site)
       return { created: { companyId: created.id, ownerId: owner.id } }
     })
 

@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { PGlite } from '@electric-sql/pglite'
-import { readLayout, type Layout, type Query } from '../../api/src/unified/move/schema.ts'
+import { readLayout, type Layout, type Query } from '../server/move/schema.ts'
 import { reconcileSchema, type TableSpec } from '../../../packages/tenant-backend/src/schemaReconcile.ts'
 
 export const ROOT = path.resolve(import.meta.dir, '..', '..', '..')

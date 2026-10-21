@@ -8,6 +8,7 @@
  * deleted that database on a rollback. The slug was handed out because signup only looked at the tenants table.
  *
  * The rule: a resource is this tenant's own ONLY when the Factory recorded it for this tenant id —
+ *   (factory_jobs below means a tenant_moves row too: a move's new resources, recorded there until its switch)
  *   • a Render service: its id is in one of the tenant's factory_jobs.render_service_ids, or its host is one the Factory
  *     wrote for the tenant (tenants.render_backend_url / render_frontend_url, factory_jobs.render_url), or it is built
  *     from a repo that is the tenant's own (it is running the tenant's code);
@@ -85,7 +86,11 @@ export async function loadOwnedResources(tenantId: string, db?: any): Promise<Ow
   if (tErr) throw new Error('tenant records unreadable: ' + tErr.message)
   const { data: jobs, error: jErr } = await supabase.from('factory_jobs').select('render_service_ids, github_repo, render_url').eq('tenant_id', tenantId)
   if (jErr) throw new Error('job records unreadable: ' + jErr.message)
-  return ownershipFromRecords(tenant, jobs || [])
+  // A move's new service, database and repo (unified/move.ts) are recorded on its tenant_moves row until the switch.
+  // No such table yet (migrations/2026-10-21_tenant_moves.sql not run: PostgREST's PGRST205) means no move was ever made.
+  const { data: moves, error: mErr } = await supabase.from('tenant_moves').select('render_service_ids, github_repo, render_url').eq('tenant_id', tenantId)
+  if (mErr && mErr.code !== 'PGRST205') throw new Error('move records unreadable: ' + mErr.message)
+  return ownershipFromRecords(tenant, [...(jobs || []), ...(moves || [])])
 }
 
 type ServiceLike = { id?: string; name?: string; slug?: string; repo?: string | null; serviceDetails?: { url?: string | null } | null }

@@ -19,6 +19,11 @@ export interface MoveStep {
   name: string
   /** Runs inside the new database's transaction; `read` reads the old snapshot. Returns what it did, for the report. */
   run: (io: { read: Query; write: Query }) => Promise<string>
+  /**
+   * Rows this step added to tables, by table, once it has run (the website move's photos, leads, contacts…): the final
+   * count check expects the old count plus these. A step that declares none must leave every copied table's count as is.
+   */
+  added?: () => ReadonlyMap<string, number>
 }
 
 export interface MoveOptions {
@@ -32,6 +37,11 @@ export interface MoveOptions {
   after?: MoveStep[]
   /** Rows per INSERT is bounded by Postgres's 65535 parameters; this caps it lower. */
   batchRows?: number
+  /**
+   * A rehearsal: everything runs and is counted — every refusal the real move would meet is met — then the new
+   * database's transaction is rolled back, so nothing is kept (run.ts MOVE_MODE=check).
+   */
+  rollback?: boolean
 }
 
 export interface MoveReport {
@@ -107,13 +117,16 @@ export async function moveTenant(o: MoveOptions): Promise<MoveReport> {
 
     for (const s of o.after ?? []) report.steps.push({ step: s.name, did: await s.run({ read: o.read, write: o.write }) })
 
-    // The counts, read back from the new database inside the same transaction.
+    // The counts, read back from the new database inside the same transaction: the old count, plus what a step said it added.
+    const added = new Map<string, number>()
+    for (const s of [...(o.before ?? []), ...(o.after ?? [])]) for (const [t, n] of s.added?.() ?? []) added.set(t, (added.get(t) ?? 0) + n)
     for (const t of report.tables) {
       const n = Number((await o.write(`SELECT count(*)::int AS n FROM ${q(t.table)}`)).rows[0].n)
-      if (n !== t.source && !report.mismatches.some((m) => m.startsWith(t.table + ':'))) report.mismatches.push(`${t.table}: ${t.source} in the old, ${n} in the new`)
+      const want = t.source + (added.get(t.table) ?? 0)
+      if (n !== want && !report.mismatches.some((m) => m.startsWith(t.table + ':'))) report.mismatches.push(`${t.table}: ${t.source} in the old${added.get(t.table) ? ` + ${added.get(t.table)} added` : ''}, ${n} in the new`)
     }
     if (report.mismatches.length) throw Object.assign(new Error(`The move did not match: ${report.mismatches.join('; ')}`), { report })
-    await o.write(`COMMIT`)
+    await o.write(o.rollback ? `ROLLBACK` : `COMMIT`)
     return report
   } catch (e) {
     await o.write(`ROLLBACK`).catch(() => {})

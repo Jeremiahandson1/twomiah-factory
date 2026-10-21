@@ -11,7 +11,9 @@
 //   settings      → website (apps/unified/server/db/schema/site.ts: the site's own columns, same names) and company
 //                   (name, phone, email, address, colours, logo: site/context.ts reads them from company). The company
 //                   row is the CRM's; the CRM's facts stay and a site value only fills an empty one — the same rule the
-//                   trades booking step uses. Differences are reported. The booking words, drive time and iCal token
+//                   trades booking step uses. Differences are reported. With identity 'site' (a premium site moved AS IT
+//                   IS — the owner's "the site must not change") the site's values replace the CRM's instead, each named
+//                   in the report: the site shows the company's, so any CRM value kept would change the site. The booking words, drive time and iCal token
 //                   → booking_settings. crm_url / crm_ready_at end (site and CRM are one app).
 //   pages         → page          posts → post          projects → portfolio_item (the CRM's `project` is a job)
 //   photos        → photo (is_public, public_url, alt), files → the photo store under `photos/` (the one prefix the
@@ -39,6 +41,8 @@ export interface SiteFiles { get(urlPath: string): Promise<SiteFile | null> }
 /** The unified photo store's writing half (server/site/admin.ts PhotoStore). */
 export interface TargetStore {
   put(key: string, body: Buffer, contentType: string): Promise<void>
+  /** What a key holds already (the photos step never overwrites, nor removes, a file it did not put). */
+  getObject(key: string): Promise<{ body: ArrayBuffer | Uint8Array | Buffer } | null>
   remove(key: string): Promise<void>
 }
 
@@ -74,6 +78,16 @@ export interface SiteMoveOptions {
   siteTimezone?: string
   /** True when a section type/variant ('hero/split') has a view in the unified site; others are reported. */
   knownSection?: (key: string) => boolean
+  /**
+   * Whose name, phone, email, address, colours and logo the business keeps where the CRM and the site differ: the CRM's
+   * (the default — a site value only fills an empty one) or the site's (the site moved exactly as it looked).
+   */
+  identity?: 'crm' | 'site'
+  /**
+   * 'leads': only the site's enquiries move (into the CRM's lead inbox, or matched to the leads its forward made) — a
+   * business getting a NEW site keeps every enquiry its old one took; nothing else of the old site is written.
+   */
+  scope?: 'all' | 'leads'
 }
 
 export interface SiteMoveReport {
@@ -197,15 +211,18 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
         if (cos.length !== 1) throw new Error(`The unified database has ${cos.length} companies; the site move needs the one the CRM move made`)
         const co = cos[0]
         companyId = co.id
+        if (o.scope === 'leads') return `company ${companyId}; the old site's enquiries only — the business gets a new site`
         const settings = rows('settings', 'updated_at DESC')
         const s = settings[0]
         if (!s) return 'the site has no settings row'
         const filled: string[] = [], differ: string[] = []
+        const siteWins = o.identity === 'site'
         const fill = async (col: string, siteVal: unknown, label: string) => {
           const v = siteVal == null ? '' : String(siteVal).trim()
           if (!v) return
           const cur = co[col] == null ? '' : String(co[col]).trim()
           if (!cur) { await write(`UPDATE company SET ${q(col)} = $1 WHERE id = $2`, [v, companyId]); filled.push(label) }
+          else if (cur !== v && siteWins) { await write(`UPDATE company SET ${q(col)} = $1 WHERE id = $2`, [v, companyId]); differ.push(`${label}: the site's "${v}" replaced the CRM's "${cur}"`) }
           else if (cur !== v) differ.push(`${label}: the CRM's "${cur}" kept, the site had "${v}"`)
         }
         await fill('name', s.company_name, 'name')
@@ -217,7 +234,14 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
         const siteAddr = String(s.address ?? '').trim()
         if (siteAddr) {
           const crmLine = [co.address, co.city, co.state].filter((p: any) => p && String(p).trim()).join(', ')
-          if (!crmLine) { await write(`UPDATE company SET address = $1 WHERE id = $2`, [siteAddr, companyId]); filled.push('address') }
+          // The site prints address, city and state joined by ", " (site/context.ts addressLine): the site's line goes in
+          // as "street, city, state" when it splits back to exactly itself, else whole as the street — either way the
+          // site prints the same line.
+          const parts = siteAddr.split(', ')
+          const [street, city, state] = parts.length === 3 && parts.every((p) => p && p.trim() === p) ? parts : [siteAddr, null, null]
+          const setAddr = () => write(`UPDATE company SET address = $1, city = $2, state = $3 WHERE id = $4`, [street, city, state, companyId])
+          if (!crmLine) { await setAddr(); filled.push('address') }
+          else if (crmLine !== siteAddr && siteWins) { await setAddr(); differ.push(`address: the site's "${siteAddr}" replaced the CRM's "${crmLine}"`) }
           else if (crmLine !== siteAddr) differ.push(`address: the CRM's "${crmLine}" kept, the site had "${siteAddr}"`)
         }
         // Site sign-ins → the app's one set of users (the CRM's), by email. initDb.ts made the site's first admin from
@@ -275,8 +299,16 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
           if (!f) { missing.push(froms.join(' or ')); continue }
           found.set(key, f)
           if (!/^image\/(jpeg|png|webp|gif|avif)$/.test(f.contentType)) notInline.push(`${from} (${f.contentType})`)
-          await o.store.put(key, Buffer.from(f.body), f.contentType)
-          put.push(key)
+          // A file already in the store is never overwritten, and never the move's to remove: the business keeps ONE
+          // bucket (the old site's and CRM's — run.ts on a moved service is given the old service's R2 settings), so
+          // the key may hold the very file the old site still serves. The same bytes: left as they are. Others: refused.
+          const there = await o.store.getObject(key)
+          if (there) {
+            if (!Buffer.from(there.body as ArrayBuffer).equals(Buffer.from(f.body))) throw new Error(`the photo store already holds a different file at ${key}; the move will not overwrite it`)
+          } else {
+            await o.store.put(key, Buffer.from(f.body), f.contentType)
+            put.push(key)
+          }
           report.files.push({ key, bytes: f.body.byteLength })
         }
         // A file that could not be read keeps its old address everywhere (it was already missing on the old site).
@@ -326,6 +358,7 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
         if (siteLogo) {
           const cur = (await write(`SELECT logo FROM company WHERE id = $1`, [companyId])).rows[0].logo
           if (!cur || !String(cur).trim()) { await write(`UPDATE company SET logo = $1 WHERE id = $2`, [siteLogo, companyId]); logo = `; the company had no logo, so the site's (${siteLogo}) is it now` }
+          else if (String(cur).trim() !== siteLogo && o.identity === 'site') { await write(`UPDATE company SET logo = $1 WHERE id = $2`, [siteLogo, companyId]); logo = `; logo: the site's (${siteLogo}) replaced the CRM's "${cur}"` }
           else if (String(cur).trim() !== siteLogo) logo = `; logo: the CRM's "${cur}" kept, the site showed "${siteLogo}"`
         }
         const dropped = [s.crm_url && 'crm_url', s.crm_ready_at && 'crm_ready_at'].filter(Boolean)
@@ -711,6 +744,8 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
     {
       // The counts, read back inside the same transaction: each table gained exactly what the steps wrote.
       name: 'site: counts',
+      // What the website move added to the tables the records copy also counts (copy.ts's final check).
+      added: () => gained,
       run: async ({ write }) => {
         close()
         for (const t of TARGETS) {
@@ -726,8 +761,10 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
   ]
 
   // Each step's report line, as copy.ts keeps them; the reading snapshot closes if a step throws.
-  const wrapped: MoveStep[] = steps.map((s) => ({
+  const chosen = o.scope === 'leads' ? steps.filter((s) => ['site: company', 'site: leads', 'site: counts'].includes(s.name)) : steps
+  const wrapped: MoveStep[] = chosen.map((s) => ({
     name: s.name,
+    added: s.added,
     run: async (io) => {
       try {
         const did = await s.run(io)

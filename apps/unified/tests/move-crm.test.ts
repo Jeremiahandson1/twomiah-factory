@@ -1,11 +1,11 @@
-// The data move (apps/api/src/unified/move) on a contractor tenant: the live template's database built from its own
+// The data move (apps/unified/server/move) on a contractor tenant: the live template's database built from its own
 // migrations, filled with linked rows, moved into an empty unified database, and every value compared after.
 import { test, expect, beforeAll } from 'bun:test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { PGlite } from '@electric-sql/pglite'
-import { readLayout, planMove, type Layout, type Query } from '../../api/src/unified/move/schema.ts'
-import { moveTenant } from '../../api/src/unified/move/copy.ts'
+import { readLayout, planMove, type Layout, type Query } from '../server/move/schema.ts'
+import { moveTenant } from '../server/move/copy.ts'
 
 const ROOT = path.resolve(import.meta.dir, '..', '..', '..')
 
