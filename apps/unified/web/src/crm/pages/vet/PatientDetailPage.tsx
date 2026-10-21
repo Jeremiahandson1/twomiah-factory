@@ -10,7 +10,7 @@ import VisitEditorModal, { type Visit } from './VisitEditorModal'
 import { useMayWrite, useToast } from '../../../shared'
 import { ageFromDob, NewPatientModal } from './PatientsPage';
 import { ConfirmDialog } from '../../ui/Modal'
-import { fetchStaff, staffName, openPrintable, type StaffMember } from './vetHelpers'
+import { fetchStaff, useMayPickStaff, staffName, openPrintable, type StaffMember } from './vetHelpers'
 import { useAuth } from '../../../shared'
 
 /** A refusal from the API client: its status and body ride on the error. */
@@ -921,7 +921,8 @@ function RxModal({ patientId, allergies, onSave, onClose }: { patientId: string;
   const [form, setForm] = useState<RxForm>({ drug: '', strength: '', form: '', sig: '', quantity: '', refills: '', isControlled: false, notes: '' });
   const set = <K extends keyof RxForm>(k: K, v: RxForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
-  useEffect(() => { fetchStaff().then(setStaff).catch(() => setStaff([])); }, []);
+  const mayPickStaff = useMayPickStaff();
+  useEffect(() => { if (mayPickStaff) fetchStaff().then(setStaff).catch(() => setStaff([])); }, [mayPickStaff]);
   // A different drug is a different question — a warning about the last one must not carry over.
   useEffect(() => { setAllergyWarning(null); }, [form.drug]);
 

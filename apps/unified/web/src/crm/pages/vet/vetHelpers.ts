@@ -1,10 +1,12 @@
 // The practice screens' helpers. Moved from templates/crm-vet/frontend/src/lib/{staff,appointmentTypes,printable}.ts.
 import { api } from '../../../api'
+import { useKnownPermission } from '../../../shared'
 
 // ── Who can be assigned as a provider (veterinarian) ─────────────────────────────────────────────────────────────────
-// From /api/company/users, not /api/team: appointment.providerId, visit.providerId, vaccination.providerId and
-// prescription.prescriberId reference a login user, and /api/team lists the crew roster (empty on a new clinic, and a
-// foreign-key violation on save once a row exists).
+// The logins, not /api/team's crew roster: appointment.providerId, visit.providerId, vaccination.providerId and
+// prescription.prescriberId reference a login user (a roster row is a foreign-key violation on save). It read
+// /api/company/users, which the desk's seat may not read (users:read / team:read) — the assignable list is the
+// booker's (2026-10-21).
 
 export interface StaffMember {
   id: string
@@ -19,11 +21,22 @@ export function staffName(u: StaffMember): string {
   return [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || u.id
 }
 
+/** null until the permission list has arrived; then whether GET /api/team/assignable answers this seat (team.ts:
+ *  team:read or schedule:create). A seat it would refuse is not asked. */
+export function useMayPickStaff(): boolean | null {
+  const roster = useKnownPermission('team:read')
+  const books = useKnownPermission('schedule:create')
+  return roster === null || books === null ? null : roster || books
+}
+
+/** The logins work can be given to: GET /api/team/assignable (active, never a view-only seat; names, and e-mail only
+ *  for a roster reader). Roster-only crew (kind 'member') are left out — the column references a login user. */
 export async function fetchStaff(): Promise<StaffMember[]> {
-  const res = (await api.get('/api/company/users')) as StaffMember[] | { data?: StaffMember[] } | null
-  const list: StaffMember[] = Array.isArray(res) ? res : (res?.data ?? [])
-  // A revoked provider must not stay assignable.
-  return list.filter((u) => u.isActive !== false)
+  const res = (await api.get('/api/team/assignable')) as { data?: Array<{ id: string; name?: string; email?: string; role?: string; kind?: string }> } | null
+  return (res?.data ?? []).filter((u) => u.kind !== 'member').map((u) => {
+    const parts = String(u.name || '').trim().split(/\s+/)
+    return { id: u.id, firstName: parts[0] || undefined, lastName: parts.slice(1).join(' ') || undefined, email: u.email, role: u.role, isActive: true }
+  })
 }
 
 // ── What a clinic calls its appointment types (Vet T12 M11) ──────────────────────────────────────────────────────────

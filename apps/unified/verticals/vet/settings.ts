@@ -51,8 +51,11 @@ const vet: VerticalSettings = {
   starter: STARTER,
   // templates/crm-vet middleware/permissions.ts. Clinical staff (technician, receptionist) record care and bill for
   // it: patients, visits, vaccinations, appointments and wellness all ask contacts:* (R2-02); they text the owner
-  // themselves (T30 L-RB). They do not see practice revenue (revenue:read, T62).
-  extraRolePermissions: { field: ['contacts:create', 'contacts:update', 'invoices:read', 'invoices:create', 'invoices:update', 'sms:send'] },
+  // themselves (T30 L-RB). They do not see practice revenue (revenue:read, T62). schedule:create: the desk books the
+  // appointment, so it says which vet takes it — the provider list is GET /api/team/assignable (team:read or
+  // schedule:create, names only), as salon's stylists and RV's floor book; it was refused them, and the refusal took
+  // New Appointment's patient list with it (live sweep, 2026-10-21). A vet has no Schedule page (no 'scheduling').
+  extraRolePermissions: { field: ['contacts:create', 'contacts:update', 'invoices:read', 'invoices:create', 'invoices:update', 'sms:send', 'schedule:create'] },
   // The clinic's older seat name.
   roleMapping: { staff: 'field' },
   // A pet owner booking online is not asked for an address, is asked for the pet, and the booking becomes the pet's chart

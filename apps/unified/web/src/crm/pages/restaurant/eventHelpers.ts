@@ -1,10 +1,12 @@
 // The events screens' helpers. Moved from templates/crm-restaurant/frontend/src/lib/{staff,eventWarnings,printable}.ts
 // (templates/crm-bar has the same files).
 import { api } from '../../../api'
+import { useKnownPermission } from '../../../shared'
 
 // ── Who can be assigned as an event coordinator ──────────────────────────────────────────────────────────────────────
-// From /api/company/users, not /api/team: event.coordinatorId references a login user, and /api/team lists the crew
-// roster (empty on a new business, and a foreign-key violation on save once a row exists).
+// The logins, not /api/team's crew roster: event.coordinatorId references a login user (a roster row is a
+// foreign-key violation on save). It read /api/company/users; the assignable list is the one meant for a picker, and
+// it is asked only of a seat it answers (2026-10-21).
 
 export interface StaffMember {
   id: string
@@ -19,11 +21,22 @@ export function staffName(u: StaffMember): string {
   return [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || u.id
 }
 
+/** null until the permission list has arrived; then whether GET /api/team/assignable answers this seat (team.ts:
+ *  team:read or schedule:create). A seat it would refuse is not asked. */
+export function useMayPickStaff(): boolean | null {
+  const roster = useKnownPermission('team:read')
+  const books = useKnownPermission('schedule:create')
+  return roster === null || books === null ? null : roster || books
+}
+
+/** The logins work can be given to: GET /api/team/assignable (active, never a view-only seat; names, and e-mail only
+ *  for a roster reader). Roster-only crew (kind 'member') are left out — the column references a login user. */
 export async function fetchStaff(): Promise<StaffMember[]> {
-  const res = (await api.get('/api/company/users')) as StaffMember[] | { data?: StaffMember[] } | null
-  const list: StaffMember[] = Array.isArray(res) ? res : (res?.data ?? [])
-  // A revoked coordinator must not stay assignable.
-  return list.filter((u) => u.isActive !== false)
+  const res = (await api.get('/api/team/assignable')) as { data?: Array<{ id: string; name?: string; email?: string; role?: string; kind?: string }> } | null
+  return (res?.data ?? []).filter((u) => u.kind !== 'member').map((u) => {
+    const parts = String(u.name || '').trim().split(/\s+/)
+    return { id: u.id, firstName: parts[0] || undefined, lastName: parts.slice(1).join(' ') || undefined, email: u.email, role: u.role, isActive: true }
+  })
 }
 
 // ── Soft warnings before an event is saved (T16 L1 / L2) ─────────────────────────────────────────────────────────────

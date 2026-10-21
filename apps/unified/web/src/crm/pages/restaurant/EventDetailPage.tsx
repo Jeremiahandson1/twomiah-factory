@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../../api'
 import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, prettyType, localDay } from './EventsPage';
-import { fetchStaff, staffName, confirmEventRisks, openPrintable, type StaffMember } from './eventHelpers'
+import { fetchStaff, useMayPickStaff, staffName, confirmEventRisks, openPrintable, type StaffMember } from './eventHelpers'
 import { PAYMENT_METHODS, useMayWrite, useConfirm, errorText } from '../../../shared'
 import ClientPicker from './ClientPicker'
 
@@ -677,18 +677,14 @@ function EditEventModal({ event: ev, clientLabel, onSave, onClose }: { event: Ev
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  // Separately, and the coordinators only of a seat that may list them: one refusal emptied the rooms too.
+  const mayPickStaff = useMayPickStaff();
   useEffect(() => {
-    (async () => {
-      try {
-        const [spaceRes, people] = await Promise.all([
-          api.get('/api/event-spaces'),
-          fetchStaff(),
-        ]);
-        setSpaces((spaceRes as { data?: SpaceOption[] }).data || []);
-        setStaff(people);
-      } catch { /* the rest of the form still works */ }
-    })();
+    api.get('/api/event-spaces').then((r) => setSpaces((r as { data?: SpaceOption[] }).data || [])).catch(() => setSpaces([]));
   }, []);
+  useEffect(() => {
+    if (mayPickStaff) fetchStaff().then(setStaff).catch(() => setStaff([]));
+  }, [mayPickStaff]);
 
   const ask = useConfirm();
   const submit = async (e: FormEvent) => {

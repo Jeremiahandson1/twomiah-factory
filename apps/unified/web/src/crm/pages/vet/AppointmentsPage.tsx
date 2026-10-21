@@ -4,7 +4,7 @@ import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, DoorO
 import { api } from '../../../api'
 import { useMayWrite, useToast } from '../../../shared'
 import OwnerPicker from './OwnerPicker'
-import { fetchStaff, staffName, type StaffMember, APPOINTMENT_TYPES, appointmentTypeLabel } from './vetHelpers'
+import { fetchStaff, useMayPickStaff, staffName, type StaffMember, APPOINTMENT_TYPES, appointmentTypeLabel } from './vetHelpers'
 
 /** A refusal from the API client: its body rides on `data` ({ error, code }). */
 type Refusal = Error & { data?: { code?: string } }
@@ -222,20 +222,14 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
   });
   const set = (k: keyof AppointmentForm, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  // Separately: a refused provider list took the patient list down with it (Promise.all), and the desk could not book.
+  const mayPickStaff = useMayPickStaff();
   useEffect(() => {
-    (async () => {
-      try {
-        const [patRes, staff]: [{ data?: PatientOption[] }, StaffMember[]] = await Promise.all([
-          api.get('/api/patients?limit=500'),
-          fetchStaff(),
-        ]);
-        setPatients(patRes?.data || []);
-        setProviders(staff);
-      } catch {
-        /* degrade gracefully */
-      }
-    })();
+    api.get('/api/patients?limit=500').then((r: { data?: PatientOption[] }) => setPatients(r?.data || [])).catch(() => setPatients([]));
   }, []);
+  useEffect(() => {
+    if (mayPickStaff) fetchStaff().then(setProviders).catch(() => setProviders([]));
+  }, [mayPickStaff]);
 
   // When a patient is chosen, default its owner.
   const onPatient = (pid: string) => {

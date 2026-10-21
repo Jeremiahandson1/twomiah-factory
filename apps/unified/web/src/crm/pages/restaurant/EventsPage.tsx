@@ -5,7 +5,7 @@ import { Plus, Search, Loader2, X, CalendarDays, Users, DoorOpen, LayoutGrid, Li
 import { api } from '../../../api'
 import { useMayWrite, useConfirm } from '../../../shared'
 import ClientPicker from './ClientPicker'
-import { fetchStaff, staffName, confirmEventRisks, type StaffMember } from './eventHelpers'
+import { fetchStaff, useMayPickStaff, staffName, confirmEventRisks, type StaffMember } from './eventHelpers'
 import FormError, { errorText } from '../../ui/FormError'
 
 /**
@@ -282,20 +282,14 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
+  // Separately, and the coordinators only of a seat that may list them: one refusal emptied the rooms too.
+  const mayPickStaff = useMayPickStaff();
   useEffect(() => {
-    (async () => {
-      try {
-        const [spaceRes, people] = await Promise.all([
-          api.get('/api/event-spaces'),
-          fetchStaff(),
-        ]);
-        setSpaces((spaceRes as { data?: SpaceOption[] }).data || []);
-        setStaff(people);
-      } catch {
-        /* degrade gracefully — an enquiry can be logged without either */
-      }
-    })();
+    api.get('/api/event-spaces').then((r) => setSpaces((r as { data?: SpaceOption[] }).data || [])).catch(() => setSpaces([]));
   }, []);
+  useEffect(() => {
+    if (mayPickStaff) fetchStaff().then(setStaff).catch(() => setStaff([]));
+  }, [mayPickStaff]);
 
   const ask = useConfirm();
   const submit = async (e: FormEvent) => {
