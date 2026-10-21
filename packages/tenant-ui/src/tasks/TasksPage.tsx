@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import {
   CheckCircle2, Circle, Plus, Calendar, User, Flag,
   Trash2, Edit2, Loader2, AlertCircle, FolderKanban,
@@ -7,6 +7,7 @@ import {
 import type { TasksApi, TasksPageProps } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite, useKnownPermission } from '../auth/PermissionsContext';
+import { AuthContext } from '../auth/AuthContext';
 
 // UTC-safe date formatting (carried from the templates' utils/date). Date-only values are stored as
 // UTC midnight; parsing the date part at LOCAL midnight avoids shifting viewers west of UTC a day back.
@@ -425,11 +426,22 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
   const mayListTeam = useKnownPermission('team:read');
   const canList = mayListPeople === null || mayListTeam === null ? null : mayListPeople || mayListTeam;
 
+  // Projects are a feature (server: /api/projects is mounted with feature 'projects') and a permission. A business
+  // without them — a vet practice — was asked anyway and refused, every seat including the owner (live sweep,
+  // 2026-10-21). Asked only once the company's features and the seat's permissions have arrived, and only when both
+  // say yes. A template mounts this page under its own AuthProvider (no tenant-ui context): it asks as before.
+  const auth = useContext(AuthContext);
+  const mayReadProjects = useKnownPermission('projects:read');
+  const askProjects: boolean | null = !auth ? true
+    : !auth.company?.enabledFeatures || mayReadProjects === null ? null
+      : auth.hasFeature('projects') && mayReadProjects;
+
   useEffect(() => {
+    if (!askProjects) return;
     api.get('/api/projects?status=active&limit=100')
       .then((r: unknown) => setProjects(((r as Record<string, unknown>).data || []) as ProjectData[]))
       .catch(() => setProjects([]));
-  }, []);
+  }, [askProjects]);
 
   useEffect(() => {
     if (!canList) return;
