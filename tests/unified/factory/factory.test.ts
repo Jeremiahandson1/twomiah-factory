@@ -240,16 +240,22 @@ describe('integration env', () => {
       ...deploySvc.crmServiceEnv({ hasVisualizer: false, name: 'Acme Roofing', ownerEmail: 'twomiah14+e2e@gmail.com', domain: '' }),
       ...quickbooksTenantEnv(url), ...deploySvc.platformIntegrationEnv(url, { customerHasStripeKey: false }),
     ]) if (!(v.key in template)) template[v.key] = v.value
+    // …but never the platform's shared texting NUMBER: a unified business texts from its own registered number (the
+    // Factory writes it into the CRM once the carriers approve — services/a2p.ts), or not at all. (2026-10-21)
+    expect(template.TWILIO_PHONE_NUMBER).toBe('+17155550000')
+    delete template.TWILIO_PHONE_NUMBER
     expect(got).toEqual(template)
     // …and those are the values the env gives (written out, not derived).
     expect(got).toMatchObject({
       FEATURE_PACKAGE: 'starter10', GOOGLE_CALENDAR_CLIENT_ID: 'gcal-id', OUTLOOK_CALENDAR_CLIENT_ID: 'ms-id', TWILIO_ACCOUNT_SID: 'AC-factory', TWILIO_AUTH_TOKEN: 'tw-token',
-      TWILIO_PHONE_NUMBER: '+17155550000', RESEND_API_KEY: 're_factory', GOOGLE_MAPS_API_KEY: 'maps-key', NEARMAP_API_KEY: 'nearmap-key',
+      RESEND_API_KEY: 're_factory', GOOGLE_MAPS_API_KEY: 'maps-key', NEARMAP_API_KEY: 'nearmap-key',
       REPLICATE_API_TOKEN: 'r8-token', ADS_URL: 'https://ads.test', FROM_EMAIL: 'hello@twomiah.com', FROM_NAME: 'Acme Roofing',
       REPLY_TO_EMAIL: 'twomiah14+e2e@gmail.com', ANTHROPIC_API_KEY: 'sk-ant-test', API_URL: url, BACKEND_URL: url,
       STRIPE_SECRET_KEY: 'sk_test_factory', STRIPE_PUBLISHABLE_KEY: 'pk_test_factory',
     })
     expect(Object.keys(got).some((k) => k.startsWith('QBO') || k.startsWith('QUICKBOOKS'))).toBe(true)
+    expect('TWILIO_PHONE_NUMBER' in got).toBe(false)
+    expect('TWILIO_MESSAGING_SERVICE_SID' in got).toBe(false)
   })
 
   test('deployCustomer builds its CRM env from those same functions (no second copy)', () => {

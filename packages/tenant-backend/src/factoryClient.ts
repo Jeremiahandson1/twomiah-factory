@@ -25,6 +25,11 @@ interface FullFactoryApiClient extends FactoryApiClient {
   checkDomain(domain: string): Promise<any>
   startDomainCheckout(domain: string, returnPath: string): Promise<{ url: string; priceCents?: number; renewalCents?: number | null }>
   attachDomain(domain: string): Promise<any>
+  // The business's own texting registration (A2P 10DLC): its own brand, campaign and number (Factory services/a2p.ts).
+  getTextingRegistration(): Promise<any>
+  submitTextingRegistration(details: Record<string, unknown>): Promise<any>
+  refreshTextingRegistration(): Promise<any>
+  resendTextingConfirmation(): Promise<any>
 }
 
 function env(name: string): string {
@@ -122,6 +127,18 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     },
     async attachDomain(domain) {
       return call('POST', '/api/v1/factory/internal/domain/attach/' + env('TENANT_ID'), { domain, mode: 'byod' })
+    },
+    async getTextingRegistration() {
+      return call('GET', '/api/v1/factory/internal/messaging/self/' + env('TENANT_ID') + '/registration')
+    },
+    async submitTextingRegistration(details) {
+      return call('POST', '/api/v1/factory/internal/messaging/self/' + env('TENANT_ID') + '/registration', details)
+    },
+    async refreshTextingRegistration() {
+      return call('POST', '/api/v1/factory/internal/messaging/self/' + env('TENANT_ID') + '/registration/refresh', {})
+    },
+    async resendTextingConfirmation() {
+      return call('POST', '/api/v1/factory/internal/messaging/self/' + env('TENANT_ID') + '/registration/resend', {})
     },
   }
 }

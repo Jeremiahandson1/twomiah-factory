@@ -202,7 +202,10 @@ export async function unifiedIntegrationEnv(tenant: any, config: any, opts: { fa
     ...d.crmPlanEnv(plan),
     // The CRM's Google app (Business Profile) and the site's calendar apps: this one service is both.
     ...d.calendarOAuthEnv(),
-    ...(await d.tenantIntegrationEnv(tenant.id, integrations)),
+    // Texting: the platform's Twilio ACCOUNT (to send through the business's own Messaging Service and to check
+    // Twilio's signature on replies), never the platform's shared NUMBER — a business texts from its own registered
+    // number (services/a2p.ts, written into its CRM once approved), or not at all. (2026-10-21)
+    ...(await d.tenantIntegrationEnv(tenant.id, integrations)).filter((e) => e.key !== 'TWILIO_PHONE_NUMBER' && e.key !== 'TWILIO_MESSAGING_SERVICE_SID'),
     ...d.crmServiceEnv({ hasVisualizer, name: tenant.name, ownerEmail: config?.company?.email || tenant.email || '', domain: config?.company?.domain || '' }),
     ...(isStore && process.env.FACTORY_FROM_EMAIL ? [{ key: 'FACTORY_FROM_EMAIL', value: process.env.FACTORY_FROM_EMAIL }] : []),
   ]

@@ -1,4 +1,5 @@
 // Cron job: calls the /cleanup endpoint on the API
+export {}
 // Designed to run as a Render Cron Job every hour
 
 const rawUrl = process.env.RENDER_API_URL || process.env.API_URL || 'https://twomiah-factory-api.onrender.com'
@@ -37,4 +38,20 @@ async function runCleanup() {
   }
 }
 
-runCleanup()
+// Businesses mid texting registration, moved on: brand approved → their number and campaign; campaign approved →
+// the number into their CRM (services/a2p.ts). Twilio's callbacks nudge it too; this is the hourly floor.
+async function advanceTextingRegistrations() {
+  try {
+    const res = await fetch(API_URL + '/api/v1/factory/internal/a2p/poll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-cron-secret': CRON_SECRET || '' },
+    })
+    console.log('[Cron] Texting registrations:', res.status, JSON.stringify(await res.json().catch(() => ({}))))
+  } catch (err: any) {
+    console.error('[Cron] Texting registrations error:', err.message)
+  }
+}
+
+// Registrations first: a failed cleanup ends the run (exit 1), and must not hold them up.
+await advanceTextingRegistrations()
+await runCleanup()

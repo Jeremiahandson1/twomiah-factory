@@ -1,65 +1,66 @@
 import { useState, useEffect } from 'react'
 import { supabase, API_URL as API } from '../../supabase'
-import {
-  MessageSquare, CheckCircle, XCircle, Clock, RefreshCw, AlertCircle,
-  ChevronDown, ChevronUp, Send, Save,
-} from 'lucide-react'
+import { MessageSquare, CheckCircle, XCircle, Clock, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Send } from 'lucide-react'
 
-// Per-tenant A2P 10DLC registration panel. Talks to the factory A2P routes:
-//   GET  /customers/:id/a2p          — status
-//   POST /customers/:id/a2p/intake   — collect + encrypt EIN/legal data
-//   POST /customers/:id/a2p/submit   — provision Twilio brand/campaign
-//   POST /customers/:id/a2p/refresh  — re-poll vetting status
-// See services/a2p.ts + routes/factory/a2p.ts.
+// A business's own texting registration (A2P 10DLC), from the staff side. The business normally registers itself
+// from its CRM (Settings › Texting); this panel shows where it stands and lets staff submit or resume for it.
+// Routes (routes/factory/a2p.ts):
+//   GET  /customers/:id/a2p          — where it stands
+//   POST /customers/:id/a2p/submit   — save the details and submit (empty body: resume what is saved)
+//   POST /customers/:id/a2p/refresh  — ask Twilio and move it on
+// The allowed values are Twilio's (services/a2p.ts BUSINESS_TYPES / JOB_POSITIONS / INDUSTRIES); the server checks them.
 
 type A2pStatus = {
   status: string
-  channel: string
-  collected: boolean
+  stage: 'not_started' | 'not_submitted' | 'brand' | 'campaign' | 'live'
+  kind: 'standard' | 'sole_proprietor' | null
+  businessName: string | null
   einTail: string
-  brandSid: string | null
-  campaignSid: string | null
-  tollfreeSid: string | null
-  messagingServiceSid: string | null
-  phoneNumberSid: string | null
   rejectionReason: string | null
   submittedAt: string | null
   approvedAt: string | null
+  messagingEnabled: boolean
+  walletCents: number
+  brandSid: string | null
+  campaignSid: string | null
+  messagingServiceSid: string | null
+  phoneNumberSid: string | null
 }
 
-type Props = {
-  tenantId: string
-  showToast: (msg: string, type?: 'success' | 'error') => void
+type Props = { tenantId: string; showToast: (msg: string, type?: 'success' | 'error') => void }
+
+const BUSINESS_TYPES = ['Limited Liability Corporation', 'Corporation', 'Partnership', 'Co-operative', 'Non-profit Corporation']
+const JOB_POSITIONS = ['CEO', 'GM', 'Director', 'VP', 'CFO', 'General Counsel', 'Other']
+const INDUSTRIES = ['CONSTRUCTION', 'PROFESSIONAL_SERVICES', 'HEALTHCARE', 'CONSUMER', 'FOOD_AND_BEVERAGE', 'HOSPITALITY', 'AUTOMOTIVE', 'RETAIL',
+  'REAL_ESTATE', 'AGRICULTURE', 'EDUCATION', 'ENERGY', 'ENGINEERING', 'FINANCIAL', 'INSURANCE', 'LEGAL', 'MANUFACTURING', 'MEDIA',
+  'NOT_FOR_PROFIT', 'ONLINE', 'TECHNOLOGY', 'TRANSPORTATION', 'TRAVEL']
+
+const STAGE: Record<string, string> = {
+  not_started: 'Not started',
+  not_submitted: 'Details saved, not submitted',
+  brand: 'Carriers reviewing the business',
+  campaign: 'Carriers reviewing what it texts',
+  live: 'Live — texting from its own number',
 }
-
-const BUSINESS_TYPES = ['Sole Proprietorship', 'Partnership', 'Limited Liability Company', 'Corporation', 'Non-profit Corporation']
-// Twilio business_industry enum (subset covering Twomiah's verticals).
-const INDUSTRIES = [
-  'AUTOMOTIVE', 'AGRICULTURE', 'CONSTRUCTION', 'ENERGY', 'FINANCIAL', 'HEALTHCARE',
-  'HOSPITALITY', 'INSURANCE', 'LEGAL', 'MANUFACTURING', 'PROFESSIONAL_SERVICES',
-  'REAL_ESTATE', 'RETAIL', 'TECHNOLOGY', 'TRANSPORTATION', 'NOT_FOR_PROFIT',
-]
-const USECASES = ['MIXED', 'LOW_VOLUME']
-
 const BADGE: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
   not_started:  { color: 'text-gray-400 bg-gray-400/10 border-gray-400/30',    icon: <Clock size={12} />,                          label: 'Not started' },
-  collected:    { color: 'text-blue-400 bg-blue-400/10 border-blue-400/30',    icon: <CheckCircle size={12} />,                    label: 'Data collected' },
-  provisioning: { color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30', icon: <RefreshCw size={12} className="animate-spin" />, label: 'Provisioning' },
-  pending:      { color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30', icon: <Clock size={12} />,                       label: 'Pending vetting' },
+  collected:    { color: 'text-blue-400 bg-blue-400/10 border-blue-400/30',    icon: <CheckCircle size={12} />,                    label: 'Details saved' },
+  provisioning: { color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30', icon: <RefreshCw size={12} className="animate-spin" />, label: 'Submitting' },
+  pending:      { color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30', icon: <Clock size={12} />,                       label: 'In review' },
   approved:     { color: 'text-green-400 bg-green-400/10 border-green-400/30',  icon: <CheckCircle size={12} />,                    label: 'Approved' },
   rejected:     { color: 'text-red-400 bg-red-400/10 border-red-400/30',        icon: <XCircle size={12} />,                        label: 'Rejected' },
-  error:        { color: 'text-red-400 bg-red-400/10 border-red-400/30',        icon: <AlertCircle size={12} />,                    label: 'Error' },
+  error:        { color: 'text-red-400 bg-red-400/10 border-red-400/30',        icon: <AlertCircle size={12} />,                    label: 'Stopped' },
 }
 
 const INPUT = 'w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500'
 const LABEL = 'block text-xs text-gray-400 mb-1'
 
 const EMPTY_FORM = {
-  channel: 'a2p' as 'a2p' | 'tollfree',
-  legalName: '', businessType: BUSINESS_TYPES[2], ein: '', industry: INDUSTRIES[10], website: '',
+  kind: 'standard' as 'standard' | 'sole_proprietor',
+  legalName: '', businessType: BUSINESS_TYPES[0], ein: '', industry: INDUSTRIES[0],
+  brandName: '', mobilePhone: '',
   street: '', city: '', region: '', postalCode: '',
-  repFirstName: '', repLastName: '', repEmail: '', repPhone: '', repTitle: 'Owner',
-  usecase: 'MIXED', campaignDescription: '', messageSamplesText: '', soleProprietor: false,
+  repFirstName: '', repLastName: '', repEmail: '', repPhone: '', repTitle: 'Owner', repJobPosition: 'CEO',
 }
 
 async function token(): Promise<string | null> {
@@ -71,7 +72,6 @@ export default function A2pRegistration({ tenantId, showToast }: Props) {
   const [state, setState] = useState<A2pStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [form, setForm] = useState({ ...EMPTY_FORM })
@@ -81,59 +81,30 @@ export default function A2pRegistration({ tenantId, showToast }: Props) {
   async function load() {
     setLoading(true)
     try {
-      const t = await token()
-      const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/a2p', {
-        headers: { Authorization: 'Bearer ' + t },
-      })
+      const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/a2p', { headers: { Authorization: 'Bearer ' + (await token()) } })
       if (res.ok) setState(await res.json())
-    } catch { /* leave state null; panel still renders intake */ }
+    } catch { /* leave state null; the panel still renders */ }
     setLoading(false)
   }
 
-  function up<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
-    setForm(f => ({ ...f, [k]: v }))
-  }
+  function up<K extends keyof typeof form>(k: K, v: (typeof form)[K]) { setForm(f => ({ ...f, [k]: v })) }
 
-  async function saveIntake() {
-    const samples = form.messageSamplesText.split('\n').map(s => s.trim()).filter(Boolean)
-    if (samples.length < 1 || samples.length > 5) { showToast('Provide 1–5 sample messages (one per line)', 'error'); return }
-    setSaving(true)
-    try {
-      const t = await token()
-      const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/a2p/intake', {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel: form.channel,
-          legalName: form.legalName, businessType: form.businessType, ein: form.ein,
-          industry: form.industry, website: form.website,
-          street: form.street, city: form.city, region: form.region, postalCode: form.postalCode,
-          repFirstName: form.repFirstName, repLastName: form.repLastName, repEmail: form.repEmail,
-          repPhone: form.repPhone, repTitle: form.repTitle,
-          usecase: form.usecase, campaignDescription: form.campaignDescription,
-          messageSamples: samples, soleProprietor: form.soleProprietor,
-        }),
-      })
-      const data = await res.json()
-      if (res.ok) { showToast('A2P data saved'); setShowForm(false); load() }
-      else showToast(data.error || 'Failed to save', 'error')
-    } catch { showToast('Failed to save A2P data', 'error') }
-    setSaving(false)
-  }
-
-  async function submit() {
+  async function submit(withDetails: boolean) {
     setSubmitting(true)
     try {
-      const t = await token()
+      const body = !withDetails ? {} : form.kind === 'standard'
+        ? { kind: 'standard', legalName: form.legalName, businessType: form.businessType, ein: form.ein, industry: form.industry,
+            street: form.street, city: form.city, region: form.region, postalCode: form.postalCode,
+            repFirstName: form.repFirstName, repLastName: form.repLastName, repEmail: form.repEmail, repPhone: form.repPhone, repTitle: form.repTitle, repJobPosition: form.repJobPosition }
+        : { kind: 'sole_proprietor', brandName: form.brandName, mobilePhone: form.mobilePhone,
+            street: form.street, city: form.city, region: form.region, postalCode: form.postalCode,
+            repFirstName: form.repFirstName, repLastName: form.repLastName, repEmail: form.repEmail, repPhone: form.repPhone }
       const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/a2p/submit', {
-        method: 'POST', headers: { Authorization: 'Bearer ' + t },
+        method: 'POST', headers: { Authorization: 'Bearer ' + (await token()), 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       })
       const data = await res.json()
-      if (res.ok) showToast('Submitted for vetting')
-      else {
-        const failed = Array.isArray(data.steps) ? data.steps.find((s: any) => s.status === 'error') : null
-        showToast(failed ? `Failed at ${failed.step}: ${failed.detail}` : (data.error || 'Submit failed'), 'error')
-      }
+      if (res.ok) { showToast('Submitted — the carriers review it next'); setShowForm(false) }
+      else showToast(data.rejectionReason || data.error || 'Submit failed', 'error')
       load()
     } catch { showToast('Submit failed', 'error') }
     setSubmitting(false)
@@ -142,12 +113,9 @@ export default function A2pRegistration({ tenantId, showToast }: Props) {
   async function refresh() {
     setRefreshing(true)
     try {
-      const t = await token()
-      const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/a2p/refresh', {
-        method: 'POST', headers: { Authorization: 'Bearer ' + t },
-      })
+      const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/a2p/refresh', { method: 'POST', headers: { Authorization: 'Bearer ' + (await token()) } })
       const data = await res.json()
-      if (res.ok) showToast('Status: ' + data.status)
+      if (res.ok) showToast(STAGE[data.stage] || data.status)
       else showToast(data.error || 'Refresh failed', 'error')
       load()
     } catch { showToast('Refresh failed', 'error') }
@@ -157,80 +125,60 @@ export default function A2pRegistration({ tenantId, showToast }: Props) {
   const status = state?.status || 'not_started'
   const badge = BADGE[status] || BADGE.not_started
   const canEdit = !['provisioning', 'pending', 'approved'].includes(status)
-  const canSubmit = state?.collected && ['collected', 'error', 'rejected'].includes(status)
-  const midVetting = ['provisioning', 'pending'].includes(status)
+  const canResume = ['collected', 'error', 'rejected'].includes(status)
+  const inReview = ['provisioning', 'pending', 'approved'].includes(status)
+  const sp = form.kind === 'sole_proprietor'
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-white font-semibold flex items-center gap-2">
-          <MessageSquare size={16} className="text-orange-400" /> SMS Registration (A2P 10DLC)
-        </h2>
-        <span className={'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ' + badge.color}>
-          {badge.icon}{badge.label}
-        </span>
+        <h2 className="text-white font-semibold flex items-center gap-2"><MessageSquare size={16} className="text-orange-400" /> Texting registration (A2P 10DLC)</h2>
+        <span className={'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ' + badge.color}>{badge.icon}{badge.label}</span>
       </div>
 
-      {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
-      ) : (
+      {loading ? <p className="text-sm text-gray-500">Loading…</p> : (
         <>
-          {/* Status details */}
           <div className="mb-4 p-4 bg-gray-800/60 rounded-lg border border-gray-700 text-sm space-y-1.5">
-            {state?.channel && <Row label="Channel" value={state.channel === 'tollfree' ? 'Toll-free' : 'Local (10DLC)'} />}
+            <Row label="Stage" value={STAGE[state?.stage || 'not_started']} />
+            {state?.businessName && <Row label={state.kind === 'sole_proprietor' ? 'Sole proprietor' : 'Business'} value={state.businessName} />}
             {state?.einTail && <Row label="EIN" value={state.einTail} />}
+            <Row label="Texting add-on" value={state?.messagingEnabled ? 'On' : 'Off'} />
+            <Row label="Messaging wallet" value={'$' + ((state?.walletCents ?? 0) / 100).toFixed(2)} />
             {state?.brandSid && <Row label="Brand" value={state.brandSid} mono />}
-            {state?.campaignSid && <Row label="Campaign" value={state.campaignSid} mono />}
-            {state?.tollfreeSid && <Row label="TF Verification" value={state.tollfreeSid} mono />}
             {state?.messagingServiceSid && <Row label="Messaging Service" value={state.messagingServiceSid} mono />}
+            {state?.campaignSid && <Row label="Campaign" value={state.campaignSid} mono />}
             {state?.submittedAt && <Row label="Submitted" value={new Date(state.submittedAt).toLocaleString()} />}
             {state?.approvedAt && <Row label="Approved" value={new Date(state.approvedAt).toLocaleString()} />}
-            {!state?.collected && !state?.brandSid && (
-              <p className="text-gray-500">No registration data yet. Collect the tenant's business details to begin.</p>
-            )}
             {state?.rejectionReason && (
-              <div className="mt-2 flex items-start gap-2 text-red-400">
-                <AlertCircle size={14} className="mt-0.5 shrink-0" />
-                <span>{state.rejectionReason}</span>
-              </div>
+              <div className="mt-2 flex items-start gap-2 text-red-400"><AlertCircle size={14} className="mt-0.5 shrink-0" /><span>{state.rejectionReason}</span></div>
             )}
           </div>
 
-          {/* Actions */}
           <div className="flex flex-wrap gap-2 mb-2">
             {canEdit && (
-              <button onClick={() => setShowForm(v => !v)}
-                className="px-4 py-2 text-sm font-semibold bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors flex items-center gap-1.5">
-                {showForm ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {state?.collected ? 'Edit business details' : 'Collect business details'}
+              <button onClick={() => setShowForm(v => !v)} className="px-4 py-2 text-sm font-semibold bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors flex items-center gap-1.5">
+                {showForm ? <ChevronUp size={14} /> : <ChevronDown size={14} />}Enter business details
               </button>
             )}
-            {canSubmit && (
-              <button onClick={submit} disabled={submitting}
-                className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors flex items-center gap-1.5">
-                <Send size={14} />{submitting ? 'Submitting…' : (status === 'rejected' || status === 'error' ? 'Resubmit' : 'Submit for registration')}
+            {canResume && (
+              <button onClick={() => submit(false)} disabled={submitting} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors flex items-center gap-1.5">
+                <Send size={14} />{submitting ? 'Submitting…' : 'Submit saved details'}
               </button>
             )}
-            {(midVetting || status === 'approved') && (
-              <button onClick={refresh} disabled={refreshing}
-                className="px-4 py-2 text-sm font-semibold bg-gray-800 hover:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors flex items-center gap-1.5">
-                <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />Refresh status
+            {inReview && (
+              <button onClick={refresh} disabled={refreshing} className="px-4 py-2 text-sm font-semibold bg-gray-800 hover:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors flex items-center gap-1.5">
+                <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />Check now
               </button>
             )}
           </div>
 
-          {/* Intake form */}
           {showForm && canEdit && (
             <div className="mt-4 p-4 bg-gray-800/40 rounded-lg border border-gray-700 space-y-4">
-              <Group title="Number type">
+              <Group title="Does the business have an EIN?">
                 <div className="grid grid-cols-2 gap-2">
-                  {([
-                    ['a2p', 'Local number (10DLC)', 'Local area code — best conversion for local businesses. Approves in hours–days.'],
-                    ['tollfree', 'Toll-free', '1-800 number — higher throughput, national feel. Verification can be slower.'],
-                  ] as const).map(([val, label, hint]) => (
-                    <button key={val} type="button" onClick={() => up('channel', val)}
-                      className={'text-left p-3 rounded-lg border transition-colors ' +
-                        (form.channel === val ? 'border-orange-500 bg-orange-500/10' : 'border-gray-700 bg-gray-800 hover:border-gray-600')}>
+                  {([['standard', 'Yes — registered business', 'Low-Volume Standard brand.'], ['sole_proprietor', 'No — sole proprietor', 'Twilio texts the owner\'s mobile; they reply YES. One number.']] as const).map(([val, label, hint]) => (
+                    <button key={val} type="button" onClick={() => up('kind', val)}
+                      className={'text-left p-3 rounded-lg border transition-colors ' + (form.kind === val ? 'border-orange-500 bg-orange-500/10' : 'border-gray-700 bg-gray-800 hover:border-gray-600')}>
                       <div className="text-sm font-medium text-white">{label}</div>
                       <div className="text-xs text-gray-400 mt-0.5">{hint}</div>
                     </button>
@@ -238,29 +186,21 @@ export default function A2pRegistration({ tenantId, showToast }: Props) {
                 </div>
               </Group>
 
-              <Group title="Business">
-                <Field label="Legal business name"><input className={INPUT} value={form.legalName} onChange={e => up('legalName', e.target.value)} /></Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Business type">
-                    <select className={INPUT} value={form.businessType} onChange={e => up('businessType', e.target.value)}>
-                      {BUSINESS_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="EIN / Tax ID"><input className={INPUT} value={form.ein} onChange={e => up('ein', e.target.value)} placeholder="12-3456789" /></Field>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Industry">
-                    <select className={INPUT} value={form.industry} onChange={e => up('industry', e.target.value)}>
-                      {INDUSTRIES.map(i => <option key={i} value={i}>{i.replace(/_/g, ' ')}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Website"><input className={INPUT} value={form.website} onChange={e => up('website', e.target.value)} placeholder="https://…" /></Field>
-                </div>
-                <label className="flex items-center gap-2 text-xs text-gray-400">
-                  <input type="checkbox" checked={form.soleProprietor} onChange={e => up('soleProprietor', e.target.checked)} />
-                  Sole proprietor (lower-throughput brand, no EIN required)
-                </label>
-              </Group>
+              {sp ? (
+                <Group title="The business">
+                  <Field label="Name customers know it by"><input className={INPUT} value={form.brandName} onChange={e => up('brandName', e.target.value)} /></Field>
+                  <Field label="Owner's mobile (Twilio texts it to confirm)"><input className={INPUT} value={form.mobilePhone} onChange={e => up('mobilePhone', e.target.value)} placeholder="715-555-0100" /></Field>
+                </Group>
+              ) : (
+                <Group title="The business">
+                  <Field label="Legal business name (exactly as on the EIN letter)"><input className={INPUT} value={form.legalName} onChange={e => up('legalName', e.target.value)} /></Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Business type"><select className={INPUT} value={form.businessType} onChange={e => up('businessType', e.target.value)}>{BUSINESS_TYPES.map(b => <option key={b} value={b}>{b}</option>)}</select></Field>
+                    <Field label="EIN"><input className={INPUT} value={form.ein} onChange={e => up('ein', e.target.value)} placeholder="12-3456789" /></Field>
+                  </div>
+                  <Field label="Industry"><select className={INPUT} value={form.industry} onChange={e => up('industry', e.target.value)}>{INDUSTRIES.map(i => <option key={i} value={i}>{i.replace(/_/g, ' ')}</option>)}</select></Field>
+                </Group>
+              )}
 
               <Group title="Business address">
                 <Field label="Street"><input className={INPUT} value={form.street} onChange={e => up('street', e.target.value)} /></Field>
@@ -271,37 +211,26 @@ export default function A2pRegistration({ tenantId, showToast }: Props) {
                 </div>
               </Group>
 
-              <Group title="Authorized representative">
+              <Group title={sp ? 'The owner' : 'Authorized representative'}>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="First name"><input className={INPUT} value={form.repFirstName} onChange={e => up('repFirstName', e.target.value)} /></Field>
                   <Field label="Last name"><input className={INPUT} value={form.repLastName} onChange={e => up('repLastName', e.target.value)} /></Field>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <Field label="Email"><input className={INPUT} value={form.repEmail} onChange={e => up('repEmail', e.target.value)} /></Field>
-                  <Field label="Phone"><input className={INPUT} value={form.repPhone} onChange={e => up('repPhone', e.target.value)} placeholder="+1…" /></Field>
-                  <Field label="Title"><input className={INPUT} value={form.repTitle} onChange={e => up('repTitle', e.target.value)} /></Field>
+                  <Field label="Phone"><input className={INPUT} value={form.repPhone} onChange={e => up('repPhone', e.target.value)} placeholder="715-555-0100" /></Field>
                 </div>
+                {!sp && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Title"><input className={INPUT} value={form.repTitle} onChange={e => up('repTitle', e.target.value)} /></Field>
+                    <Field label="Position"><select className={INPUT} value={form.repJobPosition} onChange={e => up('repJobPosition', e.target.value)}>{JOB_POSITIONS.map(j => <option key={j} value={j}>{j}</option>)}</select></Field>
+                  </div>
+                )}
               </Group>
 
-              <Group title="Campaign">
-                <Field label="Use case">
-                  <select className={INPUT} value={form.usecase} onChange={e => up('usecase', e.target.value)}>
-                    {USECASES.map(u => <option key={u} value={u}>{u === 'MIXED' ? 'Mixed' : 'Low Volume Mixed'}</option>)}
-                  </select>
-                </Field>
-                <Field label="Campaign description">
-                  <textarea className={INPUT} rows={2} value={form.campaignDescription} onChange={e => up('campaignDescription', e.target.value)}
-                    placeholder="e.g. Appointment reminders, service updates, and occasional offers for customers who opted in." />
-                </Field>
-                <Field label="Sample messages (one per line, 1–5)">
-                  <textarea className={INPUT} rows={4} value={form.messageSamplesText} onChange={e => up('messageSamplesText', e.target.value)}
-                    placeholder={"Hi [Name], your appointment with Acme is confirmed for Tue 2pm. Reply STOP to opt out.\nAcme: your quote is ready — reply YES to schedule. Msg&data rates may apply."} />
-                </Field>
-              </Group>
-
-              <button onClick={saveIntake} disabled={saving}
-                className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors flex items-center gap-1.5">
-                <Save size={14} />{saving ? 'Saving…' : 'Save details'}
+              <p className="text-xs text-gray-500">What the business texts (the campaign) is written by the Factory from what the system sends — confirmations, reminders, replies, review requests — with the business's own privacy and terms pages.</p>
+              <button onClick={() => submit(true)} disabled={submitting} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors flex items-center gap-1.5">
+                <Send size={14} />{submitting ? 'Submitting…' : 'Save and submit'}
               </button>
             </div>
           )}
@@ -312,28 +241,11 @@ export default function A2pRegistration({ tenantId, showToast }: Props) {
 }
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <span className="text-gray-500">{label}</span>
-      <span className={'text-gray-200 ' + (mono ? 'font-mono text-xs' : '')}>{value}</span>
-    </div>
-  )
+  return <div className="flex justify-between gap-4"><span className="text-gray-500">{label}</span><span className={'text-gray-200 ' + (mono ? 'font-mono text-xs' : '')}>{value}</span></div>
 }
-
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-gray-200">{title}</h3>
-      {children}
-    </div>
-  )
+  return <div className="space-y-3"><h3 className="text-sm font-semibold text-gray-200">{title}</h3>{children}</div>
 }
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className={LABEL}>{label}</label>
-      {children}
-    </div>
-  )
+  return <div><label className={LABEL}>{label}</label>{children}</div>
 }

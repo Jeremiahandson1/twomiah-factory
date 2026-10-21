@@ -54,6 +54,7 @@ import { siteRecordsMounts } from '../crm/siteRecords/index.ts'
 import { projectMounts } from '../crm/projects/index.ts'
 import { fieldMounts } from '../crm/field/index.ts'
 import { commsMounts } from '../crm/comms/index.ts'
+import { createTextingRoutes, createTextingInternalRoutes } from '../crm/comms/texting.ts'
 import { officeMounts } from '../crm/office/index.ts'
 import { createSelectionsService } from '../crm/field/selectionsService.ts'
 import { basicMounts } from '../crm/basic/index.ts'
@@ -381,6 +382,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/ads', access: 'user', router: ads },
     { path: '/api/onboarding', access: 'user', router: signedInAdmin(createOnboardingRoutes({ db, companyTable: company } as any)) },
     { path: '/api/messaging-billing', access: 'user', router: messagingBilling },
+    // Texting from the business's own registered number (crm/comms/texting.ts).
+    { path: '/api/texting', access: 'user', router: createTextingRoutes(own, factoryApiClient) },
+    { path: '/api/internal/texting', access: 'factory', router: createTextingInternalRoutes(own) },
     { path: '/api/email-domain', access: 'user', router: signedInAdmin(createEmailDomainRoutes({ factoryApiClient } as any)) },
     { path: '/api/gbp', access: 'user', router: signedInAdmin(createGbpAdminRoutes({ db, gbpConnectionTable: gbpConnection } as any)) },
     { path: '/api/inbound-messages', access: 'user', router: inboundMessages },

@@ -1,153 +1,153 @@
 import { supabase, requireRole } from '../../middleware/auth'
-import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret } from './shared'
+import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret, checkFactoryKey } from './shared'
 import { encryptJSON, decryptJSON, maskTail } from '../../lib/crypto'
-import { provisionA2p, pollA2pStatus, pollAllPendingA2p, type A2pData } from '../../services/a2p'
+import { provisionA2p, pollA2pStatus, pollAllPendingA2p, resendOwnerConfirmation, a2pDataProblem, e164, type A2pData } from '../../services/a2p'
 import { debit } from '../../services/messagingWallet'
-import { a2pRegistrationCostCents } from '../../config/messagingCosts'
+import { TWILIO_COSTS } from '../../config/messagingCosts'
 
-// Per-tenant A2P 10DLC registration endpoints. Twomiah (ISV) registers each
-// tenant's own brand + campaign; see services/a2p.ts for the Twilio flow and
-// migrations/2026-07-20_tenants_a2p.sql for the state columns.
+// Each business's own texting registration (A2P 10DLC) — services/a2p.ts has the Twilio flow.
+//
+// Two doors, one rule:
+//   staff (Factory › customer › Texting registration)   /customers/:id/a2p…               owner/admin
+//   the business itself (its CRM's Settings › Texting)   /internal/messaging/self/:tenantId/registration…   its Factory key
+// Both store the same encrypted details and run the same submit (submitRegistration below).
 
-const REQUIRED: Array<keyof A2pData> = [
-  'legalName', 'businessType', 'ein', 'industry', 'website',
-  'street', 'city', 'region', 'postalCode',
-  'repFirstName', 'repLastName', 'repEmail', 'repPhone', 'repTitle',
-  'campaignDescription',
-]
-
-function validateIntake(body: any): { data?: A2pData; error?: string } {
-  if (!body || typeof body !== 'object') return { error: 'Body must be an object' }
-  for (const f of REQUIRED) {
-    if (typeof body[f] !== 'string' || !body[f].trim()) return { error: `Missing required field: ${f}` }
+/** What a business's registration looks like from outside: never the EIN, never the representative's details. */
+async function summary(t: any) {
+  let d: A2pData | null = null
+  if (t.a2p_data) { try { d = decryptJSON<A2pData>(t.a2p_data) } catch { /* unreadable: treated as not collected */ } }
+  const stage = t.a2p_status === 'approved' ? 'live'
+    : !t.a2p_brand_sid ? (t.a2p_status === 'collected' || t.a2p_status === 'error' ? 'not_submitted' : 'not_started')
+      : !t.a2p_campaign_sid ? 'brand' : 'campaign'
+  return {
+    status: t.a2p_status || 'not_started',
+    stage,
+    kind: d?.kind ?? null,
+    businessName: d ? (d.kind === 'sole_proprietor' ? d.brandName : d.legalName) ?? null : null,
+    einTail: d?.ein ? maskTail(d.ein) : '',
+    rejectionReason: t.a2p_rejection_reason || null,
+    submittedAt: t.a2p_submitted_at || null,
+    approvedAt: t.a2p_approved_at || null,
+    messagingEnabled: !!t.messaging_enabled,
+    walletCents: t.messaging_wallet_cents ?? 0,
+    fees: { brandCents: TWILIO_COSTS.brandRegistrationCents, campaignVettingCents: TWILIO_COSTS.campaignVettingCents, monthlyCampaignCents: TWILIO_COSTS.monthlyCampaignCents, numberMonthlyCents: TWILIO_COSTS.numberMonthlyCents },
   }
-  const samples = body.messageSamples
-  if (!Array.isArray(samples) || samples.length < 1 || samples.length > 5 || !samples.every((s: any) => typeof s === 'string' && s.trim())) {
-    return { error: 'messageSamples must be 1–5 non-empty strings' }
+}
+
+/**
+ * Store a business's details and submit them. Texting must be switched on ($10/mo) and the wallet must cover
+ * Twilio's one-time fees first; the brand fee is debited when the brand is created, the campaign vetting fee
+ * when the campaign is (services/a2p.ts advance) — each once, at Twilio's cost.
+ */
+async function submitRegistration(tenantId: string, body: any, actor: string): Promise<{ code: number; json: any }> {
+  const { data: t, error } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+  if (error || !t) return { code: 404, json: { error: 'Tenant not found' } }
+  if (['provisioning', 'pending', 'approved'].includes(t.a2p_status)) return { code: 409, json: { error: t.a2p_status === 'approved' ? 'Texting is already registered.' : 'The registration is already with the carriers.' } }
+  if (body && Object.keys(body).length) {
+    const problem = a2pDataProblem(body)
+    if (problem) return { code: 400, json: { error: problem } }
+    const d: A2pData = {
+      kind: body.kind,
+      street: body.street.trim(), city: body.city.trim(), region: body.region.trim().toUpperCase(), postalCode: body.postalCode.trim(),
+      repFirstName: body.repFirstName.trim(), repLastName: body.repLastName.trim(), repEmail: body.repEmail.trim(), repPhone: e164(body.repPhone)!,
+      repTitle: typeof body.repTitle === 'string' && body.repTitle.trim() ? body.repTitle.trim() : 'Owner',
+      ...(body.areaCode ? { areaCode: String(body.areaCode).replace(/\D/g, '').slice(0, 3) } : {}),
+      ...(body.kind === 'standard'
+        ? { legalName: body.legalName.trim(), ein: body.ein.trim(), businessType: body.businessType, industry: body.industry, repJobPosition: body.repJobPosition || 'Other' }
+        : { brandName: body.brandName.trim(), mobilePhone: e164(body.mobilePhone)! }),
+    }
+    const { error: upErr } = await supabase.from('tenants').update({ a2p_data: encryptJSON(d), a2p_channel: 'a2p', a2p_status: 'collected', a2p_rejection_reason: null }).eq('id', tenantId)
+    if (upErr) return { code: 500, json: { error: upErr.message } }
+    t.a2p_data = encryptJSON(d)
+    await logTenantAudit(tenantId, 'a2p_intake', { a2p_status: { old: t.a2p_status, new: 'collected' } }, actor, 'Texting registration details saved')
+  } else if (!t.a2p_data) {
+    return { code: 400, json: { error: 'Send the registration details.' } }
   }
-  return { data: body as A2pData }
+  if (!t.messaging_enabled) return { code: 402, json: { error: 'Switch texting on first ($10 a month).', code: 'messaging_disabled' } }
+  const upfront = (t.a2p_brand_sid ? 0 : TWILIO_COSTS.brandRegistrationCents) + (t.a2p_campaign_sid ? 0 : TWILIO_COSTS.campaignVettingCents)
+  if ((t.messaging_wallet_cents ?? 0) < upfront) {
+    return { code: 402, json: { error: `Add at least $${(upfront / 100).toFixed(2)} to the messaging wallet first — Twilio's one-time registration fees.`, code: 'insufficient_wallet', requiredCents: upfront } }
+  }
+  const hadBrand = !!t.a2p_brand_sid
+  const steps = await provisionA2p(tenantId)
+  const brand = steps.find((s) => s.step === 'brand')
+  if (!hadBrand && brand?.status === 'ok') {
+    await debit(tenantId, TWILIO_COSTS.brandRegistrationCents, 'a2p_brand', { twilioRef: brand.sid }).catch((e: any) => console.error('[A2P] brand fee debit failed for', tenantId, e?.message || e))
+  }
+  const failed = steps.find((s) => s.status === 'error')
+  await logTenantAudit(tenantId, 'a2p_submit', { a2p_status: { old: t.a2p_status, new: failed ? 'error' : 'pending' } }, actor, failed ? `Registration stopped: ${failed.detail}` : 'Texting registration submitted')
+  const { data: after } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+  return { code: failed ? 502 : 200, json: { success: !failed, steps: steps.map(({ step, status, detail }) => ({ step, status, detail })), ...(await summary(after)) } }
 }
 
 export function registerA2pRoutes(factory: FactoryApp) {
-  // ─── Status (non-sensitive; EIN masked) ─────────────────────────────────────
+  // ─── Staff ────────────────────────────────────────────────────────────────
   factory.get('/customers/:id/a2p', requireRole('owner', 'admin'), async (c) => {
-    const id = c.req.param('id')
+    const id = c.req.param('id') || ''
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
     const { data: t, error } = await supabase.from('tenants').select('*').eq('id', id).single()
     if (error || !t) return c.json({ error: error?.message || 'Tenant not found' }, error && error.code !== 'PGRST116' ? 500 : 404)
-
-    let einTail = ''
-    if (t.a2p_data) { try { einTail = maskTail(decryptJSON<A2pData>(t.a2p_data as string).ein) } catch { /* ignore */ } }
-
-    return c.json({
-      status: t.a2p_status || 'not_started',
-      channel: t.a2p_channel || 'a2p',
-      collected: !!t.a2p_data,
-      einTail,
-      brandSid: t.a2p_brand_sid || null,
-      campaignSid: t.a2p_campaign_sid || null,
-      tollfreeSid: t.a2p_tollfree_sid || null,
-      messagingServiceSid: t.a2p_messaging_service_sid || null,
-      phoneNumberSid: t.a2p_phone_number || null,
-      rejectionReason: t.a2p_rejection_reason || null,
-      submittedAt: t.a2p_submitted_at || null,
-      approvedAt: t.a2p_approved_at || null,
-    })
+    return c.json({ ...(await summary(t)), brandSid: t.a2p_brand_sid || null, campaignSid: t.a2p_campaign_sid || null, messagingServiceSid: t.a2p_messaging_service_sid || null, phoneNumberSid: t.a2p_phone_number || null })
   })
 
-  // ─── Collect + encrypt the tenant's EIN/legal/campaign data ──────────────────
-  factory.post('/customers/:id/a2p/intake', requireRole('owner', 'admin'), async (c) => {
-    const id = c.req.param('id')
+  // Save and submit in one (an empty body re-submits what is saved — resumes a stopped registration).
+  factory.post('/customers/:id/a2p/submit', requireRole('owner', 'admin'), async (c) => {
+    const id = c.req.param('id') || ''
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-    const { data: t, error } = await supabase.from('tenants').select('id, a2p_status').eq('id', id).single()
-    if (error || !t) return c.json({ error: error?.message || 'Tenant not found' }, error && error.code !== 'PGRST116' ? 500 : 404)
-
     const parsed = await parseJsonBody(c)
     if (parsed.error) return parsed.error
-    const v = validateIntake(parsed.data)
-    if (v.error) return c.json({ error: v.error }, 400)
-
-    // Don't clobber an in-flight/approved registration by re-collecting data.
-    if (['provisioning', 'pending', 'approved'].includes(t.a2p_status || '')) {
-      return c.json({ error: `Cannot edit A2P data while status is "${t.a2p_status}"` }, 409)
-    }
-
-    const channel = parsed.data?.channel === 'tollfree' ? 'tollfree' : 'a2p'
-    const { error: upErr } = await supabase.from('tenants').update({
-      a2p_data: encryptJSON({ ...v.data, channel }),
-      a2p_channel: channel,
-      a2p_status: 'collected',
-      a2p_rejection_reason: null,
-    }).eq('id', id)
-    if (upErr) return c.json({ error: upErr.message }, 500)
-
-    await logTenantAudit(id, 'a2p_intake', { a2p_status: { old: t.a2p_status, new: 'collected' } }, c.get('user')?.email, 'A2P registration data collected')
-    return c.json({ success: true, status: 'collected' })
+    const r = await submitRegistration(id, parsed.data || {}, c.get('user')?.email || 'staff')
+    return c.json(r.json, r.code as any)
   })
 
-  // ─── Submit → provision Twilio resources (resumable) ─────────────────────────
-  factory.post('/customers/:id/a2p/submit', requireRole('owner', 'admin'), async (c) => {
-    const id = c.req.param('id')
-    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-    const { data: t, error } = await supabase.from('tenants')
-      .select('id, a2p_status, a2p_channel, a2p_data, messaging_enabled, messaging_wallet_cents').eq('id', id).single()
-    if (error || !t) return c.json({ error: error?.message || 'Tenant not found' }, error && error.code !== 'PGRST116' ? 500 : 404)
-    if (!t.a2p_data) return c.json({ error: 'No A2P data collected — run intake first' }, 400)
-    if (t.a2p_status === 'approved') return c.json({ error: 'Already approved' }, 409)
-
-    // Messaging must be enabled ($10/mo) and the prepaid wallet must cover the
-    // registration fee before we provision — both channels billed the same for now.
-    if (!t.messaging_enabled) return c.json({ error: 'Enable messaging ($10/mo) before registering', code: 'messaging_disabled' }, 402)
-    const regCost = a2pRegistrationCostCents()
-    if ((t.messaging_wallet_cents ?? 0) < regCost) {
-      return c.json({ error: `Wallet balance too low for the $${(regCost / 100).toFixed(2)} registration — top up first`, code: 'insufficient_wallet', requiredCents: regCost }, 402)
-    }
-
-    try {
-      const results = await provisionA2p(id)
-      const failed = results.find(r => r.status === 'error')
-      // Debit the registration fee ONLY when the registration step was newly created
-      // this run ('ok', not 'skipped') — brand for A2P, verification for toll-free —
-      // so a resubmit never double-charges.
-      const regStep = results.find(r => r.step === 'brand' || r.step === 'tollfree_verification')
-      if (!failed && regStep?.status === 'ok') {
-        await debit(id, regCost, 'a2p_registration', { twilioRef: regStep.sid }).catch((e: any) =>
-          console.error('[A2P] registration debit failed for', id, e?.message || e))
-      }
-      await logTenantAudit(id, 'a2p_submit', { a2p_status: { old: t.a2p_status, new: failed ? 'error' : 'pending' } }, c.get('user')?.email, failed ? `A2P provisioning error at ${failed.step}` : 'A2P submitted for vetting')
-      return c.json({ success: !failed, steps: results }, failed ? 502 : 200)
-    } catch (e: any) {
-      return c.json({ error: e.message }, 500)
-    }
-  })
-
-  // ─── Manual re-poll of a single tenant's vetting status ──────────────────────
   factory.post('/customers/:id/a2p/refresh', requireRole('owner', 'admin'), async (c) => {
-    const id = c.req.param('id')
+    const id = c.req.param('id') || ''
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-    try {
-      const res = await pollA2pStatus(id)
-      return c.json({ success: true, ...res })
-    } catch (e: any) {
-      return c.json({ error: e.message }, 500)
-    }
+    try { return c.json({ success: true, ...(await pollA2pStatus(id)) }) } catch (e: any) { return c.json({ error: e.message }, 500) }
   })
 
-  // ─── Cron: advance all mid-vetting tenants ───────────────────────────────────
-  // Public path (/internal/*) — does its own CRON_SECRET check.
+  // ─── The business itself (its CRM, with its own Factory key) ─────────────
+  const self = async (c: any) => {
+    const tenantId = c.req.param('tenantId') || ''
+    if (!UUID_RE.test(tenantId)) return { err: c.json({ error: 'Invalid tenant ID format' }, 400) }
+    const { data: t } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (!t || !checkFactoryKey(c, t)) return { err: c.json({ error: 'Unauthorized' }, 401) }
+    return { t }
+  }
+
+  factory.get('/internal/messaging/self/:tenantId/registration', async (c) => {
+    const { t, err } = await self(c); if (err) return err
+    return c.json(await summary(t))
+  })
+
+  factory.post('/internal/messaging/self/:tenantId/registration', async (c) => {
+    const { t, err } = await self(c); if (err) return err
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const r = await submitRegistration(t.id, parsed.data || {}, 'business owner (CRM)')
+    return c.json(r.json, r.code as any)
+  })
+
+  // Where it stands now, after asking Twilio (the page's "Check now").
+  factory.post('/internal/messaging/self/:tenantId/registration/refresh', async (c) => {
+    const { t, err } = await self(c); if (err) return err
+    try { await pollA2pStatus(t.id) } catch (e: any) { console.error('[A2P] refresh failed', t.id, e.message) }
+    const { data: after } = await supabase.from('tenants').select('*').eq('id', t.id).single()
+    return c.json(await summary(after))
+  })
+
+  factory.post('/internal/messaging/self/:tenantId/registration/resend', async (c) => {
+    const { t, err } = await self(c); if (err) return err
+    try { await resendOwnerConfirmation(t.id); return c.json({ success: true }) } catch (e: any) { return c.json({ error: e.message }, 400) }
+  })
+
+  // ─── Cron and Twilio's nudges ─────────────────────────────────────────────
   factory.post('/internal/a2p/poll', async (c) => {
     if (!checkCronSecret(c)) return c.json({ error: 'Invalid cron secret' }, 401)
-    try {
-      const res = await pollAllPendingA2p()
-      return c.json({ success: true, ...res })
-    } catch (e: any) {
-      return c.json({ error: e.message }, 500)
-    }
+    try { return c.json({ success: true, ...(await pollAllPendingA2p()) }) } catch (e: any) { return c.json({ error: e.message }, 500) }
   })
 
-  // ─── Twilio status callback ──────────────────────────────────────────────────
-  // We never trust the callback payload — it only nudges us to re-poll Twilio
-  // (the authoritative source), so no signature validation is required here.
+  // The payload is never trusted — it only nudges a poll of Twilio, the authoritative source.
   factory.post('/internal/a2p/twilio-callback', async (c) => {
     pollAllPendingA2p().catch((e: any) => console.error('[A2P] callback poll failed:', e.message))
     return c.json({ received: true })

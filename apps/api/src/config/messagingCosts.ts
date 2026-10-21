@@ -23,7 +23,8 @@ export const MESSAGING_ENABLE_MONTHLY_CENTS = int('MESSAGING_ENABLE_MONTHLY_CENT
 // At-cost Twilio A2P / carrier figures, in cents.
 export const TWILIO_COSTS = {
   // One-time registration = brand registration + campaign vetting.
-  brandRegistrationCents: int('TWILIO_A2P_BRAND_CENTS', 400),      // ~$4 one-time
+  // Low-Volume Standard brand (Twilio's fee table of 2025-08-01: $4.50; services/a2p.ts registers that kind).
+  brandRegistrationCents: int('TWILIO_A2P_BRAND_CENTS', 450),
   campaignVettingCents:   int('TWILIO_A2P_CAMPAIGN_VET_CENTS', 1500), // ~$15 one-time
   // Recurring monthly campaign fee (Low-Volume Mixed is cheaper than Standard).
   monthlyCampaignCents:   int('TWILIO_A2P_CAMPAIGN_MONTHLY_CENTS', 200), // ~$2/mo
