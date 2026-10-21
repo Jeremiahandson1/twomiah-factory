@@ -8,13 +8,17 @@
 //     showing the previous tab's figures. An answer that arrives after a newer request is dropped.
 //   · an export is named as the server names it (its Content-Disposition, the agency's name in it); the template named it
 //     from a build-time placeholder. A refused export shows the server's sentence.
+//   · only the reports this seat may read are offered, and only the exports it may take: the office manager (care-billing
+//     read, no payroll or hiring — permissions.ts) was offered Hours Worked, Performance, Satisfaction and Caregiver
+//     Utilization, and each answered "Permission denied" (live sweep, 2026-10-21). The permissions are the server's
+//     (planning/reports.ts: each route's requirePermission, exportPermission, exportPdfPermission).
 //   · the On-Time % and GPS Capture figures are coloured (green at target, amber below) as their classes intended; the
 //     template's value-success / value-warning classes were defined only inside a stat card, so they never coloured.
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { api, errorMessage, rows, saveBlob, listAll } from '../lib/http';
 import { formatDate, toLocalYMD } from '../lib/date';
 import { serviceLabel } from '../lib/serviceTypes';
-import { useToast } from '../../../../shared';
+import { usePermissions, useToast } from '../../../../shared';
 import AgencyTimezone from './AgencyTimezone';
 
 /** pg numerics arrive as strings, counts as numbers. */
@@ -67,22 +71,31 @@ type DrillRow = Record<string, unknown>;
 interface DrillData { rows?: DrillRow[] }
 type ReportData = OverviewData & HoursData & PerformanceData & SatisfactionData & RevenueData & PnlData & DrillData;
 
+// perm: the permission the report's own route asks (planning/reports.ts).
+const BILLING = 'care-billing:read', PAYROLL = 'care-payroll:read', HR = 'care-hr:read', COMPLIANCE = 'care-compliance:read';
 const REPORT_TYPES = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'hours', label: 'Hours Worked' },
-  { value: 'performance', label: 'Performance' },
-  { value: 'satisfaction', label: 'Satisfaction' },
-  { value: 'revenue', label: 'Revenue' },
-  { value: 'pnl', label: 'Profit & Loss' },
-  { value: 'hours-by-payer', label: 'Hours by Payer' },
-  { value: 'caregiver-utilization', label: 'Caregiver Utilization' },
-  { value: 'client-visits-summary', label: 'Client Visits Summary' },
-  { value: 'client-revenue-by-month', label: 'Client Revenue by Month' },
-  { value: 'client-incidents', label: 'Client Incidents' },
+  { value: 'overview', label: 'Overview', perm: BILLING },
+  { value: 'hours', label: 'Hours Worked', perm: PAYROLL },
+  { value: 'performance', label: 'Performance', perm: HR },
+  { value: 'satisfaction', label: 'Satisfaction', perm: HR },
+  { value: 'revenue', label: 'Revenue', perm: BILLING },
+  { value: 'pnl', label: 'Profit & Loss', perm: BILLING },
+  { value: 'hours-by-payer', label: 'Hours by Payer', perm: BILLING },
+  { value: 'caregiver-utilization', label: 'Caregiver Utilization', perm: PAYROLL },
+  { value: 'client-visits-summary', label: 'Client Visits Summary', perm: BILLING },
+  { value: 'client-revenue-by-month', label: 'Client Revenue by Month', perm: BILLING },
+  { value: 'client-incidents', label: 'Client Incidents', perm: COMPLIANCE },
 ];
 
 // The GET-style drill-down reports (?startDate&endDate, ?format=csv); the rest are POSTed with the filters.
 const GET_REPORTS = new Set(['pnl', 'hours-by-payer', 'caregiver-utilization', 'client-visits-summary', 'client-revenue-by-month', 'client-incidents']);
+
+/** What a tab's CSV asks: a drill-down's is its own route; the rest go through POST /:type/export (exportPermission). */
+const csvPermission = (type: string) =>
+  GET_REPORTS.has(type) ? REPORT_TYPES.find((t) => t.value === type)?.perm ?? BILLING : type === 'revenue' ? BILLING : PAYROLL;
+/** What a tab's PDF asks: POST /:type/export-pdf (exportPdfPermission). */
+const pdfPermission = (type: string) =>
+  type === 'overview' || type === 'hours' ? PAYROLL : type === 'performance' ? HR : BILLING;
 
 /**
  * The filters each report honours on the server (server/crm/homecare/planning/reports.ts). Only those are offered and
@@ -136,15 +149,23 @@ const ReportsAnalytics = () => {
   const [caregivers, setCaregivers] = useState<Person[]>([]);
   const [clients, setClients] = useState<Person[]>([]);
   const latest = useRef(0);
+  // Offered only what the server will answer; nothing is asked until the permission list has arrived.
+  const { known, can } = usePermissions();
+  const offered = known ? REPORT_TYPES.filter((t) => can(t.perm)) : [];
+  const shown = offered.some((t) => t.value === reportType) ? reportType : offered[0]?.value ?? '';
 
   useEffect(() => {
     loadFilters();
   }, []);
 
   useEffect(() => {
-    if (reportType) generateReport();
+    if (known && shown !== reportType) setReportType(shown);
+  }, [known, shown, reportType]);
+
+  useEffect(() => {
+    if (known && reportType && reportType === shown) generateReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reportType, dateRange, caregiverFilter, clientFilter]);
+  }, [known, reportType, shown, dateRange, caregiverFilter, clientFilter]);
 
   const loadFilters = async () => {
     try {
@@ -924,7 +945,7 @@ const ReportsAnalytics = () => {
 
       <div className="hc-card">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-          {REPORT_TYPES.map(type => (
+          {offered.map(type => (
             <button
               key={type.value}
               className={`hc-btn ${reportType === type.value ? 'hc-btn-primary' : 'hc-btn-secondary'}`}
@@ -969,13 +990,15 @@ const ReportsAnalytics = () => {
           </div>}
 
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
-            <button className="hc-btn hc-btn-secondary" onClick={() => exportReport('csv')}>📥 CSV</button>
-            <button className="hc-btn hc-btn-secondary" onClick={() => exportReport('pdf')}>📄 PDF</button>
+            {reportType && can(csvPermission(reportType)) && <button className="hc-btn hc-btn-secondary" onClick={() => exportReport('csv')}>📥 CSV</button>}
+            {reportType && can(pdfPermission(reportType)) && <button className="hc-btn hc-btn-secondary" onClick={() => exportReport('pdf')}>📄 PDF</button>}
           </div>
         </div>
       </div>
 
-      {loading ? (
+      {known && offered.length === 0 ? (
+        <div className="hc-card">Your seat does not include any reports — they come with billing, payroll, hiring or compliance access.</div>
+      ) : loading ? (
         <div className="loading"><div className="spinner"></div></div>
       ) : error ? (
         <div className="hc-card" role="alert" style={{ background: 'var(--hc-danger-bg)', color: 'var(--hc-danger-ink)', border: '1px solid var(--hc-danger-line)' }}>
