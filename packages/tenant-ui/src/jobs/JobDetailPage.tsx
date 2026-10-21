@@ -112,7 +112,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {open && mayUpdate && job.status !== 'in_progress' && <Button onClick={() => act('start', `${cfg.labels.singular} started`)} className="bg-orange-500 hover:bg-orange-600"><Play className="w-4 h-4 inline mr-2" />Start</Button>}
           {open && mayUpdate && job.status === 'in_progress' && <Button variant="success" onClick={() => act('complete', `${cfg.labels.singular} completed`)}><CheckCircle className="w-4 h-4 inline mr-2" />Complete</Button>}
           {/*

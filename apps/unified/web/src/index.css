@@ -72,6 +72,15 @@
   textarea::placeholder {
     @apply text-gray-500 dark:text-slate-400;
   }
+  /* …and on the raised dark grounds ~45 screens give their own fields (dark:bg-slate-700 / slate-600), where slate-400
+     reads 4.04:1 (live sweep, field service's parts and service-rate forms). slate-300: 7.0:1 on slate-700, 5.1 on 600.
+     One rule for every such field rather than a class on each. */
+  .dark input[class*='dark:bg-slate-700']::placeholder,
+  .dark textarea[class*='dark:bg-slate-700']::placeholder,
+  .dark input[class*='dark:bg-slate-600']::placeholder,
+  .dark textarea[class*='dark:bg-slate-600']::placeholder {
+    @apply text-slate-300;
+  }
 
   /* Dark-mode fallback for form fields. Many inputs hardcode `bg-white border-gray-300` inline, which beats the bare
      element rule above and left them glaring white on the dark theme. `.dark input` (element+class) outranks a lone

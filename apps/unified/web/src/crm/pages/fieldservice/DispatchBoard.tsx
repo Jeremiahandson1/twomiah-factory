@@ -199,12 +199,12 @@ export default function DispatchBoard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dispatch Board</h1>
           <p className="text-gray-600 dark:text-slate-400">{dateDisplay}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button aria-label="Previous day"
             onClick={() => navigateDate(-1)}
             className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
