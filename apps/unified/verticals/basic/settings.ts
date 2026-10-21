@@ -68,7 +68,6 @@ const basic: VerticalSettings = {
       // A supplier is stored as `vendor`; not a builder's Subcontractor (contactsConfig.ts, T64).
       types: [{ value: 'lead', label: 'Lead' }, { value: 'client', label: 'Client' }, { value: 'vendor', label: 'Supplier' }],
       sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true },
-      portalGate: false,
     },
     jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true },
     // The template's quote-name example was field service's ('AC Compressor Replacement'); a neutral one here.

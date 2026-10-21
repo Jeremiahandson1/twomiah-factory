@@ -58,7 +58,7 @@ const fieldservice: VerticalSettings = {
     // The menu in this trade's words, by page address.
     nav: { '/crm/jobs': 'Service Calls', '/crm/job-costing': 'Service Call Costing', '/crm/tech': 'Tech View' },
     searchPlaceholder: 'Search contacts, service calls, invoices...',
-    contacts: { sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true }, portalGate: false },
+    contacts: { sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true } },
     jobs: { labels: { singular: 'Service Call', plural: 'Service Calls', add: 'New Service Call' }, equipment: true, sites: true, photos: true, billing: true },
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. AC Compressor Replacement', pricebook: true },
     documents: { markup: false, projects: false, types: DOC_TYPES },

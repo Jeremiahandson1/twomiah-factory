@@ -102,7 +102,8 @@ const bar: VerticalSettings = {
       // The parties list on a guest, texting, and none of crm-basic's field set (sites, equipment) — a guest has neither.
       gateByFeature: true,
       sections: { events: true, sms: true },
-      portalGate: false,
+      // No portal panel: it follows client_portal, as the server's switches do, and a bar is not offered the portal (it
+      // was shown regardless — portalGate: false — and its switch refused the owner; live sweep 2026-10-21).
       quickActions: [
         { label: 'Book a party', to: '/crm/events?contactId=:id', icon: 'event', feature: 'event_bookings' },
         { label: 'Create Invoice', to: '/crm/invoices?contactId=:id', icon: 'invoice', feature: 'invoices' },

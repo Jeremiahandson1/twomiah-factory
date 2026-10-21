@@ -63,7 +63,7 @@ const landscaping: VerticalSettings = {
     nav: { '/crm/tech': 'Crew View', '/crm/parts': 'Parts & Materials', '/crm/pricebook-rates': 'Flat-Rate Pricing' },
     navSections: { 'Field Service': 'Operations' },
     searchPlaceholder: 'Search contacts, jobs, invoices...',
-    contacts: { sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true }, portalGate: false },
+    contacts: { sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true } },
     // A landscaper does not take service calls: the work is a scheduled visit to a property — a job. (T41)
     jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true },
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. Spring cleanup and mulch', pricebook: true },

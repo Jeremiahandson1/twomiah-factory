@@ -113,6 +113,9 @@ const salon: VerticalSettings = {
     // The salon's own dashboard at /crm/dashboard (crm/verticals/salon.tsx), reading /api/dashboard as crm.dashboard says.
     home: 'salon',
     nav: {},
+    // The bar's Regulars (crm/verticals/bar.tsx) shows on loyalty_rewards, which the salon's own Loyalty shares; a
+    // salon's programme is its Loyalty page, so the bar's is left out — as the bar leaves out this one (2026-10-21).
+    navHidden: ['/crm/regulars'],
     searchPlaceholder: 'Search clients, services, invoices...',
     contacts: {
       types: CONTACT_TYPES,
