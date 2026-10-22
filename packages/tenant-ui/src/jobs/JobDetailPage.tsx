@@ -1,5 +1,5 @@
 // Job detail — one page for every CRM: header (start / complete / edit / delete), details, description,
-// photos (when the vertical has them), related project / contact / equipment.
+// photos (when the vertical has them), notes (where the app mounts them), related project / contact / equipment.
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench, Camera, X, FileText } from 'lucide-react'
@@ -7,6 +7,8 @@ import { StatusBadge, ConfirmModal, Button, NavLink, dateOnly, errMsg } from '..
 import { resolveJobsConfig, PRIORITY_COLORS } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { JobPartsPanel } from '../inventory/JobPartsPanel'
+import { JobNotesPanel } from './JobNotesPanel'
+import { JobPhotosPanel } from './JobPhotosPanel'
 import type { JobsPageProps, JobRow, JobPhoto } from './types'
 
 const card = 'bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6'
@@ -27,6 +29,9 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
   const mayDelete = useMayWrite('jobs:delete')
   /** Start, Complete, Edit and removing a photo are jobs:update on the server. (T43 viewer round, T68) */
   const mayUpdate = useMayWrite('jobs:update')
+  /** The photo library's own rights, where the business keeps job photos there (POST / DELETE /api/photos). */
+  const mayAddToLibrary = useMayWrite('documents:create')
+  const mayRemoveFromLibrary = useMayWrite('documents:delete')
   /**
    * Parts used on this job — wherever the tenant has inventory (or parts_tracking, which unlocks the same module).
    * Read off the template's OWN feature check, not resolveJobsConfig's fallback that answers yes to everything:
@@ -39,7 +44,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
     try { setJob(await api.get(`/api/jobs/${id}`)) } catch (err) { setError(errMsg(err, 'Unknown error')); toast.error(`Failed to load ${cfg.labels.singular.toLowerCase()}`) } finally { setLoading(false) }
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
   const loadPhotos = useCallback(async () => {
-    if (!cfg.photos) return
+    if (!cfg.photos || cfg.photoStore) return
     try { const r = await api.get(`/api/jobs/${id}/photos`); setPhotos(Array.isArray(r) ? r : []) } catch { setPhotos([]) }
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load(); loadPhotos() }, [load, loadPhotos])
@@ -161,7 +166,11 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
             {job.notes && <div className="mt-4 pt-4 border-t dark:border-slate-800"><p className="text-sm text-gray-500 mb-2 dark:text-slate-400">Notes</p><p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{job.notes}</p></div>}
           </div>
 
-          {cfg.photos && photos.length > 0 && (
+          {cfg.photos && cfg.photoStore && (
+            <JobPhotosPanel api={api} toast={toast} jobId={id} store={cfg.photoStore} label={cfg.labels.singular}
+              mayAdd={cfg.photoStore === 'job' ? mayUpdate : mayAddToLibrary} mayRemove={cfg.photoStore === 'job' ? mayUpdate : mayRemoveFromLibrary} />
+          )}
+          {cfg.photos && !cfg.photoStore && photos.length > 0 && (
             <div className={card}>
               <h2 className="font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-slate-100"><Camera className="w-4 h-4" /> Photos ({photos.length})</h2>
               <div className="grid grid-cols-4 gap-3">
@@ -173,6 +182,8 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
               </div>
             </div>
           )}
+
+          {cfg.notes && <JobNotesPanel api={api} toast={toast} jobId={id} mayWrite={mayUpdate} timeZone={cfg.timeZone} />}
 
           {showParts && <JobPartsPanel api={api as any} toast={toast} jobId={id} />}
         </div>
