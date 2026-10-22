@@ -414,6 +414,10 @@ a { color: inherit; text-decoration: none; }
 .contact-form__row input, .contact-form__row textarea { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; font: inherit; color: var(--ink); background: var(--paper); }
 .contact-form__row input:focus, .contact-form__row textarea:focus { outline: none; border-color: var(--brand); background: var(--white); }
 @media (max-width: 860px) { .contact-section__grid { grid-template-columns: 1fr; } }
+/* The form's own message under a box it can't send without (form-info.ejs), in place of the browser's tooltip. Its ink
+   brings its own ground, so it reads the same on every design's form (the bar's form is near-black). */
+.contact-form__error { margin: 6px 0 0; padding: 4px 8px; border-radius: 6px; font-size: 14px; font-weight: 600; line-height: 1.4; color: #b42318; background: #fef3f2; }
+.contact-form__row input[aria-invalid="true"], .contact-form__row textarea[aria-invalid="true"] { border-color: #b42318; }
 
 /* ── Footer ──────────────────────────────────────────────────────────── */
 .site-footer { background: var(--brand-deep); color: var(--white); padding: 48px 0 32px; }
@@ -423,6 +427,12 @@ a { color: inherit; text-decoration: none; }
 .footer-contact { display: flex; gap: 28px; }
 .footer-contact a { color: rgba(255,255,255,0.85); font-size: 15px; }
 .footer-contact a:hover { color: var(--accent); }
+/* The phone, the email and Privacy · Terms sat on one unbreakable row: at 390px the footer ran 7px off the side of every
+   page and the whole site scrolled sideways (live test 2026-10-22). They wrap, and a long email breaks where it must. Every
+   design gets it — a design that restyles the row (bar.css) sets no flex-wrap of its own. */
+.footer-contact { flex-wrap: wrap; row-gap: 10px; min-width: 0; max-width: 100%; }
+.footer-contact > * { flex-shrink: 0; max-width: 100%; }
+.footer-contact a { overflow-wrap: anywhere; }
 
 /* ── Twomiah Bookings ─────────────────────────────────────────────────── */
 .book-services { padding: var(--space) 0; }

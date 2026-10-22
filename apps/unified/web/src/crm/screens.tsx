@@ -62,9 +62,14 @@ export function Jobs() {
   return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can } as any} />
 }
 export function JobDetail() {
-  const { hasFeature } = useAuth()
-  // Photos are photo_capture's on the server (/api/jobs/:id/photos), so here too.
-  return <JobDetailPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), photos: !!v().jobs.photos && hasFeature('photo_capture') } as any} />
+  const { hasFeature, company } = useAuth()
+  // Photos are photo_capture's on the server, kept where the phone app keeps them: on the job (/api/jobs/:id/photos) where
+  // the vertical has job photos, else in the photo library by job (/api/photos?jobId) — contractor's. Notes are the job's
+  // comments (/api/comments, every vertical). Live test 2026-10-22: the page had neither an add nor a notes log.
+  return <JobDetailPage api={client} toast={useToast()} config={{
+    ...jobsFor(hasFeature), photos: hasFeature('photo_capture'), photoStore: v().jobs.photos ? 'job' : 'library',
+    notes: true, timeZone: (company as { timeZone?: string } | null)?.timeZone,
+  } as any} />
 }
 /**
  * The quote and invoice screens offer a list only where the vertical has it AND the business has its feature switched on —

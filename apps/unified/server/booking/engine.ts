@@ -13,9 +13,9 @@
 // set up, or the provider refused) leaves the booking CONFIRMED — the CRMs' engine left it pending, and its own hold
 // expiry then cancelled it half an hour later without a word.
 import crypto from 'node:crypto'
-import { and, asc, desc, eq, gt, inArray, lt, ne, or, count } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, lt, ne, or, count, notInArray, isNull, notExists } from 'drizzle-orm'
 import { addDays, isIsoDate, isRealDate, isValidTz, minutesToHm, safeTz, tzParts, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
-import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user } from '../db/schema/index.ts'
+import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user, job, company } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
 import { lockBookingDay } from '../data/bookingLock.ts'
 import { recordConsent } from '../site/smsConsent.ts'
@@ -158,7 +158,10 @@ export function createBookingEngine(deps: EngineDeps) {
   async function settingsOf(companyId: string, exec: any = db): Promise<SettingsRow> {
     const [row] = await exec.select().from(bookingSettings).where(eq(bookingSettings.companyId, companyId)).limit(1)
     if (row) return row
-    const [made] = await exec.insert(bookingSettings).values({ companyId }).onConflictDoNothing().returning()
+    // First read: the business's own clock (company.timezone), not the column's Chicago default — a New York business
+    // that switched bookings on later was otherwise offered times an hour off (2026-10-22, beside the provisioning fix).
+    const [co] = await exec.select({ timezone: company.timezone }).from(company).where(eq(company.id, companyId)).limit(1)
+    const [made] = await exec.insert(bookingSettings).values({ companyId, ...(co?.timezone && isValidTz(co.timezone) ? { timezone: co.timezone } : {}) }).onConflictDoNothing().returning()
     if (made) return made
     const [again] = await exec.select().from(bookingSettings).where(eq(bookingSettings.companyId, companyId)).limit(1)
     return again
@@ -370,6 +373,40 @@ export function createBookingEngine(deps: EngineDeps) {
     return deps.externalBusy(companyId, zonedWallTimeToUtc(firstDate, '00:00', tz), zonedWallTimeToUtc(addDays(lastDate, 1), '00:00', tz)).catch(() => [])
   }
 
+  /**
+   * Jobs on the schedule hold their time like bookings do. A service call the office put on a technician's day was
+   * never read here, so the website went on selling that technician's 13:00 while they were at the call (live test
+   * 2026-10-22, "service calls don't reserve online booking slots"). The job module's own rule for what a job
+   * occupies (packages/tenant-backend jobs.ts assigneeConflict): the clock time in scheduled_time on the day
+   * scheduled_date names, for estimated_hours (blank = one hour); a job with no time holds no slot; cancelled and
+   * completed ones hold nothing. scheduled_date is a midnight marker except on a job a booking made, which carries the
+   * real instant (time/businessDay.ts rule 2). Assigned to someone: that person's time; to nobody, or to a crew member
+   * with no login: the business's, as the CRMs' booking calendar did. A job whose booking still holds the time is that
+   * booking's time already.
+   */
+  async function jobsBusy(exec: any, companyId: string, from: Date, to: Date, tz: string) {
+    const rows = await exec.select({ start: job.scheduledDate, time: job.scheduledTime, hours: job.estimatedHours, userId: job.assignedToId, source: job.source }).from(job)
+      .where(and(
+        eq(job.companyId, companyId),
+        gt(job.scheduledDate, new Date(from.getTime() - 2 * 86_400_000)), lt(job.scheduledDate, new Date(to.getTime() + 86_400_000)),
+        notInArray(job.status, ['cancelled', 'completed']),
+        or(isNull(job.bookingId), notExists(exec.select({ id: booking.id }).from(booking).where(and(eq(booking.id, job.bookingId), inArray(booking.status, [...ACTIVE]))))),
+      ))
+    const out: Array<{ userId: string | null; start: Date; end: Date }> = []
+    for (const r of rows) {
+      if (!r.start) continue
+      const stored = new Date(r.start)
+      const instant = r.source === 'online_booking'
+      const hm = HM_RE.test(String(r.time || '')) ? String(r.time) : null
+      if (!hm && !instant) continue
+      const start = hm ? zonedWallTimeToUtc(instant ? tzParts(stored, tz).date : stored.toISOString().slice(0, 10), hm, tz) : stored
+      const h = Number(r.hours)
+      const end = new Date(start.getTime() + (Number.isFinite(h) && h > 0 ? Math.max(1, Math.round(h * 60)) : 60) * 60_000)
+      if (end > from && start < to) out.push({ userId: r.userId ?? null, start, end })
+    }
+    return out
+  }
+
   async function loadRange(companyId: string, s: SettingsRow, firstDate: string, lastDate: string, exec: any, exceptBookingId?: string, externalBusy?: Awaited<ReturnType<typeof externalFor>>) {
     const tz = tzOf(s)
     const from = zonedWallTimeToUtc(firstDate, '00:00', tz), to = zonedWallTimeToUtc(addDays(lastDate, 1), '00:00', tz)
@@ -384,7 +421,7 @@ export function createBookingEngine(deps: EngineDeps) {
     const ours = new Set(rows.map((r: any) => r.b.externalEventId).filter(Boolean))
     // Inside a transaction the caller hands it in (claim); otherwise it is read here.
     const external = (externalBusy ?? await externalFor(companyId, s, firstDate, lastDate)).filter((e) => !ours.has(e.eventId))
-    const own = deps.addOn?.busy ? await deps.addOn.busy(exec, companyId, from, to) : []
+    const own = [...(deps.addOn?.busy ? await deps.addOn.busy(exec, companyId, from, to) : []), ...await jobsBusy(exec, companyId, from, to, tz)]
     return { tz, hours, daysOff, zones, bookings: rows, external, own }
   }
   type Range = Awaited<ReturnType<typeof loadRange>>

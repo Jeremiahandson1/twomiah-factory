@@ -211,10 +211,17 @@ export async function dashboardSummary(q: Q, companyId: string, today: string, t
       (SELECT COALESCE(SUM(${invoiceBalanceSql()}), 0) FROM invoices i WHERE i.company_id = ${companyId} AND ${releasedInvoiceSql()} AND ${invoiceBalanceSql()} > 0.005) AS pending_amount,
       (SELECT COUNT(*)::int FROM invoices d WHERE d.company_id = ${companyId} AND NOT ${releasedInvoiceSql('d')}) AS draft_count,
       (SELECT COALESCE(SUM(d.total), 0) FROM invoices d WHERE d.company_id = ${companyId} AND NOT ${releasedInvoiceSql('d')}) AS draft_amount,
-      -- Cash received this calendar month: the payments recorded, by payment date.
-      (SELECT COALESCE(SUM(ip.amount), 0) FROM invoice_payments ip WHERE ip.company_id = ${companyId}
-         AND ip.payment_date >= date_trunc('month', (${today})::date)
-         AND ip.payment_date <  date_trunc('month', (${today})::date) + INTERVAL '1 month') AS this_month_revenue,
+      -- Money received this calendar month (the agency's month: today is the agency's day), by payment date: every
+      -- payment recorded — a client's on a visit invoice (cash, check, card, the Stripe page) AND a payer's check or
+      -- EFT on the claims (Billing Engine's Record Payment, /api/payments). The tile counted only the first, so an agency
+      -- paid by its payers read $0.00 collected (live test 2026-10-22). The two ledgers never write each other (a payer
+      -- payment marks claims paid; it records no invoice payment), so nothing is counted twice.
+      ((SELECT COALESCE(SUM(ip.amount), 0) FROM invoice_payments ip WHERE ip.company_id = ${companyId}
+         AND ip.payment_date >= date_trunc('month', (${today})::date)::date
+         AND ip.payment_date <  (date_trunc('month', (${today})::date) + INTERVAL '1 month')::date)
+       + (SELECT COALESCE(SUM(pp.check_amount), 0) FROM payments pp WHERE pp.company_id = ${companyId}
+         AND pp.payment_date >= date_trunc('month', (${today})::date)::date
+         AND pp.payment_date <  (date_trunc('month', (${today})::date) + INTERVAL '1 month')::date)) AS this_month_revenue,
       -- Caregivers clocked in right now (an open entry started on the agency's today).
       (SELECT COUNT(DISTINCT te.caregiver_id)::int FROM time_entries te
         WHERE te.company_id = ${companyId} AND te.end_time IS NULL AND ${localDate(sql`te.start_time`, tz)} = (${today})::date) AS clocked_in_now,

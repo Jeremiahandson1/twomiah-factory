@@ -12,6 +12,7 @@
 import { Hono } from 'hono'
 import { eq, and, or, gte, lte, lt, sql, count, sum, inArray, desc, isNotNull, asc } from 'drizzle-orm'
 import { overdueCutoff } from '../invoicing/money'
+import { companyTimeZone, storeDayRange, storeDayStart, storeDateString } from '../time/businessDay'
 
 export interface ReportingTables {
   invoice: any
@@ -75,21 +76,30 @@ const ISSUED = ['void', 'refunded', 'draft']
 const BILLED = ['void', 'draft'] // excluded from gross "invoiced" — a refunded sale was still billed
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
-const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
 export interface DateRange { gte?: Date; lte?: Date }
 
-/** Query dates → a range. endDate is inclusive of its whole day. Garbage is a 400, not a 500. */
-export function parseRange(startDate?: string, endDate?: string): DateRange {
+const PLAIN_DAY = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Query dates → a range. endDate is inclusive of its whole day. Garbage is a 400, not a 500.
+ *
+ * A plain YYYY-MM-DD is the BUSINESS's day (`tz`, time/businessDay.ts), not UTC's: an Ohio shop's evening cash sale is
+ * on the next day in UTC, so "today's" collected left it out until midnight in London (live test 2026-10-22, "collected
+ * $0.00 after cash payments recorded the same day"). With tz 'UTC' — a company with no zone — it is exactly as before.
+ */
+export function parseRange(startDate?: string, endDate?: string, tz = 'UTC'): DateRange {
   const parse = (v: string | undefined, label: string) => {
     if (v === undefined || v === '') return undefined
     const d = new Date(v)
     if (Number.isNaN(d.getTime())) throw new ReportError(`${label} is not a valid date.`)
     return d
   }
-  const gte = parse(startDate, 'startDate')
+  const plainStart = !!startDate && PLAIN_DAY.test(startDate), plainEnd = !!endDate && PLAIN_DAY.test(endDate)
+  const start = parse(startDate, 'startDate')
+  const gte = start && plainStart ? storeDayStart(startDate!, tz) : start
   const end = parse(endDate, 'endDate')
-  const lte = end ? new Date(end.getTime() + DAY_MS - 1) : undefined
+  const lte = end ? (plainEnd ? new Date(storeDayRange(tz, endDate!).end.getTime() - 1) : new Date(end.getTime() + DAY_MS - 1)) : undefined
   if (gte && lte && gte > lte) throw new ReportError('startDate must be on or before endDate.')
   return { gte, lte }
 }
@@ -137,9 +147,17 @@ export function createReportingService(deps: ReportingDeps) {
     }
   }
 
+  /**
+   * The months are the business's (companyTimeZone), as every day on this page is: the server's month put an evening
+   * payment on the last day of a month into the next one (live test 2026-10-22, the collected figures).
+   */
   async function revenueByMonth(companyId: string, monthsRaw: number) {
     const months = Math.min(maxMonths, Math.max(1, Math.round(num(monthsRaw) || 12)))
-    const start = new Date(); start.setMonth(start.getMonth() - months + 1); start.setDate(1); start.setHours(0, 0, 0, 0)
+    const tz = await companyTimeZone(db, companyId)
+    const [y, m] = storeDateString(new Date(), tz).split('-').map(Number)
+    const keys = Array.from({ length: months }, (_, i) => { const d = new Date(Date.UTC(y, m - 1 - (months - 1) + i, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}` })
+    const start = storeDayStart(`${keys[0]}-01`, tz)
+    const monthOf = (at: Date) => storeDateString(at, tz).slice(0, 7)
     const [invoices, payments] = await Promise.all([
       db.select({ total: t.invoice.total, createdAt: t.invoice.createdAt }).from(t.invoice)
         .where(and(eq(t.invoice.companyId, companyId), gte(t.invoice.createdAt, start), billed)),
@@ -148,9 +166,9 @@ export function createReportingService(deps: ReportingDeps) {
         .where(and(eq(t.invoice.companyId, companyId), gte(t.payment.paidAt, start))),
     ])
     const rows: Record<string, { month: string; invoiced: number; collected: number }> = {}
-    for (let i = 0; i < months; i++) { const d = new Date(start); d.setMonth(d.getMonth() + i); rows[monthKey(d)] = { month: monthKey(d), invoiced: 0, collected: 0 } }
-    for (const inv of invoices) { const k = monthKey(new Date(inv.createdAt)); if (rows[k]) rows[k].invoiced = r2(rows[k].invoiced + num(inv.total)) }
-    for (const p of payments) { if (!p.paidAt) continue; const k = monthKey(new Date(p.paidAt)); if (rows[k]) rows[k].collected = r2(rows[k].collected + num(p.amount)) }
+    for (const k of keys) rows[k] = { month: k, invoiced: 0, collected: 0 }
+    for (const inv of invoices) { const k = monthOf(new Date(inv.createdAt)); if (rows[k]) rows[k].invoiced = r2(rows[k].invoiced + num(inv.total)) }
+    for (const p of payments) { if (!p.paidAt) continue; const k = monthOf(new Date(p.paidAt)); if (rows[k]) rows[k].collected = r2(rows[k].collected + num(p.amount)) }
     return Object.values(rows)
   }
 
@@ -382,20 +400,21 @@ export function createReportingRoutes(deps: ReportingDeps) {
     throw e
   })
   const cid = (c: any) => (c.get('user') as any).companyId
-  const range = (c: any) => parseRange(c.req.query('startDate'), c.req.query('endDate'))
+  // The period's days are the company's (parseRange): its zone read per request, as every shared module reads it.
+  const range = async (c: any) => parseRange(c.req.query('startDate'), c.req.query('endDate'), await companyTimeZone(deps.db, cid(c)))
   const int = (c: any, key: string, fallback: number) => { const v = c.req.query(key); if (v === undefined || v === '') return fallback; const n = Number(v); if (!Number.isFinite(n)) throw new ReportError(`${key} must be a number.`); return n }
 
-  app.get('/dashboard', guard, async (c) => c.json(await svc.dashboardSummary(cid(c), range(c))))
-  app.get('/revenue', guard, async (c) => c.json(await svc.revenueOverview(cid(c), range(c))))
+  app.get('/dashboard', guard, async (c) => c.json(await svc.dashboardSummary(cid(c), await range(c))))
+  app.get('/revenue', guard, async (c) => c.json(await svc.revenueOverview(cid(c), await range(c))))
   app.get('/revenue/monthly', guard, async (c) => c.json(await svc.revenueByMonth(cid(c), int(c, 'months', 12))))
-  app.get('/revenue/customers', guard, async (c) => c.json(await svc.revenueByCustomer(cid(c), range(c), int(c, 'limit', 10))))
-  app.get('/revenue/locations', guard, async (c) => c.json(await svc.revenueByLocation(cid(c), range(c))))
-  app.get('/jobs', guard, async (c) => c.json(await svc.jobStats(cid(c), range(c))))
-  app.get('/jobs/types', guard, async (c) => c.json(await svc.jobsByType(cid(c), range(c))))
-  app.get('/jobs/assignees', guard, async (c) => c.json(await svc.jobsByAssignee(cid(c), range(c))))
+  app.get('/revenue/customers', guard, async (c) => c.json(await svc.revenueByCustomer(cid(c), await range(c), int(c, 'limit', 10))))
+  app.get('/revenue/locations', guard, async (c) => c.json(await svc.revenueByLocation(cid(c), await range(c))))
+  app.get('/jobs', guard, async (c) => c.json(await svc.jobStats(cid(c), await range(c))))
+  app.get('/jobs/types', guard, async (c) => c.json(await svc.jobsByType(cid(c), await range(c))))
+  app.get('/jobs/assignees', guard, async (c) => c.json(await svc.jobsByAssignee(cid(c), await range(c))))
   app.get('/projects', guard, async (c) => c.json(await svc.projectStats(cid(c))))
   app.get('/projects/profitability', guard, async (c) => c.json(await svc.projectProfitability(cid(c), int(c, 'limit', 10))))
-  app.get('/team', guard, async (c) => c.json(await svc.teamProductivity(cid(c), range(c))))
-  app.get('/quotes', guard, async (c) => c.json(await svc.quoteStats(cid(c), range(c))))
+  app.get('/team', guard, async (c) => c.json(await svc.teamProductivity(cid(c), await range(c))))
+  app.get('/quotes', guard, async (c) => c.json(await svc.quoteStats(cid(c), await range(c))))
   return app
 }

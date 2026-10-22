@@ -31,6 +31,7 @@ import { stateTimezone } from '../config/stateTimezone'
 import { resolveCrmFeatures } from '../services/generator'
 import { premiumSitePages, premiumServiceAreas, buildPremiumNav, type PremiumComposition } from '../services/premiumSitePages'
 import { composeInstant } from '../services/instantComposer'
+import { wantsBookings } from '../services/composerFacts'
 import { collectImageUrls, heroCreditsForUrls } from '../config/heroLibrary'
 import { repoKey, type OwnedResources } from '../services/resourceOwnership'
 
@@ -113,6 +114,18 @@ export function unifiedFeatures(tenant: any, config: any): string[] {
   return resolveCrmFeatures(crmTemplateFor(tenant.industry), config?.company?.plan || 'starter', requested).seed
 }
 
+/**
+ * The owner said the business takes bookings: the signup's "We take bookings" (intake_data.signup.goals) or the intake's
+ * goals, read by the same rule that gives the site its booking sections (composerFacts.ts wantsBookings). The app then
+ * starts with something bookable (apps/unified/server/modules/provision.ts startingBookings). Live test 2026-10-22: the
+ * answer reached only the site's words, so /book said "Bookings opening soon" on a business that had asked for it.
+ */
+export function takesBookings(tenant: any): boolean {
+  const data = tenant?.intake_data || {}
+  const goals = [...(Array.isArray(data.signup?.goals) ? data.signup.goals : []), ...(Array.isArray(data.intake?.goals) ? data.intake.goals : [])]
+  return wantsBookings({ goals } as any)
+}
+
 /** The site's composition: the one the signup or the intake stored, else one composed now from the tenant's facts. */
 export function compositionFor(tenant: any): PremiumComposition | null {
   if (tenant.preview_premium_pages?.pages) return tenant.preview_premium_pages
@@ -176,6 +189,7 @@ export function provisionBody(tenant: any, config: any, passwordHash: string): R
     },
     features: unifiedFeatures(tenant, config),
     industry: clip(tenant.industry, 120),
+    takesBookings: takesBookings(tenant),
     ...(wantsWebsite(tenant) && verticalFor(tenant.industry) !== 'store' ? { site: provisionSite(tenant) } : {}),
   }
 }

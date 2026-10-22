@@ -15,6 +15,15 @@ export interface JobsConfig {
   sites?: boolean
   /** Photo gallery on the detail page (needs /api/jobs/:id/photos). */
   photos?: boolean
+  /**
+   * Where this business's job photos live, for adding, viewing and removing them on the job page (JobPhotosPanel):
+   * 'job' = /api/jobs/:id/photos, 'library' = /api/photos by jobId. Absent: the view-only gallery above. (2026-10-22)
+   */
+  photoStore?: 'job' | 'library'
+  /** The job's notes log on the detail page (JobNotesPanel, /api/comments/job/:id). Off unless the app mounts it. */
+  notes?: boolean
+  /** The business's zone, for when a note was written. */
+  timeZone?: string
   statuses?: string[]
   priorities?: string[]
   hasFeature?: (id: string) => boolean
@@ -50,6 +59,9 @@ export function resolveJobsConfig(c?: JobsConfig) {
     equipment: !!cfg.equipment,
     sites: !!cfg.sites,
     photos: !!cfg.photos,
+    photoStore: cfg.photoStore,
+    notes: !!cfg.notes,
+    timeZone: cfg.timeZone,
     billing: !!cfg.billing,
     statuses: cfg.statuses && cfg.statuses.length ? cfg.statuses : DEFAULT_JOB_STATUSES,
     priorities: cfg.priorities && cfg.priorities.length ? cfg.priorities : DEFAULT_JOB_PRIORITIES,

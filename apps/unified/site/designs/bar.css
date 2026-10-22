@@ -1167,6 +1167,13 @@ body { background: transparent; }
 .site-header.is-compact .primary-nav, .site-header.is-compact .header-cta { display: none; }
 .site-header.is-compact .mobile-nav-toggle { display: flex; }
 .site-header.is-compact .mobile-nav:not([hidden]) { display: block; }
+/* On a phone even the compact row cannot hold a long name on one line: "Hudson Valley Remodeling & Restoration" ran
+   from x 60 to 561 at 390px and pushed the menu button off the screen (live test 2026-10-22). Below 640px the name may
+   take two lines; the menu button keeps its place at the right. */
+@media (max-width: 640px) {
+  .brand { white-space: normal; min-width: 0; overflow-wrap: anywhere; line-height: 1.15; }
+  .mobile-nav-toggle { flex-shrink: 0; }
+}
 .board, .menu-full, .menu, .story, .services, .team, .faq-section, .testimonials-section, .gallery-section, .contact-section, .hours, .visit, .parties, .events, .taps, .item-hero, .recurring, .cta--split, .cta__split-copy, .hero--split, .timeline { background: transparent; }
 .board::before { background: none; }
 /* Gold foil with a reflection, like the embossed lettering */
