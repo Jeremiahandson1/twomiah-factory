@@ -68,11 +68,13 @@
       <script>(function(){var s=document.currentScript.previousElementSibling;if(s&&s.name==='t')s.value=Date.now();})();</script>
       <div class="contact-form__row">
         <label for="cf-name">Your name</label>
-        <input id="cf-name" name="name" type="text" required>
+        <input id="cf-name" name="name" type="text" required minlength="2" autocomplete="name" aria-describedby="cf-name-err" data-msg="Please enter your name.">
+        <p class="contact-form__error" id="cf-name-err" hidden></p>
       </div>
       <div class="contact-form__row">
         <label for="cf-email">Email</label>
-        <input id="cf-email" name="email" type="email" required>
+        <input id="cf-email" name="email" type="email" required autocomplete="email" aria-describedby="cf-email-err" data-msg="Please enter your email address." data-msg-invalid="Please enter a valid email address, like name@example.com.">
+        <p class="contact-form__error" id="cf-email-err" hidden></p>
       </div>
       <div class="contact-form__row">
         <label for="cf-phone">Phone (optional)</label>
@@ -81,7 +83,8 @@
       <%- smsConsent('enquiry') %>
       <div class="contact-form__row">
         <label for="cf-message"><%= words.contactMessageLabel %></label>
-        <textarea id="cf-message" name="message" rows="5" required></textarea>
+        <textarea id="cf-message" name="message" rows="5" required minlength="4" aria-describedby="cf-message-err" data-msg="<%= words.contactMessageRequired %>"></textarea>
+        <p class="contact-form__error" id="cf-message-err" hidden></p>
       </div>
       <button class="btn btn--primary btn--lg" type="submit">Send</button>
       <p class="contact-form__status" role="status" aria-live="polite" hidden></p>
@@ -89,8 +92,22 @@
     <script>(function(){
       var f = document.currentScript.previousElementSibling;
       if (!f || !window.fetch || !window.FormData) return;
+      // The form's own words under each box, not the browser's tooltip (live test 2026-10-22: "Name is required" showed
+      // only as a bubble that vanished). The same rules the server holds (site/enquiryHandler.ts), which still checks.
+      f.noValidate = true;
+      var show = function(i, msg){ var p = document.getElementById(i.getAttribute('aria-describedby')); if (!p) return; p.textContent = msg || ''; p.hidden = !msg; if (msg) i.setAttribute('aria-invalid', 'true'); else i.removeAttribute('aria-invalid'); };
+      var problem = function(i){
+        var v = (i.value || '').trim(), min = Number(i.getAttribute('minlength')) || 1;
+        if (i.required && v.length < min) return i.getAttribute('data-msg');
+        if (i.type === 'email' && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return i.getAttribute('data-msg-invalid');
+        return '';
+      };
+      f.querySelectorAll('[data-msg]').forEach(function(i){ i.addEventListener('input', function(){ if (i.getAttribute('aria-invalid')) show(i, problem(i)); }); });
       f.addEventListener('submit', function(e){
         e.preventDefault();
+        var first = null;
+        f.querySelectorAll('[data-msg]').forEach(function(i){ var m = problem(i); show(i, m); if (m && !first) first = i; });
+        if (first) { first.focus(); return; }
         var b = f.querySelector('button[type="submit"]'), s = f.querySelector('.contact-form__status');
         b.disabled = true;
         fetch(f.action, { method: 'POST', body: new FormData(f), headers: { Accept: 'application/json' } })
