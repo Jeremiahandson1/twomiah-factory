@@ -42,6 +42,7 @@ import { createHomecareReportsRoutes } from '../crm/homecare/planning/reports.ts
 import { syncEventInvoiceDueDate } from '../crm/restaurant/eventLedger.ts'
 import { bookOnDepositForInvoice } from '../crm/restaurant/eventBooking.ts'
 import type { CrmSettings } from '../core/vertical.ts'
+import { encrypt, decrypt } from '../core/crypto.ts'
 import type { Mount } from '../http/registry.ts'
 import { fail } from '../http/reply.ts'
 import type { Realtime } from '../core/realtime.ts'
@@ -89,6 +90,9 @@ export interface CrmModuleDeps {
   /** The vertical's switches (VerticalSettings.crm). */
   settings: CrmSettings
 }
+
+/** Google Business Profile's tokens, sealed at rest with the tenant's own key — as people's calendar tokens are. */
+const gbpSecrets = { seal: encrypt, open: decrypt }
 
 export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v } = deps
@@ -386,7 +390,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/texting', access: 'user', router: createTextingRoutes(own, factoryApiClient) },
     { path: '/api/internal/texting', access: 'factory', router: createTextingInternalRoutes(own) },
     { path: '/api/email-domain', access: 'user', router: signedInAdmin(createEmailDomainRoutes({ factoryApiClient } as any)) },
-    { path: '/api/gbp', access: 'user', router: signedInAdmin(createGbpAdminRoutes({ db, gbpConnectionTable: gbpConnection } as any)) },
+    { path: '/api/gbp', access: 'user', router: signedInAdmin(createGbpAdminRoutes({ db, gbpConnectionTable: gbpConnection, secrets: gbpSecrets } as any)) },
     { path: '/api/inbound-messages', access: 'user', router: inboundMessages },
 
     // Public doors inside: each router signs people in itself after them.
@@ -432,7 +436,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/public/ads-experiments', access: 'public', router: createAdsPublicRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion } } as any) },
 
     // The Factory.
-    { path: '/api/internal/gbp', access: 'factory', router: createGbpInternalRoutes({ db, gbpConnectionTable: gbpConnection } as any) },
+    { path: '/api/internal/gbp', access: 'factory', router: createGbpInternalRoutes({ db, gbpConnectionTable: gbpConnection, secrets: gbpSecrets } as any) },
     { path: '/api/internal/inbound-email', access: 'factory', router: createInboundParseRoute({ db, inboundMessageTable: inboundMessage } as any) },
 
     // The CRM's own modules (moved from the template, not shared code).

@@ -16,13 +16,26 @@ import { Hono } from 'hono'
 export interface GbpDeps {
   db: any
   gbpConnectionTable: any
+  /**
+   * Seals Google's tokens at rest with the tenant's own key (the unified app passes core/crypto.ts, as the calendar
+   * tokens are kept). A row stored before sealing reads as it is and is sealed on its next write.
+   */
+  secrets?: { seal: (plain: string) => string; open: (sealed: string) => string }
 }
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
+const REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
 
+/** core/crypto.ts writes "v1.<iv>.<tag>.<data>"; Google's own tokens never start so (ya29., 1//). */
+const sealedForm = (v: string) => /^v1\.[^.]+\.[^.]+\.[^.]+$/.test(v)
+const seal = (deps: GbpDeps, v: string | null) => (v && deps.secrets ? deps.secrets.seal(v) : v)
+const open = (deps: GbpDeps, v: string | null) => (v && deps.secrets && sealedForm(v) ? deps.secrets.open(v) : v)
+
+/** The one connection, its tokens readable. */
 async function getConnection(deps: GbpDeps): Promise<any | null> {
   const [row] = await deps.db.select().from(deps.gbpConnectionTable).limit(1)
-  return row || null
+  if (!row) return null
+  return { ...row, accessToken: open(deps, row.accessToken), refreshToken: open(deps, row.refreshToken) }
 }
 
 async function getValidToken(deps: GbpDeps): Promise<{ conn: any; accessToken: string } | null> {
@@ -42,7 +55,7 @@ async function getValidToken(deps: GbpDeps): Promise<{ conn: any; accessToken: s
     accessToken = t.access_token
     const { eq } = await import('drizzle-orm')
     await deps.db.update(deps.gbpConnectionTable)
-      .set({ accessToken, expiresAt: new Date(Date.now() + (t.expires_in || 3600) * 1000), updatedAt: new Date() })
+      .set({ accessToken: seal(deps, accessToken), expiresAt: new Date(Date.now() + (t.expires_in || 3600) * 1000), updatedAt: new Date() })
       .where(eq(deps.gbpConnectionTable.id, conn.id))
   }
   return { conn, accessToken }
@@ -64,8 +77,8 @@ export function createGbpInternalRoutes(deps: GbpDeps): Hono {
       if (!b.accessToken) return c.json({ error: 'accessToken required' }, 400)
       const values = {
         externalEmail: b.externalAccountEmail || null,
-        accessToken: b.accessToken,
-        refreshToken: b.refreshToken || null,
+        accessToken: seal(deps, b.accessToken),
+        refreshToken: seal(deps, b.refreshToken || null),
         expiresAt: new Date(Date.now() + (b.expiresInSec || 3600) * 1000),
         updatedAt: new Date(),
       }
@@ -179,13 +192,25 @@ export function createGbpAdminRoutes(deps: GbpDeps): Hono {
     }
   })
 
+  // Disconnect: Google is told to revoke the access first (the app then leaves the Google account's permissions, as
+  // the privacy policy says disconnecting does), then the stored access is deleted — even when Google cannot be
+  // reached, so nothing is kept; the answer says whether Google confirmed.
   app.post('/disconnect', async (c) => {
     const conn = await getConnection(deps)
+    let revoked = false
     if (conn) {
+      const token = conn.refreshToken || conn.accessToken
+      if (token) {
+        try {
+          const r = await fetch(REVOKE_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }), signal: AbortSignal.timeout(10_000) })
+          // 400 invalid_token: Google had already let it go (revoked there, or expired) — nothing left to revoke.
+          revoked = r.ok || r.status === 400
+        } catch { revoked = false }
+      }
       const { eq } = await import('drizzle-orm')
       await deps.db.delete(deps.gbpConnectionTable).where(eq(deps.gbpConnectionTable.id, conn.id))
     }
-    return c.json({ ok: true })
+    return c.json({ ok: true, revokedAtGoogle: revoked })
   })
 
   return app

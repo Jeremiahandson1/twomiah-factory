@@ -5,6 +5,10 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import sharp from 'sharp'
 import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
+import { decrypt } from '../server/core/crypto.ts'
+
+// Every tenant service has an ENCRYPTION_KEY (unified/build.ts tenantEnv); Google's tokens are sealed with it.
+process.env.ENCRYPTION_KEY ||= 'test-encryption-key'
 import { createRoofReportService } from '../server/crm/roof/reports/roofReportService.ts'
 
 const KEY = 'factory-calls-test-key'
@@ -121,7 +125,9 @@ describe("the Factory's doors", () => {
     const ok = await t.call('/api/internal/gbp/store-tokens', { method: 'POST', headers: withKey(), body: JSON.stringify(tokens) })
     expect(ok.status).toBe(200)
     const [conn] = await t.db.select().from(t.schema.gbpConnection)
-    expect(conn).toMatchObject({ externalEmail: 'owner@example.com', accessToken: 'at', refreshToken: 'rt' })
+    // Kept sealed with the tenant's key (gbp.ts secrets), as the privacy policy says Google's access is stored.
+    expect(conn.externalEmail).toBe('owner@example.com')
+    expect([decrypt(conn.accessToken), decrypt(conn.refreshToken!)]).toEqual(['at', 'rt'])
   })
 
   test('/api/internal/booking-jobs: the Factory may still run the pass', async () => {

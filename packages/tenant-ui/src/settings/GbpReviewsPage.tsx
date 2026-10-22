@@ -95,6 +95,18 @@ export function GbpReviewsPage(): React.ReactElement {
     await loadReviews()
   }
 
+  // Disconnect: Google revokes the access and the stored copy is deleted (server: /api/gbp/disconnect).
+  const disconnect = async () => {
+    if (!window.confirm('Disconnect Google Business Profile? Reviews stop showing here until you connect again.')) return
+    setBusy(true); setError('')
+    const r = await api.raw('/api/gbp/disconnect', { method: 'POST', headers: authHeaders() })
+    setBusy(false)
+    if (!r.ok) { setError('Could not disconnect — try again'); return }
+    setReviews([]); setSummary(null); setLocations([]); setReplyFor(null)
+    setLoading(true)
+    await loadStatus()
+  }
+
   if (loading) return <div className="p-6 text-sm text-gray-500 dark:text-slate-400">Loading…</div>
   if (refused) return (
     <div className="p-6 max-w-3xl">
@@ -108,6 +120,13 @@ export function GbpReviewsPage(): React.ReactElement {
       <h1 className="text-2xl font-bold mb-1">Google Reviews</h1>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Your Google Business Profile — where local customers find and judge you. Reply to every review; it matters more than any ad.</p>
       {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
+
+      {status?.connected && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 bg-white border rounded-lg px-4 py-3 dark:bg-slate-900">
+          <span className="text-sm text-gray-600 dark:text-slate-300">Connected to Google{status.email ? <> as <span className="font-mono">{status.email}</span></> : null}</span>
+          <button onClick={disconnect} disabled={busy} className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 rounded-md text-xs font-semibold text-gray-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-100">Disconnect</button>
+        </div>
+      )}
 
       {!status?.connected && (
         <div className="bg-white border rounded-lg p-6 dark:bg-slate-900">
