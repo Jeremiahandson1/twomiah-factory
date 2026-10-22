@@ -12,6 +12,7 @@ import { ACCOUNT_BALANCE_METHOD } from '../clients/accountBalance'
 import { withoutPortalCredential } from '../contacts/contacts'
 import { mailFailureReason } from '../integrations/mailError'
 import { checkFilter } from '../listFilter'
+import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 
 export interface InvoiceTables {
   invoice: any
@@ -885,10 +886,14 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (!recipientEmail) return c.json({ error: 'This invoice has no contact email address to send to. Add an email to the contact first.' }, 400)
     const [co] = await db.select().from(t.company).where(eq(t.company.id, cid)).limit(1)
     const balance = invoiceBalance(found)
+    // Every invoice email carries the invoice's own private link, where the customer sees it and pays it — by card when
+    // the business takes cards online, and otherwise told how to pay. It carried no link at all (live, 2026-10-22).
+    const token = await documentLinkToken(db, t.invoice, found.id)
     try {
       await sendInvoiceEmail(recipientEmail, {
         invoiceNumber: found.number, companyName: co?.name || 'Your provider', companyEmail: co?.email || '', contactName,
         total: found.total, balance, dueDate: found.dueDate ? new Date(found.dueDate as any).toLocaleDateString() : 'Upon receipt',
+        documentPath: token ? documentLinkPath(token) : null,
       })
     } catch (err: any) {
       // The provider's own reply goes to the log; the screen gets a reason the owner can act on. (T14 L4)

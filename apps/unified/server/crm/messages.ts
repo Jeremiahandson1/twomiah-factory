@@ -4,6 +4,14 @@
 // from the app's address. Registered once when the CRM module is built.
 import { baseStyles, escHtml, type Template, type EmailService } from '../core/email.ts'
 
+/**
+ * Where an invoice's button goes: a payment link a caller made (home care's), else the invoice's own private link
+ * (/d/<token>, packages/tenant-backend portal/documentLinks.ts) — where the customer sees it and pays it, or is told how
+ * to pay. The invoice email carried no link at all unless a caller passed a payment link (live, 2026-10-22).
+ */
+const invoiceLink = (data: any, appUrl: string): string =>
+  data.paymentLink ? String(data.paymentLink) : data.documentPath ? appUrl + String(data.documentPath) : ''
+
 export const crmTemplates: Record<string, Template> = {
   /** A reply typed by the business (Settings › Inbox): its subject and words as written. */
   raw: (data) => ({
@@ -36,7 +44,7 @@ export const crmTemplates: Record<string, Template> = {
     text: `Welcome ${data.firstName}! Your account for ${data.companyName} is ready. Login: ${appUrl}/login`,
   }),
 
-  invoiceSent: (data, b, appUrl) => ({
+  invoiceSent: (data, b, appUrl) => { const link = invoiceLink(data, appUrl); return {
     subject: `Invoice ${data.invoiceNumber} from ${data.companyName}`,
     html: `
       <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
@@ -51,15 +59,15 @@ export const crmTemplates: Record<string, Template> = {
             <p><strong>Due Date:</strong> ${data.dueDate}</p>
             <p><strong>Balance:</strong> $${Number(data.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
-          ${data.paymentLink ? `<p style="text-align:center;"><a href="${data.paymentLink}" class="button">Pay Now</a></p>` : ''}
+          ${link ? `<p style="text-align:center;"><a href="${escHtml(link)}" class="button">View and pay invoice</a></p><p style="font-size:13px;color:#6b7280;text-align:center;">The full invoice, and how to pay it, are at this link.</p>` : ''}
         </div>
         <div class="footer">${data.companyName}<br>${data.companyEmail || ''}</div>
       </div></body></html>
     `,
-    text: `Invoice ${data.invoiceNumber} from ${data.companyName}\n\nAmount: $${data.total}\nDue: ${data.dueDate}`,
-  }),
+    text: `Invoice ${data.invoiceNumber} from ${data.companyName}\n\nAmount: $${data.total}\nDue: ${data.dueDate}${link ? `\n\nView and pay: ${link}` : ''}`,
+  } },
 
-  invoiceReminder: (data, b, appUrl) => ({
+  invoiceReminder: (data, b, appUrl) => { const link = invoiceLink(data, appUrl); return {
     subject: `Reminder: Invoice ${data.invoiceNumber} due ${data.dueDate}`,
     html: `
       <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
@@ -70,15 +78,15 @@ export const crmTemplates: Record<string, Template> = {
           <p>Hi ${data.contactName},</p>
           <p>This is a friendly reminder that invoice ${data.invoiceNumber} is due on <strong>${data.dueDate}</strong>.</p>
           <div class="amount">$${Number(data.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          ${data.paymentLink ? `<p style="text-align:center;"><a href="${data.paymentLink}" class="button">Pay Now</a></p>` : ''}
+          ${link ? `<p style="text-align:center;"><a href="${escHtml(link)}" class="button">View and pay invoice</a></p>` : ''}
         </div>
         <div class="footer">${data.companyName}</div>
       </div></body></html>
     `,
-    text: `Reminder: Invoice ${data.invoiceNumber} for $${data.balance} is due ${data.dueDate}.`,
-  }),
+    text: `Reminder: Invoice ${data.invoiceNumber} for $${data.balance} is due ${data.dueDate}.${link ? ` View and pay: ${link}` : ''}`,
+  } },
 
-  invoiceOverdue: (data, b, appUrl) => ({
+  invoiceOverdue: (data, b, appUrl) => { const link = invoiceLink(data, appUrl); return {
     subject: `Overdue: Invoice ${data.invoiceNumber} - ${data.daysOverdue} days past due`,
     html: `
       <!DOCTYPE html><html><head><style>${baseStyles(b)}</style></head>
@@ -89,13 +97,13 @@ export const crmTemplates: Record<string, Template> = {
           <p>Invoice ${data.invoiceNumber} is <strong>${data.daysOverdue} days overdue</strong>.</p>
           <div class="amount" style="color:#dc2626;">$${Number(data.balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <p>Please remit payment as soon as possible.</p>
-          ${data.paymentLink ? `<p style="text-align:center;"><a href="${data.paymentLink}" class="button" style="background:#dc2626;">Pay Now</a></p>` : ''}
+          ${link ? `<p style="text-align:center;"><a href="${escHtml(link)}" class="button" style="background:#dc2626;">View and pay invoice</a></p>` : ''}
         </div>
         <div class="footer">${data.companyName}</div>
       </div></body></html>
     `,
-    text: `OVERDUE: Invoice ${data.invoiceNumber} is ${data.daysOverdue} days past due. Balance: $${data.balance}`,
-  }),
+    text: `OVERDUE: Invoice ${data.invoiceNumber} is ${data.daysOverdue} days past due. Balance: $${data.balance}${link ? `\nView and pay: ${link}` : ''}`,
+  } },
 
   paymentReceived: (data, b, appUrl) => ({
     subject: `Payment received - Invoice ${data.invoiceNumber}`,
@@ -121,8 +129,9 @@ export const crmTemplates: Record<string, Template> = {
   /**
    * The quote, as the customer receives it. (E2E run 1, 10/14: it arrived as "Quote from …: undefined", with no
    * number, no lines and no way to approve.) Everything here was typed by a person — escaped. The internal cost of a
-   * line is never passed in. The Approve button opens the customer's client portal on this quote when it is switched
-   * on for them; otherwise they are told how to accept.
+   * line is never passed in. The button opens the quote's own private link (data.documentPath, /d/<token>), where the
+   * customer approves or declines it — every quote, portal or not (2026-10-22: it went only to customers whose client
+   * portal was on, so everyone else had no way to accept). Without a link (a caller that made none) they are told how.
    */
 
   quoteSent: (data, b, appUrl) => {
@@ -131,7 +140,7 @@ export const crmTemplates: Record<string, Template> = {
     const lines = Array.isArray(data.lineItems) ? (data.lineItems as any[]) : []
     const rows = lines.map((l) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;">${escHtml(l.description)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${escHtml(Number(l.quantity || 0))}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${money(l.unitPrice)}</td><td style="padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:right;">${money(l.total)}</td></tr>`).join('')
     const discount = Number(data.discount || 0), tax = Number(data.taxAmount || 0)
-    const approveUrl = data.portalQuotePath ? appUrl + data.portalQuotePath : ''
+    const approveUrl = data.documentPath ? appUrl + data.documentPath : ''
     const howToAccept = data.companyPhone
       ? `To accept, reply to this email or call us on ${escHtml(data.companyPhone)}.`
       : 'To accept, reply to this email.'
@@ -158,7 +167,7 @@ export const crmTemplates: Record<string, Template> = {
           </table>
           ${data.expiryDate ? `<p><strong>Valid until:</strong> ${escHtml(data.expiryDate)}</p>` : ''}
           ${approveUrl
-            ? `<p style="text-align:center;"><a href="${approveUrl}" class="button">Review and approve</a></p><p style="font-size:13px;color:#6b7280;text-align:center;">You can approve or decline it there, and see your other quotes and invoices with us.</p>`
+            ? `<p style="text-align:center;"><a href="${escHtml(approveUrl)}" class="button">Review and approve</a></p><p style="font-size:13px;color:#6b7280;text-align:center;">You can approve or decline it at this link.</p>`
             : `<p>${howToAccept}</p>`}
         </div>
         <div class="footer">${escHtml(data.companyName)}</div>

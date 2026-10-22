@@ -31,6 +31,11 @@ export interface PortalContextValue {
   refresh: () => Promise<void>
   /** Absolute URL for a customer-side endpoint (downloads open in a new tab). */
   url: (endpoint: string) => string
+  /**
+   * Set when the page was opened from a quote's or an invoice's own link (/d/<token>) rather than the portal: the one
+   * document it opens. `token` is then that link's token, and every fetch goes to /api/portal/d/<token>. (2026-10-22)
+   */
+  link?: { kind: 'quote' | 'invoice'; id: string } | null
 }
 
 const PortalContext = createContext<PortalContextValue | null>(null)
@@ -82,6 +87,48 @@ export function PortalProvider({ config, children }: { config?: PortalConfig; ch
     token, contact, contactType, role: roleFor(contactType),
     company: data?.company, summary: data?.summary, sections: (data?.sections as PortalBackendSections) || {},
     config: resolved, loading, error, fetch: portalFetch, refresh: load, url,
+  }
+  return <PortalContext.Provider value={value}>{children}</PortalContext.Provider>
+}
+
+/**
+ * A quote's or an invoice's own link (/d/<token>): the same context the portal pages read, scoped to that one document.
+ * The customer needs no portal — every quote and invoice email carries this link (2026-10-22). The pages it shows are
+ * the portal's own quote and invoice pages, so what the customer sees and does is the same either way.
+ */
+export function PortalLinkProvider({ token, children }: { token: string | undefined; children: React.ReactNode }) {
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const base = `${API_URL}/api/portal/d/${token}`
+  const load = useCallback(async () => {
+    if (!token) { setLoading(false); setError('This link is not valid.'); return }
+    try {
+      const response = await fetch(base)
+      if (!response.ok) throw new Error(await readError(response, 'This link could not be opened.'))
+      setData(await response.json())
+      setError(null)
+    } catch (err) {
+      setError((err as Error).message)
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [token, base])
+  useEffect(() => { load() }, [load])
+  const linkFetch = useCallback(async (endpoint: string, options: RequestInit = {}) => {
+    const response = await fetch(`${base}${endpoint}`, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } })
+    if (!response.ok) throw new Error(await readError(response, 'Request failed'))
+    if (response.status === 204) return null
+    return response.json()
+  }, [base])
+  const url = useCallback((endpoint: string) => `${base}${endpoint}`, [base])
+  const resolved = React.useMemo(() => resolvePortalConfig(undefined), [])
+  const value: PortalContextValue = {
+    token, contact: data?.contact, contactType: 'client', role: 'client',
+    company: data?.company, summary: undefined, sections: {},
+    config: resolved, loading, error, fetch: linkFetch, refresh: load, url,
+    link: data?.document ? { kind: data.document.kind, id: data.document.id } : null,
   }
   return <PortalContext.Provider value={value}>{children}</PortalContext.Provider>
 }

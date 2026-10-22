@@ -9,8 +9,9 @@ import { escHtml } from '../core/email.ts'
 export const ADMIN_DIST = path.resolve(import.meta.dir, '..', '..', 'web', 'dist')
 
 /** The paths that open the admin's page (react-router takes it from there). */
-// /portal/<token> and /vendor/<token> are a customer's and a vendor's own pages, reached by their private link.
-export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*']
+// /portal/<token> and /vendor/<token> are a customer's and a vendor's own pages, reached by their private link; /d/<token>
+// is one quote's or invoice's own page, the link in its email (packages/tenant-backend portal/documentLinks.ts).
+export const ADMIN_PAGES = ['/login', '/forgot-password', '/reset-password', '/crm', '/crm/*', '/portal/*', '/vendor/*', '/d/*']
 
 /**
  * A home-care agency's public pages, which are the app's, not the website's (templates/crm-homecare App.tsx): the client

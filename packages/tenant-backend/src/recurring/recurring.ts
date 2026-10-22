@@ -12,6 +12,7 @@ import { Hono } from 'hono'
 import { eq, desc, sql, asc } from 'drizzle-orm'
 // One numbering rule for every document in the product — locked, and only ever forwards.
 import { nextNumber } from '../invoicing/money'
+import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { createId } from '@paralleldrive/cuid2'
 
 export interface RecurringTables { invoice: any; invoiceLineItem: any }
@@ -329,6 +330,8 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     if (recurring.auto_send && recurring.contact?.email) {
       await db.update(invoice).set({ status: 'sent', sentAt: new Date() }).where(eq(invoice.id, newInvoice.id))
       try {
+        // The same private link as an invoice sent by hand (invoices.ts send), so a recurring bill can be seen and paid. (2026-10-22)
+        const token = await documentLinkToken(db, invoice, newInvoice.id)
         await emailService.sendInvoice(recurring.contact.email, {
           invoiceNumber: newInvoice.number,
           contactName: recurring.contact.name,
@@ -337,6 +340,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
           dueDate: dueDate.toLocaleDateString(),
           companyName: recurring.company.name,
           companyEmail: recurring.company.email,
+          documentPath: token ? documentLinkPath(token) : null,
         })
       } catch (error) {
         console.error('Failed to send recurring invoice email:', error)

@@ -665,13 +665,10 @@ export function refundMethodsFor(hasClient: boolean): Array<{ value: string; lab
 }
 
 /**
- * What to say once a quote is sent. The email carries an Approve button only when the customer's client portal is on
- * (the API answers approveOnline); otherwise they were told to reply or call, and the sender should know. (10/14)
+ * What to say once a quote is sent. Every quote email now carries the quote's own link to approve or decline it, portal
+ * or not (2026-10-22), so there is no "they can't approve it online" case left to warn about.
  */
-export const quoteSentMessage = (r: any): string =>
-  r && r.approveOnline === false
-    ? "Quote sent. They can't approve it online yet — switch on their client portal (on the contact) to give them an Approve button."
-    : 'Quote sent'
+export const quoteSentMessage = (_r?: unknown): string => 'Quote sent — they can approve or decline it from the link in the email'
 
 /**
  * Why this payment amount cannot be recorded, in words — or null. Checked before sending so the person sees it in the

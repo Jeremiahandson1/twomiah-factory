@@ -500,7 +500,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
 
   app.get('/robots.txt', (c) => {
     // The admin, the API, and customers' own booking pages stay out of search engines.
-    const body = `User-agent: *\nAllow: /\nDisallow: /crm\nDisallow: /portal/\nDisallow: /vendor/\nDisallow: /api/\nDisallow: /booking/\nDisallow: /book/done\n\nSitemap: ${siteOrigin(c)}/sitemap.xml\n`
+    const body = `User-agent: *\nAllow: /\nDisallow: /crm\nDisallow: /portal/\nDisallow: /vendor/\nDisallow: /d/\nDisallow: /api/\nDisallow: /booking/\nDisallow: /book/done\n\nSitemap: ${siteOrigin(c)}/sitemap.xml\n`
     return c.body(body, 200, { 'Content-Type': 'text/plain', 'Cache-Control': 'public, max-age=86400' })
   })
 

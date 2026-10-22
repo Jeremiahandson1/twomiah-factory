@@ -17,7 +17,7 @@ import {
   createQuickBooksRoutes, createIntegrationsRoutes, createReviewsRoutes, createAdsRoutes, createAdsPublicRoutes,
   createAdsConnector, createOnboardingRoutes, createMessagingBillingRoutes, createEmailDomainRoutes, createGbpAdminRoutes,
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
-  money, createAccountBalanceStore,
+  money, createAccountBalanceStore, documentLinkPath,
 } from '@twomiah/tenant-backend'
 import { asc, desc } from 'drizzle-orm'
 import {
@@ -121,6 +121,14 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const loadQuotePdf = () => import('../crm/pdf.ts').then((m) => m.generateQuotePDF)
   const fileAudit = (event: string, actor: any, meta: any) => logger.info(`[audit] ${event}`, { userId: actor.userId, companyId: actor.companyId, ...meta })
   const factoryApiClient = createFactoryApiClient() as any
+  /**
+   * Can this business take a card from its customer right now: Stripe on this server (its keys), the business's own
+   * account connected (Settings › Integrations — a charge lands there, never on the platform's account), and Online
+   * Payments switched on. The invoice page offers Pay only then, and the payment route refuses otherwise (portal.ts,
+   * payments/stripe.ts). The invoice email's link opened onto a Pay button whatever the answer (2026-10-22).
+   */
+  const canTakeCardPayments = async (companyId: string) =>
+    !!process.env.STRIPE_PUBLISHABLE_KEY && !!(await s.stripeService.connectedAccountFor(companyId)) && !!(await features.isFeatureEnabled(companyId, 'online_payments'))
 
   const contacts = createContactRoutes({
     db, tables: { contact, company }, authenticate, requirePermission, canSee, ...live, audit, cleanText, cleanLines,
@@ -217,8 +225,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.quotes?.textOnSend ? {
         onSent: async ({ companyId, quote: q, contact: who, company: co }: any) => {
           if (!who?.phone) return
-          const portalUrl = process.env.CUSTOMER_PORTAL_URL || process.env.FRONTEND_URL || ''
-          const msg = `Hi ${who.name?.split(' ')[0] || 'there'}, ${co?.name || 'we'} just sent you a quote (#${q.number}) for ${money(Number(q.total || 0))}. View it here: ${portalUrl}/quotes/${q.id}`
+          // The quote's own link, as in the email (portal/documentLinks.ts). It pointed at /quotes/<id> — the office's
+          // screen, behind a sign-in the customer does not have (2026-10-22).
+          if (!q.publicToken) return
+          const base = (process.env.FRONTEND_URL || '').replace(/\/+$/, '')
+          const msg = `Hi ${who.name?.split(' ')[0] || 'there'}, ${co?.name || 'we'} just sent you a quote (#${q.number}) for ${money(Number(q.total || 0))}. View it here: ${base}${documentLinkPath(q.publicToken)}`
           await s.sms.sendSMS(companyId, { contactId: who.id, message: msg })
         },
       } : {}),
@@ -399,7 +410,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/sms', access: 'public', router: inFront('/api/sms', createSmsRoutes({ service: s.sms, authenticate, requirePermission, requireAdmin: isAdmin } as any)) },
     // Home care's /api/stripe pays its visit invoices (server/crm/homecare/billing/stripe.ts), so the shared one — which
     // pays the CRM's invoice — stands aside there.
-    ...(v.homecare ? [] : [{ path: '/api/stripe', access: 'public' as const, router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit } as any) }]),
+    ...(v.homecare ? [] : [{ path: '/api/stripe', access: 'public' as const, router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit, canTakeCardPayments } as any) }]),
     // The drips are also the dealership's Follow-Up product (follow_up_sequences): either switch keeps the follow-up parts
     // open, while campaigns and templates need Email Marketing itself — the union the RV copy gated (RV T19 M6); only
     // crm-rv is offered follow_up_sequences, so everyone else's gate is what it was.
@@ -431,6 +442,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...live, logger,
       // The owner's feature switches decide which sections the portal offers.
       enabledFeaturesFor: features.enabledFeaturesFor,
+      canTakeCardPayments,
       // Endpoint groups this vertical doesn't offer its customers (the template's portal options).
       options: { disable: v.portal.disable },
     } as any)) },

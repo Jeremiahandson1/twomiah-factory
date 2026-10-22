@@ -35,6 +35,8 @@ import * as roofScreens from './crm/verticals/roof'
 import * as storeScreens from './crm/verticals/store'
 // The customer portal is its own bundle (crm/portal.tsx: Stripe stays out of the admin).
 const PortalApp = lazy(() => import('./crm/portal'))
+// A quote's or an invoice's own page, from the link in its email (crm/documentLink.tsx).
+const DocumentLinkApp = lazy(() => import('./crm/documentLink'))
 const ProjectsPage = page(() => import('./crm/pages/ProjectsPage'))
 const ProjectDetailPage = page(() => import('./crm/pages/ProjectDetailPage'))
 const RFIsPage = page(() => import('./crm/pages/RFIsPage'))
@@ -223,6 +225,10 @@ export default function App() {
                     {homecareScreens.isHomecare
                       ? homecareScreens.publicRoutes
                       : <Route path="/portal/:token/*" element={<Suspense fallback={null}><PortalApp /></Suspense>} />}
+
+                    {/* A quote's or an invoice's own page, by the link in its email (no sign-in, no portal needed) — every
+                        vertical, home care's included. */}
+                    <Route path="/d/:token" element={<Suspense fallback={null}><DocumentLinkApp /></Suspense>} />
 
                     {/* A vendor's portal, by their private link (no sign-in, no shell). */}
                     <Route path="/vendor/:token" element={<VendorPortalPage />} />

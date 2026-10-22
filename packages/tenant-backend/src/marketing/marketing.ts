@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { eq, and, or, desc, count, sql, gte, ilike, inArray, asc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { publicApiBase } from '../publicOrigin'
+import { mailFailureReason } from '../integrations/mailError'
 
 export interface MarketingTables { campaign: any; contact: any; emailLog: any }
 export interface MailMessage { to: string; subject: string; html: string; fromName?: string; fromEmail?: string }
@@ -227,8 +228,14 @@ export function createMarketingService(deps: MarketingServiceDeps) {
       }
     }
     const finalStatus = sentCount === 0 ? 'failed' : 'sent'
-    await db.update(t.campaign).set({ status: finalStatus, recipientCount: sentCount, lastError: finalStatus === 'failed' ? (firstError || 'No email could be delivered') : null }).where(eq(t.campaign.id, id))
-    return { sent: sentCount, audience: contacts.length, failed: contacts.length - sentCount, status: finalStatus }
+    // What the owner reads on the campaign row and in the toast: a sentence, never the raw error. The row showed
+    // 'insert or update on table "email_recipient" violates foreign key constraint …' (live, 2026-10-22); the raw text
+    // stays in the server log and the email log above, where support reads it.
+    const message = sentCount === contacts.length ? null : sentCount === 0
+      ? `None of these emails could be sent. ${mailFailureReason(firstError)} Nothing went to your contacts — you can send it again.`
+      : `${contacts.length - sentCount} of ${contacts.length} emails could not be sent. ${mailFailureReason(firstError)}`
+    await db.update(t.campaign).set({ status: finalStatus, recipientCount: sentCount, lastError: finalStatus === 'failed' ? message : null }).where(eq(t.campaign.id, id))
+    return { sent: sentCount, audience: contacts.length, failed: contacts.length - sentCount, status: finalStatus, ...(message ? { message } : {}) }
   }
   async function scheduleCampaign(id: string, companyId: string, scheduledFor: string) {
     const when = new Date(scheduledFor)
@@ -265,7 +272,7 @@ export function createMarketingService(deps: MarketingServiceDeps) {
         continue
       }
       try { await db.update(t.campaign).set({ status: 'draft' }).where(eq(t.campaign.id, row.id)); sent += (await sendCampaign(row.id, row.companyId)).sent }
-      catch (err: any) { console.error('[Marketing] Scheduled campaign failed:', row.id, err.message); await db.update(t.campaign).set({ status: 'failed', lastError: String(err?.message || err) }).where(eq(t.campaign.id, row.id)).catch(() => {}) }
+      catch (err: any) { console.error('[Marketing] Scheduled campaign failed:', row.id, err.message); await db.update(t.campaign).set({ status: 'failed', lastError: err instanceof MarketingError ? err.message : 'This campaign could not be sent. Nothing went to your contacts — you can send it again.' }).where(eq(t.campaign.id, row.id)).catch(() => {}) }
     }
     return { due: due.length, sent }
   }
