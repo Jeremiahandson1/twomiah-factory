@@ -17,8 +17,10 @@ const React = await import('react')
 const { act } = React as any
 const { createRoot } = await import('react-dom/client')
 const { MemoryRouter, Routes, Route } = await import('react-router-dom')
-const { JobDetailPage } = await import('../../../packages/tenant-ui/src/jobs/JobDetailPage.tsx')
-const h = React.createElement
+// A .tsx screen: imported by a path held in a variable, so the server's tsconfig (no JSX) does not type-check the UI here.
+const JOB_PAGE = '../../../packages/tenant-ui/src/jobs/JobDetailPage.tsx'
+const { JobDetailPage } = await import(JOB_PAGE) as any
+const h = React.createElement as any
 
 const PNG = await sharp({ create: { width: 8, height: 8, channels: 3, background: '#3a3' } }).png().toBuffer()
 const settle = async () => { for (let i = 0; i < 5; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)) }) }

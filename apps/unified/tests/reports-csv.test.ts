@@ -37,9 +37,11 @@ const React = await import('react')
 const { act } = React as any
 const { createRoot } = await import('react-dom/client')
 const { MemoryRouter } = await import('react-router-dom')
-const { AuthContext } = await import('../../../packages/tenant-ui/src/auth/AuthContext.tsx')
-const { ReportsPage } = await import('../../../packages/tenant-ui/src/reporting/ReportsPage.tsx')
-const h = React.createElement
+// .tsx screens: imported by paths held in variables, so the server's tsconfig (no JSX) does not type-check the UI here.
+const AUTH = '../../../packages/tenant-ui/src/auth/AuthContext.tsx', REPORTS = '../../../packages/tenant-ui/src/reporting/ReportsPage.tsx'
+const { AuthContext } = await import(AUTH) as any
+const { ReportsPage } = await import(REPORTS) as any
+const h = React.createElement as any
 const settle = async () => { for (let i = 0; i < 5; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)) }); await Promise.all(pending) }
 
 const CUSTOMERS = [{ contact: { name: 'Ann Lee', company: 'Lee Co' }, invoiceCount: 2, invoiced: 900, collected: 850 }, { contact: { name: '=SUM(A1)' }, invoiceCount: 1, invoiced: 100, collected: 100 }]
