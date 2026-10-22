@@ -62,3 +62,38 @@ test('a row stored before sealing still disconnects with its own token; Google u
   expect(await (await asOwner('/api/gbp/disconnect', { method: 'POST' })).json()).toEqual({ ok: true, revokedAtGoogle: false })
   expect(await row()).toBeUndefined()
 })
+
+// 10/22: one Google sign-in app for reviews and calendars, and Google's revoke withdraws all it holds for the account —
+// the reviews Disconnect ended the calendar link, and the booking page offered times the calendar had busy.
+test("while a Google calendar link here may share the account, Disconnect deletes the reviews access but doesn't revoke it", async () => {
+  const [u] = await t.db.select().from(t.schema.user).limit(1)
+  const link = (values: Record<string, unknown>) => t.db.insert(t.schema.calendarConnection).values({ companyId: u.companyId, userId: u.id, provider: 'google', accessTokenEnc: 'x', ...values })
+  const clear = () => t.db.delete(t.schema.calendarConnection)
+  const disconnect = async () => (await asOwner('/api/gbp/disconnect', { method: 'POST' })).json()
+  googleRevokes()
+  const before = revoked.length
+
+  // A live link, account unknown on the reviews side (its sign-in asks for no address): kept.
+  await link({ accountEmail: 'owner@gmail.example' })
+  await store({ accessToken: 'ya29.three', refreshToken: '1//three' })
+  expect(await disconnect()).toEqual({ ok: true, revokedAtGoogle: false, stillUsedBy: 'google_calendar' })
+  expect(await row()).toBeUndefined()
+  expect(revoked.length).toBe(before)
+
+  // The same account by address: kept.
+  await store({ accessToken: 'ya29.four', refreshToken: '1//four', externalAccountEmail: 'OWNER@gmail.example' })
+  expect((await disconnect()).stillUsedBy).toBe('google_calendar')
+  expect(revoked.length).toBe(before)
+
+  // Another account, both addresses known: revoked as before.
+  await store({ accessToken: 'ya29.five', refreshToken: '1//five', externalAccountEmail: 'someone-else@gmail.example' })
+  expect(await disconnect()).toEqual({ ok: true, revokedAtGoogle: true })
+  expect(revoked.at(-1)).toBe('1//five')
+
+  // A calendar link Google already refused shares nothing left to lose: revoked.
+  await clear(); await link({ accountEmail: null, refusedAt: new Date() })
+  await store({ accessToken: 'ya29.six', refreshToken: '1//six' })
+  expect(await disconnect()).toEqual({ ok: true, revokedAtGoogle: true })
+  expect(revoked.at(-1)).toBe('1//six')
+  await clear()
+})

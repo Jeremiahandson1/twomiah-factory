@@ -34,6 +34,7 @@ export function GbpReviewsPage(): React.ReactElement {
   const [replyFor, setReplyFor] = useState<string | null>(null)
   const [replyText, setReplyText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState('')
   /**
    * The server refused this seat (403). Every /api/gbp route is the owner's and the admins' — integrations:update on
    * the store, requireAdmin elsewhere — and the status read is one of them. The refusal was read as 'not connected',
@@ -95,13 +96,16 @@ export function GbpReviewsPage(): React.ReactElement {
     await loadReviews()
   }
 
-  // Disconnect: Google revokes the access and the stored copy is deleted (server: /api/gbp/disconnect).
+  // Disconnect: the stored access is deleted, and Google revokes it — unless the business's Google calendar link uses
+  // the same Google account, which Google's revoke would end too (server: /api/gbp/disconnect, stillUsedBy).
   const disconnect = async () => {
     if (!window.confirm('Disconnect Google Business Profile? Reviews stop showing here until you connect again.')) return
-    setBusy(true); setError('')
+    setBusy(true); setError(''); setNotice('')
     const r = await api.raw('/api/gbp/disconnect', { method: 'POST', headers: authHeaders() })
+    const d = await r.json().catch(() => ({}))
     setBusy(false)
     if (!r.ok) { setError('Could not disconnect — try again'); return }
+    if (d.stillUsedBy === 'google_calendar') setNotice('Disconnected — reviews access is deleted here. Twomiah Bookings stays listed in your Google account because your Google Calendar link (Bookings › Settings) uses it; unlink the calendar too to remove it there.')
     setReviews([]); setSummary(null); setLocations([]); setReplyFor(null)
     setLoading(true)
     await loadStatus()
@@ -120,6 +124,7 @@ export function GbpReviewsPage(): React.ReactElement {
       <h1 className="text-2xl font-bold mb-1">Google Reviews</h1>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Your Google Business Profile — where local customers find and judge you. Reply to every review; it matters more than any ad.</p>
       {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3 dark:text-red-400 dark:bg-red-950/40">{error}</div>}
+      {notice && <div className="mb-4 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-md p-3 dark:text-slate-200 dark:bg-slate-800 dark:border-slate-700">{notice}</div>}
 
       {status?.connected && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 bg-white border rounded-lg px-4 py-3 dark:bg-slate-900">

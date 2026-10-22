@@ -21,6 +21,13 @@ export interface GbpDeps {
    * tokens are kept). A row stored before sealing reads as it is and is sealed on its next write.
    */
   secrets?: { seal: (plain: string) => string; open: (sealed: string) => string }
+  /**
+   * Whether another link in this business still uses the same Google sign-in app for this Google account (the unified
+   * app: a Google calendar link). Google's revoke withdraws EVERYTHING the app holds for the account — the calendar
+   * link too (10/22: disconnecting reviews left the booking page offering times the calendar had busy). While one does,
+   * Disconnect deletes the stored access only. `email` is the account the reviews link was made with, when known.
+   */
+  googleStillUsedBy?: (email: string | null) => Promise<string | null>
 }
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
@@ -192,14 +199,16 @@ export function createGbpAdminRoutes(deps: GbpDeps): Hono {
     }
   })
 
-  // Disconnect: Google is told to revoke the access first (the app then leaves the Google account's permissions, as
-  // the privacy policy says disconnecting does), then the stored access is deleted — even when Google cannot be
-  // reached, so nothing is kept; the answer says whether Google confirmed.
+  // Disconnect: the stored access is deleted — even when Google cannot be reached, so nothing is kept. Google is told
+  // to revoke it first (the app then leaves the Google account's permissions) unless another link here still uses the
+  // same Google account (deps.googleStillUsedBy): the revoke would end that one too. The answer says which happened.
   app.post('/disconnect', async (c) => {
     const conn = await getConnection(deps)
     let revoked = false
+    let keptFor: string | null = null
     if (conn) {
-      const token = conn.refreshToken || conn.accessToken
+      keptFor = deps.googleStillUsedBy ? await deps.googleStillUsedBy(conn.externalEmail || null) : null
+      const token = keptFor ? null : conn.refreshToken || conn.accessToken
       if (token) {
         try {
           const r = await fetch(REVOKE_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }), signal: AbortSignal.timeout(10_000) })
@@ -210,7 +219,7 @@ export function createGbpAdminRoutes(deps: GbpDeps): Hono {
       const { eq } = await import('drizzle-orm')
       await deps.db.delete(deps.gbpConnectionTable).where(eq(deps.gbpConnectionTable.id, conn.id))
     }
-    return c.json({ ok: true, revokedAtGoogle: revoked })
+    return c.json(keptFor ? { ok: true, revokedAtGoogle: false, stillUsedBy: keptFor } : { ok: true, revokedAtGoogle: revoked })
   })
 
   return app

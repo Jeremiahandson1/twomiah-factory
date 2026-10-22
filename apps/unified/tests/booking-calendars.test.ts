@@ -239,6 +239,57 @@ describe('the routes', () => {
   })
 })
 
+// 10/22: access withdrawn at Google (the reviews Disconnect's revoke ended the calendar's grant too). The refresh came
+// back 400 invalid_grant on every look-up, the busy times went unread, and Booking settings still showed it linked.
+describe('a link Google no longer accepts', () => {
+  test('is marked refused, shown on the person\'s links, not called again — and linking again restores it', async () => {
+    process.env.GOOGLE_CALENDAR_CLIENT_ID = 'g-id'; process.env.GOOGLE_CALENDAR_CLIENT_SECRET = 'g-secret'
+    const [person] = await t.db.insert(t.schema.user).values({ companyId, email: 'withdrawn@example.com', firstName: 'Wil', lastName: 'Drawn', role: 'field', passwordHash: 'x' }).returning()
+    let grant = 'withdrawn' as 'withdrawn' | 'live'
+    const seen: string[] = []
+    const google = (async (input: any, init: any = {}) => {
+      const url = String(input), auth = String(init.headers?.Authorization || '').replace('Bearer ', '')
+      if (url.startsWith('https://oauth2.googleapis.com/token') || auth === 'still-current') seen.push(url.split('?')[0])
+      const json = (x: unknown, status = 200) => new Response(JSON.stringify(x), { status, headers: { 'content-type': 'application/json' } })
+      if (url.startsWith('https://oauth2.googleapis.com/token')) return grant === 'withdrawn' ? json({ error: 'invalid_grant', error_description: 'Token has been expired or revoked.' }, 400) : json({ access_token: 'renewed', expires_in: 3600 })
+      if (url.includes('/calendar/v3/calendars/primary/events')) return grant === 'withdrawn' && auth !== 'renewed' ? json({ error: { code: 401 } }, 401) : json({ items: [{ id: 'busy', start: { dateTime: '2026-11-03T16:00:00Z' }, end: { dateTime: '2026-11-03T17:00:00Z' } }] })
+      return json({}, 404)
+    }) as unknown as typeof fetch
+    const c = createCalendars({ db: t.db, logger: quiet, fetch: google, now: () => clock })
+    const from = new Date('2026-11-03T00:00:00Z'), to = new Date('2026-11-04T00:00:00Z')
+    const mine = async () => (await c.externalBusy(companyId, from, to)).filter((b) => b.userId === person.id)
+    await c.storeTokens({ userId: person.id, provider: 'google', accessToken: 'still-current', refreshToken: 'r', expiresInSec: 3600, externalAccountEmail: 'wil@gmail.com' })
+
+    // An access token not yet due to run out, withdrawn: the 401 runs it out, and the refresh then says the link is gone.
+    expect(await mine()).toEqual([])
+    expect((await conn(person.id, 'google')).refusedAt).toBeNull()
+    expect(await mine()).toEqual([])
+    expect((await conn(person.id, 'google')).refusedAt).toBeInstanceOf(Date)
+    expect((await c.connectionsOf(person.id))[0].refusedAt).toBeInstanceOf(Date)
+    // Refused: Google is not asked again on every look-up (other people's links here are read as before).
+    seen.length = 0
+    expect(await mine()).toEqual([])
+    expect(seen).toEqual([])
+
+    // Linked again (the Factory's callback): read again, its busy time blocks.
+    grant = 'live'
+    await c.storeTokens({ userId: person.id, provider: 'google', accessToken: 'renewed', refreshToken: 'r2', expiresInSec: 3600 })
+    expect((await conn(person.id, 'google')).refusedAt).toBeNull()
+    expect((await mine()).map((b) => b.eventId)).toEqual(['busy'])
+    await t.db.delete(t.schema.user).where(eq(t.schema.user.id, person.id))
+  })
+
+  test('another failure (Google unreachable, a 500) does not mark it refused', async () => {
+    const [person] = await t.db.insert(t.schema.user).values({ companyId, email: 'flaky@example.com', firstName: 'Fla', lastName: 'Ky', role: 'field', passwordHash: 'x' }).returning()
+    const down = (async () => new Response('{}', { status: 500 })) as unknown as typeof fetch
+    const c = createCalendars({ db: t.db, logger: quiet, fetch: down, now: () => clock })
+    await c.storeTokens({ userId: person.id, provider: 'google', accessToken: 'a', refreshToken: 'r', expiresInSec: 30 })
+    await c.externalBusy(companyId, new Date('2026-11-03T00:00:00Z'), new Date('2026-11-04T00:00:00Z'))
+    expect((await conn(person.id, 'google')).refusedAt).toBeNull()
+    await t.db.delete(t.schema.user).where(eq(t.schema.user.id, person.id))
+  })
+})
+
 /** The seeded owner's access token, with online booking switched on. */
 async function seedOwnerLogin() {
   const [co] = await t.db.select().from(t.schema.company).where(eq(t.schema.company.id, companyId))

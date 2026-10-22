@@ -1,0 +1,1 @@
+ALTER TABLE "calendar_connection" ADD COLUMN "refused_at" timestamp;

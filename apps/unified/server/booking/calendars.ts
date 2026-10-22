@@ -31,8 +31,13 @@ export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof 
   const http = deps.fetch ?? fetch
   const now = deps.now ?? Date.now
 
-  /** A live access token for the connection: refreshed (and saved) when it is within a minute of running out. */
+  /**
+   * A live access token for the connection: refreshed (and saved) when it is within a minute of running out. A link
+   * Google / Microsoft no longer accepts (invalid_grant: access withdrawn there) is marked refused — the person sees
+   * "link it again" on Booking settings instead of a link that looks fine and blocks nothing.
+   */
   async function accessToken(conn: Conn): Promise<string | null> {
+    if (conn.refusedAt) return null
     let token: string
     try { token = decrypt(conn.accessTokenEnc) } catch { logger.warn('Calendar token unreadable', { provider: conn.provider }); return null }
     if (!conn.expiresAt || conn.expiresAt.getTime() > now() + 60_000) return token
@@ -44,7 +49,12 @@ export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof 
     const body = new URLSearchParams({ client_id: id, client_secret: secret, refresh_token: decrypt(conn.refreshTokenEnc), grant_type: 'refresh_token' })
     if (!google) body.set('scope', 'offline_access Calendars.ReadWrite')
     const res = await http(google ? GOOGLE_TOKEN : MS_TOKEN, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }).catch(() => null)
-    if (!res?.ok) { logger.warn('Calendar token refresh failed', { provider: conn.provider, status: res?.status }); return null }
+    if (!res?.ok) {
+      const error = res ? String(((await res.json().catch(() => ({}))) as any).error || '') : ''
+      logger.warn('Calendar token refresh failed', { provider: conn.provider, status: res?.status, error })
+      if (error === 'invalid_grant') await db.update(calendarConnection).set({ refusedAt: new Date(now()) }).where(eq(calendarConnection.id, conn.id))
+      return null
+    }
     const data: any = await res.json()
     const set: Partial<Conn> = { accessTokenEnc: encrypt(data.access_token), expiresAt: new Date(now() + ((data.expires_in || 3600) - 60) * 1000) }
     // Microsoft hands out a new refresh token with each refresh; Google keeps the first.
@@ -78,7 +88,13 @@ export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof 
   async function call(conn: Conn, method: string, url: string, body?: unknown): Promise<Response | null> {
     const token = await accessToken(conn)
     if (!token) return null
-    return http(url, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }).catch(() => null)
+    return unauthorised(conn, await http(url, { method, headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }).catch(() => null))
+  }
+
+  /** A 401 on an access token not yet due to run out: it was withdrawn. Run it out, so the next call's refresh says whether the link stands. */
+  async function unauthorised(conn: Conn, res: Response | null): Promise<Response | null> {
+    if (res?.status === 401) await db.update(calendarConnection).set({ expiresAt: new Date(0) }).where(eq(calendarConnection.id, conn.id))
+    return res
   }
 
   /** One connection's busy events in the window; null when the calendar couldn't be read. */
@@ -95,9 +111,9 @@ export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof 
     const token = await accessToken(conn)
     if (!token) return null
     // calendarView expands repeating events into their single times in the window
-    const res = await http(`${GRAPH}/me/calendarView?` + new URLSearchParams({ startDateTime: from.toISOString(), endDateTime: to.toISOString(), $orderby: 'start/dateTime', $top: '250' }), {
+    const res = await unauthorised(conn, await http(`${GRAPH}/me/calendarView?` + new URLSearchParams({ startDateTime: from.toISOString(), endDateTime: to.toISOString(), $orderby: 'start/dateTime', $top: '250' }), {
       headers: { Authorization: 'Bearer ' + token, Prefer: 'outlook.timezone="UTC"' },
-    }).catch(() => null)
+    }).catch(() => null))
     if (!res?.ok) return null
     const data: any = await res.json()
     const utc = (s: string) => new Date(s.endsWith('Z') ? s : s + 'Z')
@@ -190,6 +206,7 @@ export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof 
       refreshTokenEnc: typeof body.refreshToken === 'string' && body.refreshToken ? encrypt(body.refreshToken) : null,
       expiresAt: new Date(now() + ((Number(body.expiresInSec) || 3600) - 60) * 1000),
       calendarId: provider === 'google' ? (typeof body.calendarId === 'string' && body.calendarId ? body.calendarId : 'primary') : null,
+      refusedAt: null,
     }
     // The Factory asks Google for calendar access only, so its look-up of the account's email comes back empty; the
     // primary calendar's id is that address. Best effort — the link stands without it.
@@ -206,7 +223,7 @@ export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof 
 
   /** A person's own links (never their tokens). */
   async function connectionsOf(userId: string) {
-    return db.select({ id: calendarConnection.id, provider: calendarConnection.provider, accountEmail: calendarConnection.accountEmail, createdAt: calendarConnection.createdAt })
+    return db.select({ id: calendarConnection.id, provider: calendarConnection.provider, accountEmail: calendarConnection.accountEmail, refusedAt: calendarConnection.refusedAt, createdAt: calendarConnection.createdAt })
       .from(calendarConnection).where(eq(calendarConnection.userId, userId)).orderBy(asc(calendarConnection.createdAt))
   }
 

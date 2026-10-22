@@ -19,12 +19,12 @@ import {
   createGbpInternalRoutes, createInboundParseRoute, createInboundMessagesRoutes, createFactoryApiClient, createPortalRoutes,
   money, createAccountBalanceStore,
 } from '@twomiah/tenant-backend'
-import { asc, desc } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull } from 'drizzle-orm'
 import {
   company, user, contact, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, job, timeEntry, teamMember,
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
-  gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
+  gbpConnection, calendarConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
   documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto,
   event,
   patient, vaccination, appointment, visit,
@@ -94,8 +94,21 @@ export interface CrmModuleDeps {
 /** Google Business Profile's tokens, sealed at rest with the tenant's own key — as people's calendar tokens are. */
 const gbpSecrets = { seal: encrypt, open: decrypt }
 
+/**
+ * A Google calendar link here that the reviews link's Google account may share (one Google sign-in app for both, so
+ * revoking one ends both — packages/tenant-backend gbp.ts). A different account is told apart only when both addresses
+ * are known; the reviews sign-in asks for no address, so usually it is not, and any live Google calendar link counts.
+ */
+async function googleCalendarSharing(db: any, email: string | null): Promise<string | null> {
+  const rows: Array<{ accountEmail: string | null }> = await db.select({ accountEmail: calendarConnection.accountEmail }).from(calendarConnection)
+    .where(and(eq(calendarConnection.provider, 'google'), isNull(calendarConnection.refusedAt)))
+  const same = (a: string | null) => !email || !a || a.toLowerCase() === email.toLowerCase()
+  return rows.some((r) => same(r.accountEmail)) ? 'google_calendar' : null
+}
+
 export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const { db, audit, logger, authenticate, permissions, features, realtime, phonePush, services: s, settings: v } = deps
+  const gbpDeps = { db, gbpConnectionTable: gbpConnection, secrets: gbpSecrets, googleStillUsedBy: (email: string | null) => googleCalendarSharing(db, email) }
   // A customer's service sites and the equipment at them (field service, landscaping, basic, bar).
   const sites = !!v.serviceSites
   const blankToUndefined = z.string().optional().transform((x) => (x === '' ? undefined : x))
@@ -390,7 +403,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/texting', access: 'user', router: createTextingRoutes(own, factoryApiClient) },
     { path: '/api/internal/texting', access: 'factory', router: createTextingInternalRoutes(own) },
     { path: '/api/email-domain', access: 'user', router: signedInAdmin(createEmailDomainRoutes({ factoryApiClient } as any)) },
-    { path: '/api/gbp', access: 'user', router: signedInAdmin(createGbpAdminRoutes({ db, gbpConnectionTable: gbpConnection, secrets: gbpSecrets } as any)) },
+    { path: '/api/gbp', access: 'user', router: signedInAdmin(createGbpAdminRoutes(gbpDeps as any)) },
     { path: '/api/inbound-messages', access: 'user', router: inboundMessages },
 
     // Public doors inside: each router signs people in itself after them.
@@ -436,7 +449,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/public/ads-experiments', access: 'public', router: createAdsPublicRoutes({ db, tables: { company, adsExperiment, adsExperimentAssignment, adsExperimentConversion } } as any) },
 
     // The Factory.
-    { path: '/api/internal/gbp', access: 'factory', router: createGbpInternalRoutes({ db, gbpConnectionTable: gbpConnection, secrets: gbpSecrets } as any) },
+    { path: '/api/internal/gbp', access: 'factory', router: createGbpInternalRoutes(gbpDeps as any) },
     { path: '/api/internal/inbound-email', access: 'factory', router: createInboundParseRoute({ db, inboundMessageTable: inboundMessage } as any) },
 
     // The CRM's own modules (moved from the template, not shared code).

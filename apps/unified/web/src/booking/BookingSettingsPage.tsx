@@ -380,7 +380,7 @@ function MyCalendar() {
   const toast = useToast()
   const confirm = useConfirm()
   const [params, setParams] = useSearchParams()
-  const [rows, setRows] = useState<Array<{ id: string; provider: string; accountEmail: string | null }> | null>(null)
+  const [rows, setRows] = useState<Array<{ id: string; provider: string; accountEmail: string | null; refusedAt: string | null }> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   // Only the calendars this account can link (their sign-in app is set up); the others get no button.
@@ -417,7 +417,14 @@ function MyCalendar() {
               {rows.map((r) => (
                 <li key={r.id} className="py-2 flex flex-wrap items-center gap-3 text-sm">
                   <CalendarCheck className="w-4 h-4 text-muted" aria-hidden="true" />
-                  <span className="flex-1 min-w-0 text-ink">{PROVIDER_NAMES[r.provider] || r.provider}{r.accountEmail && <span className="text-muted"> · {r.accountEmail}</span>}</span>
+                  <span className="flex-1 min-w-0 text-ink">
+                    {PROVIDER_NAMES[r.provider] || r.provider}{r.accountEmail && <span className="text-muted"> · {r.accountEmail}</span>}
+                    {/* Access withdrawn at Google / Microsoft (calendars.ts marks it): its busy times aren't being read. */}
+                    {r.refusedAt && <span className="block text-red-700 dark:text-red-300">{r.provider === 'outlook' ? 'Microsoft' : 'Google'} stopped accepting this link, so its busy times aren't blocking yours. Link it again.</span>}
+                  </span>
+                  {r.refusedAt && offered.includes(r.provider) && (
+                    <button type="button" className="btn-primary btn-sm" disabled={busy !== null} onClick={() => link(r.provider)}>{busy === r.provider ? 'Opening…' : 'Link again'}</button>
+                  )}
                   <button type="button" onClick={() => unlink(r.id, r.provider)} className="btn-secondary btn-sm">Unlink</button>
                 </li>
               ))}

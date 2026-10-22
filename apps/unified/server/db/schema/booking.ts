@@ -297,6 +297,8 @@ export const calendarConnection = pgTable('calendar_connection', {
   watchResourceId: text('watch_resource_id'),
   watchExpiresAt: timestamp('watch_expires_at'),
   lastSyncAt: timestamp('last_sync_at'),
+  /** When Google / Microsoft stopped accepting the link (access withdrawn there): it must be linked again. */
+  refusedAt: timestamp('refused_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('calendar_connection_user_id_provider_key').on(t.userId, t.provider),
