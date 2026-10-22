@@ -308,7 +308,10 @@ export const phoneCall = pgTable('phone_call', {
 
 export const emailRecipient = pgTable('email_recipient', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  campaignId: text('campaign_id').notNull().references(() => emailCampaign.id, { onDelete: 'cascade' }),
+  // The campaign the email marketing module sends: `campaign` (packages/tenant-backend marketing.ts writes its id
+  // here). This pointed at `email_campaign`, a table nothing writes, so every recipient row was refused and "Send now"
+  // reported "Sent to 0 of 2 contacts (2 failed)" with the raw foreign-key error on the campaign (live, 2026-10-22).
+  campaignId: text('campaign_id').notNull().references(() => campaign.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').references(() => contact.id),
   email: text('email').notNull(),
   status: text('status').default('pending').notNull(),
