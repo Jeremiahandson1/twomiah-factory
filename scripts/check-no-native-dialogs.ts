@@ -67,7 +67,7 @@ for (const rel of files) {
     // toast of their own to call instead; they are listed in NOT_YET_CONVERTED rather than pretended away.
     const shared = rel.startsWith('packages/')
     const kinds = shared ? '(confirm|prompt)' : '(alert|confirm|prompt)'
-    const hit = new RegExp('\\bwindow\\.' + kinds + '\\s*\\(').exec(line) || new RegExp('(^|[^.\\w\\s])\\s*' + kinds + '\\(').exec(line)
+    const hit = new RegExp('\\bwindow\\.' + kinds + '\\s*\\(').exec(line) || new RegExp('(?<![.\\w])' + kinds + '\\(').exec(line)
     if (!hit) return
     const which = ['alert', 'confirm', 'prompt'].includes(hit[1]) ? hit[1] : hit[2]
     fail(`${rel}:${i + 1} calls ${which}() — use toast.error for a failure, or useConfirm() to ask: ${line.trim().slice(0, 90)}`)
