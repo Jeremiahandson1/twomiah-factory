@@ -23,7 +23,8 @@ async function renderPresentation(c: Context<AppEnv, '/:itemId'>, db: any, finan
     .leftJoin(pricebookCategory, eq(pricebookItem.categoryId, pricebookCategory.id))
     .where(eq(pricebookItem.id, itemId))
 
-  if (!result) {
+  // A retired item, or one kept off customers' screens, is not presented (the template showed both).
+  if (!result || !result.pricebook_item.active || !result.pricebook_item.showToCustomer) {
     return c.html('<html><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui"><h1>Item not found</h1></body></html>', 404)
   }
 
@@ -45,7 +46,7 @@ async function renderPresentation(c: Context<AppEnv, '/:itemId'>, db: any, finan
   const bestTierPrice = tiers.find(t => t.tier === 'best')?.price || item.price
   const financingOptions = await financing.getFinancingOptionsForCompany(item.companyId, Number(bestTierPrice))
 
-  // Determine recommended tier — default to "best" (sign today, best price)
+  // The recommended tier the owner ticked, else the best one.
   const recommended = tiers.find(t => t.recommended) || tiers.find(t => t.tier === 'best') || tiers[0]
 
   // Format price
@@ -62,18 +63,15 @@ async function renderPresentation(c: Context<AppEnv, '/:itemId'>, db: any, finan
     try { return JSON.parse(f) } catch { return [] }
   }
 
-  // Urgency-based pricing: Best = sign today (lowest), Good = 1 year (highest)
   const tierColors: Record<string, { bg: string; border: string; badge: string; icon: string }> = {
-    best: { bg: '#ecfdf5', border: '#10b981', badge: '#059669', icon: '🔥' },
-    better: { bg: '#eff6ff', border: '#3b82f6', badge: '#2563eb', icon: '📅' },
-    good: { bg: '#f8fafc', border: '#e2e8f0', badge: '#64748b', icon: '📋' },
+    best: { bg: '#ecfdf5', border: '#10b981', badge: '#059669', icon: '★★★' },
+    better: { bg: '#eff6ff', border: '#3b82f6', badge: '#2563eb', icon: '★★' },
+    good: { bg: '#f8fafc', border: '#e2e8f0', badge: '#64748b', icon: '★' },
   }
 
-  const tierLabels: Record<string, string> = {
-    best: 'Sign Today',
-    better: 'Within 30 Days',
-    good: 'Valid 1 Year',
-  }
+  // A tier is shown by the name the owner gave it (the tier editor saves none without one). The fallback is the tier's own
+  // meaning — the template printed "Sign Today / Within 30 Days / Valid 1 Year" over every vertical's tiers.
+  const tierLabels: Record<string, string> = { best: 'Best', better: 'Better', good: 'Good' }
 
   // Build tier cards HTML
   const tierCardsHtml = tiers.map(tier => {

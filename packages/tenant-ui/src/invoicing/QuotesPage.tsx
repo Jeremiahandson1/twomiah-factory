@@ -5,7 +5,7 @@ import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { todayKey } from '../time/day'
-import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, quoteSentMessage, selectCls } from './ui'
+import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, pricebookLine, quoteSentMessage, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
 interface QuoteForm { name: string; contactId: string; projectId: string; jobId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[] }
@@ -116,6 +116,34 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     setEditing(null); setForm({ ...emptyForm(), contactId, jobId }); setSites([]); setEquipment([]); loadCustomerExtras(contactId); setModalOpen(true)
     for (const k of ['new', 'contactId', 'jobId']) searchParams.delete(k)
     setSearchParams(searchParams, { replace: true })
+  }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * The pricebook presentation's "Build Your Quote" (server crm/office/pricebookPresent.ts): ?newFromPricebook=<item>
+   * and, when the customer picked one, &tier=good|better|best. A new quote opens with that line on it. Nothing read
+   * the link before, so the button landed on the quote list and the customer's choice was lost.
+   */
+  useEffect(() => {
+    const itemId = searchParams.get('newFromPricebook')
+    if (!itemId || !mayCreate || !cfg.pricebook) return
+    const tier = searchParams.get('tier') || ''
+    let cancelled = false
+    ;(async () => {
+      try {
+        const item = await api.get(`/api/pricebook/items/${encodeURIComponent(itemId)}`)
+        if (cancelled || !item?.id) return
+        if (item.active === false) { toast.error(`${item.name} is no longer offered`); return }
+        const options = tier ? await api.get(`/api/pricebook/items/${encodeURIComponent(itemId)}/options`) : []
+        const option = tier ? (Array.isArray(options) ? options : []).find((o: any) => o.tier === tier) : null
+        if (tier && !option) { toast.error(`That option of ${item.name} is no longer offered`); return }
+        if (cancelled) return
+        setEditing(null); setForm({ ...emptyForm(), name: item.name, lineItems: [pricebookLine(item, option)] }); setSites([]); setEquipment([]); setModalOpen(true)
+      } catch (e) { if (!cancelled) toast.error(errMsg(e, 'That pricebook item could not be loaded')) }
+      finally {
+        if (!cancelled) { for (const k of ['newFromPricebook', 'tier']) searchParams.delete(k); setSearchParams(searchParams, { replace: true }) }
+      }
+    })()
+    return () => { cancelled = true }
   }, [searchParams]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {

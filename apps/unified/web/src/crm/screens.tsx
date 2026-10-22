@@ -151,7 +151,8 @@ export function Marketing() {
 }
 export const Messages = () => <MessagesPage api={client} toast={useToast()} config={v().messages as any} />
 export const Ads = () => <AdsPage api={client} toast={useToast()} />
-export const Pricebook = () => <PricebookPage api={client} toast={useToast()} config={v().pricebook} />
+// The presentation page is the unified app's (server crm/office/pricebookPresent.ts), so its button is offered here.
+export const Pricebook = () => <PricebookPage api={client} toast={useToast()} config={{ ...v().pricebook, present: true }} />
 export function Reports() {
   // The events pipeline is a vertical's setting AND the business's Events module (templates/crm-restaurant's
   // ReportsDashboard.tsx set it from hasFeature('event_bookings')).

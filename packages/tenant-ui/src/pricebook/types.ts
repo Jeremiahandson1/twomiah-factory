@@ -28,4 +28,9 @@ export interface PricebookConfig {
   tiersButton?: string
   /** Column order and defaults of the tier editor. */
   tierPresets?: TierPreset[]
+  /**
+   * A "Present" button on each item a customer may see: the full-screen Good/Better/Best page for the kitchen table
+   * (/api/pricebook-present/:id). Only where that page is served — the unified app; absent, no button.
+   */
+  present?: boolean
 }

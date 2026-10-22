@@ -21,6 +21,9 @@ interface Integration {
   category: 'lead_sources' | 'accounting' | 'dns' | 'communication' | 'payments';
   guideSteps: string[];
   externalUrl?: string;
+  /** A page of this app that does it, opened in a new tab so the wizard keeps its place (a store's Payments and its
+   *  product editor — templates/crm-store OnboardingWizard.tsx). */
+  open?: { to: string; label: string };
   fields?: { key: string; label: string; placeholder: string; type?: string }[];
 }
 
@@ -110,16 +113,19 @@ const INTEGRATIONS: Integration[] = [
     ],
   },
   {
+    // Texting is the business's own registered number, set up in Settings › Texting (crm/pages/TextingPage.tsx) — no
+    // Twilio account of its own. The template asked for the owner's Twilio SID and token, which this app never reads.
     id: 'twilio',
-    label: 'Two-Way Texting (Twilio)',
-    description: 'Send and receive SMS with customers directly from your CRM.',
+    label: 'Two-Way Texting',
+    description: 'Send and receive texts with customers from your own business number.',
     category: 'communication',
     guideSteps: [
-      'Go to Settings > Integrations > Texting',
-      'Enter your Twilio Account SID, Auth Token, and phone number',
-      'If you don\'t have Twilio, create an account at twilio.com',
-      'Once connected, you can text customers from any contact or job page',
+      'Go to Settings > Texting',
+      'Enter your business details — the carriers register a local number in your business’s name',
+      'Approval can take several days; Settings > Texting shows where it stands',
+      'Once approved, you can text customers from any contact page and the Messages inbox',
     ],
+    open: { to: '/crm/settings/texting', label: 'Open Texting settings' },
   },
 ];
 
@@ -142,11 +148,12 @@ const CATEGORY_LABELS: Record<string, string> = {
   accounting: 'Accounting & Import',
   payments: 'Payments',
   communication: 'Communication',
-  // A vertical's own (screens.onboarding.extra): home care's HIPAA checklist.
+  // A vertical's own (screens.onboarding.extra): home care's HIPAA checklist; a store's first product.
   compliance: 'Compliance',
+  catalog: 'Products',
 };
 
-const CATEGORY_ORDER = ['dns', 'lead_sources', 'accounting', 'payments', 'communication', 'compliance'];
+const CATEGORY_ORDER = ['dns', 'lead_sources', 'accounting', 'payments', 'catalog', 'communication', 'compliance'];
 
 /* ─── Setup service options ────────────────────────────────────────────────── */
 const SETUP_OPTIONS = [
@@ -605,6 +612,11 @@ function StepIntegrations({
                               </li>
                             ))}
                           </ol>
+                          {integration.open && (
+                            <a href={integration.open.to} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg dark:text-orange-200 dark:bg-orange-500/10 dark:border-orange-500/30 dark:hover:bg-orange-500/20">
+                              {integration.open.label} <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-3 mt-4 pt-3 border-t dark:border-slate-700">

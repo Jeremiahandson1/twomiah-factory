@@ -459,6 +459,34 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
 
 // ---------------------------------------------------------------- line item editor (shared by invoices + quotes)
 /**
+ * A pricebook item as a quote or invoice line — the picker's and the presentation page's "Build Your Quote" (one rule).
+ * With one of its Good/Better/Best options, the line is that option at its price; the item's cost is the whole item's,
+ * not the option's, so it is left off (an uncosted line, not one costed at the wrong figure).
+ */
+export function pricebookLine(pb: PricebookPick, option?: { name?: string | null; price: unknown } | null): LineItemInput {
+  const kind = ((): LineItemInput['type'] => {
+    const t = String(pb.type || '').toLowerCase()
+    if (t === 'labor' || t === 'labour') return 'labor'
+    if (t === 'material') return 'material'
+    if (t === 'part') return 'part'
+    if (t === 'service') return 'service'
+    return 'other'
+  })()
+  const name = pb.code ? `${pb.name} (${pb.code})` : pb.name
+  if (option) return { description: option.name ? `${name} — ${option.name}` : name, quantity: 1, unitPrice: Number(option.price) || 0, type: kind, pricebookItemId: pb.id }
+  return {
+    description: name,
+    quantity: 1,
+    unitPrice: Number(pb.price) || 0,
+    type: kind,
+    // undefined, not 0, when the book did not tell us: a zero cost is a claim, and an absent one
+    // is the truth. jobCosting counts an uncosted line instead of pricing it at nothing.
+    ...(pb.cost === null || pb.cost === undefined || pb.cost === '' ? {} : { unitCost: Number(pb.cost) || 0 }),
+    pricebookItemId: pb.id,
+  }
+}
+
+/**
  * `pricebook` is OPTIONAL and off everywhere it is not passed. (T41)
  *
  * With it, the editor gains a Cost column and a picker that fills a line from the catalogue —
@@ -489,24 +517,7 @@ export function LineItemsEditor({ items, onChange, pricebook }: {
   const addFromPricebook = (id: string) => {
     const pb = (pricebook?.items || []).find(p => p.id === id)
     if (!pb) return
-    const kind = ((): LineItemInput['type'] => {
-      const t = String(pb.type || '').toLowerCase()
-      if (t === 'labor' || t === 'labour') return 'labor'
-      if (t === 'material') return 'material'
-      if (t === 'part') return 'part'
-      if (t === 'service') return 'service'
-      return 'other'
-    })()
-    onChange([...items, {
-      description: pb.code ? `${pb.name} (${pb.code})` : pb.name,
-      quantity: 1,
-      unitPrice: Number(pb.price) || 0,
-      type: kind,
-      // undefined, not 0, when the book did not tell us: a zero cost is a claim, and an absent one
-      // is the truth. jobCosting counts an uncosted line instead of pricing it at nothing.
-      ...(pb.cost === null || pb.cost === undefined || pb.cost === '' ? {} : { unitCost: Number(pb.cost) || 0 }),
-      pricebookItemId: pb.id,
-    }])
+    onChange([...items, pricebookLine(pb)])
   }
   return (
     <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-x-auto">

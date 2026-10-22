@@ -3,7 +3,7 @@
 // labor hours and "show to customers" on create, saved options into a 500, built the search URL without encoding, and
 // reported every failure with alert().
 import React, { useState, useEffect, useCallback } from 'react'
-import { BookOpen, Plus, Search, Edit2, Copy, Trash2, Loader2, DollarSign, Clock, Package, Star, Percent, FolderTree } from 'lucide-react'
+import { BookOpen, Plus, Search, Edit2, Copy, Trash2, Loader2, DollarSign, Clock, Package, Star, Percent, FolderTree, Presentation } from 'lucide-react'
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
 import type { PricebookApi, PricebookToast, PricebookConfig, TierPreset } from './types'
 import { usePrompt } from '../ui/ConfirmProvider'
@@ -157,6 +157,11 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
               </div>
               {Number(item.laborHours) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400"><Clock className="w-4 h-4" />{Number(item.laborHours)} hours</div>}
               {Number(item._count?.goodBetterBest) > 0 && <div className="mt-2 flex items-center gap-1 text-sm text-blue-600 dark:text-blue-300"><Star className="w-4 h-4" />{item._count.goodBetterBest} {config?.tiersTitle || 'pricing tier'}{item._count.goodBetterBest === 1 ? '' : 's'}</div>}
+              {/* Showing it to a customer is reading the book, so no write permission is asked; the page refuses an
+                  item that is retired or kept from customers, and the button isn't offered for one. */}
+              {config?.present && item.active !== false && item.showToCustomer !== false && (
+                <a href={`/api/pricebook-present/${encodeURIComponent(item.id)}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-orange-700 hover:underline dark:text-orange-200"><Presentation className="w-4 h-4" />Present to a customer</a>
+              )}
               {/* Options is PUT /items/:id/options (pricebook:update); Duplicate is a POST that
                   creates (pricebook:create); Delete is pricebook:delete. With none of the three the
                   footer has nothing in it, so the divider goes too. */}

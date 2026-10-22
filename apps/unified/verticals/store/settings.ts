@@ -54,6 +54,32 @@ const store: VerticalSettings = {
       types: [{ value: 'customer', label: 'Customer' }, { value: 'lead', label: 'Lead' }, { value: 'vendor', label: 'Vendor' }],
       sections: { orders: true, projects: false, quotes: false, portal: true },
     },
+    // The first-run wizard follows the money, as templates/crm-store's did: a store can't sell without a payment account
+    // and a product. Its own Domain page, not the CRM's CNAME guide; no Jobber, Angi, Thumbtack or Google LSA.
+    onboarding: {
+      integrations: ['store_domain', 'store_payments', 'store_first_product', 'quickbooks', 'twilio'],
+      emailProduct: 'crm-store',
+      extra: [
+        {
+          id: 'store_domain', label: 'Your web address', category: 'dns',
+          description: 'Buy a domain for your store, or connect one you already own.',
+          guideSteps: ['Open Domain', 'Search for a name and buy it, or enter one you already own', 'Follow the steps shown there — your store moves to it once it is live'],
+          open: { to: '/crm/domain', label: 'Open Domain' },
+        },
+        {
+          id: 'store_payments', label: 'Payments', category: 'payments',
+          description: 'Connect Stripe, Square or PayPal. You are paid directly; Twomiah never holds the money.',
+          guideSteps: ['Open Payments', 'Choose Stripe, Square or PayPal and connect your account', 'Your storefront can’t check anyone out until one is connected'],
+          open: { to: '/crm/payments', label: 'Open Payments' },
+        },
+        {
+          id: 'store_first_product', label: 'Your first product', category: 'catalog',
+          description: 'Add a product so the storefront has something to sell.',
+          guideSteps: ['Open the product editor', 'Add a name, price, photos and stock', 'Save it — one product is enough to go live'],
+          open: { to: '/crm/products/new', label: 'Open the product editor' },
+        },
+      ],
+    },
   },
   site: {
     design: 'classic',

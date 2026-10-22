@@ -234,3 +234,37 @@ describe('on a quote', () => {
     }
   })
 })
+
+describe('the customer presentation (/api/pricebook-present/:id)', () => {
+  test('shows the options by their own names; a retired item, or one kept from customers, is not shown', async () => {
+    const item = await json(await ctr.owner('/api/pricebook/items', { method: 'POST', json: { name: 'Deck rebuild', price: 9000, cost: 6000 } }))
+    const opts = { options: [
+      { tier: 'good', name: 'Pine', price: 7000, features: ['Pressure-treated'], recommended: false },
+      { tier: 'better', name: 'Cedar', price: 9000, features: [], recommended: true },
+      { tier: 'best', name: 'Composite', price: 12000, features: [], recommended: false },
+    ] }
+    expect((await ctr.owner(`/api/pricebook/items/${item.id}/options`, { method: 'PUT', json: opts })).status).toBe(200)
+    const r = await ctr.t.call(`/api/pricebook-present/${item.id}`)
+    expect(r.status).toBe(200)
+    const html = await r.text()
+    for (const w of ['Deck rebuild', 'Pine', 'Cedar', 'Composite', `/crm/quotes?newFromPricebook=${item.id}&tier=`]) expect(html).toContain(w)
+    // The template's urgency words are gone; the page never prints the cost.
+    for (const w of ['Sign Today', 'Within 30 Days', 'Valid 1 Year', '6000', '6,000']) expect(html).not.toContain(w)
+
+    expect((await ctr.owner(`/api/pricebook/items/${item.id}`, { method: 'PUT', json: { showToCustomer: false } })).status).toBe(200)
+    expect((await ctr.t.call(`/api/pricebook-present/${item.id}`)).status).toBe(404)
+    expect((await ctr.owner(`/api/pricebook/items/${item.id}`, { method: 'PUT', json: { showToCustomer: true, active: false } })).status).toBe(200)
+    expect((await ctr.t.call(`/api/pricebook-present/${item.id}`)).status).toBe(404)
+  })
+
+  test('its "Build Your Quote" link is read by the quote form, and the Pricebook page offers the page', () => {
+    const fs = require('node:fs'), path = require('node:path')
+    const src = (p: string) => fs.readFileSync(path.join(import.meta.dir, '../../..', p), 'utf8')
+    const quotes = src('packages/tenant-ui/src/invoicing/QuotesPage.tsx')
+    expect(quotes).toContain("searchParams.get('newFromPricebook')")
+    expect(quotes).toContain("searchParams.get('tier')")
+    expect(quotes).toContain('pricebookLine(item, option)')
+    expect(src('packages/tenant-ui/src/pricebook/PricebookPage.tsx')).toContain('/api/pricebook-present/')
+    expect(src('apps/unified/web/src/crm/screens.tsx')).toContain('present: true')
+  })
+})
