@@ -4,9 +4,9 @@
  * Construction loan draw schedule + individual draw requests.
  */
 import { useState, useEffect } from 'react'
-import { DollarSign, Plus, Check, Loader2 } from 'lucide-react'
+import { DollarSign, Plus, Check, X, Loader2 } from 'lucide-react'
 import { api } from '../../api'
-import { useAuth } from '../../shared'
+import { useAuth, usePrompt, useToast, errorText } from '../../shared'
 
 const STATUS_COLORS: Record<string, string> = {
   active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
@@ -14,7 +14,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
 };
 const REQ_STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
+  draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   submitted: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40',
   approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   paid: 'bg-emerald-100 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-950/40',
@@ -24,6 +24,8 @@ const REQ_STATUS_COLORS: Record<string, string> = {
 export default function DrawSchedulesPage() {
   // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
   const projectsOn = useAuth().hasFeature('projects')
+  const prompt = usePrompt()
+  const toast = useToast()
   const [schedules, setSchedules] = useState<any[]>([]);
   const [selected, setSelected] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -60,9 +62,25 @@ export default function DrawSchedulesPage() {
 
   const loadDetail = async (id: string) => { const r = await api.get(`/api/draw-schedules/${id}`); setSelected(r); load(); };
 
-  const drawAction = async (id: string, action: string) => {
-    const amountApproved = action === 'approve' ? Number(prompt('Approved amount:') || 0) : undefined;
-    await api.post(`/api/draw-schedules/requests/${id}/${action}`, { amountApproved });
+  /**
+   * A draw moves draft → submitted → approved (or rejected, and resubmitted) → paid, as the server records it
+   * (server/crm/projects/drawSchedules.ts). Approving asks for optional notes and rejecting for the reason — what the
+   * server keeps (approval_notes, rejection_reason); backing out of either does nothing. The template asked for an
+   * "approved amount" in the browser's own box, which no column holds, and a Cancel there approved the draw anyway.
+   */
+  const drawAction = async (id: string, action: 'submit' | 'approve' | 'reject' | 'mark-paid') => {
+    let notes: string | undefined
+    if (action === 'approve' || action === 'reject') {
+      const answer = await prompt(action === 'approve' ? 'Approval notes (optional):' : 'Why is this draw rejected?', {
+        title: action === 'approve' ? 'Approve draw' : 'Reject draw', confirmText: action === 'approve' ? 'Approve' : 'Reject',
+      })
+      if (answer === null) return
+      if (action === 'reject' && !answer.trim()) { toast.error('Give the reason — it is what the draw record shows later'); return }
+      notes = answer.trim() || undefined
+    }
+    try {
+      await api.post(`/api/draw-schedules/requests/${id}/${action}`, notes ? { notes } : {});
+    } catch (e) { toast.error(errorText(e, 'The draw could not be updated')); }
     if (selected) loadDetail(selected.id);
   };
 
@@ -102,20 +120,23 @@ export default function DrawSchedulesPage() {
                 <button onClick={() => setShowDraw(true)} className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><Plus className="w-3 h-3" />Draw</button>
               </div>
               <table className="w-full">
-                <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">#</th><th className="px-4 py-3">Requested</th><th className="px-4 py-3">Approved</th><th className="px-4 py-3">% Complete</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
+                <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">#</th><th className="px-4 py-3">Gross</th><th className="px-4 py-3">Retainage</th><th className="px-4 py-3">Net</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
                 <tbody>
                   {(selected.requests || []).length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No draws yet.</td></tr> :
                     selected.requests.map((r: any) => (
                       <tr key={r.id} className="border-b">
                         <td className="px-4 py-3 font-mono text-sm">#{r.drawNumber}</td>
-                        <td className="px-4 py-3 font-mono text-sm">${Number(r.amountRequested).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td className="px-4 py-3 font-mono text-sm">{r.amountApproved ? `$${Number(r.amountApproved).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
-                        <td className="px-4 py-3 text-sm">{r.percentComplete ? `${r.percentComplete}%` : '—'}</td>
+                        {/* The draw's own columns (gross, retainage, net). The template read amountRequested,
+                            amountApproved and percentComplete, which no draw carries — every row printed $NaN. */}
+                        <td className="px-4 py-3 font-mono text-sm">${Number(r.grossAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 font-mono text-sm">${Number(r.retainageAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 font-mono text-sm">${Number(r.netAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${REQ_STATUS_COLORS[r.status]}`}>{r.status}</span></td>
                         <td className="px-4 py-3">
                           <div className="flex gap-1">
-                            {r.status === 'pending' && <button onClick={() => drawAction(r.id, 'submit')} className="text-orange-700 hover:bg-orange-50 p-1 rounded text-xs dark:text-orange-200">Submit</button>}
+                            {(r.status === 'draft' || r.status === 'rejected') && <button onClick={() => drawAction(r.id, 'submit')} className="text-orange-700 hover:bg-orange-50 p-1 rounded text-xs dark:text-orange-200">Submit</button>}
                             {r.status === 'submitted' && <button aria-label="Approve" onClick={() => drawAction(r.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300"><Check className="w-4 h-4" /></button>}
+                            {r.status === 'submitted' && <button aria-label="Reject" onClick={() => drawAction(r.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400 dark:hover:bg-red-950/40"><X className="w-4 h-4" /></button>}
                             {r.status === 'approved' && <button onClick={() => drawAction(r.id, 'mark-paid')} className="text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 p-1 rounded text-xs">Mark Paid</button>}
                           </div>
                         </td>

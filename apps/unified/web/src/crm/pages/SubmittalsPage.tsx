@@ -9,7 +9,7 @@ import { useState, useEffect } from 'react'
 import { formatDate } from '../date'
 import { FileText, Plus, Check, X, RotateCcw, Loader2 } from 'lucide-react'
 import { api } from '../../api'
-import { useAuth } from '../../shared'
+import { useAuth, usePrompt, useToast, errorText } from '../../shared'
 
 interface Submittal {
   id: string;
@@ -50,6 +50,8 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function SubmittalsPage() {
+  const prompt = usePrompt()
+  const toast = useToast()
   // POST / asks submittals:create; submit, approve, revise and reject ask submittals:update. (T43 viewer round, T68)
   const { can, hasFeature } = useAuth();
   // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
@@ -97,9 +99,17 @@ export default function SubmittalsPage() {
     loadData();
   };
 
+  // Revise and reject ask for notes in the app's own dialog (the template's was the browser's); backing out does nothing.
   const runAction = async (id: string, action: string) => {
-    const notes = action === 'approve' ? undefined : prompt(`Notes for ${action}:`) || undefined;
-    await api.post(`/api/submittals/${id}/${action}`, { notes });
+    let notes: string | undefined
+    if (action === 'revise' || action === 'reject') {
+      const answer = await prompt(action === 'revise' ? 'What needs revising?' : 'Why is it rejected?', {
+        title: action === 'revise' ? 'Revise and resubmit' : 'Reject submittal', confirmText: action === 'revise' ? 'Send back' : 'Reject',
+      })
+      if (answer === null) return
+      notes = answer.trim() || undefined
+    }
+    try { await api.post(`/api/submittals/${id}/${action}`, { notes }); } catch (e) { toast.error(errorText(e, 'The submittal could not be updated')); }
     loadData();
   };
 

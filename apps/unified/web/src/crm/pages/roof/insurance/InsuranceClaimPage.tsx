@@ -19,7 +19,7 @@ import {
   AlertTriangle, DollarSign, Save, ChevronRight, Loader2,
 } from 'lucide-react'
 import { api } from '../../../../api'
-import { useMayWrite, usePermissions, useToast, errorText } from '../../../../shared'
+import { useConfirm, useMayWrite, usePermissions, useToast, errorText } from '../../../../shared'
 import { formatDate } from '../../../date'
 
 // ── What the server answers (server/crm/roof/insurance/insurance.ts). Numeric columns arrive as strings. ──────────────
@@ -211,6 +211,7 @@ const XACT_CODES = [
 const EMPTY_CLAIM = { claimNumber: '', insuranceCompany: '', policyNumber: '', dateOfLoss: '', causeOfLoss: '', deductible: '' }
 
 export default function InsuranceClaimPage() {
+  const confirm = useConfirm()
   // Offer a write only where we know it is allowed. Each permission is the one its own route asks for.
   const mayWriteClaim = useMayWrite('insurance:create')
   // The claim's own fields are a PUT, and that route asks for the update verb rather than create.
@@ -497,10 +498,11 @@ export default function InsuranceClaimPage() {
       // confirms rather than refuses, and the claim's activity line records that it was above the ask. (T41) Asked only
       // where the ask is known: a seat the figures were withheld from would be comparing against $0.
       const asked = Number(decideSup.totalAmount ?? 0)
-      if (!decideSup.moneyWithheld && n > asked + 0.005 && !window.confirm(
-        `${decideSup.supplementNumber} asked the carrier for ${fmt$(asked)}, and you are recording ${fmt$(n)}.\n\n`
-        + 'That is allowed — carriers do allow more than was asked — and the claim history will say so. Record it?',
-      )) return
+      if (!decideSup.moneyWithheld && n > asked + 0.005 && !(await confirm(
+        `${decideSup.supplementNumber} asked the carrier for ${fmt$(asked)}, and you are recording ${fmt$(n)}. `
+        + 'That is allowed — carriers do allow more than was asked — and the claim history will say so.',
+        { title: 'Record more than was asked?', confirmText: 'Record it', danger: false },
+      ))) return
     } else if (!denialReason.trim()) {
       toast.error('A denial needs a reason — it is what the claim record shows later')
       return

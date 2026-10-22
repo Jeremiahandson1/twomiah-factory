@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react'
 import { formatDate } from '../date'
 import { FileText, Plus, Loader2 } from 'lucide-react'
 import { api } from '../../api'
-import { useAuth } from '../../shared'
+import { useAuth, usePrompt, useToast, errorText } from '../../shared'
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -17,6 +17,8 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function AiaFormsPage() {
+  const prompt = usePrompt()
+  const toast = useToast()
   // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
   const projectsOn = useAuth().hasFeature('projects')
   const [forms, setForms] = useState<any[]>([]);
@@ -62,7 +64,13 @@ export default function AiaFormsPage() {
     setShowCreate(false); load();
   };
 
-  const sign = async (id: string) => { const signedBy = prompt('Signed by:'); if (signedBy) { await api.post(`/api/aia-forms/${id}/sign`, { signedBy }); load(); } };
+  // Who signs, asked in the app's own dialog (the template's was the browser's).
+  const sign = async (id: string) => {
+    const signedBy = (await prompt('Name of the person signing:', { title: 'Sign this form', confirmText: 'Sign' }))?.trim()
+    if (!signedBy) return
+    try { await api.post(`/api/aia-forms/${id}/sign`, { signedBy }); } catch (e) { toast.error(errorText(e, 'The form could not be signed')); }
+    load();
+  };
 
   if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-200" /></div>;
 
