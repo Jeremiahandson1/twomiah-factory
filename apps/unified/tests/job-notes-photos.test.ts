@@ -129,7 +129,7 @@ const form = (field: string, extra: Record<string, string> = {}) => {
 
 describe('the routes the page calls', () => {
   let c: Awaited<ReturnType<typeof tenantWithJob>>
-  beforeAll(async () => { c = await tenantWithJob('contractor') })
+  beforeAll(async () => { c = await tenantWithJob('contractor') }, 60_000)
 
   test('notes: added, listed newest first with the author; a viewer reads and cannot add', async () => {
     expect((await c.owner(`/api/comments/job/${c.jobId}`, { method: 'POST', json: { content: 'First' } })).status).toBe(201)
@@ -160,5 +160,5 @@ describe('the routes the page calls', () => {
     expect(listed.map((p: any) => p.caption)).toEqual(['After'])
     expect((await l.owner(`/api/jobs/${l.jobId}/photos/${listed[0].id}`, { method: 'DELETE' })).status).toBeLessThan(300)
     expect(await (await l.owner(`/api/jobs/${l.jobId}/photos`)).json()).toEqual([])
-  })
+  }, 60_000)
 })

@@ -391,9 +391,15 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
       heldBy: 'tests/unified/crm/calltracking-fields.test.ts (the same file, reading .data)',
     },
     'quote-email.test.ts': {
-      assertions: [/^…and never what a line costs us/],
-      why: "Not a difference in behaviour: the check looks for the digits 210 (a line's cost) anywhere in the email's data, which also holds randomly made ids and links, so it fails whenever one of them happens to contain 210 (CI, 2026-10-19). The template's run has the same chance.",
-      heldBy: 'tests/unified/crm/quote-email.test.ts (the same check for the cost figures themselves, 210.00 and 30.00, and the unitCost field)',
+      assertions: [
+        /^…and never what a line costs us/,
+        // The approve link (2026-10-22 live test: a customer without a client portal got a quote they could not accept).
+        /^…and the customer's own portal page for this quote/, /^body: an approve button to the portal page/,
+        /^plain-text version carries the lines and the link too/, /^sent \(200\), and the screen is told they cannot approve online/,
+        /^they are told how to accept instead/, /^an expired portal link is not put in the email/, /^Client Portal switched off for the company: no link/,
+      ],
+      why: "The 210 check is not a difference in behaviour: it looks for the digits 210 (a line's cost) anywhere in the email's data, which also holds randomly made ids and links, so it fails whenever one of them happens to contain 210 (CI, 2026-10-19). The approve link IS a difference, on purpose (2026-10-22): every quote email carries the quote's own private link (/d/<token>, portal/documentLinks.ts) whether or not the customer has a client portal, so every customer can approve or decline — the template linked only a customer whose portal was on and in date, and told everyone else to reply or call. A template's schema has no public_token, so the templates keep their portal link.",
+      heldBy: 'tests/unified/crm/quote-email.test.ts (the cost figures themselves, 210.00 and 30.00, and the unitCost field); apps/unified/tests/document-links.test.ts (19: every trade\'s email carries the link with no portal, approve with signature and audit, decline, expiry, one document only, Quotes off closes it)',
     },
     'comments-gate.test.ts': {
       assertions: [/^…and is the owner's/],

@@ -18,6 +18,10 @@ beforeAll(async () => {
   html = await r.text()
 }, 60_000)
 
+// Send as a browser does: the submit event the form's script listens for. A click on the button fired it under one test
+// runner and not the CI's (2026-10-22); the behaviour under test is the script's answer to submit.
+const send = (win: any, form: any) => form.dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true }))
+
 function page() {
   const win: any = new Window({ url: 'https://site.example.com/contact', settings: { enableJavaScriptEvaluation: true, disableJavaScriptFileLoading: true, disableCSSFileLoading: true, disableIframePageLoading: true, suppressInsecureJavaScriptEnvironmentWarning: true } } as any)
   const posts: any[] = []
@@ -32,7 +36,7 @@ describe('the contact form, empty, sent', () => {
     const form = doc.querySelector('form.contact-form')
     expect(form).not.toBeNull()
     expect(form.noValidate).toBe(true)
-    form.querySelector('button[type="submit"]').click()
+    send(win, form)
     await new Promise((r) => setTimeout(r, 10))
     const msg = (id: string) => doc.getElementById(id)
     expect(msg('cf-name-err').hidden).toBe(false)
@@ -49,14 +53,14 @@ describe('the contact form, empty, sent', () => {
     const { win, doc, posts } = page()
     const set = (id: string, v: string) => { const el = doc.getElementById(id); el.value = v; el.dispatchEvent(new win.Event('input', { bubbles: true })) }
     set('cf-name', 'Pat Lee'); set('cf-email', 'pat@'); set('cf-message', 'Kitchen remodel next spring')
-    doc.querySelector('form.contact-form button[type="submit"]').click()
+    send(win, doc.querySelector('form.contact-form'))
     await new Promise((r) => setTimeout(r, 10))
     expect(doc.getElementById('cf-email-err').textContent).toContain('valid email')
     expect(doc.getElementById('cf-name-err').hidden).toBe(true)
     expect(posts).toHaveLength(0)
     set('cf-email', 'pat@example.com')
     expect(doc.getElementById('cf-email-err').hidden).toBe(true)
-    doc.querySelector('form.contact-form button[type="submit"]').click()
+    send(win, doc.querySelector('form.contact-form'))
     await new Promise((r) => setTimeout(r, 10))
     expect(posts).toHaveLength(1)
     expect(posts[0].url).toContain('/api/leads')
