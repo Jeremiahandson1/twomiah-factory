@@ -86,6 +86,9 @@ export type Template = (data: any, b: Brand, appUrl: string) => TemplateResult
 
 /** The core messages. A module adds its own with `register`. */
 export const coreTemplates: Record<string, Template> = {
+  // The link is the reset: its token is checked by /api/auth/reset-password. The shared sign-in also hands over a
+  // six-digit "code" that is never stored or asked for anywhere, so the email printed a number nobody could use
+  // (owner, 2026-10-22: "it gave me a code but didnt ask for the code anywhere") — it is left out.
   passwordReset: (data, b, appUrl) => ({
     subject: 'Reset Your Password',
     html: `
@@ -95,15 +98,14 @@ export const coreTemplates: Record<string, Template> = {
         <div class="content">
           <h2>Password Reset</h2>
           <p>Hi ${escHtml(data.firstName)},</p>
-          <p>Use this code to reset your password:</p>
-          <div class="highlight" style="text-align:center;font-size:24px;letter-spacing:4px;font-family:monospace;">${escHtml(data.resetCode)}</div>
+          <p>Click the button to choose a new password:</p>
           <p style="text-align:center;"><a href="${appUrl}/reset-password?token=${encodeURIComponent(String(data.resetToken ?? ''))}" class="button">Reset Password</a></p>
           <p>This link expires in 1 hour. If you didn't request this, ignore this email.</p>
         </div>
         <div class="footer">&copy; ${new Date().getFullYear()} ${escHtml(b.companyName)}</div>
       </div></body></html>
     `,
-    text: `Hi ${data.firstName}, your password reset code is: ${data.resetCode}\n\nOr visit: ${appUrl}/reset-password?token=${encodeURIComponent(String(data.resetToken ?? ''))}\n\nExpires in 1 hour.`,
+    text: `Hi ${data.firstName}, choose a new password here: ${appUrl}/reset-password?token=${encodeURIComponent(String(data.resetToken ?? ''))}\n\nThe link expires in 1 hour. If you didn't ask for this, ignore this email.`,
   }),
 
   // A new teammate chooses their own password from this link (shared company routes, Settings › Users).
