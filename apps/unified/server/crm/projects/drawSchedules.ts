@@ -2,7 +2,7 @@
 // the lender against it. Moved from templates/crm/backend/src/routes/drawSchedules.ts.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, count, desc } from 'drizzle-orm'
+import { eq, and, count, desc, inArray, ne, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { scheduleOfValues, drawRequest, project } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -14,10 +14,10 @@ const drawScheduleSchema = z.object({
   contractAmount: z.number().min(0).optional(),
   totalAmount: z.number().min(0).optional().default(0),
   retainagePercent: z.number().min(0).max(100).default(10),
-  name: z.string().optional(),
-  lenderName: z.string().optional(),
-  lenderContact: z.string().optional(),
-  notes: z.string().optional(),
+  name: z.string().trim().max(200).optional(),
+  lenderName: z.string().trim().max(200).optional(),
+  lenderContact: z.string().trim().max(200).optional(),
+  notes: z.string().max(4000).optional(),
 })
 
 const drawRequestSchema = z.object({
@@ -107,6 +107,11 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
         projectId: data.projectId,
         contractAmount: String(amount),
         retainagePercent: String(data.retainagePercent),
+        // The screen's own fields — they were asked for and dropped (no columns) until migration 0019.
+        name: data.name || null,
+        lenderName: data.lenderName || null,
+        lenderContact: data.lenderContact || null,
+        notes: data.notes || null,
         status: 'draft',
         companyId: currentUser.companyId,
       })
@@ -122,6 +127,7 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
     const updateData: Record<string, any> = { updatedAt: new Date() }
     if (data.contractAmount !== undefined) updateData.contractAmount = String(data.contractAmount)
     if (data.retainagePercent !== undefined) updateData.retainagePercent = String(data.retainagePercent)
+    for (const k of ['name', 'lenderName', 'lenderContact', 'notes'] as const) if (data[k] !== undefined) updateData[k] = data[k] || null
     if (data.projectId) updateData.projectId = data.projectId
 
     const [updated] = await db.update(scheduleOfValues).set(updateData).where(and(eq(scheduleOfValues.id, id), eq(scheduleOfValues.companyId, currentUser.companyId))).returning()
@@ -164,9 +170,19 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
 
     // The schedule, scoped to the caller's company: its id arrives in the BODY, so without this a caller could hang
     // a draw request off another company's schedule and copy its projectId across.
-    const [sov] = await db.select({ projectId: scheduleOfValues.projectId }).from(scheduleOfValues)
+    const [sov] = await db.select({ projectId: scheduleOfValues.projectId, contractAmount: scheduleOfValues.contractAmount, retainagePercent: scheduleOfValues.retainagePercent }).from(scheduleOfValues)
       .where(and(eq(scheduleOfValues.id, data.scheduleOfValuesId), eq(scheduleOfValues.companyId, currentUser.companyId))).limit(1)
     if (!sov) return fail(c, 404, 'Schedule of values not found')
+
+    // A draw can't take more than the loan has left: every draw not rejected counts against it.
+    const gross = Math.round((data.grossAmount || 0) * 100) / 100
+    const [{ drawn }] = await db.select({ drawn: sql<string>`coalesce(sum(${drawRequest.grossAmount}), 0)` }).from(drawRequest)
+      .where(and(eq(drawRequest.scheduleOfValuesId, data.scheduleOfValuesId), ne(drawRequest.status, 'rejected')))
+    const left = Math.round((Number(sov.contractAmount) - Number(drawn)) * 100) / 100
+    if (gross > left + 0.005) return fail(c, 400, `That is more than the loan has left to draw ($${left.toFixed(2)}).`, 'over_contract')
+    // The lender holds back the schedule's retainage from each draw; the net is what is paid now. Retainage was stored
+    // as $0 and the net as the whole gross, so every draw overstated what the lender pays.
+    const retainage = Math.round(gross * Number(sov.retainagePercent || 0)) / 100
 
     const [created] = await db
       .insert(drawRequest)
@@ -175,9 +191,9 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
         scheduleOfValuesId: data.scheduleOfValuesId,
         projectId: sov.projectId,
         drawNumber: Number(cnt) + 1,
-        grossAmount: data.grossAmount ? String(data.grossAmount) : '0',
-        retainageAmount: '0',
-        netAmount: data.grossAmount ? String(data.grossAmount) : '0',
+        grossAmount: gross.toFixed(2),
+        retainageAmount: retainage.toFixed(2),
+        netAmount: (gross - retainage).toFixed(2),
         status: 'draft',
         companyId: currentUser.companyId,
       })
@@ -186,60 +202,32 @@ export function createDrawScheduleRoutes(d: CrmDeps) {
     return one(c, created, 201)
   })
 
-  app.post('/requests/:id/submit', requirePermission('draw-schedules:update'), async (c) => {
-    const currentUser = c.get('user') as any
-    const id = c.req.param('id')
-    const [updated] = await db
-      .update(drawRequest)
-      .set({ status: 'submitted', submittedAt: new Date(), updatedAt: new Date() } as any)
-      .where(and(eq(drawRequest.id, id), eq(drawRequest.companyId, currentUser.companyId)))
-      .returning()
-    if (!updated) return fail(c, 404, 'Draw request not found')
-    return one(c, updated)
-  })
+  /**
+   * A draw moves draft → submitted → approved → paid, or submitted → rejected → submitted again — one step at a time.
+   * Each move names the statuses it may start from; any other is refused (409), so a draft can't be approved or paid
+   * before the lender has it, and a paid draw can't be approved again. Who approved or rejected it is recorded.
+   */
+  const move = (action: string, from: string[], set: (c: any, body: any) => Record<string, unknown>) =>
+    app.post(`/requests/:id/${action}`, requirePermission('draw-schedules:update'), async (c) => {
+      const currentUser = c.get('user') as any
+      const id = c.req.param('id')
+      const body = await c.req.json().catch(() => ({}))
+      const [updated] = await db
+        .update(drawRequest)
+        .set({ ...set(c, body), updatedAt: new Date() } as any)
+        .where(and(eq(drawRequest.id, id), eq(drawRequest.companyId, currentUser.companyId), inArray(drawRequest.status, from)))
+        .returning()
+      if (updated) return one(c, updated)
+      const [found] = await db.select({ status: drawRequest.status }).from(drawRequest)
+        .where(and(eq(drawRequest.id, id), eq(drawRequest.companyId, currentUser.companyId))).limit(1)
+      if (!found) return fail(c, 404, 'Draw request not found')
+      return fail(c, 409, `This draw is ${found.status}; it can't be ${action === 'mark-paid' ? 'marked paid' : action === 'submit' ? 'submitted' : action + 'd'} from there.`, 'wrong_status')
+    })
 
-  app.post('/requests/:id/approve', requirePermission('draw-schedules:update'), async (c) => {
-    const currentUser = c.get('user') as any
-    const id = c.req.param('id')
-    const body = await c.req.json().catch(() => ({}))
-    const [updated] = await db
-      .update(drawRequest)
-      .set({
-        status: 'approved',
-        approvedAt: new Date(),
-        approvalNotes: body.notes,
-        updatedAt: new Date(),
-      } as any)
-      .where(and(eq(drawRequest.id, id), eq(drawRequest.companyId, currentUser.companyId)))
-      .returning()
-    if (!updated) return fail(c, 404, 'Draw request not found')
-    return one(c, updated)
-  })
-
-  app.post('/requests/:id/mark-paid', requirePermission('draw-schedules:update'), async (c) => {
-    const currentUser = c.get('user') as any
-    const id = c.req.param('id')
-    const [updated] = await db
-      .update(drawRequest)
-      .set({ status: 'paid', updatedAt: new Date() } as any)
-      .where(and(eq(drawRequest.id, id), eq(drawRequest.companyId, currentUser.companyId)))
-      .returning()
-    if (!updated) return fail(c, 404, 'Draw request not found')
-    return one(c, updated)
-  })
-
-  app.post('/requests/:id/reject', requirePermission('draw-schedules:update'), async (c) => {
-    const currentUser = c.get('user') as any
-    const id = c.req.param('id')
-    const body = await c.req.json().catch(() => ({}))
-    const [updated] = await db
-      .update(drawRequest)
-      .set({ status: 'rejected', rejectionReason: body.notes, rejectedAt: new Date(), updatedAt: new Date() } as any)
-      .where(and(eq(drawRequest.id, id), eq(drawRequest.companyId, currentUser.companyId)))
-      .returning()
-    if (!updated) return fail(c, 404, 'Draw request not found')
-    return one(c, updated)
-  })
+  move('submit', ['draft', 'rejected'], () => ({ status: 'submitted', submittedAt: new Date() }))
+  move('approve', ['submitted'], (c, body) => ({ status: 'approved', approvedAt: new Date(), approvedById: (c.get('user') as any).userId, approvalNotes: typeof body.notes === 'string' ? body.notes.slice(0, 4000) : null }))
+  move('mark-paid', ['approved'], () => ({ status: 'paid' }))
+  move('reject', ['submitted'], (c, body) => ({ status: 'rejected', rejectedAt: new Date(), rejectedById: (c.get('user') as any).userId, rejectionReason: typeof body.notes === 'string' ? body.notes.slice(0, 4000) : null }))
 
   // A draw request is deletable: its schedule has no cascade, so one undeletable request would pin the schedule
   // and, through projectId, the project.

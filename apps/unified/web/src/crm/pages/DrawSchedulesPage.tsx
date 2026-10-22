@@ -9,6 +9,7 @@ import { api } from '../../api'
 import { useAuth, usePrompt, useToast, errorText } from '../../shared'
 
 const STATUS_COLORS: Record<string, string> = {
+  draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   active: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40',
   completed: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
   cancelled: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40',
@@ -32,7 +33,7 @@ export default function DrawSchedulesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showDraw, setShowDraw] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
-  const [form, setForm] = useState({ projectId: '', name: '', totalAmount: '', lenderName: '', lenderContact: '', notes: '' });
+  const [form, setForm] = useState({ projectId: '', name: '', totalAmount: '', retainagePercent: '10', lenderName: '', lenderContact: '', notes: '' });
   const [drawForm, setDrawForm] = useState({ amountRequested: '' });
 
   useEffect(() => { load(); }, []);
@@ -46,8 +47,10 @@ export default function DrawSchedulesPage() {
 
   const createSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
-    await api.post('/api/draw-schedules', { ...form, totalAmount: Number(form.totalAmount) });
-    setShowCreate(false); setForm({ projectId: '', name: '', totalAmount: '', lenderName: '', lenderContact: '', notes: '' });
+    try {
+      await api.post('/api/draw-schedules', { ...form, totalAmount: Number(form.totalAmount), retainagePercent: Number(form.retainagePercent || 0) });
+    } catch (err) { toast.error(errorText(err, 'The schedule could not be created')); return; }
+    setShowCreate(false); setForm({ projectId: '', name: '', totalAmount: '', retainagePercent: '10', lenderName: '', lenderContact: '', notes: '' });
     load();
   };
 
@@ -55,7 +58,9 @@ export default function DrawSchedulesPage() {
     e.preventDefault();
     // The API takes the schedule and the gross amount. The template sent drawScheduleId and amountRequested, which it
     // refused, so no draw request could be made from this screen.
-    await api.post('/api/draw-schedules/requests', { scheduleOfValuesId: selected.id, grossAmount: Number(drawForm.amountRequested) });
+    try {
+      await api.post('/api/draw-schedules/requests', { scheduleOfValuesId: selected.id, grossAmount: Number(drawForm.amountRequested) });
+    } catch (err) { toast.error(errorText(err, 'The draw could not be created')); return; }
     setShowDraw(false); setDrawForm({ amountRequested: '' });
     loadDetail(selected.id);
   };
@@ -157,6 +162,9 @@ export default function DrawSchedulesPage() {
               <select required value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} className="w-full border rounded-lg px-3 py-2"><option value="">Select project...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
               <input required placeholder="Schedule name (e.g., Main construction loan)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               <input required type="number" step="0.01" placeholder="Total loan amount" value={form.totalAmount} onChange={(e) => setForm({ ...form, totalAmount: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              <label className="block text-sm text-gray-600 dark:text-slate-300">Retainage held back from each draw (%)
+                <input required type="number" min="0" max="100" step="0.01" value={form.retainagePercent} onChange={(e) => setForm({ ...form, retainagePercent: e.target.value })} className="mt-1 w-full border rounded-lg px-3 py-2" />
+              </label>
               <input placeholder="Lender name" value={form.lenderName} onChange={(e) => setForm({ ...form, lenderName: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               <input placeholder="Lender contact (email/phone)" value={form.lenderContact} onChange={(e) => setForm({ ...form, lenderContact: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full border rounded-lg px-3 py-2" />

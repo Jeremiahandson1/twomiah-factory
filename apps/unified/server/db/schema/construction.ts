@@ -536,6 +536,12 @@ export const scheduleOfValues = pgTable('schedule_of_values', {
 
   projectId: text('project_id').notNull().unique().references(() => project.id),
 
+  // What the owner names it and who lends against it (migration 0019 — the screen asked for these and they were dropped).
+  name: text('name'),
+  lenderName: text('lender_name'),
+  lenderContact: text('lender_contact'),
+  notes: text('notes'),
+
   contractAmount: decimal('contract_amount', { precision: 12, scale: 2 }).notNull(),
   retainagePercent: decimal('retainage_percent', { precision: 5, scale: 2 }).default('10').notNull(),
   status: text('status').default('draft').notNull(),

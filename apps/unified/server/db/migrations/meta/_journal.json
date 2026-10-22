@@ -134,6 +134,13 @@
       "when": 1792670170390,
       "tag": "0018_calendar_refused",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792690971043,
+      "tag": "0019_draw_schedule_details",
+      "breakpoints": true
     }
   ]
 }
