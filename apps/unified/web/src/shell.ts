@@ -6,9 +6,10 @@ import {
   FolderOpen, Globe, Home, Hourglass, Image, Inbox, ListTodo, Mail, MapPin, Megaphone, MessageSquare, Newspaper, Receipt, Repeat, ScrollText,
   Settings2, ShieldCheck, SlidersHorizontal, Smartphone, Star, Target, Truck, Users, Warehouse, Wrench, FolderKanban, FileQuestion,
   ClipboardList, BookOpen, ClipboardCheck, ShoppingCart, Wallet, Phone, Bot, Scissors, LifeBuoy, Radio, FileSignature, Box,
-  BookMarked,
+  BookMarked, LocateFixed, Paintbrush,
 } from 'lucide-react'
 import type { NavItem, ShellConfig } from './shared'
+import { verticalScreens } from './crm/vertical'
 import { nav as basicNav } from './crm/verticals/basic'
 import { nav as landscapingNav } from './crm/verticals/landscaping'
 import { nav as barNav, routeGates as barRouteGates, routePermissions as barRoutePermissions } from './crm/verticals/bar'
@@ -37,6 +38,9 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/locations', icon: MapPin, label: 'Locations', features: ['multi_location'], permission: 'locations:read' },
   { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['commission_tracking'], permission: 'commissions:read' },
   { to: '/crm/fleet', icon: Truck, label: 'Fleet', features: ['fleet'] },
+  // GPS Tracking's page: where the crew is (from the phone app) and the job-site geofences. It had no menu item, so a
+  // business sold GPS Tracking found no page for it (live test 2026-10-22). GET /api/geofencing asks only a session.
+  { to: '/crm/geofences', icon: LocateFixed, label: 'GPS & Geofences', features: ['gps_tracking'] },
   { to: '/crm/inventory', icon: Warehouse, label: 'Inventory', features: ['inventory'] },
   { to: '/crm/equipment', icon: Wrench, label: 'Equipment', features: ['equipment_tracking'] },
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'] },
@@ -51,8 +55,11 @@ const SHARED_NAV: NavItem[] = [
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'], minRole: 'admin' },
   { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'], permission: 'calltracking:read' },
   { to: '/crm/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: ['ai_receptionist'], permission: 'ai-receptionist:read' },
-  { to: '/crm/recurring', icon: Repeat, label: 'Recurring', features: ['recurring_jobs'], permission: 'invoices:read' },
+  // Invoices on a schedule (the registry names recurring_jobs Recurring Invoices: it never made jobs).
+  { to: '/crm/recurring', icon: Repeat, label: 'Recurring Invoices', features: ['recurring_jobs'], permission: 'invoices:read' },
   { to: '/crm/takeoffs', icon: Scissors, label: 'Takeoffs', features: ['takeoff_tools'], permission: 'takeoffs:read' },
+  // The paid Exterior Visualizer add-on (contractor, roofing): its page was reachable by address only.
+  { to: '/crm/visualizer', icon: Paintbrush, label: 'Exterior Visualizer', features: ['visualizer'] },
   // A construction business's with projects; a clinic's always (patient_records: templates/crm-vet's menu had Tasks
   // ungated). The same union as /api/tasks.
   { to: '/crm/tasks', icon: ListTodo, label: 'Tasks', features: ['projects', 'patient_records'] },
@@ -137,8 +144,6 @@ export const SHELL: ShellConfig = {
   // Not '/crm/pricebook-trial': ['pricebook'] (the base CRM's): the page offers Pricebook to a business WITHOUT it, so
   // gating it on pricebook refused everyone it was for. The field-service copy had fixed it (Field Service T28 H2).
   routeGates: {
-    // No menu item: reachable by URL only, so the gate is here (/api/geofencing is gps_tracking on the server).
-    '/crm/geofences': ['gps_tracking'],
     // The bar register's other screens (grill, floor, close-out, count, clock), opened from it.
     ...barRouteGates,
   },
@@ -166,3 +171,32 @@ export const SETTINGS_SUB_PAGES = [
   '/crm/settings/features', '/crm/settings/billing', '/crm/settings/email', '/crm/settings/email-domain', '/crm/settings/email-inbox',
   '/crm/settings/integrations', '/crm/settings/migration', '/crm/settings/import',
 ].filter((to) => !(isHomecare && SETTINGS_HIDDEN.includes(to)))
+
+/**
+ * The shell, in this vertical's words: a menu item's label renamed where the vertical says (VerticalSettings.screens.nav,
+ * keyed by the page's address — 'Service Calls' for /crm/jobs in field service), a menu heading renamed the same way
+ * (screens.navSections, keyed by the heading: landscaping's 'Operations' for field service's 'Field Service'), and its
+ * search box prompt. A vertical can also leave a shared item out (screens.navHidden, by address: RV has no use for field
+ * service's Parts Inventory page) and widen the features that show one (screens.navFeatures, by address: RV's Parts &
+ * Inventory is the shared Inventory page on parts_tracking, as its server mount is), so its menu stays its own.
+ */
+const verticalShell = (): ShellConfig => {
+  const sc = verticalScreens() as unknown as { nav?: Record<string, string>; navSections?: Record<string, string>; searchPlaceholder?: string; navHidden?: string[]; navFeatures?: Record<string, string[]> }
+  const names = sc.nav || {}
+  const sections = sc.navSections || {}
+  const hidden = new Set(Array.isArray(sc.navHidden) ? sc.navHidden : [])
+  const widened = sc.navFeatures || {}
+  return {
+    ...SHELL,
+    nav: SHELL.nav.filter((item) => !hidden.has(item.to)).map((item) => {
+      const gated = widened[item.to] ? { ...item, features: widened[item.to] } : item
+      const renamed = names[item.to] ? { ...gated, label: names[item.to] } : gated
+      return item.section && sections[item.section] ? { ...renamed, section: sections[item.section] } : renamed
+    }),
+    ...(sc.searchPlaceholder ? { searchPlaceholder: sc.searchPlaceholder } : {}),
+    // A page left out of the menu is not this CRM's: typed in, it says so (another vertical's page on a shared feature).
+    routeAbsent: [...(SHELL.routeAbsent || []), ...hidden],
+  }
+}
+/** The menu this page shows (scripts/check-unified-feature-has-screen.ts reads it per vertical). */
+export const SHELL_HERE = verticalShell()

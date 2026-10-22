@@ -112,6 +112,7 @@ interface AgreementRowProps {
   agreement: Agreement;
   onView: () => void;
   onRenew: () => void;
+  onCancel: () => void;
 }
 
 interface PlansTabProps {
@@ -389,6 +390,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
                       // Opened the selection and never the modal, so the chevron did nothing. (T69)
                       onView={() => { setSelectedAgreement(agreement); setShowAgreementForm(true); }}
                       onRenew={() => handleRenew(agreement.id)}
+                      onCancel={() => handleCancel(agreement.id)}
                     />
                   ))}
                 </tbody>
@@ -445,6 +447,18 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
       loadData();
     } catch (error) {
       alert('Failed to renew agreement');
+    }
+  }
+
+  // An agreement could be made, renewed and edited, and never ended: the server's POST /:id/cancel (agreements:update)
+  // had no button (landscaping live test, 2026-10-22). Cancelling stops its billing and its linked card subscription.
+  async function handleCancel(agreementId: string) {
+    if (!(await confirm('The customer is no longer billed for it and no more visits are planned from it.', { title: 'Cancel this agreement?', confirmText: 'Cancel agreement' }))) return;
+    try {
+      await api.post(`/api/agreements/${agreementId}/cancel`, {});
+      loadData();
+    } catch (error) {
+      alert(error instanceof Error && error.message ? error.message : 'Failed to cancel agreement');
     }
   }
 }
@@ -541,7 +555,7 @@ function visitsDetail(a: Agreement): string {
   return `This term: ${parts.join(', ')}`;
 }
 
-function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowProps & { onChanged?: () => void }) {
+function AgreementRow({ agreement, onView, onRenew, onCancel, onChanged }: AgreementRowProps & { onChanged?: () => void }) {
   const { api } = useAgreements();
   // POST /:id/renew asks agreements:update, and so does the autopay toggle below (PUT /:id/autopay).
   const mayUpdate = useMayWrite('agreements:update');
@@ -609,6 +623,16 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
               title="Renew"
             >
               <RefreshCw className="w-4 h-4" />
+            </button>
+          )}
+          {(agreement.status === 'active' || agreement.status === 'pending') && mayUpdate && (
+            <button
+              onClick={onCancel}
+              aria-label="Cancel agreement"
+              className="p-1.5 text-red-600 hover:bg-red-50 rounded dark:text-red-400 dark:hover:bg-red-950/40"
+              title="Cancel agreement"
+            >
+              <XCircle className="w-4 h-4" />
             </button>
           )}
           <button aria-label="Open"

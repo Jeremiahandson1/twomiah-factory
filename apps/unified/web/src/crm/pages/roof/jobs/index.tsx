@@ -32,7 +32,8 @@ export const routes: ReactElement[] = [
 export const nav: NavItem[] = [
   { to: '/crm/pipeline', icon: LayoutDashboard, label: 'Pipeline', features: ['jobs'], permission: 'jobs:read' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Jobs', features: ['jobs'], permission: 'jobs:read' },
-  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['jobs'], permission: 'jobs:read' },
+  // Reports is its own switch (the registry offers roofing `reports`); the page reads the jobs, hence jobs:read.
+  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'jobs:read' },
 ]
 
 /**

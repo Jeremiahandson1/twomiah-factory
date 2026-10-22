@@ -35,7 +35,8 @@ export const routes: ReactElement[] = [
 
 /** Menu items, each gated by the feature the template's menu used. */
 export const nav: NavItem[] = [
-  { to: '/crm/crews', icon: HardHat, label: 'Crews' },
+  // Crews is a switch roofing is sold (the registry's `crews`); the item was ungated, so switching it off did nothing.
+  { to: '/crm/crews', icon: HardHat, label: 'Crews', features: ['crews'] },
   { to: '/crm/materials', icon: Package, label: 'Materials', features: ['materials'] },
   { to: '/crm/canvassing', icon: MapPin, label: 'Canvassing', features: ['canvassing_tool'] },
   { to: '/crm/storm-leads', icon: Zap, label: 'Storm Leads', features: ['storm_lead_gen'] },
