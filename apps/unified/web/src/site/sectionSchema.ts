@@ -139,7 +139,9 @@ export const SECTION_DEFS: SectionDef[] = [
       phone: '',
       email: '',
       address: '',
-      hours: ['Monday – Friday: 8am – 5pm'],
+      // Empty: the section prints the business hours saved in Settings › Company (form-info.ejs). A typed default here
+      // printed "Monday – Friday: 8am – 5pm" over the owner's own hours (2026-10-22).
+      hours: [],
       responsePromise: 'We reply to project inquiries within one business day.',
     },
   },
