@@ -1,11 +1,12 @@
 // Reports & Analytics — one page for every CRM. The period picker drives every number on the page;
 // balances (outstanding / overdue) are point-in-time and say so.
 import React, { useEffect, useState } from 'react'
-import { AlertCircle, Briefcase, Calendar, CheckCircle, DollarSign, FileText, Loader2, Users } from 'lucide-react'
+import { AlertCircle, Briefcase, Calendar, CheckCircle, DollarSign, Download, FileText, Loader2, Users } from 'lucide-react'
 import { StatusBadge, instantDay, inputCls, money, selectCls } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { ReportsPageProps } from './types'
 import { resolveReportingConfig } from './types'
+import { downloadCsv, csvName, type CsvCell } from './csv'
 
 interface Summary {
   period: string
@@ -29,9 +30,39 @@ interface DealerReport {
 
 const RANGES: Array<[string, string]> = [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days'], ['365', 'Last year']]
 const card = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6'
-const h3 = 'font-semibold text-gray-900 dark:text-slate-100 mb-4'
 const muted = 'text-gray-500 dark:text-slate-400'
 const compact = (n: number) => (Math.abs(n) >= 1000 ? `$${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : money(n))
+/** Money in a CSV: a plain number a spreadsheet can add up, not "$1,234.00". */
+const amount = (n: unknown) => (Number(n) || 0).toFixed(2)
+type CsvTable = { head: string[]; rows: CsvCell[][] }
+/** A status bar's counts as a table: one row per status. */
+const countsTable = (segments: Array<[string, string, string]>, counts: Record<string, number>): CsvTable => ({ head: ['Status', 'Count'], rows: segments.map(([k, label]) => [label, Number(counts[k]) || 0]) })
+const EVENT_STAGES: Array<[string, string, string]> = [['enquiry', 'Enquiry', 'bg-blue-500'], ['tentative', 'Tentative', 'bg-yellow-500'], ['confirmed', 'Confirmed', 'bg-green-500'], ['completed', 'Completed', 'bg-teal-500'], ['lost', 'Lost', 'bg-gray-400'], ['cancelled', 'Cancelled', 'bg-gray-300']]
+const SALES_STAGES: Array<[string, string, string]> = [['new', 'New', 'bg-blue-500'], ['contacted', 'Contacted', 'bg-indigo-500'], ['demo', 'Demo', 'bg-purple-500'], ['desking', 'Desking', 'bg-yellow-500']]
+
+/**
+ * A report card's heading with its CSV export (csv.ts: one helper for every table on the page). Live test 2026-10-22:
+ * the contractor's Reports page had no export; home care's had CSV and PDF. `table` may fetch (the full customer list).
+ */
+function CardHead({ title, period, table }: { title: string; period: string; table?: () => CsvTable | Promise<CsvTable> }) {
+  const [busy, setBusy] = useState(false)
+  const go = async () => {
+    if (!table) return
+    setBusy(true)
+    try { const t = await table(); downloadCsv(csvName(title, period), t.head, t.rows) } finally { setBusy(false) }
+  }
+  return (
+    <div className="flex items-start justify-between gap-3 mb-4">
+      <h3 className="font-semibold text-gray-900 dark:text-slate-100">{title}</h3>
+      {table && (
+        <button type="button" onClick={go} disabled={busy} aria-label={`Download ${title} as CSV`}
+          className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
+          <Download className="w-3.5 h-3.5" />{busy ? '…' : 'CSV'}
+        </button>
+      )}
+    </div>
+  )
+}
 
 export function ReportsPage({ api, config }: ReportsPageProps) {
   const cfg = resolveReportingConfig(config)
@@ -77,6 +108,25 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
   }, [api, range, cfg.team, cfg.eventsPipeline, cfg.dealership, showBranches])
 
   const rangeLabel = RANGES.find(r => r[0] === range)?.[1] || `Last ${range} days`
+  /** The same period the page asked for, for an export that fetches its own rows. */
+  const periodQuery = () => {
+    const days = parseInt(range) || 30
+    return { startDate: new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10), endDate: new Date().toISOString().slice(0, 10) }
+  }
+  /** The headline figures, one row each. */
+  const summaryCsv = () => {
+    if (!data) return
+    const r: Partial<Summary['revenue']> = data.revenue || {}, j: Partial<Summary['jobs']> = data.jobs || {}, q: Partial<Summary['quotes']> = data.quotes || {}, p: Partial<Summary['projects']> = data.projects || {}
+    const showJobs = cfg.jobs && !cfg.eventsPipeline && !cfg.dealership
+    const rows: CsvCell[][] = [
+      ['Revenue collected', amount(r.collected)], ['Invoiced', amount(r.invoiced)], ['Refunded', amount(r.refunded)],
+      ['Outstanding now', amount(r.outstanding)], ['Overdue now', amount(r.overdue)], ['Overdue invoices', r.overdueCount ?? 0], ['Collection rate %', r.collectionRate ?? 0],
+      ...(showJobs ? [[`${cfg.jobsLabel} in period`, j.total ?? 0], [`${cfg.jobsLabel} completed`, j.completed ?? 0], ['Completion rate %', j.completionRate ?? 0]] : []),
+      ...(cfg.quotes ? [['Quotes', q.total ?? 0], ['Quotes approved', q.approved ?? 0], ['Quote conversion %', q.conversionRate ?? 0]] : []),
+      ...(showProjects ? [['Projects', p.total ?? 0], ['Active projects', p.active ?? 0], ['Completed projects', p.completed ?? 0], ['Project value', amount(p.totalValue)]] : []),
+    ]
+    downloadCsv(csvName('Report summary', rangeLabel), ['Measure', rangeLabel], rows)
+  }
 
   return (
     <div className="space-y-6">
@@ -85,9 +135,17 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports & Analytics</h1>
           <p className={muted}>{rangeLabel}</p>
         </div>
-        <select value={range} onChange={e => setRange(e.target.value)} className={selectCls} aria-label="Period">
-          {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-        </select>
+        <div className="flex items-center gap-2">
+          {!loading && data && (
+            <button type="button" onClick={summaryCsv} aria-label="Download the summary as CSV"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
+              <Download className="w-4 h-4" />Summary CSV
+            </button>
+          )}
+          <select value={range} onChange={e => setRange(e.target.value)} className={selectCls} aria-label="Period">
+            {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </div>
       </div>
 
       {loading && <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>}
@@ -136,15 +194,15 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
               {/* The trend is by calendar month, so it plots a wider window than the period selector: "Last 30 days"
                   draws three months, two of them necessarily empty. Say which window, so the two blank bars on the
                   left read as history rather than as a chart that lost its data. (Salon T25 L6) */}
-              <div className={card}><h3 className={h3}>Revenue trend{monthly.length > 1 ? ` · last ${monthly.length} months` : ''}</h3><RevenueChart data={monthly} /></div>
-              {cfg.eventsPipeline && <div className={card}><h3 className={h3}>Events pipeline</h3><PipelineBar segments={[['enquiry', 'Enquiry', 'bg-blue-500'], ['tentative', 'Tentative', 'bg-yellow-500'], ['confirmed', 'Confirmed', 'bg-green-500'], ['completed', 'Completed', 'bg-teal-500'], ['lost', 'Lost', 'bg-gray-400'], ['cancelled', 'Cancelled', 'bg-gray-300']]} counts={events?.pipeline || {}} /></div>}
-              {cfg.dealership && <div className={card}><h3 className={h3}>Sales pipeline (open leads)</h3><PipelineBar segments={[['new', 'New', 'bg-blue-500'], ['contacted', 'Contacted', 'bg-indigo-500'], ['demo', 'Demo', 'bg-purple-500'], ['desking', 'Desking', 'bg-yellow-500']]} counts={dealer?.pipeline || {}} /></div>}
-              {showJobs && (() => { const bar = jobStatusBar(jobs); return <div className={card}><h3 className={h3}>{cfg.jobsLabel.replace(/s$/, '')} status</h3><PipelineBar segments={bar.segments} counts={bar.counts} /></div> })()}
+              <div className={card}><CardHead title={`Revenue trend${monthly.length > 1 ? ` · last ${monthly.length} months` : ''}`} period="" table={monthly.length ? () => ({ head: ['Month', 'Invoiced', 'Collected'], rows: monthly.map((m) => [m.month, amount(m.invoiced), amount(m.collected)]) }) : undefined} /><RevenueChart data={monthly} /></div>
+              {cfg.eventsPipeline && <div className={card}><CardHead title="Events pipeline" period={rangeLabel} table={() => countsTable(EVENT_STAGES, events?.pipeline || {})} /><PipelineBar segments={EVENT_STAGES} counts={events?.pipeline || {}} /></div>}
+              {cfg.dealership && <div className={card}><CardHead title="Sales pipeline (open leads)" period={rangeLabel} table={() => countsTable(SALES_STAGES, dealer?.pipeline || {})} /><PipelineBar segments={SALES_STAGES} counts={dealer?.pipeline || {}} /></div>}
+              {showJobs && (() => { const bar = jobStatusBar(jobs); return <div className={card}><CardHead title={`${cfg.jobsLabel.replace(/s$/, '')} status`} period={rangeLabel} table={() => countsTable(bar.segments, bar.counts)} /><PipelineBar segments={bar.segments} counts={bar.counts} /></div> })()}
             </div>
 
             {showBranches && (
               <div className={card}>
-                <h3 className={h3}>Revenue by branch</h3>
+                <CardHead title="Revenue by branch" period={rangeLabel} table={branchRows.length ? () => ({ head: ['Branch', 'Invoices', 'Invoiced', 'Collected'], rows: branchRows.map((b) => [b.location ? b.location.name : 'No branch', b.invoiceCount, amount(b.invoiced), amount(b.collected)]) }) : undefined} />
                 <p className={`text-xs ${muted} -mt-3 mb-3`}>Each invoice counts at the branch of the job it bills. Collected is net of refunds.</p>
                 {branchRows.length === 0 ? <p className={`text-sm ${muted}`}>No invoices in this period.</p> : (
                   <div className="overflow-x-auto">
@@ -168,7 +226,12 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
 
             <div className={`grid grid-cols-1 ${cfg.team ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
               <div className={card}>
-                <h3 className={h3}>Top customers</h3>
+                {/* The card shows the top five; the export is every customer who paid in the period. */}
+                <CardHead title="Top customers" period={rangeLabel} table={customers.length ? async () => {
+                  const all = await api.get('/api/reports/revenue/customers', { limit: 1000, ...periodQuery() })
+                  const rows: CustomerRow[] = Array.isArray(all) ? all : customers
+                  return { head: ['Customer', 'Company', 'Invoices', 'Invoiced', 'Paid (net of refunds)'], rows: rows.map((c) => [c.contact?.name || 'Unknown', c.contact?.company || '', c.invoiceCount, c.invoiced !== undefined ? amount(c.invoiced) : '', amount(c.collected ?? c.total)]) }
+                } : undefined} />
                 <p className={`text-xs ${muted} -mt-3 mb-3`}>By amount paid in this period, net of refunds.</p>
                 <div className="space-y-3">
                   {customers.length === 0 ? <p className={`text-sm ${muted}`}>No paid invoices in this period.</p> : customers.map((c, i) => (
@@ -198,7 +261,10 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
 
               {cfg.team && (
                 <div className={card}>
-                  <h3 className={h3}>Team productivity</h3>
+                  <CardHead title="Team productivity" period={rangeLabel} table={team.length ? () => ({
+                    head: ['Team member', team.some((m) => m.servicesCompleted !== undefined) ? 'Services' : `${cfg.jobsLabel} completed`, team.some((m) => m.revenue !== undefined) ? 'Takings' : 'Hours worked'],
+                    rows: team.map((m) => [[m.user?.firstName, m.user?.lastName].filter(Boolean).join(' ') || 'Team member', m.servicesCompleted ?? m.jobsCompleted ?? 0, m.revenue !== undefined ? amount(m.revenue) : (m.hoursWorked ?? 0)]),
+                  }) : undefined} />
                   <div className="space-y-3">
                     {team.length === 0 ? <p className={`text-sm ${muted}`}>Nothing recorded in this period.</p> : team.slice(0, 5).map((m, i) => (
                       <div key={i} className="flex items-center justify-between">
@@ -221,7 +287,11 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
               )}
 
               <div className={card}>
-                <h3 className={h3}>Recent activity</h3>
+                <CardHead title="Recent activity" period={rangeLabel} table={(data.recentActivity || []).length ? () => ({
+                  head: ['Date', 'Type', 'Number', 'Title', 'Status', 'Total'],
+                  rows: (data.recentActivity || []).filter(a => cfg.jobs || a.type !== 'job').filter(a => cfg.quotes || a.type !== 'quote')
+                    .map((a) => [instantDay(a.createdAt), a.type, a.number || '', a.title || '', a.status || '', a.total !== undefined && a.type !== 'job' ? amount(a.total) : '']),
+                }) : undefined} />
                 <div className="space-y-3">
                   {(data.recentActivity || []).length === 0 && <p className={`text-sm ${muted}`}>Nothing yet.</p>}
                   {(data.recentActivity || []).filter(a => cfg.jobs || a.type !== 'job').filter(a => cfg.quotes || a.type !== 'quote').map((a, i) => (
@@ -242,7 +312,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
 
             {showProjects && (
               <div className={card}>
-                <h3 className={h3}>Project summary</h3>
+                <CardHead title="Project summary" period={rangeLabel} table={() => ({ head: ['Measure', 'Value'], rows: [['Total projects', projects.total], ['Active', projects.active], ['Completed', projects.completed], ['Total value', amount(projects.totalValue)]] })} />
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {([['Total projects', projects.total, ''], ['Active', projects.active, 'text-green-700 dark:text-green-300'], ['Completed', projects.completed, 'text-blue-600 dark:text-blue-300'], ['Total value', compact(projects.totalValue), 'text-orange-600 dark:text-orange-200']] as Array<[string, string | number, string]>).map(([label, value, cls]) => (
                     <div key={label} className="text-center p-4 rounded-lg bg-gray-50 dark:bg-slate-800/60">
