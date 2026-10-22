@@ -8,8 +8,8 @@
 import { Hono } from 'hono'
 import { asc } from 'drizzle-orm'
 import { z } from 'zod'
-import { withoutNotReady } from '@twomiah/tenant-backend'
-import { company, user, supportKnowledgeBase, pricebookCategory, website, page, canvassingScript } from '../db/schema/index.ts'
+import { withoutNotReady, isValidTz } from '@twomiah/tenant-backend'
+import { company, user, supportKnowledgeBase, pricebookCategory, website, page, canvassingScript, bookingSettings, bookingHours, bookingService } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
 import { BASE_STARTER, starterArticleRows, starterCategories } from '../core/starter.ts'
 import { SITE_DESIGNS } from '../core/vertical.ts'
@@ -49,6 +49,8 @@ export const provisionSchema = z.object({
   features: z.array(z.string().regex(/^[a-z0-9_]+$/).max(80)).max(500),
   /** The Factory's industry name ("Roofing", "General Contractor"…): picks the price book's starting categories. */
   industry: optional(120),
+  /** The signup's "We take bookings": the business starts with something a customer can book (startingBookings). */
+  takesBookings: z.boolean().optional(),
   site: z.object({
     tagline: optional(300),
     seoTitle: optional(300),
@@ -90,6 +92,18 @@ export async function writeStartingSite(tx: any, companyId: string, site: Starti
   })
   if (pages.length) await tx.insert(page).values(pages.map((p) => ({ ...p, companyId })))
   return pages.length
+}
+
+/**
+ * A business that said "We take bookings" at signup starts bookable: the booking settings on its own clock, weekday
+ * hours 9–5 for anyone, and one 30-minute Consultation. Live test 2026-10-22: the answer never reached the app, so a new
+ * business had no service and every day closed, and its /book page said "Bookings opening soon" until the owner found
+ * three settings screens. The owner changes all of it in booking settings.
+ */
+export async function startingBookings(tx: any, companyId: string, timezone: string | null) {
+  await tx.insert(bookingSettings).values({ companyId, ...(timezone && isValidTz(timezone) ? { timezone } : {}) }).onConflictDoNothing()
+  await tx.insert(bookingHours).values([1, 2, 3, 4, 5].map((dayOfWeek) => ({ companyId, userId: null, dayOfWeek, startMinute: 9 * 60, endMinute: 17 * 60 })))
+  await tx.insert(bookingService).values({ companyId, slug: 'consultation', name: 'Consultation', durationMinutes: 30, slotStepMinutes: 30 }).onConflictDoNothing()
 }
 
 export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings; forgetFeatures: () => void }) {
@@ -138,6 +152,7 @@ export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings
       }
 
       if (input.site) await writeStartingSite(tx, created.id, input.site)
+      if (input.takesBookings) await startingBookings(tx, created.id, co.timezone)
       return { created: { companyId: created.id, ownerId: owner.id } }
     })
 

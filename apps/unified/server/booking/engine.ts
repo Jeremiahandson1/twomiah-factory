@@ -15,7 +15,7 @@
 import crypto from 'node:crypto'
 import { and, asc, desc, eq, gt, inArray, lt, ne, or, count, notInArray, isNull, notExists } from 'drizzle-orm'
 import { addDays, isIsoDate, isRealDate, isValidTz, minutesToHm, safeTz, tzParts, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
-import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user, job } from '../db/schema/index.ts'
+import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user, job, company } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
 import { lockBookingDay } from '../data/bookingLock.ts'
 import { recordConsent } from '../site/smsConsent.ts'
@@ -158,7 +158,10 @@ export function createBookingEngine(deps: EngineDeps) {
   async function settingsOf(companyId: string, exec: any = db): Promise<SettingsRow> {
     const [row] = await exec.select().from(bookingSettings).where(eq(bookingSettings.companyId, companyId)).limit(1)
     if (row) return row
-    const [made] = await exec.insert(bookingSettings).values({ companyId }).onConflictDoNothing().returning()
+    // First read: the business's own clock (company.timezone), not the column's Chicago default — a New York business
+    // that switched bookings on later was otherwise offered times an hour off (2026-10-22, beside the provisioning fix).
+    const [co] = await exec.select({ timezone: company.timezone }).from(company).where(eq(company.id, companyId)).limit(1)
+    const [made] = await exec.insert(bookingSettings).values({ companyId, ...(co?.timezone && isValidTz(co.timezone) ? { timezone: co.timezone } : {}) }).onConflictDoNothing().returning()
     if (made) return made
     const [again] = await exec.select().from(bookingSettings).where(eq(bookingSettings.companyId, companyId)).limit(1)
     return again

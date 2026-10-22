@@ -19,6 +19,9 @@ export function BookingsPage() {
   const [query, setQuery] = useState('')
   const [serviceId, setServiceId] = useState('all')
   const [creating, setCreating] = useState(false)
+  // Opening hours, for "can a customer book yet?" below: a business with a service and no hours is closed every day.
+  const [hoursCount, setHoursCount] = useState<number | null>(null)
+  useEffect(() => { api.get('/api/booking/hours').then((r: { data: unknown[] }) => setHoursCount(r.data.length)).catch(() => setHoursCount(null)) }, [])
 
   const load = () => {
     setRows(null); setError(null)
@@ -66,9 +69,7 @@ export function BookingsPage() {
       </div>
 
       <PageError message={basicsError || error} className="mb-4" />
-      {settings && !services.length && (
-        <div className="card card-padding mb-6 text-sm text-ink-soft">No services yet. <Link to="/crm/bookings/settings" className="underline text-ink">Add the first one in booking settings</Link> — customers book a service.</div>
-      )}
+      {settings && <NotBookableYet enabled={settings.enabled} services={services.filter((s) => s.active).length} hours={hoursCount} />}
 
       <div className="flex flex-wrap items-center gap-2 mb-5">
         <div role="group" aria-label="Show" className="flex gap-2">
@@ -118,6 +119,28 @@ export function BookingsPage() {
       )}
 
       {creating && settings && <NewBookingDialog services={services.filter((s) => s.active)} people={people} zone={onClock(settings.timezone).zone()} onClose={() => setCreating(false)} onDone={() => { setCreating(false); load() }} />}
+    </div>
+  )
+}
+
+/**
+ * What stands between the business and its first online booking, said plainly. Live test 2026-10-22: a new business
+ * with no service and no hours had a website saying "Bookings opening soon" and a Bookings screen that said only
+ * "No services yet" — nothing about the hours, so every day stayed closed after the service was added.
+ */
+function NotBookableYet({ enabled, services, hours }: { enabled: boolean; services: number; hours: number | null }) {
+  const todo = [
+    ...(!enabled ? ['switch online booking on'] : []),
+    ...(!services ? ['add a service customers can book (for example a 30-minute consultation)'] : []),
+    ...(hours === 0 ? ['set your opening hours — with none, every day shows as closed'] : []),
+  ]
+  if (!todo.length) return null
+  return (
+    <div role="status" className="card card-padding mb-6 text-sm border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-100">
+      <p className="font-semibold">Customers can’t book online yet.</p>
+      <p className="mt-1">To open your booking page:</p>
+      <ul className="list-disc pl-5 mt-1 space-y-0.5">{todo.map((t) => <li key={t}>{t}</li>)}</ul>
+      <Link to="/crm/bookings/settings" className="inline-block mt-2 font-semibold underline">Go to booking settings</Link>
     </div>
   )
 }
