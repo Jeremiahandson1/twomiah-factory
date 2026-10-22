@@ -11,6 +11,7 @@
 // /crm/expenses, /crm/messages) the server's /api/<path> is home care's for this vertical, so the page must be too.
 import type { ReactElement } from 'react'
 import { Navigate, Route } from 'react-router-dom'
+import { Users } from 'lucide-react'
 import type { NavItem } from '../../shared'
 import { useAuth, usePermissions } from '../../shared'
 import { page } from '../lazy'
@@ -41,6 +42,7 @@ export const MENU: Array<[path: string, section: string]> = [
   ['/crm/client-onboarding', 'Operations'],
   ['/crm/client-documents', 'Operations'],
   ['/crm/referral-sources', 'Operations'],
+  ['/crm/contacts', 'Operations'],
   ['/crm/care-plans', 'Operations'],
   ['/crm/scheduling', 'Scheduling'],
   ['/crm/live-board', 'Scheduling'],
@@ -90,13 +92,23 @@ export const MENU: Array<[path: string, section: string]> = [
 
 const GROUPS = [clients, schedule, shifts, visits, billing, people, portals, office]
 
+/**
+ * The shared screens an agency keeps, placed under its own headings (MENU) rather than the shared menu's: Contacts, the
+ * office's address book — the enquiries the Lead Inbox converts, and suppliers. Switched on in Settings › Features
+ * (contacts is core) and opened only by typing the address (live test, 2026-10-22). The same features and permission
+ * as the shared item (web/src/shell.ts), which SHARED_HIDDEN keeps out of the shared list so it shows once.
+ */
+const SHARED_IN_MENU: NavItem[] = [
+  { to: '/crm/contacts', icon: Users, label: 'Contacts', features: ['contacts'], permission: 'contacts:read' },
+]
+
 /** The shell's header button and strip for View As (crm/pages/homecare/office/ViewAs.tsx): an agency's only. */
 export { ViewAsBanner as banner, ViewAsButton as headerActions } from '../pages/homecare/office/ViewAs'
 
 /** Menu items, ordered and headed as MENU says. Empty everywhere but home care. */
 export const nav: NavItem[] = isHomecare ? (() => {
   const byPath = new Map<string, NavItem>()
-  for (const g of GROUPS) for (const item of g.nav) byPath.set(item.to, item)
+  for (const item of [...SHARED_IN_MENU, ...GROUPS.flatMap((g) => g.nav)]) byPath.set(item.to, item)
   return MENU.flatMap(([path, section]) => {
     const item = byPath.get(path)
     return item ? [{ ...item, section }] : []
@@ -104,9 +116,13 @@ export const nav: NavItem[] = isHomecare ? (() => {
 })() : []
 
 /**
- * The shared menu's items an agency doesn't get: the CRM's pages home care never had, and those whose path is the
- * agency's own page here (its documents, reports, expenses, messages). Taken off the shared items only (shell.ts), not
- * screens.navHidden, which would take the agency's own item of the same path off too.
+ * The shared menu's items an agency doesn't get: the CRM's pages home care never had, those whose path is the agency's
+ * own page here (its documents, reports, expenses, messages), and Contacts, which MENU places under Operations
+ * (SHARED_IN_MENU). Invoices: an agency bills its clients' visits on Financial › Billing (its own invoices, numbering,
+ * family portal and pay links); the shared Invoices bills a contact in a second book none of those read, so the
+ * registry does not offer it to home care (featureRegistry.ts) and its address goes to Billing (routes below). Taken
+ * off the shared items only (shell.ts), not screens.navHidden, which would take the agency's own item of the same path
+ * off too.
  */
 export const SHARED_HIDDEN = [
   '/crm/contacts', '/crm/jobs', '/crm/quotes', '/crm/invoices', '/crm/schedule', '/crm/time', '/crm/expenses',
@@ -155,6 +171,9 @@ export const routes: ReactElement[] = isHomecare ? [
   // The template's own addresses for pages the shared app has under another name.
   <Route key="homecare-settings-security" path="security" element={<Navigate to="/crm/account" replace />} />,
   ...SETTINGS_HIDDEN.map((to) => <Route key={`homecare-hidden-${to}`} path={to.replace('/crm/', '')} element={<Navigate to="/crm/settings" replace />} />),
+  // The shared Invoices is not an agency's (SHARED_HIDDEN): its addresses open the agency's Billing.
+  <Route key="homecare-invoices" path="invoices" element={<Navigate to="/crm/billing" replace />} />,
+  <Route key="homecare-invoice" path="invoices/:id" element={<Navigate to="/crm/billing" replace />} />,
 ] : []
 
 /**

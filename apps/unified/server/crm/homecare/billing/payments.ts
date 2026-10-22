@@ -43,7 +43,8 @@ export function createPayerPaymentRoutes(core: HomecareCore, d: CrmDeps) {
     const file = formData.get('check') as File | null
     if (!file) return fail(c, 400, 'No image uploaded')
     const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return fail(c, 400, 'ANTHROPIC_API_KEY not configured. Add ANTHROPIC_API_KEY to your environment variables.')
+    // Said to an owner on Integrations › Remittance: no server setting names (live test, 2026-10-22).
+    if (!apiKey) return fail(c, 503, 'Reading checks from a photo is not available on your account yet — enter the remittance by hand, or contact Twomiah to switch it on.', 'check_reader_unavailable')
 
     const base64Image = Buffer.from(await file.arrayBuffer()).toString('base64')
     const response = await fetch('https://api.anthropic.com/v1/messages', {

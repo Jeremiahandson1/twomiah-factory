@@ -1,12 +1,23 @@
 // Moved from templates/crm/frontend/src/pages/GanttChartsPage.tsx.
 /**
  * Gantt Charts Page — Construction tier
- * Timeline view of all projects. Pure derived projection of existing project
- * data — no new state, just a visualization.
+ * Timeline of every project with its tasks. Whoever may change a project (projects:update, what the server asks)
+ * adds tasks and drags a bar to move it, or its right edge to stretch it; everyone else reads it. It was a read-only
+ * picture — no adding a task, no dragging (live test, 2026-10-22). Server: crm/projects/ganttCharts.ts.
  */
-import { useState, useEffect } from 'react'
-import { BarChart3, Loader2 } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { BarChart3, Loader2, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../api'
+import { usePermissions, useToast, useConfirm } from '../../shared'
+
+interface GanttTask {
+  id: string;
+  projectId: string;
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  progress: number;
+}
 
 interface GanttProject {
   id: string;
@@ -15,6 +26,7 @@ interface GanttProject {
   endDate: string;
   status: string;
   percentComplete: number;
+  tasks?: GanttTask[];
 }
 
 /**
@@ -37,7 +49,8 @@ interface GanttProject {
  * used to be `bg-white/25` and lightened the ground under exactly the part of the label most likely
  * to be read. Lifting the colours alone would still have failed there (amber came out at 3.23:1).
  *
- * The legend swatches read these too, so the two cannot drift apart.
+ * The legend swatches read these too, so the two cannot drift apart. A task's bar is slate-700
+ * (#334155, 10.4:1 under white).
  */
 const STATUS_COLORS: Record<string, string> = {
   planning: '#475569',
@@ -46,14 +59,101 @@ const STATUS_COLORS: Record<string, string> = {
   completed: '#047857',
   cancelled: '#b91c1c',
 };
+const TASK_COLOR = '#334155';
+
+const DAY = 86400000;
+/** A stored instant as its calendar day (bars are whole days, stored at UTC midnight). */
+const ymd = (t: number) => new Date(t).toISOString().slice(0, 10);
+const dayStart = (v: string | null | undefined) => { const t = v ? new Date(v).getTime() : NaN; return Number.isNaN(t) ? NaN : Math.floor(t / DAY) * DAY; };
+
+type Drag = { kind: 'project' | 'task'; id: string; mode: 'move' | 'end'; startX: number; start: number; end: number; days: number };
 
 export default function GanttChartsPage() {
   const [projects, setProjects] = useState<GanttProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const { known, can } = usePermissions();
+  const mayPlan = known && can('projects:update');
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [adding, setAdding] = useState<string | null>(null);
+  const [draft, setDraft] = useState({ name: '', startDate: '', endDate: '' });
+  const [saving, setSaving] = useState(false);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const trackRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     api.get('/api/gantt-charts').then(({ data }) => { setProjects(data || []); setLoading(false); }).catch((e) => { console.error(e); setLoading(false); });
   }, []);
+  useEffect(() => { load(); }, [load]);
+
+  // The timeline's range, from every project and task, fixed while a bar is being dragged so the scale holds still.
+  const allDates = projects.flatMap((p) => [dayStart(p.startDate), dayStart(p.endDate), ...(p.tasks || []).flatMap((t) => [dayStart(t.startDate), dayStart(t.endDate)])]).filter((n) => !Number.isNaN(n));
+  const minDate = allDates.length ? Math.min(...allDates) : Math.floor(Date.now() / DAY) * DAY;
+  const maxDate = (allDates.length ? Math.max(...allDates) : minDate) + DAY;
+  const totalSpan = Math.max(maxDate - minDate, DAY);
+  const totalDays = Math.ceil(totalSpan / DAY);
+
+  const daysFromPixels = (dx: number) => {
+    const width = trackRef.current?.getBoundingClientRect().width || 800;
+    return Math.round((dx / width) * totalDays);
+  };
+
+  const beginDrag = (e: React.PointerEvent, kind: Drag['kind'], id: string, mode: Drag['mode'], start: number, end: number) => {
+    if (!mayPlan) return;
+    e.preventDefault();
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    setDrag({ kind, id, mode, startX: e.clientX, start, end, days: 0 });
+  };
+  const moveDrag = (e: React.PointerEvent) => {
+    if (!drag) return;
+    const days = daysFromPixels(e.clientX - drag.startX);
+    if (days !== drag.days) setDrag({ ...drag, days });
+  };
+  const endDrag = async () => {
+    if (!drag) return;
+    const d = drag;
+    setDrag(null);
+    if (!d.days) return;
+    const start = d.mode === 'move' ? d.start + d.days * DAY : d.start;
+    const end = Math.max(start, d.end + d.days * DAY);
+    const body = { startDate: ymd(start), endDate: ymd(end) };
+    try {
+      if (d.kind === 'project') await api.patch(`/api/gantt-charts/${d.id}/dates`, body);
+      else await api.patch(`/api/gantt-charts/tasks/${d.id}`, body);
+      load();
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not move it'); load(); }
+  };
+  /** Where a bar is drawn: its own dates, shifted by the drag in progress when it is the one being dragged. */
+  const placed = (kind: Drag['kind'], id: string, start: number, end: number) => {
+    if (drag && drag.kind === kind && drag.id === id) {
+      const s = drag.mode === 'move' ? start + drag.days * DAY : start;
+      return { s, e: Math.max(s, end + drag.days * DAY) };
+    }
+    return { s: start, e: end };
+  };
+
+  const openAdd = (p: GanttProject) => {
+    const s = Number.isNaN(dayStart(p.startDate)) ? Math.floor(Date.now() / DAY) * DAY : dayStart(p.startDate);
+    setDraft({ name: '', startDate: ymd(s), endDate: ymd(s + 6 * DAY) });
+    setAdding(p.id);
+  };
+  const addTask = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!adding) return;
+    if (!draft.name.trim()) { toast.error('Give the task a name.'); return; }
+    if (!draft.startDate || !draft.endDate || draft.endDate < draft.startDate) { toast.error('The end date cannot be before the start date.'); return; }
+    setSaving(true);
+    try {
+      await api.post(`/api/gantt-charts/${adding}/tasks`, { name: draft.name.trim(), startDate: draft.startDate, endDate: draft.endDate });
+      setAdding(null);
+      load();
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not add the task'); } finally { setSaving(false); }
+  };
+  const removeTask = async (t: GanttTask) => {
+    if (!(await confirm(`Remove the task "${t.name}"?`, { title: 'Remove task', confirmText: 'Remove' }))) return;
+    try { await api.delete(`/api/gantt-charts/tasks/${t.id}`); load(); } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not remove the task'); }
+  };
 
   if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500 dark:text-orange-200" /></div>;
 
@@ -61,80 +161,131 @@ export default function GanttChartsPage() {
     return <div className="p-12 text-center"><BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" /><div className="text-gray-500 dark:text-slate-400">No projects to display. Create a project to see it on the Gantt chart.</div></div>;
   }
 
-  // Compute the overall timeline range
-  const allDates = projects.flatMap((p) => [new Date(p.startDate).getTime(), new Date(p.endDate).getTime()]);
-  const minDate = Math.min(...allDates);
-  const maxDate = Math.max(...allDates);
-  const totalSpan = Math.max(maxDate - minDate, 86400000); // at least 1 day
-
-  const msPerDay = 86400000;
-  const totalDays = Math.ceil(totalSpan / msPerDay);
   const rowHeight = 44;
 
   // Generate month headers along the top
   const months: { label: string; offsetPct: number }[] = [];
-  const start = new Date(minDate);
-  start.setDate(1);
-  for (let d = new Date(start); d.getTime() <= maxDate; d.setMonth(d.getMonth() + 1)) {
-    const offsetPct = ((d.getTime() - minDate) / totalSpan) * 100;
-    months.push({ label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), offsetPct });
+  const first = new Date(minDate);
+  first.setUTCDate(1);
+  for (let d = new Date(first); d.getTime() <= maxDate; d.setUTCMonth(d.getUTCMonth() + 1)) {
+    const offsetPct = Math.max(0, ((d.getTime() - minDate) / totalSpan) * 100);
+    months.push({ label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }), offsetPct });
   }
+  const pct = (t: number) => ((t - minDate) / totalSpan) * 100;
+  const grid = months.map((m, i) => <div key={i} className="absolute top-0 bottom-0 border-l border-gray-100 dark:border-slate-800" style={{ left: `${m.offsetPct}%` }} />);
+
+  const barBox = (kind: Drag['kind'], id: string, start: number, end: number, color: string, label: string, done: number) => {
+    const { s, e } = placed(kind, id, start, end);
+    const leftPct = pct(s);
+    const widthPct = Math.max(((e + DAY - s) / totalSpan) * 100, 1);
+    return (
+      <div
+        className={`absolute top-2 bottom-2 rounded-md flex items-center px-2 text-white text-xs font-medium overflow-hidden select-none ${mayPlan ? 'cursor-grab active:cursor-grabbing touch-none' : ''}`}
+        style={{ left: `${leftPct}%`, width: `${widthPct}%`, background: color, minWidth: '40px' }}
+        onPointerDown={(ev) => beginDrag(ev, kind, id, 'move', start, end)}
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
+        title={mayPlan ? `${label}: drag to move, drag the right edge to change the end date` : label}
+      >
+        {/* Percent complete — DARKENS the bar rather than washing it out (see the colour note above). */}
+        <div className="absolute top-0 bottom-0 left-0 bg-black/20" style={{ width: `${done || 0}%` }} />
+        <span className="relative z-10 truncate">{label}</span>
+        {mayPlan && (
+          <span
+            aria-hidden="true"
+            className="absolute top-0 bottom-0 right-0 w-2 cursor-ew-resize bg-black/30"
+            onPointerDown={(ev) => beginDrag(ev, kind, id, 'end', start, end)}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+          />
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="p-6 max-w-full mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="w-6 h-6 text-orange-500 dark:text-orange-200" />Gantt Chart</h1>
-        <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Timeline view of all projects — {projects.length} projects over {totalDays} days</p>
+        <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
+          Timeline view of all projects — {projects.length} projects over {totalDays} days
+          {mayPlan ? '. Drag a bar to move it; drag its right edge to change when it ends.' : ''}
+        </p>
       </div>
 
-      <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900">
+      <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900 dark:border-slate-700">
         {/* Timeline header */}
-        <div className="flex border-b bg-gray-50 dark:bg-slate-900">
-          <div className="w-64 flex-shrink-0 px-4 py-3 border-r font-semibold text-xs uppercase text-gray-500 dark:text-slate-400">Project</div>
-          <div className="flex-1 relative h-10" style={{ minWidth: '800px' }}>
+        <div className="flex border-b bg-gray-50 dark:bg-slate-900 dark:border-slate-700">
+          <div className="w-64 flex-shrink-0 px-4 py-3 border-r font-semibold text-xs uppercase text-gray-500 dark:text-slate-400 dark:border-slate-700">Project / task</div>
+          <div ref={trackRef} className="flex-1 relative h-10" style={{ minWidth: '800px' }}>
             {months.map((m, i) => (
               <div key={i} className="absolute top-0 h-full flex items-center text-xs text-gray-500 border-l border-gray-200 pl-2 dark:text-slate-400 dark:border-slate-700" style={{ left: `${m.offsetPct}%` }}>{m.label}</div>
             ))}
           </div>
         </div>
 
-        {/* Project rows */}
         {projects.map((p) => {
-          const pStart = new Date(p.startDate).getTime();
-          const pEnd = new Date(p.endDate).getTime();
-          const leftPct = ((pStart - minDate) / totalSpan) * 100;
-          const widthPct = Math.max(((pEnd - pStart) / totalSpan) * 100, 1);
-          const color = STATUS_COLORS[p.status] || '#94a3b8';
-
+          const pStart = dayStart(p.startDate);
+          const pEnd = dayStart(p.endDate);
           return (
-            // hover:bg-gray-50 dark:hover:bg-slate-800 had no dark partner, so hovering a row in dark mode painted a
-            // near-white ground under light text and the row went blank under the cursor.
-            <div key={p.id} className="flex border-b hover:bg-gray-50 dark:hover:bg-slate-800" style={{ height: rowHeight }}>
-              <div className="w-64 flex-shrink-0 px-4 py-3 border-r">
-                <div className="font-medium text-sm truncate">{p.name}</div>
-                <div className="text-xs text-gray-500 dark:text-slate-400">{p.status.replace('_', ' ')} · {Math.round(p.percentComplete || 0)}%</div>
-              </div>
-              <div className="flex-1 relative" style={{ minWidth: '800px' }}>
-                {/* Month grid lines */}
-                {months.map((m, i) => <div key={i} className="absolute top-0 bottom-0 border-l border-gray-100" style={{ left: `${m.offsetPct}%` }} />)}
-                {/* Bar */}
-                <div className="absolute top-2 bottom-2 rounded-md flex items-center px-2 text-white text-xs font-medium overflow-hidden" style={{ left: `${leftPct}%`, width: `${widthPct}%`, background: color, minWidth: '40px' }}>
-                  {/*
-                    Percent complete — DARKENS the bar rather than washing it out.
-                    `bg-white/25` lightened the ground under the first part of the label, which is
-                    the part anyone actually reads, and took amber down to 3.23:1 even on the new
-                    palette. A translucent black deepens it instead (amber 6.41:1), and reads as
-                    "this much is done" just as well.
-
-                    The old rule also carried `dark:bg-slate-900` — OPAQUE — so in dark mode the
-                    completed portion was a solid near-black block and the status colour vanished
-                    from it entirely. One translucent layer now, the same in both themes, over a
-                    ground this component paints itself.
-                  */}
-                  <div className="absolute top-0 bottom-0 left-0 bg-black/20" style={{ width: `${p.percentComplete || 0}%` }} />
-                  <span className="relative z-10 truncate">{p.name}</span>
+            <div key={p.id}>
+              <div className="flex border-b hover:bg-gray-50 dark:hover:bg-slate-800 dark:border-slate-700" style={{ height: rowHeight }}>
+                <div className="w-64 flex-shrink-0 px-4 py-2 border-r flex items-center justify-between gap-2 dark:border-slate-700">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{p.name}</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">{p.status.replace('_', ' ')} · {Math.round(p.percentComplete || 0)}%</div>
+                  </div>
+                  {mayPlan && (
+                    <button type="button" onClick={() => openAdd(p)} className="shrink-0 inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700" aria-label={`Add a task to ${p.name}`}>
+                      <Plus className="w-3 h-3" />Task
+                    </button>
+                  )}
+                </div>
+                <div className="flex-1 relative" style={{ minWidth: '800px' }}>
+                  {grid}
+                  {!Number.isNaN(pStart) && !Number.isNaN(pEnd) && barBox('project', p.id, pStart, pEnd, STATUS_COLORS[p.status] || '#475569', p.name, p.percentComplete)}
                 </div>
               </div>
+
+              {(p.tasks || []).map((t) => {
+                const tStart = dayStart(t.startDate);
+                const tEnd = dayStart(t.endDate);
+                return (
+                  <div key={t.id} className="flex border-b hover:bg-gray-50 dark:hover:bg-slate-800 dark:border-slate-700" style={{ height: rowHeight - 6 }}>
+                    <div className="w-64 flex-shrink-0 pl-8 pr-4 py-2 border-r flex items-center justify-between gap-2 dark:border-slate-700">
+                      <div className="text-sm truncate text-gray-700 dark:text-slate-200">{t.name}</div>
+                      {mayPlan && (
+                        <button type="button" onClick={() => removeTask(t)} className="shrink-0 p-1 rounded text-gray-500 hover:text-red-700 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-300 dark:hover:bg-red-950/40" aria-label={`Remove ${t.name}`}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex-1 relative" style={{ minWidth: '800px' }}>
+                      {grid}
+                      {!Number.isNaN(tStart) && !Number.isNaN(tEnd) && barBox('task', t.id, tStart, tEnd, TASK_COLOR, t.name, t.progress)}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {adding === p.id && (
+                <form onSubmit={addTask} className="flex flex-wrap items-end gap-3 border-b bg-gray-50 px-4 py-3 dark:bg-slate-800 dark:border-slate-700">
+                  <div>
+                    <label htmlFor={`task-name-${p.id}`} className="block text-xs font-medium text-gray-700 mb-1 dark:text-slate-200">Task</label>
+                    <input id={`task-name-${p.id}`} autoFocus required maxLength={200} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="px-3 py-1.5 border rounded-lg text-sm bg-white text-gray-900 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600" placeholder="e.g., Framing" />
+                  </div>
+                  <div>
+                    <label htmlFor={`task-start-${p.id}`} className="block text-xs font-medium text-gray-700 mb-1 dark:text-slate-200">Starts</label>
+                    <input id={`task-start-${p.id}`} type="date" required value={draft.startDate} onChange={(e) => setDraft({ ...draft, startDate: e.target.value })} className="px-3 py-1.5 border rounded-lg text-sm bg-white text-gray-900 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600" />
+                  </div>
+                  <div>
+                    <label htmlFor={`task-end-${p.id}`} className="block text-xs font-medium text-gray-700 mb-1 dark:text-slate-200">Ends</label>
+                    <input id={`task-end-${p.id}`} type="date" required value={draft.endDate} onChange={(e) => setDraft({ ...draft, endDate: e.target.value })} className="px-3 py-1.5 border rounded-lg text-sm bg-white text-gray-900 dark:bg-slate-900 dark:text-slate-100 dark:border-slate-600" />
+                  </div>
+                  <button type="submit" disabled={saving} className="px-4 py-1.5 rounded-lg text-sm bg-orange-700 text-white hover:bg-orange-800 disabled:opacity-50">{saving ? 'Adding…' : 'Add task'}</button>
+                  <button type="button" onClick={() => setAdding(null)} className="px-4 py-1.5 rounded-lg text-sm border border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">Cancel</button>
+                </form>
+              )}
             </div>
           );
         })}
@@ -145,6 +296,7 @@ export default function GanttChartsPage() {
         {Object.entries(STATUS_COLORS).map(([status, color]) => (
           <div key={status} className="flex items-center gap-1"><div className="w-3 h-3 rounded" style={{ background: color }} /><span>{status.replace('_', ' ')}</span></div>
         ))}
+        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded" style={{ background: TASK_COLOR }} /><span>task</span></div>
       </div>
     </div>
   );

@@ -68,9 +68,17 @@ export async function listOptions(db: any, companyId: string, { categoryId, sear
   `), NESTED)
 }
 
-/** One option by id (not scoped by company, as the template read it). */
-export async function findOption(db: any, optionId: string) {
-  return first(await db.execute(sql`SELECT * FROM selection_option WHERE id = ${optionId}`))
+/**
+ * One of the company's options by id. The template read it unscoped, so a selection could be made with another
+ * company's option (its name and price) by sending that option's id.
+ */
+export async function findOption(db: any, optionId: string, companyId: string) {
+  return first(await db.execute(sql`SELECT * FROM selection_option WHERE id = ${optionId} AND company_id = ${companyId}`))
+}
+
+/** Is this category the company's? An option is filed under one of the company's own categories only. */
+export async function categoryIsCompanys(db: any, companyId: string, categoryId: string): Promise<boolean> {
+  return rowsOf(await db.execute(sql`SELECT 1 FROM selection_category WHERE id = ${categoryId} AND company_id = ${companyId} LIMIT 1`)).length > 0
 }
 
 export async function optionsByIds(db: any, ids: string[]) {

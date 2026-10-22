@@ -1,7 +1,7 @@
 // Shared app shell (sidebar + header + settings) — the contract between a template and the vendored shell.
 import type { InvoicingApi, InvoicingToast } from '../invoicing/types'
 
-export type ShellApi = InvoicingApi & { request?: (path: string, init?: any) => Promise<any> }
+export type ShellApi = InvoicingApi & { request?: (path: string, init?: any) => Promise<any>; upload?: (path: string, formData: FormData) => Promise<any> }
 export type ShellToast = InvoicingToast
 export type IconComponent = React.ComponentType<{ className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>
 

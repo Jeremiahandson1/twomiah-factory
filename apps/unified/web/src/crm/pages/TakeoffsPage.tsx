@@ -6,7 +6,7 @@ import {
   Download, Layers, Square, ArrowRight
 } from 'lucide-react';
 import { api } from '../../api'
-import { useConfirm, useToast, useAuth } from '../../shared'
+import { useConfirm, useToast, useAuth, usePermissions } from '../../shared'
 
 interface TakeoffsPageProps {
   projectId?: string;
@@ -119,6 +119,66 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
     } finally { setExporting(false); }
   };
   const [exportError, setExportError] = useState<string>('');
+
+  /**
+   * Add to quote (live test, 2026-10-22: a takeoff could only become a purchase order). The sheet's materials, priced
+   * at the assemblies' selling price (GET /api/takeoffs/sheets/:id/quote-lines), go onto a NEW quote or the end of an
+   * existing DRAFT one through the shared quotes routes — POST /api/quotes, PUT /api/quotes/:id — so the quote's own
+   * line rule rounds, checks and totals them, and its own permissions (quotes:create / quotes:update) decide.
+   */
+  const { hasFeature } = useAuth();
+  const toast = useToast();
+  const { known: permsKnown, can } = usePermissions();
+  const mayNewQuote = hasFeature('quotes') && permsKnown && can('quotes:create');
+  const mayEditQuote = hasFeature('quotes') && permsKnown && can('quotes:update');
+  const [quoteOpen, setQuoteOpen] = useState<boolean>(false);
+  const [drafts, setDrafts] = useState<Array<{ id: string; number?: string; name?: string }>>([]);
+  const [quoteTarget, setQuoteTarget] = useState<string>('new');
+  const [quoting, setQuoting] = useState<boolean>(false);
+  const [quoteError, setQuoteError] = useState<string>('');
+  useEffect(() => {
+    if (!quoteOpen) return;
+    setQuoteError('');
+    setQuoteTarget(mayNewQuote ? 'new' : '');
+    if (!mayEditQuote) { setDrafts([]); return; }
+    api.get('/api/quotes?status=draft&limit=100')
+      .then((res: Record<string, unknown>) => setDrafts(((res?.data || []) as Array<{ id: string; number?: string; name?: string }>)))
+      .catch(() => setDrafts([]));
+  }, [quoteOpen]);
+  const addToQuote = async () => {
+    if (!selectedSheet || !quoteTarget) return;
+    setQuoting(true); setQuoteError('');
+    try {
+      const built = await api.get(`/api/takeoffs/sheets/${selectedSheet.id}/quote-lines`) as { lines?: Array<Record<string, unknown>>; projectId?: string | null };
+      const lines = built?.lines || [];
+      if (!lines.length) throw new Error('This sheet has no materials yet — add items first.');
+      let quoteId = quoteTarget;
+      if (quoteTarget === 'new') {
+        // The quote is for the project's client, where the sheet has a project and it has one.
+        const pid = built?.projectId || projectId || '';
+        let contactId: string | undefined;
+        if (pid && projectsOn) {
+          const proj = await api.get(`/api/projects/${pid}`).catch(() => null) as Record<string, unknown> | null;
+          contactId = (proj?.contactId as string) || undefined;
+        }
+        const created = await api.post('/api/quotes', { name: `Takeoff: ${selectedSheet.name}`, ...(pid ? { projectId: pid } : {}), ...(contactId ? { contactId } : {}), lineItems: lines }) as Record<string, unknown>;
+        quoteId = String(created?.id || '');
+      } else {
+        const q = await api.get(`/api/quotes/${quoteTarget}`) as { lineItems?: Array<Record<string, unknown>> };
+        // The draft's own lines stay as they are, the takeoff's after them.
+        const kept = (q?.lineItems || []).map((li) => ({
+          description: String(li.description || ''), quantity: Number(li.quantity), unitPrice: Number(li.unitPrice),
+          ...(li.type ? { type: li.type } : {}), ...(li.unitCost != null ? { unitCost: Number(li.unitCost) } : {}), ...(li.pricebookItemId ? { pricebookItemId: li.pricebookItemId } : {}),
+        }));
+        await api.put(`/api/quotes/${quoteTarget}`, { lineItems: [...kept, ...lines] });
+      }
+      setQuoteOpen(false);
+      toast.success(`${lines.length} material line${lines.length === 1 ? '' : 's'} added to the quote`);
+      if (quoteId) window.location.href = `/crm/quotes/${quoteId}`;
+    } catch (err) {
+      setQuoteError(err instanceof Error ? err.message : 'Could not add the materials to a quote');
+    } finally { setQuoting(false); }
+  };
   const [assemblies, setAssemblies] = useState<AssemblyItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showNewSheet, setShowNewSheet] = useState<boolean>(false);
@@ -331,7 +391,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
 
             {/* Totals Footer */}
             {selectedSheet.items && selectedSheet.items.length > 0 && (
-              <TotalsFooter sheetId={selectedSheet.id} onExport={() => setExportOpen(true)} />
+              <TotalsFooter sheetId={selectedSheet.id} onExport={() => setExportOpen(true)} onQuote={mayNewQuote || mayEditQuote ? () => setQuoteOpen(true) : undefined} />
             )}
           </>
         ) : (
@@ -376,6 +436,30 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
         * which has none of them — that threw on render and blanked the page. The dialog is
         * `position: fixed`, so where it sits in the tree makes no difference to what you see.
         */}
+      {quoteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setQuoteOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="Add to quote" className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Add to quote</h3>
+            <p className="text-sm text-gray-600 dark:text-slate-300">
+              The materials on <strong>{selectedSheet?.name}</strong> are added as quote lines at their selling price, quantities rounded up to whole units.
+            </p>
+            <label htmlFor="takeoff-quote-target" className="block text-sm font-medium mt-4 mb-1 text-gray-700 dark:text-slate-200">Quote</label>
+            <select id="takeoff-quote-target" value={quoteTarget} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setQuoteTarget(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+              {mayNewQuote ? <option value="new">A new quote</option> : <option value="">Choose a draft quote…</option>}
+              {drafts.map((d) => <option key={d.id} value={d.id}>{[d.number, d.name].filter(Boolean).join(' — ') || 'Draft quote'}</option>)}
+            </select>
+            {!mayNewQuote && !drafts.length && <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">There are no draft quotes to add to.</p>}
+            {quoteError && <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-300">{quoteError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setQuoteOpen(false)} className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
+              <button onClick={addToQuote} disabled={!quoteTarget || quoting} className="px-4 py-2 rounded-lg text-sm bg-orange-700 text-white hover:bg-orange-800 disabled:opacity-50">
+                {quoting ? 'Adding…' : 'Add to quote'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {exportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setExportOpen(false)}>
           <div role="dialog" aria-modal="true" aria-label="Export to purchase order" className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
@@ -567,9 +651,11 @@ interface TotalsFooterProps {
    * TakeoffsPage, which changes nothing on screen — it is `position: fixed`.
    */
   onExport: () => void;
+  /** Add the sheet to a quote; absent when this seat may neither create nor change a quote. */
+  onQuote?: () => void;
 }
 
-function TotalsFooter({ sheetId, onExport }: TotalsFooterProps) {
+function TotalsFooter({ sheetId, onExport, onQuote }: TotalsFooterProps) {
   const [totals, setTotals] = useState<TotalsData | null>(null);
 
   useEffect(() => {
@@ -622,6 +708,16 @@ function TotalsFooter({ sheetId, onExport }: TotalsFooterProps) {
           <Download className="w-4 h-4" />
           Export to PO
         </button>
+        {onQuote && (
+          <button
+            onClick={onQuote}
+            title="Add these materials to a quote"
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 dark:bg-slate-900"
+          >
+            <FileText className="w-4 h-4" />
+            Add to quote
+          </button>
+        )}
       </div>
     </div>
   );

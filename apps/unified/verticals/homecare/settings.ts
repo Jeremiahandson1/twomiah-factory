@@ -4,6 +4,29 @@
 import { BASE_CRM, type VerticalSettings } from '../../server/core/vertical.ts'
 import type { StarterContent } from '../../server/core/starter.ts'
 
+// Where an agency's enquiries come from: its Google profile, Facebook and Instagram, the care directories families
+// search, and its website. The trades' marketplaces (Angi, HomeAdvisor, Thumbtack, Houzz) were offered because home
+// care set none (live test, 2026-10-22). The ids are crm.leads.platforms; the cards are screens.leads.platforms and
+// Settings › Integrations' Lead Sources guides (one list).
+const LEAD_PLATFORMS = [
+  { value: 'google_business', label: 'Google Business Profile', color: '#c62828', tone: 'indigo', description: 'Turn Google messages and enquiries into leads in your Lead Inbox.', instructions: [
+    'Google emails the profile owner for every new message', 'Forward those notification emails to the inbound address below',
+    'Gmail: Settings › Filters › from:google.com "Business Profile" › Forward', "Each forwarded message becomes a lead with the sender's name and note"] },
+  { value: 'instagram', label: 'Instagram / Facebook', color: '#6a1b9a', tone: 'pink', description: 'Bring DMs and lead-form submissions from Meta into your CRM.', instructions: [
+    'Meta emails you when someone messages your page or fills in a lead form', 'Forward those notification emails to the inbound address below',
+    'Or connect a Zapier / Make zap from Meta Lead Ads to the webhook URL below'] },
+  { value: 'care_directory', label: 'Care directories', color: '#1565c0', tone: 'blue', description: 'Families who find you on a senior-care or home-care directory, in one inbox.', instructions: [
+    'In the directory account, turn on email notifications for new referrals or enquiries', 'Forward those emails to the inbound address below',
+    'Or, where the directory offers one, point its webhook at the webhook URL below'] },
+  { value: 'website', label: 'Website contact form', color: '#2e7d32', tone: 'emerald', description: 'Every form submission on your website becomes a lead.', instructions: [
+    "Point your website form's notification email at the inbound address below", 'Or use the webhook URL below with Zapier / Make from any form builder'] },
+]
+
+// What a contact is at an agency: an enquiry (someone asking about care), a client, or a supplier. No subcontractors —
+// a builder's word (live test, 2026-10-22). The people it cares for are its Clients (Operations › Clients); Contacts is
+// the office's address book. The server and the screens read the same ids (crm.contacts.types, screens.contacts.types).
+const CONTACT_TYPES = [{ value: 'lead', label: 'Enquiry' }, { value: 'client', label: 'Client' }, { value: 'vendor', label: 'Supplier' }]
+
 // What a new home-care agency finds in Help on day one (server/core/starter.ts; written once by modules/provision.ts,
 // then the agency's own to edit). The template's built-in guides (templates/crm-homecare frontend/src/components/
 // HelpPanel.tsx, 24 articles) rewritten against the moved screens and routes, each claim checked in the code
@@ -390,6 +413,10 @@ const homecare: VerticalSettings = {
   // The home-care add-on on; the CRM's shared modules as the base CRM has them.
   crm: {
     ...BASE_CRM, homecare: true,
+    // The agency's own enquiry sources (LEAD_PLATFORMS above), not the trades' marketplaces.
+    leads: { platforms: LEAD_PLATFORMS.map((p) => p.value) },
+    // An enquiry, a client or a supplier (CONTACT_TYPES above): a subcontractor is refused here.
+    contacts: { types: CONTACT_TYPES.map((t) => t.value) },
     // A caller is matched to a client, a first call makes one, and calls are counted on the agency's clock
     // (call tracking and the AI receptionist).
     callers: 'clients',
@@ -404,6 +431,23 @@ const homecare: VerticalSettings = {
   },
   screens: {
     searchPlaceholder: 'Search clients, caregivers, visits...',
+    // The shared Contacts screens in an agency's words (live test, 2026-10-22): its own types, and none of a builder's
+    // sections or buttons — no Projects or Quotes, no "Create Quote" / "Schedule Job" / "Create Invoice". An agency
+    // bills its clients' visits on Financial › Billing, not a contact; the lists follow their features (gateByFeature);
+    // the customer-portal panel is the trades' (an agency's families have their own portal).
+    contacts: {
+      types: CONTACT_TYPES,
+      convertLabel: 'Client',
+      sections: { projects: false, quotes: false, portal: false },
+      gateByFeature: true,
+      quickActions: [],
+    },
+    // Lead Sources, the Lead Inbox and Settings › Integrations' guides: the agency's sources (LEAD_PLATFORMS above).
+    leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Care needed', sourcesSubtitle: 'Where enquiries from families arrive: Google, Meta, care directories and your website' },
+    // Settings › Integrations' cards in an agency's words (the shared copy offered quotes and crew members).
+    integrations: {
+      copy: { quickbooks: 'Sync invoices, payments and clients with your books.', sms: 'Send visit reminders and updates to clients, families and caregivers.', email: 'Send invoices, receipts and reminders by email.' },
+    },
     // The agency's own screens (web/src/crm/verticals/homecare.tsx): its dashboard at /crm/dashboard (the office's, or a
     // caregiver's day), its menu, and its public pages (the portals, paying an invoice, onboarding, careers).
     home: 'homecare',

@@ -102,6 +102,24 @@ export default function CallTrackingPage() {
     loadData();
   }, [filters]);
 
+  // Is anything connected? A tracking number, a call on record, or (for whoever may see it) the CallRail key. With none
+  // of them the page opened on an empty call log that said nothing about what call tracking is or how to start (live
+  // test, 2026-10-22); it now opens on that explanation instead. Asked once, unfiltered — not the log's filters.
+  const [setup, setSetup] = useState<{ numbers: number; calls: number; keySet: boolean } | null>(null);
+  useEffect(() => {
+    if (!known) return;
+    let live = true;
+    Promise.all([
+      api.get('/api/calltracking/numbers').then((r: any) => (r?.data || []).length).catch(() => 0),
+      api.get('/api/calltracking/calls?limit=1').then((r: any) => Number(r?.pagination?.total ?? (r?.data || []).length) || 0).catch(() => 0),
+      maySetUp ? api.get('/api/calltracking/settings').then((r: any) => !!r?.callrailSigningKeySet).catch(() => false) : Promise.resolve(false),
+    ]).then(([numbers, callCount, keySet]) => { if (live) setSetup({ numbers, calls: callCount, keySet }); });
+    return () => { live = false; };
+  }, [known, maySetUp]);
+  const notConnected = !!setup && setup.numbers === 0 && setup.calls === 0 && !setup.keySet;
+
+  if (notConnected) return <CallTrackingSetup maySetUp={maySetUp} />;
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -194,6 +212,39 @@ export default function CallTrackingPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * What call tracking is and how to connect it, shown while nothing is: no tracking number, no call, no CallRail key.
+ * The owner and admins (integrations:update, what the key's route asks) get the CallRail panel right here; everyone
+ * else is told who can connect it.
+ */
+function CallTrackingSetup({ maySetUp }: { maySetUp: boolean }) {
+  return (
+    <div className="space-y-6 max-w-3xl">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Call Tracking</h1>
+        <p className="text-gray-500 dark:text-slate-400">See which ad, listing or flyer made the phone ring.</p>
+      </div>
+      <div className="bg-white rounded-xl border p-6 space-y-4 dark:bg-slate-900 dark:border-slate-700">
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Nothing is connected yet</h2>
+        <p className="text-sm text-gray-600 dark:text-slate-300">
+          Call tracking gives each place you advertise its own phone number. Every number rings through to your usual line,
+          and each call is logged here with where it came from, how long it lasted and whether it was missed — so you can
+          see which marketing brings in callers. A first-time caller is added to your records.
+        </p>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">How to connect CallRail</h3>
+        <ol className="list-decimal pl-5 space-y-1 text-sm text-gray-700 dark:text-slate-300">
+          <li>In your CallRail account, create a tracking number for each place you advertise, forwarding to your business line.</li>
+          <li>In CallRail’s webhook settings, add the webhook address shown below, so each finished call is sent here.</li>
+          <li>Copy CallRail’s webhook signing key and paste it below. Calls start appearing here as they come in.</li>
+        </ol>
+      </div>
+      {maySetUp
+        ? <CallTrackingSettings />
+        : <p className="text-sm text-gray-600 dark:text-slate-300">Your account’s owner or an admin can connect CallRail from this page.</p>}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { eq, and, inArray } from 'drizzle-orm'
 import { getFeaturesForTemplate, FEATURE_MAP } from '../featureRegistry'
 import { seatRefusal } from './seats'
 import { HAS_SCHEME, looksLikeWebAddress, healLogo, normalizeLogo } from './logoAddress'
+import { checkBusinessHours } from './businessHours'
 import { COMPANY_COMMERCIAL, redactCompanyCommercial, withoutDisplayKeys } from '../auth/redactSettings'
 export { healLogo, normalizeLogo, isLogoAddress, looksLikeWebAddress } from './logoAddress'
 
@@ -287,6 +288,8 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     if (money && typeof money === 'object') {
       if (money.defaultTaxRate != null && money.defaultTaxRate !== '') { const r = Number(money.defaultTaxRate); if (!Number.isFinite(r) || r < 0 || r > 100) return c.json({ error: 'Default sales tax rate must be between 0 and 100.' }, 400) }
       for (const k of ['paymentTermsDays', 'defaultPaymentTerms']) if (money[k] != null && money[k] !== '') { const d = Number(money[k]); if (!Number.isFinite(d) || d < 0 || d > 365) return c.json({ error: 'Payment terms must be between 0 and 365 days.' }, 400) }
+      // Opening hours (Settings › Company), read by the website: a week of HH:MM pairs or closed days (./businessHours.ts).
+      if ('businessHours' in money) { const bad = checkBusinessHours(money.businessHours); if (bad) return c.json({ error: bad, field: 'businessHours' }, 400) }
 
       // …and the same bounds apply to a key NOBODY declared.
       //
