@@ -146,7 +146,11 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     const url = calendars.connectUrl(provider, c.get('user').userId, `${proto}://${host}/crm/bookings/settings`)
     return url ? one(c, { url }) : fail(c, 503, 'Calendar linking isn\'t set up for this account yet — contact support.')
   })
-  admin.delete('/calendar/connections/:id', may('bookings:read'), async (c) => (await calendars.disconnect(c.get('user').userId, c.req.param('id'))) ? done(c) : fail(c, 404, 'Not found'))
+  // The answer says whether Google revoked the access, or why it was kept (another link here on the same account).
+  admin.delete('/calendar/connections/:id', may('bookings:read'), async (c) => {
+    const r = await calendars.disconnect(c.get('user').userId, c.req.param('id'))
+    return r ? one(c, { success: true, ...r }) : fail(c, 404, 'Not found')
+  })
 
   admin.get('/customers', may('bookings:read'), async (c) => { const rows = await extras.customers(co(c)); return list(c, rows, allOf(rows)) })
   admin.get('/analytics', may('bookings:read'), async (c) => one(c, await extras.analytics(co(c), Math.min(365, Math.max(7, Number(c.req.query('days')) || 90)))))

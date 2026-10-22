@@ -239,6 +239,51 @@ describe('the routes', () => {
   })
 })
 
+// 10/22: unlinking deleted the stored access but left Twomiah in the Google account's permissions — the person had to
+// remove it at Google by hand. It is revoked now, unless another Google link here may be on the same account.
+describe('unlinking a Google calendar', () => {
+  test('revokes at Google — unless the reviews link or another calendar may share the account; deletes it either way', async () => {
+    const revokes: string[] = []
+    const google = (async (input: any, init: any = {}) => {
+      if (String(input).startsWith('https://oauth2.googleapis.com/revoke')) { revokes.push(new URLSearchParams(String(init.body)).get('token') || ''); return new Response('{}', { status: 200 }) }
+      return new Response('{}', { status: 404 })
+    }) as unknown as typeof fetch
+    const c = createCalendars({ db: t.db, logger: quiet, fetch: google, now: () => clock })
+    const [person] = await t.db.insert(t.schema.user).values({ companyId, email: 'unlinker@example.com', firstName: 'Un', lastName: 'Linker', role: 'field', passwordHash: 'x' }).returning()
+    const linkMine = async (email: string | null) => { await c.storeTokens({ userId: person.id, provider: 'google', accessToken: 'acc', refreshToken: 'mine-refresh', expiresInSec: 3600, externalAccountEmail: email || undefined, calendarId: 'primary' }); return (await conn(person.id, 'google')).id }
+    const reviews = (externalEmail: string | null) => t.db.insert(t.schema.gbpConnection).values({ accessToken: 'x', externalEmail })
+    const noReviews = () => t.db.delete(t.schema.gbpConnection)
+    // other people's Google links here (the crew's, from the tests above) are on other accounts
+    const others = await t.db.select().from(t.schema.calendarConnection).where(eq(t.schema.calendarConnection.provider, 'google'))
+    for (const o of others) await t.db.update(t.schema.calendarConnection).set({ accountEmail: 'other-' + o.id + '@gmail.com' }).where(eq(t.schema.calendarConnection.id, o.id))
+
+    // Nothing else on the account: revoked (the refresh token — Google ends the whole grant with it), and deleted.
+    expect(await c.disconnect(person.id, await linkMine('me@gmail.com'))).toEqual({ revokedAtGoogle: true })
+    expect(revokes).toEqual(['mine-refresh'])
+    expect(await conn(person.id, 'google')).toBeUndefined()
+
+    // The reviews link on the same account (or one whose account isn't known): kept at Google, deleted here.
+    await reviews('ME@gmail.com')
+    expect(await c.disconnect(person.id, await linkMine('me@gmail.com'))).toEqual({ revokedAtGoogle: false, stillUsedBy: 'google_reviews' })
+    await noReviews(); await reviews(null)
+    expect(await c.disconnect(person.id, await linkMine('me@gmail.com'))).toEqual({ revokedAtGoogle: false, stillUsedBy: 'google_reviews' })
+    expect(revokes.length).toBe(1)
+    expect(await conn(person.id, 'google')).toBeUndefined()
+
+    // The reviews link on another account: revoked.
+    await noReviews(); await reviews('business@gmail.com')
+    expect(await c.disconnect(person.id, await linkMine('me@gmail.com'))).toEqual({ revokedAtGoogle: true })
+    expect(revokes.length).toBe(2)
+
+    // Not their link: nothing happens.
+    const crew = (await conn(staffId, 'google'))
+    if (crew) expect(await c.disconnect(person.id, crew.id)).toBeNull()
+    expect(revokes.length).toBe(2)
+    await noReviews()
+    await t.db.delete(t.schema.user).where(eq(t.schema.user.id, person.id))
+  })
+})
+
 // 10/22: access withdrawn at Google (the reviews Disconnect's revoke ended the calendar's grant too). The refresh came
 // back 400 invalid_grant on every look-up, the busy times went unread, and Booking settings still showed it linked.
 describe('a link Google no longer accepts', () => {

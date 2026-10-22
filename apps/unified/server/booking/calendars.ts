@@ -8,8 +8,8 @@
 // POST /api/internal/calendar/store-tokens; they are stored encrypted (core/crypto.ts). The customer is not added as a
 // guest: Google and Outlook would send them a second invitation beside the confirmation, which carries its own.
 // The site's change-notification channels are not moved: they only stamped a time (busy time is read fresh each time).
-import { and, asc, eq } from 'drizzle-orm'
-import { booking, calendarConnection, company, user } from '../db/schema/index.ts'
+import { and, asc, eq, isNull } from 'drizzle-orm'
+import { booking, calendarConnection, company, gbpConnection, user } from '../db/schema/index.ts'
 import { encrypt, decrypt } from '../core/crypto.ts'
 import type { Logger } from '../core/logger.ts'
 import type { BookingHappening, BookingRow, ServiceRow } from './engine.ts'
@@ -18,6 +18,7 @@ export type Provider = 'google' | 'outlook'
 export const PROVIDERS: Provider[] = ['google', 'outlook']
 
 const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token'
+const GOOGLE_REVOKE = 'https://oauth2.googleapis.com/revoke'
 const GOOGLE_API = 'https://www.googleapis.com/calendar/v3'
 const MS_TOKEN = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
 const GRAPH = 'https://graph.microsoft.com/v1.0'
@@ -25,6 +26,25 @@ const GRAPH = 'https://graph.microsoft.com/v1.0'
 type Conn = typeof calendarConnection.$inferSelect
 export interface BusyEvent { userId: string; start: Date; end: Date; eventId: string }
 interface EventInput { booking: BookingRow; service: ServiceRow | null; companyName: string }
+
+/**
+ * Whether another live Google link here may be on the same Google account as one being disconnected: a person's Google
+ * calendar, or the Google reviews link (packages/tenant-backend gbp.ts). Both sign in through the Factory's one Google
+ * app, and Google's revoke withdraws everything that app holds for the account — so revoking one would end the other
+ * (10/22: a reviews disconnect left the booking page offering times the calendar had busy). Two links are told apart
+ * by their accounts' addresses; a link made before the sign-ins asked for the address has none, and may be the same.
+ */
+export async function googleLinkSharing(db: any, email: string | null, except: { calendarId?: string; reviews?: boolean }): Promise<'google_calendar' | 'google_reviews' | null> {
+  const same = (other: string | null) => !email || !other || other.toLowerCase() === email.toLowerCase()
+  const calendars: Array<{ id: string; accountEmail: string | null }> = await db.select({ id: calendarConnection.id, accountEmail: calendarConnection.accountEmail })
+    .from(calendarConnection).where(and(eq(calendarConnection.provider, 'google'), isNull(calendarConnection.refusedAt)))
+  if (calendars.some((r) => r.id !== except.calendarId && same(r.accountEmail))) return 'google_calendar'
+  if (!except.reviews) {
+    const reviews: Array<{ externalEmail: string | null }> = await db.select({ externalEmail: gbpConnection.externalEmail }).from(gbpConnection)
+    if (reviews.some((r) => same(r.externalEmail))) return 'google_reviews'
+  }
+  return null
+}
 
 export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof fetch; now?: () => number }) {
   const { db, logger } = deps
@@ -208,8 +228,8 @@ export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof 
       calendarId: provider === 'google' ? (typeof body.calendarId === 'string' && body.calendarId ? body.calendarId : 'primary') : null,
       refusedAt: null,
     }
-    // The Factory asks Google for calendar access only, so its look-up of the account's email comes back empty; the
-    // primary calendar's id is that address. Best effort — the link stands without it.
+    // The Factory's sign-in asks for the address (openid email) since 10/22; before that its look-up came back empty.
+    // When it is missing the primary calendar's id is that address. Best effort — the link stands without it.
     if (!values.accountEmail && provider === 'google') {
       const res = await http(`${GOOGLE_API}/calendars/primary`, { headers: { Authorization: 'Bearer ' + body.accessToken } }).catch(() => null)
       const id = res?.ok ? String(((await res.json().catch(() => ({}))) as any).id || '') : ''
@@ -227,9 +247,28 @@ export function createCalendars(deps: { db: any; logger: Logger; fetch?: typeof 
       .from(calendarConnection).where(eq(calendarConnection.userId, userId)).orderBy(asc(calendarConnection.createdAt))
   }
 
-  async function disconnect(userId: string, id: string): Promise<boolean> {
-    const rows = await db.delete(calendarConnection).where(and(eq(calendarConnection.id, id), eq(calendarConnection.userId, userId))).returning({ id: calendarConnection.id })
-    return rows.length > 0
+  /**
+   * A person unlinks their calendar: Google is told to revoke the access (the app then leaves the Google account's
+   * permissions) unless another link here may be on the same Google account (googleLinkSharing — the revoke would end
+   * it too), then the stored access is deleted, even when Google can't be reached. Null when it isn't theirs.
+   * Microsoft has no revoke for one app's sign-in; its link is deleted, and the person removes the app at Microsoft.
+   */
+  async function disconnect(userId: string, id: string): Promise<{ revokedAtGoogle: boolean; stillUsedBy?: string } | null> {
+    const [row]: Conn[] = await db.select().from(calendarConnection).where(and(eq(calendarConnection.id, id), eq(calendarConnection.userId, userId))).limit(1)
+    if (!row) return null
+    let revoked = false
+    const keptFor = row.provider === 'google' && !row.refusedAt ? await googleLinkSharing(db, row.accountEmail, { calendarId: row.id }) : null
+    if (row.provider === 'google' && !row.refusedAt && !keptFor) {
+      try {
+        const token = decrypt(row.refreshTokenEnc || row.accessTokenEnc)
+        const res = await http(GOOGLE_REVOKE, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }), signal: AbortSignal.timeout(10_000) })
+        // 400 invalid_token: Google had already let it go — nothing left to revoke.
+        revoked = res.ok || res.status === 400
+      } catch { revoked = false }
+      if (!revoked) logger.warn('Calendar access not revoked at Google', { provider: row.provider })
+    }
+    await db.delete(calendarConnection).where(eq(calendarConnection.id, row.id))
+    return keptFor ? { revokedAtGoogle: false, stillUsedBy: keptFor } : { revokedAtGoogle: revoked }
   }
 
   /**

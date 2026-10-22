@@ -633,7 +633,9 @@ factory.get('/calendar/google/auth', async (c) => {
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/calendar.events',
+    // openid email: the account's address (the userinfo look-up below) — the CRM tells one Google account's links from
+    // another's by it, so disconnecting one revokes at Google without ending the other's (unified calendars.ts).
+    scope: 'openid email https://www.googleapis.com/auth/calendar.events',
     redirect_uri: factoryUrl.replace(/\/$/, '') + '/calendar/google/callback',
     access_type: 'offline',
     prompt: 'consent',  // forces refresh_token issuance
@@ -736,7 +738,8 @@ factory.get('/gbp/google/auth', async (c) => {
   const params = new URLSearchParams({
     client_id: clientId,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/business.manage',
+    // openid email: the account's address, as for the calendar sign-in above.
+    scope: 'openid email https://www.googleapis.com/auth/business.manage',
     redirect_uri: factoryUrl.replace(/\/$/, '') + '/gbp/google/callback',
     access_type: 'offline',
     prompt: 'consent',

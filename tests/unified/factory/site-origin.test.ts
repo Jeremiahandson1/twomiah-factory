@@ -60,6 +60,10 @@ test('every Google sign-in checks the return address with the one rule — the B
   expect(gbp).toContain('mayReturnTo(tenant, returnUrl)')
   expect(gbp).toContain('domain, engine, render_backend_url')
   expect(gbp).not.toContain('startsWith(')
+  // the account's address comes back with each link, so the CRM can tell one Google account's links from another's
+  expect(gbp).toContain("scope: 'openid email https://www.googleapis.com/auth/business.manage'")
+  const cal = src.slice(src.indexOf("factory.get('/calendar/google/auth'"), src.indexOf("factory.get('/calendar/google/callback'"))
+  expect(cal).toContain("scope: 'openid email https://www.googleapis.com/auth/calendar.events'")
   // a unified tenant on its own domain: the address the CRM sent on 10/22 (app.twomiahtest.site)
   expect(mayReturnTo({ engine: 'unified', domain: 'twomiahtest.site', render_backend_url: 'https://twomiah-test-live-app.onrender.com' }, 'https://app.twomiahtest.site/crm/settings/integrations')).toBe(true)
 })

@@ -404,7 +404,12 @@ function MyCalendar() {
   }
   const unlink = async (id: string, provider: string) => {
     if (!(await confirm('Bookings stop going onto it, and its busy times stop blocking yours. Events already there stay.', { title: `Unlink ${PROVIDER_NAMES[provider]}?`, confirmText: 'Unlink' }))) return
-    try { await api.delete(`/api/booking/calendar/connections/${id}`); load() } catch (e: any) { setError(e.message) }
+    try {
+      const r = await api.delete(`/api/booking/calendar/connections/${id}`)
+      // Kept at Google: another Google link here may be on the same account, and Google's revoke would end it too.
+      if (r?.stillUsedBy) toast.success(`Unlinked. Twomiah stays in your Google account's permissions because ${r.stillUsedBy === 'google_reviews' ? 'Google Reviews (Settings › Google Reviews) is' : 'another calendar link here is'} connected with it — disconnect that too to remove it there.`)
+      load()
+    } catch (e: any) { setError(e.message) }
   }
   const linked = new Set((rows || []).map((r) => r.provider))
   return (
