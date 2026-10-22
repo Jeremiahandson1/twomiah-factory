@@ -45,5 +45,20 @@ export const colourOnWhite = (hex: string): string => ensureDark(hex, 1.05 / 4.5
  */
 export const accentOnLight = (hex: string): string => ensureDark(hex, (0.943 + 0.05) / 4.5 - 0.05)
 
+/**
+ * The text colour for a fill of the owner's colour: the given dark ink or white, whichever reads better on it (WCAG
+ * contrast). The bar design assumed a gold brand and always put dark ink on it, and the base CTA band's button put the
+ * brand's own dark shade on the accent — on a blue the owner picked, both were dark on dark (live test, 2026-10-22).
+ */
+export function inkOn(hex: string, dark = '#1A1410'): string {
+  const rgb = hexToRgb(hex)
+  const darkRgb = hexToRgb(dark)
+  if (!rgb || !darkRgb) return dark
+  const l = relLuminance(rgb)
+  const onWhite = (1.05) / (l + 0.05)
+  const onDark = (l + 0.05) / (relLuminance(darkRgb) + 0.05)
+  return onWhite >= onDark ? '#ffffff' : dark
+}
+
 /** The websites' default accent when the owner hasn't chosen one (generator.ts). */
 export const DEFAULT_ACCENT = '#f59e0b'

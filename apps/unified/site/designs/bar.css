@@ -45,7 +45,7 @@
   --line: color-mix(in srgb, var(--brand) 26%, transparent);
   --line-strong: color-mix(in srgb, var(--brand) 55%, transparent);
   --shadow: 0 30px 60px -30px rgba(0,0,0,.7);
-  --on-brand: #1A1410;                                                 /* text on a gold surface */
+  --on-brand: {{INK_ON_PRIMARY}};                                      /* text on the brand: dark on gold, white on a dark pick */
 
   --font-display: 'Limelight', 'Georgia', serif;
   --font-eyebrow: 'Cinzel', 'Georgia', serif;

@@ -20,7 +20,7 @@ import { renderSections, VIEWS, absolutizeHrefs } from '../server/site/render.ts
 import { siteStylesheet } from '../server/site/routes.ts'
 import { consentBoxHtml } from '../server/site/smsConsent.ts'
 import type { SiteContext } from '../server/site/context.ts'
-import { accentOnLight, DEFAULT_ACCENT, ensureDark } from '../server/core/brandColour.ts'
+import { accentOnLight, DEFAULT_ACCENT, ensureDark, inkOn } from '../server/core/brandColour.ts'
 import type { SiteFacts } from '../server/site/facts.ts'
 
 const TEMPLATES = path.resolve(import.meta.dir, '..', '..', '..', 'templates')
@@ -108,6 +108,16 @@ const textingConsent = (html: string) => html
   .replace(/<label class="sms-consent">[\s\S]*?<\/label>/g, '')
   .replace(/\s*<span class="footer-legal">[\s\S]*?<\/span>/g, '')
 
+/**
+ * The contact form's own messages, taken for every design (2026-10-22, live test: "Name is required" showed only as the
+ * browser's bubble): each box's rules and words (minlength, data-msg), the message line under it, and the check before
+ * sending. Taken out here, the form is the template's.
+ */
+const inlineFormMessages = (html: string) => html
+  .replace(/ minlength="\d+"| autocomplete="(?:name|email)"| aria-describedby="cf-[a-z]+-err"| data-msg(?:-invalid)?="[^"]*"/g, '')
+  .replace(/\s*<p class="contact-form__error"[^>]*><\/p>/g, '')
+  .replace(/(return;)\s*\/\/ The form's own words[\s\S]*?(f\.addEventListener\('submit', function\(e\)\{\s*e\.preventDefault\(\);)[\s\S]*?if \(first\) \{ first\.focus\(\); return; \}\s*(var b = )/, '$1 $2 $3')
+
 const sameAssetVersion = (html: string) => html.replace(/\/styles\/(main|fonts)\.css\?v=[^"]*/g, '/styles/$1.css?v=V')
 /** The contact form's one intended change: the message box posts as `message` (the server reads both). */
 const messageField = (html: string) => html.replace(/for="cf-project"/g, 'for="cf-message"').replace(/id="cf-project" name="project"/g, 'id="cf-message" name="message"')
@@ -159,7 +169,7 @@ describe('each design\'s sample pages render as the template rendered them', () 
         const mine = await renderSections(ctxFor(design), sections, { title: 'Home' }, { currentPath: '/', origin, sectionErrors: errors, facts: sampleFacts(design) })
         const theirs = await renderOld(design, sections, '/', origin)
         expect(errors).toEqual([])
-        expect(squash(barFixes(sameAssetVersion(trackingStandard(textingConsent(mine)))))).toBe(squash(barFixes(sameAssetVersion(messageField(theirs)))))
+        expect(squash(barFixes(sameAssetVersion(trackingStandard(textingConsent(inlineFormMessages(mine))))))).toBe(squash(barFixes(sameAssetVersion(messageField(theirs)))))
       })
     }
   }
@@ -173,7 +183,7 @@ describe('the contact form in each vertical\'s words', () => {
       const mine = await ejs.renderFile(path.join(VIEWS, 'sections/contact/form-info.ejs'), { data, settings: SETTINGS, words: WORDS[design], smsConsent: consentBoxHtml, ...(design === 'bar' ? { isFirst: false } : {}) }) as string
       const theirs = await ejs.renderFile(path.join(TEMPLATES, 'website-premium-' + design, 'views/sections/contact/form-info.ejs'), { data, settings: SETTINGS }) as string
       // Their copies differ only in the comments that explain them; what renders must match.
-      expect(squash(trackingStandard(textingConsent(mine)))).toBe(squash(messageField(theirs)))
+      expect(squash(trackingStandard(textingConsent(inlineFormMessages(mine))))).toBe(squash(messageField(theirs)))
       // …and the box is there, unticked
       expect(mine).toContain('<input type="checkbox" name="smsConsent" value="yes">')
       expect(mine).toContain('name="message"')
@@ -196,16 +206,21 @@ describe('each design\'s stylesheet keeps every rule its template served', () =>
   // Rules for markup no longer rendered: the old before/after cards (the slider was merged into the contractor
   // one, which styles itself) and roofing's .trust badges (the trust section was rewritten on 2026-07-13).
   const DEAD = /^(\.before-after|\.ba-card|\.ba-chip|\.trust\b|\.trust__|\.trust-badge)/
+  // Changed on purpose (2026-10-22, live test): the CTA band's button put the brand's dark shade on the accent — dark on
+  // dark when the two are alike; it takes the ink that reads on the accent and a white ring (main.css).
+  const CHANGED = new Set(['.cta--banner .btn--primary'])
   for (const design of DESIGNS) {
     test(design, () => {
       const accent = SETTINGS.accentColor || DEFAULT_ACCENT
       const theirs = fs.readFileSync(path.join(TEMPLATES, 'website-premium-' + design, 'build/styles/main.css'), 'utf8')
         .replaceAll('{{PRIMARY_COLOR}}', SETTINGS.primaryColor).replaceAll('{{ACCENT_COLOR_ON_LIGHT}}', accentOnLight(accent)).replaceAll('{{ACCENT_COLOR}}', accent)
         .replaceAll('{{SECONDARY_COLOR}}', ensureDark(SETTINGS.secondaryColor))
+        // The bar's text on the brand was fixed dark (it assumed gold); it is now the ink that reads on the owner's pick.
+        .replace('--on-brand: #1A1410;', '--on-brand: ' + inkOn(SETTINGS.primaryColor) + ';')
       const mine = rules(siteStylesheet(ctxFor(design)))
       const lost: string[] = []
       for (const [selector, blocks] of rules(theirs)) {
-        if (DEAD.test(selector)) continue
+        if (DEAD.test(selector) || CHANGED.has(selector)) continue
         for (const decl of blocks) if (!(mine.get(selector) || []).includes(decl)) lost.push(selector + ' { ' + decl.slice(0, 80) + ' }')
       }
       expect(lost).toEqual([])

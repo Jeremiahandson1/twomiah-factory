@@ -241,7 +241,9 @@ a { color: inherit; text-decoration: none; }
 .cta--banner .cta__banner-inner { display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
 .cta__heading { font-family: 'Fraunces', Georgia, serif; font-size: clamp(28px, 3.5vw, 40px); font-weight: 600; margin: 0; line-height: 1.15; letter-spacing: -0.015em; }
 .cta__subtitle { color: rgba(255,255,255,0.78); margin: 8px 0 0; font-size: 16px; }
-.cta--banner .btn--primary { background: var(--accent); color: var(--brand-deep); }
+/* The band is the brand; its button the accent, ringed in white so it shows even when the two are alike, with the ink
+   that reads on the accent (routes.ts {{INK_ON_ACCENT}}) — brand-deep on an accent like the brand was invisible. */
+.cta--banner .btn--primary { background: var(--accent); color: {{INK_ON_ACCENT}}; box-shadow: 0 0 0 2px rgba(255,255,255,0.9); }
 .cta--banner .btn--primary:hover { background: var(--white); }
 
 /* ── CTA — split variant ──────────────────────────────────────────────── */

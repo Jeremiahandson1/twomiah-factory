@@ -8,7 +8,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { page, post, portfolioItem } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
-import { accentOnLight, DEFAULT_ACCENT, ensureDark } from '../core/brandColour.ts'
+import { accentOnLight, DEFAULT_ACCENT, ensureDark, inkOn } from '../core/brandColour.ts'
 import { countView } from '../data/pageViews.ts'
 import { loadSiteContext, type SiteContext } from './context.ts'
 import { renderSections, renderBody, homePlaceholder, markdownToHtml, siteOrigin, escHtml, escXml, type PageMeta } from './render.ts'
@@ -85,6 +85,9 @@ export function siteStylesheet(ctx: SiteContext): string {
     // The design's dark band, kept dark whatever the owner picked, as the Factory's generator filled it.
     .replaceAll('{{SECONDARY_COLOR}}', ensureDark(ctx.colours.secondary || '#1e3a5f'))
     .replaceAll('{{ACCENT_COLOR_ON_LIGHT}}', accentOnLight(accent))
+    // Text on a fill of the owner's colour: dark ink or white, whichever reads (brandColour.ts inkOn).
+    .replaceAll('{{INK_ON_PRIMARY}}', inkOn(ctx.colours.primary))
+    .replaceAll('{{INK_ON_ACCENT}}', inkOn(accent, '#0f172a'))
     .replaceAll('{{ACCENT_COLOR}}', accent)
 }
 
