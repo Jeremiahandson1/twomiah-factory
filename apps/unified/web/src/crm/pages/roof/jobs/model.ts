@@ -11,6 +11,17 @@ export const PIPELINE_STATUSES = [
   'signed', 'material_ordered', 'in_production', 'final_inspection', 'invoiced', 'collected',
 ] as const
 
+/** The satellite measurement report's stage (server/crm/roof/validation.ts MEASUREMENT_STAGE). */
+export const MEASUREMENT_STAGE = 'measurement_ordered'
+
+/**
+ * The stages this business's screens show (server/crm/roof/validation.ts pipelineFor): the measurement stage only while
+ * Measurement Reports — a not-ready feature — is on, or while a job still stands in it, so no job leaves the board.
+ */
+export function pipelineFor(hasFeature: (id: string) => boolean, jobs: ReadonlyArray<{ status?: string | null }> = []): string[] {
+  return PIPELINE_STATUSES.filter((s) => s !== MEASUREMENT_STAGE || hasFeature('measurement_reports') || jobs.some((j) => j.status === s))
+}
+
 /** Where a job ends when it is not paid (server/crm/roof/validation.ts TERMINAL_STATUSES). */
 export const TERMINAL_STATUSES = ['lost', 'cancelled'] as const
 
@@ -75,6 +86,9 @@ export interface RoofJob {
   roofType?: string | null
   stories?: number | null
   totalSquares?: string | number | null
+  /** The job's day on the calendar (a day marker) and the company's wall-clock time that day (HH:MM). */
+  scheduledDate?: string | null
+  scheduledTime?: string | null
   claimNumber?: string | null
   insuranceCompany?: string | null
   adjusterName?: string | null

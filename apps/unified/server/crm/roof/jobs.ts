@@ -27,7 +27,7 @@
 //   · every read asks jobs:read, as the shared jobs module's do (the template's reads asked only that you were signed in).
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, asc, count, desc, eq, ilike, inArray, or, gt } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, gt } from 'drizzle-orm'
 import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney } from '@twomiah/tenant-backend'
 import { company, contact, crew, invoice, job, jobNote, jobPhoto, measurementReport, quote, smsConversation, smsMessage } from '../../db/schema/index.ts'
 import { cleanText, cleanLines } from '../../core/sanitize.ts'
@@ -37,7 +37,7 @@ import { fail, list, one } from '../../http/reply.ts'
 import { uploadedForm } from '../office/upload.ts'
 import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
-import { JOB_PHOTO_TYPES, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone } from './validation.ts'
+import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
 
 const PHOTO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
@@ -46,11 +46,15 @@ const MEDIA_PREFIX = '/media/'
 // Date fields arrive as strings from the form; an unparseable one reached Postgres as an Invalid Date and 500'd. '' clears
 // the field, a bad value is a 400 naming it. The date of loss is a calendar day (the CRM's day marker, as an invoice's due
 // date); the inspection and install are appointments, on the company's clock (./validation.ts onCompanyClock).
-const JOB_DATE_FIELDS = ['dateOfLoss', 'inspectionDate', 'installDate', 'installEndDate'] as const
+// scheduledDate is the job's day on the calendar — the CRM job's own column, a day marker that every calendar, the
+// dispatch board and the field view read as the day it names — with scheduledTime the company's wall-clock HH:MM beside
+// it. A roofing job could not be booked for a day and time at all (live test 2026-10-22).
+const DAY_FIELDS = ['dateOfLoss', 'scheduledDate'] as const
+const JOB_DATE_FIELDS = ['dateOfLoss', 'scheduledDate', 'inspectionDate', 'installDate', 'installEndDate'] as const
 const jobDates = (data: Record<string, any>, tz: string): { error?: string; values: Record<string, Date | null | undefined> } => {
   const values: Record<string, Date | null | undefined> = {}
   for (const f of JOB_DATE_FIELDS) {
-    const r = f === 'dateOfLoss' ? normalizeDateInput(data[f]) : onCompanyClock(data[f], tz)
+    const r = (DAY_FIELDS as readonly string[]).includes(f) ? normalizeDateInput(data[f]) : onCompanyClock(data[f], tz)
     if (r.error) return { error: `${f}: ${r.error}`, values }
     values[f] = r.value
   }
@@ -73,6 +77,9 @@ const AUTO_SMS: Record<string, (p: { first: string; company: string; date: strin
   invoiced: (p) => `Hi ${p.first}, your invoice is ready.${p.link ? ` Pay online at ${p.link}` : ''} – ${p.company}`,
   collected: (p) => `Hi ${p.first}, payment received — thank you!${p.link ? ` Your warranty info is at ${p.link}` : ''} – ${p.company}`,
 }
+
+/** The refusal for the measurement stage while Measurement Reports is off (./validation.ts pipelineFor). */
+const STAGE_OFF = 'Measurement Ordered is the measurement reports’ stage, and measurement reports are not switched on.'
 
 const jobSchema = z.object({
   contactId: z.string().min(1),
@@ -101,7 +108,11 @@ const jobSchema = z.object({
   inspectionNotes: z.string().optional(),
   installDate: z.string().optional(),
   installEndDate: z.string().optional(),
-  totalSquares: z.coerce.number().optional(),
+  scheduledDate: z.string().optional(),
+  scheduledTime: optional(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'must be a time, HH:MM (24-hour)')),
+  // The roof's size in squares (100 sq ft each): what the crew measured. The insurance scope's quantities are built from
+  // it, so it is the job's own fact — not only a measurement report's.
+  totalSquares: optional(z.coerce.number().finite().nonnegative()),
   source: z.string().optional(),
   priority: z.string().optional(),
   notes: cleanLines().optional(),
@@ -110,7 +121,7 @@ type JobInput = z.infer<typeof jobSchema>
 
 /** A form's roofing job → the CRM's job columns (decision 2): the renames, and money as the decimal strings it stores. */
 function toColumns(data: Partial<JobInput>, dates: Record<string, Date | null | undefined>): Record<string, unknown> {
-  const { propertyAddress, estimatedRevenue, deductible, rcv, acv, totalSquares, dateOfLoss: _l, inspectionDate: _i, installDate: _s, installEndDate: _e, ...rest } = data
+  const { propertyAddress, estimatedRevenue, deductible, rcv, acv, totalSquares, dateOfLoss: _l, scheduledDate: _d, inspectionDate: _i, installDate: _s, installEndDate: _e, ...rest } = data
   const out: Record<string, unknown> = { ...rest }
   if (propertyAddress !== undefined) { out.address = propertyAddress; out.title = propertyAddress }
   if (estimatedRevenue !== undefined) out.estimatedValue = estimatedRevenue.toString()
@@ -168,6 +179,9 @@ export function createRoofJobRoutes(d: CrmDeps) {
     if (q.mine === '1') conditions.push(eq(job.assignedSalesRepId, me.userId))
     // One customer's jobs (the quote form's Job picker, a contact's page).
     if (q.contactId) conditions.push(eq(job.contactId, q.contactId))
+    // The calendar's week (the shared Schedule page sends ?startDate&endDate, as for every CRM's jobs).
+    if (q.startDate) { const d = new Date(q.startDate); if (!isNaN(d.getTime())) conditions.push(gte(job.scheduledDate, d)) }
+    if (q.endDate) { const d = new Date(q.endDate); if (!isNaN(d.getTime())) conditions.push(lte(job.scheduledDate, d)) }
     if (q.search) {
       // Case-insensitive, and the homeowner's name too — looking a job up by who it's for is how a roofer finds it.
       const pattern = `%${q.search}%`
@@ -198,6 +212,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const dates = jobDates(data, await companyTimeZone(db, me.companyId))
     if (dates.error) return fail(c, 400, dates.error)
     if (!(await ownContact(me.companyId, data.contactId))) return fail(c, 404, 'That contact does not exist.')
+    if (data.status && !(await stageOpen(me.companyId, data.status))) return fail(c, 400, STAGE_OFF, 'stage_off')
     const created = await db.transaction((tx: any) => insertRoofJob(tx, me.companyId, me.userId, {
       ...toColumns(data, dates.values), address: data.propertyAddress, source: data.source || 'manual',
       status: data.status || 'lead', priority: data.priority || 'medium',
@@ -260,10 +275,11 @@ export function createRoofJobRoutes(d: CrmDeps) {
     if (dates.error) return fail(c, 400, dates.error)
     if (!(await ownJob(me.companyId, id))) return fail(c, 404, 'Job not found')
     if (data.contactId && !(await ownContact(me.companyId, data.contactId))) return fail(c, 404, 'That contact does not exist.')
+    if (data.status && !(await stageOpen(me.companyId, data.status))) return fail(c, 400, STAGE_OFF, 'stage_off')
     const set: Record<string, unknown> = { ...toColumns(data, dates.values), updatedAt: new Date() }
     // Unassigning: the picker's "Unassigned" sends '' (or null), which the schema reads as "not sent" — so a rep or crew
     // could be set and never taken off. Present-and-empty means clear. (T63)
-    for (const k of ['assignedSalesRepId', 'assignedCrewId'] as const) {
+    for (const k of ['assignedSalesRepId', 'assignedCrewId', 'scheduledTime', 'totalSquares'] as const) {
       if (k in raw && (raw[k] === '' || raw[k] === null)) set[k] = null
     }
     const [updated] = await db.update(job).set(set as any).where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
@@ -302,6 +318,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const parsed = z.object({ status: jobStatus }).safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return invalid(c, parsed.error)
     if (!(PIPELINE_STATUSES as readonly string[]).includes(parsed.data.status)) return fail(c, 400, 'Reopen to a pipeline stage, not a terminal one.')
+    if (!(await stageOpen(me.companyId, parsed.data.status))) return fail(c, 400, STAGE_OFF, 'stage_off')
     const existing = await ownJob(me.companyId, id)
     if (!existing) return fail(c, 404, 'Job not found')
     if (!(TERMINAL_STATUSES as readonly string[]).includes(existing.status)) return fail(c, 409, 'This job is not closed.', 'not_closed')
@@ -320,14 +337,26 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const existing = await ownJob(me.companyId, id)
     if (!existing) return fail(c, 404, 'Job not found')
     const at = (PIPELINE_STATUSES as readonly string[]).indexOf(existing.status)
-    if (at === -1 || at >= PIPELINE_STATUSES.length - 1) return fail(c, 400, 'Cannot advance from current status')
-    const next = PIPELINE_STATUSES[at + 1]
+    // The next stage this business walks (pipelineFor): past the measurement stage while Measurement Reports is off.
+    const walk = pipelineFor(await companyFeatures(me.companyId))
+    const next = at === -1 ? undefined : PIPELINE_STATUSES.slice(at + 1).find((s) => walk.includes(s))
+    if (!next) return fail(c, 400, 'Cannot advance from current status')
     const [updated] = await db.update(job).set({ status: next, updatedAt: new Date() } as any)
       .where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     await db.insert(jobNote).values({ companyId: me.companyId, jobId: id, userId: me.userId, isInternal: true, body: `Status changed: ${existing.status} → ${next}` } as any)
     if (AUTO_SMS[next]) { try { await textHomeowner(me.companyId, existing, next) } catch { /* a text that can't go never holds up the job */ } }
     return one(c, withoutJobMoney(updated, await withheldFor(c)))
   })
+
+  /** The business's switched-on features (company.enabled_features). */
+  async function companyFeatures(companyId: string): Promise<string[]> {
+    const [co] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
+    return (co?.enabledFeatures as string[] | null) || []
+  }
+  /** A stage a job may be put in here: a terminal one, or one of the pipeline this business walks (pipelineFor). */
+  async function stageOpen(companyId: string, status: string): Promise<boolean> {
+    return status !== MEASUREMENT_STAGE || pipelineFor(await companyFeatures(companyId)).includes(status)
+  }
 
   /** The stage's text to the homeowner, through the shared sender (it refuses an opted-out number and unset-up texting). */
   async function textHomeowner(companyId: string, row: any, stage: string) {

@@ -24,6 +24,17 @@ export const PIPELINE_STATUSES = [
  */
 export const TERMINAL_STATUSES = ['lost', 'cancelled'] as const
 
+/**
+ * The pipeline THIS business walks. `measurement_ordered` is the satellite measurement report's stage, and Measurement
+ * Reports is a not-ready feature (featureRegistry hidden): while it is off, no job is advanced, created, moved or
+ * reopened into that stage, and the screens leave it off the board (web/src/crm/pages/roof/jobs/model.ts pipelineFor).
+ * A job already standing there advances to the stage after it.
+ */
+export const MEASUREMENT_STAGE = 'measurement_ordered'
+export function pipelineFor(features: readonly string[]): string[] {
+  return PIPELINE_STATUSES.filter((s) => s !== MEASUREMENT_STAGE || features.includes('measurement_reports'))
+}
+
 /** Every status a roofing job may hold. */
 export const JOB_STATUSES = [...PIPELINE_STATUSES, ...TERMINAL_STATUSES] as const
 

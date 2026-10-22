@@ -6,11 +6,10 @@ import {
   LoginPage, MyAccountPage, PaywallScreen, ResetPasswordPage, SettingsPage, useAuth, usePermissions, useToast,
 } from './shared'
 import { api } from './api'
-import { SHELL, SETTINGS_SUB_PAGES } from './shell'
+import { SHELL_HERE, SETTINGS_SUB_PAGES } from './shell'
 import { verticalScreens } from './crm/vertical'
 import { SETTINGS_EXTRA as ROOF_SETTINGS_EXTRA } from './crm/verticals/roof'
 import { SETTINGS_EXTRA as STORE_SETTINGS_EXTRA } from './crm/verticals/store'
-import type { ShellConfig } from './shared'
 import { useLiveConnection, subscribeLive } from './live'
 import { MessageSquare } from 'lucide-react'
 /** Settings › Texting: the business's own registered number (crm/pages/TextingPage.tsx; server crm/comms/texting.ts). */
@@ -22,33 +21,6 @@ export const HOME = '/crm'
 /** The company's name for the sign-in page: the server writes it into the page (server/admin.ts). */
 const companyName = () => document.querySelector('meta[name="company-name"]')?.getAttribute('content') || ''
 
-/**
- * The shell, in this vertical's words: a menu item's label renamed where the vertical says (VerticalSettings.screens.nav,
- * keyed by the page's address — 'Service Calls' for /crm/jobs in field service), a menu heading renamed the same way
- * (screens.navSections, keyed by the heading: landscaping's 'Operations' for field service's 'Field Service'), and its
- * search box prompt. A vertical can also leave a shared item out (screens.navHidden, by address: RV has no use for field
- * service's Parts Inventory page) and widen the features that show one (screens.navFeatures, by address: RV's Parts &
- * Inventory is the shared Inventory page on parts_tracking, as its server mount is), so its menu stays its own.
- */
-const verticalShell = (): ShellConfig => {
-  const sc = verticalScreens() as unknown as { nav?: Record<string, string>; navSections?: Record<string, string>; searchPlaceholder?: string; navHidden?: string[]; navFeatures?: Record<string, string[]> }
-  const names = sc.nav || {}
-  const sections = sc.navSections || {}
-  const hidden = new Set(Array.isArray(sc.navHidden) ? sc.navHidden : [])
-  const widened = sc.navFeatures || {}
-  return {
-    ...SHELL,
-    nav: SHELL.nav.filter((item) => !hidden.has(item.to)).map((item) => {
-      const gated = widened[item.to] ? { ...item, features: widened[item.to] } : item
-      const renamed = names[item.to] ? { ...gated, label: names[item.to] } : gated
-      return item.section && sections[item.section] ? { ...renamed, section: sections[item.section] } : renamed
-    }),
-    ...(sc.searchPlaceholder ? { searchPlaceholder: sc.searchPlaceholder } : {}),
-    // A page left out of the menu is not this CRM's: typed in, it says so (another vertical's page on a shared feature).
-    routeAbsent: [...(SHELL.routeAbsent || []), ...hidden],
-  }
-}
-const SHELL_HERE = verticalShell()
 /** The shell, with the tab's live-updates connection (live.ts) open while someone is signed in — its dot shows it. */
 export const Shell = () => {
   const auth = useAuth()

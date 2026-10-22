@@ -113,6 +113,7 @@ export default function WarrantiesPage({ api }: WarrantiesPageProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [showExpiring, setShowExpiring] = useState<boolean>(false);
   const [showNewClaim, setShowNewClaim] = useState<boolean>(false);
+  const [showNewWarranty, setShowNewWarranty] = useState<boolean>(false);
 
   useEffect(() => {
     loadData();
@@ -146,13 +147,24 @@ export default function WarrantiesPage({ api }: WarrantiesPageProps) {
           <p className="text-gray-500 dark:text-slate-400">Track warranties and service claims</p>
         </div>
         {mayRaise && (
-          <button
-            onClick={() => setShowNewClaim(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-          >
-            <Plus className="w-4 h-4" />
-            New Claim
-          </button>
+          <div className="flex items-center gap-2">
+            {/* A warranty could only come from a project's templates, so a business without projects could never
+                make one (landscaping live test, 2026-10-22). POST /api/warranties asks warranties:create, as a claim does. */}
+            <button
+              onClick={() => setShowNewWarranty(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-orange-500 text-orange-600 rounded-lg hover:bg-orange-50 dark:text-orange-200 dark:hover:bg-orange-950/40"
+            >
+              <Shield className="w-4 h-4" />
+              New Warranty
+            </button>
+            <button
+              onClick={() => setShowNewClaim(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+            >
+              <Plus className="w-4 h-4" />
+              New Claim
+            </button>
+          </div>
         )}
       </div>
 
@@ -233,6 +245,13 @@ export default function WarrantiesPage({ api }: WarrantiesPageProps) {
           warranties={warranties}
           onSave={() => { setShowNewClaim(false); loadData(); }}
           onClose={() => setShowNewClaim(false)}
+        />
+      )}
+
+      {showNewWarranty && (
+        <NewWarrantyModal
+          onSave={() => { setShowNewWarranty(false); loadData(); }}
+          onClose={() => setShowNewWarranty(false)}
         />
       )}
     </div>
@@ -586,7 +605,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
                 <option value="">Select warranty...</option>
                 {warranties.filter((w: WarrantyData) => !w.isExpired).map((w: WarrantyData) => (
                   <option key={w.id} value={w.id}>
-                    {w.project?.name} - {w.name}
+                    {w.project?.name || w.contact?.name} - {w.name}
                   </option>
                 ))}
               </select>
@@ -663,6 +682,110 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg">
                 {saving ? 'Creating...' : 'Create Claim'}
               </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface NewWarrantyModalProps {
+  onSave: () => void;
+  onClose: () => void;
+}
+
+/** A warranty written by hand for one customer (POST /api/warranties): what it covers, when it starts and for how long. */
+function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
+  const { api } = useWarranties();
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState<string>('');
+  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
+  const [form, setForm] = useState({
+    contactId: '',
+    name: '',
+    category: '',
+    startDate: new Date().toLocaleDateString('en-CA'),
+    durationMonths: '12',
+    coverageDetails: '',
+  });
+  const [saving, setSaving] = useState<boolean>(false);
+
+  // The customer list, narrowed by what is typed (GET /api/contacts, contacts:read).
+  useEffect(() => {
+    let gone = false;
+    const t = setTimeout(() => {
+      api.get('/api/contacts', { limit: 50, ...(search.trim() ? { search: search.trim() } : {}) })
+        .then((r: any) => { if (!gone) setCustomers(((r?.data || []) as any[]).map((c) => ({ id: String(c.id), name: String(c.name || c.email || 'Unnamed') }))); })
+        .catch(() => { if (!gone) setCustomers([]); });
+    }, 250);
+    return () => { gone = true; clearTimeout(t); };
+  }, [search]);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await api.post('/api/warranties', {
+        contactId: form.contactId,
+        name: form.name,
+        category: form.category || undefined,
+        startDate: form.startDate || undefined,
+        durationMonths: Number(form.durationMonths),
+        coverageDetails: form.coverageDetails || undefined,
+      });
+      onSave();
+    } catch (err: unknown) {
+      setError(errorText(err, 'That warranty could not be saved.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const input = 'w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100';
+  const label = 'block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200';
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="warranty-dialog-2-title">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-center justify-center p-4">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
+          <h2 id="warranty-dialog-2-title" className="text-lg font-bold mb-4 text-gray-900 dark:text-slate-100">New Warranty</h2>
+          <div className="mb-4"><PageError message={error} onDismiss={() => setError(null)} /></div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className={label} htmlFor="warranty-customer-search">Customer</label>
+              <input id="warranty-customer-search" type="search" value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className={`${input} mb-2`} placeholder="Search customers…" />
+              <select aria-label="Customer" value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm((f) => ({ ...f, contactId: e.target.value }))} className={input} required>
+                <option value="">Select customer...</option>
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={label} htmlFor="warranty-name">Warranty</label>
+              <input id="warranty-name" type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))} className={input} placeholder="e.g., Plantings — one-year replacement" required />
+            </div>
+            <div>
+              <label className={label} htmlFor="warranty-category">Category</label>
+              <input id="warranty-category" type="text" value={form.category} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, category: e.target.value }))} className={input} placeholder="e.g., workmanship" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={label} htmlFor="warranty-start">Starts</label>
+                <input id="warranty-start" type="date" value={form.startDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, startDate: e.target.value }))} className={input} required />
+              </div>
+              <div>
+                <label className={label} htmlFor="warranty-months">Months</label>
+                <input id="warranty-months" type="number" min={1} max={600} step={1} value={form.durationMonths} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, durationMonths: e.target.value }))} className={input} required />
+              </div>
+            </div>
+            <div>
+              <label className={label} htmlFor="warranty-coverage">What it covers</label>
+              <textarea id="warranty-coverage" value={form.coverageDetails} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f) => ({ ...f, coverageDetails: e.target.value }))} className={input} rows={3} />
+            </div>
+            <div className="flex gap-3 pt-4">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg dark:border-slate-700 dark:text-slate-200">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg">{saving ? 'Saving...' : 'Save Warranty'}</button>
             </div>
           </form>
         </div>

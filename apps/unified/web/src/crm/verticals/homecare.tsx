@@ -127,6 +127,8 @@ export const nav: NavItem[] = isHomecare ? (() => {
 export const SHARED_HIDDEN = [
   '/crm/contacts', '/crm/jobs', '/crm/quotes', '/crm/invoices', '/crm/schedule', '/crm/time', '/crm/expenses',
   '/crm/documents', '/crm/team', '/crm/reports', '/crm/messages', '/crm/pricebook', '/crm/tasks',
+  // GPS & Geofences is the trades' (job-site fences, the crew's phones): a caregiver's location is EVV's, at clock-in.
+  '/crm/geofences',
 ]
 
 /**

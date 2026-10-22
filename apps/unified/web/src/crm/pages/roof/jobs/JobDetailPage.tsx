@@ -239,7 +239,8 @@ export default function JobDetailPage() {
 
   const [measurement, setMeasurement] = useState<Measurement | null>(null)
 
-  // Measurements are their own switch (measurement_reports): with it off the card shows the job's squares alone.
+  // Measurements are their own switch (measurement_reports, not ready): with it off there is no Measurement card at all —
+  // the job's squares are its own field, on the Schedule card.
   const measurementsOn = hasFeature('measurement_reports')
   const loadMeasurement = useCallback(async () => {
     if (!measurementsOn) { setMeasurement(null); return }
@@ -539,7 +540,11 @@ export default function JobDetailPage() {
               </div>
             )}
 
-            {/* Measurement */}
+            {/* When the job is on the calendar, and the roof's size — what the insurance scope is built from. */}
+            <ScheduleCard job={job} mayEdit={mayWorkJob} onSaved={merge} />
+
+            {/* Measurement — the satellite report's card, only while measurement reports are on (a not-ready feature). */}
+            {measurementsOn && (
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <Ruler className="w-4 h-4 text-gray-400" /> Measurement
@@ -617,6 +622,7 @@ export default function JobDetailPage() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Photos */}
             {hasPhotos && (
@@ -887,6 +893,66 @@ export default function JobDetailPage() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * The job's day and time on the calendar and its roof size in squares, set here (PUT /api/jobs/:id, jobs:update). The day
+ * is a calendar day and the time the company's wall clock, as every job on the shared Schedule is; blank clears.
+ */
+function ScheduleCard({ job, mayEdit, onSaved }: { job: Pick<RoofJob, 'id' | 'scheduledDate' | 'scheduledTime' | 'totalSquares'>; mayEdit: boolean; onSaved: (j: RoofJob) => void }) {
+  const toast = useToast()
+  const dayOf = (v: unknown) => (typeof v === 'string' ? v.slice(0, 10) : '')
+  const [date, setDate] = useState(dayOf(job.scheduledDate))
+  const [time, setTime] = useState(job.scheduledTime || '')
+  const [squares, setSquares] = useState(job.totalSquares != null ? String(job.totalSquares) : '')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    setDate(dayOf(job.scheduledDate)); setTime(job.scheduledTime || ''); setSquares(job.totalSquares != null ? String(job.totalSquares) : '')
+  }, [job.id, job.scheduledDate, job.scheduledTime, job.totalSquares])
+  const changed = date !== dayOf(job.scheduledDate) || time !== (job.scheduledTime || '') || squares !== (job.totalSquares != null ? String(job.totalSquares) : '')
+  const save = async () => {
+    setSaving(true)
+    try {
+      const updated = await api.put(`/api/jobs/${job.id}`, {
+        scheduledDate: date, scheduledTime: date ? time : '', totalSquares: squares === '' ? '' : Number(squares),
+      }) as RoofJob
+      onSaved(updated)
+      toast.success('Job updated')
+    } catch (err) {
+      toast.error(errorText(err, 'Failed to update the job'))
+    } finally {
+      setSaving(false)
+    }
+  }
+  const input = 'w-full text-sm border rounded-lg px-3 py-2 disabled:opacity-60'
+  return (
+    <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+      <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
+        <Clock className="w-4 h-4 text-gray-400" /> Schedule &amp; roof size
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+        <div>
+          <label htmlFor="roof-job-date" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Scheduled</label>
+          <input id="roof-job-date" type="date" value={date} disabled={!mayEdit} onChange={(e) => setDate(e.target.value)} className={input} />
+        </div>
+        <div>
+          <label htmlFor="roof-job-time" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Time</label>
+          <input id="roof-job-time" type="time" value={time} disabled={!mayEdit || !date} onChange={(e) => setTime(e.target.value)} className={input} />
+        </div>
+        <div>
+          <label htmlFor="roof-job-squares" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Squares</label>
+          <input id="roof-job-squares" type="number" min={0} step="0.01" value={squares} disabled={!mayEdit} onChange={(e) => setSquares(e.target.value)} className={input} />
+        </div>
+      </div>
+      {mayEdit && changed && (
+        <div className="flex justify-end mt-3">
+          <button onClick={save} disabled={saving} className="px-4 py-2 text-sm bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

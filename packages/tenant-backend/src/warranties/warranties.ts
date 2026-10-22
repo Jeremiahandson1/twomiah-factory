@@ -168,7 +168,7 @@ async function seedDefaultTemplates(companyId: string) {
  * Create warranty for a project
  */
 async function createProjectWarranty(companyId: string, data: {
-  projectId: string;
+  projectId?: string;
   contactId?: string;
   templateId?: string;
   name: string;
@@ -180,13 +180,35 @@ async function createProjectWarranty(companyId: string, data: {
   durationMonths?: number;
   documentUrl?: string;
 }) {
+  // A warranty can be written by hand (the Warranties page's New Warranty, for a business without projects — landscaping,
+  // field service, basic, RV — whose only way to get one was a project's templates: none could be created there, live
+  // test 2026-10-22). So the body is checked here: it names the warranty, it is for a customer or a project of THIS
+  // business (the ids were stored unchecked), and its term is a whole number of months.
+  const bad = (message: string, status = 400) => Object.assign(new Error(message), { status });
+  const name = typeof data.name === 'string' ? data.name.trim() : '';
+  if (!name) throw bad('Give the warranty a name.');
+  if (!data.projectId && !data.contactId) throw bad('Choose the customer the warranty is for.');
+  if (data.durationMonths != null && (!Number.isInteger(Number(data.durationMonths)) || Number(data.durationMonths) < 1 || Number(data.durationMonths) > 600)) {
+    throw bad('The term is a whole number of months, from 1 to 600.');
+  }
+  if (data.startDate && isNaN(new Date(data.startDate).getTime())) throw bad('The start date is not a date.');
+  if (data.projectId) {
+    const [p] = await db.select({ id: project.id }).from(project).where(and(eq(project.id, data.projectId), eq(project.companyId, companyId))).limit(1);
+    if (!p) throw bad('Project not found', 404);
+  }
+  if (data.contactId) {
+    const [ct] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, data.contactId), eq(contact.companyId, companyId))).limit(1);
+    if (!ct) throw bad('Customer not found', 404);
+  }
+  data = { ...data, name, durationMonths: data.durationMonths != null ? Number(data.durationMonths) : undefined };
+
   const startDate = data.startDate ? new Date(data.startDate) : new Date();
   const expiresAt = new Date(startDate);
   expiresAt.setMonth(expiresAt.getMonth() + (data.durationMonths || 12));
 
   const [warranty] = await db.insert(projectWarranty).values({
     companyId,
-    projectId: data.projectId,
+    projectId: data.projectId ?? null,
     contactId: data.contactId ?? null,
     templateId: data.templateId ?? null,
     name: data.name,

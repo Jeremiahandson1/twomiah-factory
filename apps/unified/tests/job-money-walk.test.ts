@@ -74,7 +74,10 @@ beforeAll(async () => {
   const companyId = s.company.id
   // Every feature the registry offers this vertical (contractor is the base CRM, featureSet 'crm'): a module switched
   // off answers 403 FEATURE_NOT_ENABLED, which would pass for a door that is shut.
-  const offered = FEATURE_REGISTRY.filter((f) => f.templates.includes('crm')).map((f) => f.id)
+  const offeredNow = FEATURE_REGISTRY.filter((f) => f.templates.includes('crm')).map((f) => f.id)
+  // …and the modules no industry is offered any more (no screen — scripts/check-unified-feature-has-screen.ts) whose API
+  // is still mounted behind its switch: a door stays walked for money while it exists.
+  const offered = [...offeredNow, 'route_optimization', 'map_view', 'consumer_financing']
   await t.db.update(t.schema.company).set({ enabledFeatures: offered }).where(eq(t.schema.company.id, companyId))
   t.services.features.forgetFeatures()
 
