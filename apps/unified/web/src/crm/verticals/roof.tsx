@@ -28,9 +28,11 @@ export const nav: NavItem[] = isRoofing ? GROUPS.flatMap((g) => g.nav) : []
 export const SHARED_REPLACED = ['/crm/dashboard', '/crm/jobs', '/crm/reports']
 
 // Roofing's menu (templates/crm-roof components/layout/AppLayout.tsx): its working items first, shared ones among them.
-const LEAD = ['/crm/pipeline', '/crm/jobs', '/crm/contacts', '/crm/crews', '/crm/measurements', '/crm/materials', '/crm/quotes', '/crm/invoices', '/crm/adjusters']
+// The Lead Inbox and Storm Leads sit with the contacts: at the shared menu's end the inbox fell under the Website heading
+// and the storm leads under the field tools, where a roofer never looked (live test 2026-10-22).
+const LEAD = ['/crm/pipeline', '/crm/jobs', '/crm/contacts', '/crm/leads', '/crm/storm-leads', '/crm/crews', '/crm/measurements', '/crm/materials', '/crm/quotes', '/crm/invoices', '/crm/adjusters']
 // …and its field tools under their own heading.
-const FIELD = ['/crm/canvassing', '/crm/storm-leads', '/crm/storm-radar', '/crm/estimator', '/crm/roof-reports']
+const FIELD = ['/crm/canvassing', '/crm/storm-radar', '/crm/estimator', '/crm/roof-reports']
 
 /**
  * A roofer's whole menu from the shared one: roofing's order — its working items first under Business, roofing's own

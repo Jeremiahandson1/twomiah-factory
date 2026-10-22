@@ -276,23 +276,26 @@ function CategoriesModal({ api, toast, categories, onClose, onChanged }: { api: 
   )
 }
 
-function TiersModal({ api, toast, item, presets, title, onClose, onSaved }: { api: PricebookApi; toast: PricebookToast; item: Item; presets: TierPreset[]; title: string; onClose: () => void; onSaved: () => void }) {
-  type Opt = TierPreset & { price: string; features: string[] }
-  const blank = (): Opt[] => presets.map((p) => ({ ...p, price: '', features: [] }))
+export function TiersModal({ api, toast, item, presets, title, onClose, onSaved }: { api: PricebookApi; toast: PricebookToast; item: Item; presets: TierPreset[]; title: string; onClose: () => void; onSaved: () => void }) {
+  // The Included box is kept as the text typed and split into items only on save. It was split and trimmed on every
+  // keystroke, so the space typed after a word was gone before the next letter: "Designer shingles" saved as
+  // "Designershingles" and the presentation page printed it so (live test 2026-10-22).
+  type Opt = TierPreset & { price: string; featuresText: string }
+  const blank = (): Opt[] => presets.map((p) => ({ ...p, price: '', featuresText: '' }))
   const [opts, setOpts] = useState<Opt[]>(blank)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
   useEffect(() => {
     api.get(`/api/pricebook/items/${item.id}/options`).then((rows: any[]) => {
-      if (Array.isArray(rows) && rows.length) setOpts(presets.map((p) => { const r = rows.find((x) => x.tier === p.tier); return r ? { tier: p.tier, name: r.name || '', description: r.description || '', recommended: !!r.recommended, price: String(Number(r.price)), features: Array.isArray(r.features) ? r.features : [] } : { ...p, price: '', features: [], recommended: false } }))
+      if (Array.isArray(rows) && rows.length) setOpts(presets.map((p) => { const r = rows.find((x) => x.tier === p.tier); return r ? { tier: p.tier, name: r.name || '', description: r.description || '', recommended: !!r.recommended, price: String(Number(r.price)), featuresText: Array.isArray(r.features) ? r.features.join(', ') : '' } : { ...p, price: '', featuresText: '', recommended: false } }))
     }).catch((e) => setErr(errMsg(e, 'Failed to load the options'))).finally(() => setLoading(false))
   }, [api, item.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const upd = (tier: string, patch: Partial<Opt>) => setOpts((cur) => cur.map((o) => (o.tier === tier ? { ...o, ...patch } : o)))
   const save = async () => {
     setErr(''); setSaving(true)
     try {
-      const options = opts.filter((o) => o.name.trim() && o.price !== '').map((o) => ({ tier: o.tier, name: o.name.trim(), description: o.description || null, price: Number(o.price), features: o.features.filter(Boolean), recommended: o.recommended }))
+      const options = opts.filter((o) => o.name.trim() && o.price !== '').map((o) => ({ tier: o.tier, name: o.name.trim(), description: o.description || null, price: Number(o.price), features: o.featuresText.split(',').map((f) => f.trim()).filter(Boolean).slice(0, 20), recommended: o.recommended }))
       await api.put(`/api/pricebook/items/${item.id}/options`, { options })
       toast.success('Options saved'); onSaved()
     } catch (e) { setErr(errMsg(e, 'Failed to save the options')) } finally { setSaving(false) }
@@ -311,7 +314,7 @@ function TiersModal({ api, toast, item, presets, title, onClose, onSaved }: { ap
                 <input className={`${inputCls} mb-2 font-medium`} maxLength={100} value={o.name} onChange={(e) => upd(o.tier, { name: e.target.value })} placeholder="Option name" />
                 <input className={`${inputCls} mb-2 text-lg font-bold`} type="number" min={0} step="0.01" value={o.price} onChange={(e) => upd(o.tier, { price: e.target.value })} placeholder="Price" />
                 <textarea className={`${inputCls} text-sm`} rows={3} maxLength={500} value={o.description || ''} onChange={(e) => upd(o.tier, { description: e.target.value })} placeholder="Description" />
-                <input className={`${inputCls} mt-2 text-sm`} value={o.features.join(', ')} onChange={(e) => upd(o.tier, { features: e.target.value.split(',').map((s) => s.trim()).slice(0, 20) })} placeholder="Included (comma separated)" />
+                <input className={`${inputCls} mt-2 text-sm`} value={o.featuresText} onChange={(e) => upd(o.tier, { featuresText: e.target.value })} placeholder="Included (comma separated)" />
               </div>
             ))}
           </div>

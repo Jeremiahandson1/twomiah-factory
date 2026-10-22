@@ -17,9 +17,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { BarChart3, TrendingUp, DollarSign, Users, Briefcase } from 'lucide-react'
 import { api } from '../../../../api'
-import { useKnownPermission, usePermissions, useToast } from '../../../../shared'
+import { useAuth, useKnownPermission, usePermissions, useToast } from '../../../../shared'
 import { displayName } from '../lib/user'
-import { PIPELINE_STATUSES, TERMINAL_STATUSES, rowsOf } from './model'
+import { PIPELINE_STATUSES, TERMINAL_STATUSES, pipelineFor, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
 
 /** The chart's shorter labels for the pipeline stages. */
@@ -97,6 +97,8 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
 
 export default function ReportsPage() {
   const toast = useToast()
+  // The measurement stage only while measurement reports are on (model.ts pipelineFor).
+  const { hasFeature } = useAuth()
 
   const [jobs, setJobs] = useState<RoofJob[]>([])
   const [users, setUsers] = useState<Person[]>([])
@@ -313,7 +315,7 @@ export default function ReportsPage() {
                 {unaccounted > 0 && ` · ${unaccounted} at a status this chart does not know`}
               </p>
               <div className="space-y-2">
-                {PIPELINE_STATUSES.map((stage) => (
+                {pipelineFor(hasFeature, jobs).map((stage) => (
                   <div key={stage}>
                     <Bar
                       label={`${STAGE_LABELS[stage]} (${pipelineCountByStage[stage] || 0})`}

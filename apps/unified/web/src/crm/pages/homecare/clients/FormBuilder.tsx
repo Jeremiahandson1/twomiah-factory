@@ -439,7 +439,7 @@ export default function FormBuilder() {
               </label>
               {(field.type === 'select' || field.type === 'radio' || field.type === 'checkbox') && (
                 <div style={{ flex: 1 }}>
-                  <input value={(field.options || []).join(', ')} onChange={(e) => updateField(idx, { options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+                  <OptionsInput key={field.id} options={field.options} onChange={(options) => updateField(idx, { options })}
                     placeholder={field.type === 'checkbox' ? 'Options (pick any): Option 1, Option 2 — leave blank for a single Yes box' : 'Options: Option 1, Option 2, Option 3'}
                     style={{ ...wideBox, padding: '0.4rem 0.6rem', fontSize: '0.82rem' }} />
                 </div>
@@ -577,4 +577,14 @@ function Flash({ msg }: { msg: { text: string; ok: boolean } }) {
       background: msg.ok ? 'var(--hc-success-bg)' : 'var(--hc-danger-bg)', color: msg.ok ? 'var(--hc-success-ink)' : 'var(--hc-danger-ink)',
     }}>{msg.text}</div>
   )
+}
+
+/**
+ * A field's options as typed. Split and trimmed on every keystroke, the box ate the space after a word before the next
+ * letter ("Option 1" could not be typed — the pricebook's Included box had the same fault, live test 2026-10-22): the
+ * text stays as typed here, and the list handed up is parsed from it.
+ */
+function OptionsInput({ options, onChange, placeholder, style }: { options?: string[]; onChange: (options: string[]) => void; placeholder?: string; style?: CSSProperties }) {
+  const [text, setText] = useState((options || []).join(', '))
+  return <input value={text} placeholder={placeholder} style={style} onChange={(e) => { setText(e.target.value); onChange(e.target.value.split(',').map((s) => s.trim()).filter(Boolean)) }} />
 }

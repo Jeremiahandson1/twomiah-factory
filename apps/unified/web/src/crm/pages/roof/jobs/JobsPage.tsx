@@ -18,10 +18,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Search, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react'
 import { api } from '../../../../api'
-import { useMayWrite, useKnownPermission, usePermissions, useToast, errorText } from '../../../../shared'
+import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
-import { JOB_STATUSES, JOB_TYPES, formatStatus, rowsOf } from './model'
+import { JOB_TYPES, TERMINAL_STATUSES, formatStatus, pipelineFor, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
 
 /**
@@ -57,13 +57,14 @@ interface ContactOption { id: string; name?: string | null }
 
 interface JobForm {
   contactId: string; jobType: string; address: string; city: string; state: string; zip: string
-  roofType: string; stories: string; notes: string
+  roofType: string; stories: string; totalSquares: string; scheduledDate: string; scheduledTime: string; notes: string
 }
-const EMPTY_FORM: JobForm = { contactId: '', jobType: 'retail', address: '', city: '', state: '', zip: '', roofType: '', stories: '', notes: '' }
+const EMPTY_FORM: JobForm = { contactId: '', jobType: 'retail', address: '', city: '', state: '', zip: '', roofType: '', stories: '', totalSquares: '', scheduledDate: '', scheduledTime: '', notes: '' }
 
 export default function JobsPage() {
   // Offer a write only where it is allowed: POST /api/jobs asks jobs:create.
   const mayCreateJob = useMayWrite('jobs:create')
+  const { hasFeature } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -144,9 +145,12 @@ export default function JobsPage() {
     if (!form.contactId) { toast.error('Select a contact'); return }
     setSaving(true)
     try {
-      const { address, stories, roofType, ...rest } = form
+      const { address, stories, roofType, totalSquares, scheduledDate, scheduledTime, ...rest } = form
+      // The day and time on the calendar (the company's clock) and the roof's squares, each only when filled in.
       const job = await api.post('/api/jobs', {
         ...rest, propertyAddress: address, ...(stories ? { stories: Number(stories) } : {}), ...(roofType && { roofType }),
+        ...(totalSquares ? { totalSquares: Number(totalSquares) } : {}),
+        ...(scheduledDate ? { scheduledDate } : {}), ...(scheduledDate && scheduledTime ? { scheduledTime } : {}),
       }) as RoofJob
       toast.success('Job created')
       setModalOpen(false)
@@ -201,7 +205,7 @@ export default function JobsPage() {
           </button>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Statuses</option>
-            {JOB_STATUSES.map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
+            {[...pipelineFor(hasFeature, jobs), ...TERMINAL_STATUSES].map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
           </select>
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Types</option>
@@ -345,6 +349,20 @@ export default function JobsPage() {
                 <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Stories</label>
                   <input type="number" value={form.stories} onChange={(e) => setForm({ ...form, stories: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label htmlFor="roof-new-squares" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Squares</label>
+                  <input id="roof-new-squares" type="number" min={0} step="0.01" value={form.totalSquares} onChange={(e) => setForm({ ...form, totalSquares: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label htmlFor="roof-new-date" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Scheduled</label>
+                  <input id="roof-new-date" type="date" value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label htmlFor="roof-new-time" className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Time</label>
+                  <input id="roof-new-time" type="time" value={form.scheduledTime} disabled={!form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledTime: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2 disabled:opacity-50" />
                 </div>
               </div>
               <div>

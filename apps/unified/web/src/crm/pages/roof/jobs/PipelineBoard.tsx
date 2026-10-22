@@ -24,10 +24,8 @@ import { Filter, GripVertical, User, Users, Ruler, Clock, DollarSign, AlertTrian
 import { api } from '../../../../api'
 import { useAuth, useMayWrite, usePermissions, useToast, errorText } from '../../../../shared'
 import { displayName } from '../lib/user'
-import { PIPELINE_STATUSES, STAGE_LABELS, rowsOf } from './model'
+import { STAGE_LABELS, pipelineFor, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
-
-const STAGES: readonly string[] = PIPELINE_STATUSES
 
 const STAGE_THRESHOLDS: Record<string, number> = {
   proposal_sent: 7,
@@ -62,7 +60,7 @@ export default function PipelineBoard() {
   // only once the permission list is known (null until then). (T64)
   const { known, can } = usePermissions()
   const maySeeRoster: boolean | null = known ? (can('team:read') || can('users:read')) : null
-  const { user } = useAuth()
+  const { user, hasFeature } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -110,6 +108,8 @@ export default function PipelineBoard() {
     return true
   })
 
+  // The board's columns: the measurement stage only while measurement reports are on (model.ts pipelineFor).
+  const STAGES: readonly string[] = pipelineFor(hasFeature, jobs)
   const grouped: Record<string, RoofJob[]> = {}
   STAGES.forEach((s) => (grouped[s] = []))
   // A closed job (lost, cancelled) is not on the board; a job at any status this list doesn't know is shown under Lead,
