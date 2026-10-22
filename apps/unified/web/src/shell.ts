@@ -144,6 +144,8 @@ export const SHELL: ShellConfig = {
   // Not '/crm/pricebook-trial': ['pricebook'] (the base CRM's): the page offers Pricebook to a business WITHOUT it, so
   // gating it on pricebook refused everyone it was for. The field-service copy had fixed it (Field Service T28 H2).
   routeGates: {
+    // Typed in where the menu leaves it out (home care): /api/geofencing is gps_tracking's on the server.
+    '/crm/geofences': ['gps_tracking'],
     // The bar register's other screens (grill, floor, close-out, count, clock), opened from it.
     ...barRouteGates,
   },

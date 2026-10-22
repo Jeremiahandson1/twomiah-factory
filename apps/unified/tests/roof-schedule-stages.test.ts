@@ -82,11 +82,13 @@ describe('a roofing job on the calendar', () => {
     expect(r.body.scheduledTime).toBe('14:30')
   })
 
-  test("the calendar's week finds it, and the week before does not", async () => {
+  test("the calendar's week finds it, and the weeks either side do not", async () => {
     const week = await json(await as('/api/jobs?startDate=2026-11-01T00:00:00.000Z&endDate=2026-11-07T23:59:59.999Z'))
     expect(week.body.data.map((j: any) => j.id)).toContain(ids.job)
     const before = await json(await as('/api/jobs?startDate=2026-10-25T00:00:00.000Z&endDate=2026-10-31T23:59:59.999Z'))
     expect(before.body.data.map((j: any) => j.id)).not.toContain(ids.job)
+    const after = await json(await as('/api/jobs?startDate=2026-11-08T00:00:00.000Z&endDate=2026-11-14T23:59:59.999Z'))
+    expect(after.body.data.map((j: any) => j.id)).not.toContain(ids.job)
   })
 
   test('a time that is not one, or a day that is not one, is refused; blank clears', async () => {
