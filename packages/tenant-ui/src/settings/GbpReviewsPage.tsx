@@ -105,7 +105,7 @@ export function GbpReviewsPage(): React.ReactElement {
     const d = await r.json().catch(() => ({}))
     setBusy(false)
     if (!r.ok) { setError('Could not disconnect — try again'); return }
-    if (d.stillUsedBy === 'google_calendar') setNotice('Disconnected — reviews access is deleted here. Twomiah stays in your Google account's permissions because your Google Calendar link (Bookings › Settings) is connected with the same account — unlink it too to remove it there.')
+    if (d.stillUsedBy === 'google_calendar') setNotice('Disconnected — reviews access is deleted here. Twomiah stays in your Google account’s permissions because your Google Calendar link (Bookings › Settings) is connected with the same account — unlink it too to remove it there.')
     setReviews([]); setSummary(null); setLocations([]); setReplyFor(null)
     setLoading(true)
     await loadStatus()
