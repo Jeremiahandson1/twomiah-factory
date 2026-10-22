@@ -6,6 +6,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation } from 'react-router-dom'
 import { agencyNameFromPage, publicCall } from './portalHttp'
+import { PasswordInput } from '../../../../shared'
 
 export default function PortalSetup() {
   const { search } = useLocation()
@@ -68,12 +69,12 @@ export default function PortalSetup() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label htmlFor="password">New Password</label>
-              <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Minimum 8 characters" required />
+              <PasswordInput id="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Minimum 8 characters" required />
             </div>
 
             <div className="form-group">
               <label htmlFor="confirm">Confirm Password</label>
-              <input id="confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="••••••••" required />
+              <PasswordInput id="confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="••••••••" required />
             </div>
 
             <button type="submit" className="hc-btn hc-btn-primary hc-btn-block" disabled={loading}>

@@ -28,6 +28,7 @@ export { EmailAliasesPage } from '@twomiah/tenant-ui/src/settings/EmailAliasesPa
 export { LeadInboxPage } from '@twomiah/tenant-ui/src/leads/LeadInboxPage'
 export { ToastProvider, useToast } from '@twomiah/tenant-ui/src/ui/Toast'
 export { ConfirmProvider, useConfirm, usePrompt } from '@twomiah/tenant-ui/src/ui/ConfirmProvider'
+export { PasswordInput } from '@twomiah/tenant-ui/src/ui/PasswordInput'
 export { PageError, PageNotice, errorText } from '@twomiah/tenant-ui/src/ui/PageError'
 export { ModuleNotEnabled, featureNotEnabled } from '@twomiah/tenant-ui/src/ui/ModuleNotEnabled'
 export { CallTrackingSettings } from '@twomiah/tenant-ui/src/settings/CallTrackingSettings'

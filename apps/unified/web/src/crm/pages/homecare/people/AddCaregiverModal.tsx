@@ -4,6 +4,7 @@
 import { useState, type FormEvent } from 'react'
 import { useToast } from '../../../../shared'
 import { api, errorMessage } from '../lib/http'
+import { PasswordInput } from '../../../../shared'
 
 interface Props {
   isOpen: boolean
@@ -74,7 +75,7 @@ export default function AddCaregiverModal({ isOpen, onClose, onSuccess }: Props)
 
           <div className="form-group">
             <label>Password *</label>
-            <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
+            <PasswordInput value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required />
           </div>
 
           <div className="form-group">

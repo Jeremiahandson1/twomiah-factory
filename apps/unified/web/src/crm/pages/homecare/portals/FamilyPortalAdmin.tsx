@@ -25,6 +25,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { usePermissions, usePrompt, useToast } from '../../../../shared'
 import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDateTime } from '../lib/datetime'
+import { PasswordInput } from '../../../../shared'
 
 type PermKey = 'canViewSchedule' | 'canViewCarePlan' | 'canViewMedications' | 'canMessage'
 // A relative's switches: [the API's name, the label].
@@ -630,7 +631,7 @@ function AddMemberForm({ clients, onSubmit, onCancel }: { clients: ClientOption[
         </div>
         <div className="form-group">
           <label>Password *</label>
-          <input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="Min 8 characters" required />
+          <PasswordInput value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="Min 8 characters" required />
         </div>
       </div>
 

@@ -41,6 +41,7 @@ export { QuoteDetailPage } from './invoicing/QuoteDetailPage'
 export type { InvoicingConfig, InvoicingPageProps, InvoicingApi, InvoicingToast } from './invoicing/types'
 export { PAYMENT_METHODS, paymentMethodsFor, refundMethodsFor, ACCOUNT_BALANCE_METHOD, money } from './invoicing/ui'
 export { ConfirmProvider, useConfirm } from './ui/ConfirmProvider'
+export { PasswordInput } from './ui/PasswordInput'
 export { ToastProvider, useToast } from './ui/Toast'
 export type { ToastActions, ToastType, ToastItem } from './ui/Toast'
 // A refusal shown ON the page, for every vertical — see the note in PageError.tsx on why this is

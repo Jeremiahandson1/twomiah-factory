@@ -7,6 +7,7 @@
 import { useState, type FormEvent } from 'react'
 import { agencyNameFromPage, publicCall } from './portalHttp'
 import type { FamilyMember } from './FamilyPortal'
+import { PasswordInput } from '../../../../shared'
 
 export default function FamilyPortalLogin({ onLogin }: { onLogin: (token: string, user: FamilyMember) => void }) {
   const [email, setEmail] = useState('')
@@ -49,7 +50,7 @@ export default function FamilyPortalLogin({ onLogin }: { onLogin: (token: string
 
           <div className="form-group">
             <label htmlFor="password">Password</label>
-            <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+            <PasswordInput id="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
           </div>
 
           <button type="submit" className="hc-btn hc-btn-primary hc-btn-block" disabled={loading}>

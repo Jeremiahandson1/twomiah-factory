@@ -7,6 +7,7 @@
 // login).
 import { useState, type FormEvent } from 'react'
 import { agencyNameFromPage, publicCall } from './portalHttp'
+import { PasswordInput } from '../../../../shared'
 
 export interface PortalLoginClient { id: string; firstName: string; lastName: string; email?: string }
 
@@ -76,7 +77,7 @@ export default function PortalLogin({ onLogin }: { onLogin: (token: string, clie
 
             <div className="form-group">
               <label htmlFor="password">Password</label>
-              <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+              <PasswordInput id="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
             </div>
 
             <button type="submit" className="hc-btn hc-btn-primary hc-btn-block" disabled={loading}>

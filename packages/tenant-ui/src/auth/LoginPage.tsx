@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import { NavLink as RouterLink } from '../invoicing/ui'
+import { PasswordInput } from '../ui/PasswordInput'
 
 export function LoginPage({ companyName, home = '/' }: { companyName: string; home?: string }) {
   const navigate = useNavigate()
@@ -150,9 +151,8 @@ export function LoginPage({ companyName, home = '/' }: { companyName: string; ho
 
             <div>
               <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Password</label>
-              <input
+              <PasswordInput
                 id="login-password"
-                type="password"
                 name="password"
                 autoComplete="current-password"
                 required

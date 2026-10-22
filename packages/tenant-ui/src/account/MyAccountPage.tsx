@@ -18,6 +18,7 @@ import { ShieldCheck, User, Lock } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { TwoFactorCard } from '../auth/TwoFactorCard'
 import { Button, Field, inputCls, errMsg } from '../invoicing/ui'
+import { PasswordInput } from '../ui/PasswordInput'
 
 export function MyAccountPage({ api, toast }: { api: any; toast: { success: (m: string) => void; error: (m: string) => void } }) {
   const { user } = useAuth() as any
@@ -71,9 +72,9 @@ export function MyAccountPage({ api, toast }: { api: any; toast: { success: (m: 
         <h2 id="acct-pw" className="text-lg font-semibold text-gray-900 dark:text-slate-100 flex items-center gap-2">
           <Lock className="w-5 h-5 text-gray-600 dark:text-slate-400" aria-hidden="true" />Change password
         </h2>
-        <Field label="Current password"><input type="password" autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw((prev) => ({ ...prev, currentPassword: e.target.value }))} className={inputCls} /></Field>
-        <Field label="New password"><input type="password" autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw((prev) => ({ ...prev, newPassword: e.target.value }))} className={inputCls} /></Field>
-        <Field label="Confirm new password"><input type="password" autoComplete="new-password" value={pw.confirmPassword} onChange={(e) => setPw((prev) => ({ ...prev, confirmPassword: e.target.value }))} className={inputCls} /></Field>
+        <Field label="Current password"><PasswordInput autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw((prev) => ({ ...prev, currentPassword: e.target.value }))} className={inputCls} /></Field>
+        <Field label="New password"><PasswordInput autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw((prev) => ({ ...prev, newPassword: e.target.value }))} className={inputCls} /></Field>
+        <Field label="Confirm new password"><PasswordInput autoComplete="new-password" value={pw.confirmPassword} onChange={(e) => setPw((prev) => ({ ...prev, confirmPassword: e.target.value }))} className={inputCls} /></Field>
         <Button onClick={changePassword} disabled={saving}>{saving ? 'Changing…' : 'Change password'}</Button>
       </section>
     </div>
