@@ -28,7 +28,8 @@ const ADD_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/pl
 /** Existing files that may change: the shared code (the engine), its manifests, the lockfile, the spec, build-check's trigger. */
 // apps/mobile (and its tests, tests/mobile): the phone app has no users yet, so it is changed with the unified app instead of waiting (owner, 2026-10-19).
 // The four registry/shared-default guards: a change to the shared code they check must update them in the same push, or
-// build-check fails on engine (PLAN_TIERS retired; invoicing's quoteJobs pinned) — 2026-10-19.
+// build-check fails on engine (PLAN_TIERS retired; invoicing's quoteJobs pinned) — 2026-10-19. dashboard-counts joined
+// them 2026-10-22: it reads the shared Reports page's markup, which gained a CSV button on every card.
 // Cutover (owner's "go", 2026-10-20): the live Factory gains the unified path behind an off/test/all switch that starts
 // off — its routes, services, the Factory database's schema and the platform screens may change; nothing reaches a
 // customer until the switch is turned.
@@ -39,7 +40,7 @@ const ADD_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/pl
  * the Monday of the same caregiver, client and hours as another — and the one-active-pattern rule refused it.
  */
 const SUITE_TESTS = /^tests\/(bar|basic|crm|dispensary|fieldservice|homecare|landscaping|restaurant|roof|rv|salon|store|vet)\/[^/]+\.test\.ts$/
-const MODIFY_ALLOWED = [SUITE_TESTS, /^apps\/api\/src\//, /^apps\/api\/schema\.sql$/, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary|composer-facts|trade-detect-slugs)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/, ...UNIFIED_OWN]
+const MODIFY_ALLOWED = [SUITE_TESTS, /^apps\/api\/src\//, /^apps\/api\/schema\.sql$/, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary|composer-facts|trade-detect-slugs|dashboard-counts)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/, ...UNIFIED_OWN]
 const DEP_KEYS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
 
 export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path: string) => string | null): FenceViolation[] {

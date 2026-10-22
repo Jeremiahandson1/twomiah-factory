@@ -29,9 +29,6 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
   const mayDelete = useMayWrite('jobs:delete')
   /** Start, Complete, Edit and removing a photo are jobs:update on the server. (T43 viewer round, T68) */
   const mayUpdate = useMayWrite('jobs:update')
-  /** The photo library's own rights, where the business keeps job photos there (POST / DELETE /api/photos). */
-  const mayAddToLibrary = useMayWrite('documents:create')
-  const mayRemoveFromLibrary = useMayWrite('documents:delete')
   /**
    * Parts used on this job — wherever the tenant has inventory (or parts_tracking, which unlocks the same module).
    * Read off the template's OWN feature check, not resolveJobsConfig's fallback that answers yes to everything:
@@ -167,8 +164,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
           </div>
 
           {cfg.photos && cfg.photoStore && (
-            <JobPhotosPanel api={api} toast={toast} jobId={id} store={cfg.photoStore} label={cfg.labels.singular}
-              mayAdd={cfg.photoStore === 'job' ? mayUpdate : mayAddToLibrary} mayRemove={cfg.photoStore === 'job' ? mayUpdate : mayRemoveFromLibrary} />
+            <JobPhotosPanel api={api} toast={toast} jobId={id} store={cfg.photoStore} label={cfg.labels.singular} />
           )}
           {cfg.photos && !cfg.photoStore && photos.length > 0 && (
             <div className={card}>
@@ -183,7 +179,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
             </div>
           )}
 
-          {cfg.notes && <JobNotesPanel api={api} toast={toast} jobId={id} mayWrite={mayUpdate} timeZone={cfg.timeZone} />}
+          {cfg.notes && <JobNotesPanel api={api} toast={toast} jobId={id} timeZone={cfg.timeZone} />}
 
           {showParts && <JobPartsPanel api={api as any} toast={toast} jobId={id} />}
         </div>

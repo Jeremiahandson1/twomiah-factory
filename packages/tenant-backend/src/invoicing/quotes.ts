@@ -512,10 +512,15 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const expiryForCustomer = (current?.expiryDate as any) ?? stampedExpiry ?? null
 
     let recipient: { email: string; name: string } | null = null
+    // Can the customer approve this online? Always, where the quote has its own link (the unified app); a template's
+    // table has no public_token, so there it is their client portal, when that is on and in date — as before.
+    let approveOnline = false
     if (deps.sendQuoteEmail) {
       const found = current
+      let contactRow: any = null
       if (found?.contactId) {
         const [ct] = await db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1)
+        contactRow = ct || null
         if (ct?.email) recipient = { email: ct.email, name: ct.name || 'there' }
       }
       if (found && !recipient) return c.json({ error: 'This quote has no contact email address to send to. Add an email to the contact first.' }, 400)
@@ -533,6 +538,11 @@ export function createQuoteRoutes(deps: QuoteDeps) {
          * switched on, so a customer without one was sent a quote with no way to accept it (live, 2026-10-22).
          */
         const token = await documentLinkToken(db, t.quote, found.id)
+        // No token (a template's schema): the customer's own client portal on this quote, when it would let them in.
+        const features: string[] = Array.isArray(co?.enabledFeatures) ? co.enabledFeatures : []
+        const portalLive = !token && !!((!features.length || features.includes('client_portal')) && contactRow?.portalEnabled && contactRow?.portalToken &&
+          (!contactRow.portalTokenExp || new Date(contactRow.portalTokenExp).getTime() > Date.now()))
+        approveOnline = !!token || portalLive
         const lines = await lineRows(found.id)
         try {
           await deps.sendQuoteEmail(recipient.email, {
@@ -542,6 +552,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
             subtotal: found.subtotal, discount: found.discount, taxAmount: found.taxAmount, taxRate: found.taxRate,
             lineItems: lines.map((l: any) => ({ description: l.description, quantity: l.quantity, unitPrice: l.unitPrice, total: l.total })),
             documentPath: token ? documentLinkPath(token) : null,
+            portalQuotePath: portalLive ? '/portal/' + contactRow.portalToken + '/quotes/' + found.id : null,
             // The date the customer is about to be held to, including the one being stamped on by
             // this send. It used to be blank whenever the quote had none, so the offer went out
             // with no validity at all.
@@ -570,7 +581,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       // credential, and an allow entry written for this site is what hid the leak above. (T43)
       if (ct) o.onSent({ companyId: r.cid, quote: r.updated, contact: withoutPortalCredential(ct), company: co }).catch(() => {})
     }
-    return c.json(r.updated)
+    // approveOnline tells the screen whether the customer got an Approve button.
+    return c.json({ ...r.updated, approveOnline })
   })
   app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
     const r: any = await setStatus(c, c.req.param('id'), { status: 'approved', approvedAt: new Date() }, ['draft', 'sent', 'approved'], EVENTS.QUOTE_APPROVED, q => ({ total: q.total }))

@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, type FormEvent } from 'react'
 import { MessageSquare } from 'lucide-react'
 import { Button, errMsg } from '../invoicing/ui'
 import type { JobsApi, JobsToast } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface Note { id: string; content: string; createdAt: string; user?: { firstName?: string | null; lastName?: string | null; email?: string | null } | null }
 
@@ -19,7 +20,9 @@ export const whenWritten = (iso: string, timeZone?: string) => {
 }
 const author = (n: Note) => [n.user?.firstName, n.user?.lastName].filter(Boolean).join(' ') || n.user?.email || 'Someone'
 
-export function JobNotesPanel({ api, toast, jobId, mayWrite, timeZone }: { api: JobsApi; toast: JobsToast; jobId: string; mayWrite: boolean; timeZone?: string }) {
+export function JobNotesPanel({ api, toast, jobId, timeZone }: { api: JobsApi; toast: JobsToast; jobId: string; timeZone?: string }) {
+  // The question POST /api/comments/job/:id asks: may this person edit the job (comments.ts, the record's own rule).
+  const mayWrite = useMayWrite('jobs:update')
   const [notes, setNotes] = useState<Note[] | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const [draft, setDraft] = useState('')

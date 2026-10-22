@@ -9,6 +9,8 @@ import { useState, useEffect, useCallback, type ChangeEvent } from 'react'
 import { Camera, X, Trash2 } from 'lucide-react'
 import { Button, errMsg } from '../invoicing/ui'
 import type { JobsApi, JobsToast } from './types'
+import { useMayWrite } from '../auth/PermissionsContext'
+import { useConfirm } from '../ui/ConfirmProvider'
 
 export type JobPhotoStore = 'job' | 'library'
 interface Shown { id: string; url: string; thumbnailUrl?: string | null; caption?: string | null }
@@ -16,9 +18,17 @@ interface Shown { id: string; url: string; thumbnailUrl?: string | null; caption
 const card = 'bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6'
 const MAX_BYTES = 10 * 1024 * 1024
 
-export function JobPhotosPanel({ api, toast, jobId, store, mayAdd, mayRemove, label = 'Job' }: {
-  api: JobsApi; toast: JobsToast; jobId: string; store: JobPhotoStore; mayAdd: boolean; mayRemove: boolean; label?: string
+export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job' }: {
+  api: JobsApi; toast: JobsToast; jobId: string; store: JobPhotoStore; label?: string
 }) {
+  // Each control asks what ITS route asks (the table above): the job's own photos are jobs:update, the library's are
+  // documents:create / documents:delete.
+  const mayEditJob = useMayWrite('jobs:update')
+  const mayAddDocument = useMayWrite('documents:create')
+  const mayRemoveDocument = useMayWrite('documents:delete')
+  const mayAdd = store === 'job' ? mayEditJob : mayAddDocument
+  const mayRemove = store === 'job' ? mayEditJob : mayRemoveDocument
+  const confirm = useConfirm()
   const [photos, setPhotos] = useState<Shown[] | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -61,6 +71,7 @@ export function JobPhotosPanel({ api, toast, jobId, store, mayAdd, mayRemove, la
     } catch (err) { toast.error(errMsg(err, 'The photo could not be uploaded')) } finally { setUploading(false) }
   }
   const remove = async (p: Shown) => {
+    if (!(await confirm('The photo is removed from this job for everyone.', { title: 'Delete this photo?', confirmText: 'Delete photo' }))) return
     try {
       await send(store === 'job' ? `/api/jobs/${jobId}/photos/${p.id}` : `/api/photos/${p.id}`, { method: 'DELETE' })
       toast.success('Photo removed'); setOpen(null); load()

@@ -87,4 +87,18 @@ describe('the Reports page (shared screen, real DOM)', () => {
     expect(calls.some((c) => c.path === '/api/reports/revenue/customers' && c.params?.limit === 1000 && c.params?.startDate)).toBe(true)
     expect(files.every((f) => f.text.charCodeAt(0) === 0xfeff)).toBe(true)
   })
+
+  // The Project summary is offered only where this business can open Projects — the vertical has them AND this tenant
+  // has the feature (Contractor T29 L2: it pointed at a page that said "Projects isn't part of this CRM").
+  test('the Project summary shows only when this business has Projects', async () => {
+    const render = async (auth: any, projects: boolean) => {
+      const el = document.createElement('div'); document.body.appendChild(el)
+      await act(async () => { createRoot(el).render(h(MemoryRouter, null, h(AuthContext.Provider, { value: auth }, h(ReportsPage, { api, config: { team: true, projects, jobs: true, quotes: true } } as any)))) })
+      await settle()
+      return /Project summary/.test(el.textContent || '')
+    }
+    expect(await render({ hasFeature: () => true }, true)).toBe(true)
+    expect(await render({ hasFeature: (f: string) => f !== 'projects' }, true)).toBe(false)
+    expect(await render({ hasFeature: () => true }, false)).toBe(false)
+  })
 })

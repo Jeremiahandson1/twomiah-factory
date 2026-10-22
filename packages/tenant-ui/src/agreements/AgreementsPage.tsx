@@ -179,6 +179,8 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
   const [showAgreementForm, setShowAgreementForm] = useState<boolean>(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(null);
+  // A refused cancel says why on the page, not in a browser pop-up (scripts/check-refusals-render-on-the-page.ts).
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -222,6 +224,12 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
   return (
     <AgreementsCtx.Provider value={{ api, recurrence: !!config?.recurrence }}>
     <div className="space-y-6">
+      {actionError && (
+        <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          <span>{actionError}</span>
+          <button type="button" onClick={() => setActionError(null)} className="shrink-0 font-medium underline">Dismiss</button>
+        </div>
+      )}
       {/* Header */}
       {/* MEASURED, not guessed: at 390px this header row was the whole page's sideways scroll —
           three buttons and a title in a nowrap flex, documentElement.scrollWidth 510 against a
@@ -454,11 +462,12 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
   // had no button (landscaping live test, 2026-10-22). Cancelling stops its billing and its linked card subscription.
   async function handleCancel(agreementId: string) {
     if (!(await confirm('The customer is no longer billed for it and no more visits are planned from it.', { title: 'Cancel this agreement?', confirmText: 'Cancel agreement' }))) return;
+    setActionError(null);
     try {
       await api.post(`/api/agreements/${agreementId}/cancel`, {});
       loadData();
     } catch (error) {
-      alert(error instanceof Error && error.message ? error.message : 'Failed to cancel agreement');
+      setActionError(error instanceof Error && error.message ? error.message : 'The agreement could not be cancelled.');
     }
   }
 }

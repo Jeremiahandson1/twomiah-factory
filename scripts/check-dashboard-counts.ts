@@ -66,7 +66,9 @@ for (const [file, src] of [['JobsDashboardPage', home], ['ReportsPage', reports]
   if (!/const showProjects = cfg\.projects && hasFeature\('projects'\)/.test(src)) fail(`${file}: the projects gate must be BOTH the vertical config and the tenant's feature`)
 }
 if (!/\.\.\.\(showProjects \? \[\{ label: 'Active projects'/.test(home)) fail('the Active projects card must sit behind that gate')
-if (!/\{showProjects && \(\n\s*<div className=\{card\}>\n\s*<h3 className=\{h3\}>Project summary<\/h3>/.test(reports)) fail('the Reports project summary must sit behind that gate')
+// The card's heading is its CardHead now (2026-10-22: every card got a CSV button); what matters is that the summary
+// opens inside the gate. apps/unified/tests/reports-csv.test.ts renders it with Projects off and on.
+if (!/\{showProjects && \(\s*<div className=\{card\}>\s*(?:<h3 className=\{h3\}>Project summary<\/h3>|<CardHead title="Project summary")/.test(reports)) fail('the Reports project summary must sit behind that gate')
 
 if (failed) { console.error(`\ndashboard counts: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('dashboard counts: Open Jobs = still to do; billed totals keep refunded sales; every job is on the Reports status bar')
