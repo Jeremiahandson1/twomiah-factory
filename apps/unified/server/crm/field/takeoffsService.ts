@@ -91,6 +91,20 @@ function aggregateMaterials(allMaterials: any[]) {
   }
 }
 
+/**
+ * One line per material, the one rule both exports use: the ORDER quantity (rounded up, as aggregateMaterials gives it)
+ * and the price and cost per unit, each rounded to the cent first, so quantity × unit is the line's total.
+ */
+export function materialLines(materials: any[]) {
+  const per = (total: number, exact: number) => Math.round((exact > 0 ? total / exact : 0) * 100) / 100
+  return materials.map((m: any) => ({
+    description: `${m.name}${m.unit ? ` (${m.unit})` : ''}`,
+    quantity: Number(m.totalQuantity),
+    unitCost: per(m.totalCost, m.exactQuantity),
+    unitPrice: per(m.totalPrice, m.exactQuantity),
+  }))
+}
+
 export function createTakeoffsService(d: CrmDeps) {
   const { db } = d
 
@@ -248,17 +262,13 @@ export function createTakeoffsService(d: CrmDeps) {
     const { materials } = await getSheetMaterialTotals(sheetId, companyId)
     const sheet = await q.findSheetWithProjectName(db, sheetId, companyId)
 
-    const lines = materials.map((m: any, i: number) => {
-      const unitCost = Math.round((m.exactQuantity > 0 ? m.totalCost / m.exactQuantity : 0) * 100) / 100
-      const quantity = m.totalQuantity
-      return {
-        description: `${m.name}${m.unit ? ` (${m.unit})` : ''}`,
-        quantity: String(quantity),
-        unitCost: unitCost.toFixed(2),
-        total: (quantity * unitCost).toFixed(2),
-        sortOrder: i,
-      }
-    })
+    const lines = materialLines(materials).map((m, i) => ({
+      description: m.description,
+      quantity: String(m.quantity),
+      unitCost: m.unitCost.toFixed(2),
+      total: (m.quantity * m.unitCost).toFixed(2),
+      sortOrder: i,
+    }))
     const subtotal = lines.reduce((s: number, l: any) => s + Number(l.total), 0)
 
     const po = await db.transaction(async (tx: any) => {
@@ -284,8 +294,22 @@ export function createTakeoffsService(d: CrmDeps) {
     return { ...po, lines }
   }
 
+  /**
+   * The sheet's materials as QUOTE lines — what the customer is charged (unitPrice, from the assemblies' selling price)
+   * and what it costs (unitCost), typed 'material' so job costing splits the estimate. Handed to the shared quotes
+   * module (POST /api/quotes, PUT /api/quotes/:id), whose own line rule rounds, checks and totals them: the takeoff
+   * reached a purchase order only (live test, 2026-10-22).
+   */
+  async function quoteLines(sheetId: string, companyId: string) {
+    const { materials } = await getSheetMaterialTotals(sheetId, companyId)
+    const sheet = await q.findSheetWithProjectName(db, sheetId, companyId)
+    const lines = materialLines(materials).map((m) => ({ description: m.description, quantity: m.quantity, unitPrice: m.unitPrice, unitCost: m.unitCost, type: 'material' as const }))
+    return { sheetId, sheetName: sheet?.name ?? null, projectId: sheet?.projectId ?? null, lines }
+  }
+
   return {
     MEASUREMENT_TYPES,
+    quoteLines,
     createAssembly,
     getAssembly,
     getAssemblies,

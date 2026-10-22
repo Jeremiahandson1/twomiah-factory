@@ -8,14 +8,24 @@
 //     one-off is saved on THIS contact only — contact.source is free text — and never joins the list.
 //   · Managers and up (leads:update, what PUT /api/contacts/source-options asks) also get "Edit choices".
 //   · A contact saved before the list existed keeps what was typed: it shows as Other with that text, not as blank.
-//   · If the list cannot be loaded, the field is the plain text box it always was — the form must never be the
-//     thing that stops somebody recording a lead.
+//   · If the list cannot be loaded, or is empty, the picker offers Other alone with its text box — the form must never
+//     be the thing that stops somebody recording a lead.
+//
+// ONE SHAPE, EVERY OPEN (live test, 2026-10-22: "a dropdown the first time, a plain text box the second"). The field
+// used to be a plain text box until the list arrived, and again whenever the list was empty and the person could not
+// edit it — asked with useMayWrite, which answers YES while the permission list is still loading. So the same form
+// flipped between a dropdown and a text box with how fast two requests came back. Now it is always the dropdown: the
+// last list fetched is shown at once (sourceOptionsCache) while it is fetched again, "Loading…" before any has come,
+// and Edit choices is offered only on a KNOWN leads:update.
 import { useState, useEffect } from 'react'
 import { X, Plus } from 'lucide-react'
 import { Field, inputCls, errMsg } from '../invoicing/ui'
-import { useMayWrite } from '../auth/PermissionsContext'
+import { usePermissions } from '../auth/PermissionsContext'
 
 const OTHER = '__other__'
+
+/** The last choices fetched, for the next time the form opens (one company per page). */
+export const sourceOptionsCache: { options: string[] | null } = { options: null }
 
 interface SourceFieldProps {
   api: { get: (path: string, params?: any) => Promise<any>; put: (path: string, body: any) => Promise<any> }
@@ -27,8 +37,9 @@ interface SourceFieldProps {
 export function SourceField({ api, value, onChange, toast }: SourceFieldProps) {
   // "Edit choices" is PUT /api/contacts/source-options — leads:update, owners/admins/managers. Asked here, by the
   // control that writes, not handed in by the page.
-  const canManage = useMayWrite('leads:update')
-  const [options, setOptions] = useState<string[] | null>(null)
+  const { known, can } = usePermissions()
+  const canManage = known && can('leads:update')
+  const [options, setOptions] = useState<string[] | null>(sourceOptionsCache.options)
   const [pickedOther, setPickedOther] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<string[]>([])
@@ -38,18 +49,19 @@ export function SourceField({ api, value, onChange, toast }: SourceFieldProps) {
   useEffect(() => {
     let cancelled = false
     api.get('/api/contacts/source-options')
-      .then((r: any) => { if (!cancelled) setOptions(Array.isArray(r?.options) ? r.options : []) })
-      .catch(() => { if (!cancelled) setOptions([]) })
+      .then((r: any) => { const list = Array.isArray(r?.options) ? r.options : []; sourceOptionsCache.options = list; if (!cancelled) setOptions(list) })
+      .catch(() => { if (!cancelled) setOptions((prev) => prev ?? []) })
     return () => { cancelled = true }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // No list (still loading, refused, or empty and nobody to fill it): the old text box.
-  if (options === null || (options.length === 0 && !canManage)) {
-    return <Field label="Source"><input type="text" value={value} onChange={(e) => onChange(e.target.value)} className={inputCls} placeholder="Referral, Website, etc." /></Field>
+  // Still loading: the same dropdown, waiting.
+  if (options === null) {
+    return <Field label="Source"><select disabled value="" className={inputCls} aria-busy="true"><option value="">Loading choices…</option></select></Field>
   }
 
   const match = options.find((o) => o.toLowerCase() === String(value || '').trim().toLowerCase())
-  const isOther = pickedOther || (!!value && !match)
+  // No choices to pick from (none saved, or the list could not be read): Other, with its box, is the field.
+  const isOther = pickedOther || (!!value && !match) || options.length === 0
   const selectValue = isOther ? OTHER : (match || '')
 
   const pick = (v: string) => {
@@ -70,7 +82,9 @@ export function SourceField({ api, value, onChange, toast }: SourceFieldProps) {
     setSaving(true)
     try {
       const r = await api.put('/api/contacts/source-options', { options: draft })
-      setOptions(Array.isArray(r?.options) ? r.options : draft)
+      const saved = Array.isArray(r?.options) ? r.options : draft
+      sourceOptionsCache.options = saved
+      setOptions(saved)
       setEditing(false)
       toast.success('Source choices saved')
     } catch (err) { toast.error(errMsg(err, 'Could not save the source choices')) } finally { setSaving(false) }

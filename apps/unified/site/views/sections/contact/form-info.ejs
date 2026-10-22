@@ -12,7 +12,10 @@
   const phone = data.phone || ''
   const email = data.email || ''
   const address = data.address || ''
-  const hours = Array.isArray(data.hours) ? data.hours : []
+  // The section's own Hours lines; left empty, the company's opening hours (Settings › Company), as the site context
+  // prints them (server/site/context.ts businessHoursLines).
+  const ownHours = Array.isArray(data.hours) ? data.hours.filter(Boolean) : []
+  const hours = ownHours.length ? ownHours : ((typeof settings !== 'undefined' && settings && Array.isArray(settings.businessHoursLines)) ? settings.businessHoursLines : [])
   const responsePromise = data.responsePromise || ''
   // Always the enquiry endpoint (saved where the business works its leads, and emailed to the owner).
   const formAction = '/api/leads'

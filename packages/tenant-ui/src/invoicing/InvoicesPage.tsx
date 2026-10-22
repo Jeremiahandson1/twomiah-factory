@@ -10,6 +10,8 @@ type Row = Record<string, any> & { id: string }
 interface InvoiceForm { contactId: string; projectId: string; dueDate: string; taxRate: number; discount: number; notes: string; lineItems: LineItemInput[] }
 const BASE_STATUSES = ['draft', 'sent', 'partial', 'paid', 'overdue', 'refunded', 'void']
 const blankLine = (): LineItemInput => ({ description: '', quantity: 1, unitPrice: 0 })
+// The Client picker leaves vendors out: a vendor is who the business buys from, never who an invoice bills — the server
+// refuses one too (invoicing/invoices.ts, vendor_not_client). Live test, 2026-10-22.
 
 const netPaid = (r: Row) => Number(r.amountPaid || 0) - Number(r.amountRefunded || 0)
 // What the customer still owes. Prefer the server's `balance` — it already nets refunds and applies the
@@ -222,7 +224,7 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.number}` : 'New Invoice'} size="xl">
         <div className="space-y-4">
           <div className={`grid gap-4 ${cfg.projects ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-            <Field label={`${cfg.clientLabel} *`}><select value={form.contactId} onChange={e => setForm((f) => ({ ...f, contactId: e.target.value }))} className={inputCls}><option value="">Select…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+            <Field label={`${cfg.clientLabel} *`}><select value={form.contactId} onChange={e => setForm((f) => ({ ...f, contactId: e.target.value }))} className={inputCls}><option value="">Select…</option>{contacts.filter((c) => c.type !== 'vendor' || c.id === form.contactId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
             {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => setForm((f) => ({ ...f, projectId: e.target.value }))} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
             <Field label="Due Date" hint={`Defaults to ${termsDays === 0 ? 'the day it is created' : `${termsDays} days out`} from Settings → Company`}><input type="date" value={form.dueDate} onChange={e => setForm((f) => ({ ...f, dueDate: e.target.value }))} className={inputCls} /></Field>
           </div>

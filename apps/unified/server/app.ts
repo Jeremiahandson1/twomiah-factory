@@ -94,7 +94,7 @@ export function createApp(deps: { db: any; vertical: VerticalSettings; store?: P
   const phonePush = createPhonePush({ db, logger })
   const phoneRules = createPhoneRules({ db, phonePush, realtime, permissions, companyId: () => companyId(), logger })
   crm.addJob(() => phoneRules.start())
-  const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler, realtime, adsConnector })
+  const companyModules = createCompanyModules({ db, vertical, audit, email, authenticate, permissions, features, enquiryHandler, realtime, adsConnector, store })
   // Card deposits on the business's own Stripe account (booking/deposits.ts), paid deposits back to the booking engine;
   // people's own calendars are the module's (booking/calendars.ts).
   // Texts to the customer (confirmation, reminder, review request) through the CRM's own texting (booking/texts.ts).

@@ -126,6 +126,15 @@ export function createTakeoffsRoutes(d: CrmDeps) {
 
   // ── export ─────────────────────────────────────────────────────────────────────────────────────
 
+  // The sheet's materials as quote lines (takeoffsService.quoteLines); the screen hands them to /api/quotes, which asks
+  // its own quotes:create / quotes:update.
+  app.get('/sheets/:id/quote-lines', async (c) => {
+    const user = c.get('user')
+    const sheet = await takeoffs.getTakeoffSheet(c.req.param('id'), user.companyId)
+    if (!sheet) return fail(c, 404, 'Sheet not found')
+    return one(c, await takeoffs.quoteLines(c.req.param('id'), user.companyId))
+  })
+
   app.post('/sheets/:id/export-po', requirePermission('takeoffs:create'), async (c) => {
     const user = c.get('user')
     const { vendorId } = await c.req.json()

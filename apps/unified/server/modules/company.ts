@@ -20,6 +20,8 @@ import type { Realtime } from '../core/realtime.ts'
 import { createProvisionRoute } from './provision.ts'
 import { createDomainRoutes } from './domain.ts'
 import { homecareCompanyFields, describeAgency } from '../crm/homecare/office/companyFields.ts'
+import { createCompanyLogoRoute } from './companyLogo.ts'
+import type { PhotoStore } from '../site/admin.ts'
 
 export interface CompanyModuleDeps {
   db: any
@@ -35,6 +37,8 @@ export interface CompanyModuleDeps {
   realtime: Realtime
   /** Told when the switched-on features change: registers the business with Twomiah Ads when paid_ads goes on. */
   adsConnector: { onFeaturesChanged: (features: string[]) => unknown }
+  /** Where an uploaded logo is kept (the website's photo store, served at /media). */
+  store: PhotoStore
 }
 
 /** The Factory subscription's doors (packages/tenant-backend billing.ts createBillingRoutes). */
@@ -144,7 +148,8 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     /** Pull the subscription from the Factory (at boot), so the mirror is right even if a push was missed. */
     refreshSubscription: () => refreshSubscriptionFromFactory(billingDeps as any),
     mounts: [
-      { path: '/api/company', access: 'user' as const, router: companyRoutes },
+      // POST /logo (Settings › Company's logo upload, ./companyLogo.ts) beside the shared company routes.
+      { path: '/api/company', access: 'user' as const, router: new Hono().route('/', createCompanyLogoRoute({ db, store: deps.store, requireAdmin: isAdmin })).route('/', companyRoutes) },
       // Home care's /api/billing is also its visit invoicing (server/crm/homecare/billing), which composes these doors at
       // its root, as the template's billing router did — so it is mounted there, once.
       ...(vertical.crm?.homecare ? [] : [{ path: '/api/billing', access: 'user' as const, router: billing }]),

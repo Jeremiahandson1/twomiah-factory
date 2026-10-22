@@ -36,7 +36,7 @@ function getGustoConfig() {
 
 async function gustoRequest(method: string, endpoint: string) {
   const cfg = getGustoConfig()
-  if (!cfg.isConfigured) throw new Error('Gusto not configured. Set GUSTO_API_KEY and GUSTO_COMPANY_ID.')
+  if (!cfg.isConfigured) throw new Error('Gusto is not connected — use the CSV export and upload it in Gusto.')
   const res = await fetch(`${cfg.baseUrl}${endpoint}`, {
     method,
     headers: { Authorization: `Token ${cfg.apiKey}`, 'Content-Type': 'application/json' },
@@ -76,11 +76,12 @@ export function createGustoRoutes(core: HomecareCore, d: CrmDeps) {
     const cfg = getGustoConfig()
     return one(c, {
       isConfigured: cfg.isConfigured,
+      // What the owner can do, in their words: this reply named GUSTO_API_KEY / GUSTO_COMPANY_ID and "Render env vars",
+      // the server's settings, for a push POST /export refuses (live test, 2026-10-22). The CSV is the way in.
       setupInstructions: cfg.isConfigured ? null : {
-        step1: 'Sign up at gusto.com and create your company',
-        step2: 'Go to Settings → Integrations → API → Create API Key',
-        step3: 'Add to Render env vars: GUSTO_API_KEY and GUSTO_COMPANY_ID',
-        note: 'Gusto starts at $40/mo + $6/employee/mo — worth it when you have 10+ caregivers',
+        step1: 'On the Payroll tab, set the pay period and click Preview',
+        step2: 'Click "CSV for Gusto" to download the hours',
+        step3: 'In Gusto, upload the file with Gusto’s hours import',
       },
     })
   })

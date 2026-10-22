@@ -102,6 +102,8 @@ export type { ContactDeps, ContactOptions, ContactRelation, ContactGuard, Contac
 // Company settings + feature toggles + login users — one implementation for every CRM.
 export { createCompanyRoutes, sanitizeCompany, redactCompanyCommercial, COMPANY_SECRETS, COMPANY_COMMERCIAL } from './company/company'
 export type { CompanyDeps } from './company/company'
+export { WEEK_DAYS, checkBusinessHours, businessHoursLines } from './company/businessHours'
+export type { BusinessHours, DayHours, WeekDay } from './company/businessHours'
 
 // Jobs / service calls + the public media proxy for job photos — one implementation for every CRM.
 export { createJobRoutes, createMediaRoutes, JOB_PRIORITIES, OPEN_JOB_STATUSES } from './jobs/jobs'

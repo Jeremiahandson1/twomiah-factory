@@ -7,7 +7,7 @@ import {
   Loader2, Image, ArrowUpRight, ArrowDownRight, Filter
 } from 'lucide-react';
 import { api } from '../../api'
-import { usePrompt, useToast, useAuth } from '../../shared'
+import { usePrompt, useToast, useAuth, usePermissions } from '../../shared'
 
 interface SelectionsPageProps {
   projectId?: string;
@@ -523,10 +523,45 @@ interface OptionPickerModalProps {
   onClose: () => void;
 }
 
+/**
+ * The options for one selection, and — for whoever may add to the library (selections:create, what POST
+ * /api/selections/options asks) — a form to add one: name, price each, and optionally a picture, maker and model. The
+ * picker only ever listed the library, which nothing on any screen could fill, so a new selection showed "No options
+ * found" and could never be chosen (live test, 2026-10-22). An added option joins the selection's category, so the
+ * client sees it in the portal too, and is picked here like any other.
+ */
 function OptionPickerModal({ selection, onSelect, onClose }: OptionPickerModalProps) {
   const [options, setOptions] = useState<SelectionOption[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
+  const toast = useToast();
+  const { known, can } = usePermissions();
+  const mayAdd = known && can('selections:create') && !!selection.categoryId;
+  const [adding, setAdding] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [draft, setDraft] = useState({ name: '', price: '', imageUrl: '', manufacturer: '', model: '' });
+
+  const addOption = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const price = Number(draft.price);
+    if (!draft.name.trim()) { toast.error('Give the option a name.'); return; }
+    if (draft.price.trim() === '' || !Number.isFinite(price) || price < 0) { toast.error('Enter the price each, like 450 or 450.00.'); return; }
+    setSaving(true);
+    try {
+      const created = await api.post('/api/selections/options', {
+        categoryId: selection.categoryId, name: draft.name.trim(), price,
+        imageUrl: draft.imageUrl.trim() || undefined, manufacturer: draft.manufacturer.trim() || undefined, model: draft.model.trim() || undefined,
+      }) as SelectionOption;
+      setOptions((prev) => [...prev, created]);
+      setDraft({ name: '', price: '', imageUrl: '', manufacturer: '', model: '' });
+      setAdding(false);
+      toast.success(`${created?.name || 'Option'} added`);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Could not add the option');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     loadOptions();
@@ -584,7 +619,7 @@ function OptionPickerModal({ selection, onSelect, onClose }: OptionPickerModalPr
               </div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-12 text-gray-500 dark:text-slate-400">
-                No options found
+                {search ? 'No options match your search.' : mayAdd ? 'No options yet — add the choices you offer for this selection below.' : 'No options have been added for this selection yet.'}
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -627,6 +662,44 @@ function OptionPickerModal({ selection, onSelect, onClose }: OptionPickerModalPr
               </div>
             )}
           </div>
+
+          {/* Add an option (selections:create) */}
+          {mayAdd && (
+            <div className="p-4 border-t dark:border-slate-700">
+              {adding ? (
+                <form onSubmit={addOption} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="opt-name" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
+                    <input id="opt-name" type="text" required maxLength={200} value={draft.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., Quartz — Calacatta" />
+                  </div>
+                  <div>
+                    <label htmlFor="opt-price" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price each ($)</label>
+                    <input id="opt-price" type="number" required min="0" step="0.01" value={draft.price} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, price: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label htmlFor="opt-maker" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Maker (optional)</label>
+                    <input id="opt-maker" type="text" maxLength={200} value={draft.manufacturer} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, manufacturer: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label htmlFor="opt-model" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Model (optional)</label>
+                    <input id="opt-model" type="text" maxLength={200} value={draft.model} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, model: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label htmlFor="opt-image" className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Picture link (optional)</label>
+                    <input id="opt-image" type="url" maxLength={2000} value={draft.imageUrl} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft({ ...draft, imageUrl: e.target.value })} className="w-full px-3 py-2 border rounded-lg" placeholder="https://…" />
+                  </div>
+                  <div className="sm:col-span-2 flex gap-3">
+                    <button type="button" onClick={() => setAdding(false)} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
+                    <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-700 hover:bg-orange-800 text-white rounded-lg disabled:opacity-60">{saving ? 'Adding…' : 'Add option'}</button>
+                  </div>
+                </form>
+              ) : (
+                <button type="button" onClick={() => setAdding(true)} className="w-full px-4 py-2 border border-dashed rounded-lg flex items-center justify-center gap-2 text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-800">
+                  <Plus className="w-4 h-4" /> Add an option
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Footer */}
           <div className="p-4 border-t">

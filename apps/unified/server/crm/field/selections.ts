@@ -12,9 +12,21 @@ import { createSelectionsService, type SelectionsService } from './selectionsSer
 
 /** What the INSERTs require: the fields the SQL has no fallback for (an empty body is a 400, never a 500). */
 const categoryBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough()
+/**
+ * An option the owner offers for a selection: a name, a price (each, to the cent), and optionally a picture, maker and
+ * model. The library had a route and no screen, so "No options found" was all a selection could show (live test,
+ * 2026-10-22); the picker now adds them. A price that is not a number, or is negative, is refused (it reached the
+ * INSERT as text: a 500); a picture is a web address or one of the website's own photos (/media/…).
+ */
 const optionBody = z.object({
   categoryId: z.string().min(1, 'Pick a category'),
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().trim().min(1, 'Name is required').max(200, 'Name is too long (200 characters max).'),
+  price: z.coerce.number({ invalid_type_error: 'Price must be a number' }).min(0, 'Price cannot be negative').max(10_000_000, 'That price is too large')
+    .transform((v) => Math.round((v + Number.EPSILON) * 100) / 100).default(0),
+  imageUrl: z.string().trim().max(2000).refine((v) => v === '' || /^https?:\/\/[^\s]+$/i.test(v) || /^\/media\/[^\s]+$/.test(v), 'The picture must be a web address (https://…)').optional(),
+  manufacturer: z.string().trim().max(200).optional(),
+  model: z.string().trim().max(200).optional(),
+  description: z.string().trim().max(2000).optional(),
 }).passthrough()
 const projectSelectionBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough()
 
@@ -69,7 +81,9 @@ export function createSelectionsRoutes(d: CrmDeps, service?: SelectionsService) 
     const user = c.get('user')
     const parsed = optionBody.safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return invalid(c, parsed.error)
-    return one(c, await selections.createOption(user.companyId, parsed.data), 201)
+    const option = await selections.createOption(user.companyId, parsed.data)
+    if (!option) return fail(c, 404, 'Category not found')
+    return one(c, option, 201)
   })
 
   // ── project selections ─────────────────────────────────────────────────────────────────────────

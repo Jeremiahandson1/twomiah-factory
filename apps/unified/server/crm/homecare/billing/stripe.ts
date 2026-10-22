@@ -49,7 +49,7 @@ export function createVisitInvoiceStripeRoutes(core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()
 
   const requireStripe = async (c: any, next: any) => {
-    if (!(await stripeClient(logger))) return fail(c, 503, 'Stripe payments not configured. Set STRIPE_SECRET_KEY.')
+    if (!(await stripeClient(logger))) return fail(c, 503, 'Card payments are not available on your account yet — contact Twomiah to switch them on.', 'payments_unavailable')
     await next()
   }
 

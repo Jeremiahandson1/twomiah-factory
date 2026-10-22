@@ -13,6 +13,29 @@ import { PasswordInput } from '../ui/PasswordInput'
 interface CompanyForm { name: string; email: string; phone: string; address: string; city: string; state: string; zip: string; website: string; licenseNumber: string; defaultTaxRate: string; paymentTermsDays: string; logo: string; primaryColor: string }
 /** The colour the portal header and the Stripe payment form fall back to when a tenant has not set one. */
 const DEFAULT_BRAND = '#f97316'
+/**
+ * Opening hours (live test, 2026-10-22: Settings had no business hours). Kept on the company, settings.businessHours —
+ * { monday: { open: '09:00', close: '17:00' }, sunday: { closed: true } } — which the website reads (its contact section
+ * and the urgent-care bar) and the server checks (packages/tenant-backend company/businessHours.ts, the same day list).
+ * A day left as "—" is not said at all, so an owner who never opens this saves no hours.
+ */
+const WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
+type DayState = { state: '' | 'open' | 'closed'; open: string; close: string }
+type HoursForm = Record<typeof WEEK[number], DayState>
+const hoursFrom = (saved: any): HoursForm => Object.fromEntries(WEEK.map((d) => {
+  const h = saved && typeof saved === 'object' ? saved[d] : null
+  const state: DayState['state'] = !h ? '' : h.closed ? 'closed' : 'open'
+  return [d, { state, open: h?.open || '09:00', close: h?.close || '17:00' }]
+})) as HoursForm
+const hoursToSave = (f: HoursForm) => {
+  const out: Record<string, any> = {}
+  for (const d of WEEK) {
+    if (f[d].state === 'closed') out[d] = { closed: true }
+    else if (f[d].state === 'open') out[d] = { open: f[d].open, close: f[d].close }
+  }
+  return Object.keys(out).length ? out : null
+}
+const dayLabel = (d: string) => d[0].toUpperCase() + d.slice(1)
 interface NewUserForm { firstName: string; lastName: string; email: string; password: string; role: RoleOption['value']; invite: boolean }
 
 /**
@@ -66,6 +89,8 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   // business and a dead end for everyone else.
   const [tab, setTab] = useState(() => (((auth as any).can?.('company:update') ?? true) ? 'company' : 'profile'))
   const [form, setForm] = useState<CompanyForm>({ name: '', email: '', phone: '', address: '', city: '', state: '', zip: '', website: '', licenseNumber: '', defaultTaxRate: '', paymentTermsDays: '30', logo: '', primaryColor: '' })
+  const [hours, setHours] = useState<HoursForm>(() => hoursFrom(null))
+  const [uploadingLogo, setUploadingLogo] = useState(false)
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [profile, setProfileForm] = useState({ firstName: '', lastName: '', phone: '' })
   const [users, setUsers] = useState<any[]>([])
@@ -91,6 +116,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
         defaultTaxRate: company.settings?.defaultTaxRate != null ? String(company.settings.defaultTaxRate) : '',
         paymentTermsDays: company.settings?.paymentTermsDays != null ? String(company.settings.paymentTermsDays) : '30',
       })
+      setHours(hoursFrom(company.settings?.businessHours))
     }
     loadUsers()
   }, [company]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -126,15 +152,35 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     const colour = String(fields.primaryColor || '').trim()
     if (colour && !/^#[0-9a-fA-F]{6}$/.test(colour)) { toast.error('Brand colour must be a 6-digit hex value like #f97316 (leave blank for the default).'); return }
     fields.primaryColor = colour
+    const badDay = WEEK.find((d) => hours[d].state === 'open' && !(hours[d].open && hours[d].close && hours[d].close > hours[d].open))
+    if (badDay) { toast.error(`${dayLabel(badDay)}: closing time must be after opening time.`); return }
     setSaving(true)
     try {
-      const settings = { ...(company?.settings || {}), defaultTaxRate: taxNum, paymentTermsDays: termsNum }
+      const settings = { ...(company?.settings || {}), defaultTaxRate: taxNum, paymentTermsDays: termsNum, businessHours: hoursToSave(hours) }
       const payload: any = { ...fields, settings }
       if (!showLicense) delete payload.licenseNumber
       const updated = await api.put('/api/company', payload)
       updateCompany(updated)
       toast.success('Company updated')
     } catch (err) { toast.error(errMsg(err, 'Failed to save')) } finally { setSaving(false) }
+  }
+
+  // The logo FILE (POST /api/company/logo, owner and admins): the server stores a web-safe copy and sets company.logo
+  // to its address, so the website, portal and invoices show it at once. The Logo URL box stays for a hosted logo.
+  const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !api.upload) return
+    setUploadingLogo(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const r = await api.upload('/api/company/logo', fd)
+      const logo = r?.logo || ''
+      setForm((f) => ({ ...f, logo }))
+      if (company) updateCompany({ ...company, logo })
+      toast.success('Logo uploaded')
+    } catch (err) { toast.error(errMsg(err, 'Could not upload the logo')) } finally { setUploadingLogo(false) }
   }
 
   const setProfile = (k: keyof typeof profile) => (e: React.ChangeEvent<HTMLInputElement>) => setProfileForm({ ...profile, [k]: e.target.value })
@@ -294,7 +340,15 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                   runtime (useBrandPalette), so this line no longer says "the portal and invoices only". */}
               <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Branding</h3>
               <p className="text-sm text-gray-500 -mt-2 dark:text-slate-400">Your colour across this CRM — its buttons, links and menus — and on what your customers see: the portal header, the payment form and your invoices.</p>
-              <Field label="Logo URL" hint="A direct link to your logo image. Leave blank to show your company name instead.">
+              {api.upload && (
+                <Field label="Logo" hint="PNG, JPG, WebP, GIF or SVG, up to 5 MB.">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-100 dark:hover:bg-slate-800">
+                    <Upload className="w-4 h-4" />{uploadingLogo ? 'Uploading…' : form.logo ? 'Upload a new logo' : 'Upload your logo'}
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" onChange={uploadLogo} disabled={uploadingLogo} className="sr-only" />
+                  </label>
+                </Field>
+              )}
+              <Field label="Logo URL" hint="Or a direct link to your logo image. Leave blank to show your company name instead.">
                 <input value={form.logo} onChange={set('logo')} className={inputCls} placeholder="https://example.com/logo.png" />
               </Field>
               {form.logo.trim() !== '' && (
@@ -324,6 +378,27 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                   </p>
                 )}
               </Field>
+              <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Business Hours</h3>
+              <p className="text-sm text-gray-500 -mt-2 dark:text-slate-400">Shown on your website. Leave a day as “—” to say nothing about it.</p>
+              <div className="space-y-2">
+                {WEEK.map((d) => (
+                  <div key={d} className="flex flex-wrap items-center gap-2">
+                    <span className="w-24 text-sm text-gray-700 dark:text-slate-200">{dayLabel(d)}</span>
+                    <select aria-label={`${dayLabel(d)} hours`} value={hours[d].state} onChange={(e) => { const state = e.target.value as DayState['state']; setHours((h) => ({ ...h, [d]: { ...h[d], state } })) }} className={inputCls} style={{ width: "7rem" }}>
+                      <option value="">—</option>
+                      <option value="open">Open</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                    {hours[d].state === 'open' && (
+                      <>
+                        <input type="time" aria-label={`${dayLabel(d)} opens`} value={hours[d].open} onChange={(e) => { const open = e.target.value; setHours((h) => ({ ...h, [d]: { ...h[d], open } })) }} className={inputCls} style={{ width: "8rem" }} />
+                        <span className="text-sm text-gray-500 dark:text-slate-400">to</span>
+                        <input type="time" aria-label={`${dayLabel(d)} closes`} value={hours[d].close} onChange={(e) => { const close = e.target.value; setHours((h) => ({ ...h, [d]: { ...h[d], close } })) }} className={inputCls} style={{ width: "8rem" }} />
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
               <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Billing Defaults</h3>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Default Sales Tax Rate (%)" hint="Applied to new quotes and invoices. Leave 0 if you do not collect sales tax."><input type="number" step="0.01" min="0" max="100" value={form.defaultTaxRate} onChange={set('defaultTaxRate')} className={inputCls} placeholder="e.g. 7.5" /></Field>

@@ -45,7 +45,11 @@ export function createSelectionsService(d: CrmDeps) {
 
   // ── options ────────────────────────────────────────────────────────────────────────────────────
 
-  const createOption = (companyId: string, data: any) => q.insertOption(db, companyId, data)
+  /** An option is filed under one of the company's categories; null when the category is not the company's. */
+  async function createOption(companyId: string, data: any) {
+    if (!(await q.categoryIsCompanys(db, companyId, data.categoryId))) return null
+    return q.insertOption(db, companyId, data)
+  }
   const getOptions = (companyId: string, { categoryId, search, active = true }: { categoryId?: string; search?: string; active?: boolean | null } = {}) =>
     q.listOptions(db, companyId, { categoryId, search, active })
 
@@ -99,7 +103,7 @@ export function createSelectionsService(d: CrmDeps) {
   ) {
     const selection = await q.findProjectSelection(db, selectionId, companyId)
     if (!selection) throw notFound('Selection not found')
-    const option = await q.findOption(db, optionId)
+    const option = await q.findOption(db, optionId, companyId)
     if (!option) throw notFound('Option not found')
 
     const totalPrice = option.price * selection.quantity

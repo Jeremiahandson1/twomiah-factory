@@ -29,8 +29,6 @@ import SandataPanel, { type EvvVisit } from './SandataPanel'
 // ─── REPLY SHAPES ─────────────────────────────────────────────────────────────
 /** GET /api/sandata/config. */
 interface SandataConfig { isConfigured: boolean }
-/** GET /api/gusto/config. */
-interface GustoConfig { isConfigured: boolean }
 /** GET /api/sandata/status. */
 interface EvvStatus {
   sandataConfigured: boolean
@@ -223,7 +221,6 @@ export default function IntegrationsHub() {
   const tabs = TABS.filter((t) => !t.permission || can(t.permission))
   const [tab, setTab] = useState<TabId>('overview')
   const [sandataConfig, setSandataConfig] = useState<SandataConfig | null>(null)
-  const [gustoConfig, setGustoConfig] = useState<GustoConfig | null>(null)
   const [evvData, setEvvData] = useState<EvvStatus | null>(null)
   const [authSummary, setAuthSummary] = useState<AuthSummary | null>(null)
   const [authorizations, setAuthorizations] = useState<Authorization[]>([])
@@ -265,7 +262,6 @@ export default function IntegrationsHub() {
     const loadCore = async () => {
       await Promise.all([
         mayEvv ? get<SandataConfig>('/api/sandata/config').then((d) => live && d && setSandataConfig(d)) : null,
-        mayPayroll ? get<GustoConfig>('/api/gusto/config').then((d) => live && d && setGustoConfig(d)) : null,
       ])
       if (mayBilling) {
         await delay(400)
@@ -321,11 +317,13 @@ export default function IntegrationsHub() {
             </Card>
           )}
           {mayPayroll && (
-            <Card style={{ borderLeft: `4px solid ${gustoConfig?.isConfigured ? 'var(--hc-primary)' : 'var(--hc-muted)'}` }}>
+            <Card style={{ borderLeft: '4px solid var(--hc-primary)' }}>
+              {/* It told the owner to add the Gusto key to the server — a setting no owner can reach, for a push the server
+                  refuses (/api/gusto/export answers 501). What the owner CAN do is the CSV, every pay period (live test,
+                  2026-10-22). No setting names on this page. */}
               <div className="mb-1.5 text-[0.85rem] font-bold">💰 Gusto Payroll</div>
-              {gustoConfig?.isConfigured
-                ? <Badge status="active" label="✓ Connected" />
-                : <><Badge status="unmatched" label="Not Connected" /><p className="mt-1.5 text-[0.75rem]" style={{ color: INK.muted }}>Add GUSTO_API_KEY to connect</p></>}
+              <Badge status="active" label="CSV export" />
+              <p className="mt-1.5 text-[0.75rem]" style={{ color: INK.muted }}>On the Payroll tab, download the hours as a CSV and upload it in Gusto.</p>
             </Card>
           )}
           {mayBilling && (
@@ -794,30 +792,22 @@ export default function IntegrationsHub() {
     try { saveBlob(await downloadBlob(`/api/gusto/export-csv?${period}`), `gusto-hours-${payPeriod.start}-to-${payPeriod.end}.csv`) } catch (err) { toast.error(errorMessage(err, 'Export failed')) }
     setLoad('csv', false)
   }
-  const sendToGusto = async () => {
-    setLoad('gusto', true)
-    try {
-      const d: { exported?: number } = await api.post('/api/gusto/export', { startDate: payPeriod.start, endDate: payPeriod.end })
-      toast.success(`Exported ${d?.exported ?? 0} caregivers to Gusto`)
-    } catch (err) { toast.error(errorMessage(err, 'Export failed')) }
-    setLoad('gusto', false)
-  }
 
   const renderPayroll = () => {
     const w = payrollPreview?.warnings
     return (
       <div className="grid gap-4">
-        {!gustoConfig?.isConfigured && (
-          <Card style={{ background: 'var(--hc-subtle)' }}>
-            <h4 className="mb-2 font-bold" style={{ color: INK.ink }}>💰 Gusto Not Connected</h4>
-            <p className="mb-3 text-sm" style={{ color: INK.soft }}>You can still export hours as CSV for manual payroll. To connect Gusto:</p>
-            <div className="mb-3 grid gap-1 text-[0.82rem]" style={{ color: INK.ink }}>
-              <div>1. Sign up at <strong>gusto.com</strong> — starts at $40/mo + $6/caregiver/mo</div>
-              <div>2. Settings → Integrations → API → create API key</div>
-              <div>3. Add <Code>GUSTO_API_KEY</Code> and <Code>GUSTO_COMPANY_ID</Code> to Render env vars</div>
-            </div>
-          </Card>
-        )}
+        {/* What the owner does, in their words. The old card told them to add two server settings to
+            "Render env vars" — the server's settings, out of their reach — for a direct push the server refuses (501)
+            (live test, 2026-10-22). The CSV is the way hours reach Gusto. */}
+        <Card style={{ background: 'var(--hc-subtle)' }}>
+          <h4 className="mb-2 font-bold" style={{ color: INK.ink }}>💰 Getting hours into Gusto</h4>
+          <div className="grid gap-1 text-[0.82rem]" style={{ color: INK.ink }}>
+            <div>1. Set the pay period below and click <strong>Preview</strong>.</div>
+            <div>2. Click <strong>⬇ CSV for Gusto</strong> to download the hours.</div>
+            <div>3. In Gusto, upload the file into the pay run with Gusto’s hours import.</div>
+          </div>
+        </Card>
 
         <Card>
           <SectionHeader icon="💰" title="Payroll Export" sub="Payable hours from approved payroll shift reviews — upload the CSV into Gusto's hours import" />
@@ -833,9 +823,6 @@ export default function IntegrationsHub() {
             <Btn disabled={!payPeriod.start || !payPeriod.end || loading.preview} onClick={loadPreview}>{loading.preview ? 'Loading...' : 'Preview'}</Btn>
             {payrollPreview && <>
               <Btn outline disabled={loading.csv} onClick={downloadCsv}>{loading.csv ? 'Preparing...' : '⬇ CSV for Gusto'}</Btn>
-              {gustoConfig?.isConfigured && (
-                <Btn violet disabled={loading.gusto} onClick={sendToGusto}>{loading.gusto ? 'Exporting...' : '🚀 Send to Gusto'}</Btn>
-              )}
             </>}
           </div>
 
@@ -856,7 +843,7 @@ export default function IntegrationsHub() {
               )}
               {payrollPreview.totals.unmapped > 0 && (
                 <div className="mb-4 rounded-lg border p-3 text-[0.82rem]" style={{ background: 'var(--hc-warning-bg)', borderColor: 'var(--hc-warning-line)', color: 'var(--hc-warning-ink)' }}>
-                  ⚠️ {payrollPreview.totals.unmapped} caregiver(s) not mapped to Gusto — CSV export still works, Gusto sync will skip them.
+                  ⚠️ {payrollPreview.totals.unmapped} caregiver(s) not matched to a Gusto employee — check their names match in Gusto before you upload the CSV.
                 </div>
               )}
               <div className="overflow-x-auto">
