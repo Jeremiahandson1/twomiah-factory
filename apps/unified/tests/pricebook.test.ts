@@ -247,7 +247,7 @@ describe('the customer presentation (/api/pricebook-present/:id)', () => {
     const r = await ctr.t.call(`/api/pricebook-present/${item.id}`)
     expect(r.status).toBe(200)
     const html = await r.text()
-    for (const w of ['Deck rebuild', 'Pine', 'Cedar', 'Composite', `/crm/quotes?newFromPricebook=${item.id}&tier=`]) expect(html).toContain(w)
+    for (const w of ['Deck rebuild', 'Pine', 'Cedar', 'Composite', `data-item="${item.id}"`]) expect(html).toContain(w)
     // The template's urgency words are gone; the page never prints the cost.
     for (const w of ['Sign Today', 'Within 30 Days', 'Valid 1 Year', '6000', '6,000']) expect(html).not.toContain(w)
 
@@ -255,6 +255,28 @@ describe('the customer presentation (/api/pricebook-present/:id)', () => {
     expect((await ctr.t.call(`/api/pricebook-present/${item.id}`)).status).toBe(404)
     expect((await ctr.owner(`/api/pricebook/items/${item.id}`, { method: 'PUT', json: { showToCustomer: true, active: false } })).status).toBe(200)
     expect((await ctr.t.call(`/api/pricebook-present/${item.id}`)).status).toBe(404)
+  })
+
+  test('its buttons run under the app\'s policy: no script written into the page, the behaviour served as a file', async () => {
+    // The live test (2026-10-22): the policy (http/guards.ts CSP, script-src 'self') ran no inline script or onclick,
+    // so "Select This Package" and "Build Your Quote" did nothing.
+    const item = await json(await ctr.owner('/api/pricebook/items', { method: 'POST', json: { name: 'Fence', price: 4000 } }))
+    await ctr.owner(`/api/pricebook/items/${item.id}/options`, { method: 'PUT', json: { options: [{ tier: 'good', name: 'Cedar', price: 4000, features: [], recommended: true }] } })
+    const page = await ctr.t.call(`/api/pricebook-present/${item.id}`)
+    const csp = page.headers.get('content-security-policy') || ''
+    const scriptSrc = csp.split(';').map((x) => x.trim()).find((x) => x.startsWith('script-src')) || ''
+    expect(scriptSrc).toContain("'self'")
+    expect(scriptSrc).not.toContain('unsafe-inline')  // the strict policy — so the page must not rely on inline script
+    const html = await page.text()
+    expect(html).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/i)          // every script has a src
+    expect(html).not.toMatch(/\son[a-z]+\s*=/i)                         // no onclick= and the like
+    expect(html).toContain('<script src="/api/pricebook-present/present.js"')
+    expect(html).toContain(`data-item="${item.id}"`)
+    const js = await ctr.t.call('/api/pricebook-present/present.js')
+    expect(js.status).toBe(200)
+    expect(js.headers.get('content-type')).toContain('javascript')
+    const src = await js.text()
+    for (const w of ['[data-select-tier]', '#buildQuote', '/crm/quotes?newFromPricebook=', '&tier=']) expect(src).toContain(w)
   })
 
   test('its "Build Your Quote" link is read by the quote form, and the Pricebook page offers the page', () => {

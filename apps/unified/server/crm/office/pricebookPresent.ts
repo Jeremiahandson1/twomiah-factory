@@ -96,7 +96,7 @@ async function renderPresentation(c: Context<AppEnv, '/:itemId'>, db: any, finan
             ${features.map(f => `<li><span class="check">✓</span> ${f}</li>`).join('')}
           </ul>
         ` : ''}
-        <button class="select-btn" onclick="selectTier(this)" style="
+        <button type="button" class="select-btn" data-select-tier style="
           background: ${isRec ? colors.badge : '#374151'};
         ">Select This Package</button>
       </div>
@@ -110,9 +110,9 @@ async function renderPresentation(c: Context<AppEnv, '/:itemId'>, db: any, finan
       <h2>${item.name}</h2>
       ${item.customerDescription || item.description ? `<p class="item-desc">${item.customerDescription || item.description}</p>` : ''}
       <div class="tier-price">${fmt(item.price)}</div>
-      <button class="select-btn" style="background:#2563eb;margin-top:32px" onclick="window.location.href='/crm/quotes?newFromPricebook=${item.id}'">
+      <a class="select-btn" style="background:#2563eb;margin-top:32px;display:inline-block;text-decoration:none" href="/crm/quotes?newFromPricebook=${encodeURIComponent(item.id)}">
         Build Your Quote
-      </button>
+      </a>
     </div>
   ` : ''
 
@@ -400,36 +400,13 @@ async function renderPresentation(c: Context<AppEnv, '/:itemId'>, db: any, finan
 
   <div class="continue-bar" id="continueBar">
     <div class="selected-info">Selected: <span id="selectedName">—</span> · <span id="selectedPrice">—</span></div>
-    <button class="continue-btn" onclick="buildQuote()">Build Your Quote →</button>
+    <button type="button" class="continue-btn" id="buildQuote" data-item="${escapeHtml(String(item.id))}">Build Your Quote →</button>
   </div>
 
-  <script>
-    let selectedTier = null;
-
-    function selectTier(btn) {
-      // Deselect all
-      document.querySelectorAll('.tier-card').forEach(c => c.classList.remove('selected'));
-      // Select this one
-      const card = btn.closest('.tier-card');
-      card.classList.add('selected');
-      selectedTier = {
-        tier: card.dataset.tier,
-        price: card.dataset.price,
-        name: card.dataset.name,
-      };
-      // Show continue bar
-      document.getElementById('continueBar').classList.add('visible');
-      document.getElementById('selectedName').textContent = selectedTier.name;
-      document.getElementById('selectedPrice').textContent = '$' + Number(selectedTier.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      // Scroll to show the bar
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    }
-
-    function buildQuote() {
-      if (!selectedTier) return;
-      window.location.href = '/crm/quotes?newFromPricebook=${item.id}&tier=' + selectedTier.tier;
-    }
-  </script>
+  <!-- The page's own script, from /api/pricebook-present/present.js: the app's policy (http/guards.ts CSP) runs no
+       script written into the page, so the inline one and its onclick handlers never ran — every button was dead
+       (live test, 2026-10-22). -->
+  <script src="/api/pricebook-present/present.js" defer></script>
 
 </body>
 </html>`
@@ -437,9 +414,36 @@ async function renderPresentation(c: Context<AppEnv, '/:itemId'>, db: any, finan
   return c.html(html)
 }
 
+/** The page's behaviour: pick a package, then build the quote with it. Served as a file so the app's policy runs it. */
+export const PRESENT_JS = `(function () {
+  var selected = null;
+  var money = function (n) { return '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-select-tier]');
+    if (btn) {
+      document.querySelectorAll('.tier-card').forEach(function (c) { c.classList.remove('selected'); });
+      var card = btn.closest('.tier-card');
+      card.classList.add('selected');
+      selected = { tier: card.dataset.tier, price: card.dataset.price, name: card.dataset.name };
+      document.getElementById('continueBar').classList.add('visible');
+      document.getElementById('selectedName').textContent = selected.name;
+      document.getElementById('selectedPrice').textContent = money(selected.price);
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      return;
+    }
+    var build = e.target.closest('#buildQuote');
+    if (build && selected) {
+      window.location.href = '/crm/quotes?newFromPricebook=' + encodeURIComponent(build.dataset.item) + '&tier=' + encodeURIComponent(selected.tier);
+    }
+  });
+})();
+`
+
 export function createPricebookPresentRoutes(d: CrmDeps) {
   const financing = createFinancingService(d)
   const app = new Hono<AppEnv>()
+  // Before '/:itemId', which would take "present.js" for an item id.
+  app.get('/present.js', (c) => c.body(PRESENT_JS, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'public, max-age=300' }))
   app.get('/:itemId', (c) => renderPresentation(c, d.db, financing))
   return app
 }
