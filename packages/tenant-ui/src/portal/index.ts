@@ -1,5 +1,6 @@
 // Customer portal — public surface. Templates import from '../shared' (vendored copy of this package).
-export { PortalProvider, usePortal, API_URL as PORTAL_API_URL } from './PortalContext'
+export { PortalProvider, PortalLinkProvider, usePortal, API_URL as PORTAL_API_URL } from './PortalContext'
+export { PortalDocumentLink } from './PortalDocumentLink'
 export type { PortalContextValue } from './PortalContext'
 export { PortalLayout, useVisibleSections } from './PortalLayout'
 export { PortalDashboard } from './PortalDashboard'

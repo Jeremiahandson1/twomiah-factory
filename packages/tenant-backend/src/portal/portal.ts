@@ -13,7 +13,8 @@ import { Hono } from 'hono'
 import crypto from 'crypto'
 import path from 'path'
 import { eq, and, inArray, count, sql, desc, asc, gte, lte, notInArray } from 'drizzle-orm'
-import { nextNumber, invoiceBalance, deriveStatus } from '../invoicing/money'
+import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry, startOfUtcDay } from '../invoicing/money'
+import { isDocumentToken } from './documentLinks'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
 
@@ -85,6 +86,12 @@ export interface PortalDeps {
    * "Review Change Orders" above a count of 0 Active Projects. (Contractor T14 M14)
    */
   enabledFeaturesFor?: (companyId: string) => Promise<string[]>
+  /**
+   * Can this business take a card payment from its customer right now (the app's answer — Stripe on this server, the
+   * business's account connected, Online Payments on)? The invoice page offers Pay only when it can; otherwise it says
+   * how to pay. Optional: a template that does not wire it keeps the Pay button it always showed. (2026-10-22)
+   */
+  canTakeCardPayments?: (companyId: string) => Promise<boolean>
   options?: PortalOptions
 }
 
@@ -408,7 +415,57 @@ export function createPortalRoutes(deps: PortalDeps) {
     })
     await next()
   }
-  const P = (c: any) => c.get('portal') as { contact: any; companyId: string; company: any }
+  const P = (c: any) => c.get('portal') as { contact: any; companyId: string; company: any; doc?: { kind: 'quote' | 'invoice'; id: string } }
+
+  /**
+   * A QUOTE'S OR AN INVOICE'S OWN LINK (/d/:token — portal/documentLinks.ts, 2026-10-22). The token names one document;
+   * the customer it is addressed to and their business are read from it, and the same handlers as the portal's answer
+   * (sharing c.get('portal')). It needs no client portal: every quote and invoice email carries it. It opens that one
+   * document and nothing else — onlyLinked refuses every other id, and the portal's lists and other sections are not
+   * mounted under /d/ at all. A business that has switched Quotes (or Invoices) off has closed the door it opened.
+   */
+  async function docAuth(c: any, next: any) {
+    const token = c.req.param('token')
+    const gone = () => c.json({ error: 'This link is not valid. Please contact the business that sent it.' }, 404)
+    if (!isDocumentToken(token)) return gone()
+    let doc: { kind: 'quote' | 'invoice'; id: string; contactId: string | null; companyId: string } | null = null
+    if (t.quote.publicToken) {
+      const [q] = await db.select({ id: t.quote.id, contactId: t.quote.contactId, companyId: t.quote.companyId }).from(t.quote).where(eq(t.quote.publicToken, token)).limit(1)
+      if (q) doc = { kind: 'quote', ...q }
+    }
+    if (!doc && t.invoice.publicToken) {
+      const [i] = await db.select({ id: t.invoice.id, contactId: t.invoice.contactId, companyId: t.invoice.companyId }).from(t.invoice).where(eq(t.invoice.publicToken, token)).limit(1)
+      if (i) doc = { kind: 'invoice', ...i }
+    }
+    if (!doc || !doc.contactId) return gone()
+    if (deps.enabledFeaturesFor) {
+      try {
+        const enabled = await deps.enabledFeaturesFor(doc.companyId)
+        if (enabled.length && !enabled.includes(doc.kind === 'quote' ? 'quotes' : 'invoices')) return gone()
+      } catch (err) { log.warn('[portal] enabled-features lookup failed on a document link', { error: (err as Error).message }) }
+    }
+    const [found] = await db.select({
+      id: t.contact.id, type: t.contact.type, name: t.contact.name, email: t.contact.email, companyId: t.contact.companyId,
+      companyName: t.company.name, companyLogo: t.company.logo, companyPrimaryColor: t.company.primaryColor,
+      companyEmail: t.company.email, companyPhone: t.company.phone, companyAddress: t.company.address,
+      companyCity: t.company.city, companyState: t.company.state, companyZip: t.company.zip,
+    }).from(t.contact).leftJoin(t.company, eq(t.contact.companyId, t.company.id))
+      .where(and(eq(t.contact.id, doc.contactId), eq(t.contact.companyId, doc.companyId))).limit(1)
+    if (!found) return gone()
+    c.set('portal', {
+      contact: found,
+      companyId: found.companyId,
+      company: { id: found.companyId, name: found.companyName, logo: found.companyLogo, primaryColor: found.companyPrimaryColor, email: found.companyEmail, phone: found.companyPhone, address: found.companyAddress, city: found.companyCity, state: found.companyState, zip: found.companyZip },
+      doc: { kind: doc.kind, id: doc.id },
+    })
+    await next()
+  }
+  /** The link's own document only: any other id is not found, never someone else's quote or invoice. */
+  const onlyLinked = (kind: 'quote' | 'invoice', param: string) => async (c: any, next: any) => {
+    const doc = P(c).doc
+    if (!doc || doc.kind !== kind || doc.id !== c.req.param(param)) return c.json({ error: kind === 'quote' ? 'Quote not found' : 'Invoice not found' }, 404)
+    await next()
+  }
   const contactProjectIds = async (contactId: string): Promise<string[]> => {
     if (!t.project) return []
     const rows = await db.select({ id: t.project.id }).from(t.project).where(eq(t.project.contactId, contactId))
@@ -452,7 +509,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     const [projectCount] = sections.projects
       ? await db.select({ value: count() }).from(t.project).where(and(eq(t.project.contactId, contact.id), notInArray(t.project.status, ['completed', 'cancelled'])))
       : [{ value: 0 }]
-    const [quoteCount] = await db.select({ value: count() }).from(t.quote).where(and(eq(t.quote.contactId, contact.id), inArray(t.quote.status, QUOTE_RESPONDABLE)))
+    const [quoteCount] = await db.select({ value: count() }).from(t.quote).where(and(eq(t.quote.contactId, contact.id), inArray(t.quote.status, QUOTE_RESPONDABLE),
+      // Awaiting an answer means still open: a quote past its valid-until day is expired (customerQuoteStatus below).
+      sql`(${t.quote.expiryDate} IS NULL OR ${t.quote.expiryDate} >= ${startOfUtcDay(new Date())})`))
     const [invoiceCount] = await db.select({ value: count() }).from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN)))
     const [balance] = await db.select({ total: sql<string>`COALESCE(SUM(CASE WHEN ${t.invoice.amountPaid} >= ${t.invoice.total} THEN 0 ELSE GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0))) END), 0)` }).from(t.invoice)
       .where(and(eq(t.invoice.contactId, contact.id), inArray(t.invoice.status, ['sent', 'open', 'viewed', 'partial', 'overdue'])))
@@ -560,17 +619,25 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
 
   // ---- quotes
+  /**
+   * WHAT THE CUSTOMER IS TOLD THE QUOTE IS. An offer whose "valid until" day is over is EXPIRED, whatever the status
+   * column still says — nothing flips the column, so a quote sent and never answered read "sent" forever and could
+   * still be signed months after its date (2026-10-22, found building the quote's own link). The whole of the expiry
+   * day is the customer's, the rule isOverdue keeps for a due date. Applied wherever a customer reads or answers a
+   * quote — the portal and the quote's own link — so the two cannot disagree.
+   */
+  const customerQuoteStatus = (q: any) => (QUOTE_RESPONDABLE.includes(q.status) && quotePastExpiry(q) ? 'expired' : q.status)
   app.get('/p/:token/quotes', portalAuth, async (c) => {
     const { contact } = P(c)
     const rows = await db.select({ id: t.quote.id, number: t.quote.number, name: t.quote.name, status: t.quote.status, total: t.quote.total, expiryDate: t.quote.expiryDate, createdAt: t.quote.createdAt })
       .from(t.quote).where(and(eq(t.quote.contactId, contact.id), notInArray(t.quote.status, PORTAL_QUOTE_HIDDEN))).orderBy(desc(t.quote.createdAt), asc(t.quote.id))
-    return c.json(rows)
+    return c.json(rows.map((r: any) => ({ ...r, status: customerQuoteStatus(r) })))
   })
   const visibleQuote = async (quoteId: string, contactId: string) => {
     const [q] = await db.select().from(t.quote).where(and(eq(t.quote.id, quoteId), eq(t.quote.contactId, contactId), notInArray(t.quote.status, PORTAL_QUOTE_HIDDEN))).limit(1)
     return q || null
   }
-  app.get('/p/:token/quotes/:quoteId', portalAuth, async (c) => {
+  const quoteDetail = async (c: any) => {
     const { contact, company } = P(c)
     const quoteId = c.req.param('quoteId')
     const found = await visibleQuote(quoteId, contact.id)
@@ -585,8 +652,8 @@ export function createPortalRoutes(deps: PortalDeps) {
       await db.update(t.quote).set({ status: 'viewed', updatedAt: new Date() }).where(eq(t.quote.id, quoteId))
       found.status = 'viewed'
     }
-    return c.json({ ...pick(found, PORTAL_QUOTE_FIELDS), lineItems: lineItems.map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)), project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone } })
-  })
+    return c.json({ ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found), lineItems: lineItems.map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)), project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone } })
+  }
 
   // E-signature evidence: WHO signed, WHAT they saw, and that they agreed to sign electronically (ESIGN/UETA).
   function validateSignatureInput(body: any): { ok: true; signerName: string } | { ok: false; error: string } {
@@ -610,39 +677,50 @@ export function createPortalRoutes(deps: PortalDeps) {
     } catch (err) { log.error('[esign] audit write failed', { error: (err as Error).message }) }
   }
 
-  app.post('/p/:token/quotes/:quoteId/approve', portalAuth, async (c) => {
-    const { contact } = P(c)
+  /** Why this quote cannot be answered now, in words — or null. One rule for the portal and the quote's own link. */
+  const expiryDay = (d: unknown) => new Date(d as any).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' })
+  const notAnswerable = (found: any, verb: 'approved' | 'declined', companyName?: string | null): string | null => {
+    if (verb === 'approved' && found.status === 'approved') return 'Quote already approved'
+    const status = customerQuoteStatus(found)
+    if (status === 'expired') return `This quote expired on ${expiryDay(found.expiryDate)}. Please contact ${companyName || 'us'} for an updated quote.`
+    if (!QUOTE_RESPONDABLE.includes(status)) return `This quote is ${status} and can no longer be ${verb}`
+    return null
+  }
+
+  const approveQuote = async (c: any) => {
+    const { contact, company } = P(c)
     const quoteId = c.req.param('quoteId')
     const body = await c.req.json().catch(() => ({}))
     const check = validateSignatureInput(body)
     if (!check.ok) return c.json({ error: check.error }, 400)
     const found = await visibleQuote(quoteId, contact.id)
     if (!found) return c.json({ error: 'Quote not found' }, 404)
-    if (found.status === 'approved') return c.json({ error: 'Quote already approved' }, 400)
-    if (!QUOTE_RESPONDABLE.includes(found.status)) return c.json({ error: `This quote is ${found.status} and can no longer be approved` }, 400)
+    const refused = notAnswerable(found, 'approved', company?.name)
+    if (refused) return c.json({ error: refused }, 400)
     const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId))
     const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
     const documentHash = documentFingerprint({ id: found.id, number: found.number, name: found.name, subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, terms: found.terms || '', lineItems: lineItems.map((li: any) => ({ description: li.description, quantity: li.quantity, unitPrice: li.unitPrice, total: li.total })) })
     const [updated] = await db.update(t.quote).set({ status: 'approved', approvedAt: signedAt, signature: body.signature, signedAt, signedBy: check.signerName, signedIp: ip, signedUserAgent: userAgent, signatureHash: documentHash, consentAt: signedAt, updatedAt: signedAt }).where(eq(t.quote.id, quoteId)).returning()
     await recordSignatureAudit({ companyId: contact.companyId, entity: 'quote', entityId: quoteId, entityName: `${found.number} — ${found.name}`, signerName: check.signerName, signerEmail: contact.email, ip, userAgent, documentHash, signedAt, amount: found.total })
     notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved quote ${found.number} "${found.name}"`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash } })
-    return c.json({ success: true, quote: updated })
-  })
+    return c.json({ success: true, quote: pick(updated, PORTAL_QUOTE_FIELDS) })
+  }
 
-  app.post('/p/:token/quotes/:quoteId/reject', portalAuth, async (c) => {
-    const { contact } = P(c)
+  const rejectQuote = async (c: any) => {
+    const { contact, company } = P(c)
     const quoteId = c.req.param('quoteId')
     const { reason } = await c.req.json().catch(() => ({}))
     const found = await visibleQuote(quoteId, contact.id)
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     // A signed approval is a contract — it cannot be flipped to rejected from the portal afterwards.
-    if (!QUOTE_RESPONDABLE.includes(found.status)) return c.json({ error: `This quote is ${found.status} and can no longer be declined` }, 400)
+    const refused = notAnswerable(found, 'declined', company?.name)
+    if (refused) return c.json({ error: refused }, 400)
     const [updated] = await db.update(t.quote).set({ status: 'rejected', updatedAt: new Date() }).where(eq(t.quote.id, quoteId)).returning()
     notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'rejected', actorName: contact.name, actorRole: contact.type || 'client', summary: `rejected quote ${found.number} "${found.name}"`, details: { reason: reason || null } })
-    return c.json({ success: true, quote: updated })
-  })
+    return c.json({ success: true, quote: pick(updated, PORTAL_QUOTE_FIELDS) })
+  }
 
-  app.get('/p/:token/quotes/:quoteId/pdf', portalAuth, async (c) => {
+  const quotePdf = async (c: any) => {
     const { contact } = P(c)
     const quoteId = c.req.param('quoteId')
     const found = await visibleQuote(quoteId, contact.id)
@@ -651,12 +729,22 @@ export function createPortalRoutes(deps: PortalDeps) {
     const generate = await loadQuotePdf()
     const pdf = await generate({ ...found, lineItems, contact }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
-  })
+  }
 
   // ---- invoices
   const visibleInvoice = async (invoiceId: string, contactId: string) => {
     const [inv] = await db.select().from(t.invoice).where(and(eq(t.invoice.id, invoiceId), eq(t.invoice.contactId, contactId), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN))).limit(1)
     return inv || null
+  }
+  /**
+   * May the customer pay this business by card here? The page offers Pay only when it can be taken; otherwise it says
+   * how to pay the business — never a button that ends in "Card payments are not set up yet" (2026-10-22). The app
+   * decides (canTakeCardPayments: Stripe on this server, the business's account connected, Online Payments on); a
+   * template that does not say keeps the button it always showed. A failed lookup offers no button.
+   */
+  const payOnlineFor = async (companyId: string): Promise<boolean> => {
+    if (!deps.canTakeCardPayments) return true
+    try { return !!(await deps.canTakeCardPayments(companyId)) } catch { return false }
   }
   app.get('/p/:token/invoices', portalAuth, async (c) => {
     const { contact } = P(c)
@@ -669,7 +757,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     // used to still read "sent" here. deriveStatus only flips open+past-due+owing rows; the rest pass through.
     return c.json(rows.map(r => ({ ...r, status: deriveStatus(r) })))
   })
-  app.get('/p/:token/invoices/:invoiceId', portalAuth, async (c) => {
+  const invoiceDetail = async (c: any) => {
     const { contact, company } = P(c)
     const invoiceId = c.req.param('invoiceId')
     const found = await visibleInvoice(invoiceId, contact.id)
@@ -682,9 +770,15 @@ export function createPortalRoutes(deps: PortalDeps) {
       projectInfo = p || null
     }
     const balance = invoiceBalance(found)
-    return c.json({ ...found, status: deriveStatus(found), balance, lineItems, payments, project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone, address: company.address } })
-  })
-  app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, async (c) => {
+    // The invoice's own link is a credential: it is never echoed back in the customer's copy.
+    const { publicToken: _link, ...invoiceRow } = found
+    return c.json({
+      ...invoiceRow, status: deriveStatus(found), balance, lineItems, payments, project: projectInfo,
+      payOnline: await payOnlineFor(contact.companyId),
+      company: { name: company.name, email: company.email, phone: company.phone, address: company.address, city: company.city, state: company.state, zip: company.zip },
+    })
+  }
+  const invoicePdf = async (c: any) => {
     const { contact } = P(c)
     const invoiceId = c.req.param('invoiceId')
     const found = await visibleInvoice(invoiceId, contact.id)
@@ -694,7 +788,28 @@ export function createPortalRoutes(deps: PortalDeps) {
     const generate = await loadInvoicePdf()
     const pdf = await generate({ ...found, lineItems, payments, contact }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="invoice-${found.number}.pdf"` } })
+  }
+
+  // The portal's doors onto a quote and an invoice…
+  app.get('/p/:token/quotes/:quoteId', portalAuth, quoteDetail)
+  app.post('/p/:token/quotes/:quoteId/approve', portalAuth, approveQuote)
+  app.post('/p/:token/quotes/:quoteId/reject', portalAuth, rejectQuote)
+  app.get('/p/:token/quotes/:quoteId/pdf', portalAuth, quotePdf)
+  app.get('/p/:token/invoices/:invoiceId', portalAuth, invoiceDetail)
+  app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, invoicePdf)
+
+  // …and the document's own link (/d/:token, portal/documentLinks.ts), through the SAME handlers: what the customer
+  // sees, and how approving, declining and paying are recorded, is one rule whichever door they came in by.
+  app.get('/d/:token', docAuth, async (c) => {
+    const { contact, company, doc } = P(c)
+    return c.json({ document: doc, contact: { name: contact.name }, company: { name: company.name, logo: company.logo, primaryColor: company.primaryColor, email: company.email, phone: company.phone } })
   })
+  app.get('/d/:token/quotes/:quoteId', docAuth, onlyLinked('quote', 'quoteId'), quoteDetail)
+  app.post('/d/:token/quotes/:quoteId/approve', docAuth, onlyLinked('quote', 'quoteId'), approveQuote)
+  app.post('/d/:token/quotes/:quoteId/reject', docAuth, onlyLinked('quote', 'quoteId'), rejectQuote)
+  app.get('/d/:token/quotes/:quoteId/pdf', docAuth, onlyLinked('quote', 'quoteId'), quotePdf)
+  app.get('/d/:token/invoices/:invoiceId', docAuth, onlyLinked('invoice', 'invoiceId'), invoiceDetail)
+  app.get('/d/:token/invoices/:invoiceId/pdf', docAuth, onlyLinked('invoice', 'invoiceId'), invoicePdf)
 
   // ---- change orders
   if (has.changeOrders) {

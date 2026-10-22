@@ -300,6 +300,10 @@ export const quote = pgTable('quote', {
   convertedToJobId: text('converted_to_job_id'),
   // The job a quote is for (templates/crm-roof quote.job_id): a roofing proposal belongs to its job, as the invoice does.
   jobId: text('job_id').references((): AnyPgColumn => job.id, { onDelete: 'set null' }),
+  // The quote's own private link (/d/<token>), minted when it is first sent: the customer opens it from the email to see
+  // the quote and approve or decline it, with or without a client portal (2026-10-22: a quote went out with no way to
+  // accept it unless the portal was on). packages/tenant-backend portal/documentLinks.ts.
+  publicToken: text('public_token').unique(),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
   index('quote_status_idx').on(t.status),
@@ -364,6 +368,9 @@ export const invoice = pgTable('invoice', {
   appointmentId: text('appointment_id'),                     // salon: the visit this sale closed (services/salonCheckout.ts)
   // The owner pays it, but the bill is FOR an animal. (Vet T12 M6)
   patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
+  // The invoice's own private link (/d/<token>), minted when it is first sent: the customer sees it and pays it there
+  // (2026-10-22: the email carried no way to pay). packages/tenant-backend portal/documentLinks.ts.
+  publicToken: text('public_token').unique(),
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_status_idx').on(t.status),

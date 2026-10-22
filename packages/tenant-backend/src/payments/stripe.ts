@@ -908,6 +908,12 @@ export interface StripeRoutesDeps {
   requirePermission: (permission: string) => any
   /** The template's audit service (log + ACTIONS). */
   audit: any
+  /**
+   * May this business take a card from its customer (the portal's invoice page asks the same — portal.ts)? A customer's
+   * payment is refused when it may not, rather than charged to whichever account this server holds keys for. Optional:
+   * a template that does not wire it charges as it always did. (2026-10-22)
+   */
+  canTakeCardPayments?: (companyId: string) => Promise<boolean>
 }
 
 export function createStripeRoutes(deps: StripeRoutesDeps) {
@@ -1137,20 +1143,35 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
 
   // Create payment intent for portal
   app.post('/portal/payment-intent', async (c) => {
-    const { invoiceId, portalToken, amount } = await c.req.json()
+    const { invoiceId, portalToken, linkToken, amount } = await c.req.json().catch(() => ({} as any))
 
-    // Verify portal access
-    const [contactRow] = await db.select().from(contact).where(and(eq(contact.portalToken, portalToken), eq(contact.portalEnabled, true))).limit(1)
-
-    if (!contactRow) {
-      return c.json({ error: 'Invalid portal access' }, 401)
+    // Who may pay: the customer through their portal (portalToken), or whoever holds the invoice's own link (linkToken —
+    // portal/documentLinks.ts, the link every invoice email carries). Either way, only an invoice of that customer.
+    let contactRow: any = null
+    let inv: any = null
+    if (typeof linkToken === 'string' && linkToken && invoice.publicToken) {
+      ;[inv] = await db.select().from(invoice).where(and(eq(invoice.publicToken, linkToken), eq(invoice.id, String(invoiceId || '')))).limit(1)
+      if (!inv) return c.json({ error: 'Invoice not found' }, 404)
+      if (inv.contactId) [contactRow] = await db.select().from(contact).where(and(eq(contact.id, inv.contactId), eq(contact.companyId, inv.companyId))).limit(1)
+      if (!contactRow) return c.json({ error: 'Invoice not found' }, 404)
+    } else {
+      // Verify portal access
+      ;[contactRow] = typeof portalToken === 'string' && portalToken
+        ? await db.select().from(contact).where(and(eq(contact.portalToken, portalToken), eq(contact.portalEnabled, true))).limit(1)
+        : []
+      if (!contactRow) {
+        return c.json({ error: 'Invalid portal access' }, 401)
+      }
+      ;[inv] = await db.select().from(invoice).where(and(eq(invoice.id, invoiceId), eq(invoice.contactId, contactRow.id))).limit(1)
+      if (!inv) {
+        return c.json({ error: 'Invoice not found' }, 404)
+      }
     }
-
-    const [inv] = await db.select().from(invoice).where(and(eq(invoice.id, invoiceId), eq(invoice.contactId, contactRow.id))).limit(1)
-
-    if (!inv) {
-      return c.json({ error: 'Invoice not found' }, 404)
+    if (['draft', 'void'].includes(inv.status)) return c.json({ error: 'Invoice not found' }, 404)
+    if (deps.canTakeCardPayments && !(await deps.canTakeCardPayments(inv.companyId).catch(() => false))) {
+      return c.json({ error: 'This business does not take card payments online. Please contact them to pay another way.' }, 400)
     }
+    if (invoiceBalance(inv) <= 0) return c.json({ error: 'This invoice has nothing left to pay.' }, 400)
 
     // inv.balance is not a column (the partial path never ran) — #157
     let result

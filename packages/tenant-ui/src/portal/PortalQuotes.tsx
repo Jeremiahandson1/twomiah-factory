@@ -60,9 +60,14 @@ function QuoteCard({ quote, token, highlight }: { quote: PortalQuoteData; token?
   )
 }
 
-export function PortalQuoteDetail() {
-  const { quoteId } = useParams<{ quoteId: string }>()
-  const { token, fetch: portalFetch, contact, url } = usePortal()
+/**
+ * One quote, with Sign & Approve and Decline while it is open. Shown in the portal (the id from the route) and on the
+ * quote's own link (/d/<token>, the id given — PortalDocumentLink), where there is no list to go back to. (2026-10-22)
+ */
+export function PortalQuoteDetail({ quoteId: givenId }: { quoteId?: string } = {}) {
+  const { quoteId: routeId } = useParams<{ quoteId: string }>()
+  const quoteId = givenId || routeId
+  const { token, fetch: portalFetch, contact, url, link } = usePortal()
   const [quote, setQuote] = useState<PortalQuoteData | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -91,11 +96,12 @@ export function PortalQuoteDetail() {
   if (loading) return <Spinner />
   if (!quote) return <div className="text-center py-12 text-gray-500 dark:text-slate-400">{error || 'Quote not found.'}</div>
   const canRespond = RESPONDABLE.includes(quote.status)
+  const business = (quote.company as { name?: string | null } | undefined)?.name || 'us'
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <PLink to={`/portal/${token}/quotes`} className="text-orange-600 hover:underline text-sm dark:text-orange-200">{'<-'} Back to Quotes</PLink>
+      <div className={`flex items-center mb-4 ${link ? 'justify-end' : 'justify-between'}`}>
+        {!link && <PLink to={`/portal/${token}/quotes`} className="text-orange-600 hover:underline text-sm dark:text-orange-200">{'<-'} Back to Quotes</PLink>}
         <a href={url(`/quotes/${quoteId}/pdf`)} target="_blank" rel="noreferrer" className={btnSecondary}><Download className="w-4 h-4" /> Download PDF</a>
       </div>
       {error && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -139,6 +145,8 @@ export function PortalQuoteDetail() {
             </div>
           </div>
         )}
+        {/* Past its valid-until day: no buttons, and who to ask instead (the server refuses an answer too). */}
+        {quote.status === 'expired' && <div className="p-6 bg-gray-50 border-t text-gray-700 flex items-center gap-2 dark:bg-slate-800/60 dark:text-slate-200 dark:border-slate-700"><Clock className="w-5 h-5 shrink-0" /><span>This quote expired{quote.expiryDate ? ` on ${formatDate(quote.expiryDate)}` : ''}. Please contact {business} for an updated quote.</span></div>}
         {(quote.status === 'rejected' || quote.status === 'declined') && <div className="p-6 bg-red-50 border-t text-red-700 flex items-center gap-2 dark:bg-red-950/20 dark:text-red-300 dark:border-slate-700"><XCircle className="w-5 h-5" /><span className="font-medium">Declined</span></div>}
       </div>
       <SignatureModal isOpen={showSign} onClose={() => setShowSign(false)} onSave={approve} title="Approve Quote" signerName={contact?.name || ''} />

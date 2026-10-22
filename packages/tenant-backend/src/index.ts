@@ -151,6 +151,7 @@ export type { AuthDeps, AuthOptions, AuthTables } from './auth/auth'
 
 // Customer portal — token-link routes for customers / collaborators / service customers, one implementation for every CRM.
 export { createPortalRoutes, PORTAL_QUOTE_HIDDEN, PORTAL_INVOICE_HIDDEN } from './portal/portal'
+export { documentLinkToken, documentLinkPath, newDocumentToken, isDocumentToken } from './portal/documentLinks'
 
 // Integrations — two-way SMS (Twilio, signature-checked webhooks), QuickBooks Online (signed OAuth state), Google review
 // requests, and the messaging-usage wallet gate; one implementation for every CRM.

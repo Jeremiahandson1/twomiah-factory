@@ -17,9 +17,11 @@ export const getStripe = (publishableKey: string, stripeAccount?: string | null)
   return p
 }
 
-interface PaymentFormProps { invoiceId: string; amount: number; portalToken: string; onSuccess?: () => void; onCancel?: () => void; primaryColor?: string }
+// portalToken: paying from the customer's portal. linkToken: paying from the invoice's own link (/d/<token>), which every
+// invoice email carries (2026-10-22). One of the two.
+interface PaymentFormProps { invoiceId: string; amount: number; portalToken?: string; linkToken?: string; onSuccess?: () => void; onCancel?: () => void; primaryColor?: string }
 
-export function PortalPaymentForm({ invoiceId, amount, portalToken, onSuccess, onCancel, primaryColor }: PaymentFormProps) {
+export function PortalPaymentForm({ invoiceId, amount, portalToken, linkToken, onSuccess, onCancel, primaryColor }: PaymentFormProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [stripe, setStripe] = useState<Stripe | null>(null)
   const [loading, setLoading] = useState(true)
@@ -29,7 +31,7 @@ export function PortalPaymentForm({ invoiceId, amount, portalToken, onSuccess, o
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch(`${API_URL}/api/stripe/portal/payment-intent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, portalToken, amount }) })
+        const res = await fetch(`${API_URL}/api/stripe/portal/payment-intent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId, amount, ...(linkToken ? { linkToken } : { portalToken }) }) })
         const body = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(body.error || 'Could not start the payment')
         if (!body.publishableKey) throw new Error('Card payments are not set up yet. Please contact us to pay another way.')
@@ -45,7 +47,7 @@ export function PortalPaymentForm({ invoiceId, amount, portalToken, onSuccess, o
       }
     })()
     return () => { cancelled = true }
-  }, [invoiceId, amount, portalToken])
+  }, [invoiceId, amount, portalToken, linkToken])
 
   if (loading) return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /><span className="ml-2 text-gray-500 dark:text-slate-400">Preparing payment...</span></div>
   if (error) return <div role="alert" className="bg-red-50 text-red-700 p-4 rounded-lg flex items-center gap-3 dark:bg-red-950/40 dark:text-red-300"><AlertCircle className="w-5 h-5 shrink-0" /><span>{error}</span></div>
@@ -106,7 +108,7 @@ function CheckoutForm({ amount, onSuccess, onCancel }: { amount: number; onSucce
   )
 }
 
-export function PortalPaymentModal({ isOpen, onClose, invoiceId, amount, portalToken, onSuccess, primaryColor }: { isOpen: boolean; onClose: () => void; invoiceId: string; amount: number; portalToken: string; onSuccess?: () => void; primaryColor?: string }) {
+export function PortalPaymentModal({ isOpen, onClose, invoiceId, amount, portalToken, linkToken, onSuccess, primaryColor }: { isOpen: boolean; onClose: () => void; invoiceId: string; amount: number; portalToken?: string; linkToken?: string; onSuccess?: () => void; primaryColor?: string }) {
   if (!isOpen) return null
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -114,7 +116,7 @@ export function PortalPaymentModal({ isOpen, onClose, invoiceId, amount, portalT
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div role="dialog" aria-modal="true" aria-label="Make Payment" className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-xl font-bold text-gray-900 mb-6 dark:text-slate-100">Make Payment</h2>
-          <PortalPaymentForm invoiceId={invoiceId} amount={amount} portalToken={portalToken} primaryColor={primaryColor} onSuccess={() => { onSuccess?.(); setTimeout(onClose, 2000) }} onCancel={onClose} />
+          <PortalPaymentForm invoiceId={invoiceId} amount={amount} portalToken={portalToken} linkToken={linkToken} primaryColor={primaryColor} onSuccess={() => { onSuccess?.(); setTimeout(onClose, 2000) }} onCancel={onClose} />
         </div>
       </div>
     </div>

@@ -141,6 +141,18 @@ export function isOverdue(inv: { status: string; dueDate: Date | string | null; 
 }
 export const deriveStatus = (inv: any, openStatuses: string[] = DEFAULT_OPEN_STATUSES) => (isOverdue(inv, openStatuses) ? 'overdue' : inv.status)
 
+/**
+ * A quote's offer has lapsed: the whole of its "valid until" day is over — the same rule isOverdue keeps for a due date.
+ * Nothing stores 'expired', so a quote nobody answered read 'sent' for ever and could still be signed (2026-10-22). No
+ * expiry date: it does not lapse.
+ */
+export function quotePastExpiry(q: { expiryDate?: Date | string | null }, now: number = Date.now()): boolean {
+  if (!q.expiryDate) return false
+  const d = new Date(q.expiryDate as any)
+  if (isNaN(d.getTime())) return false
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999) < now
+}
+
 /** Company default sales-tax rate (Settings → Company). An explicit rate on the request still wins. */
 export function defaultTaxRateFrom(settings: any): number {
   const r = Number(settings?.defaultTaxRate)

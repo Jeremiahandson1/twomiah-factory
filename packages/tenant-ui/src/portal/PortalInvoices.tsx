@@ -29,7 +29,9 @@ export interface PortalInvoiceData {
   lineItems?: Array<{ description: string; quantity: string | number; unitPrice: string | number; total: string | number }>
   payments?: Array<{ id?: string; paidAt: string; method: string; amount: string | number }>
   project?: { name: string } | null
-  company?: { email?: string | null; phone?: string | null } | null
+  company?: { name?: string | null; email?: string | null; phone?: string | null } | null
+  /** Can the business take a card here (portal.ts payOnlineFor)? false: say how to pay instead of a Pay button. */
+  payOnline?: boolean
   [key: string]: unknown
 }
 
@@ -99,9 +101,15 @@ function InvoiceCard({ invoice, token }: { invoice: PortalInvoiceData; token?: s
   )
 }
 
-export function PortalInvoiceDetail() {
-  const { invoiceId } = useParams<{ invoiceId: string }>()
-  const { token, fetch: portalFetch, url, company } = usePortal()
+/**
+ * One invoice, with Pay when the business takes cards online and plain words on how to pay when it does not. Shown in
+ * the portal (the id from the route) and on the invoice's own link (/d/<token>, the id given — PortalDocumentLink),
+ * which every invoice email carries. (2026-10-22)
+ */
+export function PortalInvoiceDetail({ invoiceId: givenId }: { invoiceId?: string } = {}) {
+  const { invoiceId: routeId } = useParams<{ invoiceId: string }>()
+  const invoiceId = givenId || routeId
+  const { token, fetch: portalFetch, url, company, link } = usePortal()
   const [invoice, setInvoice] = useState<PortalInvoiceData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -114,11 +122,14 @@ export function PortalInvoiceDetail() {
   if (!invoice) return <div className="text-center py-12 text-gray-500 dark:text-slate-400">{error || 'Invoice not found.'}</div>
   const overdue = isOverdue(invoice)
   const hasBalance = Number(invoice.balance) > 0 && UNPAID.includes(invoice.status)
+  const payOnline = invoice.payOnline !== false
+  const business = invoice.company?.name || company?.name || 'the business'
+  const reach = [invoice.company?.phone, invoice.company?.email].filter(Boolean).join(' or ')
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <PLink to={`/portal/${token}/invoices`} className="text-orange-600 hover:underline text-sm dark:text-orange-200">{'<-'} Back to Invoices</PLink>
+      <div className={`flex items-center mb-4 ${link ? 'justify-end' : 'justify-between'}`}>
+        {!link && <PLink to={`/portal/${token}/invoices`} className="text-orange-600 hover:underline text-sm dark:text-orange-200">{'<-'} Back to Invoices</PLink>}
         <a href={url(`/invoices/${invoiceId}/pdf`)} target="_blank" rel="noreferrer" className={btnSecondary}><Download className="w-4 h-4" /> Download PDF</a>
       </div>
       <div className={`${card} overflow-hidden`}>
@@ -146,7 +157,13 @@ export function PortalInvoiceDetail() {
             <div className="flex justify-between text-lg font-bold border-t pt-2 dark:border-slate-700"><span>Balance Due</span><span className={Number(invoice.balance) > 0 ? 'text-orange-600 dark:text-orange-200' : 'text-green-700 dark:text-green-300'}>{moneyShort(invoice.balance)}</span></div>
           </div>
         </div>
-        {hasBalance && (
+        {hasBalance && !payOnline && (
+          <div className="p-6 bg-orange-50 border-t dark:bg-orange-950/20 dark:border-slate-700">
+            <p className="font-medium text-gray-900 dark:text-slate-100">How to pay</p>
+            <p className="text-sm text-gray-700 dark:text-slate-300">{business} does not take card payments online. To pay this invoice, please contact them{reach ? ` at ${reach}` : ''}.</p>
+          </div>
+        )}
+        {hasBalance && payOnline && (
           <div className="p-6 bg-orange-50 border-t dark:bg-orange-950/20 dark:border-slate-700">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div><p className="font-medium text-gray-900 dark:text-slate-100">Ready to pay?</p><p className="text-sm text-gray-600 dark:text-slate-400">Secure payment by card</p></div>
@@ -162,7 +179,7 @@ export function PortalInvoiceDetail() {
         )}
         <div className="p-6 bg-gray-100 border-t dark:bg-slate-800 dark:border-slate-700"><p className="text-sm text-gray-600 dark:text-slate-400">Questions about this invoice? Contact {invoice.company?.email || invoice.company?.phone}</p></div>
       </div>
-      {token && <PortalPaymentModal isOpen={showPayment} onClose={() => setShowPayment(false)} invoiceId={invoice.id} amount={Number(invoice.balance)} portalToken={token} primaryColor={company?.primaryColor || undefined} onSuccess={() => { setShowPayment(false); load() }} />}
+      {token && <PortalPaymentModal isOpen={showPayment} onClose={() => setShowPayment(false)} invoiceId={invoice.id} amount={Number(invoice.balance)} {...(link ? { linkToken: token } : { portalToken: token })} primaryColor={company?.primaryColor || undefined} onSuccess={() => { setShowPayment(false); load() }} />}
     </div>
   )
 }
