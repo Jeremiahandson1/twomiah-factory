@@ -725,10 +725,10 @@ factory.get('/gbp/google/auth', async (c) => {
   const userId = c.req.query('user')
   const returnUrl = c.req.query('return') || ''
   if (!tenantId || !userId || !returnUrl) return c.json({ error: 'tenant, user, return are required' }, 400)
-  const { data: tenant } = await supabase.from('tenants').select('id, website_url, render_backend_url').eq('id', tenantId).single()
+  const { data: tenant } = await supabase.from('tenants').select('id, website_url, domain, engine, render_backend_url').eq('id', tenantId).single()
   if (!tenant) return c.json({ error: 'tenant not found' }, 404)
-  const allowed = [tenant.render_backend_url, tenant.website_url].filter(Boolean) as string[]
-  if (!allowed.some(u => returnUrl.startsWith(u)) && !returnUrl.startsWith('http://localhost')) {
+  // The same rule as the calendar sign-in: an exact origin of the tenant's own app, its domain's names included.
+  if (!mayReturnTo(tenant, returnUrl)) {
     return c.json({ error: 'return URL must point to your tenant app' }, 400)
   }
   const state = newOauthState({ tenantId, userId, returnUrl })

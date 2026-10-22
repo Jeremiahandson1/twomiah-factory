@@ -49,6 +49,19 @@ test("the calendar sign-in comes back only to the tenant's own admin, by exact o
   expect(mayReturnTo({ ...unified, domain: null }, 'https://app.acme.com/crm')).toBe(false)
   // local development, as before
   expect(mayReturnTo(premium, 'http://localhost:5173/admin')).toBe(true)
+  // a template tenant's CRM is its own app (its Business Profile sign-in starts there) — by exact origin too
+  expect(mayReturnTo(premium, 'https://acme-api.onrender.com/settings/integrations')).toBe(true)
+  expect(mayReturnTo(premium, 'https://acme-api.onrender.com.evil.example/settings')).toBe(false)
+})
+
+test('every Google sign-in checks the return address with the one rule — the Business Profile one included', () => {
+  const src = require('node:fs').readFileSync(require('node:path').join(import.meta.dir, '../../../apps/api/src/routes/factory/lifecycle.ts'), 'utf8')
+  const gbp = src.slice(src.indexOf("factory.get('/gbp/google/auth'"), src.indexOf("factory.get('/gbp/google/callback'"))
+  expect(gbp).toContain('mayReturnTo(tenant, returnUrl)')
+  expect(gbp).toContain('domain, engine, render_backend_url')
+  expect(gbp).not.toContain('startsWith(')
+  // a unified tenant on its own domain: the address the CRM sent on 10/22 (app.twomiahtest.site)
+  expect(mayReturnTo({ engine: 'unified', domain: 'twomiahtest.site', render_backend_url: 'https://twomiah-test-live-app.onrender.com' }, 'https://app.twomiahtest.site/crm/settings/integrations')).toBe(true)
 })
 
 test("the calendar callbacks post a person's tokens to either kind of site, and check the return address with mayReturnTo", () => {

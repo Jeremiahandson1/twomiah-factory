@@ -45,7 +45,9 @@ export function ourUnifiedOrigin(t: { engine?: string | null; render_backend_url
  * for a unified tenant, the premium site otherwise. Not for an endpoint only one of them has.
  */
 /**
- * Whether a sign-in started from a tenant's admin may come back to `returnUrl` (the Factory's calendar sign-in): an
+ * Whether a sign-in started from a tenant's admin may come back to `returnUrl` (the Factory's calendar AND Business
+ * Profile sign-ins — one rule for every Google sign-in; the Business Profile one kept an old prefix check that refused
+ * a unified tenant's own domain, app.twomiahtest.site, 10/22): an
  * exact origin, never a prefix — "starts with https://x.onrender.com" let https://x.onrender.com.evil.com through.
  * A template tenant's admin is on its site (tenants.website_url, as before); a unified tenant's is its one service, or
  * its domain — the apex, www, or app.<domain> — once one is attached.
@@ -63,6 +65,8 @@ export function mayReturnTo(t: { website_url?: string | null; domain?: string | 
     if (domain) for (const h of [domain, 'www.' + domain, 'app.' + domain]) origins.add('https://' + h)
   } else {
     try { origins.add(new URL(String(t.website_url || '').trim()).origin) } catch { /* no site recorded */ }
+    // A template tenant's CRM is its own app too: its Google Business Profile sign-in starts there.
+    try { const crm = new URL(String(t.render_backend_url || '').trim()); if (crm.protocol === 'https:') origins.add(crm.origin) } catch { /* no CRM recorded */ }
   }
   return origins.has(back.origin)
 }
