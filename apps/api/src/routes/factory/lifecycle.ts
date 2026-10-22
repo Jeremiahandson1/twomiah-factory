@@ -635,7 +635,9 @@ factory.get('/calendar/google/auth', async (c) => {
     response_type: 'code',
     // openid email: the account's address (the userinfo look-up below) — the CRM tells one Google account's links from
     // another's by it, so disconnecting one revokes at Google without ending the other's (unified calendars.ts).
-    scope: 'openid email https://www.googleapis.com/auth/calendar.events',
+    // calendar.events.owned, the narrowest scope that does the job: busy times read and bookings put on the person's own
+    // calendar (calendarId 'primary'; events list/insert/patch/delete/watch all accept it) — not calendars shared with them.
+    scope: 'openid email https://www.googleapis.com/auth/calendar.events.owned',
     redirect_uri: factoryUrl.replace(/\/$/, '') + '/calendar/google/callback',
     access_type: 'offline',
     prompt: 'consent',  // forces refresh_token issuance
