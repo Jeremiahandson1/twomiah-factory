@@ -423,6 +423,12 @@ a { color: inherit; text-decoration: none; }
 .footer-contact { display: flex; gap: 28px; }
 .footer-contact a { color: rgba(255,255,255,0.85); font-size: 15px; }
 .footer-contact a:hover { color: var(--accent); }
+/* The phone, the email and Privacy · Terms sat on one unbreakable row: at 390px the footer ran 7px off the side of every
+   page and the whole site scrolled sideways (live test 2026-10-22). They wrap, and a long email breaks where it must. Every
+   design gets it — a design that restyles the row (bar.css) sets no flex-wrap of its own. */
+.footer-contact { flex-wrap: wrap; row-gap: 10px; min-width: 0; max-width: 100%; }
+.footer-contact > * { flex-shrink: 0; max-width: 100%; }
+.footer-contact a { overflow-wrap: anywhere; }
 
 /* ── Twomiah Bookings ─────────────────────────────────────────────────── */
 .book-services { padding: var(--space) 0; }
