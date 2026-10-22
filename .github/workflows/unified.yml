@@ -30,6 +30,8 @@ jobs:
         run: bun run scripts/check-unified-fence.ts origin/main
       - name: Rulebook checks (RULEBOOK §1–§8)
         run: bun run scripts/check-unified-rules.ts
+      - name: No browser dialogs in the unified screens
+        run: bun run scripts/check-unified-no-native-dialogs.ts
       - name: Types — none in the unified app; shared packages not above their baseline
         run: bun run scripts/check-unified-types.ts
       - name: Tests — boot, rule mutations, fence

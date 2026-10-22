@@ -13,7 +13,7 @@
 //   bun scripts/check-no-native-dialogs.ts
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-const ROOT = decodeURIComponent(new URL('../', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
+const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
 const fail = (m: string) => { failed++; console.error('FAIL: ' + m) }
 
@@ -25,9 +25,7 @@ const NOT_YET_CONVERTED = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-re
 // guard read only the first of those, so the six dialogs T29 found — Lead Sources, Delete alias,
 // Disconnect Stripe, Disconnect QuickBooks, Remove Twilio, Revoke access — were all invisible to it. They
 // are in packages/tenant-ui, and they ship to every vertical, not just this one.
-// …and the unified app's own screens (apps/unified/web/src), every vertical's: a roofer's supplement approval asked
-// in a browser box (2026-10-22).
-const SOURCES = ['templates/crm-salon/frontend/src', 'packages/tenant-ui/src', 'apps/unified/web/src']
+const SOURCES = ['templates/crm-salon/frontend/src', 'packages/tenant-ui/src']
 
 const EXEMPT = [
   // owns the window.alert shim — the one file allowed to name it
@@ -54,20 +52,16 @@ for (const src of SOURCES) {
 for (const rel of files) {
   if (EXEMPT.some((e) => rel.endsWith(e))) continue
   const src = readFileSync(join(ROOT, rel), 'utf8')
-  // The app's own dialogs, as this file names them: `const prompt = usePrompt()`, `const ask = useConfirm()`. A call
-  // to one of those, awaited, is the app's dialog, not the browser's — the unified screens bind usePrompt to `prompt`.
-  const own = new Set([...src.matchAll(/\bconst\s+(\w+)\s*=\s*use(?:Confirm|Prompt)\(\)/g)].map((m) => m[1]))
   src.split(/\r?\n/).forEach((line, i) => {
     if (/^\s*(\/\/|\*|\/\*)/.test(line)) return          // a comment naming it is documentation
     if (/\bawait confirm\(/.test(line)) return            // the app's own, via useConfirm()
-    if ([...own].some((n) => new RegExp('\\bawait\\s+' + n + '\\(').test(line))) return
     // In the salon's own pages every native dialog is banned. In the shared package the ban is on the
     // ones a person SEES as a browser box and cannot dismiss with the app's own UI — confirm and prompt.
     // alert() there still reaches a toast through the salon's shim, and several of those pages have no
     // toast of their own to call instead; they are listed in NOT_YET_CONVERTED rather than pretended away.
     const shared = rel.startsWith('packages/')
     const kinds = shared ? '(confirm|prompt)' : '(alert|confirm|prompt)'
-    const hit = new RegExp('\\bwindow\\.' + kinds + '\\s*\\(').exec(line) || new RegExp('(?<![.\\w])' + kinds + '\\(').exec(line)
+    const hit = new RegExp('\\bwindow\\.' + kinds + '\\s*\\(').exec(line) || new RegExp('(^|[^.\\w])' + kinds + '\\s*\\(').exec(line)
     if (!hit) return
     const which = ['alert', 'confirm', 'prompt'].includes(hit[1]) ? hit[1] : hit[2]
     fail(`${rel}:${i + 1} calls ${which}() — use toast.error for a failure, or useConfirm() to ask: ${line.trim().slice(0, 90)}`)
@@ -78,8 +72,6 @@ for (const rel of files) {
 const app = (() => { try { return readFileSync(join(ROOT, 'templates/crm-salon/frontend/src/App.tsx'), 'utf8') } catch { return '' } })()
 if (!app) fail('templates/crm-salon/frontend/src/App.tsx is missing')
 if (!/<ConfirmProvider>/.test(app)) fail('ConfirmProvider must be mounted in App.tsx — without it useConfirm() falls back to window.confirm and the dialogs come back')
-const unifiedApp = (() => { try { return readFileSync(join(ROOT, 'apps/unified/web/src/App.tsx'), 'utf8') } catch { return '' } })()
-if (!/<ConfirmProvider>/.test(unifiedApp)) fail('ConfirmProvider must be mounted in apps/unified/web/src/App.tsx — its usePrompt()/useConfirm() fall back to the browser\'s boxes without it')
 
 if (failed) { console.error(`\nno native dialogs: ${failed} check(s) FAILED (not yet converted: ${NOT_YET_CONVERTED.join(', ')})`); process.exit(1) }
 console.log(`no native dialogs: the salon asks and reports in its own words (not yet converted: ${NOT_YET_CONVERTED.join(', ')})`)

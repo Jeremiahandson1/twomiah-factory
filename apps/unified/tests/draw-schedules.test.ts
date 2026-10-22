@@ -15,7 +15,7 @@ beforeAll(async () => {
   const seeded = await seedOwner(t)
   await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'projects', 'draw_schedules'] } as any).where(eq(t.schema.company.id, seeded.company.id))
   const token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: seeded.password } })).json()).accessToken
-  owner = (p, init = {}) => t.call(p, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } })
+  owner = async (p, init = {}) => t.call(p, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } })
   const contact = await (await owner('/api/contacts', { method: 'POST', json: { name: 'Pat Client', type: 'client' } })).json()
   const project = await (await owner('/api/projects', { method: 'POST', json: { name: 'Keller kitchen', contactId: contact.id } })).json()
   expect(project.id).toBeTruthy()
