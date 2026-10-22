@@ -18,7 +18,9 @@ test('"Designer shingles, Ice shield" typed a key at a time is saved as two item
   const React = await import('react')
   const { createRoot } = await import('react-dom/client')
   const { act } = React as any
-  const { TiersModal } = await import('../../../packages/tenant-ui/src/pricebook/PricebookPage.tsx')
+  // By a path held in a variable: the server's tsconfig (which checks the tests) compiles no JSX.
+  const PAGE: string = '../../../packages/tenant-ui/src/pricebook/PricebookPage.tsx'
+  const { TiersModal } = (await import(PAGE)) as any
   const saved: any[] = []
   const api = {
     get: async () => [],
