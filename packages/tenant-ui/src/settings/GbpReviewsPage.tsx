@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useConfirm } from '../ui/ConfirmProvider'
 
 // Google Business Profile reviews — connect the business's Google listing,
 // see the rating + reviews, reply inline. OAuth runs through the factory
@@ -25,6 +26,7 @@ function Stars({ rating }: { rating: number }) {
 }
 
 export function GbpReviewsPage(): React.ReactElement {
+  const ask = useConfirm()
   const [status, setStatus] = useState<any>(null)
   const [locations, setLocations] = useState<Array<{ accountName: string; locationName: string; title: string }>>([])
   const [summary, setSummary] = useState<{ averageRating: number | null; totalReviewCount: number } | null>(null)
@@ -99,7 +101,7 @@ export function GbpReviewsPage(): React.ReactElement {
   // Disconnect: the stored access is deleted, and Google revokes it — unless the business's Google calendar link uses
   // the same Google account, which Google's revoke would end too (server: /api/gbp/disconnect, stillUsedBy).
   const disconnect = async () => {
-    if (!window.confirm('Disconnect Google Business Profile? Reviews stop showing here until you connect again.')) return
+    if (!(await ask('Reviews stop showing here until you connect again.', { title: 'Disconnect Google Business Profile?', confirmText: 'Disconnect' }))) return
     setBusy(true); setError(''); setNotice('')
     const r = await api.raw('/api/gbp/disconnect', { method: 'POST', headers: authHeaders() })
     const d = await r.json().catch(() => ({}))
