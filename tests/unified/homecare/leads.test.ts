@@ -94,7 +94,7 @@ for (const [m, p, body] of WRITES) {
   check('an admin reaches PUT /api/leads/:id/status', reached(a), { status: a.status, error: a.json?.error })
   const o = await as(owner)('POST', '/api/leads/nope000/convert', {})
   check('an owner reaches POST /api/leads/:id/convert', reached(o), { status: o.status, error: o.json?.error })
-  const c = await as(admin)('POST', '/api/leads/sources', { platform: 'angi', label: 'Admin source' }) /* unified: a lead source is one of the platforms the inbox connects to (the shared module checks it; home care's Lead Sources page offers the trades set, and the template took any name) */
+  const c = await as(admin)('POST', '/api/leads/sources', { platform: 'care_directory', label: 'Admin source' }) /* unified: a lead source is one of the platforms the inbox connects to (the shared module checks it; home care's are an agency's — google_business, instagram, care_directory, website — since 2026-10-22, and the template took any name) */
   check('an admin can create a lead source', c.status === 200 || c.status === 201, { status: c.status, error: c.json?.error })
 }
 

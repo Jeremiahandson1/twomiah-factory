@@ -133,8 +133,8 @@ console.log('\n══════════ the lead email address handed out 
   // /inbound-parse (reads the 32-hex prefix and `leads-<platform>`) → this tenant's /inbound/email.
   process.env.TENANT_ID = '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0'
   const want = (p: string) => `0f1e2d3c4b5a69788796a5b4c3d2e1f0-leads-${p}@parse.twomiah.com`
-  const made = await as(owner)('POST', '/api/leads/sources', { platform: 'houzz', label: 'Houzz' } /* unified: a new source is one of the platforms the inbox connects to (the shared leads module checks it; home care's Lead Sources page offers the trades set, and the template took any name) */)
-  check('a new source is handed the routed address', made.status === 201 && made.json?.inboundEmail === want('houzz') /* unified: the source made above */, made.json)
+  const made = await as(owner)('POST', '/api/leads/sources', { platform: 'care_directory', label: 'Care directories' } /* unified: a new source is one of the platforms the inbox connects to (the shared leads module checks it; home care's are an agency's — google_business, instagram, care_directory, website — since 2026-10-22, and the template took any name) */)
+  check('a new source is handed the routed address', made.status === 201 && made.json?.inboundEmail === want('care_directory') /* unified: the source made above */, made.json)
   check('…not the dead leads+…@inbound.twomiah.com', !String(made.json?.inboundEmail || '').includes('inbound.twomiah.com'))
   const [dead] = await db.insert(leadSource).values({ platform: 'aplace', label: 'A Place for Mom', enabled: true, webhookSecret: 'x-dead', inboundEmail: `leads+${ag.id.slice(0, 8)}-aplace@inbound.twomiah.com`, companyId: ag.id } as any).returning()
   const list = await as(owner)('GET', '/api/leads/sources')

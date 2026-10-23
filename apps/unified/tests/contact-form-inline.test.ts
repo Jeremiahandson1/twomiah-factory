@@ -24,6 +24,9 @@ const send = (win: any, form: any) => form.dispatchEvent(new win.Event('submit',
 
 function page() {
   const win: any = new Window({ url: 'https://site.example.com/contact', settings: { enableJavaScriptEvaluation: true, disableJavaScriptFileLoading: true, disableCSSFileLoading: true, disableIframePageLoading: true, suppressInsecureJavaScriptEnvironmentWarning: true } } as any)
+  // Under the servers' Bun (1.3.14, what CI runs) happy-dom's script context is missing the language's own globals —
+  // the page's script failed on Number and Date, which every browser has. They are handed over, nothing else.
+  for (const k of ['Number', 'Date', 'Math', 'JSON', 'String', 'Array', 'Object', 'RegExp', 'Boolean', 'Error', 'Promise', 'encodeURIComponent', 'decodeURIComponent', 'parseInt', 'parseFloat', 'isNaN']) if (typeof win[k] === 'undefined') win[k] = (globalThis as any)[k]
   const posts: any[] = []
   win.fetch = async (url: string, init: any) => { posts.push({ url, init }); return { ok: true, json: async () => ({ message: 'Thanks' }) } }
   win.document.write(html)

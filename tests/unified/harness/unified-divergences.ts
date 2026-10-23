@@ -171,7 +171,7 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     'leads.test.ts': {
       assertions: [/^GET \/api\/leads is served, not missing/, /^…with homecare's own message/, /^an admin reaches PUT \/api\/leads/, /^an owner reaches POST \/api\/leads/, /^an admin can create a lead source/, /^a caregiver may still read \/api\/leads/],
       why: "The Lead Inbox is the shared module, which follows its lead_inbox feature on the server as the template's menu did (its API was ungated); the fixture's agency does not have it. Its writes refuse with requirePermission's 'Permission denied', and a lead source is one of the platforms the inbox connects to. A caregiver no longer reads it: an agency's leads are prospective clients' details, the office's (home care withholds the field rung's contacts:read).",
-      heldBy: "tests/unified/homecare/leads.test.ts (the adapted copy: the agency has lead_inbox, the refusal is 'Permission denied', the probe source is angi, a caregiver is refused the reads; run by adapted.ts — 21 of 21)",
+      heldBy: "tests/unified/homecare/leads.test.ts (the adapted copy: the agency has lead_inbox, the refusal is 'Permission denied', the probe source is care_directory, a caregiver is refused the reads; run by adapted.ts — 21 of 21)",
     },
     'mfa-sign-in.test.ts': {
       assertions: [/^the rows carry the agency's one fixed company id/, /^…and its refresh token is the one stored/],
@@ -304,6 +304,18 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     'qbo-relay-roof.test.ts': { assertions: [/^an unsigned state naming another company is refused, and nothing is exchanged( \d+)?$/, /^a state with its return URL swapped is refused$/], why: 'A refused QuickBooks state sends the browser back to Settings with error=invalid_state before anything is exchanged (packages/tenant-backend integrations/quickbooks.ts); roofing answered a bare 400.', heldBy: 'tests/unified/roof/qbo-relay-roof.test.ts (13 of 13: the forged and the swapped state are both refused, nothing exchanged)' },
     'webhook-signatures-roof.test.ts': { why: "Seeds contacts with first / last name and mobile_phone (decision 3); counts texts by sms_message.company_id and reads /api/sms/conversation/:contactId — a text belongs to a conversation in the CRM's texting (packages/tenant-backend integrations/sms.ts); posts inbound texts to /api/sms/webhook (the CRM's is /api/sms/webhook/incoming; a roofer's own number is repointed at cutover).", heldBy: 'tests/unified/roof/webhook-signatures-roof.test.ts (25 of 25) and apps/unified/tests/roof-shared-modules.test.ts (a stray text filed under its contact)' },
     'website-lead-webhook.test.ts': WEBHOOK_REPLACED,
+  },
+  // The base CRM's adapted copies (tests/unified/crm, run by adapted.ts).
+  'crm-adapted': {
+    'quote-email.test.ts': {
+      assertions: [
+        /^…and the customer's own portal page for this quote/, /^body: an approve button to the portal page/,
+        /^plain-text version carries the lines and the link too/, /^sent \(200\), and the screen is told they cannot approve online/,
+        /^they are told how to accept instead/, /^an expired portal link is not put in the email/, /^Client Portal switched off for the company: no link/,
+      ],
+      why: "On purpose (2026-10-22): every quote email carries the quote's own private link (/d/<token>, portal/documentLinks.ts) whether or not the customer has a client portal, so every customer can approve or decline — the template linked only a customer whose portal was on and in date, and told everyone else to reply or call. A template's schema has no public_token, so the templates keep their portal link (tests/crm quote-email: 17 of 17).",
+      heldBy: "apps/unified/tests/document-links.test.ts (19: every trade's email carries the link with no portal, approve with signature and audit, decline, expiry, one document only, Quotes off closes it)",
+    },
   },
   // Roofing's adapted copies (tests/unified/roof, run by adapted.ts).
   'roof-adapted': {

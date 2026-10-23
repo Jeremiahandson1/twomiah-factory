@@ -196,7 +196,7 @@ ADAPT['homecare/write-gates.test.ts'] = [
   ["(await O('POST', '/api/help/kb', {})).status === 400", "(await O('POST', '/api/support/kb', {})).status === 400", HELP_KB],
 ]
 ADAPT['homecare/leads.test.ts'] = [
-  ["const c = await as(admin)('POST', '/api/leads/sources', { platform: 'web', label: 'Admin source' })", "const c = await as(admin)('POST', '/api/leads/sources', { platform: 'angi', label: 'Admin source' })", "a lead source is one of the platforms the inbox connects to (the shared module checks it; home care's Lead Sources page offers the trades set, and the template took any name)"],
+  ["const c = await as(admin)('POST', '/api/leads/sources', { platform: 'web', label: 'Admin source' })", "const c = await as(admin)('POST', '/api/leads/sources', { platform: 'care_directory', label: 'Admin source' })", "a lead source is one of the platforms the inbox connects to (the shared module checks it; home care's are an agency's — google_business, instagram, care_directory, website — since 2026-10-22, and the template took any name)"],
   ["{ name: 'Leads Care Agency', slug: 'leadscare' }", "{ name: 'Leads Care Agency', slug: 'leadscare', enabledFeatures: ['lead_inbox'] }", "the Lead Inbox follows its lead_inbox feature on the server as in the menu (the template's menu was gated, its API was not), so this agency has it"],
   ["check('…with homecare\\'s own message', cg.json?.error === 'Admin access required', cg.json)", "check('…with homecare\\'s own message', cg.json?.error === 'Permission denied', cg.json)", "the inbox's writes are gated by permission (the shared leads module's requirePermission), whose refusal is 'Permission denied'"],
   ["check(`a caregiver may still read ${p}`, reached(r), { status: r.status, error: r.json?.error })", "check(`a caregiver is refused ${p}`, r.status === 403, { status: r.status, error: r.json?.error })", "home care withholds the field rung's contacts:read (verticals/homecare/settings.ts withheldRolePermissions): the shared Lead Inbox reads on it, and an agency's leads are prospective clients' details, the office's — a caregiver was offered the inbox (2026-10-19). The template's caregivers had no such page; its API was ungated"],
@@ -213,8 +213,8 @@ ADAPT['homecare/ai-receptionist.test.ts'] = [
   ["JSON.stringify((row.settings as any)?.enabledFeatures) === '[\"contacts\"]' && ", "", 'the one writer writes the column only; the blob is no longer a second copy of the list (core/agencyFeatures.ts)'],
 ]
 ADAPT['homecare/webhook-signatures-homecare.test.ts'] = [
-  ["{ platform: 'caring_com', label: 'Caring.com' }", "{ platform: 'houzz', label: 'Houzz' }", "a new source is one of the platforms the inbox connects to (the shared leads module checks it; home care's Lead Sources page offers the trades set, and the template took any name)"],
-  ["made.json?.inboundEmail === want('caring_com')", "made.json?.inboundEmail === want('houzz')", 'the source made above'],
+  ["{ platform: 'caring_com', label: 'Caring.com' }", "{ platform: 'care_directory', label: 'Care directories' }", "a new source is one of the platforms the inbox connects to (the shared leads module checks it; home care's are an agency's — google_business, instagram, care_directory, website — since 2026-10-22, and the template took any name)"],
+  ["made.json?.inboundEmail === want('caring_com')", "made.json?.inboundEmail === want('care_directory')", 'the source made above'],
   ["twilioPhoneNumber: '+16085558888' } as any).returning()", "twilioPhoneNumber: '+16085558888', enabledFeatures: ['call_tracking', 'lead_inbox'] } as any).returning()", "call tracking's settings and the lead sources follow their features (call_tracking, lead_inbox; the template's routers were ungated); the webhooks stay open either way"],
   ["FROM call_log WHERE agency_id = ${ag.id}", "FROM call_log WHERE company_id = ${ag.id}", HC_TABLES + ': a row names its company'],
 ]
