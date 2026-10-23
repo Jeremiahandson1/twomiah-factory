@@ -208,7 +208,9 @@ describe('each design\'s stylesheet keeps every rule its template served', () =>
   const DEAD = /^(\.before-after|\.ba-card|\.ba-chip|\.trust\b|\.trust__|\.trust-badge)/
   // Changed on purpose (2026-10-22, live test): the CTA band's button put the brand's dark shade on the accent — dark on
   // dark when the two are alike; it takes the ink that reads on the accent and a white ring (main.css).
-  const CHANGED = new Set(['.cta--banner .btn--primary'])
+  // And (2026-10-23, live test): the label over a full-bleed photo was the brand colour on the photograph — 1.33:1 median
+  // measured in a real render; it has its own dark ground, white text, the brand as its edge (site-hero-label.test.ts).
+  const CHANGED = new Set(['.cta--banner .btn--primary', '.hero--full-bleed .hero__eyebrow'])
   for (const design of DESIGNS) {
     test(design, () => {
       const accent = SETTINGS.accentColor || DEFAULT_ACCENT

@@ -15,6 +15,7 @@ import { withoutPortalCredential } from '../contacts/contacts'
 import { withoutSigningEvidence } from './signingEvidence'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
+import { customerLines } from './itemCodes'
 
 
 export interface QuoteTables {
@@ -259,6 +260,22 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   const ownJob = async (companyId: string, id: string) => (await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.id, id), eq(t.job.companyId, companyId))).limit(1))[0]
   const findOwn = async (companyId: string, id: string) => (await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, companyId))).limit(1))[0]
   const lineRows = (id: string) => db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
+  /**
+   * The invoice each quote was billed as (invoice.quote_id — the one convert-to-invoice writes and refuses a second of).
+   * A quote's screens read it so they stop offering "Create Invoice" on a quote already billed and link the invoice
+   * instead (live test 2026-10-22: offered beside INV-00001, refused only once pressed). `invoiced` goes to every reader
+   * of the quote; the invoice's number and id only to a seat that reads invoices.
+   */
+  const invoicedAs = async (c: any, cid: string, quoteIds: string[]): Promise<Map<string, { invoiced: true; invoice: { id: string; number: string } | null }>> => {
+    const out = new Map<string, { invoiced: true; invoice: { id: string; number: string } | null }>()
+    if (!quoteIds.length || !t.invoice || !conversions.has('invoice')) return out
+    const rows = await db.select({ id: t.invoice.id, number: t.invoice.number, quoteId: t.invoice.quoteId }).from(t.invoice)
+      .where(and(eq(t.invoice.companyId, cid), inArray(t.invoice.quoteId, quoteIds))).orderBy(asc(t.invoice.createdAt), asc(t.invoice.id))
+    const seesInvoices = await may(c, 'invoices:read')
+    for (const r of rows) if (!out.has(r.quoteId)) out.set(r.quoteId, { invoiced: true, invoice: seesInvoices ? { id: r.id, number: r.number } : null })
+    return out
+  }
+  const withInvoice = (q: any, billed: Map<string, any>) => ({ ...q, ...(billed.get(q.id) || { invoiced: false, invoice: null }) })
 
   // ---------------------------------------------------------------- list
   app.get('/', requirePermission('quotes:read'), async (c) => {
@@ -290,8 +307,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     ])
     const contactMap = Object.fromEntries(contacts.map((ct: any) => [ct.id, ct]))
     const lineItemMap: Record<string, any[]> = {}; lineItems.forEach((li: any) => { (lineItemMap[li.quoteId] ||= []).push(li) })
-    const [seesCost, seesEvidence] = await Promise.all([may(c, 'margin:read'), may(c, 'quotes:update')])
-    const rows = data.map((q: any) => forCaller({ ...q, contact: q.contactId ? contactMap[q.contactId] || null : null, lineItems: lineItemMap[q.id] || [] }, seesCost, seesEvidence, true))
+    const [seesCost, seesEvidence, billed] = await Promise.all([may(c, 'margin:read'), may(c, 'quotes:update'), invoicedAs(c, currentUser.companyId, quoteIds)])
+    const rows = data.map((q: any) => forCaller({ ...withInvoice(q, billed), contact: q.contactId ? contactMap[q.contactId] || null : null, lineItems: lineItemMap[q.id] || [] }, seesCost, seesEvidence, true))
     return c.json({ data: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
   })
 
@@ -325,7 +342,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // THE LEAK T43 FOUND, and the shape guard #201 could not see: the row is indexed and
     // defaulted on its way into the payload, so its bare name never appears. Measured live on
     // ctrtest, basictest and lndtest — owner and manager both received a working portalToken.
-    const out: any = { ...found, contact: withoutPortalCredential(ct[0]) || null, project: pr[0] || null, lineItems }
+    const out: any = { ...withInvoice(found, await invoicedAs(c, cid, [found.id])), contact: withoutPortalCredential(ct[0]) || null, project: pr[0] || null, lineItems }
     if (extra.has('equipmentId')) out.equipment = eq_[0] || null
     if (extra.has('siteId')) out.site = st[0] || null
     return c.json(forCaller(out, await may(c, 'margin:read'), await may(c, 'quotes:update')))
@@ -543,7 +560,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         const portalLive = !token && !!((!features.length || features.includes('client_portal')) && contactRow?.portalEnabled && contactRow?.portalToken &&
           (!contactRow.portalTokenExp || new Date(contactRow.portalTokenExp).getTime() > Date.now()))
         approveOnline = !!token || portalLive
-        const lines = await lineRows(found.id)
+        // The customer's copy: no pricebook item codes (itemCodes.ts).
+        const lines = await customerLines(db, cid, await lineRows(found.id))
         try {
           await deps.sendQuoteEmail(recipient.email, {
             quoteNumber: found.number, quoteName: found.name || '', companyName: co?.name || 'Your provider', companyEmail: co?.email || '',
@@ -628,7 +646,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
        */
       const [already] = await db.select({ id: t.invoice.id, number: t.invoice.number }).from(t.invoice).where(and(eq(t.invoice.quoteId, id), eq(t.invoice.companyId, cid))).limit(1)
       if (already) return c.json({ error: `This quote was already converted to invoice ${already.number}.`, invoiceId: already.id }, 400)
-      const items = await lineRows(id)
+      // The invoice is the customer's document: its lines are written without pricebook item codes (itemCodes.ts).
+      const items = await customerLines(db, cid, await lineRows(id))
       const settings = await companySettings(cid)
       const result = await db.transaction(async (tx: any) => {
         // Serialises two converters of the SAME quote against each other.
@@ -668,7 +687,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         ? [{ id: found.convertedToJobId }]
         : await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.quoteId, id), eq(t.job.companyId, cid))).limit(1)
       if (existingJob) return c.json({ error: 'Quote already converted to a job', jobId: existingJob.id }, 400)
-      const items = await lineRows(id)
+      const items = await customerLines(db, cid, await lineRows(id))
       const description = items.map((li: any) => `${li.description} (${Number(li.quantity)} × ${money(Number(li.unitPrice))})`).join('\n')
       // Service address: the quote's site when the vertical has sites, else the contact's address.
       let address = '', city = '', state = '', zip = ''
@@ -728,7 +747,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     const [ct, lineItems, [co]] = await Promise.all([
       found.contactId ? db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1) : Promise.resolve([]),
-      lineRows(id),
+      lineRows(id).then((rows: any[]) => customerLines(db, cid, rows)),
       db.select().from(t.company).where(eq(t.company.id, cid)),
     ])
     // Same strip for the PDF payload. The renderer does not print a token today, but handing it

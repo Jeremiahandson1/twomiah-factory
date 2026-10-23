@@ -37,6 +37,7 @@ import { fail, list, one, listAll } from '../../http/reply.ts'
 import { uploadedForm } from '../office/upload.ts'
 import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
+import { closedBody, jobEvent, reopenedBody, statusChangeBody, withClaimFacts, withClaimFactsOne } from './jobRecord.ts'
 import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSES, firstNameOf, jobStatus, onCompanyClock, optional, phone, pipelineFor } from './validation.ts'
 
 const PHOTO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
@@ -198,8 +199,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
     ])
     const names = await contactNames(me.companyId, [...new Set(rows.map((j: any) => j.contactId).filter(Boolean))] as string[])
     // A job's money is not part of reading the job list (T41/T42): Reports built revenue by rep and by crew in the
-    // browser from this list, so fetching it was enough to disclose them.
-    const data = withoutJobMoney(rows.map((j: any) => ({ ...j, contact: j.contactId ? names[j.contactId] || null : null })), await withheldFor(c))
+    // browser from this list, so fetching it was enough to disclose them. Each job carries its claim's facts (jobRecord.ts).
+    const data = withoutJobMoney((await withClaimFacts(db, me.companyId, rows)).map((j: any) => ({ ...j, contact: j.contactId ? names[j.contactId] || null : null })), await withheldFor(c))
     return list(c, data, { page, limit, total: Number(total) })
   })
 
@@ -234,8 +235,10 @@ export function createRoofJobRoutes(d: CrmDeps) {
   app.get('/:id', requirePermission('jobs:read'), async (c) => {
     const me = c.get('user')
     const id = c.req.param('id')
-    const found = await ownJob(me.companyId, id)
-    if (!found) return fail(c, 404, 'Job not found')
+    const own = await ownJob(me.companyId, id)
+    if (!own) return fail(c, 404, 'Job not found')
+    // The claim's facts over the job's own columns (jobRecord.ts): the Insurance card read the job's, never filled in.
+    const found = await withClaimFactsOne(db, me.companyId, own)
     const [jobContact, jobCrew, measurement, photos, notes, jobQuotes, jobInvoices] = await Promise.all([
       found.contactId ? db.select().from(contact).where(and(eq(contact.id, found.contactId), eq(contact.companyId, me.companyId))).limit(1) : Promise.resolve([]),
       found.assignedCrewId ? db.select().from(crew).where(and(eq(crew.id, found.assignedCrewId), eq(crew.companyId, me.companyId))).limit(1) : Promise.resolve([]),
@@ -256,7 +259,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
       contact: jobContact[0] ? withoutPortalCredential(jobContact[0]) : null,
       crew: jobCrew[0] || null,
       measurementReport: measurement[0] ? (seesCost ? measurement[0] : (({ cost: _c, ...rest }: any) => rest)(measurement[0])) : null,
-      photos, notes,
+      // What people wrote. What happened to the job (stage moves, closing, reopening) is the timeline's (jobRecord.ts).
+      photos, notes: notes.filter((n: any) => !jobEvent(n.body)),
       quotes: seesBooks ? jobQuotes : [],
       invoices: seesBooks ? jobInvoices : [],
     })
@@ -283,7 +287,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
       if (k in raw && (raw[k] === '' || raw[k] === null)) set[k] = null
     }
     const [updated] = await db.update(job).set(set as any).where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
-    return one(c, withoutJobMoney(updated, await withheldFor(c)))
+    return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 
   /**
@@ -307,8 +311,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
       .set({ status: parsed.data.status, lostReason: parsed.data.lostReason, closedAt: new Date(), updatedAt: new Date() } as any)
       .where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     await db.insert(jobNote).values({ companyId: me.companyId, jobId: id, userId: me.userId, isInternal: true,
-      body: `Job closed as ${parsed.data.status} (from ${existing.status}): ${parsed.data.lostReason}` } as any)
-    return one(c, withoutJobMoney(updated, await withheldFor(c)))
+      body: closedBody(parsed.data.status, existing.status, parsed.data.lostReason) } as any)
+    return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 
   // POST /:id/reopen — a carrier reverses a denial, a homeowner comes back: back on the board at a pipeline stage.
@@ -326,8 +330,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
       .set({ status: parsed.data.status, lostReason: null, closedAt: null, updatedAt: new Date() } as any)
       .where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     await db.insert(jobNote).values({ companyId: me.companyId, jobId: id, userId: me.userId, isInternal: true,
-      body: `Job reopened to ${parsed.data.status} (was ${existing.status}${existing.lostReason ? `: ${existing.lostReason}` : ''})` } as any)
-    return one(c, withoutJobMoney(updated, await withheldFor(c)))
+      body: reopenedBody(parsed.data.status, existing.status, existing.lostReason) } as any)
+    return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 
   // POST /:id/advance — the next pipeline stage, a note of the change, and a text to the homeowner where the stage has one.
@@ -343,9 +347,9 @@ export function createRoofJobRoutes(d: CrmDeps) {
     if (!next) return fail(c, 400, 'Cannot advance from current status')
     const [updated] = await db.update(job).set({ status: next, updatedAt: new Date() } as any)
       .where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
-    await db.insert(jobNote).values({ companyId: me.companyId, jobId: id, userId: me.userId, isInternal: true, body: `Status changed: ${existing.status} → ${next}` } as any)
+    await db.insert(jobNote).values({ companyId: me.companyId, jobId: id, userId: me.userId, isInternal: true, body: statusChangeBody(existing.status, next) } as any)
     if (AUTO_SMS[next]) { try { await textHomeowner(me.companyId, existing, next) } catch { /* a text that can't go never holds up the job */ } }
-    return one(c, withoutJobMoney(updated, await withheldFor(c)))
+    return one(c, withoutJobMoney(await withClaimFactsOne(db, me.companyId, updated), await withheldFor(c)))
   })
 
   /** The business's switched-on features (company.enabled_features). */
@@ -431,7 +435,9 @@ export function createRoofJobRoutes(d: CrmDeps) {
     return one(c, note, 201)
   })
 
-  // GET /:id/timeline — notes, status changes, photos and the homeowner's texts since the job began, newest first.
+  // GET /:id/timeline — what happened to the job since it began, newest first: its stage moves (closing and reopening
+  // too), photos and the homeowner's texts, each in words with stage names. The notes people wrote are the Notes card's,
+  // not repeated here (jobRecord.ts).
   app.get('/:id/timeline', requirePermission('jobs:read'), async (c) => {
     const me = c.get('user')
     const id = c.req.param('id')
@@ -447,7 +453,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
         .where(and(eq(smsConversation.companyId, me.companyId), eq(smsConversation.contactId, found.contactId), gt(smsMessage.createdAt, found.createdAt)))
       : []
     const timeline: any[] = [
-      ...notes.map((n: any) => ({ type: n.body.startsWith('Status changed:') ? 'status_change' : 'note', id: n.id, body: n.body, userId: n.userId, createdAt: n.createdAt })),
+      ...notes.flatMap((n: any) => { const e = jobEvent(n.body); return e ? [{ type: e.kind, id: n.id, body: e.text, userId: n.userId, createdAt: n.createdAt }] : [] }),
       // An event on a timeline says what happened (N2): a photo carries a body like a note does.
       ...photos.map((p: any) => ({ type: 'photo', id: p.id, url: p.url, caption: p.caption, photoType: p.photoType, createdAt: p.createdAt,
         body: `Photo added${p.photoType && p.photoType !== 'general' ? ` — ${p.photoType}` : ''}${p.caption ? `: ${p.caption}` : ''}` })),

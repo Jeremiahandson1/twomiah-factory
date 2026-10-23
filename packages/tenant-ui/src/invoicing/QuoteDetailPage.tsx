@@ -57,12 +57,20 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
           {editable && mayUpdate && <Button variant="success" onClick={() => act(`/api/quotes/${id}/approve`, 'Quote approved')} disabled={busy}><Check className="w-4 h-4" /> Mark approved</Button>}
           {editable && mayUpdate && <Button variant="secondary" onClick={() => act(`/api/quotes/${id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected')} disabled={busy}><X className="w-4 h-4" /> {cfg.quoteDecline ? 'Mark declined' : 'Mark rejected'}</Button>}
           {quote.status === 'approved' && cfg.jobs && mayJob && !quote.convertedToJobId && <Button variant="success" onClick={async () => { const job = await act(`/api/quotes/${id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }} disabled={busy}><Briefcase className="w-4 h-4" /> Convert to Job</Button>}
-          {quote.status === 'approved' && mayInvoice && <Button onClick={async () => { const inv = await act(`/api/quotes/${id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }} disabled={busy}><FileText className="w-4 h-4" /> Create Invoice</Button>}
+          {/* One invoice per quote: the server refuses a second (convert-to-invoice), so a billed quote links its invoice instead. */}
+          {quote.status === 'approved' && mayInvoice && !quote.invoiced && <Button onClick={async () => { const inv = await act(`/api/quotes/${id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }} disabled={busy}><FileText className="w-4 h-4" /> Create Invoice</Button>}
           <Button variant="secondary" onClick={handlePdf}><Download className="w-4 h-4" /> PDF</Button>
           {editable && mayUpdate && <NavLink to={`/crm/quotes?edit=${id}`} className={secondary}><Edit className="w-4 h-4" /> Edit</NavLink>}
           {quote.status === 'draft' && mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)} aria-label="Delete quote"><Trash2 className="w-4 h-4" /></Button>}
         </div>
       </div>
+
+      {quote.invoiced && (
+        <div data-testid="quote-invoiced" className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-center justify-between gap-3 text-blue-900 dark:text-blue-100">
+          <p>{quote.invoice?.number ? `This quote has been invoiced as ${quote.invoice.number}.` : 'This quote has been invoiced.'} A quote is invoiced once.</p>
+          {quote.invoice?.id && <NavLink to={`/crm/invoices/${quote.invoice.id}`} className="font-medium hover:underline inline-flex items-center gap-1 shrink-0"><FileText className="w-4 h-4" /> View invoice</NavLink>}
+        </div>
+      )}
 
       {quote.convertedToJobId && cfg.jobs && (
         <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center justify-between text-green-800 dark:text-green-200">

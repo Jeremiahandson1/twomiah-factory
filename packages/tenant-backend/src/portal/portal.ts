@@ -15,6 +15,7 @@ import path from 'path'
 import { eq, and, inArray, count, sql, desc, asc, gte, lte, notInArray } from 'drizzle-orm'
 import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry, startOfUtcDay } from '../invoicing/money'
 import { isDocumentToken } from './documentLinks'
+import { customerLines } from '../invoicing/itemCodes'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
 
@@ -652,7 +653,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       await db.update(t.quote).set({ status: 'viewed', updatedAt: new Date() }).where(eq(t.quote.id, quoteId))
       found.status = 'viewed'
     }
-    return c.json({ ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found), lineItems: lineItems.map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)), project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone } })
+    return c.json({ ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found), lineItems: (await customerLines(db, contact.companyId, lineItems)).map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)), project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone } })
   }
 
   // E-signature evidence: WHO signed, WHAT they saw, and that they agreed to sign electronically (ESIGN/UETA).
@@ -727,7 +728,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
     const generate = await loadQuotePdf()
-    const pdf = await generate({ ...found, lineItems, contact }, await fullCompany(contact.companyId))
+    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, lineItems), contact }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="quote-${found.number}.pdf"` } })
   }
 
@@ -773,7 +774,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     // The invoice's own link is a credential: it is never echoed back in the customer's copy.
     const { publicToken: _link, ...invoiceRow } = found
     return c.json({
-      ...invoiceRow, status: deriveStatus(found), balance, lineItems, payments, project: projectInfo,
+      ...invoiceRow, status: deriveStatus(found), balance, lineItems: await customerLines(db, contact.companyId, lineItems), payments, project: projectInfo,
       payOnline: await payOnlineFor(contact.companyId),
       company: { name: company.name, email: company.email, phone: company.phone, address: company.address, city: company.city, state: company.state, zip: company.zip },
     })
@@ -786,7 +787,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     const lineItems = await db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, invoiceId)).orderBy(asc(t.invoiceLineItem.sortOrder), asc(t.invoiceLineItem.id))
     const payments = await db.select().from(t.payment).where(eq(t.payment.invoiceId, invoiceId)).orderBy(desc(t.payment.paidAt), asc(t.payment.id))
     const generate = await loadInvoicePdf()
-    const pdf = await generate({ ...found, lineItems, payments, contact }, await fullCompany(contact.companyId))
+    const pdf = await generate({ ...found, lineItems: await customerLines(db, contact.companyId, lineItems), payments, contact }, await fullCompany(contact.companyId))
     return new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="invoice-${found.number}.pdf"` } })
   }
 
