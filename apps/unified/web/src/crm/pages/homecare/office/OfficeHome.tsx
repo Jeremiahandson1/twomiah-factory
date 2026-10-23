@@ -20,8 +20,8 @@
 //   · Both themes: the banner, the action items, the Today tiles and the coverage box take token or light/dark pairs.
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { usePermissions } from '../../../../shared';
-import { routePermissions } from '../../../verticals/homecare';
+import { useAuth, usePermissions } from '../../../../shared';
+import { routePermissions, nav } from '../../../verticals/homecare';
 import { api, rows } from '../lib/http';
 import { formatAgencyDate } from '../lib/agencyClock';
 import IncidentResponsesDue from './IncidentResponsesDue';
@@ -76,6 +76,7 @@ const QUICK_ACTIONS: Array<{ page: string; label: string; adds?: string }> = [
 export default function OfficeHome() {
   const navigate = useNavigate();
   const { can } = usePermissions();
+  const { hasFeature } = useAuth();
   const seesMoney = can('care-billing:read');
   const seesHr = can('care-hr:read');
   const seesSchedule = can('care-schedule:update');
@@ -88,11 +89,16 @@ export default function OfficeHome() {
   const [noShowStats, setNoShowStats] = useState<NoShowStats | null>(null);
   const [actionItems, setActionItems] = useState<{ items: ActionItem[]; totalCount: number }>({ items: [], totalCount: 0 });
 
-  /** May this person open /crm/<page>? A page with no permission on file is open. */
+  /**
+   * May this person open /crm/<page>? A page with no permission on file is open; a page the menu shows only with a
+   * switch on (Reports & Analytics: reports, Documents: documents) is offered only while it is on — the same rule as
+   * the menu, so no tile or quick action leads to a switched-off page.
+   */
   const mayOpen = useCallback((page: string) => {
     const permission = routePermissions[`/crm/${page}`];
-    return !permission || can(permission);
-  }, [can]);
+    const features = nav.find((i) => i.to === `/crm/${page}`)?.features;
+    return (!permission || can(permission)) && (!features?.length || features.some((f) => hasFeature(f)));
+  }, [can, hasFeature]);
   const go = (page: string) => { if (mayOpen(page)) navigate(`/crm/${page}`); };
 
   useEffect(() => {

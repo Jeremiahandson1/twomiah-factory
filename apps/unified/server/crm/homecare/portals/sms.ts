@@ -33,8 +33,9 @@ const NOT_CONFIGURED = 'SMS not configured. Add Twilio credentials to enable SMS
 export function createHomecareSmsRoutes(core: HomecareCore, d: CrmDeps) {
   const { db } = d
   const app = new Hono<AppEnv>()
-  // A public mount (the CRM's webhooks share the path): each route signs the person in itself.
-  const staff = (permission: string) => [d.authenticate, d.permissions.requirePermission(permission)] as const
+  // A public mount (the CRM's webhooks share the path): each route signs the person in itself — and is the Two-Way Texting
+  // switch's (two_way_texting): off, the agency's SMS page and its sends are refused, as its menu item is gone (2026-10-22).
+  const staff = (permission: string) => [d.authenticate, d.features.requireEnabledFeature('two_way_texting'), d.permissions.requirePermission(permission)] as const
 
   // GET /messages — outbound texts from this screen are not kept as a history of their own (the CRM's conversations
   // hold what /send sends), so there is nothing to list here yet: an empty list, not a 404.

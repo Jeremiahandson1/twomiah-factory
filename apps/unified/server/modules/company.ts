@@ -142,7 +142,12 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, co.id))
     deps.features.forgetFeatures(co.id)
     void deps.adsConnector.onFeaturesChanged(features)
-    return done(c)
+    // The reply is what the Factory's admin save verifies (apps/api services/featureSyncVerdict.ts): the list as stored,
+    // read back, so a feature sent and not kept — withheld as not ready or not offered — reads as missing, never as
+    // in sync. It answered { success } alone, so every admin save to a unified tenant read "divergent (missing: all)".
+    const [stored] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, co.id)).limit(1)
+    const kept: string[] = Array.isArray(stored?.enabledFeatures) ? (stored.enabledFeatures as string[]) : []
+    return one(c, { success: true, features: kept, withheld: (body.features as string[]).filter((f) => !kept.includes(f)) })
   })
 
   /**

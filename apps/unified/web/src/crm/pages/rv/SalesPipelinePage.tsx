@@ -216,7 +216,7 @@ export default function SalesPipelinePage() {
                     {row.contactEmail && (
                       <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" /> {row.contactEmail}</p>
                     )}
-                    {row.lead.tradeInInfo && (
+                    {row.lead.tradeInInfo && hasFeature('trade_in') && (
                       <p className="text-xs text-amber-700 dark:text-amber-300">Trade-in: {row.lead.tradeInInfo}</p>
                     )}
                     <div className="flex items-center justify-between pt-1 border-t">
@@ -297,6 +297,8 @@ interface UserOption { id: string; firstName?: string; lastName?: string; isActi
 interface LeadFormModalProps { onSave: () => void; onClose: () => void }
 
 function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
+  // The trade-in box is Trade-In Management's (trade_in): off, the form doesn't ask (the server doesn't keep it either).
+  const tradeInOn = useAuth().hasFeature('trade_in');
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -404,10 +406,10 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
                 <input type="date" value={form.followUpDate} onChange={(e) => set('followUpDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
-            <div>
+            {tradeInOn && <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Trade-In Info</label>
               <input type="text" value={form.tradeInInfo} onChange={(e) => set('tradeInInfo', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
-            </div>
+            </div>}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />

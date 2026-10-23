@@ -96,9 +96,6 @@ const SURFACES: { feature: string; page: string; file?: string; needle?: string;
   { feature: 'contacts', page: '/crm/clients', when: (b) => b.id === 'homecare', what: "the agency's clients" },
   { feature: 'scheduling', page: '/crm/scheduling', when: (b) => b.id === 'homecare', what: "the agency's schedule hub" },
   { feature: 'team', page: '/crm/caregivers', when: (b) => b.id === 'homecare', what: "the agency's caregivers" },
-  { feature: 'two_way_texting', page: '/crm/sms', when: (b) => b.id === 'homecare', what: "the agency's texts" },
-  { feature: 'documents', page: '/crm/documents', when: (b) => b.id === 'homecare', what: "the agency's documents" },
-  { feature: 'reports', page: '/crm/reports', when: (b) => b.id === 'homecare', what: "the agency's reports" },
 ]
 
 const { getAdvertisableFeaturesForTemplate } = await import(join(ROOT, 'packages/tenant-backend/src/featureRegistry.ts'))

@@ -38,7 +38,7 @@ export function clientsMounts(core: HomecareCore, d: CrmDeps): Mount[] {
     { path: '/api/client-documents', access: 'user', router: createClientDocumentRoutes(core, d, access) },
     { path: '/api/insurance-cards', access: 'user', router: createInsuranceCardRoutes(core, d) },
     { path: '/api/forms', access: 'user', router: createFormRoutes(core, d, access) },
-    { path: '/api/documents', access: 'user', router: createDocumentRoutes(core, d, access) },
+    { path: '/api/documents', access: 'user', feature: 'documents', router: createDocumentRoutes(core, d, access) }, // the Documents switch (Settings › Features): off, the agency's Documents page, its files and caregivers' signing go together
     { path: '/api/emergency', access: 'user', router: createEmergencyRoutes(core, d, access) },
     { path: '/api/service-codes', access: 'user', router: createServiceCodeRoutes(d) },
     { path: '/api/referral-sources', access: 'user', router: createReferralSourceRoutes(d) },

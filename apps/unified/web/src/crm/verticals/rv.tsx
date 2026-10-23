@@ -58,7 +58,7 @@ const DEALERSHIP = ['unit_inventory', 'deal_pipeline', 'service_dept']
 export const nav: NavItem[] = [
   { to: '/crm/ai-reports', icon: Bot, label: 'AI Reports', section: 'AI Tools', features: DEALERSHIP, permission: 'reports:read' },
   { to: '/crm/ai-leads', icon: MessageSquare, label: 'AI Lead Responder', section: 'AI Tools', features: DEALERSHIP, permission: 'contacts:update' },
-  { to: '/crm/ai-trade', icon: Calculator, label: 'AI Trade Appraisal', section: 'AI Tools', features: DEALERSHIP, permission: 'contacts:update' },
+  { to: '/crm/ai-trade', icon: Calculator, label: 'AI Trade Appraisal', section: 'AI Tools', features: ['trade_in'], permission: 'contacts:update' },
   { to: '/crm/units', icon: Caravan, label: 'Inventory', section: 'Sales', features: ['unit_inventory'], permission: 'contacts:read' },
   { to: '/crm/sales-pipeline', icon: GitBranch, label: 'Sales Pipeline', section: 'Sales', features: ['deal_pipeline'], permission: 'contacts:read' },
   { to: '/crm/desking', icon: ClipboardList, label: 'Desking', section: 'Sales', features: ['deal_pipeline'], permission: 'contacts:read' },

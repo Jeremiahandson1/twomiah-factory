@@ -49,7 +49,8 @@ export function Dashboard() {
 }
 export function Contacts() {
   const { hasFeature, can } = useAuth()
-  return <ContactsPage api={client} toast={useToast()} config={{ ...v().contacts, hasFeature, can } as any} />
+  // The vendor portal invite is the vendor_portal switch's (Settings › Features), as its server mount is.
+  return <ContactsPage api={client} toast={useToast()} config={{ ...v().contacts, vendorPortalInvite: !!(v().contacts as any)?.vendorPortalInvite && hasFeature('vendor_portal'), hasFeature, can } as any} />
 }
 export function ContactDetail() {
   const { hasFeature, can } = useAuth()

@@ -214,7 +214,9 @@ const CHIP_PENDING = 'rounded-md border px-2.5 py-1 text-xs font-semibold border
 const ACTION_BTN = 'rounded-md border bg-white px-2.5 py-1 text-xs font-semibold dark:bg-slate-900'
 
 const CaregiverDashboard = () => {
-  const { user, company, logout } = useAuth()
+  const { user, company, logout, hasFeature } = useAuth()
+  // Documents to sign are the Documents switch's (Settings › Features): off, the card and its call go with the page.
+  const documentsOn = hasFeature('documents')
   const toast = useToast()
   const askText = usePrompt()
   const toastRef = useRef(toast)
@@ -977,10 +979,10 @@ const CaregiverDashboard = () => {
   const getClientById = (id: string | null | undefined) => clients.find((c) => c.id === id)
 
   const loadUnsignedDocs = async () => {
-    if (!myId) return
+    if (!myId || !documentsOn) { setUnsignedDocs([]); return }
     try { setUnsignedDocs(rows<UnsignedDoc>(await api.get(`/api/documents/unsigned/${myId}`))) } catch { /* not fatal */ }
   }
-  useEffect(() => { loadUnsignedDocs() }, [myId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadUnsignedDocs() }, [myId, documentsOn]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const submitDocSignature = async (dataUri: string, typedName: string | null) => {
     if (!signTarget) return

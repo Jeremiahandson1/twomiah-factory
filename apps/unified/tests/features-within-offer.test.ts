@@ -9,6 +9,7 @@ import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { withinOffer, getFeaturesForTemplate } from '@twomiah/tenant-backend'
 import { bootTenant, seedOwner } from './harness.ts'
+import { featureSyncVerdict } from '../../api/src/services/featureSyncVerdict.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = ''
@@ -63,9 +64,23 @@ describe('an agency made before the change', () => {
     const was = process.env.FACTORY_SYNC_KEY
     process.env.FACTORY_SYNC_KEY = 'k'.repeat(32)
     try {
-      const r = await t.call('/api/internal/sync-features', { method: 'POST', headers: { 'X-Factory-Key': 'k'.repeat(32) }, json: { features: OLD_AGENCY } })
+      const sync = async (features: string[]) => {
+        const r = await t.call('/api/internal/sync-features', { method: 'POST', headers: { 'X-Factory-Key': 'k'.repeat(32) }, json: { features } })
+        return { status: r.status, body: await r.json() as any }
+      }
+      const r = await sync(OLD_AGENCY)
       expect(r.status).toBe(200)
       expect(await stored()).toEqual(['contacts', 'dashboard', 'reports', 'scheduling', 'team', 'two_way_texting'])
+      // The reply is the list as stored, and the Factory's admin save reads it (apps/api featureSyncVerdict): what
+      // withinOffer withheld is named missing — the save is not shown as in sync.
+      expect(r.body.features.slice().sort()).toEqual(await stored())
+      expect(r.body.withheld).toEqual(['invoices', 'time_tracking', 'service_dispatch'])
+      const off = featureSyncVerdict(OLD_AGENCY, r.status, r.body)
+      expect([off.synced, off.error]).toEqual([false, 'CRM returned divergent feature list (missing: invoices, time_tracking, service_dispatch)'])
+      // A save of what home care is offered reads as in sync.
+      const fine = ['contacts', 'dashboard', 'scheduling', 'team', 'reports', 'documents']
+      const ok = await sync(fine)
+      expect(featureSyncVerdict(fine, ok.status, ok.body)).toEqual({ synced: true, received: fine, missing: [], error: null })
     } finally { if (was === undefined) delete process.env.FACTORY_SYNC_KEY; else process.env.FACTORY_SYNC_KEY = was }
   })
 

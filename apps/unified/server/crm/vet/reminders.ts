@@ -66,6 +66,9 @@ export function createReminderRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
+  // The printable rabies certificate is the rabies_certificates switch's (Settings › Features): off, it is refused, as the
+  // chart's Rabies Certificate button is gone (live retest 2026-10-22: the switch hid nothing).
+  app.use('/rabies/*', d.features.requireEnabledFeature('rabies_certificates'))
 
   // GET /reminders/due?window=30 — the latest administration per pet+vaccine whose due date is within `window` days
   // (or past). A report: its counts beside its rows, as the template answered.

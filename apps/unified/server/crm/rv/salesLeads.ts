@@ -172,6 +172,8 @@ export function createSalesLeadRoutes(d: CrmDeps) {
   app.post('/', requirePermission('contacts:create'), async (c) => {
     const currentUser = c.get('user')
     const body = await c.req.json()
+    // A trade-in is the trade_in switch's (Trade-In Management): off, it is not written (the form leaves it out too).
+    if (!(await d.features.isFeatureEnabled(currentUser.companyId, 'trade_in'))) delete body.tradeInInfo
     const stage = body.stage || 'new'
     const unitId = body.unitId || null
     const outcome = await db.transaction(async (tx: any) => {
@@ -206,6 +208,8 @@ export function createSalesLeadRoutes(d: CrmDeps) {
     const currentUser = c.get('user')
     const id = c.req.param('id')
     const body = await c.req.json()
+    // A trade-in is the trade_in switch's (Trade-In Management): off, it is not written (the form leaves it out too).
+    if (!(await d.features.isFeatureEnabled(currentUser.companyId, 'trade_in'))) delete body.tradeInInfo
     const [existing] = await db.select().from(salesLead).where(and(eq(salesLead.id, id), eq(salesLead.companyId, currentUser.companyId))).limit(1)
     if (!existing) return fail(c, 404, 'Lead not found')
 

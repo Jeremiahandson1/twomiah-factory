@@ -44,7 +44,7 @@ export function rvMounts(d: CrmDeps): Mount[] {
     ...(d.settings?.homecare ? [] : [{ path: '/api/alerts', access: 'user', feature: ['deal_pipeline', 'service_dept'], router: createAlertRoutes(d) } as Mount]),
     { path: '/api/ai-reports', access: 'user', feature: DEALERSHIP, router: createAiReportRoutes(d) },
     { path: '/api/ai-leads', access: 'user', feature: DEALERSHIP, router: createAiLeadRoutes(d) },
-    { path: '/api/ai-trade', access: 'user', feature: DEALERSHIP, router: createAiTradeRoutes(d) },
+    { path: '/api/ai-trade', access: 'user', feature: 'trade_in', router: createAiTradeRoutes(d) }, // Trade-In Management's (trade_in), as its menu item is
     { path: '/api/oem-parts', access: 'user', feature: DEALERSHIP, router: createOemPartsRoutes(d) },
     { path: '/api/parts-orders', access: 'user', feature: DEALERSHIP, router: createPartsOrderRoutes(d) },
     { path: '/api/labor-guide', access: 'user', feature: DEALERSHIP, router: createLaborGuideRoutes() },
