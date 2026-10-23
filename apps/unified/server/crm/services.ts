@@ -180,6 +180,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
   const moduleJobs: Array<() => void> = []
 
   return {
+    /** Tests only: the fake Stripe client the shared service was handed, so home care's own checkout uses it too. */
+    testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
     fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks,
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */

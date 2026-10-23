@@ -16,6 +16,7 @@ import { createBookingWebhooks } from '../booking/webhooks.ts'
 import { createHappenings } from '../booking/happenings.ts'
 import { bookingTemplates } from '../booking/emails.ts'
 import { createPracticeBooking } from '../crm/vet/onlineBooking.ts'
+import { createChairBooking } from '../crm/salon/onlineBooking.ts'
 import { createCalendars, PROVIDERS, type Calendars, type Provider } from '../booking/calendars.ts'
 import type { BookingTexts } from '../booking/texts.ts'
 import { ticked } from '../site/smsConsent.ts'
@@ -40,7 +41,7 @@ const publicBooking = (b: BookingRow, engine: BookingEngine, cutoffOpen: boolean
   depositStatus: b.depositStatus, canChange: cutoffOpen,
 })
 
-export function createBookingModule(deps: { db: any; vertical: VerticalSettings; email: EmailService; logger: Logger; permissions: any; deposits?: DepositProvider; calendars?: Calendars; texts?: BookingTexts }) {
+export function createBookingModule(deps: { db: any; vertical: VerticalSettings; email: EmailService; logger: Logger; permissions: any; deposits?: DepositProvider; calendars?: Calendars; texts?: BookingTexts; isFeatureEnabled?: (companyId: string, feature: string) => Promise<boolean> }) {
   const { db, email, logger, permissions } = deps
   // People's own Google / Outlook calendars: their busy time, and their bookings put on them (booking/calendars.ts).
   const calendars = deps.calendars ?? createCalendars({ db, logger })
@@ -52,8 +53,12 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     // The vertical's answers (VerticalSettings.booking): whether the address is asked (basic, salon, vet, bar say no —
     // templates/crm-basic T42), and where a booking lands besides the list (the vet's practice book).
     db, requireAddressDefault: deps.vertical.booking?.requireAddress ?? true, deposits: deps.deposits, externalBusy: calendars.externalBusy,
-    addOn: deps.vertical.booking?.calendar === 'practice' ? createPracticeBooking({ requirePet: deps.vertical.booking.requirePet === true }) : undefined,
+    addOn: deps.vertical.booking?.calendar === 'practice' ? createPracticeBooking({ requirePet: deps.vertical.booking.requirePet === true })
+      : deps.vertical.booking?.calendar === 'chair' ? createChairBooking() : undefined,
     onHappening: (h) => { void happen(h); void calendars.onHappening(h) },
+    // "Convert to job": numbered as the vertical's job module numbers its jobs — roofing's own (crm/roof/jobs.ts
+    // ROOF-0001), everyone else's the shared module's default (packages/tenant-backend jobs.ts JOB-00001).
+    jobs: deps.vertical.crm ? { numbering: deps.vertical.crm.roof ? { prefix: 'ROOF', pad: 4 } : { prefix: 'JOB', pad: 5 }, defaultType: deps.vertical.crm.jobs?.defaultType } : undefined,
   })
   const extras = createBookingExtras({ db, engine, email, logger, webhooks, texts: deps.texts })
 
@@ -99,7 +104,7 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   }))
   admin.post('/bookings', may('bookings:create'), (c) => guard(c, async () => {
     const b = await body(c)
-    const r = await engine.book(co(c), { ...b, service: String(b.serviceId || b.service || ''), answers: answersOf(engine, b) } as any, { by: 'staff', assignedUserId: b.assignedUserId || null, override: b.override === true })
+    const r = await engine.book(co(c), { ...b, service: String(b.serviceId || b.service || ''), answers: answersOf(engine, b) } as any, { by: 'staff', assignedUserId: b.assignedUserId || null, override: b.override === true, userId: c.get('user').userId })
     return one(c, await engine.withNames(r.booking), 201)
   }))
   admin.get('/bookings/:id', may('bookings:read'), async (c) => {
@@ -111,14 +116,25 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     const b = await engine.getBooking(co(c), c.req.param('id'))
     if (!b) return fail(c, 404, 'Booking not found')
     const input = await body(c)
-    const u = input.date || input.time ? await engine.reschedule(co(c), b, String(input.date || ''), String(input.time || ''), { by: 'staff', override: input.override === true })
+    const u = input.date || input.time ? await engine.reschedule(co(c), b, String(input.date || ''), String(input.time || ''), { by: 'staff', override: input.override === true, userId: c.get('user').userId })
       : input.status ? (input.status === 'cancelled' ? await engine.cancel(co(c), b, { by: 'staff', reason: input.reason }) : await engine.setStatus(co(c), b, String(input.status)))
       : await engine.updateDetails(co(c), b, input)
     return one(c, await engine.withNames(u))
   }))
 
+  /**
+   * "Convert to job": the booking becomes a job on the schedule, linked to it. Both sides' permissions, and the jobs
+   * feature — the same gates as making a job on the Jobs page (gate both sides: the button asks the same).
+   */
+  admin.post('/bookings/:id/job', may('bookings:update'), may('jobs:create'), (c) => guard(c, async () => {
+    if (!deps.isFeatureEnabled || !(await deps.isFeatureEnabled(co(c), 'jobs'))) return fail(c, 404, 'Jobs are not switched on for this account.')
+    const b = await engine.getBooking(co(c), c.req.param('id'))
+    if (!b) return fail(c, 404, 'Booking not found')
+    return one(c, await engine.convertToJob(co(c), b, c.get('user').userId), 201)
+  }))
+
   admin.get('/series', may('bookings:read'), async (c) => { const rows = await extras.listSeries(co(c)); return listAll(c, rows) })
-  admin.post('/series', may('bookings:create'), (c) => guard(c, async () => one(c, await extras.createSeries(co(c), await body(c)), 201)))
+  admin.post('/series', may('bookings:create'), (c) => guard(c, async () => one(c, await extras.createSeries(co(c), await body(c), c.get('user').userId), 201)))
   admin.get('/series/:id', may('bookings:read'), async (c) => { const s = await extras.getSeries(co(c), c.req.param('id')); return s ? one(c, s) : fail(c, 404, 'Not found') })
   admin.delete('/series/:id', may('bookings:update'), async (c) => { const s = await extras.cancelSeries(co(c), c.req.param('id')); return s ? one(c, s) : fail(c, 404, 'Not found') })
 

@@ -3,9 +3,9 @@
 // once the visit has started).
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Mail, Phone, MapPin, Repeat, FileText } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Repeat, FileText, User, Briefcase, ShieldAlert } from 'lucide-react'
 import { api } from '../api'
-import { PageError, useConfirm, useMayWrite, useToast } from '../shared'
+import { PageError, useAuth, useConfirm, useMayWrite, useToast } from '../shared'
 import { useBookingBasics, onClock, StatusPill, dollars, type Booking } from './common'
 import { TimePicker, type PickedTime } from './TimePicker'
 
@@ -13,6 +13,10 @@ export function BookingDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { settings, people } = useBookingBasics()
   const mayUpdate = useMayWrite('bookings:update')
+  // "Convert to job" asks what the server's door asks: bookings:update and jobs:create, with the jobs feature on.
+  const mayMakeJob = useMayWrite('jobs:create')
+  const { hasFeature, can } = useAuth()
+  const contactLink = (cid: string, name: string) => hasFeature('contacts') && can('contacts:read') ? <Link to={`/crm/contacts/${cid}`} className="underline">{name}</Link> : <strong>{name}</strong>
   const confirm = useConfirm()
   const toast = useToast()
   const [b, setB] = useState<Booking | null>(null)
@@ -32,6 +36,15 @@ export function BookingDetailPage() {
     finally { setBusy(false) }
   }
 
+  const convert = async () => {
+    setBusy(true); setError(null)
+    try {
+      const j = await api.post(`/api/booking/bookings/${id}/job`, {})
+      setB((x) => (x ? { ...x, job: j } : x))
+      toast.success(`Made ${j.number} — it is on the Schedule.`)
+    } catch (e: any) { setError(e.message) } finally { setBusy(false) }
+  }
+
   if (!b || !settings) return error ? <PageError message={error} /> : <div className="text-muted text-sm">Loading…</div>
   const clock = onClock(settings.timezone)
   const live = b.status === 'confirmed' || b.status === 'pending'
@@ -44,6 +57,12 @@ export function BookingDetailPage() {
         <div>
           <h1 className="text-2xl font-bold text-ink">{b.customerName}</h1>
           <p className="text-muted text-sm mt-1">{b.serviceName || 'Service removed'} · booked {clock.day(b.createdAt)} {b.source === 'public' ? 'online' : b.source === 'series' ? 'as part of a series' : 'at the desk'}</p>
+          {b.overrideAt && (
+            <p className="mt-2 text-sm text-amber-900 dark:text-amber-200 inline-flex items-center gap-1.5">
+              <ShieldAlert className="w-4 h-4 shrink-0" aria-hidden="true" />
+              Booked outside the hours and the booking window by {b.overrideByName || 'a former team member'} on {clock.day(b.overrideAt)}.
+            </p>
+          )}
           {b.seriesId && <Link to={`/crm/bookings/series/${b.seriesId}`} className="inline-flex items-center gap-1 mt-2 text-sm text-brand-700 dark:text-brand-300 underline"><Repeat className="w-3.5 h-3.5" aria-hidden="true" />Visit {b.seriesIndex} of a repeating booking</Link>}
         </div>
         <StatusPill status={b.status} />
@@ -71,6 +90,16 @@ export function BookingDetailPage() {
       <section className="card card-padding mb-4">
         <h2 className="text-sm font-semibold text-ink mb-3">Customer</h2>
         <div className="space-y-2 text-sm text-ink">
+          {/* The name typed on the booking is the heading; the contact record it is filed under (matched by email) is
+              named here, and said plainly when it is a different name — one email, a household. (Field service T24 L1) */}
+          {b.contactId && (
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4 text-muted shrink-0" aria-hidden="true" />
+              {b.contactName && b.contactName.trim().toLowerCase() !== b.customerName.trim().toLowerCase()
+                ? <span>Booked as <strong>{b.customerName}</strong> — filed under the contact {contactLink(b.contactId, b.contactName)}, who has the same email.</span>
+                : <span>Contact: {contactLink(b.contactId, b.contactName || b.customerName)}</span>}
+            </div>
+          )}
           <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-muted" aria-hidden="true" /><a href={`mailto:${b.customerEmail}`} className="underline">{b.customerEmail}</a></div>
           {b.customerPhone && <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-muted" aria-hidden="true" /><a href={`tel:${b.customerPhone}`} className="underline">{b.customerPhone}</a></div>}
           {b.customerAddress && <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-muted" aria-hidden="true" />{b.customerAddress}{b.customerZip ? ` ${b.customerZip}` : ''}</div>}
@@ -83,6 +112,20 @@ export function BookingDetailPage() {
           </p>
         )}
       </section>
+
+      {(b.job || (hasFeature('jobs') && mayUpdate && mayMakeJob && b.status !== 'cancelled' && b.status !== 'no_show')) && (
+        <section className="card card-padding mb-4">
+          <h2 className="text-sm font-semibold text-ink mb-2 flex items-center gap-1.5"><Briefcase className="w-4 h-4 text-muted" aria-hidden="true" />Job</h2>
+          {b.job
+            ? <p className="text-sm text-ink">This booking is {can('jobs:read') ? <Link to={`/crm/jobs/${b.job.id}`} className="underline font-semibold">{b.job.number}</Link> : <strong>{b.job.number}</strong>} on the Schedule. Moving or cancelling the booking moves or cancels the job until the work starts.</p>
+            : (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-ink-soft">Make it a job to dispatch it, track time and costs, and bill it. The booking stays linked.</p>
+                <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={convert}>Convert to job</button>
+              </div>
+            )}
+        </section>
+      )}
 
       {people.length === 0 && b.assignedName && <p className="text-sm text-ink-soft mb-4">With {b.assignedName}.</p>}
       {people.length > 0 && (

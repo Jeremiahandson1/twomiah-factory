@@ -1,13 +1,18 @@
-// The public page a client pays a visit invoice on (/pay/:invoiceId — the invoice email's link and the client portal's
-// Pay button), and Stripe's return page (/payment-success). Moved from templates/crm-homecare/frontend/src/components/PaymentPage.tsx.
+// A visit invoice's own public page (/d/<token> — the link its email carries, and the client portal's "View and pay"),
+// and Stripe's return page (/payment-success). Moved from templates/crm-homecare/frontend/src/components/PaymentPage.tsx.
 //
-// Server (server/crm/homecare/billing/stripe.ts, /api/stripe, public; 503 when Stripe is not configured):
-//   GET  /api/stripe/invoice/:invoiceId/pay  → { invoiceNumber, clientName, total, amountDue (text, 2 places), status,
-//                                              billingPeriod: { start, end } }; 404 for a draft or unknown invoice
-//   POST /api/stripe/invoice/:invoiceId/pay  → { url } (Stripe Checkout); refused 400 when paid / nothing due
-//   GET  /api/stripe/verify-payment/:id      → { success: true, amount, invoiceId, customerEmail } or { success: false, status }
-// The page also printed "Already Paid" from an amountPaid the reply has never carried (the template's server did not
-// send it either), so that row does not show; the figures are otherwise printed exactly as the template printed them.
+// One rule with the CRM's invoices (live test, 2026-10-23): the page is reached by the invoice's token, never its id (it
+// was /pay/<invoice id>); it always shows what is owed; a card is offered only when the agency can take one, and
+// otherwise the page says plainly how to pay, with the agency's phone and email — it showed "Error: Card payments are
+// not available on your account yet — contact Twomiah" to a family when Stripe was not set up.
+//
+// Server (server/crm/homecare/billing/stripe.ts, /api/stripe, public):
+//   GET  /api/stripe/document/:token        → { invoiceNumber, clientName, total, amountPaid, amountDue (text, 2 places),
+//                                              status, dueDate, billingPeriod, payOnline, business: { name, phone, email } };
+//                                              404 for an unknown link or a draft
+//   POST /api/stripe/document/:token/pay    → { url } (Stripe Checkout, the agency's account); refused 400 when nothing is
+//                                              owed or the agency doesn't take cards online
+//   GET  /api/stripe/verify-payment/:id?doc → { success: true, amount, invoiceId, customerEmail } or { success: false, status }
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
@@ -15,48 +20,50 @@ import { formatDate } from '../lib/date'
 import { agencyNameFromPage, publicCall } from './portalHttp'
 import { money } from '@twomiah/tenant-ui/src/money'
 
-interface PayInvoice {
+interface DocInvoice {
   invoiceNumber: string
   clientName: string
   total: string | number | null
   amountPaid?: string | number | null
   amountDue: string | number | null
   status: string
+  dueDate?: string | null
   billingPeriod?: { start: string | null; end: string | null }
+  payOnline: boolean
+  business?: { name: string | null; phone: string | null; email: string | null }
 }
 
 const dollars = (v: unknown) => (parseFloat(String(v ?? 0)) || 0).toFixed(2)
 
-export default function PaymentPage({ invoiceId }: { invoiceId: string }) {
+export default function PaymentPage({ token }: { token: string }) {
   const { search } = useLocation()
   const cancelled = new URLSearchParams(search).get('cancelled') === 'true'
-  const [invoice, setInvoice] = useState<PayInvoice | null>(null)
+  const [invoice, setInvoice] = useState<DocInvoice | null>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const agency = agencyNameFromPage()
-  const agencyEmail = document.querySelector('meta[name="company-email"]')?.getAttribute('content') || ''
+  const pageAgency = agencyNameFromPage()
+  const pageEmail = document.querySelector('meta[name="company-email"]')?.getAttribute('content') || ''
 
   useEffect(() => {
     let live = true
-    publicCall<PayInvoice>('GET', `/api/stripe/invoice/${encodeURIComponent(invoiceId)}/pay`)
+    publicCall<DocInvoice>('GET', `/api/stripe/document/${encodeURIComponent(token)}`)
       .then((r) => {
         if (!live) return
-        // The server's own sentence ("This invoice is no longer available…", "Stripe payments not configured…"); the
-        // template said "Invoice not found" for every refusal.
-        if (!r.ok) throw new Error(r.error || 'Invoice not found')
+        // The server's own sentence ("This link is not valid. Please contact the business that sent it.").
+        if (!r.ok) throw new Error(r.error || 'This link is not valid. Please contact the business that sent it.')
         setInvoice(r.data)
       })
-      .catch((err: Error) => { if (live) setError(err.message || 'Invoice not found') })
+      .catch((err: Error) => { if (live) setError(err.message || 'This link is not valid. Please contact the business that sent it.') })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
-  }, [invoiceId])
+  }, [token])
 
   const handlePayment = async () => {
     setProcessing(true)
     setError(null)
     try {
-      const r = await publicCall<{ url?: string }>('POST', `/api/stripe/invoice/${encodeURIComponent(invoiceId)}/pay`)
+      const r = await publicCall<{ url?: string }>('POST', `/api/stripe/document/${encodeURIComponent(token)}/pay`)
       if (r.ok && r.data.url) {
         window.location.href = r.data.url // Stripe Checkout
       } else {
@@ -67,6 +74,11 @@ export default function PaymentPage({ invoiceId }: { invoiceId: string }) {
       setProcessing(false)
     }
   }
+
+  const agency = invoice?.business?.name || pageAgency
+  const email = invoice?.business?.email || pageEmail
+  const phone = invoice?.business?.phone || ''
+  const reach = [phone, email].filter(Boolean).join(' or ')
 
   if (loading) {
     return (
@@ -83,20 +95,23 @@ export default function PaymentPage({ invoiceId }: { invoiceId: string }) {
     return (
       <div style={styles.container}>
         <div style={styles.card}>
-          <h2 style={{ color: 'var(--hc-red-ink)' }}>Error</h2>
+          {pageAgency && <h1 style={{ margin: '0 0 1rem', color: 'var(--hc-ink)', fontSize: '1.5rem' }}>{pageAgency}</h1>}
+          <h2 style={{ color: 'var(--hc-red-ink)' }}>This link can't be opened</h2>
           <p>{error}</p>
+          {pageEmail && <p>Contact us at <strong>{pageEmail}</strong>.</p>}
         </div>
       </div>
     )
   }
 
-  if (invoice?.status === 'paid') {
+  const owed = parseFloat(String(invoice?.amountDue ?? 0)) || 0
+  if (invoice?.status === 'paid' || owed <= 0) {
     return (
       <div style={styles.container}>
         <div style={styles.card}>
           <div style={styles.successIcon}>✓</div>
           <h2 style={{ color: 'var(--hc-green-ink)' }}>Invoice Paid</h2>
-          <p>This invoice has already been paid. Thank you!</p>
+          <p>Invoice #{invoice?.invoiceNumber} has been paid in full. Thank you!</p>
         </div>
       </div>
     )
@@ -124,6 +139,12 @@ export default function PaymentPage({ invoiceId }: { invoiceId: string }) {
               {invoice?.billingPeriod?.end && formatDate(invoice.billingPeriod.end)}
             </span>
           </div>
+          {invoice?.dueDate && (
+            <div style={styles.detailRow}>
+              <span>Due:</span>
+              <span>{formatDate(invoice.dueDate)}</span>
+            </div>
+          )}
           <div style={styles.detailRow}>
             <span>Invoice Total:</span>
             <span>{money(invoice?.total)}</span>
@@ -142,18 +163,26 @@ export default function PaymentPage({ invoiceId }: { invoiceId: string }) {
 
         {error && <div style={styles.errorBanner}>{error}</div>}
 
-        <button onClick={handlePayment} disabled={processing} style={{ ...styles.payButton, ...(processing ? styles.payButtonDisabled : {}) }}>
-          {processing ? 'Processing...' : `Pay ${money(invoice?.amountDue)}`}
-        </button>
-
-        <div style={styles.secureNotice}><span>🔒</span> Secure payment powered by Stripe</div>
+        {invoice?.payOnline ? (
+          <>
+            <button onClick={handlePayment} disabled={processing} style={{ ...styles.payButton, ...(processing ? styles.payButtonDisabled : {}) }}>
+              {processing ? 'Processing...' : `Pay ${money(invoice?.amountDue)}`}
+            </button>
+            <div style={styles.secureNotice}><span>🔒</span> Secure payment powered by Stripe</div>
+          </>
+        ) : (
+          // The CRM's invoice page says the same (packages/tenant-ui portal/PortalInvoices.tsx "How to pay").
+          <div style={styles.howToPay} role="note">
+            <p style={{ margin: 0, fontWeight: 600 }}>How to pay</p>
+            <p style={{ margin: '0.25rem 0 0' }}>{agency || 'This business'} does not take card payments online. To pay this invoice, please contact them{reach ? ` at ${reach}` : ''}.</p>
+          </div>
+        )}
 
         <div style={styles.footer}>
-          {/* The agency's email, as the template printed it ({{COMPANY_EMAIL}}): the server writes it into the page. */}
-          {agencyEmail ? (
+          {reach ? (
             <>
               <p>Questions about this invoice? Contact us at:</p>
-              <p><strong>{agencyEmail}</strong></p>
+              <p><strong>{reach}</strong></p>
             </>
           ) : <p>Questions about this invoice? Please contact {agency || 'us'}.</p>}
         </div>
@@ -162,22 +191,23 @@ export default function PaymentPage({ invoiceId }: { invoiceId: string }) {
   )
 }
 
-/** Stripe's return page: /payment-success?session_id=…&invoice_id=… */
+/** Stripe's return page: /payment-success?session_id=…&doc=<the invoice's token> (which agency's account the session is on). */
 export function PaymentSuccess() {
   const { search } = useLocation()
   const sessionId = new URLSearchParams(search).get('session_id')
+  const doc = new URLSearchParams(search).get('doc') || ''
   const [payment, setPayment] = useState<{ success?: boolean; amount?: number; customerEmail?: string | null } | null>(null)
   const [loading, setLoading] = useState(!!sessionId)
 
   useEffect(() => {
     if (!sessionId) return
     let live = true
-    publicCall<{ success?: boolean; amount?: number; customerEmail?: string | null }>('GET', `/api/stripe/verify-payment/${encodeURIComponent(sessionId)}`)
+    publicCall<{ success?: boolean; amount?: number; customerEmail?: string | null }>('GET', `/api/stripe/verify-payment/${encodeURIComponent(sessionId)}${doc ? `?doc=${encodeURIComponent(doc)}` : ''}`)
       .then((r) => { if (live) setPayment(r.data) })
       .catch((err) => console.error('Error verifying payment:', err))
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
-  }, [sessionId])
+  }, [sessionId, doc])
 
   if (loading) {
     return (
@@ -238,6 +268,7 @@ const styles: Record<string, CSSProperties> = {
     width: '40px', height: '40px', border: '4px solid var(--hc-line)', borderTop: '4px solid #3498db', borderRadius: '50%',
     animation: 'hc-spin 1s linear infinite', margin: '0 auto 1rem',
   },
+  howToPay: { backgroundColor: 'var(--hc-warning-bg)', color: 'var(--hc-warning-ink)', padding: '1rem', borderRadius: '8px', textAlign: 'left' },
   cancelledBanner: { backgroundColor: 'var(--hc-warning-bg)', color: 'var(--hc-warning-ink)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' },
   errorBanner: { backgroundColor: 'var(--hc-danger-bg)', color: 'var(--hc-danger-ink)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem' },
 }

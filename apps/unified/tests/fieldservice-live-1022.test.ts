@@ -101,8 +101,9 @@ describe('a booker keeps the name they typed', () => {
     expect(listed[0].customerName).toBe('Booker Typed')
     expect(listed[0].contactId).toBe(c.id)
     expect((await (await as(`/api/booking/bookings/${listed[0].id}`)).json()).customerName).toBe('Booker Typed')
-    // Staff booking for the same person by email: the same.
-    const staff = await as('/api/booking/bookings', { method: 'POST', json: { serviceId: listed[0].serviceId, name: 'Desk Typed', email: 'casey@example.com', date: day, time: '14:00' } })
+    // Staff booking for the same person by email: the same. (The business asks for a phone, so the desk gives one —
+    // a staff booking is held to that too: booking-doors-1023.test.ts.)
+    const staff = await as('/api/booking/bookings', { method: 'POST', json: { serviceId: listed[0].serviceId, name: 'Desk Typed', email: 'casey@example.com', phone: '608-555-0123', date: day, time: '14:00' } })
     expect(staff.status).toBe(201)
     expect((await staff.json()).customerName).toBe('Desk Typed')
     expect((await (await as(`/api/contacts/${c.id}`)).json()).name).toBe('Casey Contact')

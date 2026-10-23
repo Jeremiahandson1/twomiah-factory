@@ -167,8 +167,10 @@ export default function PortalsPublic() {
   const agency = agencyNameFromPage()
   const name = (what: string) => (agency ? `${what} — ${agency}` : what)
 
-  const pay = /^\/pay\/([^/]+)\/?$/.exec(pathname)
-  if (pay) return <Titled title={name('Pay your invoice')}><PaymentPage invoiceId={decodeURIComponent(pay[1])} /></Titled>
+  // The invoice's own page (/d/<token>), the link its email carries. /pay/<…> was the old link (by the invoice's id):
+  // it reaches the same page, which says that link is not valid and whom to contact.
+  const pay = /^\/(?:d|pay)\/([^/]+)\/?$/.exec(pathname)
+  if (pay) return <Titled title={name('Your invoice')}><PaymentPage token={decodeURIComponent(pay[1])} /></Titled>
   if (pathname === '/payment-success' || pathname === '/payment-success/') return <Titled title={name('Payment received')}><PaymentSuccess /></Titled>
   if (pathname === '/portal/setup' || pathname === '/portal/setup/') return <Titled title={name('Client portal')}><PortalSetup /></Titled>
   if (pathname === '/family' || pathname.startsWith('/family/')) return <Titled title={name('Family portal')}><FamilyApp /></Titled>

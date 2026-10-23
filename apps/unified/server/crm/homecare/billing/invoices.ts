@@ -18,6 +18,7 @@
 //     period's invoice id and an overpayment's figures are a code (invoice_exists / overpayment), the figures in the
 //     sentence as they already were.
 import { Hono } from 'hono'
+import { documentLinkToken, documentLinkPath } from '@twomiah/tenant-backend'
 import { and, eq, asc, isNotNull } from 'drizzle-orm'
 import {
   invoices, invoiceLineItems, invoiceAdjustments, invoicePayments, referralSources, referralSourceRates, clients, company,
@@ -56,7 +57,6 @@ const fmtUsDate = (d: string | null) => {
   const [y, m, day] = d.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, day, 12)).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 }
-const payUrlFor = (id: string) => (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/pay/${id}` : undefined)
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] as string))
 const ADJUSTMENT_TYPES = ['write_off', 'discount', 'adjustment', 'refund', 'credit', 'other']
 
@@ -68,6 +68,15 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
   const read = requirePermission('care-billing:read')
   const create = requirePermission('care-billing:create')
   const update = requirePermission('care-billing:update')
+  /**
+   * The invoice's own private link (/d/<token>), minted the first time it is emailed and never changed — the CRM's
+   * invoices' rule (packages/tenant-backend portal/documentLinks.ts). The email service puts the app's address in front,
+   * as it does for every other invoice. The email linked /pay/<invoice id>, and only when FRONTEND_URL was set.
+   */
+  const documentPathFor = async (id: string) => {
+    const token = await documentLinkToken(db, invoices, id)
+    return token ? documentLinkPath(token) : null
+  }
   const remove = requirePermission('care-billing:delete')
 
   async function companyName(companyId: string): Promise<string | null> {
@@ -598,7 +607,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
         amountDue: amountDue.toFixed(2),
         dueDate: fmtUsDate(invoice.dueText),
         lineItems: lineItemsHtml,
-        payUrl: payUrlFor(id),
+        documentPath: await documentPathFor(id),
       })
     } catch (e: any) {
       return fail(c, 502, `Email send failed: ${e.message}`)
@@ -634,7 +643,7 @@ export function createVisitInvoiceRoutes(core: HomecareCore, d: CrmDeps) {
         amountDue: amountDue.toFixed(2),
         dueDate: fmtUsDate(invoice.dueText),
         daysOverdue,
-        payUrl: payUrlFor(id),
+        documentPath: await documentPathFor(id),
       })
     } catch (e: any) {
       return fail(c, 502, `Email send failed: ${e.message}`)

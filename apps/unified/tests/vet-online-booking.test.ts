@@ -210,9 +210,11 @@ describe('vet: a public booking becomes the owner, the pet and the appointment',
   })
 })
 
-describe('every other vertical: unchanged', () => {
+describe('every other vertical: no pet', () => {
+  // The salon's booking is an appointment in The Book (calendar 'chair', crm/salon/onlineBooking.ts — fix-h,
+  // booking-doors-1023.test.ts) but never a pet's chart; the contractor's is the booking alone.
   for (const vertical of ['salon', 'contractor']) {
-    test(`${vertical}: no pet asked, none needed, no chart or appointment made`, async () => {
+    test(`${vertical}: no pet asked, none needed, no chart made${vertical === 'salon' ? '; the appointment is in The Book, with no patient' : ', no appointment'}`, async () => {
       const v = await bookingTenant(vertical)
       const html = await (await v.t.call(`/book/${v.slug}`)).text()
       expect(html).not.toContain('petName')
@@ -220,9 +222,15 @@ describe('every other vertical: unchanged', () => {
       expect(r.status).toBe(201)
       expect((await v.t.db.select().from(v.t.schema.booking)).length).toBe(1)
       expect((await v.t.db.select().from(v.t.schema.patient)).length).toBe(0)
-      expect((await v.t.db.select().from(v.t.schema.appointment)).length).toBe(0)
+      const appts = await v.t.db.select().from(v.t.schema.appointment)
       const [b] = await v.t.db.select().from(v.t.schema.booking).where(eq(v.t.schema.booking.customerEmail, 'ann@example.com'))
       expect(b.contactId).toBeTruthy()
+      if (vertical === 'salon') {
+        expect(appts).toHaveLength(1)
+        expect(appts[0].patientId).toBeNull()
+        expect(appts[0].contactId).toBe(b.contactId)
+        expect(b.appointmentId).toBe(appts[0].id)
+      } else expect(appts).toHaveLength(0)
     }, 60_000)
   }
 })

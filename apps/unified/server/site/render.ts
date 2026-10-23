@@ -7,6 +7,7 @@ import crypto from 'node:crypto'
 import type { Context } from 'hono'
 import type { SiteContext } from './context.ts'
 import type { PageFacts, SiteFacts } from './facts.ts'
+import { pageTitle, withBusinessServices } from './menu.ts'
 
 export const VIEWS = path.join(import.meta.dir, '..', '..', 'site', 'views')
 
@@ -45,8 +46,10 @@ export interface RenderOptions {
 }
 
 /** Any section list through home.ejs + base.ejs: a stored page, or one the server builds (service areas, a project). */
-export async function renderSections(ctx: SiteContext, sections: any[], meta: PageMeta, o: RenderOptions): Promise<string> {
+export async function renderSections(ctx: SiteContext, stored: any[], meta: PageMeta, o: RenderOptions): Promise<string> {
   const { currentPath, origin, extraNav = [] } = o
+  // "What we do" as the business has it now (site/menu.ts): the owner's cards, else its own services, else not shown.
+  const sections = withBusinessServices(stored, ctx.services ?? [], ctx.trade ?? '')
   const settings = ctx.settings
   let nav: any[] = Array.isArray(settings.nav) ? settings.nav : []
   for (const item of extraNav) {
@@ -58,7 +61,9 @@ export async function renderSections(ctx: SiteContext, sections: any[], meta: Pa
     ...(facts ? facts.settings : {}),
     nav,
     siteOrigin: origin,
-    seoTitle: meta.metaTitle || settings.seoTitle || meta.title,
+    // "Page — Business, City" (site/menu.ts pageTitle): the site's default title stamped on every page made each tab
+    // read only the business's name.
+    seoTitle: pageTitle(settings, { own: meta.metaTitle, title: meta.title, home: currentPath === '/' }),
     seoDescription: meta.metaDescription || settings.seoDescription || '',
   }
   // The first hero's image is almost always the mobile Largest Contentful Paint: preloading it lets the browser

@@ -13,6 +13,8 @@ import path from 'node:path'
 import { safeTz } from '@twomiah/tenant-backend'
 import type { BookingEngine, BookingRow, ServiceRow, SettingsRow } from './engine.ts'
 import { BookingError } from './engine.ts'
+// The site's one rule for a tab's title, "Page — Business, City, ST" (site/menu.ts), as every other page of the site.
+import { pageTitle } from '../site/menu.ts'
 import { whenText } from './emails.ts'
 import { icsOf } from './happenings.ts'
 import { renderBody, escHtml } from '../site/render.ts'
@@ -44,7 +46,7 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
    */
   async function html(c: Context, ctx: SiteContext, body: string, title: string, currentPath: string, priv = false) {
     const embed = embedded(c)
-    const h = await renderBody(ctx, body, { homeHref: '/', contactHref: '/contact', seoTitle: `${title} · ${ctx.settings.companyName}`, seoDescription: '' }, currentPath, { embed })
+    const h = await renderBody(ctx, body, { homeHref: '/', contactHref: '/contact', seoTitle: pageTitle(ctx.settings, { title }), seoDescription: '' }, currentPath, { embed })
     if (embed) c.header('Content-Security-Policy', EMBED_CSP)
     if (!priv) return c.html(h)
     c.header('X-Robots-Tag', 'noindex, nofollow')

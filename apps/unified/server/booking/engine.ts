@@ -14,10 +14,10 @@
 // expiry then cancelled it half an hour later without a word.
 import crypto from 'node:crypto'
 import { and, asc, desc, eq, gt, inArray, lt, ne, or, count, notInArray, isNull, notExists } from 'drizzle-orm'
-import { addDays, isIsoDate, isRealDate, isValidTz, isValidPhone, minutesToHm, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR } from '@twomiah/tenant-backend'
+import { addDays, isIsoDate, isRealDate, isValidTz, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR } from '@twomiah/tenant-backend'
 import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user, job, company } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
-import { lockBookingDay } from '../data/bookingLock.ts'
+import { lockBookingDay, lockJobBook } from '../data/bookingLock.ts'
 import { recordConsent } from '../site/smsConsent.ts'
 
 export class BookingError extends Error {
@@ -90,6 +90,11 @@ export interface EngineDeps {
   onHappening?: (h: BookingHappening) => void | Promise<void>
   /** The clock, so tests can stand still. */
   now?: () => number
+  /**
+   * The business's jobs, when it has a job book: "Convert to job" makes one from a booking, numbered as the vertical's
+   * own job module numbers them (packages/tenant-backend jobs.ts JOB-00001; roofing's ROOF-0001).
+   */
+  jobs?: { numbering: { prefix: string; pad: number }; defaultType?: string }
 }
 
 export interface BookInput {
@@ -148,6 +153,24 @@ export function createBookingEngine(deps: EngineDeps) {
   /** The add-on's record follows the booking (a practice's appointment): moved with it, its status with it. */
   async function mirror(exec: any, b: BookingRow, change: 'moved' | 'status') {
     if (deps.addOn?.changed) await deps.addOn.changed(exec, b, change)
+    await jobFollows(exec, b, change)
+  }
+
+  /**
+   * The job made from a booking ("Convert to job") follows the booking's WHEN and WHETHER: moved, it moves (day, clock
+   * time, who); cancelled or a no-show, it is cancelled. Only while the work hasn't begun — a job already under way,
+   * finished or cancelled is the crew's record and is left alone. What happened at the visit is recorded on the job by
+   * the job's own flow (completing it there runs its follow-ups), so a booking marked completed changes nothing here.
+   */
+  async function jobFollows(exec: any, b: BookingRow, change: 'moved' | 'status') {
+    const open = and(eq(job.bookingId, b.id), eq(job.companyId, b.companyId), inArray(job.status, ['pending', 'scheduled', 'dispatched']))
+    if (change === 'moved') {
+      const s = await settingsOf(b.companyId, exec)
+      const at = tzParts(b.startAt, tzOf(s))
+      await exec.update(job).set({ scheduledDate: new Date(`${at.date}T00:00:00.000Z`), scheduledTime: minutesToHm(at.minutes), assignedToId: b.assignedUserId ?? null, updatedAt: new Date(now()) }).where(open)
+    } else if (b.status === 'cancelled' || b.status === 'no_show') {
+      await exec.update(job).set({ status: 'cancelled', updatedAt: new Date(now()) }).where(open)
+    }
   }
 
   async function emit(h: BookingHappening) {
@@ -359,12 +382,34 @@ export function createBookingEngine(deps: EngineDeps) {
    */
   function customerRules(s: SettingsRow, x: { phone?: string | null; zip?: string | null; dates: string[] }) {
     if (!s.enabled) throw new BookingError('Online booking is switched off.', 403, 'disabled')
-    if (x.phone !== undefined && s.requirePhone && !x.phone) throw new BookingError('Please enter a phone number.')
+    bookingRules(s, { ...x, by: 'customer' })
+  }
+
+  /**
+   * The rules for every door that takes or moves a booking, by who is at it (live retest 2026-10-23, HVAC M1/M2: the
+   * owner's own create, POST /api/booking/bookings, took 5 Jan 2027 on a 30-day window and no phone where the business
+   * asks for one — customerRules held only the public doors).
+   *   • The phone the business asks for (`phone` undefined: the door doesn't ask, e.g. a move keeps the booking's) —
+   *     for a customer and for staff booking for a customer alike: the business wants the number either way.
+   *   • A phone or ZIP that is given must be one (detailRules).
+   *   • Every date inside the window: today to maxDaysOut ahead. A customer is always held to it. Staff are held to it
+   *     too unless they say otherwise on purpose (`outside`: the "Book outside the hours" box, recorded on the booking
+   *     with who ticked it — never silent).
+   */
+  function bookingRules(s: SettingsRow, x: { by: 'customer' | 'staff'; phone?: string | null; zip?: string | null; dates: string[]; outside?: boolean }) {
+    if (x.phone !== undefined && s.requirePhone && !x.phone) {
+      throw new BookingError(x.by === 'customer' ? 'Please enter a phone number.' : 'This business asks for a phone number on every booking — please add the customer’s phone.')
+    }
     detailRules(x)
+    if (x.by === 'staff' && x.outside) return
     const w = window(s)
     for (const d of x.dates) {
       if (d < w.first) throw new BookingError('That date is in the past.')
-      if (d > w.last) throw new BookingError(`Please choose a date within ${s.maxDaysOut} days.`)
+      if (d > w.last) {
+        throw new BookingError(x.by === 'customer'
+          ? `Please choose a date within ${s.maxDaysOut} days.`
+          : `That date is past the booking window (${s.maxDaysOut} days ahead). To book it anyway, tick “Book outside the hours” — it is recorded on the booking.`, 400, 'window')
+      }
     }
   }
 
@@ -564,11 +609,15 @@ export function createBookingEngine(deps: EngineDeps) {
 
   // ── Taking a booking ──────────────────────────────────────────────────────
 
+  /** Staff booked or moved it past the free-time check and the window on purpose: who, and when, kept on the booking. */
+  const overrideMark = (opts: { by: 'customer' | 'staff'; override?: boolean; userId?: string | null }) =>
+    opts.by === 'staff' && opts.override ? { overrideByUserId: opts.userId ?? null, overrideAt: new Date(now()) } : {}
+
   /**
    * Book a time. A customer (`by: 'customer'`) is held to everything; staff may name who takes it and, with
    * `override`, book over the hours (a favour, an emergency) — the check is still made unless they say so.
    */
-  async function book(companyId: string, input: BookInput, opts: { by: 'customer' | 'staff'; assignedUserId?: string | null; override?: boolean; seriesId?: string; seriesIndex?: number; source?: 'public' | 'staff' | 'series' }) {
+  async function book(companyId: string, input: BookInput, opts: { by: 'customer' | 'staff'; assignedUserId?: string | null; override?: boolean; seriesId?: string; seriesIndex?: number; source?: 'public' | 'staff' | 'series'; userId?: string | null }) {
     const s = await settingsOf(companyId)
     const customer = opts.by === 'customer'
     await expireHolds(companyId, s)
@@ -598,7 +647,10 @@ export function createBookingEngine(deps: EngineDeps) {
       // they had an appointment.
       if (await isBanned(companyId, email, phone)) throw new BookingError("We can't take this booking online — please call us.", 403, 'refused')
     } else {
-      detailRules({ phone, zip: typedZip })
+      // A repeating booking's later visits are the series itself — "every other week, 8 visits" runs past any window
+      // by design, and is asked for in so many words. Its first visit is held like any desk booking.
+      const followOn = (opts.seriesIndex ?? 1) > 1
+      bookingRules(s, { by: 'staff', phone, zip: typedZip, dates: followOn ? [] : [input.date], outside: opts.override })
       if (!opts.override && zonedWallTimeToUtc(input.date, input.time, tzOf(s)).getTime() < now()) throw new BookingError('That time has already passed.')
     }
     if (opts.assignedUserId && !(await companyUserIds(companyId)).has(opts.assignedUserId)) throw new BookingError('That person is not on this account.')
@@ -628,6 +680,7 @@ export function createBookingEngine(deps: EngineDeps) {
         token: newToken(),
         depositAmount: takeDeposit ? money(depositOwed) : null, depositStatus: takeDeposit ? 'pending' : 'none',
         tipAmount: tip ? money(tip) : null,
+        ...overrideMark(opts),
         // The engine's clock, not the database's: the deposit hold is measured from it.
         createdAt: new Date(now()), updatedAt: new Date(now()),
       }).returning()
@@ -752,22 +805,24 @@ export function createBookingEngine(deps: EngineDeps) {
   }
   const selfServiceOpen = (b: BookingRow, s: SettingsRow) => (ACTIVE as readonly string[]).includes(b.status) && b.startAt.getTime() - now() >= s.selfServiceCutoffMinutes * 60_000
 
-  async function reschedule(companyId: string, b: BookingRow, date: string, time: string, opts: { by: 'customer' | 'staff'; override?: boolean }) {
+  async function reschedule(companyId: string, b: BookingRow, date: string, time: string, opts: { by: 'customer' | 'staff'; override?: boolean; userId?: string | null }) {
     const s = await settingsOf(companyId)
     changeable(b, s, opts.by)
     if (!isRealDate(date) || !HM_RE.test(String(time))) throw new BookingError('Choose a real date and time.')
     const svc = b.serviceId ? await serviceById(companyId, b.serviceId) : null
     if (!svc) throw new BookingError("This booking's service no longer exists; book a new one instead.", 409)
     if (opts.by === 'customer') customerRules(s, { dates: [date] })
+    else bookingRules(s, { by: 'staff', dates: [date], outside: opts.override })
     const tz = tzOf(s)
     const startAt = zonedWallTimeToUtc(date, time, tz)
+    if (opts.by === 'staff' && !opts.override && startAt.getTime() < now()) throw new BookingError('That time has already passed.')
     const endAt = new Date(startAt.getTime() + svc.durationMinutes * 60_000)
     const external = opts.override ? [] : await externalFor(companyId, s, date, date)
     const updated: BookingRow = await db.transaction(async (tx: any) => {
       const who = await claim(tx, companyId, s, svc, date, time, b.customerZip, { except: b.id, customer: opts.by === 'customer', override: opts.override, external })
       // Keep the person when they can still take it; otherwise whoever can.
       const assignedUserId = opts.override || who.includes(b.assignedUserId) || (who.includes(null) && !b.assignedUserId) ? b.assignedUserId : pickWho(who)
-      const [u] = await tx.update(booking).set({ startAt, endAt, assignedUserId, reminderEmailSentAt: null, reminderSmsSentAt: null, updatedAt: new Date(now()) }).where(eq(booking.id, b.id)).returning()
+      const [u] = await tx.update(booking).set({ startAt, endAt, assignedUserId, reminderEmailSentAt: null, reminderSmsSentAt: null, ...overrideMark(opts), updatedAt: new Date(now()) }).where(eq(booking.id, b.id)).returning()
       await mirror(tx, u, 'moved')
       return u
     })
@@ -830,18 +885,71 @@ export function createBookingEngine(deps: EngineDeps) {
         u[k] = v
       }
     }
-    detailRules({ phone: u.customerPhone as string | null | undefined, zip: u.customerZip as string | null | undefined })
+    // The same rules as booking it: a phone the business asks for can't be taken off afterwards.
+    bookingRules(await settingsOf(companyId), { by: 'staff', phone: u.customerPhone as string | null | undefined, zip: u.customerZip as string | null | undefined, dates: [] })
     if (typeof u.customerZip === 'string') u.customerZip = normaliseZip(u.customerZip)
     if (!Object.keys(u).length) throw new BookingError('Nothing to change.')
     const [row] = await db.update(booking).set({ ...u, updatedAt: new Date(now()) }).where(eq(booking.id, b.id)).returning()
+    if (u.assignedUserId !== undefined) await jobFollows(db, row, 'moved')
     return row
+  }
+
+  /** The job made from a booking, if one was. */
+  async function jobOf(companyId: string, bookingId: string, exec: any = db): Promise<{ id: string; number: string; status: string } | null> {
+    const [j] = await exec.select({ id: job.id, number: job.number, status: job.status }).from(job)
+      .where(and(eq(job.companyId, companyId), eq(job.bookingId, bookingId))).orderBy(asc(job.createdAt)).limit(1)
+    return j ?? null
+  }
+
+  /**
+   * "Convert to job": the booking becomes a job on the schedule, linked to it (job.booking_id — SPEC §4.7: a CRM job is
+   * made FROM a booking; the booking stays the customer's record, with their private link). The CRMs' trades templates
+   * made this job by themselves (packages/tenant-backend booking/calendars.ts jobCalendar); here staff choose it, once.
+   * The job is the CRM's ordinary kind: its day a date marker and its clock time in scheduled_time, in the business's
+   * zone (time/businessDay.ts rule 2), for the booking's length, with whoever the booking is with. Under the job book's
+   * own lock (jobs.ts jobLock), so two clicks make one job.
+   */
+  async function convertToJob(companyId: string, b: BookingRow, userId: string | null) {
+    if (!deps.jobs) throw new BookingError('This account has no jobs to convert a booking into.', 404)
+    if (b.status === 'cancelled' || b.status === 'no_show') throw new BookingError(b.status === 'cancelled' ? 'This booking was cancelled, so there is no visit to make a job of.' : 'Nobody came to this booking, so there is no visit to make a job of.', 409)
+    const s = await settingsOf(companyId)
+    const at = tzParts(b.startAt, tzOf(s))
+    const svc = b.serviceId ? await serviceById(companyId, b.serviceId) : null
+    const minutes = Math.max(1, Math.round((b.endAt.getTime() - b.startAt.getTime()) / 60_000))
+    return db.transaction(async (tx: any) => {
+      await lockJobBook(tx, companyId)
+      const already = await jobOf(companyId, b.id, tx)
+      if (already) throw new BookingError(`This booking is already ${already.number}.`, 409, 'converted')
+      const number = await nextNumber(tx, job, job.number, job.companyId, companyId, deps.jobs!.numbering)
+      const [made] = await tx.insert(job).values({
+        companyId, number, bookingId: b.id, contactId: b.contactId, assignedToId: b.assignedUserId ?? null, createdById: userId,
+        title: svc?.name || 'Booked visit',
+        description: [`Booked by ${b.customerName}`, b.customerNotes].filter(Boolean).join(' — '),
+        status: b.status === 'completed' ? 'completed' : 'scheduled', priority: 'normal', source: 'booking',
+        ...(deps.jobs!.defaultType ? { jobType: deps.jobs!.defaultType } : {}),
+        scheduledDate: new Date(`${at.date}T00:00:00.000Z`), scheduledTime: minutesToHm(at.minutes),
+        estimatedHours: String(Math.round((minutes / 60) * 100) / 100),
+        address: b.customerAddress, zip: b.customerZip,
+        ...(b.status === 'completed' ? { completedAt: b.startAt } : {}),
+      }).returning({ id: job.id, number: job.number, status: job.status })
+      return made as { id: string; number: string; status: string }
+    })
   }
 
   /** A booking as the owner's screens show it: with its service's name and the assigned person's. */
   async function withNames(b: BookingRow) {
+    const nameOf = async (id: string | null) => {
+      const [p] = id ? await db.select({ first: user.firstName, last: user.lastName }).from(user).where(eq(user.id, id)).limit(1) : []
+      return p ? [p.first, p.last].filter(Boolean).join(' ') || null : null
+    }
     const [svc] = b.serviceId ? await db.select({ name: bookingService.name }).from(bookingService).where(eq(bookingService.id, b.serviceId)).limit(1) : []
-    const [who] = b.assignedUserId ? await db.select({ first: user.firstName, last: user.lastName }).from(user).where(eq(user.id, b.assignedUserId)).limit(1) : []
-    return { ...b, serviceName: svc?.name ?? null, assignedName: who ? [who.first, who.last].filter(Boolean).join(' ') || null : null }
+    // The contact the booking is linked to (matched by email): the booker's own name stays on the booking, and the
+    // screen says which record it was filed under when the two differ (Field service T24 L1).
+    const [ct] = b.contactId ? await db.select({ name: contact.name }).from(contact).where(eq(contact.id, b.contactId)).limit(1) : []
+    return {
+      ...b, serviceName: svc?.name ?? null, assignedName: await nameOf(b.assignedUserId), contactName: ct?.name ?? null,
+      overrideByName: await nameOf(b.overrideByUserId), job: await jobOf(b.companyId, b.id),
+    }
   }
 
   // ── The owner's list ──────────────────────────────────────────────────────
@@ -855,21 +963,29 @@ export function createBookingEngine(deps: EngineDeps) {
     if (q.seriesId) conds.push(eq(booking.seriesId, q.seriesId))
     const where = and(...conds)
     const [rows, [{ total }]] = await Promise.all([
-      db.select({ b: booking, serviceName: bookingService.name, first: user.firstName, last: user.lastName }).from(booking).leftJoin(bookingService, eq(booking.serviceId, bookingService.id))
-        .leftJoin(user, eq(booking.assignedUserId, user.id))
+      db.select({ b: booking, serviceName: bookingService.name, first: user.firstName, last: user.lastName, contactName: contact.name }).from(booking).leftJoin(bookingService, eq(booking.serviceId, bookingService.id))
+        .leftJoin(user, eq(booking.assignedUserId, user.id)).leftJoin(contact, eq(booking.contactId, contact.id))
         .where(where).orderBy(q.from ? asc(booking.startAt) : desc(booking.startAt), asc(booking.id)).limit(q.limit).offset((q.page - 1) * q.limit),
       db.select({ total: count() }).from(booking).where(where),
     ])
+    // The job each booking became, if it did: the Schedule draws the job, not the booking twice.
+    const ids = rows.map((r: any) => r.b.id)
+    const jobs: Array<{ id: string; number: string; bookingId: string }> = ids.length
+      ? await db.select({ id: job.id, number: job.number, bookingId: job.bookingId }).from(job).where(and(eq(job.companyId, companyId), inArray(job.bookingId, ids))).orderBy(asc(job.createdAt))
+      : []
+    const jobFor = new Map<string, { id: string; number: string }>()
+    for (const j of jobs) if (!jobFor.has(j.bookingId)) jobFor.set(j.bookingId, { id: j.id, number: j.number })
     // The person's name comes with the booking, so a seat that can't read the team list still sees who is doing it.
-    return { rows: rows.map((r: any) => ({ ...r.b, serviceName: r.serviceName ?? null, assignedName: r.b.assignedUserId ? [r.first, r.last].filter(Boolean).join(' ') || null : null })), total: Number(total) }
+    return { rows: rows.map((r: any) => ({ ...r.b, serviceName: r.serviceName ?? null, assignedName: r.b.assignedUserId ? [r.first, r.last].filter(Boolean).join(' ') || null : null, contactName: r.contactName ?? null, job: jobFor.get(r.b.id) ?? null })), total: Number(total) }
   }
 
   return {
-    settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, customerRules, selfServiceOpen, questions,
+    settingsOf, updateSettings, rotateFeedToken, tzOf, requireAddress, window, customerRules, bookingRules, selfServiceOpen, questions,
     listServices, serviceBySlug, serviceById, createService, updateService, deleteService,
     getHours, setHours, listDaysOff, addDayOff, removeDayOff, listZones, setZone,
     availableDates, availableTimes, expireHolds,
     book, depositPaid, depositRefunded, depositPage, getBooking, byToken, reschedule, cancel, setStatus, updateDetails, listBookings, withNames,
+    convertToJob, jobOf,
     isBanned, emit,
   }
 }

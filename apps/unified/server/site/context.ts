@@ -1,9 +1,10 @@
 // What a public page knows about the business: the `settings` object the site views read (settings.companyName,
 // settings.logoUrl, …), built from the app's company and site rows. The views moved across unchanged; this is the one
 // place that knows the premium site kept these in its own settings table.
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { businessHoursLines, checkBusinessHours } from '@twomiah/tenant-backend'
-import { company, website } from '../db/schema/index.ts'
+import { company, website, page, post, portfolioItem } from '../db/schema/index.ts'
+import { businessServices, keepsContent, siteMenu, tradeOf, withBusinessServices, type SiteService } from './menu.ts'
 import type { VerticalSettings, SiteDesign } from '../core/vertical.ts'
 import { SITE_DESIGNS, COVER_DESIGNS } from '../core/vertical.ts'
 
@@ -22,6 +23,9 @@ export interface SiteContext {
    */
   options: { textSizeToggle: boolean; shop: boolean; cover: boolean; ctaHref: string }
   colours: { primary: string; accent: string | null; secondary: string | null }
+  /** The business's own services for "What we do", and the trade its home hero names (site/menu.ts). */
+  services?: SiteService[]
+  trade?: string
 }
 
 /**
@@ -46,6 +50,20 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
   if (typeof blob === 'string') { try { blob = JSON.parse(blob) } catch { blob = null } }
   const businessHours = blob?.businessHours && !checkBusinessHours(blob.businessHours) ? blob.businessHours : null
   const design = (SITE_DESIGNS as readonly string[]).includes(s?.design) ? (s.design as SiteDesign) : vertical.site.design
+  // The menu and "What we do" as visitors see them (site/menu.ts): from the pages, posts, work and services as they are now.
+  const [pages, [aPost], [aWork], services] = await Promise.all([
+    db.select({ slug: page.slug, sections: page.sections, isPublished: page.isPublished }).from(page).where(eq(page.companyId, co.id)),
+    db.select({ id: post.id }).from(post).where(and(eq(post.companyId, co.id), eq(post.status, 'published'))).limit(1),
+    db.select({ id: portfolioItem.id }).from(portfolioItem).where(and(eq(portfolioItem.companyId, co.id), eq(portfolioItem.status, 'published'))).limit(1),
+    businessServices(db, co.id),
+  ])
+  const trade = tradeOf(pages.find((p: any) => p.slug === 'home')?.sections)
+  const serviceAreas = Array.isArray(s?.serviceAreas) ? s.serviceAreas : []
+  const nav = siteMenu(Array.isArray(s?.nav) ? s.nav : [], {
+    pages: new Map(pages.map((p: any) => [p.slug, { live: !!p.isPublished && keepsContent(p.sections, withBusinessServices(p.sections, services, trade)) }])),
+    posts: !!aPost, portfolio: !!aWork,
+    areas: serviceAreas.some((a: any) => String((a && typeof a === 'object' ? a.name : a) || '').trim()),
+  })
   return {
     companyId: co.id,
     slug: co.slug,
@@ -53,6 +71,7 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     words: vertical.site.words,
     options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: COVER_DESIGNS.has(design), ctaHref: vertical.site.ctaHref || '/contact' },
     colours: { primary: co.primaryColor, accent: s?.accentColor ?? null, secondary: co.secondaryColor ?? null },
+    services, trade,
     settings: {
       companyName: co.name,
       phone: co.phone || '',
@@ -72,10 +91,10 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
       tagline: s?.tagline || '',
       seoTitle: s?.seoTitle || '',
       seoDescription: s?.seoDescription || '',
-      nav: Array.isArray(s?.nav) ? s.nav : [],
+      nav,
       photoCredits: Array.isArray(s?.photoCredits) ? s.photoCredits : [],
       contentGaps: Array.isArray(s?.contentGaps) ? s.contentGaps : [],
-      serviceAreas: Array.isArray(s?.serviceAreas) ? s.serviceAreas : [],
+      serviceAreas,
       inventoryFeedUrl: s?.inventoryFeedUrl || '',
       contactCtaLabel: s?.contactCtaLabel || 'Get in touch',
       accentColor: s?.accentColor || '',

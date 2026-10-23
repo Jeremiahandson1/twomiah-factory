@@ -212,6 +212,12 @@ export const booking = pgTable('booking', {
   cancelledAt: timestamp('cancelled_at'),
   cancelledReason: text('cancelled_reason'),
   /**
+   * Staff booked or last moved it outside the hours and the booking window on purpose (the "Book outside the hours"
+   * box): who ticked it and when. Null: every rule a booking is held to was held (engine.ts bookingRules).
+   */
+  overrideByUserId: text('override_by_user_id').references(() => user.id, { onDelete: 'set null' }),
+  overrideAt: timestamp('override_at'),
+  /**
    * The appointment the booking made in a practice's book (VerticalSettings.booking.calendar 'practice'), kept in step
    * when the booking is moved or its status changes — the CRMs' online_booking.appointment_id (templates/crm-vet).
    */

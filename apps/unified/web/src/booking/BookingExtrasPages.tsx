@@ -73,7 +73,7 @@ export function BookingInsightsPage() {
                 <tbody className="divide-y divide-line">
                   {shown.map((c) => (
                     <tr key={c.email} className="text-ink">
-                      <td className="px-4 py-3"><div className="font-semibold">{c.name}</div><div className="text-xs text-muted">{c.email}{c.phone ? ` · ${c.phone}` : ''}</div></td>
+                      <td className="px-4 py-3"><div className="font-semibold">{c.name}</div><div className="text-xs text-muted">{c.email}{c.phone ? ` · ${c.phone}` : ''}</div>{Array.isArray(c.names) && c.names.length > 1 && <div className="text-xs text-muted">Also booked as {c.names.slice(1).join(', ')}</div>}</td>
                       <td className="px-4 py-3">{c.bookings}</td><td className="px-4 py-3">{c.completed}</td><td className="px-4 py-3">{c.noShows}</td>
                       <td className="px-4 py-3">{dollars(c.bookedValue) || '$0'}</td>
                       <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">{c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: stats?.timezone }) : '—'}</td>

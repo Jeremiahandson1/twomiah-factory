@@ -148,7 +148,8 @@ describe('a customer books from the website', () => {
 describe('the owner\'s book', () => {
   test('staff booking, moving and closing out through the API', async () => {
     const svc = (await (await as('owner', '/api/booking/services')).json()).data[0]
-    const made = await as('manager', '/api/booking/bookings', { method: 'POST', json: { serviceId: svc.id, date: day, time: '13:00', name: 'Desk Booking', email: 'desk@example.com' } })
+    // The business asks for a phone by default (booking_settings.require_phone), and the desk is held to it too (booking-doors-1023).
+    const made = await as('manager', '/api/booking/bookings', { method: 'POST', json: { serviceId: svc.id, date: day, time: '13:00', name: 'Desk Booking', email: 'desk@example.com', phone: '608-555-0100' } })
     expect(made.status).toBe(201)
     const b = await made.json()
     expect(b.source).toBe('staff')

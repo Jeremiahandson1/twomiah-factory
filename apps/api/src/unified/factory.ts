@@ -30,7 +30,8 @@ import { verticalFor, crmTemplateFor } from '../config/industryRouting'
 import { stateTimezone } from '../config/stateTimezone'
 import { resolveCrmFeatures } from '../services/generator'
 import { premiumSitePages, premiumServiceAreas, buildPremiumNav, type PremiumComposition } from '../services/premiumSitePages'
-import { composeInstant } from '../services/instantComposer'
+import { composeInstant, tradeLabelFor } from '../services/instantComposer'
+import { websiteTradeFor } from '../config/websiteTrades'
 import { wantsBookings } from '../services/composerFacts'
 import { collectImageUrls, heroCreditsForUrls } from '../config/heroLibrary'
 import { repoKey, type OwnedResources } from '../services/resourceOwnership'
@@ -142,13 +143,30 @@ export function compositionFor(tenant: any): PremiumComposition | null {
   }
 }
 
+/**
+ * The composer's one card for the trade when the owner listed no services (instantComposer: websiteTradeFor(…).service,
+ * else the trade's label) is marked standIn: the site shows the business's own services there, or nothing, never the
+ * trade as a service (apps/unified/server/site/menu.ts). A card the owner typed is never marked.
+ */
+export function markStandInServices(sections: any[], industry: string | null | undefined): any[] {
+  const type = String(industry || '').toLowerCase().replace(/\s+/g, '_')
+  const standIn = websiteTradeFor(type)?.service || tradeLabelFor(industry || '')
+  return sections.map((s) => {
+    const items = s?.type === 'services' && Array.isArray(s.data?.items) ? s.data.items : null
+    const only = items && items.length === 1 ? items[0] : null
+    const bare = only && Object.keys(only).every((k) => k === 'title')
+    return standIn && bare && only.title === standIn ? { ...s, data: { ...s.data, items: [{ ...only, standIn: true }] } } : s
+  })
+}
+
 /** The website part of the provision body: premium-site-bootstrap's pages, nav and settings for the same tenant. */
 export function provisionSite(tenant: any): Record<string, unknown> {
   const composed = compositionFor(tenant)
   const pages = premiumSitePages(composed).filter((p) => SLUG.test(p.slug))
   const serviceAreas = premiumServiceAreas(tenant)
   return {
-    seoTitle: clip(tenant.name, 300),
+    // No site-wide title: each page's tab reads "Page — Business, City" (apps/unified/server/site/menu.ts pageTitle);
+    // the name alone here was stamped on every page's tab.
     nav: buildPremiumNav([...pages.filter((p) => p.isPublished).map((p) => p.slug), ...(serviceAreas.length ? ['service-areas'] : [])]),
     serviceAreas,
     photoCredits: heroCreditsForUrls(collectImageUrls(pages)),
@@ -157,9 +175,9 @@ export function provisionSite(tenant: any): Record<string, unknown> {
     ...(tenant.primary_color && HEX.test(tenant.primary_color) ? { accentColor: tenant.primary_color } : {}),
     pages: pages.map((p) => ({
       slug: p.slug, title: p.title, navOrder: p.navOrder, isPublished: p.isPublished,
-      sections: (p.sections || []).filter((s: any) => s && typeof s.type === 'string').map((s: any) => ({
+      sections: markStandInServices((p.sections || []).filter((s: any) => s && typeof s.type === 'string').map((s: any) => ({
         ...s, data: s.data && typeof s.data === 'object' && !Array.isArray(s.data) ? s.data : {},
-      })),
+      })), tenant.industry),
     })),
   }
 }

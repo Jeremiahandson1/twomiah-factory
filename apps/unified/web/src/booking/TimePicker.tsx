@@ -85,7 +85,7 @@ export function TimePicker({ serviceId, exceptBookingId, value, onChange, zone }
       )}
       <label className="flex items-center gap-2 text-sm text-ink-soft">
         <input type="checkbox" checked={override} onChange={(e) => { setOverride(e.target.checked); onChange(null) }} />
-        Book outside the hours (skip the free-time check)
+        Book outside the hours (skip the free-time check and the booking window — recorded on the booking with your name)
       </label>
     </div>
   )

@@ -77,7 +77,7 @@ describe('the mounts', () => {
   })
 
   test("/api/stripe is home care's: its status answers, its webhook needs Stripe", async () => {
-    expect(await (await as('cg', '/api/stripe/status')).json()).toEqual({ configured: false })
+    expect(await (await as('cg', '/api/stripe/status')).json()).toEqual({ configured: false, cardPayments: false })
     expect((await t.call('/api/stripe/status')).status).toBe(401)
     const w = await t.call('/api/stripe/webhook', { method: 'POST', json: {} })
     expect(w.status).toBe(503)

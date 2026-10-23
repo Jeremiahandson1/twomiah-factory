@@ -75,6 +75,7 @@ import { storeOrder } from '../db/schema/store.ts'
 import { createRoofDashboardRoutes } from '../crm/roof/field/dashboard.ts'
 import { createHomecareCore } from '../crm/homecare/core/index.ts'
 import { portalsInFront } from '../crm/homecare/portals/index.ts'
+import { cardPaymentsFor } from '../crm/cardPayments.ts'
 
 export interface CrmModuleDeps {
   db: any
@@ -122,13 +123,11 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const fileAudit = (event: string, actor: any, meta: any) => logger.info(`[audit] ${event}`, { userId: actor.userId, companyId: actor.companyId, ...meta })
   const factoryApiClient = createFactoryApiClient() as any
   /**
-   * Can this business take a card from its customer right now: Stripe on this server (its keys), the business's own
-   * account connected (Settings › Integrations — a charge lands there, never on the platform's account), and Online
-   * Payments switched on. The invoice page offers Pay only then, and the payment route refuses otherwise (portal.ts,
+   * Can this business take a card from its customer right now (crm/cardPayments.ts — one answer, home care's Billing
+   * included). The invoice page offers Pay only then, and the payment route refuses otherwise (portal.ts,
    * payments/stripe.ts). The invoice email's link opened onto a Pay button whatever the answer (2026-10-22).
    */
-  const canTakeCardPayments = async (companyId: string) =>
-    !!process.env.STRIPE_PUBLISHABLE_KEY && !!(await s.stripeService.connectedAccountFor(companyId)) && !!(await features.isFeatureEnabled(companyId, 'online_payments'))
+  const canTakeCardPayments = cardPaymentsFor({ features, services: s })
 
   const contacts = createContactRoutes({
     db, tables: { contact, company }, authenticate, requirePermission, canSee, ...live, audit, cleanText, cleanLines,

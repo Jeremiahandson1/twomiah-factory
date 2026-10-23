@@ -7,3 +7,12 @@ import { sql } from 'drizzle-orm'
 export async function lockBookingDay(tx: any, companyId: string, date: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':booking:' + date}))`)
 }
+
+/**
+ * The job book's lock — the same key the jobs module takes around every create (packages/tenant-backend jobs.ts
+ * jobLock) — so a booking converted into a job and a job made on the Jobs page are numbered and checked one at a time,
+ * and two clicks on "Convert to job" make one job.
+ */
+export async function lockJobBook(tx: any, companyId: string): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':job'}))`)
+}

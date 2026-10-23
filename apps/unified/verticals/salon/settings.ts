@@ -70,8 +70,9 @@ const salon: VerticalSettings = {
     field: ['contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'sms:send', 'loyalty:enroll', 'loyalty:redeem'],
     viewer: ['loyalty:enroll', 'loyalty:redeem'],
   },
-  // An online booking is at the salon: no address asked unless the owner says so (templates/crm-salon routes/booking.ts).
-  booking: { requireAddress: false },
+  // An online booking is at the salon: no address asked unless the owner says so, and it lands in The Book as an
+  // appointment (templates/crm-salon routes/booking.ts: appointmentCalendar; server/crm/salon/onlineBooking.ts).
+  booking: { requireAddress: false, calendar: 'chair' },
   crm: {
     documents: { markup: false, types: DOC_TYPES },
     tech: { checklistType: 'site_checklist', checklistTitle: 'Site checklist' },

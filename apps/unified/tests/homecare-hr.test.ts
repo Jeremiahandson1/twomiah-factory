@@ -300,10 +300,11 @@ describe("the hire's login on screen, and the public pages' tabs (the moved scre
     expect(careers).toContain("usePageTitle(slug && posting?.title ? `${posting.title} — Careers at ${companyName}` : `Careers — ${companyName}`)")
     expect(screen('people/OnboardingPacketPage.tsx')).toContain('usePageTitle(`Your onboarding — ${pageCompanyName()}`)')
   })
+  // An invoice's own page is "Your invoice": it pays by card only where the agency takes cards (homecare-invoice-link.test.ts).
   test('the client portal, the family portal and paying an invoice name their tab', () => {
     const pub = screen('portals/public.tsx')
     expect(pub).toContain('const name = (what: string) => (agency ? `${what} — ${agency}` : what)')
-    for (const title of ['Pay your invoice', 'Payment received', 'Client portal', 'Family portal']) expect(pub).toContain(`<Titled title={name('${title}')}>`)
+    for (const title of ['Your invoice', 'Payment received', 'Client portal', 'Family portal']) expect(pub).toContain(`<Titled title={name('${title}')}>`)
     expect(pub).toMatch(/function Titled\([^)]*\) \{\s*usePageTitle\(title\)/)
   })
   test('the agency name comes from the page the server writes, escaped — never pasted into the source', () => {

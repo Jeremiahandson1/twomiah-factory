@@ -33,6 +33,14 @@ export interface Booking {
   tipAmount: string | null
   cancelledReason: string | null
   createdAt: string
+  /** The contact the booking is filed under (matched by email); the booker's own name is customerName. */
+  contactName?: string | null
+  /** Staff booked or last moved it outside the hours and the window on purpose: who and when. */
+  overrideByUserId?: string | null
+  overrideByName?: string | null
+  overrideAt?: string | null
+  /** The job it was converted into, if it was. */
+  job?: { id: string; number: string; status?: string } | null
 }
 
 export interface Service {

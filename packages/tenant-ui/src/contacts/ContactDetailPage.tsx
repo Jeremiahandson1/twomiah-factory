@@ -424,6 +424,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             )} />
           )}
 
+          {cfg.panels?.(contact.id)}
+
           {storeOrders && (
             <div className={card}>
               <div className="p-4 border-b dark:border-slate-800 flex items-center justify-between">

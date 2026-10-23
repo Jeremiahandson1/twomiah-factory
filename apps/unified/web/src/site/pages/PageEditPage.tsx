@@ -9,6 +9,10 @@ import { AddSectionMenu } from '../components/AddSectionMenu'
 
 interface Section { type: string; variant: string; data: Record<string, any> }
 
+/** Sections that frame a page rather than say something (the server's site/menu.ts FRAMING). */
+const FRAMING = new Set(['hero', 'cta', 'reservation'])
+const hasSubstance = (sections: Section[]) => sections.some((s) => s && !FRAMING.has(s.type))
+
 interface Page {
   id: string
   slug: string
@@ -58,6 +62,12 @@ export function PageEditPage() {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [expandedIdx, setExpandedIdx] = useState<number | null>(0)
+  /**
+   * The page opened hidden with nothing on it yet — the starting site holds back a page it had no facts for (an About
+   * with no story). Its first section of substance ticks Published, so the page shows once it has something to show;
+   * the tick is there to see, and to clear, before saving. (Live test 2026-10-22: "About exists but is Hidden".)
+   */
+  const [heldEmpty, setHeldEmpty] = useState(false)
   const previewIframe = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
@@ -67,6 +77,7 @@ export function PageEditPage() {
       .then((p: Page) => {
         setPage(p)
         setOriginalJson(JSON.stringify(p))
+        setHeldEmpty(!p.isPublished && !hasSubstance(p.sections || []))
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
@@ -113,7 +124,9 @@ export function PageEditPage() {
     if (!page) return
     const newSection: Section = { type: def.type, variant: def.variant, data: { ...def.defaultData } }
     const nextSections = [...page.sections, newSection]
-    update({ sections: nextSections })
+    const showIt = heldEmpty && !FRAMING.has(def.type)
+    update(showIt ? { sections: nextSections, isPublished: true } : { sections: nextSections })
+    if (showIt) setHeldEmpty(false)
     setExpandedIdx(nextSections.length - 1)
   }
 
@@ -172,6 +185,7 @@ export function PageEditPage() {
           />
           Published
         </label>
+        {!page.isPublished && <span className="text-xs text-muted">Hidden: visitors can't open it, and it isn't in the menu.</span>}
         {isDirty && <span className="text-amber-700 dark:text-amber-300 text-xs font-semibold">Unsaved changes</span>}
         {mayEdit && (
           <button type="button" onClick={save} disabled={saving || !isDirty} className="btn-primary btn-md disabled:opacity-40">
