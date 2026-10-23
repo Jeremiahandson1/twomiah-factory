@@ -30,6 +30,8 @@ export interface IntegrationsConfig {
    * person holds integrations:update (the API's own right). Templates WITH a Call Tracking page carry it there.
    */
   callTracking?: boolean
+  /** The business's switches: the QuickBooks card shows with quickbooks on, the Stripe card with online_payments. Absent: both show. */
+  hasFeature?: (id: string) => boolean
 }
 
 export interface ImportTypeDef {

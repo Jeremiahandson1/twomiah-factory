@@ -138,7 +138,8 @@ export default function ReportsPage() {
       const [allJobs, usersRes, crewsRes, stats] = await Promise.all([
         fetchAllJobs(),
         maySeeRoster ? api.get('/api/company/users') : Promise.resolve([]),
-        api.get('/api/crews'),
+        // Crews are the crews switch's (GET /api/crews refuses when off): the lists, filters and pickers go with it.
+        hasFeature('crews') ? api.get('/api/crews') : Promise.resolve({ data: [] }),
         // H3: the money, as opposed to what the pipeline is thought to be worth
         maySeeInvoiceStats ? (api.get('/api/invoices/stats') as Promise<InvoiceStats>).catch(() => null) : Promise.resolve(null),
       ])
@@ -378,7 +379,7 @@ export default function ReportsPage() {
             </div>
           )}
 
-          {maySeeJobValue && (
+          {maySeeJobValue && hasFeature('crews') && (
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <Users className="w-4 h-4 text-gray-400" /> Revenue by Crew

@@ -160,7 +160,8 @@ export default function JobDetailPage() {
       const [jobData, usersRes, crewsRes, timelineRes] = await Promise.all([
         api.get(`/api/jobs/${id}`) as Promise<JobDetail>,
         maySeeRoster ? api.get('/api/company/users') : Promise.resolve([]),
-        api.get('/api/crews'),
+        // Crews are the crews switch's (GET /api/crews refuses when off): the lists, filters and pickers go with it.
+        hasFeature('crews') ? api.get('/api/crews') : Promise.resolve({ data: [] }),
         api.get(`/api/jobs/${id}/timeline`).catch(() => null),
       ])
       setJob(jobData)
@@ -796,7 +797,7 @@ export default function JobDetailPage() {
                     ))}
                   </select>
                 </div>
-                <div>
+                {hasFeature('crews') && <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Crew</label>
                   <select disabled={!mayWorkJob}
                     value={job.assignedCrewId || ''}
@@ -808,7 +809,7 @@ export default function JobDetailPage() {
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
-                </div>
+                </div>}
               </div>
             </div>
 

@@ -15,7 +15,7 @@ import { join } from 'path'
 import { createPunchQueue, isUnreachable, isOfflineId, type KV, type PunchSender } from '../../apps/mobile/src/care/offlinePunches.ts'
 import { expandVisits, nextUp, isBiweeklyOn, totalHours, type ScheduleRow } from '../../apps/mobile/src/care/schedule.ts'
 import { needsSandata, visitNeedsSandata, evvWeekMet, medicaidIdOf, sandataAfterPunch, showSandataNotice, smcLinks } from '../../apps/mobile/src/care/sandata.ts'
-import { clockInBlocker, clockOutNoteBlocker, geofenceVerdict, haversineFeet, showPayday, snoozePayday, PAYDAY_SNOOZE_MS, base64Utf8, signatureDataUri, hasInk, contrast, readableOn } from '../../apps/mobile/src/care/rules.ts'
+import { clockInBlocker, clockOutNoteBlocker, geofenceVerdict, haversineFeet, showPayday, snoozePayday, PAYDAY_SNOOZE_MS, base64Utf8, signatureDataUri, hasInk, contrast, readableOn, docsToSign } from '../../apps/mobile/src/care/rules.ts'
 import { addDaysYmd, dowOfYmd, formatTime12, shiftMinutes } from '../../apps/mobile/src/care/time.ts'
 
 let failed = 0, passed = 0
@@ -306,6 +306,14 @@ console.log('the care variant (app.config.ts, eas.json) and the homecare tabs')
   const careFiles = ['src/care/CareContext.tsx', 'app/(tabs)/shifts.tsx', 'app/(tabs)/time-clock.tsx', 'app/(care)/incident.tsx', 'app/(care)/shift-action.tsx']
     .map((f) => readFileSync(join(mobile, f), 'utf8')).join('\n')
   check('no CVHC names in the caregiver screens', !/chippewa|cvhc|my choice|wisconsin/i.test(careFiles))
+}
+
+// ── documents to sign after a refresh (2026-10-22): a 403 — the agency's Documents switch off — clears the list loaded earlier
+{
+  const before = [{ id: 'd1' }]
+  check('docs: the server\'s list replaces what was shown', JSON.stringify(docsToSign(before, { ok: true, status: 200 }, () => [{ id: 'd2' }])) === '[{"id":"d2"}]')
+  check('docs: a 403 (Documents switched off) clears the list already loaded', docsToSign(before, { ok: false, status: 403 }, () => []).length === 0)
+  check('docs: no signal or a server blip keeps the list shown', docsToSign(before, { ok: false, status: 0 }, () => []) === before && docsToSign(before, { ok: false, status: 502 }, () => []) === before)
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

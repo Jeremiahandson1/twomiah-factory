@@ -313,7 +313,8 @@ export function createSalesLeadRoutes(d: CrmDeps) {
   })
 
   // PUT /:id/deal — save the desked deal. A refusal names every bad field (`fields`), so the form marks them all.
-  app.put('/:id/deal', requirePermission('contacts:update'), async (c) => {
+  // Desking a deal is the Deal Desk switch's (deal_desk), as the Desking page is; reading the saved deal stays (F&I reads it).
+  app.put('/:id/deal', d.features.requireEnabledFeature('deal_desk'), requirePermission('contacts:update'), async (c) => {
     const currentUser = c.get('user')
     const parsed = dealInput(await c.req.json().catch(() => null))
     if ('error' in parsed) return fail(c, 400, parsed.error, 'validation_failed', parsed.fields)

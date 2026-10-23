@@ -37,6 +37,7 @@ const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallba
 
 export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: IntegrationsConfig }) {
   const confirm = useConfirm()
+  const on = (feature: string) => !config?.hasFeature || config.hasFeature(feature)
   const copy = { quickbooks: 'Sync invoices, expenses, and customers with your books.', sms: 'Send text updates to customers and crew members.', email: 'Send invoices, quotes, and reminders via email.', intro: 'Connect your accounts, set up lead sources, and configure your domain.', ...(config?.copy || {}) }
   const leadSources = config?.leadSources || DEFAULT_LEAD_SOURCES
   const [loading, setLoading] = useState(true)
@@ -99,6 +100,8 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
         <GuideCard icon={<Globe className="w-6 h-6 text-sky-700 dark:text-sky-300" />} iconBg="bg-sky-100 dark:bg-sky-500/20" title="Custom Domain (DNS)" description="Point your domain to your CRM so customers see your brand." expanded={expandedGuide === 'dns'} onToggle={() => setExpandedGuide(expandedGuide === 'dns' ? null : 'dns')}
           steps={['Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)', 'Go to DNS settings for your domain', 'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to your CRM URL shown above', 'Save changes — DNS propagation can take up to 24 hours', 'Once propagated, your CRM will be accessible at your custom domain']} />
 
+        {/* Each card is its switch's (Settings › Features): QuickBooks' and Online Payments' doors refuse while off. */}
+        {on('quickbooks') && <>
         <SectionLabel label="Accounting" />
         <Card icon={<BookOpen className="w-6 h-6 text-green-700 dark:text-green-400" />} iconBg="bg-green-100 dark:bg-green-500/20" title="QuickBooks" description={copy.quickbooks}
           body={status.quickbooks.configured === false ? (
@@ -124,6 +127,8 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             <button onClick={qbConnect} disabled={saving === 'qb-connect'} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800 flex items-center gap-2">Connect QuickBooks<ExternalLink className="w-4 h-4" /></button>
           )} />
 
+        </>}
+        {on('online_payments') && <>
         <SectionLabel label="Payments" />
         <Card icon={<CreditCard className="w-6 h-6 text-purple-600 dark:text-purple-400" />} iconBg="bg-purple-100 dark:bg-purple-500/20" title="Stripe Payments" description="Accept credit card payments from customers."
           body={status.stripe.connected && (
@@ -136,6 +141,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             ? <button onClick={stripeDisconnect} disabled={saving === 'stripe'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
             : <button onClick={stripeConnect} disabled={saving === 'stripe-connect'} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 flex items-center gap-2">Connect Stripe<ExternalLink className="w-4 h-4" /></button>} />
 
+        </>}
         <SectionLabel label="Communication" />
         <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-6">
           <div className="flex items-start gap-4">

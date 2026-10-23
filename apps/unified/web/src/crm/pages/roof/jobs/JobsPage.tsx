@@ -119,7 +119,8 @@ export default function JobsPage() {
       const [jobsRes, usersRes, crewsRes] = await Promise.all([
         api.get('/api/jobs', params) as Promise<{ data?: RoofJob[]; pagination?: { total?: number } }>,
         maySeeRoster ? api.get('/api/company/users') : Promise.resolve([]),
-        api.get('/api/crews'),
+        // Crews are the crews switch's (GET /api/crews refuses when off): the lists, filters and pickers go with it.
+        hasFeature('crews') ? api.get('/api/crews') : Promise.resolve({ data: [] }),
       ])
       setJobs(rowsOf<RoofJob>(jobsRes))
       // The distinct set for the whole tenant, not just this page — a legacy type further down the list would
@@ -225,10 +226,10 @@ export default function JobsPage() {
             <option value="">All Types</option>
             {typeOptions(...knownTypes, ...jobs.map((j) => j.jobType)).map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
           </select>
-          <select value={crewFilter} onChange={(e) => setCrewFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
+          {hasFeature('crews') && <select value={crewFilter} onChange={(e) => setCrewFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Crews</option>
             {crews.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          </select>}
           {users.length > 0 && <select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Sales Reps</option>
             {users.map((u) => <option key={u.id} value={u.id}>{displayName(u)}</option>)}
@@ -246,7 +247,7 @@ export default function JobsPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Address</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Type</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Crew</th>
+                  {hasFeature('crews') && <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Crew</th>}
                   <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Squares</th>
                   {maySeeMoney && <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Revenue</th>}
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Created</th>
@@ -254,9 +255,9 @@ export default function JobsPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={maySeeMoney ? 9 : 8} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
+                  <tr><td colSpan={(maySeeMoney ? 9 : 8) - (hasFeature('crews') ? 0 : 1)} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : jobs.length === 0 ? (
-                  <tr><td colSpan={maySeeMoney ? 9 : 8} className="text-center py-12 text-gray-500 dark:text-slate-400">No jobs found</td></tr>
+                  <tr><td colSpan={(maySeeMoney ? 9 : 8) - (hasFeature('crews') ? 0 : 1)} className="text-center py-12 text-gray-500 dark:text-slate-400">No jobs found</td></tr>
                 ) : jobs.map((job) => {
                   const revenue = revenueOf(job)
                   return (
@@ -280,7 +281,7 @@ export default function JobsPage() {
                           {formatStatus(job.status)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{(job.assignedCrewId && crewMap[job.assignedCrewId]) || '—'}</td>
+                      {hasFeature('crews') && <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{(job.assignedCrewId && crewMap[job.assignedCrewId]) || '—'}</td>}
                       <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">{job.totalSquares || '—'}</td>
                       {maySeeMoney && (
                         <td className="px-4 py-3 text-right text-gray-900 font-medium dark:text-slate-100">

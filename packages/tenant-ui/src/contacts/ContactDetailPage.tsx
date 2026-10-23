@@ -110,6 +110,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
 
   const showPortal = !!sections.portal && (cfg.portalGate === false || hasFeature(cfg.portalGate))
   const gated = (feature: string) => !cfg.gateByFeature || hasFeature(feature)
+  // The thread and the send box are Two-Way Texting's (two_way_texting): off, /api/sms refuses them, so they are not
+  // offered — the customer's opt-out stays, because it governs every text the business sends (2026-10-22).
+  const textingOn = hasFeature('two_way_texting')
 
   const loadContact = useCallback(async () => {
     setLoading(true)
@@ -162,7 +165,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     loadContact()
     if (showPortal) loadPortalStatus()
     // only for a seat the thread is read for (sms:send) — the panel below asks the same; anyone else got a 403 (T62)
-    if (sections.sms && cfg.can('sms:send')) loadSms()
+    if (sections.sms && cfg.can('sms:send') && textingOn) loadSms()
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const togglePortal = async () => {
@@ -615,6 +618,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   <span className="text-xs px-2 py-1 rounded bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-200">Opted out of SMS</span>
                 ) : null}
               </div>
+              {!textingOn ? (
+                <p className="p-4 text-sm text-gray-600 dark:text-slate-400" data-testid="texting-off">Two-Way Texting is switched off, so texts can’t be sent or read here. Turn it on in Settings › Features.</p>
+              ) : <>
               <div className="max-h-80 overflow-y-auto p-4 space-y-2">
                 {smsMessages.length === 0 && !smsLoading && <p className="text-center text-sm text-gray-500 dark:text-slate-400 py-6">No messages yet</p>}
                 {smsMessages.map((m: any) => (
@@ -632,6 +638,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   <Button onClick={sendSms} disabled={smsSending || !smsInput.trim()}>{smsSending ? '...' : 'Send'}</Button>
                 </div>
               )}
+              </>}
             </div>
           )}
         </div>

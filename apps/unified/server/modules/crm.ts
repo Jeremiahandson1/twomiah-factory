@@ -408,7 +408,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         ...(v.reports?.teamProductivity === 'serviceRecords' ? { teamProductivity: (companyId: string, range: { gte?: Date; lte?: Date }) => salonTeamProductivity(db, companyId, range) } : {}),
       },
     } as any) },
-    { path: '/api/pricebook', access: 'user', router: createPricebookRoutes({ service: s.pricebook, db, tables: { company }, authenticate, requirePermission, canSee } as any) },
+    { path: '/api/pricebook', access: 'user', router: createPricebookRoutes({ service: s.pricebook, db, tables: { company }, authenticate, requirePermission, requireFeature: features.requireEnabledFeature(['pricebook', 'flat_rate_pricebook']), canSee } as any) },
     { path: '/api/ads', access: 'user', router: ads },
     { path: '/api/onboarding', access: 'user', router: signedInAdmin(createOnboardingRoutes({ db, companyTable: company } as any)) },
     { path: '/api/messaging-billing', access: 'user', router: messagingBilling },
@@ -420,10 +420,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/inbound-messages', access: 'user', router: inboundMessages },
 
     // Public doors inside: each router signs people in itself after them.
-    { path: '/api/sms', access: 'public', router: inFront('/api/sms', createSmsRoutes({ service: s.sms, authenticate, requirePermission, requireAdmin: isAdmin } as any)) },
+    { path: '/api/sms', access: 'public', router: inFront('/api/sms', createSmsRoutes({ service: s.sms, authenticate, requirePermission, requireAdmin: isAdmin, requireFeature: features.requireEnabledFeature('two_way_texting') } as any)) },
     // Home care's /api/stripe pays its visit invoices (server/crm/homecare/billing/stripe.ts), so the shared one — which
     // pays the CRM's invoice — stands aside there.
-    ...(v.homecare ? [] : [{ path: '/api/stripe', access: 'public' as const, router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit, canTakeCardPayments } as any) }]),
+    ...(v.homecare ? [] : [{ path: '/api/stripe', access: 'public' as const, router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit, canTakeCardPayments, requireFeature: features.requireEnabledFeature('online_payments') } as any) }]),
     // The drips are also the dealership's Follow-Up product (follow_up_sequences): either switch keeps the follow-up parts
     // open, while campaigns and templates need Email Marketing itself — the union the RV copy gated (RV T19 M6); only
     // crm-rv is offered follow_up_sequences, so everyone else's gate is what it was.
@@ -432,9 +432,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       featureGate: features.requireEnabledFeature(['email_marketing', 'follow_up_sequences']),
       campaignsGate: features.requireEnabledFeature('email_marketing'),
     } as any) },
-    { path: '/api/quickbooks', access: 'public', router: createQuickBooksRoutes({ service: s.quickbooks, db, tables: { contact, invoice, invoiceLineItem, payment }, authenticate, requirePermission, audit } as any) },
+    { path: '/api/quickbooks', access: 'public', router: createQuickBooksRoutes({ service: s.quickbooks, db, tables: { contact, invoice, invoiceLineItem, payment }, authenticate, requirePermission, audit, requireFeature: features.requireEnabledFeature('quickbooks') } as any) },
     { path: '/api/reviews', access: 'public', router: createReviewsRoutes({ service: s.reviews, db, tables: { reviewRequest }, authenticate, requireRole, requirePermission, audit, requireEnabledFeature: features.requireEnabledFeature } as any) },
-    { path: '/api/integrations', access: 'public', router: createIntegrationsRoutes({ db, tables: { company, emailLog }, authenticate, requireAdmin: isAdmin, quickbooks: s.quickbooks, stripe: s.stripe, factoryApiClient } as any) },
+    { path: '/api/integrations', access: 'public', router: createIntegrationsRoutes({ db, tables: { company, emailLog }, authenticate, requireAdmin: isAdmin, quickbooks: s.quickbooks, stripe: s.stripe, factoryApiClient, requireQuickbooks: features.requireEnabledFeature('quickbooks'), requireOnlinePayments: features.requireEnabledFeature('online_payments') } as any) },
     // The customer portal: a customer's own pages by their private link (/p/:token), and the staff switches that hand
     // the link out, which sign people in themselves (portal:share).
     // Home care's client portal answers first on the same path (inFront above).

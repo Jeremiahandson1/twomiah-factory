@@ -53,12 +53,14 @@ export function rvMounts(d: CrmDeps): Mount[] {
     { path: '/api/floorplan', access: 'user', feature: DEALERSHIP, router: createFloorplanRoutes() },
     { path: '/api/rentals', access: 'user', feature: DEALERSHIP, router: createRentalRoutes(d) },
     { path: '/api/accounting', access: 'user', feature: DEALERSHIP, router: createAccountingRoutes(d) },
-    { path: '/api/recalls', access: 'user', feature: DEALERSHIP, router: createRecallRoutes(d) },
-    { path: '/api/syndication', access: 'user', feature: DEALERSHIP, router: createSyndicationRoutes(d) },
+    // Recall Lookup and Marketplace Syndication are their own switches (recall_lookup, inventory_syndication), as the
+    // Inventory page's Recall and Feed buttons are (2026-10-22: they were open on any dealership feature).
+    { path: '/api/recalls', access: 'user', feature: 'recall_lookup', router: createRecallRoutes(d) },
+    { path: '/api/syndication', access: 'user', feature: 'inventory_syndication', router: createSyndicationRoutes(d) },
     { path: '/api/valuation', access: 'user', feature: DEALERSHIP, router: createValuationRoutes(d) },
     { path: '/api/schedule-events', access: 'user', feature: DEALERSHIP, router: createScheduleEventRoutes(d) },
     // The marketplaces pull the feed by token; switched off, it is not there (404).
-    { path: '/api/public/feed', access: 'public', feature: DEALERSHIP, router: createPublicFeedRoutes(d) },
+    { path: '/api/public/feed', access: 'public', feature: 'inventory_syndication', router: createPublicFeedRoutes(d) },
     // The Factory's website→CRM inventory copy.
     { path: '/api/internal/seed-units', access: 'factory', router: createSeedUnitsRoute(d) },
   ]

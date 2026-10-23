@@ -177,7 +177,7 @@ export const GoogleReviews = () => <GbpReviewsPage />
 // lead sources.
 // Settings › Texting: the business's own registered number (pages/TextingPage.tsx).
 export const Texting = () => <TextingPage />
-export const Integrations = () => <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms) }} />
+export const Integrations = () => { const { hasFeature } = useAuth(); return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms), hasFeature }} /> }
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />
 
