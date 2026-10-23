@@ -77,6 +77,27 @@ describe('on app.<domain>', () => {
     expect(r.status).not.toBe(301)
     expect(r.status).not.toBe(302)
   })
+  test('the page editor\'s live preview (a same-origin frame) shows the website, not the admin, and is kept out of search', async () => {
+    const frame = { 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'navigate' }
+    for (const p of ['/', '/about']) {
+      const r = await on('app.acme.com', p, { headers: frame })
+      expect(r.status).toBe(200)
+      const html = await r.text()
+      expect(html).not.toContain('<div id="root">')
+      expect(html).toContain(p === '/' ? 'Acme' : 'About')
+      expect(r.headers.get('x-robots-tag')).toBe('noindex')
+    }
+    // A frame from another site gets no such pass.
+    const cross = await on('app.acme.com', '/', { headers: { ...frame, 'sec-fetch-site': 'cross-site' } })
+    expect(cross.status).toBe(302)
+  })
+  test('the admin\'s own "View site" link to "/" opens the website on the domain; typed or bookmarked, the admin', async () => {
+    const link = await on('app.acme.com', '/', { headers: { 'sec-fetch-dest': 'document', 'sec-fetch-site': 'same-origin' } })
+    expect(link.status).toBe(302)
+    expect(link.headers.get('location')).toBe('https://acme.com/')
+    const typed = await on('app.acme.com', '/', { headers: { 'sec-fetch-dest': 'document', 'sec-fetch-site': 'none' } })
+    expect(typed.headers.get('location')).toBe('/crm')
+  })
   test('search engines keep out of the admin address', async () => {
     const r = await on('app.acme.com', '/robots.txt')
     expect(r.status).toBe(200)
