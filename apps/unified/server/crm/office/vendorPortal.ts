@@ -13,7 +13,7 @@ import { eq, and, desc, inArray } from 'drizzle-orm'
 import { contact, company, jobPurchaseOrder as purchaseOrder, jobPurchaseOrderLine as purchaseOrderLine, vendorBill, job, document } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import { escapeHtml } from '../../core/sanitize.ts'
 
 interface VendorRow {
@@ -208,7 +208,7 @@ export function createVendorPortalRoutes(d: CrmDeps) {
     }).from(document)
       .where(and(eq(document.companyId, vendor.companyId), eq(document.contactId, vendor.id)))
       .orderBy(desc(document.createdAt)).limit(100)
-    return list(c, docs, { page: 1, limit: docs.length, total: docs.length })
+    return listAll(c, docs)
   })
 
   return app

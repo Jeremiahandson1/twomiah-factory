@@ -11,7 +11,7 @@
 import { Hono } from 'hono'
 import { eq, desc, sql, asc } from 'drizzle-orm'
 // One numbering rule for every document in the product — locked, and only ever forwards.
-import { nextNumber } from '../invoicing/money'
+import { nextNumber, paymentTermsProblem } from '../invoicing/money'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { createId } from '@paralleldrive/cuid2'
 
@@ -160,6 +160,25 @@ export function nextRunAfterResume(r: { nextRunDate: Date | string; startDate: D
   const anchor = anchorDayOf(r.startDate)
   while (next < now) next = calculateNextDate(next, r.frequency, anchor)
   return next
+}
+
+/** `terms` holding a plain number of days, as a number; anything else (wording, blank) is null. */
+const NUMERIC = /^\s*[-+]?(\d+\.?\d*|\.\d+)\s*$/
+const termsDaysOf = (terms: unknown): number | null => (typeof terms === 'number' || (typeof terms === 'string' && NUMERIC.test(terms)) ? Number(terms) : null)
+
+/**
+ * The payment terms a recurring invoice is given, by the one rule (invoicing/money paymentTermsProblem): the form's
+ * "Payment Terms (days)" (`paymentTermsDays`), or `terms` when it is a number. 999 was saved (live test 2026-10-22) —
+ * and the days box was never read at all. Returns the refusal, or the `terms` to store (undefined: leave it).
+ */
+export function recurringTerms(b: { paymentTermsDays?: unknown; terms?: unknown }): { error: string } | { terms: string | undefined } {
+  const days = b.paymentTermsDays
+  const bad = paymentTermsProblem(days) ?? (termsDaysOf(b.terms) !== null ? paymentTermsProblem(b.terms) : null)
+  if (bad) return { error: bad }
+  const given = days != null && !(typeof days === 'string' && !days.trim())
+  // Wording typed in `terms` is kept as it was; the days box fills it when it is blank or a number.
+  const wording = typeof b.terms === 'string' && b.terms.trim() && termsDaysOf(b.terms) === null
+  return { terms: given && !wording ? String(Number(days)) : (typeof b.terms === 'string' && b.terms.trim() ? b.terms.trim() : typeof b.terms === 'number' ? String(b.terms) : undefined) }
 }
 
 function calculateDueDate(invoiceDate: Date, terms: string): Date {
@@ -445,7 +464,8 @@ export function createRecurringService(deps: RecurringServiceDeps) {
       SELECT * FROM recurring_line_item WHERE recurring_invoice_id = ${id} ORDER BY sort_order ASC
     `))
     result.lineItems = camelRows(lineItemRows)
-    return camelRow(result, NESTED)
+    // The form's "Payment Terms (days)" reads this; the days live in `terms` (calculateDueDate).
+    return { ...camelRow(result, NESTED), paymentTermsDays: termsDaysOf(result.terms) }
   }
 
   async function updateRecurringInvoice(id: string, companyId: string, data: any) {
@@ -488,6 +508,7 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     if (data.discount !== undefined) sets.push(sql`discount = ${num(data.discount)}`)
     if (data.total !== undefined) sets.push(sql`total = ${num(data.total)}`)
     if (data.notes !== undefined) sets.push(sql`notes = ${data.notes}`)
+    if (data.terms !== undefined && data.terms !== null) sets.push(sql`terms = ${String(data.terms)}`)
     if (sets.length > 0) {
       await db.execute(sql`UPDATE recurring_invoice SET ${sql.join(sets, sql`, `)} WHERE id = ${id} AND company_id = ${companyId}`)
     }
@@ -626,6 +647,9 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
     if (!b.contactId) return c.json({ error: 'Contact is required' }, 400)
     if (!b.frequency) return c.json({ error: 'Frequency is required' }, 400)
     if (!b.lineItems || b.lineItems.length === 0) return c.json({ error: 'At least one line item is required' }, 400)
+    const t = recurringTerms(b)
+    if ('error' in t) return c.json({ error: t.error, field: 'paymentTermsDays' }, 400)
+    b.terms = t.terms
     const recurring = await service.createRecurring({
       companyId: user.companyId,
       contactId: b.contactId, projectId: b.projectId, frequency: b.frequency,
@@ -639,7 +663,11 @@ export function createRecurringRoutes(deps: RecurringRoutesDeps) {
 
   app.put('/:id', requirePermission('invoices:update'), async (c: any) => {
     const user = c.get('user')
-    const recurring = await service.updateRecurring(c.req.param('id'), user.companyId, await c.req.json())
+    const b = await c.req.json()
+    const t = recurringTerms(b)
+    if ('error' in t) return c.json({ error: t.error, field: 'paymentTermsDays' }, 400)
+    b.terms = t.terms
+    const recurring = await service.updateRecurring(c.req.param('id'), user.companyId, b)
     if (!recurring) return c.json({ error: 'Recurring invoice not found' }, 404)
     audit.log({ action: audit.ACTIONS.UPDATE, entity: 'recurring_invoice', entityId: recurring.id, userId: user.userId, companyId: user.companyId })
     return c.json(recurring)

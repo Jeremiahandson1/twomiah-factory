@@ -12,7 +12,7 @@ import { Hono } from 'hono'
 import { and, avg, count, desc, eq, inArray, lte } from 'drizzle-orm'
 import { addDays, createAgencyTime } from '../core/agencyTime.ts'
 import { auditLog, backgroundChecks, clients, performanceRatings, user } from '../../../db/schema/index.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { isCaregiverSeat } from '../core/caregiverAccess.ts'
@@ -144,7 +144,7 @@ export function createComplianceRoutes(d: CrmDeps) {
       caregiver: { firstName: caregiverFirstName, lastName: caregiverLastName },
       client: clientMap[rest.clientId] || null,
     }))
-    return list(c, formatted, { page: 1, limit: formatted.length, total: formatted.length })
+    return listAll(c, formatted)
   })
 
   app.post('/ratings', create, async (c) => {

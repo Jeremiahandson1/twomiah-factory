@@ -12,7 +12,7 @@
 import { Hono } from 'hono'
 import { createId } from '@paralleldrive/cuid2'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { schedTs, hms, shiftTimesError, DATE_RE } from '../core/scheduleOccurrences.ts'
@@ -30,7 +30,7 @@ export function createSchedulesAllRoutes(core: HomecareCore, d: CrmDeps) {
   app.get('/', perm('care-schedule:read'), async (c) => {
     const { user, companyId, me } = who(c)
     const rows = await core.schedules.attachExceptions(companyId, await allActiveSchedules(db, companyId, isCaregiver(d, user) ? me : null))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // PUT /api/schedules-all/:id — Edit Shift.

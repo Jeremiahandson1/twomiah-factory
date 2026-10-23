@@ -5,7 +5,7 @@ import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { company } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { list, one } from '../../http/reply.ts'
+import { one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 
 export type ValuationProviderName = 'jdpower' | 'blackbook'
@@ -142,7 +142,7 @@ export function createValuationRoutes(d: CrmDeps) {
     const rows = Object.values(PROVIDERS).map((p) => ({
       name: p.name, displayName: p.displayName, logo: p.logo, description: p.description, enabled: enabled?.provider.name === p.name,
     }))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /estimate — the trade's book value from the enabled provider

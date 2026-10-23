@@ -5,12 +5,13 @@
 // Until the template added this, a property could only come from the seed: both pages asked the operator to type a
 // 24-character internal id and a real tenant had nothing to type. (Landscaping T14 M7)
 import { Hono } from 'hono'
+import { normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
 import { eq, and, or, ilike, asc, count } from 'drizzle-orm'
 import { site, contact, snowContract } from '../../db/schema/index.ts'
 import { routesWithStopAt } from './inUse.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 
 const TEXT_FIELDS = ['name', 'address', 'city', 'state', 'zip', 'accessNotes'] as const
 
@@ -28,6 +29,7 @@ export function siteInputError(body: Record<string, unknown>, { requireName = tr
     if (k === 'name' || v === undefined || v === null) continue
     if (typeof v !== 'string') return `${fieldName(k)} must be text.`
     if (v.length > 500) return `${fieldName(k)} is too long.`
+    if (k === 'zip' && v.trim() && normaliseZip(v) === null) return ZIP_ERROR
   }
   return null
 }
@@ -51,7 +53,7 @@ export function createSiteRoutes(d: CrmDeps) {
     }).from(site).leftJoin(contact, eq(site.contactId, contact.id)).where(and(...where)).orderBy(asc(site.name))
     const data = rows.map((r: any) => ({ ...r.site, contactName: r.contactName, contactEmail: r.contactEmail, contactPhone: r.contactPhone }))
     // Every property, unpaged, as the template answered (the pickers list them all).
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.get('/:id', requirePermission('contacts:read'), async (c) => {

@@ -15,7 +15,7 @@
 import { Hono, type Context } from 'hono'
 import { createId } from '@paralleldrive/cuid2'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createHomecareCore } from '../core/index.ts'
 import { addDays, createAgencyTime, isYmd } from '../core/agencyTime.ts'
@@ -370,7 +370,7 @@ export function createRouteOptimizerRoutes(d: CrmDeps) {
     const plans = await q.routePlans(d.db, companyId, date, caregiverId)
     const out = []
     for (const p of plans) out.push({ ...p, stops: await q.routePlanStops(d.db, companyId, p.id) })
-    return list(c, out, { page: 1, limit: out.length, total: out.length })
+    return listAll(c, out)
   })
 
   // DELETE /plans/:id
@@ -492,7 +492,7 @@ export function createRouteOptimizerRoutes(d: CrmDeps) {
   // ── Geofences ─────────────────────────────────────────────────────────────────────────────────
   app.get('/geofence', requirePermission('care-clients:update'), async (c) => {
     const rows = await q.clientGeofences(d.db, c.get('user').companyId)
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.post('/geofence', requirePermission('care-clients:update'), async (c) => {

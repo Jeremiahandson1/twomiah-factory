@@ -10,7 +10,7 @@
 // (the schedule area's write — a caregiver holds only its read); a caregiver's hours, ratings and reliability ask care-hr:read.
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
-import { list, one } from '../../../http/reply.ts'
+import { one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createHomecareCore } from '../core/index.ts'
 import { addDays } from '../core/agencyTime.ts'
@@ -137,13 +137,13 @@ export function createHomecareDashboardRoutes(d: CrmDeps) {
   // GET /referrals — client count and paid revenue per active referral source.
   app.get('/referrals', requirePermission('care-billing:read'), async (c) => {
     const rows = await referralSourceTotals(d.db, c.get('user').companyId)
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // GET /caregiver-hours — completed shifts, capped hours and average rating per active caregiver.
   app.get('/caregiver-hours', requirePermission('care-hr:read'), async (c) => {
     const rows = await caregiverHoursAndRatings(d.db, c.get('user').companyId)
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // GET /live-board — every visit today with its live clock status.

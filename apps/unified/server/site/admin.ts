@@ -15,7 +15,7 @@ import sharp from 'sharp'
 import { createFileStorage } from '@twomiah/tenant-backend'
 import { website, page, post, portfolioItem, photo, pageView, lead, contact } from '../db/schema/index.ts'
 import { SITE_DESIGNS, SITE_DESIGN_LABELS, type VerticalSettings } from '../core/vertical.ts'
-import { list, one, fail, done } from '../http/reply.ts'
+import { one, fail, done, listAll } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
 import { RESERVED_SLUGS, SLUG_RE } from './slugs.ts'
 import { VIEWS } from './render.ts'
@@ -65,7 +65,6 @@ const POST_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,80}[a-z0-9])?$/
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'])
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 const optText = (v: unknown, max: number) => (typeof v === 'string' ? (v.trim() ? v.slice(0, max) : null) : v === null ? null : undefined)
-const allOf = <T>(rows: T[]) => ({ page: 1, limit: Math.max(rows.length, 1), total: rows.length })
 
 /** The website's own settings a person may change (the company's facts live in /api/company). */
 const SETTINGS_TEXT: Array<[keyof typeof website.$inferInsert, number]> = [
@@ -159,13 +158,13 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
       }
     }
     types.sort()
-    return list(c, types, allOf(types))
+    return listAll(c, types)
   })
 
   app.get('/pages', may('site:read'), async (c) => {
     const rows = await db.select({ id: page.id, slug: page.slug, title: page.title, isPublished: page.isPublished, navOrder: page.navOrder, updatedAt: page.updatedAt })
       .from(page).where(eq(page.companyId, c.get('user').companyId)).orderBy(asc(page.navOrder), asc(page.title))
-    return list(c, rows, allOf(rows))
+    return listAll(c, rows)
   })
 
   app.get('/pages/:slug', may('site:read'), async (c) => {
@@ -224,7 +223,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
   /** The looks the site can wear; `isDefault` is the vertical's, which an empty site.design means. */
   app.get('/designs', may('site:read'), (c) => {
     const rows = SITE_DESIGNS.map((id) => ({ id, label: SITE_DESIGN_LABELS[id], isDefault: id === deps.vertical.site.design }))
-    return list(c, rows, allOf(rows))
+    return listAll(c, rows)
   })
 
   app.patch('/settings', may('site:settings'), async (c) => {
@@ -278,7 +277,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
       .where(and(eq(photo.companyId, c.get('user').companyId), eq(photo.isPublic, true)))
       .orderBy(desc(photo.createdAt))
     const filtered = tag ? rows.filter((r: any) => Array.isArray(r.tags) && r.tags.includes(tag)) : rows
-    return list(c, filtered, allOf(filtered))
+    return listAll(c, filtered)
   })
 
   app.post('/photos', may('site:update'), async (c) => {
@@ -317,7 +316,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
   app.get('/posts', may('site:read'), async (c) => {
     const rows = await db.select({ id: post.id, slug: post.slug, title: post.title, excerpt: post.excerpt, status: post.status, coverImageUrl: post.coverImageUrl, publishedAt: post.publishedAt, updatedAt: post.updatedAt })
       .from(post).where(eq(post.companyId, c.get('user').companyId)).orderBy(desc(post.createdAt))
-    return list(c, rows, allOf(rows))
+    return listAll(c, rows)
   })
 
   app.get('/posts/:slug', may('site:read'), async (c) => {
@@ -387,7 +386,7 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
   app.get('/portfolio', may('site:read'), async (c) => {
     const rows = await db.select({ id: portfolioItem.id, slug: portfolioItem.slug, title: portfolioItem.title, location: portfolioItem.location, status: portfolioItem.status, coverImageUrl: portfolioItem.coverImageUrl, sortOrder: portfolioItem.sortOrder, updatedAt: portfolioItem.updatedAt })
       .from(portfolioItem).where(eq(portfolioItem.companyId, c.get('user').companyId)).orderBy(asc(portfolioItem.sortOrder), desc(portfolioItem.createdAt))
-    return list(c, rows, allOf(rows))
+    return listAll(c, rows)
   })
 
   app.get('/portfolio/:slug', may('site:read'), async (c) => {

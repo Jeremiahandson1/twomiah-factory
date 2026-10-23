@@ -117,7 +117,7 @@ describe('booking', () => {
 
   test('a banned address is refused plainly, not given a fake success', async () => {
     await t.db.insert(t.schema.bookingBan).values({ companyId, email: 'troll@example.com' })
-    const r = await refusal(engine().book(companyId, { service: 'lawn-mowing', date: '2026-11-04', time: '09:00', name: 'T', email: 'TROLL@example.com', phone: '1' }, { by: 'customer' }))
+    const r = await refusal(engine().book(companyId, { service: 'lawn-mowing', date: '2026-11-04', time: '09:00', name: 'T', email: 'TROLL@example.com', phone: '608-555-0199' }, { by: 'customer' }))
     expect(r?.code).toBe('refused')
   })
 

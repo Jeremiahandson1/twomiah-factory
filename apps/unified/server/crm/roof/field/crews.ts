@@ -13,7 +13,7 @@ import { and, count, desc, eq, inArray, notInArray } from 'drizzle-orm'
 import { crew, job } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { phone } from '../validation.ts'
 
@@ -51,7 +51,7 @@ export function createCrewRoutes(d: CrmDeps) {
       : []
     const byCrew = new Map(counts.map((r: any) => [r.crewId, Number(r.n)]))
     const rows = crews.map((r: any) => ({ ...r, activeJobCount: byCrew.get(r.id) ?? 0 }))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.post('/', requirePermission('crews:create'), async (c) => {

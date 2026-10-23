@@ -6,6 +6,7 @@
 // Permissions: every signed-in person of the agency reads the active list (care-clients:read, as the template let
 // anyone signed in); adding, editing and deleting are the office's (care-clients:create / update / delete).
 import { Hono } from 'hono'
+import { normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
 import { and, asc, eq } from 'drizzle-orm'
 import { referralSources } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
@@ -37,6 +38,7 @@ export function createReferralSourceRoutes(d: CrmDeps) {
     const { companyId } = who(c)
     const data = referralData(await c.req.json().catch(() => null))
     if (!data.name) return fail(c, 400, 'Name is required')
+    if (data.zip && normaliseZip(data.zip) === null) return fail(c, 400, ZIP_ERROR)
     const [row] = await db.insert(referralSources).values({ ...data, companyId } as any).returning()
     return one(c, row, 201)
   })
@@ -45,6 +47,7 @@ export function createReferralSourceRoutes(d: CrmDeps) {
     const { companyId } = who(c)
     const data = referralData(await c.req.json().catch(() => null))
     if (data.name === null) return fail(c, 400, 'Name is required')
+    if (data.zip && normaliseZip(data.zip) === null) return fail(c, 400, ZIP_ERROR)
     const [row] = await db.update(referralSources).set({ ...data, updatedAt: new Date() })
       .where(and(eq(referralSources.id, c.req.param('id')), eq(referralSources.companyId, companyId))).returning()
     return row ? one(c, row) : fail(c, 404, 'Not found')

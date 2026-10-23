@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { eq, and, gte, lte, asc } from 'drizzle-orm'
 import { scheduleEvent, user } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 
 const eventSchema = z.object({
@@ -44,7 +44,7 @@ export function createScheduleEventRoutes(d: CrmDeps) {
       ...r.event,
       assignedUser: r.assignedFirstName ? { firstName: r.assignedFirstName, lastName: r.assignedLastName } : null,
     }))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.post('/', requirePermission('schedule:create'), async (c) => {

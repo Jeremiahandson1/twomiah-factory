@@ -18,7 +18,7 @@ import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { storeOrder, shippingConfig } from '../../../db/schema/store.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { DEFAULT_PARCEL, type StoreCore } from '../core.ts'
 import { encryptJSON } from '../../../core/crypto.ts'
@@ -141,7 +141,7 @@ export function createShippingRoutes(d: CrmDeps, core: StoreCore) {
     if (!mayMove(order.status, 'shipped')) return labelRefusal(c, order.status)
     try {
       const rates = await active.provider.getRates({ from: active.fromAddress, to: shipTo(order), parcel: active.parcel })
-      return list(c, rates, { page: 1, limit: rates.length, total: rates.length })
+      return listAll(c, rates)
     } catch (err: any) {
       return fail(c, 502, err?.message || 'Could not get rates')
     }

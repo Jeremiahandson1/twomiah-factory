@@ -6,7 +6,7 @@ import { eq, and, asc } from 'drizzle-orm'
 import { recurringRoute, recurringRouteStop, site } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, list, one, listAll } from '../../http/reply.ts'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -99,7 +99,7 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     const stops = await db.select().from(recurringRouteStop).where(eq(recurringRouteStop.companyId, u.companyId))
     const withCounts = counted(stops, await maySeeMoney(c))
     const data = routes.map((r: any) => withCounts({ ...r, dayName: DAYS[r.dayOfWeek] ?? '' }))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   // GET /api/recurring-routes/board — the whole week, grouped by day

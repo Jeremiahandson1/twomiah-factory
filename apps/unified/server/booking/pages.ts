@@ -77,6 +77,8 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
   /** The picker, for a new booking or (with the booking) a new time for an existing one. */
   function picker(svc: ServiceRow, settings: SettingsRow, requireAddress: boolean, moving?: BookingRow, embed = false) {
     const tips = Array.isArray(svc.tipPresets) && svc.price != null ? (svc.tipPresets as number[]) : []
+    // The waitlist's dates are held to the booking window like a booking's (engine.customerRules).
+    const win = engine.window(settings)
     const data = [
       `data-service="${escHtml(svc.slug)}"`,
       moving ? `data-token="${escHtml(moving.token)}"` : '',
@@ -131,8 +133,9 @@ export function createBookingPages(deps: { engine: BookingEngine; ctxOf: () => P
         <form id="book-waitlist" novalidate>
           <label>Name<input type="text" name="name" required autocomplete="name"></label>
           <label>Email<input type="email" name="email" required autocomplete="email"></label>
-          <label>From (optional)<input type="date" name="from"></label>
-          <label>Until (optional)<input type="date" name="to"></label>
+          <label>Phone${settings.requirePhone ? '' : ' (optional)'}<input type="tel" name="phone" ${settings.requirePhone ? 'required' : ''} autocomplete="tel"></label>
+          <label>From (optional)<input type="date" name="from" min="${win.first}" max="${win.last}"></label>
+          <label>Until (optional)<input type="date" name="to" min="${win.first}" max="${win.last}"></label>
           <input type="text" name="website" tabindex="-1" autocomplete="off" class="book-hp" aria-hidden="true">
           <input type="hidden" name="t">
           <button type="submit" class="book-submit book-submit--secondary">Tell me when a time opens</button>

@@ -23,6 +23,7 @@ import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay
 import { checkFilter } from '../listFilter'
 import { withinHorizon, horizonMessage } from '../dateInput'
 import { sniffType } from '../files/storage'
+import { zipField } from '../address'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
   /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
@@ -213,7 +214,7 @@ export function createJobRoutes(deps: JobDeps) {
     address: cleanText().optional(),
     city: z.string().optional(),
     state: z.string().optional(),
-    zip: z.string().optional(),
+    zip: zipField(),
     notes: cleanLines().optional(),
     ...(t.location && t.job.locationId ? { locationId: z.string().optional().transform(emptyToUndef as any) } : {}),
     ...(o.extraFields || {}),

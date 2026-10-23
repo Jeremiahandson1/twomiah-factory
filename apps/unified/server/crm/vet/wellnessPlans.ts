@@ -8,7 +8,7 @@ import { wellnessPlan, wellnessEnrollment, patient, contact } from '../../db/sch
 import { createWellnessBillingService } from './wellnessBillingService.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 
 export function createWellnessPlanRoutes(d: CrmDeps) {
   const { db, audit, logger } = d
@@ -47,7 +47,7 @@ export function createWellnessPlanRoutes(d: CrmDeps) {
       .orderBy(desc(wellnessEnrollment.createdAt))
 
     const rows = data.map((r: any) => ({ ...r.enrollment, planName: r.planName, patientName: r.patientName, ownerName: r.ownerName }))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.post('/enrollments', requirePermission('contacts:create'), async (c) => {
@@ -126,7 +126,7 @@ export function createWellnessPlanRoutes(d: CrmDeps) {
   app.get('/', requirePermission('contacts:read'), async (c) => {
     const currentUser = c.get('user') as any
     const data = await db.select().from(wellnessPlan).where(eq(wellnessPlan.companyId, currentUser.companyId)).orderBy(desc(wellnessPlan.createdAt))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.post('/', requirePermission('contacts:create'), async (c) => {

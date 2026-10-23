@@ -15,13 +15,13 @@
 import { Hono, type Context } from 'hono'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { messageThreads, messageThreadParticipants, messages, user } from '../../../db/schema/index.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { actsForAnyone } from '../core/caregiverAccess.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 
-const all = <T,>(c: Context, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: Context, rows: T[]) => listAll(c, rows)
 
 export function createMessageRoutes(_core: HomecareCore, d: CrmDeps) {
   const { db } = d

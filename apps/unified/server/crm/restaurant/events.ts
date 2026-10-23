@@ -26,7 +26,7 @@ import { deriveStatus, round2, withoutPortalCredential } from '@twomiah/tenant-b
 import { event, eventSpace, eventMenuItem, eventTimeline, eventPayment, menuPackage, contact, company, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one, done } from '../../http/reply.ts'
+import { fail, one, done, listAll } from '../../http/reply.ts'
 import { lockEventBook } from '../../data/restaurantEvents.ts'
 import { LedgerError, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice } from './eventLedger.ts'
 import {
@@ -148,7 +148,7 @@ export function createEventRoutes(d: CrmDeps) {
       coordinatorFirstName: r.coordinatorFirstName, coordinatorLastName: r.coordinatorLastName,
     }))
     const shown = (await maySeeEventMoney(currentUser)) ? rows : rows.map((r: any) => without(r, EVENT_MONEY_KEYS))
-    return list(c, shown, { page: 1, limit: shown.length, total: shown.length })
+    return listAll(c, shown)
   })
 
   // GET /events/:id — the full file

@@ -32,6 +32,8 @@ jobs:
         run: bun run scripts/check-unified-rules.ts
       - name: No browser dialogs in the unified screens
         run: bun run scripts/check-unified-no-native-dialogs.ts
+      - name: Whole lists answer through listAll (the limit asked for, never a made-up 1)
+        run: bun run scripts/check-unified-whole-lists.ts
       - name: Every feature an industry is offered has a screen in its app
         run: bun run scripts/check-unified-feature-has-screen.ts
       - name: Types — none in the unified app; shared packages not above their baseline

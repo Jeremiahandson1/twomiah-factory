@@ -13,7 +13,7 @@
 // totalActiveAuths, totalAuthHours, …). /caregiver-utilization is a list reply ({ data, pagination }).
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
-import { list, one } from '../../../http/reply.ts'
+import { one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { addDays } from '../core/agencyTime.ts'
@@ -58,7 +58,7 @@ export function createForecastRoutes(core: HomecareCore, d: CrmDeps) {
     const { companyId } = who(c)
     const today = await core.time.today(companyId)
     const rows = await caregiverUtilization(db, companyId, today, addDays(today, 6))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   return app

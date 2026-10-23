@@ -375,7 +375,7 @@ describe('instant estimator', () => {
     expect(kept).toMatchObject({ companyId, cost: '0.00', status: 'complete' })
     expect((kept.rawData as any).contactId).toBe(lead.id)
     expect(await credits()).toBe(before)
-    expect((await t.call('/api/estimator/estimate/test-builders', { method: 'POST', json: { address: 'Nowhere Lane', city: 'A', state: 'OH', zip: '1' } })).status).toBe(422)
+    expect((await t.call('/api/estimator/estimate/test-builders', { method: 'POST', json: { address: 'Nowhere Lane', city: 'A', state: 'OH', zip: '44301' } })).status).toBe(422)
     expect((await t.call('/api/estimator/estimate/test-builders', { method: 'POST', json: { address: '40 Oak Ave', city: 'A', state: 'OH', zip: '1', email: 'not-an-email' } })).status).toBe(400)
   })
 

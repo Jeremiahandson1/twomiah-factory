@@ -24,13 +24,13 @@ import {
   schedules, caregiverSchedules, caregiverTimeOff, openShifts, openShiftNotifications, absences, noshowAlerts, noshowAlertConfig, user, clients,
 } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { selfSubject } from '../core/selfService.ts'
 import { isCaregiver, who } from './shared.ts'
 
-const asList = (c: any, rows: any[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const asList = (c: any, rows: any[]) => listAll(c, rows)
 
 /** A body's own keys, without the ones the server decides (the row's id and its company). */
 const writable = (body: any) => {

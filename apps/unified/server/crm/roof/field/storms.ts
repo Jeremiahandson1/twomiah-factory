@@ -17,7 +17,7 @@ import { Hono } from 'hono'
 import { and, count, desc, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { company, contact, stormEvent, stormLead } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createStormData, serviceAreaZips, type StormData } from './stormData.ts'
 import { homeownerName, insertHomeowner, insertRoofJob } from './roofJob.ts'
@@ -42,7 +42,7 @@ export function createStormRoutes(d: CrmDeps, storms: StormData = createStormDat
     if (status) conditions.push(eq(stormEvent.status, status))
     else if (!includeDismissed) conditions.push(ne(stormEvent.status, 'dismissed'))
     const events = await db.select().from(stormEvent).where(and(...conditions)).orderBy(desc(stormEvent.eventDate), desc(stormEvent.id))
-    return list(c, events, { page: 1, limit: events.length, total: events.length })
+    return listAll(c, events)
   })
 
   // POST /events — a storm entered by hand. An event with no affected zips cannot do its job (generate-leads matches

@@ -14,7 +14,7 @@ import { servicePricing, careTypes, caregiverCareTypeRates, user } from '../../.
 import type { HomecareCore } from '../core/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import { body, who, withoutOwnership } from './shared.ts'
 
 export function createPricingRoutes(_core: HomecareCore, d: CrmDeps) {
@@ -29,7 +29,7 @@ export function createPricingRoutes(_core: HomecareCore, d: CrmDeps) {
     const rows = await db.select().from(servicePricing)
       .where(and(eq(servicePricing.companyId, who(c).companyId), eq(servicePricing.isActive, true)))
       .orderBy(desc(servicePricing.createdAt))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.post('/', requirePermission('care-billing:create'), async (c) => {
@@ -75,7 +75,7 @@ export function createPricingRoutes(_core: HomecareCore, d: CrmDeps) {
         marginPercent: margin.toFixed(1),
       }
     })
-    return list(c, margins, { page: 1, limit: margins.length, total: margins.length })
+    return listAll(c, margins)
   })
 
   // ── CARE TYPE RATES (a caregiver's pay by care type) ─────────────
@@ -114,7 +114,7 @@ export function createPricingRoutes(_core: HomecareCore, d: CrmDeps) {
       careTypeName: r.careTypeName,
       caregiverName: r.caregiverFirstName ? `${r.caregiverFirstName} ${r.caregiverLastName}` : null,
     }))
-    return list(c, out, { page: 1, limit: out.length, total: out.length })
+    return listAll(c, out)
   })
 
   app.post('/care-type-rates', requirePermission('care-payroll:create'), async (c) => {

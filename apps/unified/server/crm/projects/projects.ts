@@ -3,11 +3,11 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
-import { nextNumber, jobMoneyWithheld, withoutJobMoney } from '@twomiah/tenant-backend'
+import { nextNumber, jobMoneyWithheld, withoutJobMoney, zipField } from '@twomiah/tenant-backend'
 import { project, contact, job, rfi, changeOrder, punchListItem } from '../../db/schema/index.ts'
 import { changeOrderTotalsByStatus, projectActivity } from '../../data/projects.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, list, one, listAll } from '../../http/reply.ts'
 import { canSeeWith, type CrmDeps } from '../deps.ts'
 
 /**
@@ -84,7 +84,7 @@ const projectFields = z.object({
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
-  zip: z.string().optional(),
+  zip: zipField(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   estimatedValue: z.number().min(0, 'Estimated value cannot be negative').optional(),
@@ -307,7 +307,7 @@ export function createProjectRoutes(d: CrmDeps) {
     const money = await maySeeMoney(c)
     const signoff = await maySignOffChangeOrders(c)
     const shown = rows.map((r) => activityFor(r, { money, signoff }))
-    return list(c, shown, { page: 1, limit: shown.length, total: shown.length })
+    return listAll(c, shown)
   })
 
   app.delete('/:id', requirePermission('projects:delete'), async (c) => {
