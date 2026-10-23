@@ -34,6 +34,25 @@ export interface PunchCardConfig {
   qualifyingServiceIds: string[]
 }
 
+/**
+ * A member tier — "Silver at 500 points, Gold at 1,500". A member is in the highest tier whose threshold their LIFETIME
+ * points have reached (earned to date, never spent down, so redeeming a reward never drops anyone a tier). Below the
+ * first threshold a member is simply a member. Each tier earns at a multiple of the programme's rate and may carry a
+ * perk, which is words the front desk honours (shown on the client and at checkout) — the till applies only the
+ * multiplier. None by default: a programme with no tiers earns exactly as it always did.
+ */
+export interface LoyaltyTier {
+  name: string
+  /** Lifetime points at which a member reaches this tier. */
+  minPoints: number
+  /** Points earned per dollar are multiplied by this (1 = the programme's own rate). */
+  multiplier: number
+  /** What the tier gets besides the multiplier, in the business's words ('' for none). */
+  perk: string
+}
+export const MAX_TIERS = 5
+export const MAX_TIER_MULTIPLIER = 5
+
 export interface LoyaltyConfig {
   /** The shop's own switch, distinct from whether the plan sells the feature at all. */
   enabled: boolean
@@ -41,6 +60,8 @@ export interface LoyaltyConfig {
   welcomePoints: number
   birthdayBonus: number
   punchCard: PunchCardConfig
+  /** Ascending by minPoints, thresholds distinct; [] = no tiers. */
+  tiers: LoyaltyTier[]
 }
 
 const nonNegative = (v: any, fallback: number): number => {
@@ -50,6 +71,26 @@ const nonNegative = (v: any, fallback: number): number => {
 
 const cleanIds = (v: any): string[] =>
   Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim()) : []
+
+/** The tiers as the engine uses them: named, a whole positive threshold, a multiplier 1–5, ascending, one per threshold. */
+export function cleanTiers(v: any): LoyaltyTier[] {
+  if (!Array.isArray(v)) return []
+  const seen = new Set<number>()
+  const out: LoyaltyTier[] = []
+  for (const t of v) {
+    const name = typeof t?.name === 'string' ? t.name.trim().slice(0, 40) : ''
+    const minPoints = Math.floor(Number(t?.minPoints))
+    const m = Number(t?.multiplier)
+    if (!name || !Number.isFinite(minPoints) || minPoints < 1 || seen.has(minPoints)) continue
+    seen.add(minPoints)
+    out.push({
+      name, minPoints,
+      multiplier: Number.isFinite(m) && m >= 1 ? Math.min(MAX_TIER_MULTIPLIER, Math.round(m * 100) / 100) : 1,
+      perk: typeof t?.perk === 'string' ? t.perk.trim().slice(0, 120) : '',
+    })
+  }
+  return out.sort((a, b) => a.minPoints - b.minPoints).slice(0, MAX_TIERS)
+}
 
 /**
  * Read the programme config off a settings blob, filling anything absent with the default the
@@ -81,6 +122,7 @@ export function loyaltyConfig(settings: any, defaults: LoyaltyDefaults = {}): Lo
       rewardName: typeof p.rewardName === 'string' && p.rewardName.trim() ? p.rewardName.trim() : (defaults.rewardName || DEFAULT_REWARD_NAME),
       qualifyingServiceIds: cleanIds(p.qualifyingServiceIds),
     },
+    tiers: cleanTiers(l.tiers),
   }
 }
 
@@ -93,6 +135,7 @@ export function loyaltyConfigResponse(settings: any, defaults: LoyaltyDefaults =
     loyaltyWelcomePoints: cfg.welcomePoints,
     loyaltyBirthdayBonus: cfg.birthdayBonus,
     loyaltyPunchCard: cfg.punchCard,
+    loyaltyTiers: cfg.tiers,
   }
 }
 
@@ -103,4 +146,5 @@ export const LOYALTY_SETTING_KEYS = {
   loyaltyWelcomePoints: 'welcomePoints',
   loyaltyBirthdayBonus: 'birthdayBonus',
   loyaltyPunchCard: 'punchCard',
+  loyaltyTiers: 'tiers',
 } as const

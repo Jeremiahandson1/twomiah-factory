@@ -9,7 +9,7 @@
 // single-tenant with uuids, no contacts and integer cents — so the storage layer is theirs and the
 // rules are shared. A bug fixed here is fixed for both, which is the entire point of not copying
 // the folder.
-import type { LoyaltyConfig } from './config'
+import type { LoyaltyConfig, LoyaltyTier } from './config'
 
 /** Cents. Keeps a stray float from reaching a money column. */
 const cents = (n: any): number => {
@@ -29,6 +29,41 @@ export function pointsForSale(amountCents: number, cfg: LoyaltyConfig): number {
   if (!cfg.enabled || cfg.pointsPerDollar <= 0) return 0
   const amount = Math.max(0, cents(amountCents))
   return Math.floor((amount / 100) * cfg.pointsPerDollar)
+}
+
+// ───────────────────────────────────────────────────────────────────── tiers
+
+export interface TierStanding {
+  /** The tier the member is in; null below the first threshold (or with no tiers). */
+  tier: LoyaltyTier | null
+  /** The next tier up, and the lifetime points still needed to reach it; null at the top. */
+  next: LoyaltyTier | null
+  pointsToNext: number | null
+  /** The multiplier this member earns at now (1 with no tier). */
+  multiplier: number
+}
+
+/**
+ * Where a member stands, by LIFETIME points — earned to date and never spent down, so a redemption never costs anyone
+ * their tier. The highest tier reached wins.
+ */
+export function tierFor(lifetimePoints: number, cfg: LoyaltyConfig): TierStanding {
+  const pts = Math.max(0, Math.floor(Number(lifetimePoints) || 0))
+  const tiers = cfg.tiers || []
+  let tier: LoyaltyTier | null = null
+  for (const t of tiers) if (pts >= t.minPoints) tier = t
+  const next = tiers.find((t) => t.minPoints > pts) || null
+  return { tier, next, pointsToNext: next ? next.minPoints - pts : null, multiplier: tier ? tier.multiplier : 1 }
+}
+
+/**
+ * Points earned on a sale by a member at a tier: the programme's rate times the tier's multiplier, floored — the same
+ * rule as pointsForSale, which it equals with no tiers.
+ */
+export function pointsForSaleAtTier(amountCents: number, cfg: LoyaltyConfig, lifetimePoints: number): number {
+  if (!cfg.enabled || cfg.pointsPerDollar <= 0) return 0
+  const amount = Math.max(0, cents(amountCents))
+  return Math.floor((amount / 100) * cfg.pointsPerDollar * tierFor(lifetimePoints, cfg).multiplier + 1e-9)
 }
 
 // ─────────────────────────────────────────────────────────────── punch cards

@@ -6,7 +6,7 @@
 // the chair and paid. Idempotent by construction: the earn row is keyed to the APPOINTMENT by a unique index
 // (member, type, appointment_id), so a second award for the same visit hits that index and is dropped.
 import { and, eq } from 'drizzle-orm'
-import { loyaltyConfig, pointsForSale, visitQualifies, inBirthdayMonth } from '@twomiah/tenant-backend'
+import { loyaltyConfig, pointsForSale, pointsForSaleAtTier, tierFor, visitQualifies, inBirthdayMonth } from '@twomiah/tenant-backend'
 import { loyaltyMember, loyaltyTransaction, company, serviceMenu, clientProfile } from '../../db/schema/index.ts'
 import { birthdayBonusThisYear, creditMember, debitMember } from '../../data/salonLoyalty.ts'
 
@@ -44,7 +44,9 @@ export function createLoyaltyAward(db: any) {
     // The shop's own switch: a programme turned off stops accruing.
     if (!cfg.enabled) return NONE
 
-    const points = pointsForSale(Math.round((Number(v.price) || 0) * 100), cfg)
+    const priceCents = Math.round((Number(v.price) || 0) * 100)
+    // At the programme's own rate first (does this visit earn anything at all); the member's tier multiplies it below.
+    let points = pointsForSale(priceCents, cfg)
     const counts = cfg.punchCard.visitsRequired > 0 && visitQualifies(v.serviceId, cfg)
     if (points <= 0 && !counts) return NONE
 
@@ -64,12 +66,18 @@ export function createLoyaltyAward(db: any) {
     }
     if (!member) return NONE
 
+    // The tier the member was in BEFORE this visit (lifetime points to date) sets its multiplier; the visit's own points
+    // may lift them into the next tier, which counts from the next visit.
+    const standing = tierFor(member.lifetimePoints, cfg)
+    points = pointsForSaleAtTier(priceCents, cfg, member.lifetimePoints)
+
     // The ledger row FIRST, and the unique index decides whether this visit has already paid out.
     try {
       await db.insert(loyaltyTransaction).values({
         companyId: v.companyId, memberId: member.id, type: 'earn',
         points, balanceAfter: member.pointsBalance + points,
-        description: 'Visit', appointmentId: v.appointmentId, invoiceId: v.invoiceId || null,
+        description: standing.tier && standing.multiplier > 1 ? `Visit (${standing.tier.name}, ${standing.multiplier}× points)` : 'Visit',
+        appointmentId: v.appointmentId, invoiceId: v.invoiceId || null,
       } as any)
     } catch {
       return NONE // already awarded for this appointment
