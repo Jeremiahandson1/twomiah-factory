@@ -12,7 +12,8 @@ let companyId = ''
 let ownerId = ''
 const as = (path: string, init: any = {}) => t.call(path, { ...init, headers: { Authorization: `Bearer ${token}` } })
 const features = (list: string[]) => as('/api/company/features', { method: 'PUT', json: { features: list } })
-const VET = ['contacts', 'invoices', 'team', 'dashboard', 'documents', 'patient_records', 'appointment_scheduling', 'medical_records', 'vaccinations', 'reminders_recall', 'wellness_plans']
+// Prescriptions and Lab Results are switches of their own (2026-10-22: a switch hides what it names).
+const VET = ['contacts', 'invoices', 'team', 'dashboard', 'documents', 'patient_records', 'appointment_scheduling', 'medical_records', 'vaccinations', 'reminders_recall', 'wellness_plans', 'prescriptions', 'lab_results']
 
 beforeAll(async () => {
   t = await bootTenant({ vertical: 'vet' })
