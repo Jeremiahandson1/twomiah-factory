@@ -34,7 +34,7 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 
 await setupSchema()
 
-const [ag] = await db.insert(agencies).values({ name: 'Popup Forms Agency', slug: 'popupforms' } as any).returning()
+const [ag] = await db.insert(agencies).values({ name: 'Popup Forms Agency', slug: 'popupforms', enabledFeatures: ['documents', 'reports', 'two_way_texting'] } as any).returning()
 const mkUser = async (role: string, tag: string, phone: string | null = null) => (await db.insert(users).values({
   email: `${tag}-pf@test.local`, passwordHash: 'x', firstName: tag, lastName: 'U', role, phone,
 } as any).returning())[0]
