@@ -693,6 +693,10 @@ export const invoices = pgTable('invoices', {
   // NULL = draft: the family portal and the public pay page do not show it until it is sent,
   // released, or has a payment recorded (CVHC v55).
   sentAt: timestamp('sent_at'),
+  // The invoice's own private link (/d/<token>), minted when it is first emailed — the same rule as the CRM's invoices
+  // (packages/tenant-backend portal/documentLinks.ts). The email linked /pay/<invoice id>, and only when FRONTEND_URL
+  // was set (live test, 2026-10-23: the agency's invoice email had no way to pay).
+  publicToken: text('public_token').unique(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

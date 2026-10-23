@@ -184,7 +184,7 @@ export const routes: ReactElement[] = isHomecare ? [
  * home care (server/http/adminScreens.ts HOMECARE_PAGES). Their own bundle: none of it loads for the office.
  */
 const PublicApp = page(() => import('../pages/homecare/publicApp'))
-export const PUBLIC_PATHS = ['/portal/*', '/family/*', '/pay/:invoiceId', '/payment-success', '/onboarding/:token', '/careers', '/careers/:slug']
+export const PUBLIC_PATHS = ['/portal/*', '/family/*', '/d/:token', '/pay/:invoiceId', '/payment-success', '/onboarding/:token', '/careers', '/careers/:slug']
 export const publicRoutes: ReactElement[] = isHomecare
   ? PUBLIC_PATHS.map((path) => <Route key={`homecare-public-${path}`} path={path} element={<PublicApp />} />)
   : []

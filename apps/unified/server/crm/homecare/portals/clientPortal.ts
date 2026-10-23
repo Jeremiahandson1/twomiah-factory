@@ -24,6 +24,7 @@
 import crypto from 'node:crypto'
 import { Hono, type Context, type Next } from 'hono'
 import jwt from 'jsonwebtoken'
+import { documentLinkToken, documentLinkPath } from '@twomiah/tenant-backend'
 import { and, asc, count, desc, eq, ne } from 'drizzle-orm'
 import {
   clients, company, timeEntries, invoices, invoiceLineItems, clientEmergencyContacts, authorizations, user,
@@ -41,6 +42,8 @@ import {
 } from '../../../data/homecarePortals.ts'
 import { addDays } from '../core/agencyTime.ts'
 import { generateInvoicePDF } from '../core/invoicePdf.ts'
+import { cardPaymentsFor } from '../../cardPayments.ts'
+import { visitInvoiceOwed } from '../billing/stripe.ts'
 import { PORTAL_PREVIEW_READ_ONLY } from '../core/viewAsReadOnly.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
@@ -685,7 +688,10 @@ export function createClientPortalRoutes(core: HomecareCore, d: CrmDeps) {
         .where(and(eq(invoiceLineItems.invoiceId, inv.id), eq(invoiceLineItems.companyId, companyId)))
         // ASC puts the undated lines last (Postgres sorts NULLs last in ascending order).
         .orderBy(asc(invoiceLineItems.serviceDate), invoiceLineItems.createdAt)
-      return { ...inv, lineItems }
+      // Pay: the invoice's own page (/d/<token>), the one its email links — it was /pay/<invoice id>.
+      const { publicToken: _token, ...rest } = inv
+      const owing = inv.paymentStatus !== 'paid'
+      return { ...rest, lineItems, documentPath: owing ? documentLinkPath((await documentLinkToken(db, invoices, inv.id))!) : null }
     }))
     return all(c, results)
   })
@@ -711,15 +717,21 @@ export function createClientPortalRoutes(core: HomecareCore, d: CrmDeps) {
       .where(and(eq(invoices.id, invoiceId), eq(invoices.companyId, companyId), eq(invoices.clientId, clientId), clientVisibleInvoiceSql())).limit(1)
     if (!inv) return fail(c, 404, 'Invoice not found')
     if (inv.paymentStatus === 'paid') return fail(c, 400, 'Invoice already paid')
+    // The agency's own account, and only when it takes cards (crm/cardPayments.ts) — this charged the platform's account,
+    // and the whole total after a part payment.
+    if (!(await cardPaymentsFor(d)(companyId).catch(() => false))) return fail(c, 400, 'This business does not take card payments online. Please contact them to pay another way.', 'payments_unavailable')
+    const owed = visitInvoiceOwed(inv)
+    if (owed <= 0) return fail(c, 400, 'This invoice has nothing left to pay.')
+    const acct = await d.services.stripeService.connectedAccountFor(companyId)
     const Stripe = (await import('stripe')).default
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
-    const amountCents = Math.round(Number(inv.total) * 100)
+    const amountCents = Math.round(owed * 100)
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountCents,
       currency: 'usd',
       metadata: { invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, clientId },
       description: `Invoice ${inv.invoiceNumber}`,
-    })
+    }, acct ? { stripeAccount: acct } : undefined)
     await db.update(invoices).set({ stripePaymentIntentId: paymentIntent.id, updatedAt: new Date() } as any)
       .where(and(eq(invoices.id, invoiceId), eq(invoices.companyId, companyId)))
     return one(c, { clientSecret: paymentIntent.client_secret, amount: amountCents, invoiceNumber: inv.invoiceNumber })

@@ -228,9 +228,9 @@ export default function App() {
                       ? homecareScreens.publicRoutes
                       : <Route path="/portal/:token/*" element={<Suspense fallback={null}><PortalApp /></Suspense>} />}
 
-                    {/* A quote's or an invoice's own page, by the link in its email (no sign-in, no portal needed) — every
-                        vertical, home care's included. */}
-                    <Route path="/d/:token" element={<Suspense fallback={null}><DocumentLinkApp /></Suspense>} />
+                    {/* A quote's or an invoice's own page, by the link in its email (no sign-in, no portal needed). A
+                        home-care agency's invoices are its Billing book's: their /d/<token> is in its public routes above. */}
+                    {!homecareScreens.isHomecare && <Route path="/d/:token" element={<Suspense fallback={null}><DocumentLinkApp /></Suspense>} />}
 
                     {/* A vendor's portal, by their private link (no sign-in, no shell). */}
                     <Route path="/vendor/:token" element={<VendorPortalPage />} />

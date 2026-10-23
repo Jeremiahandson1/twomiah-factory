@@ -22,6 +22,8 @@ interface Invoice {
   paymentDueDate: string | null
   paymentDate: string | null
   lineItems?: LineItem[]
+  /** The invoice's own page (/d/<token>) while something is owed — the page its email links. */
+  documentPath?: string | null
 }
 
 const STATUS: Record<string, { bg: string; color: string; label: string }> = {
@@ -165,15 +167,15 @@ export default function PortalInvoices() {
                 )}
 
                 <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--hc-line)', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  {isPending && (
-                    // The same pay page the invoice email links to.
+                  {isPending && inv.documentPath && (
+                    // The same page the invoice email links to: it pays by card, or says how to pay the agency.
                     <a
-                      href={`/pay/${inv.id}`}
+                      href={inv.documentPath}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{ display: 'inline-block', background: 'var(--hcp-navy-fill)', color: '#fff', padding: '8px 18px', borderRadius: '8px', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none' }}
                     >
-                      💳 Pay {formatMoney(inv.total)}
+                      View and pay
                     </a>
                   )}
                   <button

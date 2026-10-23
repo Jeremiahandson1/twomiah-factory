@@ -10,12 +10,19 @@
 //     fixed teal gradient; the company name is the caller's `companyName`, else the sending company's;
 //   · the template's sender name/address were build placeholders ({{COMPANY_NAME}}, noreply@{{COMPANY_DOMAIN}}); the
 //     app's email service names the company and refuses to send without FROM_EMAIL in production.
-// The wording, the links and what each message interpolates are unchanged (including the caller-built invoice
+//   · the invoice and its reminder link the invoice's own page (/d/<token>, "View and pay"), not /pay/<invoice id>.
+// The wording, the other links and what each message interpolates are unchanged (including the caller-built invoice
 // `lineItems` rows, which are HTML by design and escaped by their caller). Every other value is escaped in the HTML, as
 // the CRM's messages do: the template put names into the page as they were (fixed in the move).
 import { baseStyles, escHtml, type Template, type EmailService } from '../../../core/email.ts'
 
 const nameOf = (data: any, b: { companyName: string }) => data.companyName ?? b.companyName
+/**
+ * An invoice's button: its own private link (/d/<token>, minted by the caller — billing/invoices.ts), with the app's
+ * address in front, as the CRM's invoice email does (crm/messages.ts invoiceLink). It was `/pay/<invoice id>`, built
+ * only when FRONTEND_URL was set — otherwise the email went out with no way to pay (live test, 2026-10-23).
+ */
+const invoiceLink = (data: any, appUrl: string): string => (data.documentPath ? appUrl + String(data.documentPath) : '')
 
 export const homecareTemplates: Record<string, Template> = {
   homecareDocumentSignatureRequest: (data, b) => {
@@ -157,8 +164,9 @@ If you would rather sign on paper, or have questions about anything in it, conta
     }
   },
 
-  homecareInvoiceEmail: (data, b) => {
+  homecareInvoiceEmail: (data, b, appUrl) => {
     const n = nameOf(data, b)
+    const link = invoiceLink(data, appUrl)
     return {
       subject: `Invoice #${data.invoiceNumber} from ${n}`,
       html: `
@@ -183,7 +191,7 @@ If you would rather sign on paper, or have questions about anything in it, conta
             <thead><tr><th>Date</th><th>Service</th><th>Hours</th><th>Amount</th></tr></thead>
             <tbody>${data.lineItems}</tbody>
           </table>` : ''}
-          ${data.payUrl ? `<p style="text-align:center;"><a href="${escHtml(data.payUrl)}" class="button">Pay Now</a></p>` : ''}
+          ${link ? `<p style="text-align:center;"><a href="${escHtml(link)}" class="button">View and pay invoice</a></p><p style="font-size:13px;color:#6b7280;text-align:center;">The full invoice, and how to pay it, are at this link.</p>` : ''}
           <p><small>If you have questions about this invoice, please contact us.</small></p>
         </div>
         <div class="footer">
@@ -192,13 +200,14 @@ If you would rather sign on paper, or have questions about anything in it, conta
         </div>
       </div></body></html>
     `,
-      text: `Hi ${data.contactName}, Invoice #${data.invoiceNumber} for $${data.amountDue} is due ${data.dueDate}. ${data.payUrl ? `Pay online: ${data.payUrl}` : ''}`,
+      text: `Hi ${data.contactName}, Invoice #${data.invoiceNumber} for $${data.amountDue} is due ${data.dueDate}. ${link ? `View and pay: ${link}` : ''}`,
     }
   },
 
   // Payment reminder (CVHC sendInvoiceReminder): "due soon" before the due date, "N days past due" after it.
-  homecareInvoiceReminder: (data, b) => {
+  homecareInvoiceReminder: (data, b, appUrl) => {
     const n = nameOf(data, b)
+    const link = invoiceLink(data, appUrl)
     const overdue = Number(data.daysOverdue) > 0
     const headline = overdue
       ? `Your payment is ${data.daysOverdue} day${Number(data.daysOverdue) === 1 ? '' : 's'} past due`
@@ -216,13 +225,13 @@ If you would rather sign on paper, or have questions about anything in it, conta
           <div class="highlight"><p style="margin:0;"><strong>${escHtml(headline)}</strong></p></div>
           <p>This is a reminder that invoice <strong>#${escHtml(data.invoiceNumber)}</strong> for
             <strong>$${escHtml(data.amountDue)}</strong> is ${overdue ? 'past due' : `due on ${escHtml(data.dueDate)}`}.</p>
-          ${data.payUrl ? `<p style="text-align:center;"><a href="${escHtml(data.payUrl)}" class="button">Pay Now — $${escHtml(data.amountDue)}</a></p>` : ''}
+          ${link ? `<p style="text-align:center;"><a href="${escHtml(link)}" class="button">View and pay — $${escHtml(data.amountDue)}</a></p>` : ''}
           <p><small>If you've already paid, thank you — please disregard this notice. Otherwise, please contact our office with any questions or to set up a payment plan.</small></p>
         </div>
         <div class="footer">${escHtml(n)}</div>
       </div></body></html>
     `,
-      text: `Hello ${data.contactName}, ${headline}. Invoice #${data.invoiceNumber} for $${data.amountDue}. ${data.payUrl ? `Pay online: ${data.payUrl}` : ''}`,
+      text: `Hello ${data.contactName}, ${headline}. Invoice #${data.invoiceNumber} for $${data.amountDue}. ${link ? `View and pay: ${link}` : ''}`,
     }
   },
 
