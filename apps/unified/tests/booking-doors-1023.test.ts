@@ -130,6 +130,15 @@ describe('M2: a booking the desk makes for a customer needs the phone the busine
   })
 })
 
+describe("the booking pages' tab titles follow the site's rule (site/menu.ts pageTitle)", () => {
+  test('"Book Furnace Check — Business", not "Book Furnace Check · Business"', async () => {
+    const html = await (await t.call('/book/furnace-check')).text()
+    const title = /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? ''
+    expect(title).toBe('Book Furnace Check — Test Builders')
+    expect(/<title>([^<]*)<\/title>/.exec(await (await t.call('/book')).text())?.[1]).toBe('Book online — Test Builders')
+  })
+})
+
 describe('L1: each booking keeps the name its booker typed; one email is one contact', () => {
   test('four names, one email: one contact named as first booked, every booking its own name, the link said', async () => {
     const names = ['Alex Booker', 'Sam Booker', 'Jo Booker', 'Max Booker']
