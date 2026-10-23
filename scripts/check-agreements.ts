@@ -14,14 +14,26 @@ const fn = (name: string) => { const i = s.indexOf(`async function ${name}(`); i
 
 // ended agreements: auto-renew within the grace window renews for its own term, everything else expires; each update
 // re-checks "still active and still ended" so concurrent runs settle once; renewals/expiries are audited
+//
+// "ENDED" IS THE COMPANY'S DAY (9f3c8c490). An agreement has ended once its end DAY has begun on the company's clock —
+// markerDayHasBegun(agr.endDate, <company zone>) — not when UTC's `NOW()` passes the stored moment (which ended a
+// Honolulu agreement at 2pm the day before). That test cannot be written in SQL, so "still ended" in the update is
+// held as "still active AND the end date is the one we found ended": time only moves forward, so an unchanged end
+// date that had ended still has, and a run that lost the race (renewed → new endDate, or expired → not active)
+// matches nothing. Both halves are required below — the shared day test, and the unchanged-endDate claim.
 const settle = fn('settleEndedAgreements')
 if (!/export const RENEWAL_GRACE_DAYS = 7/.test(s)) fail('RENEWAL_GRACE_DAYS must be 7')
-if (!/const stillEnded = \(id: string\) => and\(eq\(serviceAgreement\.id, id\), eq\(serviceAgreement\.status, 'active'\), sql`\$\{serviceAgreement\.endDate\} < NOW\(\)`\)/.test(settle)) fail('settleEndedAgreements updates must re-check still active and still ended')
-if (!/if \(agr\.renewalType === 'auto' && lapsedDays <= RENEWAL_GRACE_DAYS\) \{/.test(settle) || !/agreementTermMonths\(agr\.startDate, agr\.endDate\)/.test(settle) || !/\.set\(\{ startDate: end, endDate: newEnd, updatedAt: now \}\)\.where\(stillEnded\(agr\.id\)\)/.test(settle)) fail('an auto-renew agreement ended within the grace window must renew for its own term')
-if (!/\.set\(\{ status: 'expired', updatedAt: now \}\)\.where\(stillEnded\(agr\.id\)\)/.test(settle)) fail('any other ended agreement must expire')
+if (!/const stillEnded = \(agr: any\) => and\(eq\(serviceAgreement\.id, agr\.id\), eq\(serviceAgreement\.status, 'active'\), eq\(serviceAgreement\.endDate, agr\.endDate\)\)/.test(settle)
+  || !/if \(markerDayHasBegun\(agr\.endDate, await zones\(agr\.companyId\), now\)\) ended\.push\(agr\)/.test(settle)) fail('settleEndedAgreements updates must re-check still active and still ended')
+if (!/if \(agr\.renewalType === 'auto' && lapsedDays <= RENEWAL_GRACE_DAYS\) \{/.test(settle) || !/agreementTermMonths\(agr\.startDate, agr\.endDate\)/.test(settle) || !/\.set\(\{ startDate: end, endDate: newEnd, updatedAt: now \}\)\.where\(stillEnded\(agr\)\)/.test(settle)) fail('an auto-renew agreement ended within the grace window must renew for its own term')
+if (!/\.set\(\{ status: 'expired', updatedAt: now \}\)\.where\(stillEnded\(agr\)\)/.test(settle)) fail('any other ended agreement must expire')
 if (!/audit\?\.log\(\{ action: 'renew'/.test(settle) || !/audit\?\.log\(\{ action: 'expire'/.test(settle)) fail('automatic renewals and expiries must be audited')
 for (const f of ['getAgreements', 'getAgreement', 'getAgreementStats', 'getExpiringAgreements', 'processDueAgreements']) if (!/await settleEndedAgreements\(companyId\)/.test(fn(f))) fail(`${f} must settle ended agreements first`)
-for (const f of ['getAgreements', 'getAgreementStats', 'getExpiringAgreements']) if (!/gte\(serviceAgreement\.endDate, new Date\(\)\)/.test(fn(f))) fail(`${f}: "expiring" must exclude agreements that already ended`)
+// "Expiring" excludes an agreement whose end DAY has begun on the company's clock: the end marker must be AFTER the
+// company's today marker (todayMarker = businessToday(company zone), the same day settle uses). `gte(endDate, new
+// Date())` was the UTC-moment form this replaced; an end marker equal to today has ended and is not "expiring".
+if (!/const todayMarker = async \(companyId: string\) => businessToday\(await companyTimeZone\(db, companyId\)\)/.test(s)) fail('todayMarker must be the company\'s today (businessToday on the company zone)')
+for (const f of ['getAgreements', 'getAgreementStats', 'getExpiringAgreements']) if (!/const today = await todayMarker\(companyId\)/.test(fn(f)) || !/sql`\$\{serviceAgreement\.endDate\} > \$\{today\}`/.test(fn(f))) fail(`${f}: "expiring" must exclude agreements that already ended`)
 if (!/endingIn30\('manual'\)/.test(fn('getAgreementStats')) || !/endingIn30\('auto'\)/.test(fn('getAgreementStats')) || !/renewingIn30Days: renewing,/.test(s)) fail('stats must split expiring (manual) from renewing (auto)')
 if (!/conditions\.push\(eq\(serviceAgreement\.renewalType, 'manual'\)\)/.test(fn('getAgreements'))) fail('expiringSoon must list manual-renewal agreements only')
 for (const t of ['crm', 'crm-fieldservice', 'crm-landscaping']) if (!/import audit from '\.\/audit\.ts'/.test(read(`templates/${t}/backend/src/services/agreements.ts`)) || !/\n  audit, /.test(read(`templates/${t}/backend/src/services/agreements.ts`).replace(/\r/g, ''))) fail(`${t}: the agreements service must be given the audit service`)
