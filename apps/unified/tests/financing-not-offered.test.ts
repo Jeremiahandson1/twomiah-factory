@@ -1,11 +1,12 @@
-// Consumer Financing is offered to no industry (featureRegistry consumer_financing: templates [], no screen to set a
-// lender up or follow an application — live test 2026-10-22, roofing: "/crm/financing — There's no page here"). Nothing
-// may show it, then: the registry offers it to nobody, the menu has no Financing item, its API is refused while the
-// switch is off, and the pricebook presentation stops reading a lender out of a moved business's old settings.
+// Consumer Financing is offered to no industry (live test 2026-10-22, roofing: "/crm/financing — There's no page here").
+// Since batch 2 (fix-i) it is built — the pros' trades are named in featureRegistry — but registered NOT READY (hidden)
+// until a real lender sandbox run passes, so no plan, signup or switch gives it to anyone. Nothing may show it, then: no
+// industry is offered it, its API is refused while the switch is off, and the pricebook presentation stops reading a
+// lender out of a moved business's old settings.
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
-import { FEATURE_REGISTRY } from '@twomiah/tenant-backend/src/featureRegistry'
+import { FEATURE_REGISTRY, getFeaturesForPlan, getAdvertisableFeaturesForTemplate, getDefaultFeaturesForTemplate, withoutNotReady } from '@twomiah/tenant-backend/src/featureRegistry'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let companyId = ''
@@ -29,22 +30,35 @@ beforeAll(async () => {
 
 describe('financing is not offered', () => {
   test('the registry offers it to no industry', () => {
-    expect(FEATURE_REGISTRY.find((f) => f.id === 'consumer_financing')?.templates).toEqual([])
+    const def = FEATURE_REGISTRY.find((f) => f.id === 'consumer_financing')!
+    expect(def.hidden).toBe(true)
+    for (const template of new Set(FEATURE_REGISTRY.flatMap((f) => f.templates))) {
+      expect({ template, plan: getFeaturesForPlan(template).includes('consumer_financing') }).toEqual({ template, plan: false })
+      expect({ template, shown: getAdvertisableFeaturesForTemplate(template).some((f) => f.id === 'consumer_financing') }).toEqual({ template, shown: false })
+      expect({ template, default: getDefaultFeaturesForTemplate(template).includes('consumer_financing') }).toEqual({ template, default: false })
+    }
+    expect(withoutNotReady(['contacts', 'consumer_financing'])).toEqual(['contacts'])
   })
 
   test('its API is refused while the switch is off', async () => {
-    expect((await call('/api/financing/providers')).status).toBe(403)
+    expect((await call('/api/financing/status')).status).toBe(403)
+    expect((await call('/api/financing/applications')).status).toBe(403)
   })
 
   test('the pricebook presentation shows no financing for a business without the switch', async () => {
     const page = await (await t.call(`/api/pricebook-present/${itemId}`)).text()
     expect(page).toContain('Roof system')
-    expect(page).not.toContain('Financing Available')
+    expect(page).not.toMatch(/financ|wisetack|as low as/i)
   })
 
   test('…and still shows it where the switch is on (the gate, not a deletion)', async () => {
     await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'quotes', 'invoices', 'jobs', 'pricebook', 'consumer_financing'] } as any).where(eq(t.schema.company.id, companyId))
+    t.services.features.forgetFeatures()
+    // The moved business's old settings name a lender, which is not a connection: still nothing until one is made.
+    expect(await (await t.call(`/api/pricebook-present/${itemId}`)).text()).not.toMatch(/as low as/i)
+    const r = await call('/api/financing/connection', { method: 'PUT', json: { merchantId: 'M-1001', prequalUrl: 'https://wisetack.us/#/abc123/prequalify' } })
+    expect(r.status).toBe(200)
     const page = await (await t.call(`/api/pricebook-present/${itemId}`)).text()
-    expect(page).toContain('Financing Available')
+    expect(page).toContain('As low as')
   })
 })

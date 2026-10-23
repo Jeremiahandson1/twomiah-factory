@@ -29,7 +29,9 @@ beforeAll(async () => {
   ownerId = s.owner.id; companyId = s.company.id
   token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken
   await features(ALL)
-  expect((await as('/api/booking/settings', { method: 'PATCH', json: { timezone: TZ, enabled: true, maxDaysOut: 30, leadTimeMinutes: 60, requirePhone: true } })).status).toBe(200)
+  // ONE CLOCK (batch 2, fix-e): bookings keep the business's time zone, Settings › Company's — not a zone of their own.
+  await t.db.update(t.schema.company).set({ timezone: TZ } as any).where(eq(t.schema.company.id, companyId))
+  expect((await as('/api/booking/settings', { method: 'PATCH', json: { enabled: true, maxDaysOut: 30, leadTimeMinutes: 60, requirePhone: true } })).status).toBe(200)
   const svc = await (await as('/api/booking/services', { method: 'POST', json: { name: 'Furnace Check', durationMinutes: 90, slotStepMinutes: 30 } })).json()
   serviceId = svc.id
   expect((await as('/api/booking/hours', { method: 'PUT', json: { hours: [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d, start: '08:00', end: '18:00' })) } })).status).toBe(200)
@@ -259,7 +261,8 @@ describe('Convert to job: the booking becomes a job on the schedule, linked, and
     const tok = (await (await s2.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: o.password } })).json()).accessToken
     const as2 = (path: string, init: any = {}) => s2.call(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${tok}` } })
     expect((await as2('/api/company/features', { method: 'PUT', json: { features: ['online_booking', 'contacts'] } })).status).toBe(200)
-    await as2('/api/booking/settings', { method: 'PATCH', json: { timezone: TZ, enabled: true } })
+    await s2.db.update(s2.schema.company).set({ timezone: TZ } as any).where(eq(s2.schema.company.id, o.company.id))
+    expect((await as2('/api/booking/settings', { method: 'PATCH', json: { enabled: true } })).status).toBe(200)
     const svc = await (await as2('/api/booking/services', { method: 'POST', json: { name: 'Cut', durationMinutes: 30 } })).json()
     await as2('/api/booking/hours', { method: 'PUT', json: { hours: [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d, start: '09:00', end: '17:00' })) } })
     const b2 = await (await as2('/api/booking/bookings', { method: 'POST', json: { serviceId: svc.id, name: 'Client', email: 'c@example.com', phone: '608-555-0155', date: day, time: '10:00' } })).json()
@@ -283,7 +286,8 @@ describe("a salon's online booking lands in The Book (the salon's schedule), and
     const tok = (await (await s2.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: o.password } })).json()).accessToken
     as2 = (path: string, init: any = {}) => s2.call(path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${tok}` } })
     expect((await as2('/api/company/features', { method: 'PUT', json: { features: ['online_booking', 'contacts', 'salon_booking'] } })).status).toBe(200)
-    await as2('/api/booking/settings', { method: 'PATCH', json: { timezone: TZ, enabled: true, leadTimeMinutes: 0 } })
+    await s2.db.update(s2.schema.company).set({ timezone: TZ } as any).where(eq(s2.schema.company.id, o.company.id))
+    expect((await as2('/api/booking/settings', { method: 'PATCH', json: { enabled: true, leadTimeMinutes: 0 } })).status).toBe(200)
     await as2('/api/booking/services', { method: 'POST', json: { name: 'Cut', durationMinutes: 60, slotStepMinutes: 60, price: 45 } })
     await as2('/api/booking/hours', { method: 'PUT', json: { hours: [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d, start: '09:00', end: '17:00', userId: stylistId })) } })
   }, 60_000)

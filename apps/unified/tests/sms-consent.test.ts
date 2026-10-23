@@ -31,7 +31,9 @@ beforeAll(async () => {
   owner = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken
   await t.db.insert(t.schema.website).values({ companyId } as any)
   await as('/api/company/features', { method: 'PUT', json: { features: ['online_booking'] } })
-  await as('/api/booking/settings', { method: 'PATCH', json: { timezone: 'America/Chicago', leadTimeMinutes: 60, maxDaysOut: 30 } })
+  // ONE CLOCK (batch 2, fix-e): bookings keep the business's zone (Settings › Company); a zone of their own is refused.
+  await t.db.update(t.schema.company).set({ timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, companyId))
+  expect((await as('/api/booking/settings', { method: 'PATCH', json: { leadTimeMinutes: 60, maxDaysOut: 30 } })).status).toBe(200)
   await as('/api/booking/services', { method: 'POST', json: { name: 'Estimate', durationMinutes: 60, slotStepMinutes: 60 } })
   await as('/api/booking/hours', { method: 'PUT', json: { hours: [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d, start: '08:00', end: '18:00' })) } })
 })
