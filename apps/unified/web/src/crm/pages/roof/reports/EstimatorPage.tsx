@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { Save, ToggleLeft, ToggleRight, ExternalLink } from 'lucide-react';
 import { useAuth, useMayWrite, useToast, errorText } from '../../../../shared';
 import { api } from '../../../../api';
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** The estimator's columns on the company (GET /api/company). */
 interface EstimatorSettings {
@@ -120,7 +121,7 @@ export default function EstimatorPage() {
           </div>
         </div>
         <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
-          Example: A 25-square roof at ${settings.pricePerSquareLow}–${settings.pricePerSquareHigh}/sq = ${(25 * Number(settings.pricePerSquareLow)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}–${(25 * Number(settings.pricePerSquareHigh)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          Example: A 25-square roof at ${settings.pricePerSquareLow}–${settings.pricePerSquareHigh}/sq = {money((25 * Number(settings.pricePerSquareLow)))}–{money((25 * Number(settings.pricePerSquareHigh)))}
         </p>
       </div>
 

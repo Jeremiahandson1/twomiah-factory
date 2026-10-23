@@ -11,6 +11,7 @@ import type { Pagination } from '../invoicing/ui'
 import { ROLE_LABELS } from '../shell/types'
 import type { PeopleApi, PeopleToast, TeamConfig } from './types'
 import { useMayWrite, usePermissions } from '../auth/PermissionsContext'
+import { money } from '../money'
 
 interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; locationId?: string | null; active: boolean; assignedJobs?: number; hasLogin?: boolean; _source?: 'user' }
 const EMPTY = { name: '', email: '', phone: '', role: '', department: '', hourlyRate: '', locationId: '' }
@@ -99,7 +100,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     { key: 'email', label: 'Email', render: (v: any) => v || '-' },
     { key: 'phone', label: 'Phone', render: (v: any) => v || '-' },
     // a rate is money: 28.5 is $28.50 an hour (T14 L2)
-    { key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' && Number.isFinite(Number(v)) ? `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/hr` : '-') },
+    { key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' && Number.isFinite(Number(v)) ? `${money(Number(v))}/hr` : '-') },
     // "Invite sent" until their login is taken up — the server's word (team.ts), the same as Settings › Users.
     { key: 'active', label: 'Status', render: (v: any, row: Member) => (!v ? <span className="text-gray-500 dark:text-slate-400">Inactive</span> : (row as any).invitePending ? <span className="text-amber-700 dark:text-amber-300">Invite sent</span> : <span className="text-green-700 dark:text-green-400">Active</span>) },
   ]

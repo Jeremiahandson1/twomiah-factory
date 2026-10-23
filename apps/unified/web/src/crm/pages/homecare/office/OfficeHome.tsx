@@ -25,6 +25,7 @@ import { routePermissions, nav } from '../../../verticals/homecare';
 import { api, rows } from '../lib/http';
 import { formatAgencyDate } from '../lib/agencyClock';
 import IncidentResponsesDue from './IncidentResponsesDue';
+import { money } from '@twomiah/tenant-ui/src/money'
 
 interface Summary {
   totalClients: number;
@@ -173,7 +174,7 @@ export default function OfficeHome() {
           <div className="hc-stat-card">
             <h3>Pending Invoices</h3>
             <div className="value value-danger">
-              ${formatCurrency(summary.pendingInvoices?.amount)}
+              {money(summary.pendingInvoices?.amount)}
             </div>
             <p className="hc-stat-subtext">
               {summary.pendingInvoices?.count || 0} invoice{summary.pendingInvoices?.count === 1 ? '' : 's'} owed
@@ -183,7 +184,7 @@ export default function OfficeHome() {
           <div className="hc-stat-card" title="Sum of payments received this calendar month. Outstanding A/R and future-dated invoices are not counted.">
             <h3>This Month Revenue <span style={{ fontSize: '0.7rem', color: 'var(--hc-muted)', fontWeight: 400 }}>(collected)</span></h3>
             <div className="value value-success">
-              ${formatCurrency(summary.thisMonthRevenue)}
+              {money(summary.thisMonthRevenue)}
             </div>
             <p style={{ fontSize: '0.72rem', color: 'var(--hc-muted)', margin: '0.25rem 0 0', fontWeight: 400 }}>
               Payments received this month — A/R not counted
@@ -254,7 +255,7 @@ export default function OfficeHome() {
                       </span>
                     </td>
                     <td>{ref.referralCount || 0}</td>
-                    <td>${formatCurrency(ref.totalRevenue)}</td>
+                    <td>{money(ref.totalRevenue)}</td>
                   </tr>
                 ))}
               </tbody>

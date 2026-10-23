@@ -25,7 +25,7 @@ import { parseClaimPortal } from '../core/portalClaimDays.ts'
 import type { HomecareCore } from '../core/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import { isDate, body, who, download } from './shared.ts'
 
 export const CLAIM_STATUSES = ['draft', 'pending', 'ready', 'submitted', 'accepted', 'paid', 'partial', 'denied', 'voided', 'appealed']
@@ -54,7 +54,7 @@ export function createClaimRoutes(core: HomecareCore, d: CrmDeps) {
   app.get('/', read, async (c) => {
     const { status, payerId, startDate, endDate } = c.req.query()
     const rows = await claimRows(db, who(c).companyId, { status, payerId, startDate, endDate })
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // GET /reports/summary — status rollup, by payer, aging of what is out, A/R, paid this month, denied.
@@ -71,13 +71,13 @@ export function createClaimRoutes(core: HomecareCore, d: CrmDeps) {
   // GET /denial-queue — denied claims with the denial code's description and its usual fix. A list reply.
   app.get('/denial-queue', read, async (c) => {
     const rows = await denialQueueRows(db, who(c).companyId)
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // GET /lookup/denial-codes — a list reply.
   app.get('/lookup/denial-codes', read, async (c) => {
     const rows = await db.select().from(denialCodeLookup).where(eq(denialCodeLookup.companyId, who(c).companyId)).orderBy(asc(denialCodeLookup.code))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /:id/resubmit — a denied claim becomes a new pending claim; the original is voided.
@@ -183,7 +183,7 @@ export function createClaimRoutes(core: HomecareCore, d: CrmDeps) {
     const rows = await db.select().from(claimStatusHistory)
       .where(and(eq(claimStatusHistory.claimId, c.req.param('id')), eq(claimStatusHistory.companyId, who(c).companyId)))
       .orderBy(desc(claimStatusHistory.createdAt))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /export/837p — an EDI 837P file for the selected claims; they become submitted and their authorization units

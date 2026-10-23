@@ -13,7 +13,7 @@
 // /:entityType/:entityId, and /activity/user/:userId above /activity/:entityType/:entityId, or each is swallowed.
 import { Hono } from 'hono'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, list, one, listAll } from '../../http/reply.ts'
 import * as q from '../../data/comments.ts'
 import type { CrmDeps } from '../deps.ts'
 
@@ -52,7 +52,7 @@ export function createCommentsRoutes(d: CrmDeps) {
     const permission = `${resourceOf(entityType)}:read`
     if (!(await may(c, permission))) return refuse(c, permission)
     const rows = await q.listComments(db, user.companyId, entityType, c.req.param('entityId'))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.post('/:commentId/react', async (c) => {
@@ -123,7 +123,7 @@ export function createCommentsRoutes(d: CrmDeps) {
     if (!(await may(c, 'audit:read'))) return refuse(c, 'audit:read')
     const user = c.get('user')
     const rows = await q.listUserActivity(db, c.req.param('userId'), user.companyId, parseInt(c.req.query('limit') || '50'))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.get('/activity/:entityType/:entityId', async (c) => {
@@ -133,7 +133,7 @@ export function createCommentsRoutes(d: CrmDeps) {
     const permission = `${resourceOf(entityType)}:read`
     if (!(await may(c, permission))) return refuse(c, permission)
     const rows = await q.listEntityActivity(db, user.companyId, entityType, c.req.param('entityId'), parseInt(c.req.query('limit') || '50'))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   return app

@@ -13,7 +13,7 @@ import { visit, user, patient, invoice, invoiceLineItem, company } from '../../d
 import { lockVisitForBilling } from '../../data/vetVisits.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 
 /** Same numbering as the invoices module, so a billed visit continues the same sequence. */
 const INVOICE_NUMBERING = { prefix: 'INV', pad: 5, seed: 0 }
@@ -75,7 +75,7 @@ export function createVisitRoutes(d: CrmDeps) {
       .orderBy(desc(visit.visitDate))
 
     const rows = data.map((r: any) => ({ ...r.visit, providerFirstName: r.providerFirstName, providerLastName: r.providerLastName }))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.get('/:id', requirePermission('contacts:read'), async (c) => {

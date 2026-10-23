@@ -23,6 +23,7 @@ import { api, rows, downloadBlob, saveBlob, errorMessage, listAll } from '../lib
 import { formatDate, toLocalYMD } from '../lib/date'
 import VisitPhotoGallery from './VisitPhotoGallery'
 import { useMay } from '../lib/useMay'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /** A row of GET /api/clients (the office's list). */
 interface ClientRow { id: string; firstName: string | null; lastName: string | null; isActive?: boolean | null }
@@ -59,7 +60,7 @@ const fmtTime = (t: string) => {
   return `${h === 0 ? 12 : h > 12 ? h - 12 : h}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
 }
 const vkey = (v: { visitDate: string; startTime: string; caregiverId: string }) => `${v.visitDate}|${v.startTime}|${v.caregiverId}`
-const money = (n: unknown) => `$${(Number(n) || 0).toFixed(2)}`
+const money = (n: unknown) => `${formatMoney((Number(n) || 0))}`
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 // A person's name the way every other screen prints it: "Pat Example".
 const fullName = (c: { firstName?: string | null; lastName?: string | null }) => [c?.firstName, c?.lastName].filter(Boolean).join(' ')

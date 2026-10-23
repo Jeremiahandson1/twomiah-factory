@@ -1,3 +1,4 @@
+import { money } from '@twomiah/tenant-ui/src/money'
 // Moved from templates/crm-rv/frontend/src/lib/deal.ts.
 // The desked deal — one calculation for Desking and F&I, so the amount F&I finances is the amount the desk
 // structured. The inputs are saved on the lead (PUT /api/sales-leads/:id/deal), which applies the same rules as
@@ -113,4 +114,4 @@ export interface DealInfo {
 
 type LeadLabelParts = { [K in 'customerName' | 'unitYear' | 'unitMake' | 'unitModel' | 'unitPrice']?: InboxLead[K] | undefined }
 /** "Customer — 2024 Make Model ($41,995.00)", the pickers' line. */
-export const leadLabel = (l: LeadLabelParts) => `${l.customerName} — ${[l.unitYear, l.unitMake, l.unitModel].filter(Boolean).join(' ')} ${l.unitPrice ? `($${Number(l.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : ''}`
+export const leadLabel = (l: LeadLabelParts) => `${l.customerName} — ${[l.unitYear, l.unitMake, l.unitModel].filter(Boolean).join(' ')} ${l.unitPrice ? `(${money(Number(l.unitPrice))})` : ''}`

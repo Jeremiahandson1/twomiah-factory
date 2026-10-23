@@ -39,7 +39,7 @@ import { storeOrder, storeOrderRefund, type RefundLine } from '../../../db/schem
 import { orderStats, storeCustomers, moveOrderFrom, reservePartMoney, reserveLineUnits, shippingRefundedCents } from '../../../data/storeOrders.ts'
 import { requestScope } from '../../../core/audit.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { StoreCore } from '../core.ts'
 import { SHOPPER_TYPE } from '../core.ts'
@@ -122,7 +122,7 @@ export function createOrderRoutes(d: CrmDeps, core: StoreCore, refunds: OrderRef
       .orderBy(desc(storeOrder.createdAt), desc(storeOrder.id))
     const seat = await seatOf(d.permissions, c)
     const data = rows.map((o) => orderForSeat(seat, o))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.get('/stats', async (c) => {

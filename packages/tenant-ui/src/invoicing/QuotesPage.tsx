@@ -32,7 +32,10 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   const mayDelete = useMayWrite('quotes:delete')
   const mayInvoice = useMayWrite('invoices:create')
   const mayJob = useMayWrite('jobs:create')
-  const statuses = ['draft', 'sent', 'approved', cfg.quoteDecline ? 'declined' : 'rejected', 'expired']
+  // Every status a quote can hold here. 'rejected' is written by the owner's Reject and the portal's decline in every
+  // vertical, so it is offered beside 'declined' where that exists — found sweeping the jobs filter's missing 'pending'
+  // (live test 2026-10-22): a vertical with quoteDecline could not filter to a quote its customer had declined.
+  const statuses = ['draft', 'sent', 'approved', 'rejected', ...(cfg.quoteDecline ? ['declined'] : []), 'expired']
   const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', jobId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()] })
 
   const [data, setData] = useState<Row[]>([])

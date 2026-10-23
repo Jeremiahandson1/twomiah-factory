@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { seatRefusal } from '@twomiah/tenant-backend'
 import { company, user } from '../../../db/schema/index.ts'
-import { list } from '../../../http/reply.ts'
+import { listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 
 /** The signed-in person. */
@@ -16,7 +16,7 @@ export const companyOf = (c: Context): string => me(c).companyId
 export const idOf = (c: Context): string => c.req.param('id') ?? ''
 
 /** A whole list (no paging in the template) as the rulebook's list reply: one page holding every row. */
-export const all = <T>(c: Context, rows: T[]) => list(c, rows, { page: 1, limit: Math.max(rows.length, 1), total: rows.length })
+export const all = <T>(c: Context, rows: T[]) => listAll(c, rows)
 
 /** The request body as an object; a missing or broken body is {} (as the template's `.catch(() => ({}))`). */
 export const body = async (c: Context): Promise<any> => {

@@ -2,7 +2,7 @@
 // download, version history, plan markup (construction), delete. Every file request carries the bearer
 // token: an <img src> / <a href> cannot, which is why previews were blank and downloads 401'd before.
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Download, Eye, File, FileText, FolderOpen, History, Image as ImageIcon, MapPin, PenLine, PenTool, RotateCcw, Square, Trash2, Upload, UploadCloud, X } from 'lucide-react'
+import { Download, Eye, File, FileText, FolderOpen, History, Image as ImageIcon, MapPin, PenLine, PenTool, RotateCcw, Square, Trash2, Upload, UploadCloud, X, Pencil } from 'lucide-react'
 import { Button, ConfirmModal, DataTable, Field, Modal, PageHeader, instantDay, errMsg, inputCls, controlCompactCls } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import type { DocumentRow, DocumentsPageProps, FilesApi, FilesToast } from './types'
@@ -127,6 +127,9 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
    */
   const mayCreate = useMayWrite('documents:create')
   const mayDelete = useMayWrite('documents:delete')
+  // Rename is PUT /:id { name } — documents:update. The server took a new name all along; no screen offered it (live
+  // test 2026-10-22, contractor: "Documents: no rename").
+  const mayUpdate = useMayWrite('documents:update')
   const showProjects = cfg.projects && (!config?.hasFeature || config.hasFeature('projects'))
   const fileInput = useRef<HTMLInputElement>(null)
   const [rows, setRows] = useState<DocumentRow[]>([])
@@ -144,6 +147,19 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
   const [history, setHistory] = useState<DocumentRow | null>(null)
   const [markup, setMarkup] = useState<DocumentRow | null>(null)
   const [toDelete, setToDelete] = useState<DocumentRow | null>(null)
+  const [renaming, setRenaming] = useState<DocumentRow | null>(null)
+  const [newName, setNewName] = useState('')
+  const [renameError, setRenameError] = useState('')
+  const [renameBusy, setRenameBusy] = useState(false)
+  const openRename = (d: DocumentRow) => { setRenaming(d); setNewName(d.name || ''); setRenameError('') }
+  const rename = async () => {
+    if (!renaming) return
+    const name = newName.trim()
+    if (!name) { setRenameError('The name cannot be empty.'); return }
+    setRenameBusy(true); setRenameError('')
+    try { await api.put(`/api/documents/${renaming.id}`, { name }); toast.success('Document renamed'); setRenaming(null); load() }
+    catch (e) { setRenameError(errMsg(e, 'The document could not be renamed')) } finally { setRenameBusy(false) }
+  }
 
   // debounce the search box so every keystroke does not hit the API
   useEffect(() => { const h = setTimeout(() => setFilter(f => (f.search === search ? f : { ...f, search })), 300); return () => clearTimeout(h) }, [search])
@@ -254,6 +270,7 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
         <DataTable<DocumentRow> data={rows} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No documents match these filters." actions={[
           { label: 'Preview', icon: Eye, onClick: d => setPreview(d), show: previewable },
           { label: 'Download', icon: Download, onClick: download },
+          { label: 'Rename', icon: Pencil, onClick: openRename, show: () => mayUpdate },
           ...(cfg.versions ? [{ label: 'Versions', icon: History, onClick: (d: DocumentRow) => setHistory(d) }] : []),
           ...(cfg.markup ? [{ label: 'Markup', icon: PenTool, onClick: (d: DocumentRow) => setMarkup(d), show: (d: DocumentRow) => mayCreate && !!d.mimeType?.startsWith('image/') }] : []),
           { label: 'Delete', icon: Trash2, className: 'text-red-600 dark:text-red-300', onClick: d => setToDelete(d), show: () => mayDelete },
@@ -289,6 +306,17 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
         </div>
       )}
 
+      <Modal isOpen={!!renaming} onClose={() => setRenaming(null)} title="Rename document" size="sm">
+        <form onSubmit={e => { e.preventDefault(); rename() }} noValidate>
+          <Field label="Name"><input value={newName} onChange={e => { setNewName(e.target.value); setRenameError('') }} className={inputCls} maxLength={200} autoFocus aria-label="Document name" aria-invalid={!!renameError} aria-describedby={renameError ? 'rename-document-error' : undefined} /></Field>
+          {renaming?.originalName && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">The file stays {renaming.originalName}; only the name shown here changes.</p>}
+          {renameError && <p id="rename-document-error" role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">{renameError}</p>}
+          <div className="flex justify-end gap-3 mt-6">
+            <Button type="button" variant="secondary" onClick={() => setRenaming(null)}>Cancel</Button>
+            <Button type="submit" disabled={renameBusy}>{renameBusy ? 'Saving…' : 'Rename'}</Button>
+          </div>
+        </form>
+      </Modal>
       {history && <HistoryModal api={api} toast={toast} doc={history} onClose={() => setHistory(null)} onChanged={load} />}
       {markup && <MarkupModal api={api} toast={toast} doc={markup} onClose={() => setMarkup(null)} />}
       <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={remove} title="Delete document" message={`Delete "${toDelete?.name}"? The file${cfg.versions ? ' and its version history' : ''} cannot be recovered.`} confirmText="Delete" />

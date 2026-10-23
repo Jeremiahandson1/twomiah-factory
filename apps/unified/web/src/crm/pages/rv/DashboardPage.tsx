@@ -10,6 +10,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { api } from '../../../api'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * RV / Powersports dealership dashboard.
@@ -92,7 +93,7 @@ function num(v: number | null | undefined): number {
 }
 
 function money(v: number | null | undefined): string {
-  return `$${num(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${formatMoney(num(v))}`;
 }
 
 function pct(v: number | null | undefined): string {

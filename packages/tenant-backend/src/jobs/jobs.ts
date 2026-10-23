@@ -23,6 +23,7 @@ import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay
 import { checkFilter } from '../listFilter'
 import { withinHorizon, horizonMessage } from '../dateInput'
 import { sniffType } from '../files/storage'
+import { zipField } from '../address'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
   /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
@@ -213,7 +214,7 @@ export function createJobRoutes(deps: JobDeps) {
     address: cleanText().optional(),
     city: z.string().optional(),
     state: z.string().optional(),
-    zip: z.string().optional(),
+    zip: zipField(),
     notes: cleanLines().optional(),
     ...(t.location && t.job.locationId ? { locationId: z.string().optional().transform(emptyToUndef as any) } : {}),
     ...(o.extraFields || {}),
@@ -424,7 +425,10 @@ export function createJobRoutes(deps: JobDeps) {
     const withOverdue = (await withRelations(rows, currentUser.companyId)).map((j) => ({ ...j, isOverdue: isOverdue(j) }))
     // What the work is WORTH is not part of reading the schedule. (T41)
     const data = await shapeJobMoney(c, withOverdue)
-    return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+    // Every status a job can hold (JOB_STATUSES, the list the filter above and every write are checked against), so the
+    // screen's status filter offers the same list: a job converted from a quote is 'pending', which the filter did not
+    // offer (live test 2026-10-22).
+    return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) }, statuses: [...JOB_STATUSES] })
   })
 
   app.get('/today', requirePermission('jobs:read'), async (c) => {

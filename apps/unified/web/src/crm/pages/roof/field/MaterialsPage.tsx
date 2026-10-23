@@ -17,6 +17,7 @@ import { formatDate } from '../../../date'
 import { supplierName } from '../lib/supplier'
 import { listOf, paginationOf } from './http'
 import MaterialOrderForm from './MaterialOrderForm'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** server/crm/roof/validation.ts MATERIAL_ORDER_STATUSES, each with its badge. */
 const STATUS_COLORS: Record<string, string> = {
@@ -179,7 +180,7 @@ export default function MaterialsPage() {
                       </td>
                       {showCost && (
                         <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
-                          {order.totalCost != null ? `$${Number(order.totalCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                          {order.totalCost != null ? `${money(Number(order.totalCost))}` : '—'}
                         </td>
                       )}
                     </tr>

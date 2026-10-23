@@ -8,6 +8,7 @@ import {
 import { api } from '../../../api'
 import { useAuth } from '../../../shared'
 import { useMayWrite, useConfirm, PageError, PageNotice, errorText } from '../../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** A list reply (RULEBOOK §3). */
 interface Page<T> { data: T[]; pagination?: { page: number; limit: number; total: number; pages: number } }
@@ -104,7 +105,7 @@ function categoryLabel(id?: string): string {
 
 function price(u: Unit): string {
   const p = u.internetPrice || u.listedPrice || u.msrp;
-  return p ? `$${Number(p).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+  return p ? `${money(Number(p))}` : '—';
 }
 
 function keySpec(u: Unit): string {

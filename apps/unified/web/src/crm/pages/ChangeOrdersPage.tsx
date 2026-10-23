@@ -8,6 +8,7 @@ import { useToast } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, StatusBadge, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Money, with the sign in FRONT of the currency and always two decimals. (T32 L2)
@@ -16,7 +17,7 @@ import { Modal, ConfirmModal } from '../ui/Modal'
  * amount, and on a credit line — which is now a routine thing to enter (T32 H5) — that reads as a
  * typo rather than as money coming back off. It also dropped the cents, so $615.50 showed as $615.5.
  */
-const asMoney = (n: number) => `${n < 0 ? '−' : ''}$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const asMoney = (n: number) => `${n < 0 ? '−' : ''}${money(Math.abs(n))}`;
 
 // While a row is being typed, quantity and unitPrice hold TEXT; they become numbers once, in
 // handleSave. Coercing on every keystroke drops a minus sign in silence — a lone "-" reads back as ""

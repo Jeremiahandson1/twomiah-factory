@@ -13,7 +13,7 @@ import { referralSources } from '../../../db/schema/index.ts'
 import type { HomecareCore } from '../core/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import { who } from './shared.ts'
 
 export const PAYER_TYPES = [
@@ -60,7 +60,7 @@ export function createPayerRoutes(_core: HomecareCore, d: CrmDeps) {
     const rows = await db.select().from(referralSources)
       .where(and(eq(referralSources.companyId, who(c).companyId), eq(referralSources.isActive, true)))
       .orderBy(desc(referralSources.isActivePayer), asc(referralSources.name))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /

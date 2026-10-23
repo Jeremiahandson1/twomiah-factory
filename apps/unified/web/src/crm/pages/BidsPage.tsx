@@ -8,6 +8,7 @@ import { useToast } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, StatusBadge, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /**
  * The lifecycle, kept in step with routes/bids.ts. (T32 H6)
@@ -116,7 +117,7 @@ export default function BidsPage() {
     { key: 'number', label: '#', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
     { key: 'projectName', label: 'Project', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.client && <p className="text-sm text-gray-500 dark:text-slate-400">{r.client as string}</p>}</div> },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} statusColors={{ draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800', submitted: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', under_review: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', won: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', lost: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }} /> },
-    { key: 'bidAmount', label: 'Bid Amount', render: (v: unknown) => v ? `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-' },
+    { key: 'bidAmount', label: 'Bid Amount', render: (v: unknown) => v ? `${money(Number(v))}` : '-' },
     { key: 'dueDate', label: 'Due Date', render: (v: unknown) => v ? formatDate(v as string) : '-' },
     { key: 'bondRequired', label: 'Bond', render: (v: unknown) => v ? <span className="text-orange-600 dark:text-orange-200">Yes</span> : '-' },
   ];
@@ -130,7 +131,7 @@ export default function BidsPage() {
           <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold">{stats.total}</p><p className="text-sm text-gray-500 dark:text-slate-400">Total Bids</p></div>
           <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-blue-600 dark:text-blue-300">{stats.submitted || 0}</p><p className="text-sm text-gray-500 dark:text-slate-400">Submitted</p></div>
           <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-green-700 dark:text-green-300">{stats.won || 0}</p><p className="text-sm text-gray-500 dark:text-slate-400">Won</p></div>
-          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-orange-600 dark:text-orange-200">${(stats.pipelineValue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p><p className="text-sm text-gray-500 dark:text-slate-400">Pipeline</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-orange-600 dark:text-orange-200">{money((stats.pipelineValue || 0))}</p><p className="text-sm text-gray-500 dark:text-slate-400">Pipeline</p></div>
           <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold">{stats.winRate || 0}%</p><p className="text-sm text-gray-500 dark:text-slate-400">Win Rate</p></div>
         </div>
       )}

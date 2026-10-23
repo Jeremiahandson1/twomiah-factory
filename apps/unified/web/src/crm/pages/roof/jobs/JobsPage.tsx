@@ -23,6 +23,7 @@ import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { JOB_TYPES, TERMINAL_STATUSES, formatStatus, jobValue, pipelineFor, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /**
  * The vocabulary, plus anything the data actually holds. `jobType` is a free string on the server, so a tenant can hold
@@ -284,7 +285,7 @@ export default function JobsPage() {
                       {maySeeMoney && (
                         <td className="px-4 py-3 text-right text-gray-900 font-medium dark:text-slate-100">
                           {revenue != null
-                            ? `$${Number(revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                            ? `${money(Number(revenue))}`
                             : '—'}
                         </td>
                       )}

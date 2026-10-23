@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../api'
 import { useConfirm, useToast, useAuth, usePermissions } from '../../shared'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 interface TakeoffsPageProps {
   projectId?: string;
@@ -56,11 +57,20 @@ interface TakeoffItem {
   calculatedMaterials?: MaterialData[];
 }
 
+interface AssemblyMaterialItem {
+  id: string;
+  name: string;
+  unit?: string;
+  unitCost?: number | string;
+  unitPrice?: number | string;
+}
+
 interface AssemblyItem {
   id: string;
   name: string;
   category: string;
   measurementType: string;
+  materials?: AssemblyMaterialItem[];
 }
 
 interface TotalsData {
@@ -136,9 +146,19 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
   const [quoteTarget, setQuoteTarget] = useState<string>('new');
   const [quoting, setQuoting] = useState<boolean>(false);
   const [quoteError, setQuoteError] = useState<string>('');
+  /**
+   * The materials on the sheet with no selling price. A line at $0.00 is what the live test got for every line: the
+   * standard assemblies come with a cost and no selling price, and nothing could set one. The quote is not made with
+   * them; the dialog names them and opens the prices.
+   */
+  const [unpriced, setUnpriced] = useState<string[]>([]);
+  const [pricesOpen, setPricesOpen] = useState<boolean>(false);
+  const [totalsVersion, setTotalsVersion] = useState<number>(0);
+  const mayPrice = permsKnown && can('takeoffs:update');
   useEffect(() => {
     if (!quoteOpen) return;
     setQuoteError('');
+    setUnpriced([]);
     setQuoteTarget(mayNewQuote ? 'new' : '');
     if (!mayEditQuote) { setDrafts([]); return; }
     api.get('/api/quotes?status=draft&limit=100')
@@ -152,6 +172,8 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
       const built = await api.get(`/api/takeoffs/sheets/${selectedSheet.id}/quote-lines`) as { lines?: Array<Record<string, unknown>>; projectId?: string | null };
       const lines = built?.lines || [];
       if (!lines.length) throw new Error('This sheet has no materials yet — add items first.');
+      const noPrice = lines.filter((l) => !(Number(l.unitPrice) > 0)).map((l) => String(l.description || ''));
+      if (noPrice.length) { setUnpriced(noPrice); return; }
       let quoteId = quoteTarget;
       if (quoteTarget === 'new') {
         // The quote is for the project's client, where the sheet has a project and it has one.
@@ -353,6 +375,15 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {mayPrice && (
+                  <button
+                    onClick={() => setPricesOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <DollarSign className="w-4 h-4" />
+                    Material prices
+                  </button>
+                )}
                 <button
                   onClick={() => setShowAddItem(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg"
@@ -391,7 +422,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
 
             {/* Totals Footer */}
             {selectedSheet.items && selectedSheet.items.length > 0 && (
-              <TotalsFooter sheetId={selectedSheet.id} onExport={() => setExportOpen(true)} onQuote={mayNewQuote || mayEditQuote ? () => setQuoteOpen(true) : undefined} />
+              <TotalsFooter key={`${selectedSheet.id}:${totalsVersion}`} sheetId={selectedSheet.id} onExport={() => setExportOpen(true)} onQuote={mayNewQuote || mayEditQuote ? () => setQuoteOpen(true) : undefined} />
             )}
           </>
         ) : (
@@ -436,6 +467,19 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
         * which has none of them — that threw on render and blanked the page. The dialog is
         * `position: fixed`, so where it sits in the tree makes no difference to what you see.
         */}
+      {pricesOpen && (
+        <MaterialPricesModal
+          assemblies={assemblies}
+          onClose={() => setPricesOpen(false)}
+          onSaved={() => {
+            setPricesOpen(false);
+            loadData();
+            if (selectedSheet) loadSheet(selectedSheet.id);
+            setTotalsVersion((n) => n + 1);
+            toast.success('Material prices saved — the sheet is worked out again at them');
+          }}
+        />
+      )}
       {quoteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setQuoteOpen(false)}>
           <div role="dialog" aria-modal="true" aria-label="Add to quote" className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
@@ -449,6 +493,15 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
               {drafts.map((d) => <option key={d.id} value={d.id}>{[d.number, d.name].filter(Boolean).join(' — ') || 'Draft quote'}</option>)}
             </select>
             {!mayNewQuote && !drafts.length && <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">There are no draft quotes to add to.</p>}
+            {unpriced.length > 0 && (
+              <div role="alert" className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+                <p className="font-medium">{unpriced.length === 1 ? 'This material has' : 'These materials have'} no selling price yet, so {unpriced.length === 1 ? 'its line' : 'their lines'} would be $0.00:</p>
+                <ul className="mt-1 list-disc pl-5">{unpriced.map((n) => <li key={n}>{n}</li>)}</ul>
+                {mayPrice
+                  ? <button type="button" onClick={() => { setQuoteOpen(false); setPricesOpen(true); }} className="mt-2 font-semibold underline underline-offset-2 hover:no-underline">Set the selling prices</button>
+                  : <p className="mt-2">Ask someone who can edit takeoffs to set them.</p>}
+              </div>
+            )}
             {quoteError && <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-300">{quoteError}</p>}
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setQuoteOpen(false)} className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
@@ -548,7 +601,7 @@ function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
             <p className="text-lg font-bold text-gray-900 dark:text-slate-100">
               {Number(item.measurementValue).toLocaleString()} {MEASUREMENT_LABELS[item.measurementType]?.split(' ')[0]}
             </p>
-            <p className="text-sm text-gray-500 dark:text-slate-400">${totalCost.toFixed(2)} materials</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{money(totalCost)} materials</p>
           </div>
           <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
         </div>
@@ -610,8 +663,8 @@ function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
                     <td className="px-3 py-2 text-right">{Number(mat.baseQuantity).toFixed(2)} {mat.unit}</td>
                     <td className="px-3 py-2 text-right text-orange-600 dark:text-orange-200">+{Number(mat.wasteQuantity).toFixed(2)}</td>
                     <td className="px-3 py-2 text-right font-medium">{Number(mat.totalQuantity).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">${Number(mat.unitCost).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right font-medium">${Number(mat.totalCost).toFixed(2)}</td>
+                    <td className="px-3 py-2 text-right">{money(Number(mat.unitCost))}</td>
+                    <td className="px-3 py-2 text-right font-medium">{money(Number(mat.totalCost))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -683,11 +736,11 @@ function TotalsFooter({ sheetId, onExport, onQuote }: TotalsFooterProps) {
           </div>
           <div>
             <p className="text-sm text-gray-500 dark:text-slate-400">Total Cost</p>
-            <p className="text-lg font-bold text-green-700 dark:text-green-400">${(totals.totals.totalCost || 0).toFixed(2)}</p>
+            <p className="text-lg font-bold text-green-700 dark:text-green-400">{money((totals.totals.totalCost || 0))}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500 dark:text-slate-400">Total Price</p>
-            <p className="text-lg font-bold">${(totals.totals.totalPrice || 0).toFixed(2)}</p>
+            <p className="text-lg font-bold">{money((totals.totals.totalPrice || 0))}</p>
           </div>
         </div>
         {/* Wired. This had no onClick at all — a dead button on the one screen whose purpose is
@@ -1055,6 +1108,72 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProp
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+/**
+ * What each material costs and what it is SOLD at, assembly by assembly — PUT /api/takeoffs/assemblies/:id { materials }
+ * (takeoffs:update). The selling price is what "Add to quote" charges; nothing on any screen could set it, so every quote
+ * line came out at $0.00 (live test 2026-10-22). Saving works the sheets out again at the new prices.
+ */
+function MaterialPricesModal({ assemblies, onClose, onSaved }: { assemblies: AssemblyItem[]; onClose: () => void; onSaved: () => void }) {
+  const [draft, setDraft] = useState<Record<string, { unitCost: string; unitPrice: string }>>(() => {
+    const d: Record<string, { unitCost: string; unitPrice: string }> = {};
+    for (const a of assemblies) for (const m of a.materials || []) d[m.id] = { unitCost: String(Number(m.unitCost || 0)), unitPrice: String(Number(m.unitPrice || 0)) };
+    return d;
+  });
+  const [saving, setSaving] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const bad = (v: string) => v.trim() === '' || !Number.isFinite(Number(v)) || Number(v) < 0;
+  const save = async () => {
+    const wrong = Object.values(draft).some((m) => bad(m.unitCost) || bad(m.unitPrice));
+    if (wrong) { setError('Every cost and selling price must be a number, 0 or more.'); return; }
+    setSaving(true); setError('');
+    try {
+      for (const a of assemblies) {
+        const changed = (a.materials || []).filter((m) => draft[m.id] && (Number(draft[m.id].unitCost) !== Number(m.unitCost || 0) || Number(draft[m.id].unitPrice) !== Number(m.unitPrice || 0)));
+        if (!changed.length) continue;
+        await api.put(`/api/takeoffs/assemblies/${a.id}`, { materials: changed.map((m) => ({ id: m.id, unitCost: Number(draft[m.id].unitCost), unitPrice: Number(draft[m.id].unitPrice) })) });
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The prices could not be saved');
+    } finally { setSaving(false); }
+  };
+  const cell = 'w-24 px-2 py-1 border border-gray-300 rounded text-right bg-white text-gray-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label="Material prices" className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6 pb-3">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Material prices</h3>
+          <p className="text-sm text-gray-600 dark:text-slate-300 mt-1">The cost is what a unit costs you; the selling price is what a quote charges for it.</p>
+        </div>
+        <div className="px-6 overflow-y-auto flex-1">
+          {assemblies.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No assemblies yet — add a measurement to start with the standard ones.</p>}
+          {assemblies.map((a) => (
+            <div key={a.id} className="mb-4">
+              <p className="font-medium text-gray-900 dark:text-slate-100 mb-1">{a.name}</p>
+              <table className="w-full text-sm">
+                <thead><tr className="text-gray-500 dark:text-slate-400"><th className="text-left font-normal py-1">Material</th><th className="text-right font-normal py-1">Cost / unit</th><th className="text-right font-normal py-1">Selling price / unit</th></tr></thead>
+                <tbody>
+                  {(a.materials || []).map((m) => (
+                    <tr key={m.id} className="border-t border-gray-100 dark:border-slate-800">
+                      <td className="py-1.5 text-gray-800 dark:text-slate-200">{m.name}{m.unit ? <span className="text-gray-500 dark:text-slate-400"> ({m.unit})</span> : null}</td>
+                      <td className="py-1.5 text-right"><input aria-label={`${m.name} cost per unit`} type="number" min="0" step="0.01" inputMode="decimal" value={draft[m.id]?.unitCost ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [m.id]: { ...d[m.id], unitCost: e.target.value } }))} className={cell} /></td>
+                      <td className="py-1.5 text-right"><input aria-label={`${m.name} selling price per unit`} type="number" min="0" step="0.01" inputMode="decimal" value={draft[m.id]?.unitPrice ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [m.id]: { ...d[m.id], unitPrice: e.target.value } }))} className={cell} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+        {error && <p role="alert" className="px-6 pt-2 text-sm text-red-700 dark:text-red-300">{error}</p>}
+        <div className="p-6 pt-3 flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 border rounded-lg text-sm text-gray-700 dark:text-slate-200 dark:border-slate-600">Cancel</button>
+          <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm bg-orange-700 text-white hover:bg-orange-800 disabled:opacity-50">{saving ? 'Saving…' : 'Save prices'}</button>
         </div>
       </div>
     </div>

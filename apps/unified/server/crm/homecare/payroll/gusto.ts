@@ -19,7 +19,7 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { gustoEmployeeMap, gustoSyncLog, user } from '../../../db/schema/index.ts'
 import { gustoExportWarnings, personByEmailOrName } from '../../../data/homecarePayrollRoutes.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 
@@ -101,7 +101,7 @@ export function createGustoRoutes(core: HomecareCore, d: CrmDeps) {
     const caregivers = (rows as any[])
       .filter((r) => d.permissions.normalizeRole(r.role) === 'field')
       .map(({ role: _role, ...r }) => r)
-    return list(c, caregivers, { page: 1, limit: caregivers.length, total: caregivers.length })
+    return listAll(c, caregivers)
   })
 
   // POST /sync-employees — match Gusto's employees to the company's people by email, then by name.

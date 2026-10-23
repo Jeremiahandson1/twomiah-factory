@@ -25,6 +25,7 @@ import { api, rows, errorMessage, downloadBlob, saveBlob, listAll } from '../lib
 import { parseLocalDate, toLocalYMD } from '../lib/date'
 import { formatAgencyDate } from '../lib/agencyClock'
 import SandataPanel, { type EvvVisit } from './SandataPanel'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 // ─── REPLY SHAPES ─────────────────────────────────────────────────────────────
 /** GET /api/sandata/config. */
@@ -107,7 +108,7 @@ interface OcrResult {
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 type Num = string | number | null | undefined
-const fmt$ = (n: Num) => n != null ? `$${parseFloat(String(n || 0)).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}` : '—'
+const fmt$ = (n: Num) => n != null ? money(n) : '—'
 const fmtDate = (d: string | null | undefined) => d ? parseLocalDate(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
 const fmtInstant = (d: string | null | undefined) => d ? formatAgencyDate(d, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
 const fmtNum = (n: Num) => n != null ? parseFloat(String(n || 0)).toFixed(2) : '—'

@@ -21,6 +21,7 @@ import {
 import { api } from '../../../../api'
 import { useConfirm, useMayWrite, usePermissions, useToast, errorText } from '../../../../shared'
 import { formatDate } from '../../../date'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 // ── What the server answers (server/crm/roof/insurance/insurance.ts). Numeric columns arrive as strings. ──────────────
 
@@ -148,7 +149,7 @@ function formatStatus(s: string) {
 
 function fmt$(n: Amount) {
   if (n == null || n === '') return '—'
-  return `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return `${money(Number(n))}`
 }
 
 /** A stored calendar day (UTC midnight) as the YYYY-MM-DD a date box takes. */

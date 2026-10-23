@@ -12,7 +12,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { eventSpace } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import { liveSpaceNamed } from '../../data/restaurantEvents.ts'
 import { upcomingEventsUsingSpace, retireSpaceRefusal, auditName } from './eventBooking.ts'
 
@@ -51,7 +51,7 @@ export function createEventSpaceRoutes(d: CrmDeps) {
     // A room's minimum spend and hire fee are prices — invoices:read, the rule the event page uses. (T62)
     const maySeeMoney = hasPermission(currentUser?.role, 'invoices:read', await getExtraPermissions(currentUser?.userId))
     const rows = maySeeMoney ? data : data.map(({ minimumSpend: _m, hireFee: _h, ...rest }: any) => rest)
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /event-spaces

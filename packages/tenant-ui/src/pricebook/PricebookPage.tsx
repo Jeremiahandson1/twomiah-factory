@@ -8,6 +8,7 @@ import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from 
 import type { PricebookApi, PricebookToast, PricebookConfig, TierPreset } from './types'
 import { usePrompt } from '../ui/ConfirmProvider'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { money } from '../money'
 
 type Item = Record<string, any>
 type Category = { id: string; name: string; _count?: { items?: number } }
@@ -16,7 +17,7 @@ const DEFAULT_TIERS: TierPreset[] = [
   { tier: 'better', name: 'Standard', description: '', recommended: true },
   { tier: 'best', name: 'Premium', description: '', recommended: false },
 ]
-const usd = (v: unknown) => '$' + Number(v || 0).toFixed(2)
+const usd = (v: unknown) => money(Number(v || 0))
 
 export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast: PricebookToast; config?: PricebookConfig }) {
   /**
@@ -178,7 +179,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
         </div>
       )}
 
-      {editing.open && <ItemModal api={api} toast={toast} item={editing.item} categories={categories} itemWord={itemWord} onClose={() => setEditing({ open: false, item: null })} onSaved={() => { setEditing({ open: false, item: null }); load() }} />}
+      {editing.open && <ItemModal api={api} toast={toast} item={editing.item} categories={categories} itemWord={itemWord} namePlaceholder={config?.namePlaceholder || 'e.g. Standard service call'} onClose={() => setEditing({ open: false, item: null })} onSaved={() => { setEditing({ open: false, item: null }); load() }} />}
       {catsOpen && <CategoriesModal api={api} toast={toast} categories={categories} onClose={() => setCatsOpen(false)} onChanged={load} />}
       {tiersFor && <TiersModal api={api} toast={toast} item={tiersFor} presets={config?.tierPresets || DEFAULT_TIERS} title={config?.tiersTitle || 'Good-Better-Best options'} onClose={() => setTiersFor(null)} onSaved={() => { setTiersFor(null); load() }} />}
       <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={remove} title={`Delete ${itemWord.toLowerCase()}`} message={`Delete "${toDelete?.name}" and its pricing tiers?`} confirmText="Delete" />
@@ -190,7 +191,7 @@ function Stat({ icon: Icon, label, value, tone = 'gray' }: { icon: any; label: s
   return <div className={`p-4 rounded-xl ${tone === 'green' ? 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300' : 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-300'}`}><Icon className="w-5 h-5 mb-2" /><p className="text-2xl font-bold">{value}</p><p className="text-sm">{label}</p></div>
 }
 
-function ItemModal({ api, toast, item, categories, itemWord, onClose, onSaved }: { api: PricebookApi; toast: PricebookToast; item: Item | null; categories: Category[]; itemWord: string; onClose: () => void; onSaved: () => void }) {
+function ItemModal({ api, toast, item, categories, itemWord, namePlaceholder, onClose, onSaved }: { api: PricebookApi; toast: PricebookToast; item: Item | null; categories: Category[]; itemWord: string; namePlaceholder: string; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({
     name: item?.name || '', code: item?.code || '', categoryId: item?.categoryId || '', description: item?.description || '', customerDescription: item?.customerDescription || '',
     price: item?.price != null ? String(Number(item.price)) : '', cost: item?.cost != null ? String(Number(item.cost)) : '', laborHours: item?.laborHours != null ? String(Number(item.laborHours)) : '',
@@ -215,7 +216,7 @@ function ItemModal({ api, toast, item, categories, itemWord, onClose, onSaved }:
     <Modal isOpen onClose={onClose} title={item ? `Edit ${itemWord.toLowerCase()}` : `Add ${itemWord.toLowerCase()}`} size="lg">
       <form onSubmit={submit} className="space-y-4">
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="md:col-span-2"><Field label="Name"><input className={inputCls} required maxLength={200} value={f.name} onChange={set('name')} placeholder="e.g. AC tune-up" /></Field></div>
+          <div className="md:col-span-2"><Field label="Name"><input className={inputCls} required maxLength={200} value={f.name} onChange={set('name')} placeholder={namePlaceholder} /></Field></div>
           <Field label="Code" hint="Leave blank to auto-number"><input className={inputCls} maxLength={50} value={f.code} onChange={set('code')} /></Field>
           <Field label="Category"><select className={inputCls} value={f.categoryId} onChange={set('categoryId')}><option value="">No category</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
           <div className="md:col-span-2"><Field label="Internal description"><textarea className={inputCls} rows={2} maxLength={2000} value={f.description} onChange={set('description')} placeholder="For your team" /></Field></div>

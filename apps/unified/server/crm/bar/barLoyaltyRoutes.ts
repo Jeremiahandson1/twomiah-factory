@@ -17,14 +17,14 @@ import { and, eq } from 'drizzle-orm'
 import { loyaltyConfig, loyaltyConfigResponse, LOYALTY_SETTING_KEYS } from '@twomiah/tenant-backend'
 import { company, loyaltyReward } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { BAR_LOYALTY_DEFAULTS, LoyaltyError } from './barLoyalty.ts'
 import type { BarServices } from './services.ts'
 
 type Ctx = any
 const me = (c: Ctx) => c.get('user') as { userId: string; companyId: string }
-const all = <T,>(c: Ctx, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: Ctx, rows: T[]) => listAll(c, rows)
 
 export function createBarLoyaltyRoutes(d: CrmDeps, bar: BarServices) {
   const { db, audit, logger } = d

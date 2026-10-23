@@ -4,7 +4,8 @@ import {
   XCircle, Calendar, Loader2, FileText, Phone,
   ChevronRight, Search, Filter
 } from 'lucide-react';
-import type { WarrantiesApi, WarrantiesPageProps } from './types';
+import type { WarrantiesApi, WarrantiesPageProps, WarrantiesConfig } from './types';
+import { resolveWarrantiesConfig } from './types';
 import { usePrompt } from '../ui/ConfirmProvider'
 import { PageError, errorText } from '../ui/PageError'
 import { useMayWrite } from '../auth/PermissionsContext';
@@ -18,7 +19,7 @@ import { useMayWrite } from '../auth/PermissionsContext';
  * manager hold them, `field` and `viewer` do not. New Claim, Schedule, Deny and Complete were all
  * offered to seats the API refuses.
  */
-const WarrantiesCtx = createContext<{ api: WarrantiesApi; mayRaise: boolean; mayWork: boolean }>({ api: null as any, mayRaise: true, mayWork: true });
+const WarrantiesCtx = createContext<{ api: WarrantiesApi; mayRaise: boolean; mayWork: boolean; words: Required<WarrantiesConfig> }>({ api: null as any, mayRaise: true, mayWork: true, words: resolveWarrantiesConfig() });
 const useWarranties = () => useContext(WarrantiesCtx);
 
 // UTC-safe date formatting (carried from templates' utils/date).
@@ -103,7 +104,8 @@ const CLAIM_STATUS: Record<string, { label: string; chip: string; icon: React.Co
 /**
  * Warranty Management Page
  */
-export default function WarrantiesPage({ api }: WarrantiesPageProps) {
+export default function WarrantiesPage({ api, config }: WarrantiesPageProps) {
+  const words = resolveWarrantiesConfig(config);
   const mayRaise = useMayWrite('warranties:create');
   const mayWork = useMayWrite('warranties:update');
   const [tab, setTab] = useState<string>('warranties'); // warranties, claims
@@ -138,7 +140,7 @@ export default function WarrantiesPage({ api }: WarrantiesPageProps) {
   };
 
   return (
-    <WarrantiesCtx.Provider value={{ api, mayRaise, mayWork }}>
+    <WarrantiesCtx.Provider value={{ api, mayRaise, mayWork, words }}>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -558,7 +560,7 @@ interface NewClaimModalProps {
 function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
   // Shown inside the modal, beside the form that failed, instead of a pop-up over it. (T58i)
   const [error, setError] = useState<string | null>(null);
-  const { api } = useWarranties();
+  const { api, words } = useWarranties();
   const [form, setForm] = useState({
     warrantyId: '',
     title: '',
@@ -618,7 +620,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
                 value={form.title}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, title: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
-                placeholder="e.g., Leak in master bathroom"
+                placeholder={words.claimTitlePlaceholder}
                 required
               />
             </div>
@@ -642,7 +644,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
                 value={form.location}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, location: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
-                placeholder="e.g., Master bathroom, near shower"
+                placeholder={words.claimLocationPlaceholder}
               />
             </div>
 
@@ -697,7 +699,7 @@ interface NewWarrantyModalProps {
 
 /** A warranty written by hand for one customer (POST /api/warranties): what it covers, when it starts and for how long. */
 function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
-  const { api } = useWarranties();
+  const { api, words } = useWarranties();
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState<string>('');
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
@@ -763,11 +765,11 @@ function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
             </div>
             <div>
               <label className={label} htmlFor="warranty-name">Warranty</label>
-              <input id="warranty-name" type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))} className={input} placeholder="e.g., Plantings — one-year replacement" required />
+              <input id="warranty-name" type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))} className={input} placeholder={words.namePlaceholder} required />
             </div>
             <div>
               <label className={label} htmlFor="warranty-category">Category</label>
-              <input id="warranty-category" type="text" value={form.category} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, category: e.target.value }))} className={input} placeholder="e.g., workmanship" />
+              <input id="warranty-category" type="text" value={form.category} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, category: e.target.value }))} className={input} placeholder={words.categoryPlaceholder} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

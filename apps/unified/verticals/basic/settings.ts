@@ -63,6 +63,8 @@ const basic: VerticalSettings = {
   booking: { requireAddress: false },
   // templates/crm-basic/frontend/src/*Config.ts
   screens: {
+    // The warranty and claim forms' examples, in this trade's words (live test 2026-10-22).
+    warranties: { namePlaceholder: 'e.g., Workmanship — 90 days', categoryPlaceholder: 'e.g., workmanship', claimTitlePlaceholder: 'e.g., Problem with the finished work', claimLocationPlaceholder: 'e.g., Front entrance' },
     searchPlaceholder: 'Search contacts, jobs, invoices...',
     contacts: {
       // A supplier is stored as `vendor`; not a builder's Subcontractor (contactsConfig.ts, T64).

@@ -4,6 +4,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { BookingError } from './types'
+import { zipField } from '../address'
 import type { BookingDeps } from './types'
 import { createBookingService } from './service'
 
@@ -18,7 +19,7 @@ const bookingSchema = z.object({
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
-  zip: z.string().optional(),
+  zip: zipField().transform((v) => v ?? undefined),
   notes: z.string().max(2000).optional(),
   // Vet: the animal being booked. Optional here (other verticals never send them); the vet widget makes
   // pet name required, and the appointment calendar turns it into a linked patient record. (VET booking-no-pet)

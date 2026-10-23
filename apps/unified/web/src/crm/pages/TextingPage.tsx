@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { CheckCircle2, Clock, MessageSquare, AlertTriangle, RefreshCw, Send } from 'lucide-react'
 import { api } from '../../api'
 import { useKnownPermission, useToast } from '../../shared'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 interface Registration {
   status: string
@@ -31,7 +32,7 @@ const INDUSTRIES: Array<[string, string]> = [
   ['AUTOMOTIVE', 'Automotive & RV'], ['RETAIL', 'Retail'], ['REAL_ESTATE', 'Real estate'], ['AGRICULTURE', 'Agriculture'],
   ['TRANSPORTATION', 'Transportation'], ['NOT_FOR_PROFIT', 'Not for profit'],
 ]
-const money = (c: number) => '$' + (c / 100).toFixed(2)
+const money = (c: number) => formatMoney((c / 100))
 const pretty = (e164: string) => e164.replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '($1) $2-$3')
 
 const CARD = 'bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-6'

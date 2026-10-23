@@ -20,6 +20,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, ne } from 'drizzle-orm'
+import { zipField } from '../address'
 
 export interface LocationTables { location: any; user: any }
 export interface LocationRoutesDeps {
@@ -37,7 +38,7 @@ const locationSchema = z.object({
   address: optionalText(200),
   city: optionalText(100),
   state: optionalText(50),
-  zip: optionalText(20),
+  zip: zipField(),
   phone: optionalText(40),
   email: z.string().trim().email('That email address does not look right').optional().or(z.literal('')),
   timezone: z.string().trim().min(1).max(64).default('America/Chicago'),

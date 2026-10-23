@@ -15,7 +15,7 @@ import {
   claimPunchCard, spendPoints, discountInvoice, countRewardUse, liveBillsWithVisitStatus, voidBillWithNote, setBillTax, markBillPaid,
 } from '../../data/salonLoyalty.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one, done } from '../../http/reply.ts'
+import { fail, list, one, done, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { VOIDED_ON_CANCEL } from './checkout.ts'
 
@@ -267,7 +267,7 @@ export function createLoyaltyRoutes(d: CrmDeps) {
   app.get('/rewards', requirePermission('loyalty:read'), async (c) => {
     const u = c.get('user')
     const rows: RewardRow[] = await db.select().from(loyaltyReward).where(eq(loyaltyReward.companyId, u.companyId)).orderBy(loyaltyReward.pointsCost)
-    return list(c, rows.map(rewardOut), { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows.map(rewardOut))
   })
 
   app.post('/rewards', requirePermission('loyalty:configure'), async (c) => {

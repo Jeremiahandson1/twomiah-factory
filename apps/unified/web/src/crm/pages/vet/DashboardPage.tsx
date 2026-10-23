@@ -9,6 +9,7 @@ import {
 import { api } from '../../../api'
 import { useToast } from '../../../shared'
 import { appointmentTypeLabel } from './vetHelpers'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
  * Twomiah Vet — practice dashboard.
@@ -76,7 +77,7 @@ interface Activity {
  */
 function money(v: number | string | undefined | null): string {
   const n = Number(v || 0);
-  return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${formatMoney(n)}`;
 }
 
 function fmtDateTime(s?: string): string {

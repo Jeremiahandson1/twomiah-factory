@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react'
 import { DollarSign, AlertTriangle } from 'lucide-react'
 import { api } from '../../../api'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
-const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number) => `${formatMoney(Number(n || 0))}`;
 
 /** A floored unit, as a lender curtailment feed would send it (none is connected yet: the list is empty). */
 interface FlooredUnit { unit: string; stock?: string | null; lender: string; amount: number; flooredDays: number; interest: number; curtailmentDue: boolean; status: string }

@@ -20,6 +20,7 @@ import { formatDate, toLocalYMD } from '../lib/date';
 import { serviceLabel } from '../lib/serviceTypes';
 import { usePermissions, useToast } from '../../../../shared';
 import AgencyTimezone from './AgencyTimezone';
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /** pg numerics arrive as strings, counts as numbers. */
 type Num = number | string | null | undefined;
@@ -112,7 +113,7 @@ const FILTERS: Record<string, { caregiver?: true; client?: true }> = {
 };
 
 const n = (v: unknown): number => parseFloat(String(v ?? '')) || 0;
-const money = (v: Num) => `$${n(v).toFixed(2)}`;
+const money = (v: Num) => `${formatMoney(n(v))}`;
 const nameOf = (r: { firstName?: unknown; lastName?: unknown }) => [r.firstName, r.lastName].filter(Boolean).join(' ');
 
 // Ink for a figure on the card's surface, light and dark (homecare.css tokens).

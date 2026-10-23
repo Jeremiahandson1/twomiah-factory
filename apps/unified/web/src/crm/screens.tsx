@@ -143,7 +143,7 @@ export function Inventory() {
 }
 export const Equipment = () => <EquipmentPage api={client} config={v().equipment} />
 export const Agreements = () => <AgreementsPage api={client} config={v().agreements} />
-export const Warranties = () => <WarrantiesPage api={client} />
+export const Warranties = () => <WarrantiesPage api={client} config={v().warranties} />
 export const Recurring = () => <RecurringList api={client} />
 export const RecurringEdit = () => <RecurringForm api={client} />
 export const Tasks = () => <TasksPage api={client} />

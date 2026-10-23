@@ -8,6 +8,7 @@ import { useToast } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
+import { RecordPhotosField, uploadRecordPhotos, releasePending, type SavedPhoto, type PendingPhoto } from '../ui/RecordPhotosField'
 
 interface DailyLogForm {
   date: string;
@@ -45,6 +46,11 @@ export default function DailyLogsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
+  // The day's photos (live test 2026-10-22: "Daily logs: no photo field"): those on the log, and those picked in the
+  // dialog, which go up once the log is saved and has an id (ui/RecordPhotosField).
+  const [photos, setPhotos] = useState<SavedPhoto[]>([]);
+  const [pending, setPending] = useState<PendingPhoto[]>([]);
+  const resetPhotos = (saved: SavedPhoto[]) => { releasePending(pending); setPending([]); setPhotos(saved); };
 
   /**
    * THE PROJECT THE LINK CAME FROM. (T51)
@@ -87,16 +93,24 @@ export default function DailyLogsPage() {
     setSaving(true);
     try {
       const payload = { ...form, temperature: form.temperature ? Number(form.temperature) : undefined, crewSize: form.crewSize ? Number(form.crewSize) : undefined, hoursWorked: form.hoursWorked ? Number(form.hoursWorked) : undefined };
-      if (editing) { await api.dailyLogs.update(editing.id as string, payload); toast.success('Updated'); }
-      else { await api.dailyLogs.create(payload); toast.success('Created'); }
-      setModalOpen(false); load();
+      let saved: Record<string, unknown> | null = editing;
+      if (editing) { await api.dailyLogs.update(editing.id as string, payload); }
+      else { saved = await api.dailyLogs.create(payload) as Record<string, unknown>; }
+      const { failed, reasons } = saved?.id ? await uploadRecordPhotos('/api/daily-logs', saved.id as string, pending) : { failed: [], reasons: [] };
+      setPending(failed);
+      load();
+      // The log is saved either way. A photo that did not go up is named and stays in the dialog, which is now editing
+      // the saved log — so trying again adds the photo rather than filing the day twice.
+      if (failed.length) { if (saved) setEditing(saved); toast.error(`The log was saved, but ${failed.length === 1 ? 'a photo' : `${failed.length} photos`} did not upload — ${reasons.join('; ')}`); return; }
+      toast.success(editing ? 'Updated' : 'Created');
+      setModalOpen(false);
     } catch (err) { toast.error((err as Error).message); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async () => { try { await api.dailyLogs.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
 
-  const openCreate = (projectId = '') => { setEditing(null); setForm({ date: new Date().toISOString().split('T')[0], projectId, weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' }); setModalOpen(true); };
+  const openCreate = (projectId = '') => { setEditing(null); resetPhotos([]); setForm({ date: new Date().toISOString().split('T')[0], projectId, weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' }); setModalOpen(true); };
 
   /** `&new=true` opens the form with that project already chosen; the parameter is then dropped so
    *  the browser's Back button does not reopen the dialog. (T51) */
@@ -106,7 +120,7 @@ export default function DailyLogsPage() {
     const next = new URLSearchParams(searchParams); next.delete('new');
     setSearchParams(next, { replace: true });
   }, [searchParams, projectFilter]); // eslint-disable-line react-hooks/exhaustive-deps
-  const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ date: (item.date as string)?.split('T')[0] || '', projectId: item.projectId as string, weather: (item.weather as string) || '', temperature: item.temperature?.toString() || '', crewSize: item.crewSize?.toString() || '', hoursWorked: item.hoursWorked?.toString() || '', workPerformed: (item.workPerformed as string) || '', materials: (item.materials as string) || '', delays: (item.delays as string) || '', safetyNotes: (item.safetyNotes as string) || '' }); setModalOpen(true); };
+  const openEdit = (item: Record<string, unknown>) => { setEditing(item); resetPhotos(((item.photos as SavedPhoto[]) || []).slice()); setForm({ date: (item.date as string)?.split('T')[0] || '', projectId: item.projectId as string, weather: (item.weather as string) || '', temperature: item.temperature?.toString() || '', crewSize: item.crewSize?.toString() || '', hoursWorked: item.hoursWorked?.toString() || '', workPerformed: (item.workPerformed as string) || '', materials: (item.materials as string) || '', delays: (item.delays as string) || '', safetyNotes: (item.safetyNotes as string) || '' }); setModalOpen(true); };
 
   const columns = [
     { key: 'date', label: 'Date', render: (v: unknown) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
@@ -115,6 +129,7 @@ export default function DailyLogsPage() {
     { key: 'weather', label: 'Weather' },
     { key: 'crewSize', label: 'Crew' },
     { key: 'hoursWorked', label: 'Hours' },
+    { key: 'photos', label: 'Photos', render: (v: unknown) => (Array.isArray(v) && v.length ? String(v.length) : '-') },
   ];
 
   return (
@@ -157,6 +172,7 @@ export default function DailyLogsPage() {
             <div><label className="block text-sm font-medium mb-1">Delays/Issues</label><textarea value={form.delays} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, delays: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
             <div><label className="block text-sm font-medium mb-1">Safety Notes</label><textarea value={form.safetyNotes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, safetyNotes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
+          <RecordPhotosField base="/api/daily-logs" recordId={editing?.id as string | undefined} photos={photos} onPhotosChange={(next) => { setPhotos(next); load(); }} pending={pending} onPendingChange={setPending} inputId="daily-log-photos" />
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>

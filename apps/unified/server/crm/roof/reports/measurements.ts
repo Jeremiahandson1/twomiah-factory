@@ -16,6 +16,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, count, desc, eq } from 'drizzle-orm'
 import { getFullRoofReport } from '@twomiah/roof-core'
+import { normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
 import { company, job, measurementReport } from '../../../db/schema/index.ts'
 import { spendReportCredit, addReportCredits } from '../../../data/roofReports.ts'
 import { invalid } from '../../../http/errors.ts'
@@ -28,7 +29,7 @@ const orderSchema = z.object({
   address: z.string().min(1),
   city: z.string().min(1),
   state: z.string().min(1),
-  zip: z.string().min(1),
+  zip: z.string().min(1).refine((v) => normaliseZip(v) !== null, { message: ZIP_ERROR }),
   jobId: z.string().optional().transform((v) => (v === '' ? undefined : v)),
 })
 

@@ -10,13 +10,13 @@ import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
 import { absences, user, clients } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { selfSubject } from '../core/selfService.ts'
 import { who } from './shared.ts'
 
-const asList = (c: any, rows: any[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const asList = (c: any, rows: any[]) => listAll(c, rows)
 
 export function createAbsencesRoutes(_core: HomecareCore, d: CrmDeps) {
   const app = new Hono<AppEnv>()

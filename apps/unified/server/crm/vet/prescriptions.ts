@@ -9,7 +9,7 @@ import { prescription, patient, user } from '../../db/schema/index.ts'
 import { allergyConflict, allergyWarning, type AllergyHit } from './drugClasses.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 
 /**
  * A refill count is a whole number, never negative, at most 12 (the usual legal ceiling for a non-controlled drug).
@@ -81,7 +81,7 @@ export function createPrescriptionRoutes(d: CrmDeps) {
       ...r.rx,
       prescriber: r.prescriber?.id ? { ...r.prescriber, name: [r.prescriber.firstName, r.prescriber.lastName].filter(Boolean).join(' ') || r.prescriber.email } : null,
     }))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.post('/', requirePermission('contacts:create'), async (c) => {

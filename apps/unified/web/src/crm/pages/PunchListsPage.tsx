@@ -1,12 +1,13 @@
 // Moved from templates/crm/frontend/src/pages/PunchListsPage.tsx.
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Plus, Edit, Trash2, Check, CheckCheck } from 'lucide-react'
+import { Plus, Edit, Trash2, Check, CheckCheck, RotateCcw } from 'lucide-react'
 import { api } from '../../api'
 import { useToast } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, StatusBadge, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
+import { RecordPhotosField, uploadRecordPhotos, releasePending, type SavedPhoto, type PendingPhoto } from '../ui/RecordPhotosField'
 
 interface PunchListForm {
   description: string;
@@ -40,6 +41,10 @@ export default function PunchListsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
+  // The snag's photos — the same field as the daily log's (ui/RecordPhotosField), on punch_list_item.photos.
+  const [photos, setPhotos] = useState<SavedPhoto[]>([]);
+  const [pending, setPending] = useState<PendingPhoto[]>([]);
+  const resetPhotos = (saved: SavedPhoto[]) => { releasePending(pending); setPending([]); setPhotos(saved); };
 
   /**
    * THE PROJECT THE LINK CAME FROM. (T51)
@@ -79,18 +84,27 @@ export default function PunchListsPage() {
     if (!form.description || !form.projectId) { toast.error('Description and project required'); return; }
     setSaving(true);
     try {
-      if (editing) { await api.punchLists.update(editing.id as string, form); toast.success('Updated'); }
-      else { await api.punchLists.create(form); toast.success('Created'); }
-      setModalOpen(false); load();
+      let saved: Record<string, unknown> | null = editing;
+      if (editing) { await api.punchLists.update(editing.id as string, form); }
+      else { saved = await api.punchLists.create(form) as Record<string, unknown>; }
+      const { failed, reasons } = saved?.id ? await uploadRecordPhotos('/api/punch-lists', saved.id as string, pending) : { failed: [], reasons: [] };
+      setPending(failed);
+      load();
+      if (failed.length) { if (saved) setEditing(saved); toast.error(`The item was saved, but ${failed.length === 1 ? 'a photo' : `${failed.length} photos`} did not upload — ${reasons.join('; ')}`); return; }
+      toast.success(editing ? 'Updated' : 'Created');
+      setModalOpen(false);
     } catch (err) { toast.error((err as Error).message); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async () => { try { await api.punchLists.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleComplete = async (item: Record<string, unknown>) => { try { await api.punchLists.complete(item.id as string); toast.success('Completed'); load(); } catch (err) { toast.error((err as Error).message); } };
+  // POST /:id/reopen was on the server (punchLists.ts) with no screen to call it: a mis-clicked Complete or Verify could
+  // not be undone. Found sweeping for the RFI's missing Close (live test 2026-10-22).
+  const handleReopen = async (item: Record<string, unknown>) => { try { await api.post(`/api/punch-lists/${item.id as string}/reopen`, {}); toast.success('Reopened'); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleVerify = async (item: Record<string, unknown>) => { try { await api.punchLists.verify(item.id as string, { verifiedBy: 'Current User' }); toast.success('Verified'); load(); } catch (err) { toast.error((err as Error).message); } };
 
-  const openCreate = (projectId = '') => { setEditing(null); setForm({ description: '', projectId, location: '', priority: 'normal', assignedTo: '', dueDate: '' }); setModalOpen(true); };
+  const openCreate = (projectId = '') => { setEditing(null); resetPhotos([]); setForm({ description: '', projectId, location: '', priority: 'normal', assignedTo: '', dueDate: '' }); setModalOpen(true); };
 
   /** `&new=true` opens the form with that project already chosen; the parameter is then dropped so
    *  the browser's Back button does not reopen the dialog. (T51) */
@@ -100,7 +114,7 @@ export default function PunchListsPage() {
     const next = new URLSearchParams(searchParams); next.delete('new');
     setSearchParams(next, { replace: true });
   }, [searchParams, projectFilter]); // eslint-disable-line react-hooks/exhaustive-deps
-  const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ description: item.description as string, projectId: item.projectId as string, location: (item.location as string) || '', priority: item.priority as string, assignedTo: (item.assignedTo as string) || '', dueDate: (item.dueDate as string)?.split('T')[0] || '' }); setModalOpen(true); };
+  const openEdit = (item: Record<string, unknown>) => { setEditing(item); resetPhotos(((item.photos as SavedPhoto[]) || []).slice()); setForm({ description: item.description as string, projectId: item.projectId as string, location: (item.location as string) || '', priority: item.priority as string, assignedTo: (item.assignedTo as string) || '', dueDate: (item.dueDate as string)?.split('T')[0] || '' }); setModalOpen(true); };
 
   const columns = [
     { key: 'number', label: '#', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
@@ -134,8 +148,9 @@ export default function PunchListsPage() {
         emptyAction={can('punch-lists:create') ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline"/>Add Item</Button> : undefined}
         actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit, show: () => can('punch-lists:update') },
-        { label: 'Complete', icon: Check, onClick: handleComplete, show: () => can('punch-lists:update') },
-        { label: 'Verify', icon: CheckCheck, onClick: handleVerify, show: () => can('punch-lists:update') },
+        { label: 'Complete', icon: Check, onClick: handleComplete, show: (r: Record<string, unknown>) => can('punch-lists:update') && r.status !== 'completed' && r.status !== 'verified' },
+        { label: 'Verify', icon: CheckCheck, onClick: handleVerify, show: (r: Record<string, unknown>) => can('punch-lists:update') && r.status === 'completed' },
+        { label: 'Reopen', icon: RotateCcw, onClick: handleReopen, show: (r: Record<string, unknown>) => can('punch-lists:update') && r.status !== 'open' },
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600', show: () => can('punch-lists:delete') },
       ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Item' : 'Add Item'} size="md">
@@ -150,6 +165,7 @@ export default function PunchListsPage() {
             <div><label className="block text-sm font-medium mb-1">Assigned To</label><input value={form.assignedTo} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, assignedTo: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
             <div><label className="block text-sm font-medium mb-1">Due Date</label><input type="date" value={form.dueDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, dueDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
+          <RecordPhotosField base="/api/punch-lists" recordId={editing?.id as string | undefined} photos={photos} onPhotosChange={(next) => { setPhotos(next); load(); }} pending={pending} onPendingChange={setPending} inputId="punch-item-photos" />
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>

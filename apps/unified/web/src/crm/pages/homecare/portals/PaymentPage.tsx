@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { formatDate } from '../lib/date'
 import { agencyNameFromPage, publicCall } from './portalHttp'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 interface PayInvoice {
   invoiceNumber: string
@@ -125,7 +126,7 @@ export default function PaymentPage({ invoiceId }: { invoiceId: string }) {
           </div>
           <div style={styles.detailRow}>
             <span>Invoice Total:</span>
-            <span>${dollars(invoice?.total)}</span>
+            <span>{money(invoice?.total)}</span>
           </div>
           {parseFloat(String(invoice?.amountPaid ?? 0)) > 0 && (
             <div style={styles.detailRow}>
@@ -135,14 +136,14 @@ export default function PaymentPage({ invoiceId }: { invoiceId: string }) {
           )}
           <div style={{ ...styles.detailRow, ...styles.totalRow }}>
             <span><strong>Amount Due:</strong></span>
-            <span style={styles.amountDue}>${dollars(invoice?.amountDue)}</span>
+            <span style={styles.amountDue}>{money(invoice?.amountDue)}</span>
           </div>
         </div>
 
         {error && <div style={styles.errorBanner}>{error}</div>}
 
         <button onClick={handlePayment} disabled={processing} style={{ ...styles.payButton, ...(processing ? styles.payButtonDisabled : {}) }}>
-          {processing ? 'Processing...' : `Pay $${dollars(invoice?.amountDue)}`}
+          {processing ? 'Processing...' : `Pay ${money(invoice?.amountDue)}`}
         </button>
 
         <div style={styles.secureNotice}><span>🔒</span> Secure payment powered by Stripe</div>
@@ -193,7 +194,7 @@ export function PaymentSuccess() {
         <h2 style={{ color: 'var(--hc-green-ink)' }}>Payment Successful!</h2>
         {payment?.success && (
           <div style={styles.details}>
-            <p>Amount Paid: <strong>${payment.amount?.toFixed(2)}</strong></p>
+            <p>Amount Paid: <strong>{money(payment.amount)}</strong></p>
             <p>A confirmation email has been sent to {payment.customerEmail}</p>
           </div>
         )}

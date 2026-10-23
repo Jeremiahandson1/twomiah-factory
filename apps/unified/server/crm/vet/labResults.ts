@@ -8,7 +8,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { labResult } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 
 /**
  * The file URL is free text: any explicit scheme other than http/https (javascript:, data:, vbscript:, file:…) is
@@ -42,7 +42,7 @@ export function createLabResultRoutes(d: CrmDeps) {
     const conditions = [eq(labResult.companyId, currentUser.companyId)]
     if (patientId) conditions.push(eq(labResult.patientId, patientId))
     const data = await db.select().from(labResult).where(and(...conditions)).orderBy(desc(labResult.resultDate))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.post('/', requirePermission('contacts:create'), async (c) => {

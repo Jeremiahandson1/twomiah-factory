@@ -34,6 +34,9 @@ export interface EquipmentConfig {
   linkedJobs?: boolean
   /** Starter categories this trade would suggest. Omitted → no suggestions, just the company's own. */
   categories?: EquipmentCategory[]
+  /** The form's examples, in the trade's words. Absent: neutral ones (they were an HVAC shop's — "Main AC Unit", "Carrier",
+   *  "Basement, Attic" — for every trade; found sweeping the warranty form, live test 2026-10-22). */
+  placeholders?: { name?: string; manufacturer?: string; location?: string }
 }
 
 export interface EquipmentPageProps { api: EquipmentApi; config?: EquipmentConfig }

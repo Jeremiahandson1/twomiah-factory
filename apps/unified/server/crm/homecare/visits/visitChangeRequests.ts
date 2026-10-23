@@ -14,7 +14,7 @@ import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { user } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one, done } from '../../../http/reply.ts'
+import { fail, one, done, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { hms, DATE_RE } from '../core/scheduleOccurrences.ts'
@@ -41,7 +41,7 @@ export function createVisitChangeRequestRoutes(core: HomecareCore, d: CrmDeps) {
       caregiverId: isCaregiver(d, u) ? me : (c.req.query('caregiverId') || null),
       status: c.req.query('status') || null,
     })
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /reschedule-request — the caregiver asks to move one of their own visits. Nothing moves on the caregiver's

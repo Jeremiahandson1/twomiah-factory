@@ -10,7 +10,7 @@ import { eq, and, desc, asc, like, or, count } from 'drizzle-orm'
 import { nextNumber, reportAiUsage } from '@twomiah/tenant-backend'
 import { supportTicket, supportTicketMessage, supportKnowledgeBase, supportSlaPolicy } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one, done } from '../../http/reply.ts'
+import { fail, list, one, done, listAll } from '../../http/reply.ts'
 import { ticketStatusCounts, ticketPatterns } from '../../data/support.ts'
 import type { CrmDeps } from '../deps.ts'
 
@@ -266,7 +266,7 @@ export function createSupportRoutes(d: CrmDeps) {
     const messages = await db.select().from(supportTicketMessage)
       .where(eq(supportTicketMessage.ticketId, ticketId))
       .orderBy(asc(supportTicketMessage.createdAt))
-    return list(c, messages, { page: 1, limit: messages.length, total: messages.length })
+    return listAll(c, messages)
   })
 
   app.post('/tickets/:id/messages', async (c) => {
@@ -311,7 +311,7 @@ export function createSupportRoutes(d: CrmDeps) {
         .where(and(...conditions)).orderBy(desc(supportKnowledgeBase.viewCount)).limit(50)
       // Help must not describe a module this business does not have (Salon T27 N15).
       const shown = await visible(u.companyId, articles)
-      return list(c, shown, { page: 1, limit: shown.length, total: shown.length })
+      return listAll(c, shown)
     } catch (e: any) {
       if (missingTable(e)) return list(c, [], { page: 1, limit: 0, total: 0 })
       throw e
@@ -430,7 +430,7 @@ export function createSupportRoutes(d: CrmDeps) {
     try {
       const policies = await db.select().from(supportSlaPolicy)
         .where(eq(supportSlaPolicy.companyId, u.companyId)).orderBy(asc(supportSlaPolicy.priority))
-      return list(c, policies, { page: 1, limit: policies.length, total: policies.length })
+      return listAll(c, policies)
     } catch (e: any) {
       if (missingTable(e)) return list(c, [], { page: 1, limit: 0, total: 0 })
       throw e

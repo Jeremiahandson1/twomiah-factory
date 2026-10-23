@@ -14,6 +14,7 @@ import type { FleetConfig } from '@twomiah/tenant-ui/src/fleet/types'
 import type { CommissionsConfig } from '@twomiah/tenant-ui/src/commissions/CommissionsPage'
 import type { TechViewConfig } from '@twomiah/tenant-ui/src/tech/TechView'
 import type { IntegrationsConfig } from '@twomiah/tenant-ui/src/settings/integrationsTypes'
+import type { WarrantiesConfig } from '@twomiah/tenant-ui/src/warranties/types'
 
 export interface VerticalScreens {
   contacts: ContactsConfig
@@ -26,6 +27,8 @@ export interface VerticalScreens {
   dashboard: JobsDashboardConfig
   jobCosting: JobCostingConfig
   agreements: AgreementsConfig
+  /** The warranty and claim forms' examples, in the trade's words (absent: neutral ones). */
+  warranties: WarrantiesConfig
   fleet: FleetConfig
   commissions: CommissionsConfig
   tech: Omit<TechViewConfig, 'hasFeature'>

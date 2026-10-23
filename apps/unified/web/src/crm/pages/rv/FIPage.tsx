@@ -5,6 +5,7 @@ import { CreditCard, Loader2, Send, CheckCircle2, XCircle, AlertCircle } from 'l
 import { api } from '../../../api'
 import { useMayWrite, errorText } from '../../../shared'
 import { DEAL_DEFAULTS, dealTotals, leadLabel, type Deal, type DealInfo, type InboxLead, type InboxReply } from './deal';
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /** GET /api/fi/products (server/crm/rv/fi.ts): the menu; `cost` only for margin:read. */
 interface FiProduct { id: string; name: string; desc: string; price: number; cost?: number }
@@ -18,7 +19,7 @@ type FiDecision = { result: LenderResult; provider: string; live: boolean; submi
 /** Only these are approvals: anything else (declined, not_submitted) has no APR or amount to show. */
 const APPROVED = ['approved', 'conditional']
 
-const money = (n: number) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number) => `${formatMoney(Number(n || 0))}`;
 function payment(principal: number, apr: number, months: number) {
   const r = apr / 100 / 12;
   if (!principal || !months) return 0;

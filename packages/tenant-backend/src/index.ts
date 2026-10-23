@@ -64,7 +64,7 @@ export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
 // roundsToNothing: the one answer to "is this a real amount" — a positive value that stores as 0.00.
 // The owner reported that twice on Events; thirteen more fields across salon, RV and the dispensary
 // had the same hole. (T51 follow-up)
-export { round2, roundsToNothing, calcTotals, isOverdue, deriveStatus, startOfUtcDay, overdueCutoff, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, dueDateFromTerms, quoteValidityDaysFrom, quoteExpiryFromTerms, normalizeDateInput, isRealCalendarDay, businessToday, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'
+export { round2, roundsToNothing, calcTotals, isOverdue, deriveStatus, startOfUtcDay, overdueCutoff, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, paymentTermsProblem, PAYMENT_TERMS_MAX_DAYS, dueDateFromTerms, quoteValidityDaysFrom, quoteExpiryFromTerms, normalizeDateInput, isRealCalendarDay, businessToday, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'
 
 // Online booking — one implementation for every CRM; the template injects its tables + the calendar it books onto.
 export { createBookingRoutes, externalBookingsProxy } from './booking/routes'
@@ -95,7 +95,7 @@ export { createPhotoRoutes, PHOTO_CATEGORIES } from './files/photos'
 export type { PhotoDeps, PhotoTables } from './files/photos'
 
 // Contacts — one implementation for every CRM; the template injects its tables, guards and related lists.
-export { US_STATES, normaliseState, normaliseZip, STATE_ERROR, ZIP_ERROR } from './address'
+export { US_STATES, normaliseState, normaliseZip, zipField, STATE_ERROR, ZIP_ERROR } from './address'
 export { createContactRoutes, standardRelations, standardGuards, isValidPhone, DEFAULT_CONTACT_TYPES, withoutPortalCredential, withoutPaymentInternals, PAYMENT_INTERNAL_KEYS } from './contacts/contacts'
 export type { ContactDeps, ContactOptions, ContactRelation, ContactGuard, ContactSitesTables } from './contacts/contacts'
 
@@ -106,7 +106,7 @@ export { WEEK_DAYS, checkBusinessHours, businessHoursLines } from './company/bus
 export type { BusinessHours, DayHours, WeekDay } from './company/businessHours'
 
 // Jobs / service calls + the public media proxy for job photos — one implementation for every CRM.
-export { createJobRoutes, createMediaRoutes, JOB_PRIORITIES, OPEN_JOB_STATUSES } from './jobs/jobs'
+export { createJobRoutes, createMediaRoutes, JOB_PRIORITIES, OPEN_JOB_STATUSES, JOB_STATUSES } from './jobs/jobs'
 export type { JobDeps, JobOptions, JobTables, JobHook, JobPhotoStorage } from './jobs/jobs'
 export { JOB_MONEY, jobMoneyWithheld, withoutJobMoney } from './jobs/jobMoney'
 export type { CanSee } from './jobs/jobMoney'
@@ -189,7 +189,7 @@ export { createExpenseRoutes, DEFAULT_EXPENSE_CATEGORIES } from './expenses/expe
 export type { ExpenseDeps, ExpenseTables } from './expenses/expenses'
 
 // Email marketing — templates, campaigns (audience preview, send, schedule, tracking, unsubscribe), drip sequences + the worker.
-export { createMarketingService, createMarketingRoutes, MarketingError, SEQUENCE_TRIGGERS, AUDIENCE_TYPES } from './marketing/marketing'
+export { createMarketingService, createMarketingRoutes, MarketingError, SEQUENCE_TRIGGERS, AUDIENCE_TYPES, MERGE_FIELDS, unknownMergeFields, personalize } from './marketing/marketing'
 export type { MarketingService, MarketingServiceDeps, MarketingRoutesDeps, MarketingTables, MailMessage } from './marketing/marketing'
 
 // Lead Inbox — inbound leads (Factory-forwarded email + secret-locked webhooks), lead sources, convert-to-contact; one implementation for every CRM.

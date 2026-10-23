@@ -2,7 +2,7 @@
 // page of it) is the server's; this app owns /crm/*, the sign-in pages, and nothing else.
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, ConfirmProvider, ErrorBoundary, PermissionsProvider, ProtectedRoute, PublicRoute, ToastProvider } from './shared'
+import { AuthProvider, ConfirmProvider, ErrorBoundary, InlineValidity, PermissionsProvider, ProtectedRoute, PublicRoute, ToastProvider } from './shared'
 import { api } from './api'
 import {
   HOME, Shell, Home, Login, ForgotPassword, ResetPassword, Settings, FeaturesSettings, MyAccount, Billing, EmailAliases,
@@ -86,6 +86,8 @@ export default function App() {
           <PermissionsProvider>
             <ToastProvider>
               <ConfirmProvider>
+                {/* Every form's "required" message in the app's words, under its field, never the browser's bubble (live test 2026-10-22). */}
+                <InlineValidity />
                 <PhotoPickerProvider>
                   <Routes>
                     <Route path="/login" element={<PublicRoute home={HOME}><Login /></PublicRoute>} />

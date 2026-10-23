@@ -3,7 +3,7 @@
 // 'job_costing'; every action checks reports:read (labour cost and margin are not technician data).
 import { Hono } from 'hono'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createJobCostingService } from './jobCostingService.ts'
 
@@ -51,7 +51,7 @@ export function createJobCostingRoutes(d: CrmDeps) {
       endDate: c.req.query('endDate'),
       status: c.req.query('status'),
     })
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   return app

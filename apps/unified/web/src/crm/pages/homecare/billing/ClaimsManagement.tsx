@@ -11,6 +11,7 @@ import { useToast } from '../../../../shared'
 import { api, rows, errorMessage, saveBlob } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { useMay } from '../lib/useMay'
+import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 interface Claim {
   id: string; claimNumber: string | null; clientFirstName: string | null; clientLastName: string | null
@@ -163,20 +164,20 @@ const ClaimsManagement = () => {
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '1rem' }}>
           <div className="hc-stat-card">
             <h4>Pending</h4>
-            <div className="value">${money(summary.aging?.under30).toLocaleString()}</div>
+            <div className="value">{formatMoney(money(summary.aging?.under30), 0)}</div>
             <small>&lt; 30 days</small>
           </div>
           <div className="hc-stat-card">
             <h4>30-60 Days</h4>
-            <div className="value" style={{ color: 'var(--hc-warning-ink)' }}>${money(summary.aging?.days30To60).toLocaleString()}</div>
+            <div className="value" style={{ color: 'var(--hc-warning-ink)' }}>{formatMoney(money(summary.aging?.days30To60), 0)}</div>
           </div>
           <div className="hc-stat-card">
             <h4>60-90 Days</h4>
-            <div className="value" style={{ color: 'var(--hc-red-ink)' }}>${money(summary.aging?.days60To90).toLocaleString()}</div>
+            <div className="value" style={{ color: 'var(--hc-red-ink)' }}>{formatMoney(money(summary.aging?.days60To90), 0)}</div>
           </div>
           <div className="hc-stat-card">
             <h4>90+ Days</h4>
-            <div className="value" style={{ color: 'var(--hc-danger-ink)' }}>${money(summary.aging?.over90).toLocaleString()}</div>
+            <div className="value" style={{ color: 'var(--hc-danger-ink)' }}>{formatMoney(money(summary.aging?.over90), 0)}</div>
           </div>
         </div>
       )}
@@ -253,7 +254,7 @@ const ClaimsManagement = () => {
                   <td>{claim.clientFirstName} {claim.clientLastName}</td>
                   <td>{claim.payerName}</td>
                   <td>{claim.serviceDateFrom ? formatDate(claim.serviceDateFrom) : '-'}</td>
-                  <td><strong>${money(claim.chargeAmount).toFixed(2)}</strong></td>
+                  <td><strong>{formatMoney(money(claim.chargeAmount))}</strong></td>
                   <td>{getStatusBadge(claim.status)}</td>
                   <td>
                     {may.update && <button className="hc-btn hc-btn-sm hc-btn-secondary" onClick={() => { setCurrentClaim(claim); setShowStatusModal(true) }}>
@@ -320,7 +321,7 @@ const CreateClaimForm = ({ invoices, onSubmit, onCancel }: { invoices: InvoiceOp
           <option value="">Select Invoice</option>
           {invoices.map((inv) => (
             <option key={inv.id} value={inv.id}>
-              {inv.seqNumber != null ? `#${inv.seqNumber}` : inv.invoiceNumber} - {inv.firstName} {inv.lastName} - ${money(inv.total).toFixed(2)}
+              {inv.seqNumber != null ? `#${inv.seqNumber}` : inv.invoiceNumber} - {inv.firstName} {inv.lastName} - {formatMoney(money(inv.total))}
             </option>
           ))}
         </select>
@@ -372,7 +373,7 @@ const UpdateStatusForm = ({ claim, onSubmit, onCancel }: { claim: Claim; onSubmi
   return (
     <form onSubmit={handleSubmit}>
       <p><strong>Claim:</strong> {claim.claimNumber}</p>
-      <p><strong>Amount:</strong> ${money(claim.chargeAmount).toFixed(2)}</p>
+      <p><strong>Amount:</strong> {formatMoney(money(claim.chargeAmount))}</p>
 
       <div className="form-group">
         <label>New Status</label>

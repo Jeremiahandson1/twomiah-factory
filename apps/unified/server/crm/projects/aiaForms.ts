@@ -6,7 +6,7 @@ import { eq, and, count, desc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { aiaForm, project } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 
 // One G703 row: a schedule-of-values item with its scheduled value, work to date, percent, balance and retainage.
@@ -84,7 +84,7 @@ export function createAiaFormRoutes(d: CrmDeps) {
     const projectMap = Object.fromEntries(projects.map((p) => [p.id, p]))
 
     const rows = forms.map((f) => ({ ...f, project: projectMap[f.projectId] || null }))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.get('/:id', async (c) => {

@@ -746,7 +746,7 @@ export default function PayrollProcessing() {
                   { label: 'Shifts with Discrepancies', val: discrepancies.totals.totalShifts, color: 'var(--hc-blue-ink)' },
                   { label: 'Over Allotted', val: discrepancies.totals.overageCount + ' shifts', color: 'var(--hc-red-ink)' },
                   { label: 'Under Allotted', val: discrepancies.totals.underageCount + ' shifts', color: 'var(--hc-warning-ink)' },
-                  { label: 'Total Overage Cost', val: '$' + parseFloat(discrepancies.totals.totalOverageCost || '0').toFixed(2), color: 'var(--hc-red-ink)' },
+                  { label: 'Total Overage Cost', val: formatCurrency(parseFloat(discrepancies.totals.totalOverageCost || '0')), color: 'var(--hc-red-ink)' },
                 ].map((s) => (
                   <div key={s.label} style={{ ...statBox(s.color), minWidth: 140, padding: '1rem' }}>
                     <div style={{ fontSize: '1.25rem', fontWeight: 800, color: s.color }}>{s.val}</div>
@@ -786,10 +786,10 @@ export default function PayrollProcessing() {
                             <td style={{ ...cell, fontWeight: 700, color: over ? 'var(--hc-danger-ink)' : under ? 'var(--hc-warning-ink)' : 'var(--hc-ink)' }}>
                               {over ? '+' : ''}{d.discrepancyHours}h {over ? '⚠️ Over' : under ? '⬇️ Short' : ''}
                             </td>
-                            <td style={{ ...cell, color: 'var(--hc-green-ink)' }}>${d.billablePay}</td>
-                            <td style={{ ...cell, color: 'var(--hc-muted)' }}>${d.actualPay}</td>
+                            <td style={{ ...cell, color: 'var(--hc-green-ink)' }}>{formatCurrency(d.billablePay)}</td>
+                            <td style={{ ...cell, color: 'var(--hc-muted)' }}>{formatCurrency(d.actualPay)}</td>
                             <td style={{ ...cell, fontWeight: 700, color: over ? 'var(--hc-danger-ink)' : 'var(--hc-muted)' }}>
-                              {over ? `$${d.overageCost}` : '—'}
+                              {over ? formatCurrency(d.overageCost) : '—'}
                             </td>
                           </tr>
                         )
@@ -886,7 +886,7 @@ export default function PayrollProcessing() {
                     <td style={{ color: payroll.overtimeHours > 0 ? 'var(--hc-warning-ink)' : undefined }}>{payroll.overtimeHours?.toFixed(2)}</td>
                     <td>{payroll.ptoHours?.toFixed(2) || '0.0'}</td>
                     <td>{parseFloat(String(payroll.totalMiles || 0)).toFixed(2)}</td>
-                    <td>${payroll.baseRate?.toFixed(2)}</td>
+                    <td>{formatCurrency(payroll.baseRate)}</td>
                     <td style={{ color: 'var(--hc-green-ink)' }}>{formatCurrency(payroll.grossPay)}</td>
                     <td><span className={`hc-badge ${getStatusBadge(payroll.status)}`}>{payroll.status?.toUpperCase()}</span></td>
                     <td>
@@ -970,14 +970,14 @@ export default function PayrollProcessing() {
                     <tr>
                       <td style={stubCell}>Regular Hours</td>
                       <td style={stubNum}>{selectedPayroll.regularHours?.toFixed(2)}</td>
-                      <td style={stubNum}>${selectedPayroll.baseRate?.toFixed(2)}</td>
+                      <td style={stubNum}>{formatCurrency(selectedPayroll.baseRate)}</td>
                       <td style={stubNum}>{formatCurrency(selectedPayroll.regularPay)}</td>
                     </tr>
                     {selectedPayroll.overtimeHours > 0 && (
                       <tr>
                         <td style={stubCell}>Overtime</td>
                         <td style={stubNum}>{selectedPayroll.overtimeHours?.toFixed(2)}</td>
-                        <td style={stubNum}>${Number(selectedPayroll.otRate || 0).toFixed(2)}</td>
+                        <td style={stubNum}>{formatCurrency(Number(selectedPayroll.otRate || 0))}</td>
                         <td style={stubNum}>{formatCurrency(selectedPayroll.overtimePay)}</td>
                       </tr>
                     )}
@@ -985,7 +985,7 @@ export default function PayrollProcessing() {
                       <tr>
                         <td style={stubCell}>PTO</td>
                         <td style={stubNum}>{selectedPayroll.ptoHours?.toFixed(2)}</td>
-                        <td style={stubNum}>${selectedPayroll.baseRate?.toFixed(2)}</td>
+                        <td style={stubNum}>{formatCurrency(selectedPayroll.baseRate)}</td>
                         <td style={stubNum}>{formatCurrency(selectedPayroll.ptoPay)}</td>
                       </tr>
                     )}

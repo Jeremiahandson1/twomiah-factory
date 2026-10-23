@@ -25,6 +25,7 @@ import MakeShiftAvailableModal from './MakeShiftAvailableModal'
 import { useMay } from '../lib/useMay'
 import { C, CHIP_FILLS, FILL, dialog, overlay, tint } from './theme'
 import { fullName, isRecurringRow, type Caregiver, type Client, type SavedReply, type ScheduleRow } from './types'
+import { money } from '@twomiah/tenant-ui/src/money'
 
 /** A shift as the grid draws it on one day: the row, with that day's exception applied. */
 interface CellShift extends ScheduleRow {
@@ -685,13 +686,13 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
           {/* Care type + payer rate hint — helps catch wrong-rate scheduling. */}
           {client && (client.careTypeName || client.referralSourceName || rate) && (
             <div style={{ fontSize: 9, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-              title={`${client.careTypeName || 'No care type'} · ${client.referralSourceName || (client.isPrivatePay ? 'Private Pay' : '—')}${rate ? ` · $${rate.toFixed(2)}/hr` : ''}`}>
+              title={`${client.careTypeName || 'No care type'} · ${client.referralSourceName || (client.isPrivatePay ? 'Private Pay' : '—')}${rate ? ` · ${money(rate)}/hr` : ''}`}>
               {client.careTypeName && <span>{client.careTypeName}</span>}
               {client.careTypeName && (client.referralSourceName || rate) && <span> · </span>}
               {client.referralSourceName
                 ? <span>{client.referralSourceName}</span>
                 : client.isPrivatePay
-                  ? <span>Private{rate ? ` $${rate.toFixed(0)}` : ''}</span>
+                  ? <span>Private{rate ? ` ${money(rate, 0)}` : ''}</span>
                   : null}
             </div>
           )}

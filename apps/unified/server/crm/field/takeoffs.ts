@@ -4,7 +4,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createTakeoffsService } from './takeoffsService.ts'
@@ -13,8 +13,13 @@ import { createTakeoffsService } from './takeoffsService.ts'
 const assemblyBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough()
 const sheetBody = z.object({ name: z.string().min(1, 'Name is required') }).passthrough()
 const itemBody = z.object({ assemblyId: z.string().min(1, 'Pick an assembly') }).passthrough()
+/** A price is a number of dollars, 0 or more, to the cent; the screen sends what was typed. */
+const price = z.coerce.number({ invalid_type_error: 'A price must be a number' }).finite().min(0, 'A price cannot be negative').transform((n) => Math.round(n * 100) / 100)
+const assemblyUpdateBody = z.object({
+  materials: z.array(z.object({ id: z.string().min(1), unitCost: price.optional(), unitPrice: price.optional() })).optional(),
+}).passthrough()
 
-const all = <T,>(c: any, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: any, rows: T[]) => listAll(c, rows)
 
 export function createTakeoffsRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
@@ -51,9 +56,11 @@ export function createTakeoffsRoutes(d: CrmDeps) {
 
   app.put('/assemblies/:id', requirePermission('takeoffs:update'), async (c) => {
     const user = c.get('user')
-    const body = await c.req.json()
-    await takeoffs.updateAssembly(c.req.param('id'), user.companyId, body)
-    return done(c)
+    const parsed = assemblyUpdateBody.safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) return invalid(c, parsed.error)
+    if (!(await takeoffs.getAssembly(c.req.param('id'), user.companyId))) return fail(c, 404, 'Assembly not found')
+    await takeoffs.updateAssembly(c.req.param('id'), user.companyId, parsed.data)
+    return one(c, await takeoffs.getAssembly(c.req.param('id'), user.companyId))
   })
 
   app.post('/assemblies/seed', requirePermission('takeoffs:create'), async (c) => {

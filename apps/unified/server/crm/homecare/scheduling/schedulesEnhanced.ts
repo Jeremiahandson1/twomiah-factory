@@ -13,7 +13,7 @@ import { and, eq, gte, lte } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { schedules, user, clients } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { schedTs, hms, shiftHours, shiftTimesError, DATE_RE } from '../core/scheduleOccurrences.ts'
@@ -66,7 +66,7 @@ export function createSchedulesEnhancedRoutes(core: HomecareCore, d: CrmDeps, sh
       .leftJoin(clients, and(eq(schedules.clientId, clients.id), eq(clients.companyId, companyId)))
       .where(and(...conditions))
 
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /api/schedules-enhanced
