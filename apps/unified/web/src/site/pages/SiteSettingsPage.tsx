@@ -1,12 +1,16 @@
 // The website's own settings (/api/site/settings): its look, navigation, words, search defaults and tracking. The
 // business's facts — name, phone, email, address, logo, main colour — are the company's, edited once in Settings, and
 // the site reads them from there.
-import { useEffect, useMemo, useState } from 'react'
+//
+// As every website editor does (components/Drafts.tsx): the preview — the home page under these settings — changes as
+// you type, Save draft keeps the changes off the site, Publish puts them on it, Discard changes goes back to the live ones.
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Save, Plus, X, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { PageError, useMayWrite } from '../../shared'
 import { api } from '../../api'
 import { Label, TextField, TextAreaField, ImageUrlField } from '../components/Field'
+import { DraftActions, DraftStatus, LivePreview, PreviewToggle, useDraftEditor, useIsWide, type DraftRow } from '../components/Drafts'
 
 interface NavItem { label: string; href: string }
 interface Design { id: string; label: string; isDefault: boolean }
@@ -31,6 +35,8 @@ interface SiteRow {
 
 const FIELDS: Array<keyof SiteRow> = ['design', 'tagline', 'serviceAreas', 'inventoryFeedUrl', 'contactCtaLabel', 'accentColor', 'faviconUrl', 'nav', 'seoTitle', 'seoDescription', 'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId']
 const pick = (row: any): SiteRow => Object.fromEntries(FIELDS.map((k) => [k, row?.[k] ?? null])) as SiteRow
+/** What the editor edits: the draft settings where there are some, else the live ones. */
+const toWorking = (r: DraftRow): SiteRow => pick(r.draft ?? r)
 
 const TRACKING = [
   ['googleTagManagerId', 'Google Tag Manager', 'GTM-XXXXXXX'],
@@ -43,28 +49,34 @@ const TRACKING = [
 export function SiteSettingsPage() {
   const mayEdit = useMayWrite('site:settings')
   const mayOpenCompany = useMayWrite('company:update')
-  const [settings, setSettings] = useState<SiteRow | null>(null)
+  const wide = useIsWide()
   const [designs, setDesigns] = useState<Design[]>([])
-  const [originalJson, setOriginalJson] = useState<string>('')
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [saved, setSaved] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [previewOnPhone, setPreviewOnPhone] = useState(false)
+
+  const ed = useDraftEditor<SiteRow>({
+    row: null,
+    toWorking,
+    // Blank lines in the town list are where the owner pressed Enter, not towns.
+    save: (v) => api.patch('/api/site/settings', { ...v, serviceAreas: (v.serviceAreas || []).map((s) => s.trim()).filter(Boolean) }),
+    publish: () => api.post('/api/site/settings/publish', {}),
+    discard: () => api.delete('/api/site/settings/draft'),
+  })
 
   useEffect(() => {
     Promise.all([api.get('/api/site/settings'), api.get('/api/site/designs')])
-      .then(([row, d]: [any, { data: Design[] }]) => {
-        const initial = pick(row)
-        setSettings(initial)
-        setOriginalJson(JSON.stringify(initial))
+      .then(([row, d]: [DraftRow, { data: Design[] }]) => {
+        ed.adopt(row)
         setDesigns(d.data)
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => setLoadError(e.message))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const isDirty = useMemo(() => settings ? JSON.stringify(settings) !== originalJson : false, [settings, originalJson])
-  const update = (patch: Partial<SiteRow>) => { setSaved(false); setSettings((s) => s ? { ...s, ...patch } : s) }
+  const settings = ed.value
+  const update = (patch: Partial<SiteRow>) => ed.update((s) => ({ ...s, ...patch }))
 
   const nav = settings?.nav || []
   const updateNav = (i: number, patch: Partial<NavItem>) => update({ nav: nav.map((n, j) => (j === i ? { ...n, ...patch } : n)) })
@@ -76,50 +88,30 @@ export function SiteSettingsPage() {
     update({ nav: next })
   }
 
-  const save = async () => {
-    if (!settings) return
-    setSaving(true)
-    setError(null)
-    try {
-      // Blank lines in the town list are where the owner pressed Enter, not towns.
-      const body = { ...settings, serviceAreas: (settings.serviceAreas || []).map((s) => s.trim()).filter(Boolean) }
-      const updated = pick(await api.patch('/api/site/settings', body))
-      setSettings(updated)
-      setOriginalJson(JSON.stringify(updated))
-      setSaved(true)
-    } catch (e: any) {
-      setError(e.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
   if (loading) return <div className="text-muted text-sm">Loading…</div>
-  if (!settings) return <PageError message={error || "Couldn't load the website's settings."} />
+  if (!settings) return <PageError message={loadError || "Couldn't load the website's settings."} />
 
   const defaultDesign = designs.find((d) => d.isDefault)
+  const preview = wide || previewOnPhone
 
   return (
-    <div className="max-w-3xl mx-auto pb-16">
+    <div className="max-w-[100rem] mx-auto pb-16">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-ink">Website settings</h1>
           <p className="text-muted text-sm mt-1">The site's look, navigation, search defaults and tracking.</p>
         </div>
-        {mayEdit && (
-          <div className="flex items-center gap-3">
-            {isDirty && <span className="text-amber-700 dark:text-amber-300 text-xs font-semibold">Unsaved changes</span>}
-            {saved && !isDirty && <span className="text-green-700 dark:text-green-300 text-xs font-semibold" role="status">Saved</span>}
-            <button type="button" onClick={save} disabled={saving || !isDirty} className="btn-primary btn-lg disabled:opacity-40">
-              <Save className="w-4 h-4" />
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <DraftStatus isDirty={ed.isDirty} hasDraft={ed.hasDraft} justPublished={ed.justPublished} />
+          <PreviewToggle on={previewOnPhone} onChange={setPreviewOnPhone} />
+          {mayEdit && <DraftActions ed={ed} noun="site's settings" />}
+        </div>
       </div>
 
-      <PageError message={error} className="mb-6" />
+      <PageError message={ed.error} className="mb-6" />
 
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-6 lg:items-start">
+      <div className={previewOnPhone ? 'hidden lg:block' : ''}>
       <div className="card card-padding mb-6 text-sm text-ink-soft">
         Your business name, phone, email, address, logo and main colour are your company's, and the site uses them as they are.{' '}
         {mayOpenCompany
@@ -213,6 +205,19 @@ export function SiteSettingsPage() {
           </div>
         </section>
       </fieldset>
+      </div>
+
+      {preview && (
+        <LivePreview
+          kind="settings"
+          slug="site"
+          data={mayEdit ? settings : null}
+          label={ed.isDirty || ed.hasDraft ? 'Home page with your changes' : 'Home page'}
+          publicHref="/"
+          className={`card overflow-hidden ${wide ? 'lg:sticky lg:top-4 h-[calc(100vh-10rem)]' : 'h-[calc(100svh-12rem)] min-h-[24rem]'}`}
+        />
+      )}
+      </div>
     </div>
   )
 }

@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+// One page of the website: its sections, title and search tags, beside a live preview of the page as it will look.
+// Typing redraws the preview; Save draft keeps the changes off the site; Publish puts them on it (components/Drafts.tsx,
+// server site/drafts.ts). "Show on site" is a separate switch: whether visitors can open the page at all.
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Save, Trash2, RefreshCw } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { PageError, useConfirm, useMayWrite } from '../../shared'
 import { api } from '../../api'
 import { findSectionDef, SECTION_DEFS } from '../sectionSchema'
 import { SectionFormDispatcher } from '../components/SectionFormDispatcher'
 import { AddSectionMenu } from '../components/AddSectionMenu'
+import { DraftActions, DraftStatus, LivePreview, PreviewToggle, useDraftEditor, useIsWide, type DraftRow } from '../components/Drafts'
 
 interface Section { type: string; variant: string; data: Record<string, any> }
 
@@ -13,14 +17,17 @@ interface Section { type: string; variant: string; data: Record<string, any> }
 const FRAMING = new Set(['hero', 'cta', 'reservation'])
 const hasSubstance = (sections: Section[]) => sections.some((s) => s && !FRAMING.has(s.type))
 
-interface Page {
-  id: string
-  slug: string
+/** What the editor edits: the page's draft where it has one, else the live page. */
+interface PageContent {
   title: string
   sections: Section[]
-  isPublished: boolean
-  metaTitle?: string | null
-  metaDescription?: string | null
+  metaTitle: string | null
+  metaDescription: string | null
+}
+
+const toWorking = (r: DraftRow): PageContent => {
+  const s = r.draft ?? r
+  return { title: s.title ?? '', sections: Array.isArray(s.sections) ? s.sections : [], metaTitle: s.metaTitle ?? null, metaDescription: s.metaDescription ?? null }
 }
 
 function VariantPicker({ currentType, currentVariant, onChange }: { currentType: string; currentVariant: string; onChange: (v: string) => void }) {
@@ -56,44 +63,43 @@ export function PageEditPage() {
   const { slug } = useParams<{ slug: string }>()
   const confirm = useConfirm()
   const mayEdit = useMayWrite('site:update')
-  const [page, setPage] = useState<Page | null>(null)
-  const [originalJson, setOriginalJson] = useState<string>('')
+  const wide = useIsWide()
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [expandedIdx, setExpandedIdx] = useState<number | null>(0)
+  const [previewOnPhone, setPreviewOnPhone] = useState(false)
+  const [switching, setSwitching] = useState(false)
   /**
-   * The page opened hidden with nothing on it yet — the starting site holds back a page it had no facts for (an About
-   * with no story). Its first section of substance ticks Published, so the page shows once it has something to show;
-   * the tick is there to see, and to clear, before saving. (Live test 2026-10-22: "About exists but is Hidden".)
+   * The page opened hidden with nothing live on it — the starting site holds back a page it had no facts for (an About
+   * with no story). Publishing its first content shows it, as saving it used to (live test 2026-10-22: "About exists
+   * but is Hidden"): the choice is ticked and there to clear, beside Publish.
    */
-  const [heldEmpty, setHeldEmpty] = useState(false)
-  const previewIframe = useRef<HTMLIFrameElement>(null)
+  const [showOnPublish, setShowOnPublish] = useState(false)
+
+  const ed = useDraftEditor<PageContent>({
+    row: null,
+    toWorking,
+    save: (v) => api.patch(`/api/site/pages/${slug}`, { title: v.title, sections: v.sections, metaTitle: v.metaTitle ?? null, metaDescription: v.metaDescription ?? null }),
+    publish: (show) => api.post(`/api/site/pages/${slug}/publish`, show ? { show: true } : {}),
+    discard: () => api.delete(`/api/site/pages/${slug}/draft`),
+  })
 
   useEffect(() => {
     if (!slug) return
     setLoading(true)
     api.get(`/api/site/pages/${slug}`)
-      .then((p: Page) => {
-        setPage(p)
-        setOriginalJson(JSON.stringify(p))
-        setHeldEmpty(!p.isPublished && !hasSubstance(p.sections || []))
+      .then((p: DraftRow) => {
+        ed.adopt(p)
+        setShowOnPublish(!p.isPublished && !hasSubstance(Array.isArray(p.sections) ? p.sections : []))
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => setLoadError(e.message))
       .finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
 
-  const isDirty = useMemo(() => page ? JSON.stringify(page) !== originalJson : false, [page, originalJson])
-
-  // Leaving with unsaved edits loses them: ask the browser to warn on a reload or a closed tab.
-  useEffect(() => {
-    if (!isDirty) return
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
-    window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
-  }, [isDirty])
-
-  const update = (patch: Partial<Page>) => setPage((p) => p ? { ...p, ...patch } : p)
+  const page = ed.value
+  const row = ed.row
+  const update = (patch: Partial<PageContent>) => ed.update((p) => ({ ...p, ...patch }))
 
   const updateSection = (i: number, next: Section) => {
     if (!page) return
@@ -115,7 +121,7 @@ export function PageEditPage() {
 
   const removeSection = async (i: number) => {
     if (!page) return
-    if (!(await confirm('It leaves the page when you save.', { title: 'Remove this section?', confirmText: 'Remove' }))) return
+    if (!(await confirm('It leaves the page when you publish.', { title: 'Remove this section?', confirmText: 'Remove' }))) return
     update({ sections: page.sections.filter((_, j) => j !== i) })
     if (expandedIdx === i) setExpandedIdx(null)
   }
@@ -124,43 +130,37 @@ export function PageEditPage() {
     if (!page) return
     const newSection: Section = { type: def.type, variant: def.variant, data: { ...def.defaultData } }
     const nextSections = [...page.sections, newSection]
-    const showIt = heldEmpty && !FRAMING.has(def.type)
-    update(showIt ? { sections: nextSections, isPublished: true } : { sections: nextSections })
-    if (showIt) setHeldEmpty(false)
+    update({ sections: nextSections })
     setExpandedIdx(nextSections.length - 1)
   }
 
-  const save = async () => {
-    if (!page) return
-    setSaving(true)
-    setError(null)
+  /** "Show on site": at once, on its own — it neither saves nor publishes the edits. */
+  const setShown = async (shown: boolean) => {
+    if (!shown && !(await confirm("Visitors can't open it, and it leaves the menu, until you show it again. Your edits are kept.", { title: 'Hide this page from your site?', confirmText: 'Hide page' }))) return
+    setSwitching(true)
+    ed.setError(null)
     try {
-      const updated: Page = await api.patch(`/api/site/pages/${slug}`, {
-        title: page.title,
-        sections: page.sections,
-        metaTitle: page.metaTitle ?? null,
-        metaDescription: page.metaDescription ?? null,
-        isPublished: page.isPublished,
-      })
-      setPage(updated)
-      setOriginalJson(JSON.stringify(updated))
-      previewIframe.current?.contentWindow?.location.reload()
+      const r: DraftRow = await api.patch(`/api/site/pages/${slug}`, { isPublished: shown })
+      ed.setRow(r)
+      if (shown) setShowOnPublish(false)
     } catch (e: any) {
-      setError(e.message)
+      ed.setError(e.message)
     } finally {
-      setSaving(false)
+      setSwitching(false)
     }
   }
 
   if (loading) return <div className="text-muted text-sm">Loading…</div>
-  if (!page) return <PageError message={error || 'Page not found'} />
+  if (!page || !row) return <PageError message={loadError || 'Page not found'} />
 
-  const publicHref = '/' + (page.slug === 'home' ? '' : page.slug)
+  const publicHref = '/' + (row.slug === 'home' ? '' : row.slug)
+  const shownOnSite = !!row.isPublished
+  const preview = wide || previewOnPhone
 
   return (
     <div className="card overflow-hidden flex flex-col lg:h-[calc(100vh-7rem)]">
       {/* Toolbar */}
-      <div className="border-b border-line px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3 sm:gap-4 shrink-0">
+      <div className="border-b border-line px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3 shrink-0">
         <Link to="/crm/website/pages" className="text-muted hover:text-ink flex items-center gap-1.5 text-sm">
           <ArrowLeft className="w-4 h-4" />
           Pages
@@ -175,36 +175,41 @@ export function PageEditPage() {
           className="text-xl text-ink bg-transparent dark:bg-transparent border-0 focus:outline-none focus:ring-0 flex-1 min-w-[10rem] px-0"
           placeholder="Page title"
         />
-        <label className="flex items-center gap-2 text-sm text-ink-soft">
+        <DraftStatus isDirty={ed.isDirty} hasDraft={ed.hasDraft} justPublished={ed.justPublished} />
+        <PreviewToggle on={previewOnPhone} onChange={setPreviewOnPhone} />
+      </div>
+      <div className="border-b border-line px-4 sm:px-6 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 shrink-0 bg-paper">
+        <label className="flex items-center gap-2 text-sm text-ink" title="Whether visitors can open this page at all. Separate from publishing your edits.">
           <input
             type="checkbox"
-            checked={page.isPublished}
-            disabled={!mayEdit}
-            onChange={(e) => update({ isPublished: e.target.checked })}
+            role="switch"
+            aria-checked={shownOnSite}
+            checked={shownOnSite}
+            disabled={!mayEdit || switching}
+            onChange={(e) => setShown(e.target.checked)}
             className="rounded border-line"
           />
-          Published
+          Show on site
         </label>
-        {!page.isPublished && <span className="text-xs text-muted">Hidden: visitors can't open it, and it isn't in the menu.</span>}
-        {isDirty && <span className="text-amber-700 dark:text-amber-300 text-xs font-semibold">Unsaved changes</span>}
+        <span className="text-xs text-muted">
+          {shownOnSite ? 'Visitors can open it at ' + publicHref + '.' : "Hidden: visitors can't open it, and it isn't in the menu."}
+        </span>
         {mayEdit && (
-          <button type="button" onClick={save} disabled={saving || !isDirty} className="btn-primary btn-md disabled:opacity-40">
-            <Save className="w-4 h-4" />
-            {saving ? 'Saving…' : 'Save'}
-          </button>
+          <div className="sm:ml-auto">
+            <DraftActions ed={ed} noun="page" offSite={!shownOnSite} show={showOnPublish} setShow={setShowOnPublish} showLabel="Also show it on the site" />
+          </div>
         )}
-        <PageError message={error} className="w-full" />
+        <PageError message={ed.error} className="w-full" />
       </div>
 
-      {/* Two panes on a wide screen: the editor and the live page. On a narrow one, the editor and an Open link. */}
-      <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden">
-        <div className="w-full lg:w-[480px] shrink-0 lg:border-r border-line lg:overflow-auto bg-paper p-4 sm:p-5 space-y-3">
+      {/* Two panes on a wide screen: the editor and the preview. On a phone, one or the other (the Preview button). */}
+      <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden min-h-0">
+        <div className={`w-full lg:w-[480px] shrink-0 lg:border-r border-line lg:overflow-auto bg-paper p-4 sm:p-5 space-y-3 ${previewOnPhone ? 'hidden lg:block' : ''}`}>
           {page.sections.length === 0 && (
             <div className="text-sm text-muted bg-white dark:bg-slate-900 border border-line rounded-lg p-4 text-center">
               No sections yet.{mayEdit && ' Add one below.'}
             </div>
           )}
-
           {page.sections.map((section, i) => {
             const def = findSectionDef(section.type, section.variant)
             const isOpen = expandedIdx === i
@@ -290,32 +295,17 @@ export function PageEditPage() {
           </fieldset>
         </div>
 
-        {/* Live preview */}
-        <div className="flex-1 bg-paper flex flex-col border-t lg:border-t-0 border-line">
-          <div className="px-4 py-2 border-b border-line flex items-center gap-3 text-sm shrink-0">
-            <div className="text-muted hidden lg:block">Live preview</div>
-            <div className="text-xs text-muted lg:ml-auto truncate">{publicHref}</div>
-            <button
-              type="button"
-              onClick={() => previewIframe.current?.contentWindow?.location.reload()}
-              className="btn-secondary btn-sm hidden lg:inline-flex"
-              aria-label="Reload preview"
-              title="Reload preview"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-            <a href={publicHref} target="_blank" rel="noreferrer" className="btn-secondary btn-sm ml-auto lg:ml-0">
-              <ExternalLink className="w-3.5 h-3.5" />
-              Open
-            </a>
-          </div>
-          <iframe
-            ref={previewIframe}
-            src={publicHref}
-            className="hidden lg:block flex-1 w-full border-0 bg-white"
-            title="Live preview"
+        {/* The preview: this page as it will look, drawn from what is in the editor now. */}
+        {preview && (
+          <LivePreview
+            kind="page"
+            slug={row.slug}
+            data={mayEdit ? page : null}
+            label={ed.isDirty || ed.hasDraft ? 'Preview of your changes' : 'Preview'}
+            publicHref={shownOnSite ? publicHref : null}
+            className={`border-t lg:border-t-0 border-line ${wide ? 'flex-1' : 'shrink-0 h-[calc(100svh-12rem)] min-h-[24rem]'}`}
           />
-        </div>
+        )}
       </div>
     </div>
   )
