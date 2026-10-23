@@ -12,7 +12,7 @@ import { createBarLive } from '../server/crm/bar/barLive.ts'
 import { MIGRATIONS } from '../server/db/migrate.ts'
 
 const MIGRATION = readFileSync(path.join(MIGRATIONS, '0027_one_time_zone.sql'), 'utf8')
-/** Run 0022 again over rows made the way the old code left them (the harness has already applied it to an empty one). */
+/** Run 0027 again over rows made the way the old code left them (the harness has already applied it to an empty one). */
 const runMigration = async (t: any) => { for (const stmt of MIGRATION.split('--> statement-breakpoint')) if (stmt.trim()) await t.client.exec(stmt) }
 
 describe('migration 0027: the old zones move onto the company, never silently', () => {
