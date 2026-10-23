@@ -1,6 +1,7 @@
 // Moved from templates/crm-homecare/frontend/src/utils/incidentOptions.ts. Mirrors server/crm/homecare/core/incidentOptions.ts
 // — keep the two lists identical.
 // INCIDENT_TYPES values are the ones the incident form has always stored.
+import { agencyWall } from './agencyClock';
 import { api, downloadBlob, type RequestOptions } from './http';
 export { saveBlob } from './http';
 
@@ -100,15 +101,10 @@ export const SEVERITY_BORDER: Record<string, string> = {
   minor: 'border-green-600 dark:border-green-400',
 };
 
-// Today's date in the browser's calendar (YYYY-MM-DD), never the UTC date.
-export const localToday = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-export const localTimeHHMM = () => {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
+// Today's date and the time now on the AGENCY's clock (YYYY-MM-DD, HH:MM) — an incident's day and time are the
+// agency's wall clock, not the browser's (2026-10-23) nor UTC's.
+export const agencyToday = () => agencyWall(new Date()).date;
+export const agencyNowHHMM = () => agencyWall(new Date()).time;
 
 // Shared field classes for the incident screens.
 export const FIELD = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100 disabled:text-gray-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:disabled:bg-slate-700 dark:disabled:text-slate-400';

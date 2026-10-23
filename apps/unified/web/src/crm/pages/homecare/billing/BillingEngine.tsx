@@ -15,6 +15,7 @@ import { api, rows, errorMessage, saveBlob } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { useMay } from '../lib/useMay'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { agencyToday, agencyDaysUntil } from '../lib/agencyClock'
 
 type Num = string | number | null | undefined
 const money = (n: Num) => `${formatMoney((parseFloat(String(n || 0)) || 0))}`
@@ -135,7 +136,7 @@ const ClaimsTab = () => {
   }
   const toggle = (id: string) => setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   const selectAllOpen = () => setSelected(claims.filter((c) => ['pending', 'draft', 'ready'].includes(c.status)).map((c) => c.id))
-  const day = toLocalYMD(new Date())
+  const day = agencyToday()
 
   return (
     <div>
@@ -307,7 +308,8 @@ const AuthorizationsTab = () => {
 
   const health = (a: ActiveAuth): Health => {
     const total = parseFloat(String(a.authorizedUnits || 0)), used = parseFloat(String(a.usedUnits || 0))
-    const daysLeft = a.endDate ? Math.ceil((new Date(String(a.endDate).slice(0, 10) + 'T23:59:59').getTime() - Date.now()) / 86400000) : null
+    // Days left counts the end day itself, on the agency's calendar (it was the browser's midnight).
+    const daysLeft = a.endDate ? agencyDaysUntil(a.endDate) + 1 : null
     if (daysLeft !== null && daysLeft <= 0) return 'expired'
     if (total - used <= parseFloat(String(a.lowUnitsAlertThreshold || 20))) return 'low'
     if (daysLeft !== null && daysLeft <= 30) return 'expiring_soon'

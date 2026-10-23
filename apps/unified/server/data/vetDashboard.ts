@@ -2,6 +2,7 @@
 // patients by species, and the vaccinations overdue or due within 30 days.
 import { sql, eq, and, count } from 'drizzle-orm'
 import { patient } from '../db/schema/index.ts'
+import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 
 const rowsOf = (r: any): any[] => (r?.rows ?? r ?? []) as any[]
 
@@ -19,9 +20,11 @@ export async function livingPatientsBySpecies(db: any, companyId: string): Promi
  * DISTINCT ON has no builder form. `when` is 'overdue' (due before today) or 'soon' (due in the next 30 days).
  */
 export async function latestVaccinationsDue(db: any, companyId: string, when: 'overdue' | 'soon'): Promise<number> {
+  // The clinic's today — the database's CURRENT_DATE was UTC's day, a day ahead every evening (2026-10-23).
+  const today = storeDateString(new Date(), await companyTimeZone(db, companyId))
   const window = when === 'overdue'
-    ? sql`latest.due_date < CURRENT_DATE`
-    : sql`latest.due_date >= CURRENT_DATE AND latest.due_date < CURRENT_DATE + INTERVAL '30 days'`
+    ? sql`latest.due_date < ${today}::date`
+    : sql`latest.due_date >= ${today}::date AND latest.due_date < ${today}::date + INTERVAL '30 days'`
   const r = rowsOf(await db.execute(sql`
     SELECT COUNT(*)::int AS value FROM (
       SELECT DISTINCT ON (v.patient_id, lower(v.vaccine)) v.due_date

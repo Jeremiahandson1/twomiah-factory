@@ -28,6 +28,7 @@ import { toLocalYMD, parseLocalDate } from '../lib/date'
 import { useConfirm, useMayWrite } from '../../../../shared'
 import { CHIP, FILL, INK, SOLID, type Tone } from './ui'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { agencyToday } from '../lib/agencyClock'
 
 // ── The replies' shapes ──────────────────────────────────────────────────────
 type Num = number | string | null | undefined
@@ -126,7 +127,7 @@ const RouteOptimizer = () => {
 
   // ── Route Planner state ─────────────────────────────────────
   const [selectedCaregiver, setSelectedCaregiver] = useState('')
-  const [selectedDate, setSelectedDate] = useState(toLocalYMD(new Date()))
+  const [selectedDate, setSelectedDate] = useState(agencyToday())
   const [routeStops, setRouteStops] = useState<Stop[]>([])
   const [optimizedRoute, setOptimizedRoute] = useState<OptimizedRoute | null>(null)
   const [, setPreOptimizeMiles] = useState<number | null>(null)
@@ -140,7 +141,7 @@ const RouteOptimizer = () => {
   const [existingSavedPlan, setExistingSavedPlan] = useState<SavedPlanSummary | null>(null)
 
   // ── Daily view state ────────────────────────────────────────
-  const [dailyDate, setDailyDate] = useState(toLocalYMD(new Date()))
+  const [dailyDate, setDailyDate] = useState(agencyToday())
   const [dailyRoutes, setDailyRoutes] = useState<DailyRoute[]>([])
   const [dailyLoading, setDailyLoading] = useState(false)
 

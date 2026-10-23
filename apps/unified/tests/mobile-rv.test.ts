@@ -15,7 +15,7 @@ const call = (path: string, init: any = {}) => as(token, path, init)
 beforeAll(async () => {
   t = await bootTenant({ vertical: 'rv' })
   const s = await seedOwner(t)
-  await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'unit_inventory', 'deal_pipeline', 'service_dept', 'dashboard', 'scheduling'] }).where(eq(t.schema.company.id, s.company.id))
+  await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'unit_inventory', 'deal_pipeline', 'service_dept', 'dashboard', 'scheduling', 'trade_in'] }).where(eq(t.schema.company.id, s.company.id))
   // The phone signs in exactly as the web does.
   const login = await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })
   expect(login.status).toBe(200)

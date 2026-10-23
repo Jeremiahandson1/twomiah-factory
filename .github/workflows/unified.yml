@@ -32,6 +32,8 @@ jobs:
         run: bun run scripts/check-unified-rules.ts
       - name: No browser dialogs in the unified screens
         run: bun run scripts/check-unified-no-native-dialogs.ts
+      - name: Stored moments print on the company clock in the admin screens
+        run: bun run scripts/check-unified-instants-on-company-clock.ts
       - name: Whole lists answer through listAll (the limit asked for, never a made-up 1)
         run: bun run scripts/check-unified-whole-lists.ts
       - name: Screen state that is set is also read (no dead buttons)

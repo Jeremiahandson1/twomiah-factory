@@ -4,6 +4,7 @@ import { Loader2, Flame, Beer, Users, MessageSquare, Star, Search, RefreshCw } f
 import { api } from '../../../api'
 import { useMayWrite } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
+import { zoneMoment, zoneWall } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
  * TONIGHT — the bartender's console, made for one thumb on a phone behind the bar.
@@ -50,12 +51,8 @@ const LABEL = 'text-xs font-semibold uppercase tracking-wide text-gray-500 dark:
 function localTimeToday(hhmm: string, tz: string): string | null {
   if (!/^\d{2}:\d{2}$/.test(hhmm)) return null;
   const now = new Date();
-  const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-  const guess = new Date(`${ymd}T${hhmm}:00Z`);
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(guess);
-  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-  const offset = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour') % 24, g('minute')) - guess.getTime();
-  let at = new Date(guess.getTime() - offset);
+  // The shared zone arithmetic (one implementation, clock changes included).
+  let at = zoneMoment(zoneWall(now, tz).date, hhmm, tz);
   // A close "at 1:00" typed at 11 PM means tonight's 1 AM, which is tomorrow's date.
   if (at.getTime() < now.getTime() - 3600_000) at = new Date(at.getTime() + 86400_000);
   return at.toISOString();

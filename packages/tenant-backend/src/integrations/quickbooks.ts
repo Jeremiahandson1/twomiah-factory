@@ -267,6 +267,8 @@ export interface QuickBooksRoutesDeps {
    */
   requirePermission: (permission: string) => any
   audit?: { log: (input: any) => any }
+  /** The QuickBooks switch's gate for everything but the OAuth callback (the unified app: quickbooks). */
+  requireFeature?: (c: any, next: any) => any
   frontendUrl?: string
 }
 
@@ -300,6 +302,9 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
   })
 
   app.use('*', authenticate)
+  // Connecting, syncing and reading the books are the QuickBooks switch's (deps.requireFeature): off, refused, as the
+  // Integrations card and the invoice's Sync button are gone (2026-10-22). The callback above stays (no session).
+  if (deps.requireFeature) app.use('*', deps.requireFeature)
   const user = (c: any) => c.get('user') as any
 
   app.get('/status', async (c) => c.json(await qb.getConnectionStatus(user(c).companyId)))

@@ -9,6 +9,7 @@ import { todayKey as todayStr } from '../../../shared'
 import { money as fmtMoney } from '../../../shared'
 import { useToast } from '../../../shared'
 import { useConfirm } from '../../../shared'
+import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
  * Memberships — plans (GET/POST/PUT/DELETE /api/memberships) and the people on
@@ -57,7 +58,7 @@ function fmtDate(s?: string): string {
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
   const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return dateOnly ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : momentDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function cycleLabel(c?: string): string {
   if (c === 'annual') return '/yr';

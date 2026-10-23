@@ -13,7 +13,7 @@ const as = (who: string, path: string, init: any = {}) => t.call(path, { ...init
 beforeAll(async () => {
   t = await bootTenant({ vertical: 'rv' })
   const s = await seedOwner(t)
-  await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'unit_inventory', 'deal_pipeline', 'service_dept', 'dashboard', 'scheduling'] }).where(eq(t.schema.company.id, s.company.id))
+  await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'unit_inventory', 'deal_pipeline', 'service_dept', 'dashboard', 'scheduling', 'trade_in'] }).where(eq(t.schema.company.id, s.company.id))
   for (const role of ['manager', 'field', 'viewer']) {
     await t.db.insert(t.schema.user).values({ email: `${role}@test.example`, passwordHash: await Bun.password.hash('Seat-pass-1', 'bcrypt'), firstName: role, lastName: 'Seat', role, companyId: s.company.id })
     tokens[role] = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: `${role}@test.example`, password: 'Seat-pass-1' } })).json()).accessToken

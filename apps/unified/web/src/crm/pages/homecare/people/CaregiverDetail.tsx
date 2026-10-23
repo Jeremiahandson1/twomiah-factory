@@ -31,7 +31,7 @@ import { useAuth, useConfirm, useToast, usePermissions } from '../../../../share
 import { api, errorMessage, rows } from '../lib/http'
 import { useMay } from '../lib/useMay'
 import { parseLocalDate, toLocalYMD } from '../lib/date'
-import { formatAgencyDateTime } from '../lib/agencyClock'
+import { formatAgencyDateTime, agencyToday } from '../lib/agencyClock'
 import EligibilityCard, { isWisconsinAgency } from './EligibilityCard'
 import { money } from '@twomiah/tenant-ui/src/money'
 
@@ -394,7 +394,7 @@ export default function CaregiverDetail({ caregiverId, onBack }: Props) {
         base: caregiverRates.base ? parseFloat(caregiverRates.base) : null,
         overtime: caregiverRates.overtime ? parseFloat(caregiverRates.overtime) : null,
         premium: caregiverRates.premium ? parseFloat(caregiverRates.premium) : null,
-        effectiveDate: toLocalYMD(new Date()),
+        effectiveDate: agencyToday(),
       })
       toast.success('Pay rates saved')
       setRateHistory(null) // reset history so it reloads if expanded

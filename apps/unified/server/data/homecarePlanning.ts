@@ -12,7 +12,7 @@
 // exactly; see each function.
 import { sql, type SQL } from 'drizzle-orm'
 import { camelRows, camelFirst } from '@twomiah/tenant-backend'
-import { occurrencesCte, localDate, localTs, dayStartUtc, dayEndUtc, nowUtc, inList, wallClock, type Q } from './homecareCore.ts'
+import { occurrencesCte, localDate, localTs, dayStartUtc, dayEndUtc, nowUtc, inList, wallClock, type Q, agencyClock } from './homecareCore.ts'
 import { billedInRangeSql, invoiceBalanceSql, invoiceServiceDateSql, releasedInvoiceSql } from './homecareBilling.ts'
 
 const all = async (q: Q, s: SQL): Promise<any[]> => camelRows(await q.execute(s))
@@ -1493,11 +1493,12 @@ export async function optimizerClient(q: Q, companyId: string, clientId: string)
 
 /** client-data: the client's current active authorization (ending soonest). */
 export async function currentAuthorization(q: Q, companyId: string, clientId: string): Promise<any | null> {
+  const { today } = await agencyClock(q, companyId) // the agency's day (CURRENT_DATE was the database's, UTC)
   return camelFirst(await q.execute(sql`SELECT authorized_units, used_units, unit_type, start_date, end_date,
            authorized_units - used_units AS remaining_units
     FROM authorizations
     WHERE company_id = ${companyId} AND client_id = ${clientId} AND status = 'active'
-      AND start_date <= CURRENT_DATE AND end_date >= CURRENT_DATE
+      AND start_date <= ${today}::date AND end_date >= ${today}::date
     ORDER BY end_date ASC LIMIT 1`)) ?? null
 }
 

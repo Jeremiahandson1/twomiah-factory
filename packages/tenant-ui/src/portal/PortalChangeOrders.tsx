@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom'
 import { ClipboardList, CheckCircle, XCircle, Clock, PenTool, AlertTriangle } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { SignatureModal, SignatureDisplay, type SignatureData } from './SignaturePad'
-import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, moneyShort, PortalModal, inputCls, labelCls } from './common'
+import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSuccess, btnSecondary, formatDate, formatWhen, moneyShort, PortalModal, inputCls, labelCls } from './common'
 
 const STATUS_STYLES: Record<string, string> = { draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800', pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', submitted: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', rejected: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }
 
@@ -71,7 +71,7 @@ function ChangeOrderCard({ co, token, highlight }: { co: ChangeOrderData; token?
 
 export function PortalChangeOrderDetail() {
   const { changeOrderId } = useParams<{ changeOrderId: string }>()
-  const { token, fetch: portalFetch, contact } = usePortal()
+  const { token, fetch: portalFetch, contact, company } = usePortal()
   const [co, setCo] = useState<ChangeOrderData | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -123,7 +123,7 @@ export function PortalChangeOrderDetail() {
           </div>
         )}
         {co.status === 'approved' && (
-          <div className="p-6 bg-green-50 border-t dark:bg-green-950/20 dark:border-slate-700"><div className="flex items-start gap-4"><CheckCircle className="w-6 h-6 text-green-700 shrink-0 mt-1 dark:text-green-300" /><div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Approved{approvedOn ? ` on ${formatDate(approvedOn)}` : ''}</p>{co.signature && <SignatureDisplay className="mt-3" signature={co.signature} signedBy={(co.signedBy || co.approvedBy) ?? undefined} signedAt={approvedOn ?? undefined} />}</div></div></div>
+          <div className="p-6 bg-green-50 border-t dark:bg-green-950/20 dark:border-slate-700"><div className="flex items-start gap-4"><CheckCircle className="w-6 h-6 text-green-700 shrink-0 mt-1 dark:text-green-300" /><div className="flex-1"><p className="font-medium text-green-800 dark:text-green-300">Approved{approvedOn ? ` on ${formatWhen(approvedOn, company?.timeZone)}` : ''}</p>{co.signature && <SignatureDisplay className="mt-3" signature={co.signature} signedBy={(co.signedBy || co.approvedBy) ?? undefined} signedAt={approvedOn ?? undefined} timeZone={company?.timeZone} />}</div></div></div>
         )}
         {co.status === 'rejected' && <div className="p-6 bg-red-50 border-t dark:bg-red-950/20 dark:border-slate-700"><div className="flex items-center gap-2 text-red-700 dark:text-red-300"><XCircle className="w-5 h-5" /><span className="font-medium">Declined</span></div></div>}
       </div>

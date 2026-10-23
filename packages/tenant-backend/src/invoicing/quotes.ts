@@ -66,6 +66,12 @@ export interface QuoteOptions {
    * (Field Service T28 M4)
    */
   timeZoneFor?: (companyId: string) => Promise<string | null | undefined> | string | null | undefined
+  /**
+   * Make the job a quote converts to, inside the conversion's transaction, in place of the CRM's default job — for a
+   * vertical whose jobs are made one way of their own (roofing: numbered ROOF-0001 and titled by the property address,
+   * server/crm/roof/jobs.ts insertRoofJob). Handed what the default job would have been made from; returns the new row.
+   */
+  makeJob?: (tx: any, from: { companyId: string; userId: string; quote: any; description: string; address: string; city: string; state: string; zip: string; estimatedValue: string }) => Promise<any>
   /** Optional: text the customer when a quote is sent (field service). */
   onSent?: (ctx: { companyId: string; quote: any; contact: any; company: any }) => Promise<void>
 }
@@ -659,6 +665,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         const number = await nextNumber(tx, t.invoice, t.invoice.number, t.invoice.companyId, cid, numInvoice)
         const [inv] = await tx.insert(t.invoice).values({
           number, contactId: found.contactId, projectId: found.projectId, quoteId: found.id,
+          // The quote's job is the invoice's (roofing): the job's page lists the bill made from its proposal.
+          ...(extra.has('jobId') && found.jobId ? { jobId: found.jobId } : {}),
           subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, amountPaid: '0',
           dueDate: dueDateFromTerms(settings), notes: found.notes, terms: found.terms, companyId: cid,
         }).returning()
@@ -687,6 +695,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         ? [{ id: found.convertedToJobId }]
         : await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.quoteId, id), eq(t.job.companyId, cid))).limit(1)
       if (existingJob) return c.json({ error: 'Quote already converted to a job', jobId: existingJob.id }, 400)
+      // A quote written for a job (quote.job_id, roofing) is that job's proposal: it is not made into a second job.
+      if (extra.has('jobId') && found.jobId) return c.json({ error: 'This quote is already on a job.', jobId: found.jobId }, 400)
       const items = await customerLines(db, cid, await lineRows(id))
       const description = items.map((li: any) => `${li.description} (${Number(li.quantity)} × ${money(Number(li.unitPrice))})`).join('\n')
       // Service address: the quote's site when the vertical has sites, else the contact's address.
@@ -722,8 +732,13 @@ export function createQuoteRoutes(deps: QuoteDeps) {
           contactId: found.contactId, projectId: found.projectId, quoteId: found.id, createdById: currentUser.userId, companyId: cid,
         }
         if (o.jobHasSiteAndEquipment) { values.equipmentId = found.equipmentId || null; values.siteId = found.siteId || null }
-        const [newJob] = await tx.insert(t.job).values(values).returning()
-        if (o.hasConvertedToJobId) await tx.update(t.quote).set({ convertedToJobId: newJob.id, updatedAt: new Date() }).where(eq(t.quote.id, id))
+        const newJob = o.makeJob
+          ? await o.makeJob(tx, { companyId: cid, userId: currentUser.userId, quote: found, description, address, city, state, zip, estimatedValue: exTax.toFixed(2) })
+          : (await tx.insert(t.job).values(values).returning())[0]
+        // The quote is the new job's proposal: it records the job it became and, where quotes belong to jobs, sits on it.
+        if (o.hasConvertedToJobId || extra.has('jobId')) {
+          await tx.update(t.quote).set({ ...(o.hasConvertedToJobId ? { convertedToJobId: newJob.id } : {}), ...(extra.has('jobId') ? { jobId: newJob.id } : {}), updatedAt: new Date() }).where(eq(t.quote.id, id))
+        }
         return newJob
       })
       const [pr, ct] = await Promise.all([

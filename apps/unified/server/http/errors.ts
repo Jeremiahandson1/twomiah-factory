@@ -34,8 +34,20 @@ export const errorHandler = (err: Error, c: Context) => {
       case '23505': return fail(c, 409, 'That record already exists.')
       case '23514': return fail(c, 400, 'A value did not pass a validation rule.')
       case '22003': return fail(c, 400, 'A number is out of the allowed range.')
-      case '22P02': case '22007': case '22008':
-        return fail(c, 400, 'One of the values is not in a valid format.')
+      case '22P02': case '22007': case '22008': {
+        // What KIND of box it was, from the database's own words ("invalid input syntax for type numeric: """), so the
+        // person knows what to look for; every route should refuse by name before this (http/numberInput.ts), and this
+        // is the last line, not the answer (live test 2026-10-22: a blank hours box read "not in a valid format").
+        const said = String((err as any).message || (err as any)?.cause?.message || '')
+        const blank = /:\s*""\s*$/.test(said)
+        if (/type (numeric|integer|bigint|smallint|real|double precision)/i.test(said)) {
+          return fail(c, 400, blank ? 'A number box was left empty where a number is needed. Fill it in, or enter 0.' : 'A number box has something in it that is not a number. Check the numbers you entered.', 'invalid_number')
+        }
+        if (/type (date|timestamp)|date\/time/i.test(said) || pgCode !== '22P02') {
+          return fail(c, 400, blank ? 'A date box was left empty where a date is needed.' : 'A date you entered is not a real date. Check the dates and try again.', 'invalid_date')
+        }
+        return fail(c, 400, 'Something you entered is not in a form we can save. Check what you typed and try again.')
+      }
     }
   }
 

@@ -7,6 +7,7 @@ import {
 import type { FormEvent } from 'react'
 import { api } from '../../../api'
 import { useMayWrite, useKnownPermission, useToast, useConfirm } from '../../../shared'
+import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
@@ -522,7 +523,7 @@ function ago(iso: string | null): string {
   if (mins < 1) return 'Just now'
   if (mins < 60) return `${mins} min ago`
   if (mins < 24 * 60) return `${Math.round(mins / 60)} h ago`
-  return new Date(iso).toLocaleDateString()
+  return momentDate(iso)
 }
 
 /**

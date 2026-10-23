@@ -2,7 +2,7 @@
 // dashboard (routes/storms.ts, stormRadar.ts, canvassing.ts, crews.ts, materials.ts, dashboard.ts, with
 // services/stormData.ts and stormRadar.ts). Moved from templates/crm-roof/backend/src.
 //
-// Each behind the feature roofing's index.ts gates it with; crews ungated, as there and in roofing's menu (AppLayout's
+// Each behind the feature roofing's index.ts gates it with; crews behind its own switch (it was ungated, as in the template's
 // Crews item carries no feature). The dashboard is not mounted here: /api/dashboard is the CRM's mount, which answers
 // with createRoofDashboardRoutes (./dashboard.ts) where the vertical's CrmSettings.dashboard says so.
 //
@@ -21,7 +21,7 @@ export function fieldMounts(d: CrmDeps): Mount[] {
     { path: '/api/storms', access: 'user', feature: 'storm_lead_gen', router: createStormRoutes(d) },
     { path: '/api/storm-radar', access: 'user', feature: 'storm_radar_overlay', router: createStormRadarRoutes(d) },
     { path: '/api/canvassing', access: 'user', feature: 'canvassing_tool', router: createCanvassingRoutes(d) },
-    { path: '/api/crews', access: 'user', router: createCrewRoutes(d) },
+    { path: '/api/crews', access: 'user', feature: 'crews', router: createCrewRoutes(d) }, // the Crews switch's, as its menu item and the job pages' crew pickers are (2026-10-22)
     { path: '/api/materials', access: 'user', feature: 'materials', router: createMaterialRoutes(d) },
   ]
 }

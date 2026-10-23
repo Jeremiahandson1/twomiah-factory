@@ -23,7 +23,7 @@
 // The member's permissions are re-read from the server on open, on every tab change, when the window comes back into
 // view, and each minute — so a box the office unticks takes its menu away in a tab that is already open.
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
-import { formatAgencyDateTime, setAgencyTimezone } from '../lib/agencyClock'
+import { formatAgencyDateTime, setAgencyTimezone, agencyToday } from '../lib/agencyClock'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { serviceLabel } from '../lib/serviceTypes'
 import { createPortalClient, listRows, PortalContext, SESSION_EXPIRED, usePortal } from './portalHttp'
@@ -99,7 +99,7 @@ function ScheduleView() {
   if (loading) return <div style={MUTED}>Loading schedule...</div>
   if (visits.length === 0) return <div style={{ ...CARD, ...MUTED }}>No upcoming visits scheduled.</div>
 
-  const today = toLocalYMD(new Date())
+  const today = agencyToday()
   return (
     <div>
       <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem' }}>Upcoming Visits</h3>

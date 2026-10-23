@@ -25,7 +25,7 @@ const ALL_TABS = [
 
 export default function TabLayout() {
   const t = useTheme()
-  const { tabs, vertical } = useVertical()
+  const { tabs, vertical, hasFeature } = useVertical()
   // This phone's push token, for every vertical (POST /api/push/expo-token — apps/unified/server/core/phonePush.ts): a
   // tech is told of a job assigned or rescheduled, the office of a new lead, a caregiver of a visit. Registered here,
   // where every signed-in person passes, not on one vertical's first tab (roofing opens on the pipeline).
@@ -45,7 +45,8 @@ export default function TabLayout() {
 
   // A tab the seat may not use is not shown (a field tech has no quotes:read; the RV floor seat cannot appraise).
   const { can } = useAuth()
-  const activeNames = new Set(tabs.filter(tab => !tab.permission || can(tab.permission)).map(tab => tab.name))
+  // And a tab whose switch is off (TabDef.feature) is not shown either, as its screen and route are not on the web.
+  const activeNames = new Set(tabs.filter(tab => (!tab.permission || can(tab.permission)) && (!tab.feature || hasFeature(tab.feature))).map(tab => tab.name))
   const tabMap = new Map(tabs.map(tab => [tab.name, tab]))
 
   return (

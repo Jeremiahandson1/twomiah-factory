@@ -12,7 +12,9 @@ interface Props {
   onSuccess: () => void
 }
 
-const EMPTY = { email: '', password: '', firstName: '', lastName: '', phone: '', payRate: '15.00' }
+// The pay rate starts empty, its example in the placeholder. It was pre-filled "15.00", so typing a rate added to it —
+// "15.0018" (live test 2026-10-22) — and a blank one was sent as 15 without anyone choosing it.
+const EMPTY = { email: '', password: '', firstName: '', lastName: '', phone: '', payRate: '' }
 
 export default function AddCaregiverModal({ isOpen, onClose, onSuccess }: Props) {
   const toast = useToast()
@@ -22,6 +24,8 @@ export default function AddCaregiverModal({ isOpen, onClose, onSuccess }: Props)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    const rate = Number(formData.payRate)
+    if (formData.payRate.trim() === '' || !Number.isFinite(rate) || rate < 0) { setError('Enter the default hourly pay rate — a number of zero or more.'); return }
     setError('')
     setLoading(true)
     try {
@@ -31,7 +35,7 @@ export default function AddCaregiverModal({ isOpen, onClose, onSuccess }: Props)
         firstName: formData.firstName,
         lastName: formData.lastName,
         phone: formData.phone,
-        defaultPayRate: String(parseFloat(formData.payRate) || 15.0),
+        defaultPayRate: String(rate),
       })
       // The template's alert(); the app's toast.
       toast.success('Caregiver added successfully!')
@@ -84,14 +88,16 @@ export default function AddCaregiverModal({ isOpen, onClose, onSuccess }: Props)
           </div>
 
           <div className="form-group">
-            <label>Default Hourly Pay Rate *</label>
+            <label htmlFor="add-caregiver-pay">Default Hourly Pay Rate *</label>
             <input
+              id="add-caregiver-pay"
               type="number"
               step="0.01"
               min="0"
+              inputMode="decimal"
               value={formData.payRate}
               onChange={(e) => setFormData({ ...formData, payRate: e.target.value })}
-              placeholder="15.00"
+              placeholder="e.g. 15.00"
               required
             />
             <small className="text-muted">Can set different rates per care type after adding</small>

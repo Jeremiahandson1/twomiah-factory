@@ -18,6 +18,7 @@ import { api } from '../../../../api'
 import { PageError, errorText, useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { formatMoney, listOf, refusalOf, toHundredths, toWhole, useStoreCurrency, type DiscountCode } from './lib'
+import { companyDayBounds } from '@twomiah/tenant-ui/src/time/companyClock'
 
 const BLANK = { code: '', type: 'percent' as 'percent' | 'fixed', value: '', minSubtotal: '', maxUses: '', expiresAt: '' }
 
@@ -67,8 +68,9 @@ export default function DiscountsPage() {
         value,
         minSubtotalCents: min,
         maxUses,
-        // The end of the chosen day, where this person is — the code works through the whole of that date.
-        expiresAt: form.expiresAt ? new Date(`${form.expiresAt}T23:59:59.999`).toISOString() : null,
+        // The end of the chosen day on the STORE's clock — the code works through the whole of that date there, wherever
+        // the person setting it is (2026-10-23: it was the browser's day).
+        expiresAt: form.expiresAt ? companyDayBounds(form.expiresAt).to : null,
       })
       toast.success('Code created'); setForm({ ...BLANK }); void load()
     } catch (e) {

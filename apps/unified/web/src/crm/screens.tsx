@@ -49,14 +49,17 @@ export function Dashboard() {
 }
 export function Contacts() {
   const { hasFeature, can } = useAuth()
-  return <ContactsPage api={client} toast={useToast()} config={{ ...v().contacts, hasFeature, can } as any} />
+  // The vendor portal invite is the vendor_portal switch's (Settings › Features), as its server mount is.
+  return <ContactsPage api={client} toast={useToast()} config={{ ...v().contacts, vendorPortalInvite: !!(v().contacts as any)?.vendorPortalInvite && hasFeature('vendor_portal'), hasFeature, can } as any} />
 }
 export function ContactDetail() {
   const { hasFeature, can } = useAuth()
   return <ContactDetailPage api={client} toast={useToast()} config={{ ...v().contacts, hasFeature, can } as any} />
 }
 /** The job screens pick a unit from the equipment list only where equipment_tracking is on (/api/equipment is its, on the server). */
-const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, hasFeature, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
+// repeat: a new job can repeat (weekly mowing), its visits made on the calendar at once — the server keeps job series for
+// every vertical whose jobs are the shared module's (server/modules/crm.ts tables.jobSeries; live test 2026-10-22).
+const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
 export function Jobs() {
   const { hasFeature, can } = useAuth()
   return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can } as any} />
@@ -120,7 +123,12 @@ export function Schedule() {
   return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, events: !!v().schedule?.events }} />
 }
 export const Time = () => <TimePage api={client} toast={useToast()} config={v().time as any} />
-export const Expenses = () => <ExpensesPage api={client} toast={useToast()} config={v().expenses as any} />
+// A receipt's photo is kept in the company's private store (server /api/expenses/:id/receipt), and the totals' months are
+// the company's (live test 2026-10-22: no receipt photo, no totals).
+export function Expenses() {
+  const { company } = useAuth()
+  return <ExpensesPage api={client} toast={useToast()} config={{ ...(v().expenses as any), receipts: true, timeZone: (company as { timeZone?: string } | null)?.timeZone }} />
+}
 export function Team() {
   const { hasFeature } = useAuth()
   return <TeamPage api={client} toast={useToast()} config={{ ...v().team, hasFeature } as any} />
@@ -176,7 +184,7 @@ export const GoogleReviews = () => <GbpReviewsPage />
 // lead sources.
 // Settings › Texting: the business's own registered number (pages/TextingPage.tsx).
 export const Texting = () => <TextingPage />
-export const Integrations = () => <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms) }} />
+export const Integrations = () => { const { hasFeature } = useAuth(); return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms), hasFeature }} /> }
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />
 

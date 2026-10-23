@@ -23,9 +23,11 @@ const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '
 
 // One industry per CRM vertical (apps/api/src/config/industryRouting.ts) — the email's product name follows it.
 const VERTICALS: Array<[string, string]> = [
-  ['home_care', 'Care'], ['hvac', 'Wrench'], ['roofing', 'Build'], ['landscaping', 'Build'], ['dispensary', 'Build'],
+  // The product each is sold as (the platform's PRODUCT_META, twomiah.com/signup/<product>): a roofer is on Twomiah Roof,
+  // never Twomiah Build (live test 2026-10-22 — roofing, landscaping and cannabis all fell through to the contractor's).
+  ['home_care', 'Care'], ['hvac', 'Wrench'], ['roofing', 'Roof'], ['landscaping', 'Landscaping'], ['dispensary', 'Leaf'],
   ['rv_dealer', 'Roam'], ['veterinary', 'Vet'], ['salon', 'Salon'], ['restaurant', 'Events'], ['general_contractor', 'Build'],
-  ['bar_and_grill', 'Bar'],
+  ['bar_and_grill', 'Bar'], ['online_store', 'Store'], ['other', 'Basic'],
 ]
 
 // ── the plan's name, never its id
@@ -39,9 +41,14 @@ const VERTICALS: Array<[string, string]> = [
 }
 
 // ── the welcome and ready emails, every vertical
-for (const [industry] of VERTICALS) {
+for (const [industry, product] of VERTICALS) {
   const tenant = { id: null, name: 'Test Home Care Co', email: 'owner@test.local', slug: 'test-co', plan: 'starter10', industry, products: ['crm', 'website'] }
   const w = E.buildWelcomeEmail(tenant, 'Jamie')
+  check(`${industry}: welcome names the product "Twomiah ${product}"`, w.subject.startsWith(`Welcome to Twomiah ${product} `) && w.html.includes(`Twomiah ${product}</strong>`) && (product === 'Build' || !/Twomiah Build/.test(w.html + w.subject)), [w.subject, text(w.html).slice(0, 160)])
+  if (industry !== 'online_store') {
+    const ready = E.buildDeployCompleteEmail(tenant, { deployedUrl: 'https://test-co-api.onrender.com' }, null)
+    check(`${industry}: ready email names the product "Twomiah ${product} CRM"`, ready.subject === `Your Twomiah ${product} CRM is ready` && (product === 'Build' || !/Twomiah Build/.test(ready.html)), ready.subject)
+  }
   check(`${industry}: welcome greets the owner — "Welcome aboard, Jamie!"`, /Welcome aboard, Jamie!/.test(w.html), text(w.html).slice(0, 200))
   check(`${industry}: welcome prints the plan's name "Starter", not "Starter10"`, /Plan:\s*<\/strong>\s*Starter</.test(w.html) && !/Starter10/i.test(w.html), text(w.html))
   const r = E.buildDeployCompleteEmail(tenant, { deployedUrl: 'https://test-co-api.onrender.com' }, 'Jamie')
@@ -61,7 +68,7 @@ for (const [industry] of VERTICALS) {
 
 // ── the first step is the vertical's own work: only the recurring-job verticals are told to create a job (Bar Run 1)
 {
-  const NO_JOBS = ['home_care', 'rv_dealer', 'veterinary', 'salon', 'restaurant', 'bar_and_grill', 'dispensary']
+  const NO_JOBS = ['home_care', 'rv_dealer', 'veterinary', 'salon', 'restaurant', 'bar_and_grill', 'dispensary', 'online_store']
   for (const [industry] of VERTICALS) {
     const tenant = { id: null, name: 'Test Co', email: 'owner@test.local', slug: 'test-co', plan: 'starter10', industry, products: ['crm'] }
     const r = text(E.buildDeployCompleteEmail(tenant, { deployedUrl: 'https://test-co-api.onrender.com' }, 'Jamie').html)

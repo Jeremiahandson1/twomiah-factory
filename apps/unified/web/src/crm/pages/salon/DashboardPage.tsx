@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../../api'
 import { stylistNameOf as stylistName } from './staff';
+import { whenDateTime, momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
@@ -69,7 +70,7 @@ function fmtDateTime(s?: string): string {
   if (!s) return '—';
   const d = new Date(s);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return whenDateTime(d, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 function fmtDate(s?: string): string {
@@ -80,7 +81,7 @@ function fmtDate(s?: string): string {
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
   const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return dateOnly ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : momentDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 // stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)

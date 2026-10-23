@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../api'
 import { usePrompt, useToast, useAuth, usePermissions } from '../../shared'
+import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 interface SelectionsPageProps {
@@ -375,7 +376,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
   const askText = usePrompt();
 
   const isOverdue = selection.dueDate &&
-    new Date(selection.dueDate) < new Date() &&
+    isPastDay(selection.dueDate) &&
     selection.status === 'pending';
 
   const handleApprove = async () => {

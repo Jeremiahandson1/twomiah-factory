@@ -6,14 +6,16 @@ import { Star, Send, Mail, Phone, CheckCircle, Settings, BarChart3, ExternalLink
 import type { SettingsApi, SettingsToast, ReviewsConfig } from '../settings/integrationsTypes'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { ModuleNotEnabled, featureNotEnabled } from '../ui/ModuleNotEnabled'
+import { momentDate } from '../time/companyClock'
 
 type Tab = 'dashboard' | 'settings'
-const fmt = (v: any) => { if (!v) return '—'; const d = new Date(v); return isNaN(d.getTime()) ? '—' : d.toLocaleDateString() }
+/** When a request went: its day on the company's clock (time/companyClock.ts). */
+const fmt = (v: any) => momentDate(v) || '—'
 
 export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: SettingsToast; config?: ReviewsConfig }) {
   const copy = {
     subtitle: 'Automate Google review requests after job completion', subjectLabel: 'Job', autoRequestHelp: 'Automatically request reviews after job completion',
-    emptyHelp: 'Requests are created automatically when jobs are completed', ...(config || {}),
+    emptyHelp: 'Requests are created automatically when jobs are completed', manualHelp: "on a job or a customer's page", ...(config || {}),
   }
   const [tab, setTab] = useState<Tab>('dashboard')
   /**
@@ -64,8 +66,13 @@ function DashboardTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; to
   const [busy, setBusy] = useState<string | null>(null)
   // Shown on the page when a follow-up is refused, for the templates that pass no toast. (T58)
   const [pageErr, setPageErr] = useState('')
+  /** Whether finishing a job asks for a review by itself. Off until the owner turns it on (live test 2026-10-22). */
+  const [autoOn, setAutoOn] = useState<boolean | null>(null)
   const load = async () => {
-    try { const [s, r] = await Promise.all([api.get('/api/reviews/stats'), api.get('/api/reviews', { limit: 20 })]); setStats(s); setRequests(r?.data || []) }
+    try {
+      const [s, r, cfg] = await Promise.all([api.get('/api/reviews/stats'), api.get('/api/reviews', { limit: 20 }), api.get('/api/reviews/settings').catch(() => null)])
+      setStats(s); setRequests(r?.data || []); setAutoOn(cfg ? !!cfg.reviewRequestEnabled : null)
+    }
     catch (err) {
       // "This module is off" is an answer, not a failure — and it was the one being thrown away.
       if (featureNotEnabled(err)) { onFeatureOff?.(); return }
@@ -101,6 +108,12 @@ function DashboardTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; to
           <button type="button" onClick={() => setPageErr('')} className="shrink-0 hover:opacity-70" aria-label="Dismiss">×</button>
         </div>
       ) : null}
+      {/* "None are created when a job completes" was this switch, off by default, with nothing on the page saying so. */}
+      {autoOn === false && (
+        <div role="status" data-testid="auto-request-off" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+          Automatic review requests are off, so finishing a {copy.subjectLabel.toLowerCase()} asks nobody yet. Turn on Auto-Request Reviews under Settings{copy.manualHelp ? `, or use Send review request ${copy.manualHelp} to ask one person now` : ''}.
+        </div>
+      )}
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Requests Sent" value={n(stats.sent) + n(stats.clicked) + n(stats.completed)} icon={Send} />
@@ -163,7 +176,7 @@ function SettingsTab({ api, toast, copy, onFeatureOff }: { api: SettingsApi; toa
           change them and find no way to keep the change. Read-only now, and it says who can edit. */}
       {!maySave && <p className="text-sm text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-3">You can see these settings. Only an owner or admin can change them.</p>}
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6">
-        <label className="flex items-center justify-between cursor-pointer"><div><p className="font-semibold text-gray-900 dark:text-white">Auto-Request Reviews</p><p className="text-sm text-gray-500 dark:text-slate-400">{copy.autoRequestHelp}</p></div>
+        <label className="flex items-center justify-between cursor-pointer"><div><p className="font-semibold text-gray-900 dark:text-white">Auto-Request Reviews</p><p className="text-sm text-gray-500 dark:text-slate-400">{copy.autoRequestHelp}</p><p className="text-sm text-gray-700 dark:text-slate-300 mt-1" data-testid="auto-request-default">Off until you turn it on. While it is off, nobody is asked automatically{copy.manualHelp ? <> — you can still ask one customer with Send review request {copy.manualHelp}</> : null}. Nothing can be sent until a Google review link is set below.</p></div>
           <input type="checkbox" checked={settings?.reviewRequestEnabled ?? false} onChange={(e) => setSettings((prev: any) => ({ ...prev, reviewRequestEnabled: e.target.checked }))} disabled={!maySave} className="w-5 h-5 rounded text-orange-500 dark:text-orange-200 disabled:cursor-not-allowed" /></label>
       </div>
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">

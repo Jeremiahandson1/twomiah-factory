@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Save, ArrowLeft, Plus, Trash2, Loader2 } from 'lucide-react';
 import type { RecurringPageProps } from './types';
 import { money } from '../money'
+import { todayKey } from '../time/day'
 
 interface FrequencyOption {
   value: string;
@@ -69,7 +70,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
     contactId: '',
     projectId: '',
     frequency: 'monthly',
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: todayKey(),
     endDate: '',
     dayOfMonth: 1,
     dayOfWeek: 1,

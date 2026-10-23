@@ -3,11 +3,16 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useParams } from 'react-router-dom'
 import type { PortalBackendSections, PortalConfig, PortalRole, ResolvedPortalConfig } from './types'
 import { resolvePortalConfig, roleFor } from './types'
+import { setCompanyTimeZone } from '../time/companyClock'
 
 export const API_URL: string = ((import.meta as any).env && (import.meta as any).env.VITE_API_URL) || ''
 
 export interface PortalContactInfo { name: string; email?: string | null; type?: string | null }
-export interface PortalCompanyInfo { name: string; logo?: string | null; primaryColor?: string | null; email?: string | null; phone?: string | null }
+export interface PortalCompanyInfo {
+  name: string; logo?: string | null; primaryColor?: string | null; email?: string | null; phone?: string | null
+  /** The company's zone (server companyTimeZone): when a quote was approved or a payment made is printed on its clock. */
+  timeZone?: string | null
+}
 export interface PortalSummary {
   /** only sent by a vertical that HAS projects — a veterinary practice's client is not told about active projects */
   activeProjects?: number
@@ -83,6 +88,8 @@ export function PortalProvider({ config, children }: { config?: PortalConfig; ch
 
   const contact = data?.contact as PortalContactInfo | undefined
   const contactType = (contact?.type as string) || 'client'
+  // The company's clock for every portal page (time/companyClock.ts): its zone came with this session.
+  setCompanyTimeZone((data?.company as { timeZone?: unknown } | undefined)?.timeZone)
   const value: PortalContextValue = {
     token, contact, contactType, role: roleFor(contactType),
     company: data?.company, summary: data?.summary, sections: (data?.sections as PortalBackendSections) || {},
@@ -124,6 +131,8 @@ export function PortalLinkProvider({ token, children }: { token: string | undefi
   }, [base])
   const url = useCallback((endpoint: string) => `${base}${endpoint}`, [base])
   const resolved = React.useMemo(() => resolvePortalConfig(undefined), [])
+  // The company's clock for every portal page (time/companyClock.ts): its zone came with this session.
+  setCompanyTimeZone((data?.company as { timeZone?: unknown } | undefined)?.timeZone)
   const value: PortalContextValue = {
     token, contact: data?.contact, contactType: 'client', role: 'client',
     company: data?.company, summary: undefined, sections: {},
