@@ -9,6 +9,7 @@ import { CheckCircle2, Clock, MessageSquare, AlertTriangle, RefreshCw, Send } fr
 import { api } from '../../api'
 import { useKnownPermission, useToast } from '../../shared'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface Registration {
   status: string
@@ -191,7 +192,7 @@ export default function TextingPage() {
               ) : (
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2"><label className={LABEL} htmlFor="t-legal">Legal business name, exactly as on your EIN letter</label><input id="t-legal" className={INPUT} value={form.legalName} onChange={set('legalName')} /></div>
-                  <div><label className={LABEL} htmlFor="t-type">Business type</label><select id="t-type" className={INPUT} value={form.businessType} onChange={set('businessType')}>{BUSINESS_TYPES.map((b) => <option key={b}>{b}</option>)}</select></div>
+                  <div><label className={LABEL} htmlFor="t-type">Business type</label><select id="t-type" className={INPUT} value={form.businessType} onChange={set('businessType')}>{BUSINESS_TYPES.map((b) => <option key={b}>{codeLabel(b)}</option>)}</select></div>
                   <div><label className={LABEL} htmlFor="t-ein">EIN</label><input id="t-ein" className={INPUT} placeholder="12-3456789" value={form.ein} onChange={set('ein')} /></div>
                   <div className="sm:col-span-2"><label className={LABEL} htmlFor="t-ind">Industry</label><select id="t-ind" className={INPUT} value={form.industry} onChange={set('industry')}>{INDUSTRIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
                 </div>

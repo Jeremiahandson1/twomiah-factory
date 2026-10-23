@@ -38,7 +38,9 @@ export function createVendorPortalRoutes(d: CrmDeps) {
 
   // ── Owner side: invite a vendor ──
   // Reuses the contact portal token (creating one if needed) but sends the VENDOR portal link.
-  app.post('/contacts/:contactId/invite', d.authenticate, requirePermission('contacts:update'), async (c) => {
+  // The Vendor Portal is its own feature: the invite is refused while it is off, as the contacts screen no longer offers it
+  // then (packages/tenant-ui ContactsPage — the link and the door follow the same switch).
+  app.post('/contacts/:contactId/invite', d.authenticate, d.features.requireEnabledFeature('vendor_portal'), requirePermission('contacts:update'), async (c) => {
     const user = c.get('user') as any
     const contactId = c.req.param('contactId')
     const [vendor] = await db.select().from(contact)

@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, X, User, Folder, Wrench, FileText, File, Users, HelpCircle, Loader2, Scissors, PawPrint, CalendarDays, Caravan } from 'lucide-react'
 import type { ShellApi } from './types'
+import { codeLabel } from '../labels/codes'
 
 const TYPE_ICONS: Record<string, React.ElementType> = {
   contact: User, project: Folder, job: Wrench, quote: FileText, invoice: FileText, document: File, team: Users, rfi: HelpCircle,
@@ -102,7 +103,7 @@ export function GlobalSearch({ api, placeholder = DEFAULT_SEARCH_PLACEHOLDER }: 
                         <div className="font-medium text-gray-900 truncate dark:text-slate-100">{item.name}</div>
                         {item.description && <div className="text-sm text-gray-500 truncate dark:text-slate-400">{item.description}</div>}
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-slate-400 capitalize">{item.type}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400 capitalize">{codeLabel(item.type)}</div>
                     </button>
                   )
                 })}

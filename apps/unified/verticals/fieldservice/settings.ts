@@ -60,7 +60,8 @@ const fieldservice: VerticalSettings = {
     // The menu in this trade's words, by page address.
     nav: { '/crm/jobs': 'Service Calls', '/crm/job-costing': 'Service Call Costing', '/crm/tech': 'Tech View' },
     searchPlaceholder: 'Search contacts, service calls, invoices...',
-    contacts: { sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true } },
+    // No projects in field service (featureRegistry: the contractor's): no Projects list or count on a contact.
+    contacts: { sections: { projects: false, quotes: true, equipment: true, sites: true, sms: true, portal: true } },
     jobs: { labels: { singular: 'Service Call', plural: 'Service Calls', add: 'New Service Call' }, equipment: true, sites: true, photos: true, billing: true },
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. AC Compressor Replacement', pricebook: true },
     documents: { markup: false, projects: false, types: DOC_TYPES },
@@ -82,7 +83,9 @@ const fieldservice: VerticalSettings = {
       ],
     },
     migration: { entityLabels: { jobs: 'Service Calls & Work Orders' } },
-    pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. AC tune-up' },
+    pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. AC tune-up', codePlaceholder: 'e.g., DIAG-001', partsPlaceholder: 'Comma-separated, e.g., 1x Filter, 1x Capacitor' },
+    // The van's stock, named as a tech would (crm/pages/fieldservice/PartsInventory).
+    parts: { namePlaceholder: 'e.g., 16x25x1 Pleated Filter' },
     reporting: { jobsLabel: 'Service Calls', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
     dashboard: { jobsLabel: 'Service Calls', todayBoard: true, projects: false },
     jobCosting: { jobsLabel: 'Service Calls', costingLabel: 'Service Call Costing' },

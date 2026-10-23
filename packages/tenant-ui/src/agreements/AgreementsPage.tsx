@@ -6,11 +6,14 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AgreementsApi, AgreementsPageProps } from './types';
+import { nextBillOf } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { money } from '../invoicing/ui'
 import { whenDate, daysUntilDay } from '../time/companyClock'
 import { todayKey, dayKeyPlus } from '../time/day'
+import { codeLabel } from '../labels/codes'
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -57,6 +60,8 @@ interface Agreement {
   recurrenceRule?: { frequency?: string } | null;
   nextServiceDate?: string | null;
   reminderDaysBefore?: number;
+  /** When the billing run bills it next; absent until it has been billed once (nextBillOf reads it). */
+  nextBillDate?: string | null;
 }
 
 interface Plan {
@@ -381,6 +386,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Status</th>
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Visits</th>
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Expires</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Next bill</th>
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Autopay</th>
                     {maySeeMoney && <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Price</th>}
                     <th className="px-4 py-3"></th>
@@ -589,7 +595,7 @@ function AgreementRow({ agreement, onView, onRenew, onCancel, onChanged }: Agree
       </td>
       <td className="px-4 py-3">
         <span className={`px-2 py-1 rounded-full text-xs ${statusColors[agreement.status]}`}>
-          {agreement.status}
+          {codeLabel(agreement.status)}
         </span>
       </td>
       {/*
@@ -614,12 +620,21 @@ function AgreementRow({ agreement, onView, onRenew, onCancel, onChanged }: Agree
           {renewsSoon && <span className="text-xs text-blue-600 dark:text-blue-400">Renews</span>}
         </div>
       </td>
+      {/* When the billing run bills it next — the run's own rule (types.ts nextBillOf). */}
+      <td className="px-4 py-3 text-sm">
+        {(() => {
+          const nb = nextBillOf(agreement)
+          if (nb.kind === 'none') return <span className="text-gray-500 dark:text-slate-400" title="Not billing: cancelled, expired or ended">—</span>
+          if (nb.kind === 'due') return <span className="font-medium text-gray-900 dark:text-slate-100" title="Billed on the next billing run">Due now</span>
+          return <span className="text-gray-700 dark:text-slate-300">{formatDate(nb.date)}</span>
+        })()}
+      </td>
       <td className="px-4 py-3">
         <AutopayToggle agreement={agreement} onChanged={onChanged} />
       </td>
       {maySeeMoney && <td className="px-4 py-3 text-right font-medium">
         {money(agreement.amount)}
-        <span className="text-xs text-gray-500 ml-1 dark:text-slate-400">/{agreement.billingFrequency}</span>
+        <span className="text-xs text-gray-500 ml-1 dark:text-slate-400">/{codeLabel(agreement.billingFrequency)}</span>
       </td>}
       <td className="px-4 py-3">
         <div className="flex items-center gap-1 justify-end">
@@ -683,10 +698,10 @@ function PlansTab({ plans, onEdit, onRefresh }: PlansTabProps) {
           {maySeeMoney ? (
           <div className="text-3xl font-bold text-gray-900 mb-4 dark:text-slate-100">
             {money(plan.price)}
-            <span className="text-base font-normal text-gray-500 dark:text-slate-400">/{plan.billingFrequency}</span>
+            <span className="text-base font-normal text-gray-500 dark:text-slate-400">/{codeLabel(plan.billingFrequency)}</span>
           </div>
           ) : (
-          <p className="text-sm text-gray-500 mb-4 capitalize dark:text-slate-400">Billed {plan.billingFrequency}</p>
+          <p className="text-sm text-gray-500 mb-4 capitalize dark:text-slate-400">Billed {codeLabel(plan.billingFrequency)}</p>
           )}
 
           {plan.description && (
@@ -1030,8 +1045,9 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
 
   const loadContacts = async () => {
     try {
-      const data = await api.get('/api/contacts?limit=100');
-      setContacts(data.data || []);
+      // Who the agreement is with — customers only (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+      const data = await api.get(`/api/contacts?limit=100&audience=${CUSTOMER_PICKER_PARAMS.audience}`);
+      setContacts(customersOnly(data.data || []));
     } catch (error) {
       console.error('Failed to load contacts:', error);
     }
@@ -1120,7 +1136,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                 <option value="">Select plan...</option>
                 {plans.filter((p: Plan) => p.active || p.id === form.planId).map((p: Plan) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}{maySeeMoney && p.price != null ? ` - ${money(p.price)}` : ''}/{p.billingFrequency}
+                    {p.name}{maySeeMoney && p.price != null ? ` - ${money(p.price)}` : ''}/{codeLabel(p.billingFrequency)}
                   </option>
                 ))}
               </select>

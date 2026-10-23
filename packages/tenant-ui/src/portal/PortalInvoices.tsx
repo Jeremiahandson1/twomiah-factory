@@ -6,6 +6,7 @@ import { usePortal } from './PortalContext'
 import { PortalPaymentModal } from './PaymentForm'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSecondary, formatDate, formatWhen, moneyShort } from './common'
 import { isPastDay } from '../invoicing/ui'
+import { codeLabel } from '../labels/codes'
 
 const STATUS_STYLES: Record<string, string> = { sent: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', open: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', viewed: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', partial: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', paid: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', overdue: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40' }
 const UNPAID = ['sent', 'open', 'viewed', 'partial', 'overdue']
@@ -174,7 +175,7 @@ export function PortalInvoiceDetail({ invoiceId: givenId }: { invoiceId?: string
         {(invoice.payments?.length ?? 0) > 0 && (
           <div className="p-6 border-t dark:border-slate-700">
             <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Payment History</h3>
-            <div className="space-y-2">{invoice.payments!.map((p, i) => <div key={p.id || i} className="flex justify-between text-sm py-2 border-b last:border-0 dark:border-slate-800"><div><span className="text-gray-900 dark:text-slate-100">{formatWhen(p.paidAt, company?.timeZone)}</span><span className="text-gray-500 ml-2 dark:text-slate-400">via {p.method}</span></div><span className="font-medium text-green-700 dark:text-green-300">{moneyShort(p.amount)}</span></div>)}</div>
+            <div className="space-y-2">{invoice.payments!.map((p, i) => <div key={p.id || i} className="flex justify-between text-sm py-2 border-b last:border-0 dark:border-slate-800"><div><span className="text-gray-900 dark:text-slate-100">{formatWhen(p.paidAt, company?.timeZone)}</span><span className="text-gray-500 ml-2 dark:text-slate-400">via {codeLabel(p.method)}</span></div><span className="font-medium text-green-700 dark:text-green-300">{moneyShort(p.amount)}</span></div>)}</div>
           </div>
         )}
         <div className="p-6 bg-gray-100 border-t dark:bg-slate-800 dark:border-slate-700"><p className="text-sm text-gray-600 dark:text-slate-400">Questions about this invoice? Contact {invoice.company?.email || invoice.company?.phone}</p></div>

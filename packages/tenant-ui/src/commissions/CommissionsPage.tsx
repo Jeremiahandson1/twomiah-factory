@@ -44,7 +44,17 @@ const PLAN_TYPE_WORDS: Record<string, string> = {
   tiered: 'Tiered',
 }
 const listOf = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.data) ? r.data : [])
-const blankPlan = (role: string) => ({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: role, autoEarn: 'none' })
+const blankPlan = (role: string) => ({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: role, autoEarn: 'none', userIds: [] as string[] })
+/** The people a plan names (commission_plan.user_ids) — empty when it names nobody. */
+const namedOn = (p: any): string[] => (Array.isArray(p?.userIds) ? p.userIds.map(String) : [])
+/** The server's planPaysPerson (tenant-backend commissions.ts): a plan that names people pays them only; one that names
+ *  nobody pays anyone not named on another current plan. */
+export const paysPerson = (plan: any, userId: string, all: any[]) => {
+  const named = namedOn(plan)
+  if (named.length) return named.includes(userId)
+  return !all.some((p) => p.id !== plan.id && p.isActive !== false && namedOn(p).includes(userId))
+}
+const personName = (u: any) => [u?.firstName, u?.lastName].filter(Boolean).join(' ') || u?.email || 'Former team member'
 /** Who a plan pays by itself when an invoice is paid in full — the server's COMMISSION_AUTO_EARN. */
 const AUTO_WORDS: Record<string, string> = {
   none: 'No — record each one by hand',
@@ -94,21 +104,27 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     try { setRecords(listOf(await api.get('/api/commissions'))) } catch (e) { toast.error(errMsg(e, 'Could not load commissions')) }
     if (mayReadPlans) {
       try { setPlans(listOf(await api.get('/api/commissions/plans'))) } catch (e) { toast.error(errMsg(e, 'Could not load commission plans')) }
+      // Names for the people each plan pays (and the forms' lists).
+      try { setPeople(listOf(await api.get('/api/company/users'))) } catch { /* the cards fall back to "Former team member" */ }
     } else setPlans([])
     setLoading(false)
   }, [api, mayReadPlans])
   useEffect(() => { load() }, [load])
 
   // ── plans ──
-  const openNewPlan = () => { setEditingPlan(null); setPlanForm(blankPlan(roleKeys[0] || 'all')); setPlanOpen(true) }
+  // The people a plan can name: the team's logins (switched-off ones only where a plan already names them).
+  const loadPeople = async () => { try { setPeople(listOf(await api.get('/api/company/users'))) } catch { setPeople([]) } }
+  const openNewPlan = () => { setEditingPlan(null); setPlanForm(blankPlan(roleKeys[0] || 'all')); setPlanOpen(true); loadPeople() }
   const openEditPlan = (p: any) => {
     setEditingPlan(p)
-    setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all', autoEarn: p.autoEarn || 'none' })
+    setPlanForm({ name: p.name || '', planType: p.planType, flatRateAmount: p.flatRateAmount ?? '', percentRate: p.percentRate ?? '', appliesToRole: p.appliesToRole || 'all', autoEarn: p.autoEarn || 'none', userIds: namedOn(p) })
     setPlanOpen(true)
+    loadPeople()
   }
+  const togglePerson = (id: string) => setPlanForm((prev) => ({ ...prev, userIds: prev.userIds.includes(id) ? prev.userIds.filter((x) => x !== id) : [...prev.userIds, id] }))
   const savePlan = async (e: React.FormEvent) => {
     e.preventDefault()
-    const body: Record<string, any> = { name: planForm.name, planType: planForm.planType, appliesToRole: planForm.appliesToRole, autoEarn: planForm.planType === 'percent_of_margin' ? 'none' : planForm.autoEarn }
+    const body: Record<string, any> = { name: planForm.name, planType: planForm.planType, appliesToRole: planForm.appliesToRole, autoEarn: planForm.planType === 'percent_of_margin' ? 'none' : planForm.autoEarn, userIds: planForm.userIds }
     if (planForm.planType === 'flat_rate') body.flatRateAmount = Number(planForm.flatRateAmount || 0)
     else body.percentRate = Number(planForm.percentRate || 0)
     setBusy(true)
@@ -133,11 +149,19 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
     setRecordForm(blankRecord)
     setRecordOpen(true)
     // Each list on its own: a refusal on one must not empty the others.
-    try { setPeople(listOf(await api.get('/api/company/users')).filter((u: any) => u.isActive !== false)) } catch { setPeople([]) }
+    try { setPeople(listOf(await api.get('/api/company/users'))) } catch { setPeople([]) }
     try { setInvoices(listOf(await api.get('/api/invoices', { limit: 100 })).filter((i: any) => !['draft', 'void', 'voided', 'cancelled'].includes(String(i.status)))) } catch { setInvoices([]) }
     try { setJobs(listOf(await api.get('/api/jobs', { limit: 100 }))) } catch { setJobs([]) }
   }
   const plan = plans.find((p) => p.id === recordForm.planId)
+  /** The plans that can pay the chosen person (all of them before anyone is chosen). */
+  const plansFor = (userId: string) => plans.filter((p) => p.isActive !== false && (!userId || paysPerson(p, userId, plans)))
+  /** Choosing who earned it brings the plan made for them — the one plan that names them — when none is chosen yet. */
+  const pickEarner = (userId: string) => setRecordForm((prev) => {
+    const theirs = plans.filter((p) => p.isActive !== false && namedOn(p).includes(userId))
+    const keep = prev.planId && plansFor(userId).some((p) => p.id === prev.planId)
+    return { ...prev, userId, planId: keep ? prev.planId : theirs.length === 1 ? theirs[0].id : '' }
+  })
   const needsBase = !!plan && plan.planType !== 'flat_rate' && (plan.planType === 'percent_of_margin' || !recordForm.invoiceId)
   const saveRecord = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -306,12 +330,17 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
                 {PLAN_TYPE_WORDS[p.planType] || p.planType} · for {config.roleWords[p.appliesToRole] || p.appliesToRole || config.roleWords.all}
                 {p.isActive === false && ' · no longer offered for new earnings'}
               </div>
+              <div className="text-sm text-gray-700 mb-2 dark:text-slate-300">
+                {namedOn(p).length
+                  ? <>Pays {namedOn(p).map((id) => personName(people.find((u) => u.id === id))).join(', ')}</>
+                  : <>Pays anyone it reaches who has no plan of their own</>}
+              </div>
               <div className="text-sm text-gray-900 dark:text-slate-100">
                 {p.planType === 'flat_rate' && <>{money(p.flatRateAmount)} per job</>}
                 {(p.planType === 'percent_of_invoice' || p.planType === 'percent_of_margin') && <>{Number(p.percentRate || 0)}% of {p.planType === 'percent_of_invoice' ? 'the invoice before tax' : 'the margin'}</>}
                 {p.planType === 'tiered' && <>Tiered: {(p.tiers || []).length} brackets</>}
               </div>
-              {p.autoEarn && p.autoEarn !== 'none' && <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays {p.autoEarn === 'job_assignee' ? 'the person assigned the job' : 'the person who booked the job'} automatically when its invoice is paid in full</p>}
+              {p.autoEarn && p.autoEarn !== 'none' && <p className="mt-2 text-sm text-gray-700 flex items-center gap-1 dark:text-slate-300"><Zap className="w-4 h-4" />Pays {p.autoEarn === 'job_assignee' ? 'the person assigned the job' : 'the person who booked the job'}{namedOn(p).length ? ', when they are on this plan,' : ''} automatically when its invoice is paid in full</p>}
               {p.isActive === false
                 ? (mayUpdate && <button onClick={() => restorePlan(p)} className="mt-3 text-sm text-gray-700 underline dark:text-slate-300">Bring back</button>)
                 : (mayRetire && <button onClick={() => retirePlan(p)} className="mt-3 text-sm text-red-700 underline dark:text-red-300">Retire</button>)}
@@ -342,7 +371,21 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
           {planForm.planType === 'flat_rate'
             ? <Field label="Amount per job ($)"><input type="number" min="0" step="0.01" required value={planForm.flatRateAmount} onChange={(e) => setPlanForm((prev) => ({ ...prev, flatRateAmount: e.target.value }))} className={inputCls} /></Field>
             : planForm.planType !== 'tiered' && <Field label="Rate (%)" hint="Between 0 and 100."><input type="number" min="0" max="100" step="0.1" required value={planForm.percentRate} onChange={(e) => setPlanForm((prev) => ({ ...prev, percentRate: e.target.value }))} className={inputCls} /></Field>}
-          <Field label="Pay it automatically?" hint={planForm.planType === 'percent_of_margin' ? 'A margin plan is recorded by hand — the margin has to be entered.' : 'Only invoices paid in full from now on. A full refund takes it back.'}>
+          {/* WHO IT PAYS (contractor re-test 2026-10-22: a plan could not be given to anyone). */}
+          <fieldset>
+            <legend className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Who it pays</legend>
+            <p className="text-xs text-gray-600 mb-2 dark:text-slate-400">Tick the people on this plan. Leave everyone unticked and it pays anyone it reaches who has no plan of their own.</p>
+            <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 p-2 space-y-1 dark:border-slate-700">
+              {people.filter((u) => u.isActive !== false || planForm.userIds.includes(u.id)).map((u) => (
+                <label key={u.id} className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-100">
+                  <input type="checkbox" checked={planForm.userIds.includes(u.id)} onChange={() => togglePerson(u.id)} />
+                  {personName(u)}{u.isActive === false ? ' (switched off)' : ''}
+                </label>
+              ))}
+              {people.length === 0 && <p className="text-xs text-gray-600 dark:text-slate-400">Loading the team…</p>}
+            </div>
+          </fieldset>
+          <Field label="Pay it automatically?" hint={planForm.planType === 'percent_of_margin' ? 'A margin plan is recorded by hand — the margin has to be entered.' : 'When an invoice for a job is paid in full, from now on, the job\u2019s person earns it if this plan pays them. A full refund takes it back.'}>
             <select value={planForm.planType === 'percent_of_margin' ? 'none' : planForm.autoEarn} disabled={planForm.planType === 'percent_of_margin'} onChange={(e) => setPlanForm((prev) => ({ ...prev, autoEarn: e.target.value }))} className={inputCls}>
               {Object.entries(AUTO_WORDS).map(([value, word]) => <option key={value} value={value}>{word}</option>)}
             </select>
@@ -357,15 +400,15 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
       <Modal isOpen={recordOpen} onClose={() => setRecordOpen(false)} title="Record a commission">
         <form onSubmit={saveRecord} className="space-y-3">
           <Field label="Who earned it">
-            <select required value={recordForm.userId} onChange={(e) => setRecordForm((prev) => ({ ...prev, userId: e.target.value }))} className={inputCls}>
+            <select required value={recordForm.userId} onChange={(e) => pickEarner(e.target.value)} className={inputCls}>
               <option value="">Choose a person…</option>
-              {people.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}</option>)}
+              {people.filter((u) => u.isActive !== false).map((u) => <option key={u.id} value={u.id}>{personName(u)}</option>)}
             </select>
           </Field>
           <Field label="Plan" hint={plan ? `${PLAN_TYPE_WORDS[plan.planType] || plan.planType}. The amount is worked out from the plan when you save.` : 'No plan: enter the agreed amount yourself.'}>
             <select value={recordForm.planId} onChange={(e) => setRecordForm((prev) => ({ ...prev, planId: e.target.value }))} className={inputCls}>
               <option value="">No plan — an agreed amount</option>
-              {plans.filter((p) => p.isActive !== false).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {plansFor(recordForm.userId).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

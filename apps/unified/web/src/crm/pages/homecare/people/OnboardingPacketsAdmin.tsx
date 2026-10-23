@@ -17,6 +17,7 @@ import { formatDate } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
 import EligibilityCard, { isWisconsinAgency } from './EligibilityCard'
 import { useMay } from '../lib/useMay'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const STATUS_META: Record<string, { label: string; cls: string }> = {
   sent:        { label: 'Invite Sent', cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
@@ -313,7 +314,7 @@ export default function OnboardingPacketsAdmin() {
                     <div className="text-sm">
                       {full.events.map((ev) => (
                         <div key={ev.id} className="py-1 border-b border-gray-100 dark:border-slate-700 text-gray-700 dark:text-slate-200">
-                          <strong>{ev.eventType}</strong> — {fmtDT(ev.createdAt)}
+                          <strong>{codeLabel(ev.eventType)}</strong> — {fmtDT(ev.createdAt)}
                           {ev.ipAddress && <span className="text-gray-600 dark:text-slate-400"> · {ev.ipAddress}</span>}
                         </div>
                       ))}

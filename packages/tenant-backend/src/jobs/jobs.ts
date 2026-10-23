@@ -19,6 +19,7 @@ import { jobMoneyWithheld, withoutJobMoney } from './jobMoney'
 // totals and the UTC date normalisation cannot drift from invoices, quotes, agreements or visits. (T41)
 import { insertInvoice } from '../invoicing/invoices'
 import { withoutPortalCredential } from '../contacts/contacts'
+import { resolveCustomer } from '../contacts/customer'
 import { companyTimeZone, storeDayRange, jobLocalDay, storeDateString, markerDay } from '../time/businessDay'
 import { checkFilter } from '../listFilter'
 import { withinHorizon, horizonMessage } from '../dateInput'
@@ -589,6 +590,13 @@ export function createJobRoutes(deps: JobDeps) {
     if (repeat && 'error' in repeat) return c.json({ error: repeat.error, fields: { repeat: repeat.error } }, 400)
     const badBranch = await branchRefusal(currentUser.companyId, data.locationId)
     if (badBranch) return c.json({ error: badBranch }, 400)
+    if (data.projectId && t.project && !(await db.select({ id: t.project.id }).from(t.project).where(and(eq(t.project.id, data.projectId), eq(t.project.companyId, currentUser.companyId))).limit(1))[0]) {
+      return c.json({ error: 'That project does not exist.' }, 404)
+    }
+    // Who the job is for: the customer named (never a vendor), else the project's (contacts/customer.ts).
+    const forWhom = await resolveCustomer(db, t, currentUser.companyId, { contactId: data.contactId, projectId: data.projectId })
+    if (!forWhom.ok) return c.json({ error: forWhom.error, ...(forWhom.code ? { code: forWhom.code } : {}) }, forWhom.status)
+    if (forWhom.contactId !== undefined) data.contactId = forWhom.contactId
     const who = await resolveAssignee(currentUser.companyId, data.assignedToId, data.assignedToMemberId)
     if (who.error) return c.json({ error: who.error }, 400)
     data.assignedToId = who.assignedToId
@@ -679,6 +687,14 @@ export function createJobRoutes(deps: JobDeps) {
     if (!existing) return c.json({ error: 'Job not found' }, 404)
     const badBranch = await branchRefusal(currentUser.companyId, data.locationId)
     if (badBranch) return c.json({ error: badBranch }, 400)
+    if (data.projectId && t.project && !(await db.select({ id: t.project.id }).from(t.project).where(and(eq(t.project.id, data.projectId), eq(t.project.companyId, currentUser.companyId))).limit(1))[0]) {
+      return c.json({ error: 'That project does not exist.' }, 404)
+    }
+    // Who the job is for, on an edit: the customer named (never a newly chosen vendor), else the one it has, else —
+    // having none — the project's (contacts/customer.ts).
+    const forWhom = await resolveCustomer(db, t, currentUser.companyId, { contactId: data.contactId, projectId: data.projectId }, existing)
+    if (!forWhom.ok) return c.json({ error: forWhom.error, ...(forWhom.code ? { code: forWhom.code } : {}) }, forWhom.status)
+    if (forWhom.contactId !== undefined) data.contactId = forWhom.contactId
 
     /**
      * `jobs:update` IS NOT PERMISSION TO REPRICE THE JOB. (T32 M7)

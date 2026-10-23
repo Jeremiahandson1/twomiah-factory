@@ -12,6 +12,7 @@ import { useMayWrite } from '../auth/PermissionsContext';
 import { whenTime, whenDateTime } from '../time/companyClock'
 import { money } from '../money'
 import { todayKey } from '../time/day'
+import { codeLabel } from '../labels/codes'
 
 // api + the gps flag are injected once at the page root; child components read them via useFleet().
 /**
@@ -345,7 +346,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
           vehicle.status === 'maintenance' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
           'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'
         } dark:text-slate-200`}>
-          {vehicle.status}
+          {codeLabel(vehicle.status)}
         </span>
       </div>
 

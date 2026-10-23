@@ -21,6 +21,7 @@ import { displayName } from '../lib/user'
 import { listOf } from './http'
 import PinMap, { coord, type Pin } from './PinMap'
 import { PIN_COLORS, type CanvassScript, type CanvassSession, type CanvassStop, type ScriptStep } from './canvassing'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
   no_answer: { label: 'No Answer', color: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' },
@@ -218,7 +219,7 @@ export default function CanvassingDashboard() {
           </div>
           <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
             s.status === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
-          }`}>{s.status}</span>
+          }`}>{codeLabel(s.status)}</span>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -358,7 +359,7 @@ export default function CanvassingDashboard() {
                         s.status === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
                         s.status === 'paused' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
                         'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
-                      }`}>{s.status}</span>
+                      }`}>{codeLabel(s.status)}</span>
                     </td>
                     <td className="px-4 py-3"><ChevronRight size={16} className="text-gray-500 dark:text-slate-400" /></td>
                   </tr>

@@ -13,7 +13,9 @@ import { api } from '../../../api'
 import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
 import { todayKey } from '@twomiah/tenant-ui/src/time/day'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
@@ -288,7 +290,7 @@ export default function MaintenanceContracts() {
                     </td>}
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[contract.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}>
-                        {contract.status}
+                        {codeLabel(contract.status)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -433,11 +435,11 @@ function ContractFormModal({ contract, onSave, onClose }: {
   const loadFormData = async () => {
     try {
       const [contactsRes, plansRes] = await Promise.all([
-        api.get('/api/contacts?limit=200'),
+        api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }),
         api.get('/api/agreements/plans'),
       ]);
       // Contacts are a list ({ data, pagination }); the plans are a bare array.
-      setContacts(Array.isArray(contactsRes?.data) ? (contactsRes.data as ContactOption[]) : []);
+      setContacts(Array.isArray(contactsRes?.data) ? customersOnly(contactsRes.data as ContactOption[]) : []);
       setPlans(Array.isArray(plansRes) ? (plansRes as AgreementPlan[]) : []);
     } catch (error) {
       console.error('Failed to load form data:', error);

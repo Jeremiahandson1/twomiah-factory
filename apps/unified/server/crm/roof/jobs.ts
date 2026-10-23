@@ -28,8 +28,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, gt } from 'drizzle-orm'
-import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney, normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
-import { company, contact, crew, invoice, job, jobNote, jobPhoto, measurementReport, quote, smsConversation, smsMessage } from '../../db/schema/index.ts'
+import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney, normaliseZip, ZIP_ERROR, mayBeGivenWork, resolveCustomer } from '@twomiah/tenant-backend'
+import { company, contact, crew, invoice, job, jobNote, jobPhoto, measurementReport, quote, smsConversation, smsMessage, user } from '../../db/schema/index.ts'
 import { cleanText, cleanLines } from '../../core/sanitize.ts'
 import { invalid } from '../../http/errors.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -198,6 +198,25 @@ export function createRoofJobRoutes(d: CrmDeps) {
   const withheldFor = (c: any) => jobMoneyWithheld(canSee, c.get('user'))
   const ownContact = async (companyId: string, contactId: string) =>
     !!(await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, contactId), eq(contact.companyId, companyId))).limit(1))[0]
+  /**
+   * The homeowner: a contact of this company, never a vendor (tenant-backend contacts/customer.ts — the rule every job,
+   * quote and invoice door follows; the picker lists customers only). Only a CHANGE is asked on an edit.
+   */
+  const homeownerRefusal = async (companyId: string, contactId: string | undefined, current?: string | null) => {
+    if (!contactId) return null
+    const r = await resolveCustomer(db, { contact }, companyId, { contactId }, { contactId: current ?? null })
+    return r.ok ? null : r
+  }
+  /**
+   * The sales rep: a login of this company that can be given work (tenant-backend team/work.ts) — never a view-only seat
+   * or a switched-off login. It was stored unchecked. Only a change is asked, so a job keeps saving as it was.
+   */
+  const repRefusal = async (companyId: string, repId: string | undefined, current?: string | null) => {
+    if (!repId || repId === current) return null
+    const [u] = await db.select({ id: user.id, role: user.role, isActive: user.isActive }).from(user).where(and(eq(user.id, repId), eq(user.companyId, companyId))).limit(1)
+    if (!u) return 'That person is not on this account.'
+    return mayBeGivenWork(u) ? null : 'That person’s seat cannot take work (a view-only or switched-off login). Choose someone who can.'
+  }
   const ownJob = async (companyId: string, id: string) =>
     (await db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, companyId))).limit(1))[0]
   const contactNames = async (companyId: string, ids: string[]) => {
@@ -292,6 +311,10 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const dates = jobDates(data, await companyTimeZone(db, me.companyId))
     if (dates.error) return fail(c, 400, dates.error)
     if (!(await ownContact(me.companyId, data.contactId))) return fail(c, 404, 'That contact does not exist.')
+    const notHomeowner = await homeownerRefusal(me.companyId, data.contactId)
+    if (notHomeowner) return fail(c, notHomeowner.status, notHomeowner.error, notHomeowner.code)
+    const badRep = await repRefusal(me.companyId, data.assignedSalesRepId)
+    if (badRep) return fail(c, 400, badRep, 'not_given_work')
     if (data.status && !(await stageOpen(me.companyId, data.status))) return fail(c, 400, STAGE_OFF, 'stage_off')
     const created = await db.transaction((tx: any) => insertRoofJob(tx, me.companyId, me.userId, {
       ...toColumns(data, dates.values), address: data.propertyAddress, source: data.source || 'manual',
@@ -356,8 +379,13 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const data = parsed.data
     const dates = jobDates(data, await companyTimeZone(db, me.companyId))
     if (dates.error) return fail(c, 400, dates.error)
-    if (!(await ownJob(me.companyId, id))) return fail(c, 404, 'Job not found')
+    const before = await ownJob(me.companyId, id)
+    if (!before) return fail(c, 404, 'Job not found')
     if (data.contactId && !(await ownContact(me.companyId, data.contactId))) return fail(c, 404, 'That contact does not exist.')
+    const notHomeowner = await homeownerRefusal(me.companyId, data.contactId, before.contactId)
+    if (notHomeowner) return fail(c, notHomeowner.status, notHomeowner.error, notHomeowner.code)
+    const badRep = await repRefusal(me.companyId, data.assignedSalesRepId, before.assignedSalesRepId)
+    if (badRep) return fail(c, 400, badRep, 'not_given_work')
     if (data.status && !(await stageOpen(me.companyId, data.status))) return fail(c, 400, STAGE_OFF, 'stage_off')
     const set: Record<string, unknown> = { ...toColumns(data, dates.values), updatedAt: new Date() }
     // Unassigning: the picker's "Unassigned" sends '' (or null), which the schema reads as "not sent" — so a rep or crew

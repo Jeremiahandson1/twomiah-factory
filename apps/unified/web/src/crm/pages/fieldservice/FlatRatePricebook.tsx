@@ -10,6 +10,21 @@ import { api } from '../../../api'
 import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { verticalScreens } from '../../vertical'
+
+/**
+ * The form's examples in the trade's words: the flat-rate book is the price book (the same /api/pricebook items), so it
+ * reads the same settings the Pricebook page does (VerticalSettings.screens.pricebook). Absent: neutral ones. It said
+ * "AC Diagnostic - Residential" and "DIAG-001" to a landscaper (live test 2026-10-22).
+ */
+const words = () => {
+  const pb = verticalScreens().pricebook
+  return {
+    name: pb.namePlaceholder || 'e.g., Standard service call',
+    code: pb.codePlaceholder || 'e.g., SVC-001',
+    parts: pb.partsPlaceholder || 'Comma-separated, e.g., 1x part, 2x fittings',
+  }
+}
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
@@ -381,7 +396,7 @@ function RateFormModal({ item, categories, onSave, onClose }: {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
-                  placeholder="e.g., AC Diagnostic - Residential"
+                  placeholder={words().name}
                   required
                 />
               </div>
@@ -393,7 +408,7 @@ function RateFormModal({ item, categories, onSave, onClose }: {
                   value={form.code}
                   onChange={(e) => setForm({ ...form, code: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
-                  placeholder="e.g., DIAG-001"
+                  placeholder={words().code}
                 />
               </div>
 
@@ -497,7 +512,7 @@ function RateFormModal({ item, categories, onSave, onClose }: {
                 value={form.partsIncluded}
                 onChange={(e) => setForm({ ...form, partsIncluded: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
-                placeholder="Comma-separated, e.g., 1x Filter, 1x Capacitor"
+                placeholder={words().parts}
               />
               <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Separate multiple parts with commas</p>
             </div>

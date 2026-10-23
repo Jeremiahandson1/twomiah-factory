@@ -11,6 +11,7 @@ import { TRADES_LEAD_PLATFORMS, BUILT_IN_LEAD_PLATFORMS } from './types'
 import { useLeadPalette, chipColors } from './theme'
 import type { LeadPalette } from './theme'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { codeLabel } from '../labels/codes'
 
 interface LeadStats {
   stats: { platform: string; leadsReceived: number; conversionRate: number; avgResponseTimeMin: number | null }[]
@@ -208,7 +209,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 600, fontSize: 14 }}>{lead.homeownerName}</span>
-                      {lead.jobType && <span style={{ fontSize: 12, color: c.muted }}>- {lead.jobType}</span>}
+                      {lead.jobType && <span style={{ fontSize: 12, color: c.muted }}>- {codeLabel(lead.jobType)}</span>}
                     </div>
                     <div style={{ display: 'flex', gap: 12, fontSize: 12, color: c.faint, marginTop: 2, flexWrap: 'wrap' }}>
                       {lead.location && <span>{lead.location}</span>}
@@ -216,7 +217,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                       {lead.phone && <span>{lead.phone}</span>}
                     </div>
                   </div>
-                  <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: st.bg, color: st.text, textTransform: 'capitalize' }}>{lead.status}</span>
+                  <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: st.bg, color: st.text, textTransform: 'capitalize' }}>{codeLabel(lead.status)}</span>
                   <span style={{ fontSize: 12, color: c.faint, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {timeAgo(lead.receivedAt)}</span>
                   <ChevronDown size={16} style={{ color: c.faint, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                 </div>
@@ -233,7 +234,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                       </div>
                       <div>
                         <div style={{ color: c.faint, fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Details</div>
-                        {lead.jobType && <div><strong>{jobTypeLabel}:</strong> {lead.jobType}</div>}
+                        {lead.jobType && <div><strong>{jobTypeLabel}:</strong> {codeLabel(lead.jobType)}</div>}
                         {lead.budget && <div><strong>Budget:</strong> {lead.budget}</div>}
                         {lead.description && <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{lead.description}</div>}
                       </div>

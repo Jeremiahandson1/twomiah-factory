@@ -24,6 +24,7 @@ import { displayName } from '../lib/user'
 import { JOB_TYPES, TERMINAL_STATUSES, formatStatus, jobValue, pipelineFor, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
 
 /**
  * The vocabulary, plus anything the data actually holds. `jobType` is a free string on the server, so a tenant can hold
@@ -145,7 +146,8 @@ export default function JobsPage() {
     setForm(EMPTY_FORM)
     setMissing([])
     try {
-      setContacts(rowsOf<ContactOption>(await api.get('/api/contacts', { limit: 200 })))
+      // The homeowner: customers only (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+      setContacts(customersOnly(rowsOf<ContactOption>(await api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }))))
     } catch { setContacts([]) }
     setModalOpen(true)
   }

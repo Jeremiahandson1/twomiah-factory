@@ -8,8 +8,10 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { EquipmentApi, EquipmentCategory, EquipmentPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { whenDate } from '../time/companyClock'
 import { money } from '../money';
+import { codeLabel } from '../labels/codes'
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -578,8 +580,9 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
 
   const loadContacts = async () => {
     try {
-      const data = await api.get('/api/contacts?limit=100');
-      setContacts(data.data || []);
+      // The customer the unit belongs to — customers only (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+      const data = await api.get(`/api/contacts?limit=100&audience=${CUSTOMER_PICKER_PARAMS.audience}`);
+      setContacts(customersOnly(data.data || []));
     } catch (error) {
       console.error('Failed to load contacts:', error);
     }
@@ -931,7 +934,7 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
         <div key={record.id} className="p-4 border rounded-lg">
           <div className="flex items-start justify-between">
             <div>
-              <p className="font-medium text-gray-900 dark:text-slate-100">{record.type}</p>
+              <p className="font-medium text-gray-900 dark:text-slate-100">{codeLabel(record.type)}</p>
               <p className="text-sm text-gray-500 dark:text-slate-400">
                 {formatDate(record.performedAt)}
               </p>
@@ -971,7 +974,7 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
               </div>
               <p className="font-medium text-gray-900 mt-1 dark:text-slate-100">{j.title}</p>
               <p className="text-sm text-gray-500 dark:text-slate-400">
-                {j.jobType && <span className="capitalize">{j.jobType}</span>}
+                {j.jobType && <span className="capitalize">{codeLabel(j.jobType)}</span>}
                 {j.scheduledDate && <span> — {formatDate(j.scheduledDate)}</span>}
                 {j.assignedTo && <span> — {j.assignedTo.firstName} {j.assignedTo.lastName}</span>}
               </p>

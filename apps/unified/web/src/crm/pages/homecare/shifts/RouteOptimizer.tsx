@@ -29,6 +29,7 @@ import { useConfirm, useMayWrite } from '../../../../shared'
 import { CHIP, FILL, INK, SOLID, type Tone } from './ui'
 import { money } from '@twomiah/tenant-ui/src/money'
 import { agencyToday } from '../lib/agencyClock'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 // ── The replies' shapes ──────────────────────────────────────────────────────
 type Num = number | string | null | undefined
@@ -629,7 +630,7 @@ const RouteOptimizer = () => {
           <div style={s.cardTitle}>⚙️ Route Setup</div>
           {existingSavedPlan && (
             <span className={chip('violet')} style={s.badge}>
-              Saved plan exists ({existingSavedPlan.status}) · {existingSavedPlan.totalMiles} mi
+              Saved plan exists ({codeLabel(existingSavedPlan.status)}) · {existingSavedPlan.totalMiles} mi
             </span>
           )}
         </div>
@@ -1156,7 +1157,7 @@ const RouteOptimizer = () => {
                     <td style={s.td}>{r.totalDriveMinutes ? `${r.totalDriveMinutes}m` : '—'}</td>
                     <td style={s.td}>
                       <span className={chip(r.status === 'published' ? 'green' : 'amber')} style={s.badge}>
-                        {r.status}
+                        {codeLabel(r.status)}
                       </span>
                     </td>
                     <td style={s.td}>
@@ -1218,7 +1219,7 @@ const RouteOptimizer = () => {
 
           {geocodeResults && (
             <div style={{ fontSize: '0.82rem', padding: '0.6rem', background: 'var(--hc-subtle)', borderRadius: '8px', border: '1px solid var(--hc-line)' }}>
-              ✅ {geocodeResults.success} geocoded · ❌ {geocodeResults.failed} failed · Source: {geocodeResults.source}
+              ✅ {geocodeResults.success} geocoded · ❌ {geocodeResults.failed} failed · Source: {codeLabel(geocodeResults.source)}
               {(geocodeResults.errors?.length ?? 0) > 0 && (
                 <div style={{ marginTop: '0.5rem', color: 'var(--hc-red-ink)' }}>
                   {(geocodeResults.errors || []).slice(0, 5).map((e, i) => (

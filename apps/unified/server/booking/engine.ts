@@ -14,7 +14,7 @@
 // expiry then cancelled it half an hour later without a word.
 import crypto from 'node:crypto'
 import { and, asc, desc, eq, gt, inArray, lt, ne, or, count, notInArray, isNull, notExists } from 'drizzle-orm'
-import { addDays, isIsoDate, isRealDate, isValidTz, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR } from '@twomiah/tenant-backend'
+import { addDays, isIsoDate, isRealDate, isValidTz, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR, mayBeGivenWork } from '@twomiah/tenant-backend'
 import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user, job, company } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
 import { lockBookingDay, lockJobBook } from '../data/bookingLock.ts'
@@ -304,16 +304,24 @@ export function createBookingEngine(deps: EngineDeps) {
   }
 
   // ── Hours, days off, zones ────────────────────────────────────────────────
-  async function companyUserIds(companyId: string): Promise<Set<string>> {
-    const rows = await db.select({ id: user.id }).from(user).where(eq(user.companyId, companyId))
-    return new Set(rows.map((r: any) => r.id))
+  /**
+   * The people a booking can go to: this business's logins that can be given work (tenant-backend team/work.ts — not a
+   * view-only seat, not a switched-off login). A viewer was offered as a bookable person (landscaping live test
+   * 2026-10-22); the same rule decides who the job pickers offer. Hours, days off and ZIP areas are kept for these people.
+   */
+  const NOT_BOOKABLE = 'That person is not on this account, or their seat cannot take work (a view-only or switched-off login).'
+  async function companyUserIds(companyId: string, exec: any = db): Promise<Set<string>> {
+    const rows = await exec.select({ id: user.id, role: user.role, isActive: user.isActive }).from(user).where(eq(user.companyId, companyId))
+    return new Set(rows.filter(mayBeGivenWork).map((r: any) => r.id))
   }
   const getHours = (companyId: string) => db.select().from(bookingHours).where(eq(bookingHours.companyId, companyId)).orderBy(asc(bookingHours.dayOfWeek), asc(bookingHours.startMinute))
 
   /** Replace the whole week (the site's PUT). Each window: { userId|null, dayOfWeek 0–6, start "HH:MM", end "HH:MM" }. */
   async function setHours(companyId: string, windows: unknown) {
     if (!Array.isArray(windows) || windows.length > 500) throw new BookingError('Hours must be a list of opening times.')
-    const people = await companyUserIds(companyId)
+    // Saving the week sends every window back, a view-only seat's old ones too: those are kept as they were (they never
+    // make that seat bookable — loadRange leaves them out) rather than refusing the whole save. Only a stranger is refused.
+    const people = new Set((await db.select({ id: user.id }).from(user).where(eq(user.companyId, companyId))).map((r: any) => r.id as string))
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const rows = windows.map((w: any) => {
       const day = Number(w?.dayOfWeek)
@@ -339,7 +347,7 @@ export function createBookingEngine(deps: EngineDeps) {
   async function addDayOff(companyId: string, body: Record<string, any>) {
     if (!isRealDate(body.date)) throw new BookingError('Choose a date.')
     const userId = body.userId ? String(body.userId) : null
-    if (userId && !(await companyUserIds(companyId)).has(userId)) throw new BookingError('That person is not on this account.')
+    if (userId && !(await companyUserIds(companyId)).has(userId)) throw new BookingError(NOT_BOOKABLE)
     let startMinute: number | null = null, endMinute: number | null = null
     if (body.start || body.end) {
       if (!HM_RE.test(String(body.start)) || !HM_RE.test(String(body.end))) throw new BookingError('Times must be HH:MM, or leave both empty for the whole day.')
@@ -357,7 +365,7 @@ export function createBookingEngine(deps: EngineDeps) {
   const listZones = (companyId: string) => db.select().from(bookingZone).where(eq(bookingZone.companyId, companyId))
   /** One person's ZIP codes (replacing what they had). An empty list removes their zone: they serve everywhere. */
   async function setZone(companyId: string, userId: string, zips: unknown) {
-    if (!(await companyUserIds(companyId)).has(userId)) throw new BookingError('That person is not on this account.')
+    if (!(await companyUserIds(companyId)).has(userId)) throw new BookingError(NOT_BOOKABLE)
     const list = (Array.isArray(zips) ? zips : String(zips ?? '').split(/[\s,]+/)).map((z) => String(z).trim()).filter(Boolean)
     if (list.some((z) => !/^\d{5}$/.test(z))) throw new BookingError('ZIP codes are five digits.')
     await db.delete(bookingZone).where(and(eq(bookingZone.companyId, companyId), eq(bookingZone.userId, userId)))
@@ -478,14 +486,18 @@ export function createBookingEngine(deps: EngineDeps) {
   async function loadRange(companyId: string, s: SettingsRow, firstDate: string, lastDate: string, exec: any, exceptBookingId?: string, externalBusy?: Awaited<ReturnType<typeof externalFor>>) {
     const tz = tzOf(s)
     const from = zonedWallTimeToUtc(firstDate, '00:00', tz), to = zonedWallTimeToUtc(addDays(lastDate, 1), '00:00', tz)
-    const [hours, daysOff, zones, rows] = await Promise.all([
+    const [allHours, bookable, daysOff, zones, rows] = await Promise.all([
       exec.select().from(bookingHours).where(eq(bookingHours.companyId, companyId)),
+      companyUserIds(companyId, exec),
       exec.select().from(bookingBlackout).where(and(eq(bookingBlackout.companyId, companyId), gt(bookingBlackout.date, addDays(firstDate, -1)), lt(bookingBlackout.date, addDays(lastDate, 1)))),
       exec.select().from(bookingZone).where(eq(bookingZone.companyId, companyId)),
       exec.select({ b: booking, before: bookingService.bufferBeforeMinutes, after: bookingService.bufferAfterMinutes }).from(booking)
         .leftJoin(bookingService, eq(booking.serviceId, bookingService.id))
         .where(and(eq(booking.companyId, companyId), inArray(booking.status, [...ACTIVE]), lt(booking.startAt, to), gt(booking.endAt, from), ...(exceptBookingId ? [ne(booking.id, exceptBookingId)] : []))),
     ])
+    // A person's own hours count only while they can be given work: hours left on a seat since made view-only (or
+    // switched off) never make that person the one a booking goes to.
+    const hours = allHours.filter((h: any) => !h.userId || bookable.has(h.userId))
     const ours = new Set(rows.map((r: any) => r.b.externalEventId).filter(Boolean))
     // Inside a transaction the caller hands it in (claim); otherwise it is read here.
     const external = (externalBusy ?? await externalFor(companyId, s, firstDate, lastDate)).filter((e) => !ours.has(e.eventId))
@@ -653,7 +665,7 @@ export function createBookingEngine(deps: EngineDeps) {
       bookingRules(s, { by: 'staff', phone, zip: typedZip, dates: followOn ? [] : [input.date], outside: opts.override })
       if (!opts.override && zonedWallTimeToUtc(input.date, input.time, tzOf(s)).getTime() < now()) throw new BookingError('That time has already passed.')
     }
-    if (opts.assignedUserId && !(await companyUserIds(companyId)).has(opts.assignedUserId)) throw new BookingError('That person is not on this account.')
+    if (opts.assignedUserId && !(await companyUserIds(companyId)).has(opts.assignedUserId)) throw new BookingError(NOT_BOOKABLE)
 
     const tz = tzOf(s)
     const startAt = zonedWallTimeToUtc(input.date, input.time, tz)
@@ -875,7 +887,7 @@ export function createBookingEngine(deps: EngineDeps) {
     const u: Record<string, unknown> = {}
     if (body.assignedUserId !== undefined) {
       const id = body.assignedUserId ? String(body.assignedUserId) : null
-      if (id && !(await companyUserIds(companyId)).has(id)) throw new BookingError('That person is not on this account.')
+      if (id && !(await companyUserIds(companyId)).has(id)) throw new BookingError(NOT_BOOKABLE)
       u.assignedUserId = id
     }
     for (const [k, max] of [['customerName', 200], ['customerPhone', 40], ['customerAddress', 300], ['customerZip', 10], ['customerNotes', 2000]] as const) {

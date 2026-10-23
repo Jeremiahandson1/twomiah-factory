@@ -7,6 +7,8 @@ import { useAuth } from '../../../shared'
 import { useToast } from '../../../shared'
 import { useMayWrite } from '../../../shared'
 import { useNavigate } from 'react-router-dom'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /**
  * RV Sales Pipeline — kanban over /api/sales-leads.
@@ -221,7 +223,7 @@ export default function SalesPipelinePage() {
                     )}
                     <div className="flex items-center justify-between pt-1 border-t">
                       <span className="text-xs text-gray-500 dark:text-slate-400">{salespersonName(row)}</span>
-                      {row.lead.source && <span className="text-xs text-gray-500 dark:text-slate-400">{row.lead.source}</span>}
+                      {row.lead.source && <span className="text-xs text-gray-500 dark:text-slate-400">{codeLabel(row.lead.source)}</span>}
                     </div>
                     {canDealDesk && (
                       <button
@@ -316,11 +318,12 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
         // rows carry team-member ids and a `name`, so the picker showed ids and the server refused every assignment
         // ("Salesperson not found"). /api/company/users is the picker list a team:read seat gets (a bare array).
         const [contactsRes, unitsRes, usersRes]: [Page<ContactOption>, Page<UnitOption>, UserOption[]] = await Promise.all([
-          api.get('/api/contacts?limit=500'),
+          api.get('/api/contacts', { limit: 500, ...CUSTOMER_PICKER_PARAMS }),
           api.get('/api/units?limit=500'),
           api.get('/api/company/users'),
         ]);
-        setContacts(contactsRes.data || []);
+        // Customers only: a vendor is never who this is for (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+        setContacts(customersOnly(contactsRes.data || []));
         setUnits(unitsRes.data || []);
         setUsers((Array.isArray(usersRes) ? usersRes : []).filter((u) => u.isActive !== false));
       } catch {

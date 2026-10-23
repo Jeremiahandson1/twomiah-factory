@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, rows, errorMessage } from '../lib/http'
 import { parseLocalDate } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /** One row of GET /api/compliance/login-activity. */
 interface LoginRow {
@@ -215,7 +216,7 @@ const LoginActivity = () => {
                         {name ? (
                           <div>
                             <div style={{ fontWeight: 600 }}>{name}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--hc-ink-soft)' }}>{row.user?.role}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--hc-ink-soft)' }}>{codeLabel(row.user?.role)}</div>
                           </div>
                         ) : '—'}
                       </td>

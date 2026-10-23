@@ -422,7 +422,8 @@ describe('roofing\'s dashboard', () => {
     const owner = await stats(people.owner)
     expect(owner.status).toBe(200)
     expect(owner.body).toEqual({
-      contacts: 1, newLeads: 1,
+      // newLeads: the inbox enquiry; Hank (a lead by the column's default) has quotes, so is not new (newLeads.ts).
+      contacts: 1, newLeads: 1, newLeadsFrom: { inbox: 1, contacts: 0 },
       jobs: { open: 3, inProduction: 1, inspectionsToday: 1, installsToday: 1 },
       quotes: { pending: 2 },
       invoices: { outstanding: 2, outstandingValue: 1600 },

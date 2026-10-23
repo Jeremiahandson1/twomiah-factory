@@ -2,7 +2,7 @@
 // wrapper file per screen; one file here.
 import { Navigate } from 'react-router-dom'
 import {
-  AppShell, AuditLogPage, isAccountLocked, BillingPage, EmailAliasesPage, FeaturesSettingsPage, ForgotPasswordPage, LeadInboxPage,
+  AppShell, AuditLogPage, isAccountLocked, BillingPage, EmailAliasesPage, FeaturesSettingsPage, ForgotPasswordPage, LeadInboxPage, NewLeadsPage,
   LoginPage, MyAccountPage, PaywallScreen, ResetPasswordPage, SettingsPage, useAuth, usePermissions, useToast,
 } from './shared'
 import { api } from './api'
@@ -51,6 +51,8 @@ export const Billing = () => <BillingPage />
 export const EmailAliases = () => <EmailAliasesPage />
 // The vertical's lead platforms and words (screens.leads), as the Lead Sources page has them.
 // A new or changed lead shows at once (live.ts; the server announces lead:created / lead:updated).
+// The dashboard's "New leads" tile's list: exactly the rows it counts (GET /api/dashboard/new-leads).
+export const NewLeads = () => <NewLeadsPage api={api} />
 export const LeadInbox = () => <LeadInboxPage api={api} toast={useToast()} config={verticalScreens().leads as any} subscribe={subscribeLive} />
 
 export function AuditLog() {

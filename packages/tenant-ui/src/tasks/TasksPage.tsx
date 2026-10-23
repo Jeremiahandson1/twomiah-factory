@@ -8,6 +8,7 @@ import type { TasksApi, TasksPageProps } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite, useKnownPermission } from '../auth/PermissionsContext';
 import { AuthContext } from '../auth/AuthContext';
+import { mayBeGivenWork } from '../people/work';
 import { whenDate } from '../time/companyClock'
 import { isPastDay } from '../invoicing/ui'
 
@@ -443,7 +444,8 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
     api.get('/api/company/users')
       .then((r: unknown) => {
         const rows = (Array.isArray(r) ? r : ((r as Record<string, unknown>).data || [])) as UserData[];
-        setUsers(rows.filter((u) => u.isActive !== false));
+        // Who a task can go to: a seat that can do the work (people/work.ts) — never a view-only or switched-off login.
+        setUsers(rows.filter((u) => mayBeGivenWork(u as { role?: string | null; isActive?: boolean | null })));
       })
       .catch(() => setUsers([]));
   }, [canList]);

@@ -11,6 +11,7 @@ import { companyTimeZone, storeDateString } from '../time/businessDay'
 import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, businessToday, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { ACCOUNT_BALANCE_METHOD } from '../clients/accountBalance'
 import { withoutPortalCredential } from '../contacts/contacts'
+import { resolveCustomer } from '../contacts/customer'
 import { mailFailureReason } from '../integrations/mailError'
 import { checkFilter } from '../listFilter'
 import { customerLines } from './itemCodes'
@@ -583,13 +584,8 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const [co] = await db.select({ settings: t.company.settings }).from(t.company).where(eq(t.company.id, companyId)).limit(1)
     return (co?.settings as any) || {}
   }
-  const ownContact = async (companyId: string, id: string) => (await db.select({ id: t.contact.id, type: t.contact.type }).from(t.contact).where(and(eq(t.contact.id, id), eq(t.contact.companyId, companyId))).limit(1))[0]
-  /**
-   * A vendor is who the business BUYS from — never who an invoice bills, in any industry. The Client picker listed
-   * every contact, suppliers included (live test, 2026-10-22); the picker now leaves them out and the server refuses
-   * one, so no other door (an API call, a stale form) bills a supplier.
-   */
-  const VENDOR_NOT_CLIENT = 'That contact is a vendor — an invoice bills a client. Pick the client, or change the contact’s type.'
+  // A vendor is never who an invoice bills: contacts/customer.ts (resolveCustomer) holds that rule for the invoice, the
+  // quote it may come from and the job it bills, with the picker's own customers-only list (live test, 2026-10-22).
   const ownProject = async (companyId: string, id: string) => (await db.select({ id: t.project.id }).from(t.project).where(and(eq(t.project.id, id), eq(t.project.companyId, companyId))).limit(1))[0]
 
   // Extra records an invoice can be raised against, per template (crm-vet: patientId). Taken from the RAW
@@ -765,11 +761,12 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const cid = currentUser.companyId
     const extra = await linkValues(cid, raw)
     if ('error' in extra) return c.json({ error: extra.error }, 404)
-    if (!data.contactId) return c.json({ error: 'A client is required to create an invoice.' }, 400)
-    const billTo = await ownContact(cid, data.contactId)
-    if (!billTo) return c.json({ error: 'That client does not exist.' }, 404)
-    if (billTo.type === 'vendor') return c.json({ error: VENDOR_NOT_CLIENT, code: 'vendor_not_client' }, 400)
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
+    // Who it bills: the client named (never a vendor), else the project's (contacts/customer.ts); one is required.
+    const billTo = await resolveCustomer(db, t, cid, { contactId: data.contactId, projectId: data.projectId })
+    if (!billTo.ok) return c.json({ error: billTo.error, ...(billTo.code ? { code: billTo.code } : {}) }, billTo.status)
+    if (billTo.contactId) data.contactId = billTo.contactId
+    if (!data.contactId) return c.json({ error: 'A client is required to create an invoice.' }, 400)
     if (data.lineItems.length < minLineItems) return c.json({ error: 'Add at least one line item.' }, 400)
     const subtotalRaw = rawSubtotal(data.lineItems)
     if (data.discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
@@ -818,13 +815,12 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (!existing) return c.json({ error: 'Invoice not found' }, 404)
     if (existing.status === 'void') return c.json({ error: 'This invoice is void and can no longer be edited.' }, 400)
     if (existing.status === 'refunded') return c.json({ error: 'This sale was refunded and can no longer be edited. Start a new invoice.' }, 400)
-    if (data.contactId) {
-      const billTo = await ownContact(cid, data.contactId)
-      if (!billTo) return c.json({ error: 'That client does not exist.' }, 404)
-      // Only a change of who is billed is asked: an invoice already on a contact keeps saving as it was.
-      if (billTo.type === 'vendor' && data.contactId !== existing.contactId) return c.json({ error: VENDOR_NOT_CLIENT, code: 'vendor_not_client' }, 400)
-    }
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
+    // Only a change of who is billed is asked: an invoice already on a contact keeps saving as it was (contacts/customer.ts).
+    if (data.contactId) {
+      const billTo = await resolveCustomer(db, t, cid, { contactId: data.contactId }, existing)
+      if (!billTo.ok) return c.json({ error: billTo.error, ...(billTo.code ? { code: billTo.code } : {}) }, billTo.status)
+    }
     const due = normalizeDateInput(data.dueDate)
     if (due.error) return c.json({ error: `Due date: ${due.error}` }, 400)
     const issue = normalizeDateInput(data.issueDate)

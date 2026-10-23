@@ -9,6 +9,7 @@ import { FileText, Plus, Loader2 } from 'lucide-react'
 import { api } from '../../api'
 import { useAuth, usePrompt, useToast, errorText } from '../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -107,7 +108,7 @@ export default function AiaFormsPage() {
                   <td className="px-4 py-3 text-sm">{f.project?.name || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{formatDate(f.periodTo)}</td>
                   <td className="px-4 py-3 font-mono text-sm">{money(Number(f.currentPaymentDue))}</td>
-                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[f.status]}`}>{f.status}</span></td>
+                  <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[f.status]}`}>{codeLabel(f.status)}</span></td>
                   <td className="px-4 py-3">
                     {mayUpdate && f.status === 'draft' && <button onClick={() => sign(f.id)} className="text-orange-700 text-xs hover:underline dark:text-orange-200">Sign</button>}
                     {mayUpdate && f.status === 'signed' && <button onClick={() => advance(f.id, 'submit')} className="text-orange-700 text-xs hover:underline dark:text-orange-200">Submit</button>}

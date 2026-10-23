@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, Send, Check, X, FileText, Briefcase, Search } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { todayKey } from '../time/day'
 import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, errMsg, expiryLabel, inputCls, money, moneyInputError, pricebookLine, quoteSentMessage, selectCls } from './ui'
@@ -69,7 +70,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
       setData(res?.data || []); setPagination(res?.pagination || null)
     } catch (e) { toast.error(errMsg(e, 'Failed to load quotes')) }
     finally { setLoading(false) }
-    api.get('/api/contacts', { limit: 200 }).then((r: any) => setContacts(r?.data || [])).catch(() => setContacts([]))
+    // Customers only: a vendor is never who a quote is for (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+    api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }).then((r: any) => setContacts(customersOnly(r?.data || []))).catch(() => setContacts([]))
     if (cfg.projects) api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
     /**
      * The pricebook, only where quotes are priced from it. (T41)
@@ -231,8 +233,14 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
             <div className="md:col-span-2"><Field label="Name *"><input value={form.name} onChange={e => setForm((f) => ({ ...f, name: e.target.value }))} className={inputCls} placeholder={cfg.quoteNamePlaceholder} /></Field></div>
             <Field label={cfg.clientLabel}><select value={form.contactId} onChange={e => { setForm((f) => ({ ...f, contactId: e.target.value, jobId: '', siteId: '', equipmentId: '' })); loadCustomerExtras(e.target.value) }} className={inputCls}><option value="">Select…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
             {cfg.quoteJobs && <Field label="Job"><select value={form.jobId} onChange={e => setForm((f) => ({ ...f, jobId: e.target.value }))} className={inputCls} disabled={!form.contactId}><option value="">{form.contactId ? 'No job' : 'Pick the customer first'}</option>{customerJobs.map(j => <option key={j.id} value={j.id}>{j.number}{j.address ? ` — ${j.address}` : ''}</option>)}</select></Field>}
-            {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => setForm((f) => ({ ...f, projectId: e.target.value }))} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
-            {cfg.quoteSites && sites.length > 0 && <Field label="Location"><select value={form.siteId} onChange={e => setForm((f) => ({ ...f, siteId: e.target.value }))} className={inputCls}><option value="">No specific location</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}</select></Field>}
+            {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => {
+              // A project brings its customer when none is chosen yet (the server holds the same rule: contacts/customer.ts).
+              const pr = projects.find((p) => p.id === e.target.value)
+              const take = !form.contactId && pr?.contactId && contacts.some((c) => c.id === pr.contactId) ? String(pr.contactId) : ''
+              setForm((f) => ({ ...f, projectId: e.target.value, ...(take ? { contactId: take, jobId: '', siteId: '', equipmentId: '' } : {}) }))
+              if (take) loadCustomerExtras(take)
+            }} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
+            {cfg.quoteSites && sites.length > 0 && <Field label={cfg.siteLabels?.singular || 'Location'}><select value={form.siteId} onChange={e => setForm((f) => ({ ...f, siteId: e.target.value }))} className={inputCls}><option value="">No specific {(cfg.siteLabels?.singular || 'Location').toLowerCase()}</option>{sites.map(s => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}</select></Field>}
             {cfg.quoteEquipment && equipment.length > 0 && <Field label="Equipment"><select value={form.equipmentId} onChange={e => setForm((f) => ({ ...f, equipmentId: e.target.value }))} className={inputCls}><option value="">No specific unit</option>{equipment.map(eq => <option key={eq.id} value={eq.id}>{eq.name}{eq.manufacturer ? ` — ${eq.manufacturer}` : ''}{eq.model ? ` ${eq.model}` : ''}</option>)}</select></Field>}
           </div>
           <Field label="Line Items">

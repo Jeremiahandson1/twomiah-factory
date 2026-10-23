@@ -32,7 +32,8 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   const [loading, setLoading] = useState(true)
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
+  // ?type=lead opens the list on that type (the dashboard's New leads tile links here) — only a type this page offers.
+  const [typeFilter, setTypeFilter] = useState(() => { const ty = searchParams.get('type') || ''; return cfg.types.some((x) => x.value === ty) ? ty : '' })
   const [page, setPage] = useState(1)
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -232,7 +233,9 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   const actions = [
     { label: 'Edit', icon: Edit, show: () => mayEdit, onClick: openEdit },
     { label: `Convert to ${cfg.convertLabel}`, icon: UserCheck, show: (row: ContactRow) => mayEdit && row.type === 'lead', onClick: convert },
-    ...(cfg.vendorPortalInvite ? [{
+    // The vendor portal is its own feature: offered only where the business has it switched on (the same rule as every
+    // link on a contact's page — contacts/types.ts `shows`).
+    ...(cfg.vendorPortalInvite && cfg.hasFeature('vendor_portal') ? [{
       label: 'Invite to vendor portal', icon: Handshake, show: (row: ContactRow) => mayEdit && row.type === 'vendor',
       onClick: async (row: ContactRow) => {
         try {

@@ -85,6 +85,8 @@ export { seriesDays, describeSeriesDays, addMonthsClamped, MAX_SERIES, type Seri
 export { createReportingRoutes, createReportingService, parseRange, ReportError } from './reporting/reporting'
 export type { ReportingDeps, ReportingOptions, ReportingTables, ReportingService, DateRange } from './reporting/reporting'
 export { createJobsDashboardRoutes } from './reporting/jobsDashboard'
+export { countNewLeads, listNewLeads } from './reporting/newLeads'
+export type { NewLeads, NewLeadRow } from './reporting/newLeads'
 export type { JobsDashboardDeps, JobsDashboardTables } from './reporting/jobsDashboard'
 
 // Files — private R2 storage + documents (with version history / markups) + photos, one implementation for every CRM.
@@ -182,6 +184,8 @@ export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, 
 
 // Team roster, time tracking (hours + clock-in/out + weekly + approvals) and expenses — one implementation each; the template injects its tables.
 export { createTeamRoutes, teamMemberSchema } from './team/team'
+export { NOT_GIVEN_WORK_ROLES, mayBeGivenWork } from './team/work'
+export { resolveCustomer, VENDOR_NOT_CUSTOMER } from './contacts/customer'
 export type { TeamDeps, TeamTables } from './team/team'
 export { companyTimeZone, companyRowTimeZone, storeDayRange, storeDayStart, storeDateString, dayMarker, markerDay, markerDayIsOver, markerDayHasBegun, daysUntilMarker, isValidTimeZone, jobLocalDay, DEFAULT_BUSINESS_ZONE } from './time/businessDay'
 export { createTimeRoutes, createTimeClock, getWeekStart } from './time/time'
@@ -232,7 +236,7 @@ export { createFleetService, createFleetRoutes } from './fleet/fleet'
 export type { FleetService, FleetServiceDeps, FleetRoutesDeps, FleetTables } from './fleet/fleet'
 
 // Commissions — plans + earnings, the amount worked out server-side from the plan (crm, crm-fieldservice, crm-landscaping, crm-basic).
-export { createCommissionRoutes, createCommissionEarner, commissionFor, COMMISSION_PLAN_TYPES, COMMISSION_ROLES, COMMISSION_STATUSES, COMMISSION_AUTO_EARN } from './commissions/commissions'
+export { createCommissionRoutes, createCommissionEarner, commissionFor, planPaysPerson, planPeople, COMMISSION_PLAN_TYPES, COMMISSION_ROLES, COMMISSION_STATUSES, COMMISSION_AUTO_EARN } from './commissions/commissions'
 export type { CommissionRoutesDeps, CommissionTables, CommissionEarner, CommissionEarnerDeps, CommissionEarnerTables } from './commissions/commissions'
 
 // Locations — a company's branches (crm, crm-fieldservice, crm-landscaping, crm-basic). crm-dispensary keeps its own stock-per-store system.

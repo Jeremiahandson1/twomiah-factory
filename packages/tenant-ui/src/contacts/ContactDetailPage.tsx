@@ -33,6 +33,7 @@ const h2 = 'font-semibold text-gray-900 dark:text-slate-100'
 const rowLink = 'p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800'
 const quickBtn = 'w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-900 dark:text-slate-100'
 import { money } from '../invoicing/ui'
+import { codeLabel } from '../labels/codes'
 
 function RelatedList({ title, rows, href, icon: Icon, render }: { title: string; rows: Related[]; href: (r: Related) => string; icon: React.ComponentType<{ className?: string }>; render: (r: Related) => React.ReactNode }) {
   return (
@@ -110,7 +111,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   const mayManagePortal = cfg.can('portal:share')
 
   const showPortal = !!sections.portal && (cfg.portalGate === false || hasFeature(cfg.portalGate))
-  const gated = (feature: string) => !cfg.gateByFeature || hasFeature(feature)
+  // Each related list, count and quick action: the vertical has it AND the business has its feature on (types.ts).
+  const shows = cfg.shows
+  const sites = cfg.siteLabels
   // The thread and the send box are Two-Way Texting's (two_way_texting): off, /api/sms refuses them, so they are not
   // offered — the customer's opt-out stays, because it governs every text the business sends (2026-10-22).
   const textingOn = hasFeature('two_way_texting')
@@ -287,17 +290,18 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   }
 
   const typeLabel = cfg.types.find((t) => t.value === contact.type)?.label || contact.type
-  const projects = sections.projects && gated('projects') ? (contact.projects || []) : []
+  const projects = shows('projects') ? (contact.projects || []) : []
   // A list the server left off (this seat may not open quotes / invoices — T62) is absent, not empty: no
   // section, and no "Quotes 0" in the sidebar for records that exist.
   const hasQuotes = 'quotes' in contact
-  const quotes = sections.quotes && gated('quotes') && hasQuotes ? (contact.quotes || []) : []
-  const events = sections.events && hasFeature('event_bookings') ? (contact.events || []) : []
+  const quotes = shows('quotes') && hasQuotes ? (contact.quotes || []) : []
+  const events = shows('events') ? (contact.events || []) : []
   // A store's shopper: their orders, when the server sent them (absent for a seat without orders:read — no section).
   const storeOrders = sections.orders && 'orders' in contact ? (contact.orders || []) : null
-  const showInvoices = gated('invoices') && 'invoices' in contact
+  const showInvoices = shows('invoices') && 'invoices' in contact
   const invoices = showInvoices ? (contact.invoices || []) : []
-  const jobs = contact.jobs || []
+  const jobs = shows('jobs') ? (contact.jobs || []) : []
+  const showEquipment = shows('equipment')
   /**
    * What this invoice still owes — the same rule reporting.ts and the dashboard use, which is why the
    * money reconciles across five screens. This page had its own: total − paid + REFUNDED, with no regard
@@ -317,7 +321,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     return open && outstandingOf(r) > 0.005 && isPastDay(r.dueDate) ? 'overdue' : String(r.status || '')
   }
   // …and only the ones this seat could finish: each asks what its destination will ask to save. (T62)
-  const quickActions = cfg.quickActions.filter((a) => (!a.feature || hasFeature(a.feature)) && (() => { const p = quickActionPermission(a); return !p || cfg.can(p) })())
+  const quickActions = cfg.quickActions.filter((a) => { const p = quickActionPermission(a); return !p || cfg.can(p) })
 
   return (
     <div className="space-y-6">
@@ -524,7 +528,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           )}
 
           {jobs.length > 0 && (
-            <RelatedList title="Jobs" rows={jobs} icon={Briefcase} href={(r) => `/crm/jobs?jobId=${r.id}`} render={(r) => (
+            <RelatedList title={cfg.jobLabels.plural} rows={jobs} icon={Briefcase} href={(r) => `/crm/jobs?jobId=${r.id}`} render={(r) => (
               <div className="flex-1 flex items-center justify-between gap-3">
                 <div>
                   <p className="font-medium text-gray-900 dark:text-slate-100">{r.title || r.number}</p>
@@ -535,7 +539,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             )} />
           )}
 
-          {sections.equipment && (
+          {showEquipment && (
             <div className={card}>
               <div className="p-4 border-b dark:border-slate-800 flex items-center justify-between">
                 <h2 className={h2}>Equipment</h2>
@@ -583,10 +587,10 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           {sections.sites && ((contact.sites?.length || 0) > 0 || contact.type === 'client') && (
             <div className={card}>
               <div className="p-4 border-b dark:border-slate-800 flex items-center justify-between">
-                <h2 className={h2}>Locations</h2>
+                <h2 className={h2}>{sites.plural}</h2>
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-500 dark:text-slate-400">{contact.sites?.length || 0}</span>
-                  {mayAddSite && <button type="button" onClick={() => setSiteModalOpen(true)} className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 flex items-center gap-1"><Plus className="w-3 h-3" />Add Location</button>}
+                  {mayAddSite && <button type="button" onClick={() => setSiteModalOpen(true)} className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded-lg hover:bg-orange-700 flex items-center gap-1"><Plus className="w-3 h-3" />Add {sites.singular}</button>}
                 </div>
               </div>
               {contact.sites && contact.sites.length > 0 ? (
@@ -605,7 +609,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   ))}
                 </div>
               ) : (
-                <div className="p-6 text-center text-gray-500 dark:text-slate-400"><MapPinned className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">No locations added — useful for commercial accounts with multiple sites</p></div>
+                <div className="p-6 text-center text-gray-500 dark:text-slate-400"><MapPinned className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">No {sites.plural.toLowerCase()} added yet</p></div>
               )}
             </div>
           )}
@@ -653,14 +657,14 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           <div className={cardPad}>
             <h2 className={`${h2} mb-4`}>Summary</h2>
             <div className="space-y-4">
-              {sections.events && hasFeature('event_bookings') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Events</span><span className="font-medium">{contact.events?.length || 0}</span></div>}
+              {shows('events') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Events</span><span className="font-medium">{contact.events?.length || 0}</span></div>}
               {storeOrders && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Orders</span><span className="font-medium">{storeOrders.length}</span></div>}
               {sections.patients && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Patients</span><span className="font-medium">{contact.patients?.length || 0}</span></div>}
-              {sections.projects && gated('projects') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Projects</span><span className="font-medium">{contact.projects?.length || 0}</span></div>}
-              {sections.quotes && gated('quotes') && hasQuotes && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Quotes</span><span className="font-medium">{contact.quotes?.length || 0}</span></div>}
+              {shows('projects') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Projects</span><span className="font-medium">{contact.projects?.length || 0}</span></div>}
+              {shows('quotes') && hasQuotes && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Quotes</span><span className="font-medium">{contact.quotes?.length || 0}</span></div>}
               {showInvoices && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Invoices</span><span className="font-medium">{contact.invoices?.length || 0}</span></div>}
-              {sections.equipment && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Equipment</span><span className="font-medium">{contact.equipment?.length || 0}</span></div>}
-              {contact.source && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Source</span><span className="font-medium">{contact.source}</span></div>}
+              {showEquipment && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Equipment</span><span className="font-medium">{contact.equipment?.length || 0}</span></div>}
+              {contact.source && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Source</span><span className="font-medium">{codeLabel(contact.source)}</span></div>}
               <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Type</span><span className="font-medium">{typeLabel}</span></div>
             </div>
           </div>
@@ -754,9 +758,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
       </div>
 
       {sections.sites && (
-        <Modal isOpen={siteModalOpen} onClose={() => setSiteModalOpen(false)} title="Add Location" size="md">
+        <Modal isOpen={siteModalOpen} onClose={() => setSiteModalOpen(false)} title={`Add ${sites.singular}`} size="md">
           <div className="space-y-4">
-            <Field label="Location Name *"><input value={siteForm.name} onChange={(e) => setSiteForm((prev) => ({ ...prev, name: e.target.value }))} className={inputCls} placeholder='e.g. "Main Warehouse", "Downtown Office"' /></Field>
+            <Field label={`${sites.singular} Name *`}><input value={siteForm.name} onChange={(e) => setSiteForm((prev) => ({ ...prev, name: e.target.value }))} className={inputCls} placeholder={sites.namePlaceholder || 'e.g. "Main Warehouse", "Downtown Office"'} /></Field>
             <Field label="Address"><input value={siteForm.address} onChange={(e) => setSiteForm((prev) => ({ ...prev, address: e.target.value }))} className={inputCls} /></Field>
             <div className="grid grid-cols-3 gap-3">
               <Field label="City"><input value={siteForm.city} onChange={(e) => setSiteForm((prev) => ({ ...prev, city: e.target.value }))} className={inputCls} /></Field>
@@ -766,7 +770,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             <Field label="Access Notes"><textarea value={siteForm.accessNotes} onChange={(e) => setSiteForm((prev) => ({ ...prev, accessNotes: e.target.value }))} rows={2} className={inputCls} placeholder="Gate codes, contact on site, parking instructions..." /></Field>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="secondary" onClick={() => setSiteModalOpen(false)}>Cancel</Button>
-              <Button onClick={createSite} disabled={savingSite || !siteForm.name.trim()}>{savingSite ? 'Saving...' : 'Add Location'}</Button>
+              <Button onClick={createSite} disabled={savingSite || !siteForm.name.trim()}>{savingSite ? 'Saving...' : `Add ${sites.singular}`}</Button>
             </div>
           </div>
         </Modal>
@@ -782,8 +786,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             </div>
           )}
           <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Equipment at this location ({siteDetail.equipment?.length || 0})</h3>
+            {showEquipment && <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Equipment at this {sites.singular.toLowerCase()} ({siteDetail.equipment?.length || 0})</h3>
               {siteDetail.equipment && siteDetail.equipment.length > 0 ? (
                 <div className="divide-y dark:divide-slate-800 border dark:border-slate-800 rounded-lg">
                   {siteDetail.equipment.map((eq) => (
@@ -793,9 +797,9 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                     </div>
                   ))}
                 </div>
-              ) : <p className="text-sm text-gray-500 dark:text-slate-400">No equipment at this location</p>}
-              {mayAddEquipment && <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200"><Plus className="w-3 h-3" /> Add Equipment to This Location</NavLink>}
-            </div>
+              ) : <p className="text-sm text-gray-500 dark:text-slate-400">No equipment at this {sites.singular.toLowerCase()}</p>}
+              {mayAddEquipment && <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 dark:text-orange-200"><Plus className="w-3 h-3" /> Add Equipment to This {sites.singular}</NavLink>}
+            </div>}
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Service History ({siteDetail.jobs?.length || 0})</h3>
               {siteDetail.jobs && siteDetail.jobs.length > 0 ? (

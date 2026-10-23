@@ -11,8 +11,8 @@
 //   quotes.pending                     draft or sent
 //   invoices                           the balance still owed on issued invoices — ONLY for a caller who may read
 //                                      invoices (invoices:read, T41); the key is absent otherwise, never "$0" (T42)
-//   newLeads                           Lead Inbox rows at `new`, where the inbox is on and the caller may open it
-//                                      (contacts:read) — the jobs dashboard's rule
+//   newLeads                           the enquiries nobody has acted on (tenant-backend reporting/newLeads.ts), for a
+//                                      caller who may open contacts (contacts:read) — the jobs dashboard's rule
 // No job's money is read here: the figures are counts, and the one sum is invoices:read's (the one money rule,
 // jobMoneyWithheld, would withhold nothing more — no job field is returned).
 //
@@ -23,10 +23,10 @@
 //     roofing's invoice kept a `balance` column; the same invoices count (issued: not draft, void or paid; something owed).
 import { Hono } from 'hono'
 import { and, count, eq, gte, inArray, lt, notInArray } from 'drizzle-orm'
-import { companyTimeZone, invoiceBalance, storeDayRange } from '@twomiah/tenant-backend'
+import { companyTimeZone, invoiceBalance, storeDayRange, countNewLeads, listNewLeads } from '@twomiah/tenant-backend'
 import { contact, invoice, job, lead, quote } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { one } from '../../../http/reply.ts'
+import { one, fail } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { TERMINAL_STATUSES } from '../validation.ts'
@@ -43,6 +43,15 @@ export function createRoofDashboardRoutes(d: CrmDeps) {
   const may = async (u: any, permission: string) => { try { return !!(await canSee(u?.role, permission, u?.userId)) } catch { return true } }
   const n = (rows: any[]) => Number(rows?.[0]?.value ?? 0)
   const r2 = (v: number) => Math.round(v * 100) / 100
+
+  // The rows the count counts, as one list (tenant-backend reporting/newLeads.ts) — the jobs dashboard's GET /new-leads.
+  app.get('/new-leads', async (c) => {
+    const u = c.get('user')
+    if (!(await may(u, 'contacts:read'))) return fail(c, 403, 'Permission denied', 'forbidden')
+    const features = await safe(() => d.features.enabledFeaturesFor(u.companyId), [] as string[])
+    const limit = Number(c.req.query('limit')) || undefined
+    return one(c, await listNewLeads(db, { lead, contact, quote, job, invoice }, u.companyId, { inbox: features.includes('lead_inbox'), limit }))
+  })
 
   app.get('/stats', async (c) => {
     const u = c.get('user')
@@ -68,17 +77,17 @@ export function createRoofDashboardRoutes(d: CrmDeps) {
       invoices = { outstanding: owed.length, outstandingValue: r2(owed.reduce((s: number, b: number) => s + b, 0)) }
     }
 
-    let newLeads: number | undefined
+    // The jobs dashboard's count (tenant-backend reporting/newLeads.ts): unanswered inbox enquiries and the lead contacts
+    // nobody has acted on yet — one rule for every dashboard that shows the tile.
+    let leads: Awaited<ReturnType<typeof countNewLeads>> | null = null
     if (await may(u, 'contacts:read')) {
       const features = await safe(() => d.features.enabledFeaturesFor(companyId), [] as string[])
-      if (features.includes('lead_inbox')) {
-        newLeads = n(await safe(() => db.select({ value: count() }).from(lead).where(and(eq(lead.companyId, companyId), eq(lead.status, 'new'))), [{ value: 0 }]))
-      }
+      leads = await safe(() => countNewLeads(db, { lead, contact, quote, job, invoice }, companyId, { inbox: features.includes('lead_inbox') }), null)
     }
 
     return one(c, {
       contacts: n(contacts),
-      ...(newLeads === undefined ? {} : { newLeads }),
+      ...(leads ? { newLeads: leads.total, newLeadsFrom: { inbox: leads.inbox, contacts: leads.contacts } } : {}),
       jobs: { open: n(openJobs), inProduction: n(inProduction), inspectionsToday: n(inspectionsToday), installsToday: n(installsToday) },
       quotes: { pending: n(pendingQuotes) },
       ...(invoices ? { invoices } : {}),

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { useKnownPermission } from '../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { mayBeGivenWork } from '@twomiah/tenant-ui/src/people/work'
 
 export interface Booking {
   id: string
@@ -105,7 +106,9 @@ export function useBookingBasics() {
     setSettings(s)
     setServices(sv.data)
     const rows = Array.isArray(u) ? u : u?.data ?? []
-    setPeople(rows.map((p: any) => ({ id: p.id, name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email, email: p.email, role: p.role })))
+    // Only seats that can do the work are bookable (people/work.ts — the server's rule too): never a view-only seat or a
+    // switched-off login (landscaping live test 2026-10-22 listed the viewer as a bookable person).
+    setPeople(rows.filter(mayBeGivenWork).map((p: any) => ({ id: p.id, name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email, email: p.email, role: p.role })))
   }).catch((e) => setError(e.message))
   // Waits until the permissions are known, so a refused read is never made.
   useEffect(() => { if (mayReadPeople !== null) reload() }, [mayReadPeople])

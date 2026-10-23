@@ -69,13 +69,15 @@ const basic: VerticalSettings = {
     contacts: {
       // A supplier is stored as `vendor`; not a builder's Subcontractor (contactsConfig.ts, T64).
       types: [{ value: 'lead', label: 'Lead' }, { value: 'client', label: 'Client' }, { value: 'vendor', label: 'Supplier' }],
-      sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true },
+      // No projects here (featureRegistry: the contractor's): no Projects list or count on a contact.
+      sections: { projects: false, quotes: true, equipment: true, sites: true, sms: true, portal: true },
     },
     jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true },
     // The template's quote-name example was field service's ('AC Compressor Replacement'); a neutral one here.
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. Standard package', pricebook: true },
     documents: { markup: false, projects: false, types: DOC_TYPES },
     equipment: {
+      placeholders: { name: 'e.g., Work van', manufacturer: 'e.g., Ford', location: 'e.g., Shop' },
       contacts: true, sites: true, linkedJobs: true,
       categories: [
         { name: 'Power tools', icon: 'tool' }, { name: 'Heavy equipment', icon: 'mower' }, { name: 'Trucks & trailers', icon: 'truck' },
@@ -92,7 +94,8 @@ const basic: VerticalSettings = {
       ],
     },
     migration: { entityLabels: { jobs: 'Jobs & Work Orders' } },
-    pricebook: { tiersTitle: 'Good-Better-Best options' },
+    // Neutral words for a general service business (it fell back to the shared default, which suits no one in particular).
+    pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. Standard visit' },
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
     dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
@@ -100,7 +103,7 @@ const basic: VerticalSettings = {
     expenses: { jobLabel: 'Job' },
     // "Trade" and "Lead Technician" are a contractor's words (peopleConfig.ts, T51).
     team: { roleLabel: 'Job title', rolePlaceholder: 'e.g. Shift lead' },
-    agreements: { recurrence: true },
+    agreements: { recurrence: true, planNamePlaceholder: 'e.g., Monthly service plan' },
     fleet: { gps: true },
     portal: {
       providerNoun: 'service team',

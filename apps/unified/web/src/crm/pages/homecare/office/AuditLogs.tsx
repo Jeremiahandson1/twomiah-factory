@@ -24,6 +24,7 @@ import { toLocalYMD } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
 import { useToast } from '../../../../shared'
 import { agencyToday } from '../lib/agencyClock'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /** One row of GET /api/audit-logs. */
 interface AuditRow {
@@ -334,7 +335,7 @@ const AuditLogs = () => {
               <option value="">All Users</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.firstName} {u.lastName} ({u.role})
+                  {u.firstName} {u.lastName} ({codeLabel(u.role)})
                 </option>
               ))}
             </select>

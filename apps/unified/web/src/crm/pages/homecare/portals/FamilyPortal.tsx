@@ -29,6 +29,7 @@ import { serviceLabel } from '../lib/serviceTypes'
 import { createPortalClient, listRows, PortalContext, SESSION_EXPIRED, usePortal } from './portalHttp'
 import CaregiverBackgroundChecks from './CaregiverBackgroundChecks'
 import './portals.css'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 export interface FamilyMember {
   id: string
@@ -208,7 +209,7 @@ function CarePlanView() {
           {plan.serviceType && (
             <div style={{ fontWeight: 700, marginBottom: '8px', fontSize: '1rem' }}>
               {serviceLabel(plan.serviceType)}
-              {plan.frequency && <span style={{ fontWeight: 400, color: 'var(--hc-ink-soft)' }}> · {plan.frequency}</span>}
+              {plan.frequency && <span style={{ fontWeight: 400, color: 'var(--hc-ink-soft)' }}> · {codeLabel(plan.frequency)}</span>}
             </div>
           )}
           {section('Goals', plan.careGoals)}
@@ -267,7 +268,7 @@ function MedicationsView() {
             {m.name}{m.isPrn && <span style={{ ...BADGE('yellow'), marginLeft: '8px' }}>As needed</span>}
           </div>
           {m.dosage && <div style={SOFT}>Dosage: {m.dosage}</div>}
-          {m.frequency && <div style={SOFT}>Frequency: {m.frequency}</div>}
+          {m.frequency && <div style={SOFT}>Frequency: {codeLabel(m.frequency)}</div>}
           {m.route && <div style={SOFT}>Route: {m.route}</div>}
           {m.prescribedBy && <div style={SOFT}>Prescriber: {m.prescribedBy}</div>}
           {m.instructions && <div style={SOFT}>Instructions: {m.instructions}</div>}

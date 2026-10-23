@@ -6,6 +6,7 @@ import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dialog } from './registerUi';
 import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /**
  * STOCK & COSTING — the manager's side (routes/barStock.ts, bar:update). Stock bought by the pack and used by the
@@ -311,7 +312,7 @@ function OrdersTab() {
           {orders.map((o) => (
             <li key={o.id} className="py-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-gray-900 dark:text-slate-100">
-                <span className="font-semibold">#{o.number} · {o.vendor?.name || 'No vendor'} · {o.status}</span>
+                <span className="font-semibold">#{o.number} · {o.vendor?.name || 'No vendor'} · {codeLabel(o.status)}</span>
                 <span className="font-mono">{money(o.totalCents)}</span>
               </div>
               <p className={`text-xs ${MUTED}`}>{o.lines.map((l: any) => `${l.packs} ${l.packName} ${l.name}`).join(' · ')}</p>

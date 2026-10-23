@@ -16,6 +16,7 @@ import { serviceLabel } from '../lib/serviceTypes'
 import { allRows, type Client, type Caregiver } from './shared'
 import type { CareTask } from './CareTasksManager'
 import { useMay } from '../lib/useMay'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 // Same categories as the Care Tasks screen, in display order.
 const TASK_GROUPS: [string, string][] = [
@@ -362,7 +363,7 @@ export default function CarePlans() {
                     {t.isBuiltIn && <span className="text-xs px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200">built-in</span>}
                   </div>
                   {t.templateDescription && <div className={`text-sm ${mutedText}`}>{t.templateDescription}</div>}
-                  <div className={`text-xs mt-1 ${mutedText}`}>{serviceLabel(t.serviceType)} · {t.frequency}</div>
+                  <div className={`text-xs mt-1 ${mutedText}`}>{serviceLabel(t.serviceType)} · {codeLabel(t.frequency)}</div>
                 </button>
               ))}
             </div>
@@ -486,7 +487,7 @@ export default function CarePlans() {
                               <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
                                 <div>
                                   <strong>{serviceLabel(plan.serviceType)}</strong>
-                                  {plan.frequency && <div className={`text-sm ${mutedText}`}>{plan.frequency}</div>}
+                                  {plan.frequency && <div className={`text-sm ${mutedText}`}>{codeLabel(plan.frequency)}</div>}
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
                                   {(() => { const [text, cls] = planTag(plan); return <span className={`text-xs px-2 py-0.5 rounded ${cls}`}>{text}</span> })()}
@@ -584,7 +585,7 @@ export default function CarePlans() {
               <button type="button" aria-label="Close" onClick={() => setShowGenModal(null)} className="text-2xl leading-none text-gray-500 dark:text-slate-400">×</button>
             </div>
             <div className="rounded-lg p-3 mb-4 text-sm bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-100">
-              <strong>{serviceLabel(showGenModal.serviceType)}</strong>{showGenModal.frequency && <span> — {showGenModal.frequency}</span>}
+              <strong>{serviceLabel(showGenModal.serviceType)}</strong>{showGenModal.frequency && <span> — {codeLabel(showGenModal.frequency)}</span>}
             </div>
             <form onSubmit={handleGenerateSchedule}>
               <div className="mb-3">

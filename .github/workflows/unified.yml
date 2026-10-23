@@ -40,6 +40,8 @@ jobs:
         run: bun run scripts/check-unified-dead-state.ts
       - name: Money prints its sign before the "$" (one formatter)
         run: bun run scripts/check-unified-money-sign.ts
+      - name: A stored code (status, stage, type…) is shown in words, never as stored
+        run: bun run scripts/check-unified-raw-codes.ts
       - name: Every feature an industry is offered has a screen in its app
         run: bun run scripts/check-unified-feature-has-screen.ts
       - name: Types — none in the unified app; shared packages not above their baseline

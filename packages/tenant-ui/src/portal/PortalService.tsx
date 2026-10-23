@@ -5,6 +5,7 @@ import { Wrench, Shield, ChevronRight, ChevronDown, ChevronUp, Calendar, CheckCi
 import { usePortal } from './PortalContext'
 import { isPastDay } from '../invoicing/ui'
 import { PLink, Spinner, PageTitle, Empty, card, pill, btnPrimary, inputCls, labelCls, formatDate, moneyShort } from './common'
+import { codeLabel } from '../labels/codes'
 
 // ---------------------------------------------------------------- Equipment
 interface Unit { id: string; name: string; model?: string | null; manufacturer?: string | null; serialNumber?: string | null; status?: string | null; location?: string | null; purchaseDate?: string | null; warrantyExpiry?: string | null; lastServiceDate?: string | null }
@@ -151,7 +152,7 @@ export function PortalAgreements() {
             <div key={a.id} className={`${card} p-5`}>
               <div className="flex items-start justify-between gap-4">
                 <div><h3 className="font-semibold text-gray-900 text-lg dark:text-slate-100">{a.name}</h3><p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{freq(a.billingFrequency)}{a.amount ? ` — ${moneyShort(a.amount)}` : ''}</p></div>
-                <span className={pill('bg-green-100 text-green-700 capitalize dark:text-green-300 dark:bg-green-950/40')}>{a.status}</span>
+                <span className={pill('bg-green-100 text-green-700 capitalize dark:text-green-300 dark:bg-green-950/40')}>{codeLabel(a.status)}</span>
               </div>
               {a.nextVisitDate && <div className="mt-4 flex items-center gap-3 bg-blue-50 rounded-lg px-4 py-3 dark:bg-blue-950/30"><Calendar className="w-5 h-5 text-blue-600 dark:text-blue-300" /><div><p className="text-sm font-medium text-blue-900 dark:text-blue-200">Next Scheduled Visit</p><p className="text-sm text-blue-700 dark:text-blue-300">{formatDate(a.nextVisitDate)}</p></div></div>}
               <dl className="mt-4 space-y-2 text-sm">
@@ -165,7 +166,7 @@ export function PortalAgreements() {
           {inactive.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3">Past Plans</h2>
-              <div className="space-y-2">{inactive.map((a) => <div key={a.id} className={`${card} p-4 opacity-60`}><div className="flex items-center justify-between"><h3 className="font-medium text-gray-700 dark:text-slate-200">{a.name}</h3><span className={pill('bg-gray-100 text-gray-600 capitalize dark:bg-slate-800 dark:text-slate-400')}>{a.status}</span></div></div>)}</div>
+              <div className="space-y-2">{inactive.map((a) => <div key={a.id} className={`${card} p-4 opacity-60`}><div className="flex items-center justify-between"><h3 className="font-medium text-gray-700 dark:text-slate-200">{a.name}</h3><span className={pill('bg-gray-100 text-gray-600 capitalize dark:bg-slate-800 dark:text-slate-400')}>{codeLabel(a.status)}</span></div></div>)}</div>
             </div>
           )}
         </>

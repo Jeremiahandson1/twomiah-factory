@@ -9,8 +9,13 @@ import { resolveJobsDashboardConfig } from './types'
 
 interface Stats {
   contacts?: number
-  /** Lead Inbox rows still at `new`. Absent when the tenant has no Lead Inbox or the caller may not open it. */
+  /**
+   * The enquiries nobody has acted on yet (tenant-backend reporting/newLeads.ts): inbox enquiries at `new`, and lead
+   * contacts with no quote, job or invoice that did not come by an import. Absent when the caller may not open contacts.
+   */
   newLeads?: number
+  /** Where they wait: the Lead Inbox, and Contacts (as leads). */
+  newLeadsFrom?: { inbox: number; contacts: number }
   projects?: { total?: number; byStatus?: Record<string, number> }
   jobs?: { total?: number; today?: number; byStatus?: Record<string, number>; todayByStatus?: Record<string, number>; dispatchedToday?: number; inProgressToday?: number; completedToday?: number }
   quotes?: { total?: number; pending?: number; approved?: number }
@@ -83,7 +88,8 @@ export function JobsDashboardPage({ api, user, company, config }: JobsDashboardP
     // 21 leads and 2 customers, and the owner said it is not a number they use. The server sends
     // newLeads only to a tenant with the Lead Inbox and a caller who may open it, so an absent key
     // drops the tile rather than printing a zero for a page they cannot see.
-    ...(typeof stats?.newLeads === 'number' ? [{ label: 'New leads', value: stats?.newLeads ?? 0, icon: Inbox, color: 'blue', link: '/crm/leads' }] : []),
+    // It opens ONE list: exactly the rows it counts, wherever each waits (/crm/new-leads, GET /api/dashboard/new-leads).
+    ...(typeof stats?.newLeads === 'number' ? [{ label: 'New leads', value: stats?.newLeads ?? 0, icon: Inbox, color: 'blue', link: '/crm/new-leads' }] : []),
     ...(showProjects ? [{ label: 'Active projects', value: stats?.projects?.byStatus?.active || 0, icon: FolderKanban, color: 'green', link: '/crm/projects' }] : []),
     { label: `${cfg.jobsLabel} today`, value: stats?.jobs?.today || 0, icon: Briefcase, color: 'purple', link: cfg.jobsPath },
     // A count of quotes is work, not money, and the server still sends it — but the tile links to the

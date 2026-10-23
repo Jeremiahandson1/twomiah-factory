@@ -298,19 +298,53 @@ export function createPricebookService(deps: PricebookServiceDeps) {
       })
       return this.getOptions(companyId, itemId)
     },
+    /**
+     * RAISE (OR LOWER) PRICES IN BULK — by a percent or an amount, on the whole book, one category or chosen items.
+     * (Contractor and roofing live tests 2026-10-22: "there is no way to raise prices by a percent".)
+     *
+     *   · preview: true answers what WOULD change — every item, its price now and after, and its Good/Better/Best
+     *     prices — and writes nothing. The screen shows that and asks before it sends the same request without it.
+     *   · Only this company's items: the category and the item ids are matched inside the company, never across it.
+     *   · A price is money: rounded to the cent and never below zero. A percent is between -90 and +100, and not 0.
+     *   · Prices on the tiers move with the item's price (a 10% rise that left "Better" where it was would make the
+     *     presentation page offer the old price); cost moves only the item's cost.
+     *   · All of it in one transaction, or none of it.
+     */
     async bulkAdjust(companyId: string, input: any) {
-      const p = z.object({ categoryId: z.string().max(64).optional(), itemIds: z.array(z.string().max(64)).max(5000).optional(), adjustmentType: z.enum(['percent', 'fixed']), adjustmentValue: z.coerce.number().finite().min(-1_000_000).max(1_000_000), applyTo: z.enum(['price', 'cost']) }).safeParse(input)
+      const p = z.object({
+        categoryId: z.string().max(64).optional(), itemIds: z.array(z.string().max(64)).max(5000).optional(),
+        adjustmentType: z.enum(['percent', 'fixed']), adjustmentValue: z.coerce.number().finite().min(-1_000_000).max(1_000_000),
+        applyTo: z.enum(['price', 'cost']), preview: z.boolean().optional(),
+      }).safeParse(input)
       if (!p.success) throw new PricebookError(400, zodMsg(p.error))
+      const { adjustmentType: kind, adjustmentValue: by, applyTo } = p.data
+      if (by === 0) throw new PricebookError(400, 'Enter how much to change the prices by.')
+      if (kind === 'percent' && (by < -90 || by > 100)) throw new PricebookError(400, 'A percent change is between -90% and +100%.')
+      if (p.data.categoryId && !(await ownCategory(companyId, p.data.categoryId))) throw new PricebookError(400, 'Unknown category')
       const where = [eq(I.companyId, companyId)]
       if (p.data.categoryId) where.push(eq(I.categoryId, p.data.categoryId))
       if (p.data.itemIds?.length) where.push(inArray(I.id, p.data.itemIds))
-      const rows = await db.select({ id: I.id, price: I.price, cost: I.cost }).from(I).where(and(...where))
-      for (const r of rows) {
-        const cur = Number((r as any)[p.data.applyTo])
-        const next = Math.max(0, Math.round((p.data.adjustmentType === 'percent' ? cur * (1 + p.data.adjustmentValue / 100) : cur + p.data.adjustmentValue) * 100) / 100)
-        await db.update(I).set({ [p.data.applyTo]: String(next), updatedAt: new Date() }).where(eq(I.id, r.id))
-      }
-      return { updated: rows.length }
+      const moved = (cur: number) => Math.max(0, Math.round((kind === 'percent' ? cur * (1 + by / 100) : cur + by) * 100) / 100)
+      const rows = await db.select({ id: I.id, name: I.name, code: I.code, price: I.price, cost: I.cost }).from(I).where(and(...where)).orderBy(asc(I.name), asc(I.id))
+      const tiers = applyTo === 'price' && rows.length
+        ? await db.select({ id: G.id, itemId: G.pricebookItemId, tier: G.tier, price: G.price }).from(G).where(inArray(G.pricebookItemId, rows.map((r: any) => r.id)))
+        : []
+      const items = rows.map((r: any) => {
+        const from = Number(r[applyTo])
+        return {
+          id: r.id, name: r.name, code: r.code ?? null, from, to: moved(from),
+          tiers: tiers.filter((g: any) => g.itemId === r.id).map((g: any) => ({ id: g.id, tier: g.tier, from: Number(g.price), to: moved(Number(g.price)) })),
+        }
+      })
+      if (p.data.preview) return { preview: true, applyTo, updated: 0, count: items.length, items }
+      await db.transaction(async (tx: any) => {
+        const now = new Date()
+        for (const it of items) {
+          await tx.update(I).set({ [applyTo]: String(it.to), updatedAt: now }).where(and(eq(I.id, it.id), eq(I.companyId, companyId)))
+          for (const g of it.tiers) await tx.update(G).set({ price: String(g.to) }).where(and(eq(G.id, g.id), eq(G.pricebookItemId, it.id)))
+        }
+      })
+      return { preview: false, applyTo, updated: items.length, count: items.length, items }
     },
     async exportItems(companyId: string) {
       const rows = await db.select().from(I).leftJoin(C, eq(I.categoryId, C.id)).where(eq(I.companyId, companyId)).orderBy(asc(I.name), asc(I.id))

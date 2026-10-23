@@ -7,6 +7,7 @@ import { useToast } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, StatusBadge, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /**
  * While an inspection has no result. Kept in step with RESULTABLE in routes/inspections.ts: a result
@@ -175,7 +176,7 @@ export default function InspectionsPage() {
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Inspection' : 'Schedule Inspection'} size="md">
         <div className="space-y-4">
-          <div><label className="block text-sm font-medium mb-1">Type *</label><select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, type: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{inspectionTypes.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+          <div><label className="block text-sm font-medium mb-1">Type *</label><select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, type: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{inspectionTypes.map(t => <option key={t} value={t}>{codeLabel(t)}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Project *</label><select value={form.projectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{projects.map((p: Record<string, unknown>) => <option key={p.id as string} value={p.id as string}>{p.name as string}</option>)}</select></div>
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium mb-1">Scheduled Date</label><input type="date" value={form.scheduledDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, scheduledDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>

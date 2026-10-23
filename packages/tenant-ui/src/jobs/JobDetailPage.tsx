@@ -13,6 +13,7 @@ import { JobPhotosPanel } from './JobPhotosPanel'
 import { PhotoViewer } from '../files/PhotoViewer'
 import { ReviewRequestButton } from '../reviews/ReviewRequestButton'
 import type { JobsPageProps, JobRow, JobPhoto } from './types'
+import { codeLabel } from '../labels/codes'
 
 const card = 'bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6'
 
@@ -123,7 +124,7 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={job.status} />
               {job.isOverdue && <StatusBadge status="overdue" />}
-              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${PRIORITY_COLORS[job.priority] || ''}`}>{job.priority}</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${PRIORITY_COLORS[job.priority] || ''}`}>{codeLabel(job.priority)}</span>
             </div>
           </div>
         </div>

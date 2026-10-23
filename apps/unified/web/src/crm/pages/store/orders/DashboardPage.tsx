@@ -23,6 +23,7 @@ import { api } from '../../../../api'
 import { PageError, errorText, useMayWrite } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { cents, listOf, statusBadge, type Order } from './lib'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 interface Stats {
   paidCount: number; pendingFulfillment: number; atSupplier: number
@@ -128,7 +129,7 @@ export default function DashboardPage() {
                   <div className="text-xs text-gray-500 dark:text-slate-400 truncate">{o.customerEmail} · {formatDate(o.createdAt)}</div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(o.status)}`}>{o.status}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(o.status)}`}>{codeLabel(o.status)}</span>
                   <span className="font-medium text-sm text-gray-900 dark:text-slate-100">{cents(o.totalCents, o.currency)}</span>
                 </div>
               </Link>

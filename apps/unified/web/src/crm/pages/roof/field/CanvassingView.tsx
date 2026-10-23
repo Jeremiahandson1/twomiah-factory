@@ -29,6 +29,7 @@ import { formatDate } from '../../../date'
 import { listOf } from './http'
 import PinMap, { coord, type Pin } from './PinMap'
 import { PIN_COLORS, type CanvassScript, type CanvassSession, type CanvassStop } from './canvassing'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const OUTCOME_CONFIG: Record<string, { label: string; emoji: string; color: string; bgColor: string }> = {
   no_answer: { label: 'No Answer', emoji: '🚪', color: 'text-gray-600', bgColor: 'bg-gray-100 border-gray-300' },
@@ -640,7 +641,7 @@ function CanvassingView() {
                     s.status === 'active' ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' :
                     s.status === 'paused' ? 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40' :
                     'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'
-                  }`}>{s.status}</span>
+                  }`}>{codeLabel(s.status)}</span>
                 </div>
                 <div className="flex gap-4 mt-1 text-xs text-gray-500 dark:text-slate-400">
                   <span>{formatDate(s.startedAt || s.createdAt)}</span>

@@ -86,6 +86,14 @@ const roof: VerticalSettings = {
   screens: {
     // The roofer's own home and screens (web/src/crm/verticals/roof.tsx).
     home: 'roofing',
+    // A roofing job's stages in the pipeline board's words (web/src/crm/pages/roof/jobs/model.ts STAGE_LABELS), wherever a
+    // stage is shown — a badge, a filter, the job's timeline ("Status changed: Invoiced → Collected"). Live test
+    // 2026-10-22: "in_production", "final_inspection" and "invoiced → collected" were printed as stored.
+    codeLabels: {
+      inspection_scheduled: 'Inspection Scheduled', measurement_ordered: 'Measurement Ordered', proposal_sent: 'Proposal Sent',
+      material_ordered: 'Material Ordered', in_production: 'In Production', final_inspection: 'Final Inspection',
+      new_construction: 'New Construction',
+    },
     // A quote is for one of the homeowner's jobs (quote.job_id): the shared quote form offers them.
     // jobs: an approved quote on no job converts to a roofing job (Convert to Job; the server makes it with insertRoofJob,
     // modules/crm.ts makeJob) — the tester looked for it and found none (2026-10-22).

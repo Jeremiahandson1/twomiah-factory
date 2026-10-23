@@ -56,6 +56,15 @@ const STATUSES: Array<[string, string]> = [['', 'All statuses'], ['completed', '
 /** Margin is the number people scan for, so it carries the colour — green above zero, red below. */
 const marginTone = (m: number) => (m > 0 ? 'text-emerald-700 dark:text-emerald-400' : m < 0 ? 'text-red-700 dark:text-red-400' : muted)
 const pct = (n: number) => `${n > 0 ? '' : ''}${n.toFixed(1)}%`
+/**
+ * A MARGIN ON NO REVENUE IS NOT 0%. (Landscaping live test 2026-10-22: JOB-00001 "0.0%".)
+ *
+ * Margin is profit over revenue. A job no invoice reaches yet — revenue reaches a job through its own invoice, the quote
+ * it was made from, or its project — has no revenue to divide by: the server sends 0 for it, and the screen printed
+ * "0.0%" beside a red loss, as if the work had broken even. It is "—", with the reason, until an invoice reaches it.
+ */
+export const marginOf = (margin: number, revenue: number) => (revenue > 0 ? pct(margin) : '—')
+export const NO_REVENUE = 'No invoice reaches this yet — through its own invoice, the quote it came from or its project — so there is no margin to show.'
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
@@ -189,7 +198,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                     ) : (
                       <div className="flex justify-between border-t border-gray-200 dark:border-slate-800 pt-2">
                         <dt className="font-medium text-gray-900 dark:text-slate-100">Profit</dt>
-                        <dd className={`tabular-nums font-semibold ${marginTone(side.profit)}`}>{money(side.profit)} <span className="font-normal">({pct(side.margin)})</span></dd>
+                        <dd className={`tabular-nums font-semibold ${marginTone(side.profit)}`}>{money(side.profit)} <span className="font-normal" title={side.revenue > 0 ? undefined : NO_REVENUE}>({side.revenue > 0 ? pct(side.margin) : 'no revenue yet'})</span></dd>
                       </div>
                     )}
                     <div className="flex justify-between">
@@ -198,6 +207,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                   </dl>
                   {/* Four things the figures above would otherwise hide. Each is only shown when it
                       applies, so a straightforward job reads as cleanly as it did before. */}
+                  {label === 'Actual' && !(side.revenue > 0) ? <p className={`text-xs mt-3 ${muted}`}>{NO_REVENUE}</p> : null}
                   {side.uncostedLines ? (
                     <p className={`text-xs mt-3 ${muted}`}>
                       {side.uncostedLines} quote line{side.uncostedLines === 1 ? '' : 's'} ha{side.uncostedLines === 1 ? 's' : 've'} no
@@ -312,7 +322,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
             <Stat label="Invoiced" value={money(totals.invoicedRevenue)} />
             <Stat label="Cost" value={money(totals.totalCost)} />
             <Stat label="Profit" value={money(totals.profit)} tone={marginTone(totals.profit)} />
-            <Stat label="Margin" value={pct(totals.margin)} tone={marginTone(totals.margin)} />
+            <Stat label="Margin" value={marginOf(totals.margin, totals.invoicedRevenue)} tone={totals.invoicedRevenue > 0 ? marginTone(totals.margin) : muted} />
             <Stat label="Profitable" value={`${totals.profitableCount} of ${count}`} />
           </div>
           {/* These figures cover every matching job, which the table below may not — it used to be the
@@ -323,6 +333,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
             {totals.salesTax ? ` (${money(totals.salesTax)})` : ''} and counts each invoice once, even where
             one invoice covers several {noun.toLowerCase()}.
             {totals.unratedLaborHours ? ` ${totals.unratedLaborHours} h of labour have no hourly rate and are not priced.` : ''}
+            {' '}A margin reads — where no invoice reaches the {noun.toLowerCase().replace(/s$/, '')} yet.
           </p>
         </div>
       )}
@@ -350,7 +361,7 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                     <td className="py-2 pr-4 text-right tabular-nums text-gray-900 dark:text-slate-100">{money(t.revenue)}</td>
                     <td className="py-2 pr-4 text-right tabular-nums text-gray-900 dark:text-slate-100">{money(t.cost)}</td>
                     <td className={`py-2 pr-4 text-right tabular-nums ${marginTone(t.profit)}`}>{money(t.profit)}</td>
-                    <td className={`py-2 text-right tabular-nums ${marginTone(t.margin)}`}>{pct(t.margin)}</td>
+                    <td className={`py-2 text-right tabular-nums ${t.revenue > 0 ? marginTone(t.margin) : muted}`} title={t.revenue > 0 ? undefined : NO_REVENUE}>{marginOf(t.margin, t.revenue)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -398,10 +409,10 @@ export function JobCostingPage({ api, config }: JobCostingPageProps) {
                     </td>
                     <td className="py-2 pr-4 text-right tabular-nums text-gray-900 dark:text-slate-100">{money(r.totalCost)}</td>
                     <td className={`py-2 pr-4 text-right tabular-nums ${marginTone(r.profit)}`}>{money(r.profit)}</td>
-                    <td className={`py-2 text-right tabular-nums ${marginTone(r.margin)}`}>
+                    <td className={`py-2 text-right tabular-nums ${r.invoicedRevenue > 0 ? marginTone(r.margin) : muted}`} title={r.invoicedRevenue > 0 ? undefined : NO_REVENUE}>
                       <span className="inline-flex items-center gap-1">
-                        {r.margin > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : r.margin < 0 ? <TrendingDown className="w-3.5 h-3.5" /> : null}
-                        {pct(r.margin)}
+                        {r.invoicedRevenue > 0 && r.margin > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : r.invoicedRevenue > 0 && r.margin < 0 ? <TrendingDown className="w-3.5 h-3.5" /> : null}
+                        {marginOf(r.margin, r.invoicedRevenue)}
                       </span>
                     </td>
                   </tr>

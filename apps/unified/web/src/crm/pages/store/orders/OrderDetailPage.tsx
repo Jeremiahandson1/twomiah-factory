@@ -38,6 +38,7 @@ import { api } from '../../../../api'
 import { PageError, errorText, useConfirm, usePermissions, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { cents, codeOf, listOf, statusBadge, statusOf, type MoneyBack, type Order } from './lib'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 // The SERVER's table (server/crm/store/orders/rules.ts NEXT_STATUS): only these moves are offered.
 const NEXT_STATUS: Record<string, string[]> = {
@@ -226,7 +227,7 @@ export default function OrderDetailPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{order.orderNumber || 'Pending order'}</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400">{formatDate(order.createdAt)} · <span className="capitalize">{order.provider}</span></p>
         </div>
-        <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusBadge(order.status)}`}>{order.status}</span>
+        <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusBadge(order.status)}`}>{codeLabel(order.status)}</span>
       </div>
 
       <PageError message={loadError} onDismiss={() => setLoadError('')} />
@@ -348,7 +349,7 @@ export default function OrderDetailPage() {
             <div><label className="label" htmlFor="ord-tracking">Tracking number</label><input id="ord-tracking" className="input" value={tracking} onChange={(e) => setTracking(e.target.value)} readOnly={!may('orders:update')} /></div>
           </div>
         ) : (
-          <p className="text-sm text-gray-500 dark:text-slate-400">This order is {order.status} and never went out, so it has no tracking.</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">This order is {codeLabel(order.status)} and never went out, so it has no tracking.</p>
         )}
         <div><label className="label" htmlFor="ord-note">Internal note</label><textarea id="ord-note" className="input" value={note} onChange={(e) => setNote(e.target.value)} readOnly={!may('orders:update')} /></div>
         {may('orders:update') && (
@@ -444,7 +445,7 @@ function LabelPanel({ order, onBought }: { order: Order; onBought: (o: Order | n
       ) : !order.shippingAddress ? (
         <p className="text-sm text-gray-500 dark:text-slate-400">This order has no shipping address, so a label cannot be bought.</p>
       ) : !canShip(order.status) ? (
-        <p className="text-sm text-gray-500 dark:text-slate-400">This order is {order.status}, so no label can be bought for it.</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">This order is {codeLabel(order.status)}, so no label can be bought for it.</p>
       ) : !mayBuy ? (
         <p className="text-sm text-gray-500 dark:text-slate-400">{may('shipping:label') ? 'This order is not paid, so shipping it is for a manager or the owner.' : 'Labels are bought by the people who pack and ship orders.'}</p>
       ) : !rates ? (

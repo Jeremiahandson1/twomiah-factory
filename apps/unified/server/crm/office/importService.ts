@@ -485,7 +485,8 @@ export function createImportService(d: Pick<CrmDeps, 'db' | 'settings'>) {
               results.skipped++
             }
           } else {
-            const [created] = await db.insert(contact).values(contactData).returning()
+            // Marked as imported: an imported book of old leads is not "new leads" (tenant-backend reporting/newLeads.ts).
+            const [created] = await db.insert(contact).values({ ...contactData, customFields: { importedAt: new Date().toISOString() } }).returning()
             results.records.push({ line: lineNum, id: created.id, name: created.name, action: 'created' })
             results.imported++
           }
@@ -567,6 +568,7 @@ export function createImportService(d: Pick<CrmDeps, 'db' | 'settings'>) {
               name: contactName || contactEmail!,
               email: contactEmail,
               type: customerType,
+              customFields: { importedAt: new Date().toISOString() },
             }).returning()
             contactId = newContact.id
           }

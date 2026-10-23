@@ -12,6 +12,7 @@ import { PAYMENT_METHODS, useMayWrite, useConfirm, errorText } from '../../../sh
 import ClientPicker from './ClientPicker'
 import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 /**
  * The event file — GET /api/events/:id returns
@@ -264,7 +265,7 @@ export default function EventDetailPage() {
               title={!mayEdit ? 'Changing the stage needs permission to edit the event.' : undefined}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize border disabled:opacity-100 disabled:cursor-default ${STATUS_COLORS[ev.status || ''] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800'} dark:text-slate-200`}
             >
-              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              {STATUSES.map((s) => <option key={s} value={s}>{codeLabel(s)}</option>)}
             </select>
             {mayEdit && <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 border rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700">Edit</button>}
             <button
@@ -498,7 +499,7 @@ export default function EventDetailPage() {
                 <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Invoice</p>
                 <p className="font-medium text-gray-900 dark:text-slate-100">
                   {detail.invoice.number}
-                  <span className="ml-2 text-xs capitalize bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{detail.invoice.status}</span>
+                  <span className="ml-2 text-xs capitalize bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{codeLabel(detail.invoice.status)}</span>
                 </p>
                 <p className="text-xs text-gray-500 dark:text-slate-400">
                   {money2(totals.total)} total{Number(totals.tax || 0) > 0 ? ` incl. ${money2(totals.tax)} tax` : ''} · {money2(totals.paid)} paid

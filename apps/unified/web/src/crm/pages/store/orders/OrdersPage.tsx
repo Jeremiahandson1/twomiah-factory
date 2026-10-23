@@ -20,6 +20,7 @@ import { api } from '../../../../api'
 import { PageError, errorText } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { cents, listOf, statusBadge, type Order } from './lib'
+import { codeLabel } from '@twomiah/tenant-ui/src/labels/codes'
 
 const FILTERS = ['all', 'pending', 'paid', 'fulfilled', 'shipped', 'delivered', 'cancelled', 'refunded']
 
@@ -82,7 +83,7 @@ export default function OrdersPage() {
                   <td className="px-3 sm:px-4 py-3 text-gray-600 dark:text-slate-300 max-w-[8rem] sm:max-w-none truncate">{o.customerName || o.customerEmail}</td>
                   <td className="hidden sm:table-cell px-4 py-3 text-gray-500 dark:text-slate-400">{formatDate(o.createdAt)}</td>
                   <td className="px-3 sm:px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(o.status)}`}>{o.status}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(o.status)}`}>{codeLabel(o.status)}</span>
                     {/* Money has gone back on an order still open: a part refund. */}
                     {(o.refundedCents || 0) > 0 && o.status !== 'refunded' && o.status !== 'cancelled' && (
                       <span className="block text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">part refunded</span>

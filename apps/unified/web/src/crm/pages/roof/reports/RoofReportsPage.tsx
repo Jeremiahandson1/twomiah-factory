@@ -13,6 +13,7 @@ import { formatDate } from '../../../date'
 import AddressAutocomplete from '../lib/AddressAutocomplete'
 import RoofEdgeEditor from './MapEdgeEditor'
 import type { ApiEdge, EditorMeasurements, Segment } from './MapEdgeEditor'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
 
 /** A row of GET /api/roof-reports (no money on the list). */
 interface RoofReport {
@@ -172,8 +173,9 @@ export default function RoofReportsPage() {
 
   const loadContacts = async () => {
     try {
-      const data: { data?: Contact[] } = await api.get('/api/contacts', { limit: 200 })
-      setContacts(data?.data || [])
+      // Customers only: a vendor is never who this is for (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+      const data: { data?: Contact[] } = await api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS })
+      setContacts(customersOnly(data?.data || []))
     } catch { /* the picker is optional: no contacts:read, no list */ }
   }
 
