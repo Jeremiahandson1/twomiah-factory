@@ -197,6 +197,13 @@
       "when": 1792759696679,
       "tag": "0027_one_time_zone",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792759996679,
+      "tag": "0030_invoice_reminders_qb_sync",
+      "breakpoints": true
     }
   ]
 }

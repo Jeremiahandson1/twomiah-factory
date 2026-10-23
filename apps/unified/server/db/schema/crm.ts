@@ -51,6 +51,9 @@ export const contact = pgTable('contact', {
   lastRemindedAt: timestamp('last_reminded_at'),
   // Residential or commercial — how a roofer files a customer (templates/crm-roof contact.property_type).
   propertyType: text('property_type'),
+  // When this contact was last sent to QuickBooks: an edit after it makes the contact due for the next automatic sync
+  // (crm/office/quickbooksAutoSync.ts). 0030.
+  qbSyncedAt: timestamp('qb_synced_at'),
 }, (t) => [
   index('contact_company_id_idx').on(t.companyId),
   index('contact_type_idx').on(t.type),
@@ -438,8 +441,37 @@ export const payment = pgTable('payment', {
   invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
   // From the near-copy CRMs (see each column): payment's columns they added.
   tipAmount: decimal('tip_amount', { precision: 12, scale: 2 }).default('0').notNull(), // gratuity, on top of `amount` (never counts toward the invoice)
+  // The QuickBooks payment this one became (crm/office/quickbooksAutoSync.ts): set once it is sent, so it is never sent
+  // twice. 0030.
+  qbPaymentId: text('qb_payment_id'),
 }, (t) => [
   index('payment_invoice_id_idx').on(t.invoiceId),
+])
+
+/**
+ * What the app sent, or did, on its own clock — once per step (0030): an invoice's "due soon" and "overdue" reminders
+ * and its late fee (crm/billing/invoiceReminders.ts, every vertical's invoices and home care's Billing invoices), and a
+ * vaccine's reminder text (crm/vet/vaccineReminders.ts). The row is claimed BEFORE the message goes, and the unique
+ * index is what makes "once" true when two passes overlap: a second claim of the same step is refused by the database.
+ *   kind     'invoice_reminder' | 'invoice_late_fee' | 'care_invoice_reminder' | 'vaccine_reminder'
+ *   subject  the invoice's (or vaccination's) id
+ *   step     what was done: 'due_soon:2026-11-05', 'overdue_7:2026-11-05', 'late_fee', 'due:2026-11-05'
+ *   status   'sending' (claimed) → 'sent' | 'failed' | 'skipped'
+ */
+export const reminderLog = pgTable('reminder_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  subjectId: text('subject_id').notNull(),
+  step: text('step').notNull(),
+  status: text('status').default('sending').notNull(),
+  sentTo: text('sent_to'),
+  detail: text('detail'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('reminder_log_once_per_step').on(t.companyId, t.kind, t.subjectId, t.step),
+  index('reminder_log_subject_idx').on(t.subjectId),
 ])
 
 export const timeEntry = pgTable('time_entry', {

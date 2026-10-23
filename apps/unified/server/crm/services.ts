@@ -27,6 +27,7 @@ import { createAppointmentReminders } from './salon/appointmentReminders.ts'
 import { bookOnDeposit } from './restaurant/eventBooking.ts'
 import { syncEventInvoiceDueDate, backfillEventInvoices } from './restaurant/eventLedger.ts'
 import { recordConsent, withdrawConsent } from '../site/smsConsent.ts'
+import { createInvoiceReminders } from './billing/invoiceReminders.ts'
 
 /** A booking deposit Stripe says was paid (payments/stripe.ts onBookingDeposit). */
 export type DepositPayment = { bookingId: string; companyId: string | null; paymentIntentId: string; amount: number }
@@ -176,6 +177,10 @@ export function createCrmServices(deps: CrmServiceDeps) {
   // Bulk status changes run the same moments as the job routes (packages/tenant-backend jobs.ts jobHookFor).
   const bulk = createBulkService({ db, tables: { contact, project, job, invoice, quote, timeEntry, payment }, jobHooks } as any)
 
+  // Invoice reminders and the late fee, on each company's own switch and clock (billing/invoiceReminders.ts): every
+  // vertical's invoices, and home care's Billing invoices where this is home care.
+  const invoiceReminders = createInvoiceReminders({ db, email: emailService, audit, logger, isFeatureEnabled, homecare: !!settings.homecare })
+
   /** A module's own timed work (home care's reminders and polls), registered when it mounts, started with the rest. */
   const moduleJobs: Array<() => void> = []
 
@@ -183,7 +188,7 @@ export function createCrmServices(deps: CrmServiceDeps) {
     /** Tests only: the fake Stripe client the shared service was handed, so home care's own checkout uses it too. */
     testStripeClient: deps.stripe as any,
     emailService, storage, stripeService, stripe, sms, reviews, marketing, recurring, agreements, inventory, quickbooks,
-    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks,
+    fleet, warranties, equipment: equipmentService, pricebook, tasks, bulk, commissionEarner, jobHooks, invoiceReminders,
     /** Registers a module's timed work; startJobs starts it. Nothing starts at import or in tests. */
     addJob(start: () => void) { moduleJobs.push(start) },
     /** Where a paid booking deposit goes (the booking engine). */
@@ -206,6 +211,8 @@ export function createCrmServices(deps: CrmServiceDeps) {
       if (settings.events) void backfillEventInvoices(db, logger).catch((err: any) => logger.error('[events] invoice backfill failed', { error: err?.message }))
       // Tomorrow's appointments get a reminder text, every 10 minutes (templates/crm-salon index.ts startAppointmentReminders).
       if (settings.appointmentReminders) createAppointmentReminders({ db, sms, logger }).startAppointmentReminders()
+      // Due-soon and overdue invoice reminders, and the late fee, every hour (each company's own switch decides).
+      invoiceReminders.start()
       for (const start of moduleJobs) start()
     },
   }

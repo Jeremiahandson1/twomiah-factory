@@ -1,7 +1,7 @@
 // The business's own account: its Twomiah subscription records, the accounting connection, sign-in states for
 // third-party connections, browser push, and support tickets. Column for column the base CRM's tables
 // (templates/crm/backend/db/schema.ts), so a tenant's rows move across unchanged.
-import { pgTable, text, boolean, integer, decimal, timestamp, json, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, decimal, timestamp, json, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 import { company, user } from './core.ts'
 import { contact } from './crm.ts'
@@ -21,6 +21,45 @@ export const qbIntegration = pgTable('qb_integration', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('qb_integration_company_id_idx').on(t.companyId),
+])
+
+/**
+ * One QuickBooks sync, automatic or pressed (0030): when it ran, what it sent and what failed — the Integrations card's
+ * sync log (crm/office/quickbooksAutoSync.ts).
+ */
+export const qbSyncRun = pgTable('qb_sync_run', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  trigger: text('trigger').default('auto').notNull(),          // 'auto' | 'manual'
+  status: text('status').default('running').notNull(),         // 'running' | 'ok' | 'partial' | 'failed'
+  customers: integer('customers').default(0).notNull(),
+  invoices: integer('invoices').default(0).notNull(),
+  payments: integer('payments').default(0).notNull(),
+  failed: integer('failed').default(0).notNull(),
+  error: text('error'),
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  finishedAt: timestamp('finished_at'),
+}, (t) => [
+  index('qb_sync_run_company_started_idx').on(t.companyId, t.startedAt),
+])
+
+/**
+ * A record QuickBooks refused, waiting to be tried again (0030): attempts so far, the last error in QuickBooks' words,
+ * and when the next try is due. Removed when the record goes across. One row per record.
+ */
+export const qbSyncFailure = pgTable('qb_sync_failure', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  entity: text('entity').notNull(),                            // 'customer' | 'invoice' | 'payment'
+  entityId: text('entity_id').notNull(),
+  label: text('label'),
+  attempts: integer('attempts').default(1).notNull(),
+  lastError: text('last_error'),
+  nextAttemptAt: timestamp('next_attempt_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('qb_sync_failure_record_uniq').on(t.companyId, t.entity, t.entityId),
 ])
 
 export const subscription = pgTable('subscription', {
