@@ -93,7 +93,10 @@ describe('a general contractor\'s starting site (the contractor retest)', () => 
     expect((await page(s.t, '/about')).status).toBe(404)
     expect(menus((await page(s.t, '/')).body).desktop.map(([l]) => l)).not.toContain('About')
     const story = { type: 'about', variant: 'story', data: { title: 'About Test Co', paragraphs: ['Three generations of builders.'] } }
-    const r = await s.as('/api/site/pages/about', { method: 'PATCH', json: { sections: [story], isPublished: true } })
+    // Saved, it is a draft (site/drafts.ts); published with "show it", it goes on the site — as saving it used to.
+    expect((await s.as('/api/site/pages/about', { method: 'PATCH', json: { sections: [story] } })).status).toBe(200)
+    expect((await page(s.t, '/about')).status).toBe(404)
+    const r = await s.as('/api/site/pages/about/publish', { method: 'POST', json: { show: true } })
     expect(r.status).toBe(200)
     expect((await page(s.t, '/about')).status).toBe(200)
     expect(title((await page(s.t, '/about')).body)).toBe('About — Test Co, Eau Claire, WI')
@@ -109,11 +112,14 @@ describe('a general contractor\'s starting site (the contractor retest)', () => 
     await s.as('/api/site/pages/about', { method: 'PATCH', json: { isPublished: true } })
     const settings = (await (await s.as('/api/site/settings')).json())
     await s.as('/api/site/settings', { method: 'PATCH', json: { nav: settings.nav.filter((n: any) => n.href !== 'about') } })
+    await s.as('/api/site/settings/publish', { method: 'POST' })
     expect(menus((await page(s.t, '/')).body).desktop.map(([l]) => l)).not.toContain('About')
     expect((await page(s.t, '/about')).status).toBe(200)
     expect((await s.as('/api/site/pages', { method: 'POST', json: { slug: 'offers', title: 'Offers' } })).status).toBe(201)
     expect(menus((await page(s.t, '/')).body).desktop.map(([l]) => l)).not.toContain('Offers')
     await s.as('/api/site/pages/offers', { method: 'PATCH', json: { sections: [{ type: 'faq', variant: 'accordion', data: { items: [{ question: 'Free estimates?', answer: 'Yes.' }] } }] } })
+    expect(menus((await page(s.t, '/')).body).desktop.map(([l]) => l)).not.toContain('Offers')
+    await s.as('/api/site/pages/offers/publish', { method: 'POST', json: {} })
     expect(menus((await page(s.t, '/')).body).desktop).toContainEqual(['Offers', '/offers'])
   })
 
@@ -133,8 +139,10 @@ describe('a general contractor\'s starting site (the contractor retest)', () => 
 
   test('the owner\'s own titles win: a page\'s SEO title, and a home title that says more than the name', async () => {
     await s.as('/api/site/pages/services', { method: 'PATCH', json: { metaTitle: 'Remodeling in Eau Claire | Test Co' } })
+    await s.as('/api/site/pages/services/publish', { method: 'POST', json: {} })
     expect(title((await page(s.t, '/services')).body)).toBe('Remodeling in Eau Claire | Test Co')
     await s.as('/api/site/settings', { method: 'PATCH', json: { seoTitle: 'Test Co — Eau Claire remodeling since 1990' } })
+    await s.as('/api/site/settings/publish', { method: 'POST' })
     expect(title((await page(s.t, '/')).body)).toBe('Test Co — Eau Claire remodeling since 1990')
   })
 })
@@ -154,6 +162,7 @@ describe('a roofer\'s starting site (the roofing retest)', () => {
 
   test('a service-area page never names the trade as the service it offers there', async () => {
     await s.as('/api/site/settings', { method: 'PATCH', json: { serviceAreas: ['Eau Claire', 'Altoona'] } })
+    await s.as('/api/site/settings/publish', { method: 'POST' })
     const area = await page(s.t, '/service-areas/altoona')
     expect(area.status).toBe(200)
     expect(area.body).not.toContain('Roofing in Altoona.')

@@ -48,6 +48,12 @@ export const website = pgTable('website', {
    * one matching the business's trade).
    */
   design: text('design'),
+  /**
+   * The owner's saved, unpublished changes to what the site shows (the draftable settings: look, words, menu, search
+   * defaults, tracking) — a whole set, or null when what is saved is what is live. Publish copies it over the columns
+   * above; the public site reads only those (site/drafts.ts).
+   */
+  draft: json('draft'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -68,6 +74,12 @@ export const page = pgTable('page', {
   /** Shown in the navigation; the owner can hide a page without deleting it. */
   isPublished: boolean('is_published').default(true).notNull(),
   navOrder: integer('nav_order').default(0).notNull(),
+  /**
+   * Saved, unpublished changes to the page — { title, sections, metaTitle, metaDescription, savedAt } — or null when
+   * the saved page is the live one. Publish copies it over the columns above; the public site, its menu, the sitemap
+   * and search read only those. `isPublished` is not part of it: whether visitors can open the page is its own switch.
+   */
+  draft: json('draft'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -88,6 +100,8 @@ export const post = pgTable('post', {
   metaTitle: text('meta_title'),
   metaDescription: text('meta_description'),
   publishedAt: timestamp('published_at'),
+  /** Saved, unpublished changes to the post's words and pictures, or null (site/drafts.ts). `status` is not part of it. */
+  draft: json('draft'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -114,6 +128,8 @@ export const portfolioItem = pgTable('portfolio_item', {
   metaTitle: text('meta_title'),
   metaDescription: text('meta_description'),
   publishedAt: timestamp('published_at'),
+  /** Saved, unpublished changes to the work's words and photos, or null (site/drafts.ts). `status` is not part of it. */
+  draft: json('draft'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

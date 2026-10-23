@@ -21,6 +21,7 @@ import type { Storefront } from '../crm/store/index.ts'
 import { servesWhileClosed, unavailablePage } from './shop.ts'
 import type { SiteFacts, PageFacts } from './facts.ts'
 import { pageTitle, withBusinessServices } from './menu.ts'
+import { previewing, previewRow } from './drafts.ts'
 
 const SITE_DIR = path.join(import.meta.dir, '..', '..', 'site')
 const BASE_CSS = fs.readFileSync(path.join(SITE_DIR, 'public', 'styles', 'main.css'), 'utf8')
@@ -109,8 +110,9 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   })
 
   const ctxOf = async () => loadSiteContext(db, vertical)
+  // The live page — or, inside the editor's preview of this page (site/drafts.ts), its draft.
   const loadPage = async (companyId: string, slug: string) =>
-    (await db.select().from(page).where(and(eq(page.companyId, companyId), eq(page.slug, slug))).limit(1))[0] || null
+    previewRow('page', slug, (await db.select().from(page).where(and(eq(page.companyId, companyId), eq(page.slug, slug))).limit(1))[0] || null)
   const publishedPortfolio = (companyId: string) =>
     db.select().from(portfolioItem).where(and(eq(portfolioItem.companyId, companyId), eq(portfolioItem.status, 'published')))
       .orderBy(asc(portfolioItem.sortOrder), desc(portfolioItem.publishedAt))
@@ -143,10 +145,11 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     return Array.isArray(co?.f) && (co!.f as string[]).includes('visualizer')
   }
   /**
-   * Count a visit — unless it is the admin's live preview: a same-origin frame (the browser sets both headers; a page
-   * can't). Every save reloads the preview, which counted the owner's own edits as traffic.
+   * Count a visit — unless it is the admin's preview: a render of a draft (site/preview.ts), or a same-origin frame (the
+   * browser sets both headers; a page can't). The preview redraws as the owner types; none of that is traffic.
    */
   function count(c: Context, ctx: SiteContext, pathname: string) {
+    if (previewing()) return
     if (c.req.header('sec-fetch-dest') === 'iframe' && c.req.header('sec-fetch-site') === 'same-origin') return
     countView(db, ctx.companyId, pathname)
   }
@@ -284,7 +287,8 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   app.get('/projects/:slug', async (c) => {
     const ctx = await ctxOf()
     if (!ctx) return c.notFound()
-    const [p] = await db.select().from(portfolioItem).where(and(eq(portfolioItem.companyId, ctx.companyId), eq(portfolioItem.slug, c.req.param('slug')))).limit(1)
+    const [row] = await db.select().from(portfolioItem).where(and(eq(portfolioItem.companyId, ctx.companyId), eq(portfolioItem.slug, c.req.param('slug')))).limit(1)
+    const p = previewRow('portfolio', c.req.param('slug'), row)
     if (!p || p.status !== 'published') return c.notFound()
     const [others, contact] = await Promise.all([publishedPortfolio(ctx.companyId), firstSectionOfType(ctx.companyId, 'contact', ['contact'])])
     const name = ctx.settings.companyName
@@ -437,7 +441,8 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   app.get('/blog/:slug', async (c) => {
     const ctx = await ctxOf()
     if (!ctx) return c.notFound()
-    const [p] = await db.select().from(post).where(and(eq(post.companyId, ctx.companyId), eq(post.slug, c.req.param('slug')))).limit(1)
+    const [row] = await db.select().from(post).where(and(eq(post.companyId, ctx.companyId), eq(post.slug, c.req.param('slug')))).limit(1)
+    const p = previewRow('post', c.req.param('slug'), row)
     if (!p || p.status !== 'published') return c.notFound()
     const date = p.publishedAt ? new Date(p.publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : ''
     const body = `<article class="blog-post">
