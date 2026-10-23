@@ -48,6 +48,12 @@ const MONEY_PERMISSION = 'invoices:read'
  * for the job and schedule counts a technician needs.
  */
 const QUOTE_MONEY_PERMISSION = 'quotes:read'
+/**
+ * New leads are the Lead Inbox's (leads:read — admin and manager), not every seat that reads contacts: the tile and the
+ * list it opens were offered to a technician, a stylist and a viewer (live role check, 2026-10-23). Only the unified app
+ * wires featuresFor, so no template is touched by this.
+ */
+const LEADS_PERMISSION = 'leads:read'
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
@@ -71,7 +77,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
 
   /**
    * The rows "New leads" counts — inbox enquiries at new and lead contacts nobody has acted on (./newLeads.ts, the same
-   * conditions as the count) — as one list, the one the tile opens. contacts:read, as the count. Not wired with
+   * conditions as the count) — as one list, the one the tile opens. leads:read, as the count. Not wired with
    * featuresFor (a template's copy): not offered.
    */
   app.get('/new-leads', async (c) => {
@@ -79,7 +85,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     let status = 200
     let body: Record<string, unknown>
     if (!deps.featuresFor) { status = 404; body = { error: 'Not found' } }
-    else if (!(await maySee(c, 'contacts:read'))) { status = 403; body = { error: 'Permission denied', required: 'contacts:read' } }
+    else if (!(await maySee(c, LEADS_PERMISSION))) { status = 403; body = { error: 'Permission denied', required: LEADS_PERMISSION } }
     else {
       const features = await safe(() => deps.featuresFor!(companyId), [] as string[])
       body = await listNewLeads(db, t, companyId, { inbox: features.includes('lead_inbox'), limit: Number(c.req.query('limit')) || undefined })
@@ -119,13 +125,13 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
      * marketplaces, Google, and now the website form, which writes to the inbox too. Marking one
      * contacted, converted or dismissed takes it off the count.
      *
-     * Sent to a caller who may open contacts (contacts:read, the inbox's own gate); otherwise the key is
+     * Sent to a caller who may open the inbox (leads:read, LEADS_PERMISSION above); otherwise the key is
      * absent, the same rule the money keys follow. `contacts` stays in the response: the mobile app reads it.
      */
     // Since 2026-10-23 also the lead contacts nobody has acted on yet, and for a business without the inbox too
     // (./newLeads.ts — the landscaper's 0 beside the contractor's 1). The tile opens GET /new-leads: those same rows.
     let leads: NewLeads | null = null
-    if (deps.featuresFor && (await maySee(c, 'contacts:read'))) {
+    if (deps.featuresFor && (await maySee(c, LEADS_PERMISSION))) {
       const features = await safe(() => deps.featuresFor!(companyId), [] as string[])
       leads = await safe(() => countNewLeads(db, t, companyId, { inbox: features.includes('lead_inbox') }), null)
     }

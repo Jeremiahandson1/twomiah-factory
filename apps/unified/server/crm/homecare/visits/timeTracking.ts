@@ -22,7 +22,7 @@ import {
 } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { fail, list, one, listAll } from '../../../http/reply.ts'
-import type { CrmDeps } from '../../deps.ts'
+import { canSeeWith, type CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { decideBilling, parseOfflineAt, withOfflineFlag, hasOfflineFlag } from '../core/punchRules.ts'
 import { fmtClock, formatInZone } from '../core/agencyTime.ts'
@@ -74,8 +74,11 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     return e ?? null
   }
 
-  // GET / — the office list (a caregiver sees only their own)
-  app.get('/', requirePermission('evv:read'), async (c) => {
+  // GET / — the office list (a caregiver sees only their own). The read-only office seat (care-office:read) reads each
+  // visit's times and EVV status — not its GPS points, notes, billable minutes or the client's address (live role check,
+  // 2026-10-23). Whoever holds evv:read reads the rows as before.
+  const canSee = canSeeWith(d.permissions)
+  app.get('/', d.permissions.requireAnyPermission(['evv:read', 'care-office:read']), async (c) => {
     const { user: u, companyId, me } = who(c)
     const caregiverId = c.req.query('caregiverId')
     const clientId = c.req.query('clientId')
@@ -131,6 +134,13 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
       client: { firstName: clientFirstName, lastName: clientLastName, address: clientAddress, city: clientCity },
       evvVisit: evvMap[e.id] || null,
     }))
+    if (!(await canSee(u.role, 'evv:read', u.userId))) {
+      return list(c, data.map((e: any) => ({
+        id: e.id, caregiverId: e.caregiverId, clientId: e.clientId, scheduleId: e.scheduleId,
+        startTime: e.startTime, endTime: e.endTime, durationMinutes: e.durationMinutes, isComplete: e.isComplete, needsApproval: e.needsApproval,
+        caregiver: e.caregiver, client: { firstName: e.client.firstName, lastName: e.client.lastName }, evvVisit: e.evvVisit,
+      })), { page, limit, total: Number(total) })
+    }
     return list(c, data, { page, limit, total: Number(total) })
   })
 

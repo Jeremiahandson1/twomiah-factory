@@ -32,8 +32,12 @@ export interface NavItem {
    *
    * A field technician was shown Invoices, Quotes, Reports, Team and Marketing, which opened as empty
    * lists with "New Invoice" buttons on them — they read as "no data", not "no access". (T30 M-R1)
+   *
+   * A LIST means any one of them opens it: home care's Clients page is the office's (care-clients:update) and, read-only,
+   * the read-only office seat's (care-office:read) — one page, two doors, and a caregiver holding neither is shown
+   * neither. (Live role check, 2026-10-23)
    */
-  permission?: string
+  permission?: string | string[]
   /** Optional stable id (external items have no unique route) */
   id?: string
 }
@@ -75,8 +79,12 @@ export const meetsRole = (role: string | undefined, minRole: string | undefined)
  * link hidden from everybody — the owner included — is a worse bug than a link that 403s. A template
  * that declares no requirement for a route is likewise not second-guessed.
  */
+/** Does this person hold the permission — or, for a list, any one of them? (NavItem.permission) */
+export const allowsPermission = (can: (permission: string) => boolean, permission: string | string[] | undefined): boolean =>
+  !permission || (Array.isArray(permission) ? permission.some((p) => can(p)) : can(permission))
+
 export const maySeeRoute = (
-  config: { routeRoles?: Record<string, string>; routePermissions?: Record<string, string>; nav?: NavItem[] },
+  config: { routeRoles?: Record<string, string>; routePermissions?: Record<string, string | string[]>; nav?: NavItem[] },
   to: string,
   role: string | undefined,
   can?: (permission: string) => boolean,
@@ -84,7 +92,7 @@ export const maySeeRoute = (
   const item = config.nav?.find((i) => i.to === to)
   if (!meetsRole(role, config.routeRoles?.[to] ?? item?.minRole)) return false
   const permission = config.routePermissions?.[to] ?? item?.permission
-  return !permission || !can || can(permission)
+  return !permission || !can || allowsPermission(can, permission)
 }
 
 export interface ShellAuth {
@@ -117,7 +125,7 @@ export interface ShellConfig {
    * The permission needed for routes with no sidebar entry of their own, or whose entry is one of
    * several — checked by URL exactly like `permission` on a nav item. (T30 M-R1)
    */
-  routePermissions?: Record<string, string>
+  routePermissions?: Record<string, string | string[]>
   /**
    * Addresses this CRM does not have although the app mounts them — another business type's page that a shared
    * feature would otherwise reach (the bar's /crm/regulars on a salon). Typed in, each says "isn't part of this CRM",

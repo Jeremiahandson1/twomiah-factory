@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, usePermissions } from '../../../../shared';
+import { allowsPermission } from '@twomiah/tenant-ui/src/shell/types';
 import { routePermissions, nav } from '../../../verticals/homecare';
 import { api, rows } from '../lib/http';
 import { formatAgencyDate } from '../lib/agencyClock';
@@ -30,8 +31,9 @@ import { money } from '@twomiah/tenant-ui/src/money'
 interface Summary {
   totalClients: number;
   activeCaregivers: number;
-  pendingInvoices: { count: number; amount: number; draftCount: number; draftAmount: number };
-  thisMonthRevenue: number;
+  /** care-billing:read's; absent for the read-only office seat (planning/dashboard.ts). */
+  pendingInvoices?: { count: number; amount: number; draftCount: number; draftAmount: number };
+  thisMonthRevenue?: number;
   clockedInNow: number;
   todayShifts: number;
   remainingShifts: number;
@@ -79,6 +81,9 @@ export default function OfficeHome() {
   const { can } = usePermissions();
   const { hasFeature } = useAuth();
   const seesMoney = can('care-billing:read');
+  // The counts — active clients and caregivers, today's shifts — are the read-only office seat's too (care-office:read):
+  // GET /api/dashboard/summary answers it without the money (live role check, 2026-10-23: its dashboard was blank).
+  const seesCounts = seesMoney || can('care-office:read');
   const seesHr = can('care-hr:read');
   const seesSchedule = can('care-schedule:update');
   const seesIncidents = can('care-compliance:read');
@@ -98,14 +103,14 @@ export default function OfficeHome() {
   const mayOpen = useCallback((page: string) => {
     const permission = routePermissions[`/crm/${page}`];
     const features = nav.find((i) => i.to === `/crm/${page}`)?.features;
-    return (!permission || can(permission)) && (!features?.length || features.some((f) => hasFeature(f)));
+    return allowsPermission(can, permission) && (!features?.length || features.some((f) => hasFeature(f)));
   }, [can, hasFeature]);
   const go = (page: string) => { if (mayOpen(page)) navigate(`/crm/${page}`); };
 
   useEffect(() => {
     let live = true;
     // Each panel renders without the others: a refusal or a cold server leaves that panel empty, as in the template.
-    const summaryCall = seesMoney ? api.get('/api/dashboard/summary').catch(() => null) : Promise.resolve(null);
+    const summaryCall = seesCounts ? api.get('/api/dashboard/summary').catch(() => null) : Promise.resolve(null);
     const referralCall = seesMoney ? api.get('/api/dashboard/referrals').catch(() => null) : Promise.resolve(null);
     const hoursCall = seesHr ? api.get('/api/dashboard/caregiver-hours').catch(() => null) : Promise.resolve(null);
     Promise.all([summaryCall, referralCall, hoursCall]).then(([s, ref, hours]) => {
@@ -126,7 +131,7 @@ export default function OfficeHome() {
         .catch(() => { /* ignore */ });
     }
     return () => { live = false; };
-  }, [seesMoney, seesHr, seesSchedule]);
+  }, [seesMoney, seesCounts, seesHr, seesSchedule]);
 
   if (loading) return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
@@ -171,17 +176,17 @@ export default function OfficeHome() {
             <h3>Active Caregivers</h3>
             <div className="value">{summary.activeCaregivers || 0}</div>
           </div>
-          <div className="hc-stat-card">
+          {summary.pendingInvoices && <div className="hc-stat-card">
             <h3>Pending Invoices</h3>
             <div className="value value-danger">
               {money(summary.pendingInvoices?.amount)}
             </div>
             <p className="hc-stat-subtext">
               {summary.pendingInvoices?.count || 0} invoice{summary.pendingInvoices?.count === 1 ? '' : 's'} owed
-              {summary.pendingInvoices?.draftCount > 0 && ` · ${summary.pendingInvoices.draftCount} draft${summary.pendingInvoices.draftCount === 1 ? '' : 's'} not sent yet`}
+              {(summary.pendingInvoices?.draftCount ?? 0) > 0 && ` · ${summary.pendingInvoices!.draftCount} draft${summary.pendingInvoices!.draftCount === 1 ? '' : 's'} not sent yet`}
             </p>
-          </div>
-          <div className="hc-stat-card" title="Sum of payments received this calendar month. Outstanding A/R and future-dated invoices are not counted.">
+          </div>}
+          {summary.thisMonthRevenue !== undefined && <div className="hc-stat-card" title="Sum of payments received this calendar month. Outstanding A/R and future-dated invoices are not counted.">
             <h3>This Month Revenue <span style={{ fontSize: '0.7rem', color: 'var(--hc-muted)', fontWeight: 400 }}>(collected)</span></h3>
             <div className="value value-success">
               {money(summary.thisMonthRevenue)}
@@ -189,7 +194,7 @@ export default function OfficeHome() {
             <p style={{ fontSize: '0.72rem', color: 'var(--hc-muted)', margin: '0.25rem 0 0', fontWeight: 400 }}>
               Payments received this month — A/R not counted
             </p>
-          </div>
+          </div>}
         </div>
       )}
 

@@ -23,7 +23,7 @@ import {
 } from '../../../data/homecareClients.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { done, fail, list, one } from '../../../http/reply.ts'
-import type { CrmDeps } from '../../deps.ts'
+import { canSeeWith, type CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { UNIT_MINUTES } from '../core/evvWeekly.ts'
 import { SYSTEM_NOTE_MARKERS } from '../core/visitRecord.ts'
@@ -66,6 +66,17 @@ function safe(row: any) {
   return { ...rest, hasInsuranceCardFront: !!front, hasInsuranceCardBack: !!back }
 }
 
+/**
+ * The office's READ-ONLY view of a client (care-office:read — the viewer seat; verticals/homecare/settings.ts): who they
+ * are, how to reach them, where the visits are, whether they are active and the service. Not the clinical record (DOB,
+ * diagnosis codes, conditions, allergies, medications, medical and care notes), not insurance or Medicaid ids, not
+ * rates or billing notes. (Live role check, 2026-10-23)
+ */
+const DIRECTORY_FIELDS = ['id', 'firstName', 'lastName', 'phone', 'email', 'address', 'city', 'state', 'zip', 'isActive', 'status', 'serviceType', 'careTypeId', 'startDate'] as const
+const directoryEntry = (row: any) => Object.fromEntries(DIRECTORY_FIELDS.map((k) => [k, row[k] ?? null]))
+/** Who is assigned, without what they are paid for it. */
+const assignmentForDirectory = ({ payRate: _pay, notes: _notes, ...a }: any) => a
+
 /** The client's lists (conditions, allergies) are JSON arrays; the card prints text, one per line (null when empty). */
 const listLines = (v: unknown): string | null => {
   const lines = freeTextLines(v)
@@ -77,9 +88,19 @@ export function createClientRoutes(core: HomecareCore, d: CrmDeps, access: Clien
   const { requirePermission } = d.permissions
   const { db } = d
 
-  // Every read needs care-clients:read.
+  // Every read needs care-clients:read — except the list and one client's record, which the read-only office seat
+  // (care-office:read) reads too, as its directory entry (DIRECTORY_FIELDS above).
   const read = requirePermission('care-clients:read')
-  app.use('*', async (c, next) => (c.req.method === 'GET' ? read(c, next) : next()))
+  const directory = d.permissions.requireAnyPermission(['care-clients:read', 'care-office:read'])
+  const isDirectoryRead = (path: string) => {
+    const parts = path.replace(/\/+$/, '').split('/').filter(Boolean)
+    const rest = parts.slice(parts.indexOf('clients') + 1)
+    return rest.length === 0 || (rest.length === 1 && !OFFICE_ONLY_GETS.has(rest[0]))
+  }
+  app.use('*', async (c, next) => (c.req.method !== 'GET' ? next() : isDirectoryRead(c.req.path) ? directory(c, next) : read(c, next)))
+  /** Does this seat read the full record (care-clients:read), or only the directory? */
+  const canSee = canSeeWith(d.permissions)
+  const readsRecord = async (c: any) => { const u = c.get('user'); return canSee(u.role, 'care-clients:read', u.userId) }
 
   // A CAREGIVER sees only the clients they serve, and never their identifiers.
   app.use('*', async (c, next) => {
@@ -143,6 +164,9 @@ export function createClientRoutes(core: HomecareCore, d: CrmDeps, access: Clien
         const { caregiverFirstName, caregiverLastName, ...rest } = a
         ;(assignments[a.clientId] ||= []).push({ ...rest, caregiver: { firstName: caregiverFirstName, lastName: caregiverLastName } })
       }
+    }
+    if (!(await readsRecord(c))) {
+      return list(c, rows.map((r: any) => ({ ...directoryEntry(r), assignments: (assignments[r.id] || []).map(assignmentForDirectory) })), { page: pageN, limit: limitN, total: Number(total) })
     }
     const data = rows.map((r: any) => ({
       ...safe(r),
@@ -291,6 +315,7 @@ export function createClientRoutes(core: HomecareCore, d: CrmDeps, access: Clien
     const withCaregiver = asRows.map(({ caregiverFirstName, caregiverLastName, caregiverPhone, caregiverIdField, ...a }: any) => ({
       ...a, caregiver: { id: caregiverIdField, firstName: caregiverFirstName, lastName: caregiverLastName, phone: caregiverPhone },
     }))
+    if (!(await readsRecord(c))) return one(c, { ...directoryEntry(client), assignments: withCaregiver.map(assignmentForDirectory) })
     return one(c, {
       ...safe(client),
       emergencyContacts: ecRows,

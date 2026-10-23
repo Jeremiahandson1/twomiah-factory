@@ -34,6 +34,11 @@ export interface LeadsConfig {
   jobTypeLabel?: string
   inboxSubtitle?: string
   sourcesSubtitle?: string
+  /**
+   * The inbox asks its own permission (leads:update to triage and convert), as the server does with the same option
+   * (tenant-backend leads.ts `ownPermission`). Absent: the contacts permissions, as every template runs it.
+   */
+  ownPermission?: boolean
 }
 
 export const TRADES_LEAD_PLATFORMS: LeadPlatform[] = [

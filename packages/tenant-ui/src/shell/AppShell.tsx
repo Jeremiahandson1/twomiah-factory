@@ -10,7 +10,7 @@ import { GlobalSearch } from './GlobalSearch'
 import { TrialBanner } from './TrialBanner'
 import { ErrorBoundary } from './ErrorBoundary'
 import type { AppShellProps, NavItem } from './types'
-import { meetsRole, maySeeRoute } from './types'
+import { meetsRole, maySeeRoute, allowsPermission } from './types'
 
 import { blockedRoute } from './routeGate'
 
@@ -87,7 +87,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
   const navItems = useMemo(
     () => config.nav.filter((i) =>
       meetsRole(user?.role, i.minRole)
-      && (!i.permission || can(i.permission))
+      && allowsPermission(can, i.permission)
       && (!i.features || i.features.some((f) => hasFeature(f))),
     ),
     [config.nav, hasFeature, can, user?.role],
@@ -150,7 +150,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
     const permBlocked = [...config.nav.filter((i) => !i.external).map((i) => i.to), ...Object.keys(config.routePermissions || {})]
       .filter((to) => path === to || path.startsWith(to + '/'))
       .sort((a, b) => b.length - a.length)
-      .find((to) => { const need = permissionOf(to); return !!need && !can(need) })
+      .find((to) => { const need = permissionOf(to); return !!need && !allowsPermission(can, need) })
     if (permBlocked) {
       const needs = permissionOf(permBlocked)
       const label = config.nav.find((i) => i.to === permBlocked)?.label || labelFromPath(permBlocked)
@@ -364,7 +364,7 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
                   {gatedItem.reason !== 'feature'
-                    ? `${WHO_CAN_OPEN[String((gatedItem as any).needs || '')] || 'This page is limited to a higher access level'}. Ask them if you need something from it — everything you can use is in the left menu.`
+                    ? `${WHO_CAN_OPEN[String([(gatedItem as any).needs].flat()[0] || '')] || 'This page is limited to a higher access level'}. Ask them if you need something from it — everything you can use is in the left menu.`
                     : switchable
                       ? (canSwitch
                         ? 'It is part of this CRM and can be turned on whenever you want it — Settings → Features.'

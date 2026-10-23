@@ -9,17 +9,22 @@ import { Route } from 'react-router-dom'
 import { CalendarDays } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
+import { OfficeOr, ScheduleWeek } from '../office/OfficeReadOnly'
 
 const SchedulingHub = page(() => import('./SchedulingHub'))
+// …and the read-only office seat's (care-office:read), which opens a read-only screen at the same address
+// (office/OfficeReadOnly.tsx; live role check, 2026-10-23).
+const SCHEDULE: string[] = ['care-schedule:update', 'care-office:read']
+const SchedulePage = () => <OfficeOr office="care-schedule:update" Full={SchedulingHub} View={ScheduleWeek} />
 
 export const routes: ReactElement[] = [
-  <Route key="homecare-scheduling" path="scheduling" element={<SchedulingHub />} />,
+  <Route key="homecare-scheduling" path="scheduling" element={<SchedulePage />} />,
 ]
 
 export const nav: NavItem[] = [
-  { to: '/crm/scheduling', icon: CalendarDays, label: 'Schedule Hub', permission: 'care-schedule:update' },
+  { to: '/crm/scheduling', icon: CalendarDays, label: 'Schedule Hub', permission: SCHEDULE },
 ]
 
-export const routePermissions: Record<string, string> = {
-  '/crm/scheduling': 'care-schedule:update',
+export const routePermissions: Record<string, string | string[]> = {
+  '/crm/scheduling': SCHEDULE,
 }

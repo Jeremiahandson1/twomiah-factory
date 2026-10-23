@@ -4,7 +4,9 @@
 //      spend, a service record's cost, the crew's hourly rates on a job, the exports, the per-report price);
 //   3. a DELETE of an id that is not there (or not this company's) is a 404, not a success that deleted nothing;
 //   4. every signed-in person changes their own name, phone and password, and nobody else's;
-//   5. home care's Login Activity — sign-ins and IP addresses — is the owner's and the admins' (audit:read).
+//   5. home care's Login Activity — sign-ins and IP addresses — is the owner's and the admins' (audit:read);
+//   7. a staff/field seat: no takings figure in Booking insights (revenue:read), and the Lead Inbox, Lead Sources and the
+//      New Leads list and tile are leads:read's — managers and up — not every seat that reads contacts.
 import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
@@ -38,18 +40,20 @@ let fs: Tenant
 let fsCo = ''
 let fsAs: ReturnType<typeof caller>
 let fsIds: Record<string, string> = {}
+let fsTokens: Record<string, string> = {}
 
 beforeAll(async () => {
   fs = await bootTenant({ vertical: 'fieldservice' })
   const s = await seedOwner(fs)
   fsCo = s.company.id
   await fs.db.update(fs.schema.company).set({
-    enabledFeatures: ['contacts', 'jobs', 'quotes', 'invoices', 'time_tracking', 'expenses', 'inventory', 'fleet', 'equipment_tracking', 'service_agreements', 'gps_tracking', 'ai_receptionist', 'two_way_texting', 'recurring_routes', 'snow_billing', 'projects'],
+    enabledFeatures: ['contacts', 'jobs', 'quotes', 'invoices', 'time_tracking', 'expenses', 'inventory', 'fleet', 'equipment_tracking', 'service_agreements', 'gps_tracking', 'ai_receptionist', 'two_way_texting', 'recurring_routes', 'snow_billing', 'projects', 'online_booking', 'lead_inbox', 'dashboard'],
   } as any).where(eq(fs.schema.company.id, fsCo))
   const login = await fs.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })
   const seats = await seatsFor(fs, fsCo, { admin: 'admin', manager: 'manager', staff: 'field', viewer: 'viewer' })
   seats.tokens.owner = ((await login.json()) as any).accessToken
   seats.ids.owner = s.owner.id
+  fsTokens = seats.tokens
   fsAs = caller(fs, seats.tokens)
   fsIds = seats.ids
 }, 120_000)
@@ -218,6 +222,8 @@ describe('4. every signed-in person keeps their own profile, password and two-fa
     expect(ok.status).toBe(200)
     const login = await fs.call('/api/auth/login', { method: 'POST', json: { email: 'viewer@test.example', password: 'Viewer-new-pass-2' } })
     expect(login.status).toBe(200)
+    // The change signed out every other session, this test's token among them: the tests below use the new sign-in.
+    fsTokens.viewer = ((await login.json()) as any).accessToken
   })
 })
 
@@ -305,4 +311,42 @@ describe('3. home care deletes of an id that is not there answer 404', () => {
       expect((await hcAs('owner', path, 'DELETE')).status).toBe(404)
     })
   }
+})
+
+describe('7. staff and field seats: no takings, no leads', () => {
+  test("Booking insights' booked value is revenue:read's: absent for a technician, there for a manager and the viewer", async () => {
+    for (const who of ['staff']) {
+      const a = await fsAs(who, '/api/booking/analytics')
+      expect(a.status).toBe(200)
+      expect('bookedValue' in a.body).toBe(false)
+      expect(typeof a.body.total).toBe('number')
+      const c = await fsAs(who, '/api/booking/customers')
+      expect(c.status).toBe(200)
+      expect(JSON.stringify(c.body)).not.toMatch(/"bookedValue"/)
+    }
+    for (const who of ['manager', 'viewer', 'owner']) { const r = await fsAs(who, '/api/booking/analytics'); expect(`${who} ${r.status} ${'bookedValue' in r.body}`).toBe(`${who} 200 true`) }
+  })
+
+  test('the Lead Inbox, Lead Sources and New Leads refuse a technician and a viewer; a manager and an admin read them', async () => {
+    for (const who of ['staff', 'viewer']) {
+      for (const p of ['/api/leads', '/api/leads/sources', '/api/leads/stats', '/api/dashboard/new-leads']) {
+        const r = await fsAs(who, p)
+        expect(`${who} ${p} ${r.status}`).toBe(`${who} ${p} 403`)
+      }
+      const stats = await fsAs(who, '/api/dashboard/stats')
+      expect(stats.status).toBe(200)
+      expect('newLeads' in stats.body).toBe(false)
+    }
+    for (const who of ['manager', 'admin']) {
+      for (const p of ['/api/leads', '/api/leads/sources', '/api/dashboard/new-leads']) expect((await fsAs(who, p)).status).toBe(200)
+      expect('newLeads' in (await fsAs(who, '/api/dashboard/stats')).body).toBe(true)
+    }
+  })
+
+  test("working a lead asks the inbox's own permission", async () => {
+    const [lead] = await fs.db.insert(fs.schema.lead).values({ companyId: fsCo, sourcePlatform: 'website', homeownerName: 'Lee Lead', email: 'lee@example.com', status: 'new' } as any).returning()
+    expect((await fsAs('staff', `/api/leads/${lead.id}/status`, 'PUT', { status: 'contacted' })).status).toBe(403)
+    expect((await fsAs('staff', `/api/leads/${lead.id}/convert`, 'POST')).status).toBe(403)
+    expect((await fsAs('manager', `/api/leads/${lead.id}/status`, 'PUT', { status: 'contacted' })).status).toBe(200)
+  })
 })

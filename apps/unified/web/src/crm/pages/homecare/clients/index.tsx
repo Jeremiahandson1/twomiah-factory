@@ -9,6 +9,7 @@ import { Route } from 'react-router-dom'
 import { Users, ClipboardList, FileSignature, Building2, HeartHandshake, Stethoscope, Pill, FilePen, FolderOpen } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
+import { OfficeOr, ClientDirectory } from '../office/OfficeReadOnly'
 
 const ClientsManagement = page(() => import('./ClientsManagement'))
 const ClientOnboarding = page(() => import('./ClientOnboarding'))
@@ -21,9 +22,13 @@ const FormBuilder = page(() => import('./FormBuilder'))
 const DocumentsManagement = page(() => import('./DocumentsManagement'))
 
 const OFFICE = 'care-clients:update'
+// …and the read-only office seat's (care-office:read), which opens a read-only screen at the same address
+// (office/OfficeReadOnly.tsx; live role check, 2026-10-23).
+const CLIENTS: string[] = [OFFICE, 'care-office:read']
+const ClientsPage = () => <OfficeOr office={OFFICE} Full={ClientsManagement} View={ClientDirectory} />
 
 export const routes: ReactElement[] = [
-  <Route key="hc-clients" path="clients" element={<ClientsManagement />} />,
+  <Route key="hc-clients" path="clients" element={<ClientsPage />} />,
   <Route key="hc-client-onboarding" path="client-onboarding" element={<ClientOnboarding />} />,
   <Route key="hc-client-documents" path="client-documents" element={<ClientDocuments />} />,
   <Route key="hc-referral-sources" path="referral-sources" element={<ReferralSources />} />,
@@ -36,7 +41,7 @@ export const routes: ReactElement[] = [
 
 /** The template's labels (AdminDashboard.tsx NAV_SECTIONS); MENU orders them and sets the headings. */
 export const nav: NavItem[] = [
-  { to: '/crm/clients', icon: Users, label: 'Clients', permission: OFFICE },
+  { to: '/crm/clients', icon: Users, label: 'Clients', permission: CLIENTS },
   { to: '/crm/client-onboarding', icon: ClipboardList, label: 'Onboarding', permission: OFFICE },
   { to: '/crm/client-documents', icon: FileSignature, label: 'Client Documents', permission: OFFICE },
   { to: '/crm/referral-sources', icon: Building2, label: 'Referral Sources', permission: OFFICE },
@@ -47,4 +52,4 @@ export const nav: NavItem[] = [
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', permission: OFFICE, features: ['documents'] },
 ]
 
-export const routePermissions: Record<string, string> = Object.fromEntries(nav.map((item) => [item.to, OFFICE]))
+export const routePermissions: Record<string, string | string[]> = Object.fromEntries(nav.map((item) => [item.to, item.permission ?? OFFICE]))

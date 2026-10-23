@@ -18,6 +18,7 @@ import { Navigate, Route } from 'react-router-dom'
 import { Banknote, ClipboardList, CreditCard, FileText, Inbox, SearchCheck, Star, Users } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
+import { OfficeOr, CaregiverRoster } from '../office/OfficeReadOnly'
 
 const CaregiverManagement = page(() => import('./CaregiverManagement'))
 const CaregiverProfile = page(() => import('./CaregiverProfile'))
@@ -31,12 +32,20 @@ const PayrollProcessing = page(() => import('./PayrollProcessing'))
 const ExpenseManagement = page(() => import('./ExpenseManagement'))
 
 const HR = 'care-hr:read'
+// …and the read-only office seat's (care-office:read), which opens a read-only screen at the same address
+// (office/OfficeReadOnly.tsx; live role check, 2026-10-23).
+const ROSTER: string[] = [HR, 'care-office:read']
+const CaregiversPage = () => <OfficeOr office={HR} Full={CaregiverManagement} View={CaregiverRoster} />
+// A caregiver's file stays care-hr:read's: the read-only seat typing its address is taken back to the roster.
+const BackToRoster = () => <Navigate to="/crm/caregivers" replace />
+const CaregiverFile = () => <OfficeOr office={HR} Full={CaregiverProfile} View={BackToRoster} />
+const CaregiverFileHistory = () => <OfficeOr office={HR} Full={CaregiverHistory} View={BackToRoster} />
 const PAYROLL = 'care-payroll:update'
 
 export const routes: ReactElement[] = [
-  <Route key="hc-people-caregivers" path="caregivers" element={<CaregiverManagement />} />,
-  <Route key="hc-people-caregiver" path="caregivers/:id" element={<CaregiverProfile />} />,
-  <Route key="hc-people-caregiver-history" path="caregivers/:id/history" element={<CaregiverHistory />} />,
+  <Route key="hc-people-caregivers" path="caregivers" element={<CaregiversPage />} />,
+  <Route key="hc-people-caregiver" path="caregivers/:id" element={<CaregiverFile />} />,
+  <Route key="hc-people-caregiver-history" path="caregivers/:id/history" element={<CaregiverFileHistory />} />,
   <Route key="hc-people-performance" path="performance" element={<PerformanceRatings />} />,
   // The template's second review page (pages/PerformanceReviewsPage.tsx) could never save — it asked for a caregiver id
   // typed by hand and no client, which every review needs — and /crm/performance writes the same reviews properly.
@@ -52,7 +61,7 @@ export const routes: ReactElement[] = [
 
 /** One item per MENU path this group owns, with the template's label (AdminDashboard.tsx NAV_SECTIONS). */
 export const nav: NavItem[] = [
-  { to: '/crm/caregivers', icon: Users, label: 'Caregivers', permission: HR },
+  { to: '/crm/caregivers', icon: Users, label: 'Caregivers', permission: ROSTER },
   { to: '/crm/performance', icon: Star, label: 'Performance', permission: HR },
   { to: '/crm/applications', icon: FileText, label: 'Job Applications', permission: HR },
   { to: '/crm/job-postings', icon: ClipboardList, label: 'Job Postings', permission: HR },
@@ -63,8 +72,8 @@ export const nav: NavItem[] = [
 ]
 
 /** Every route's permission, menu or not (a typed-in address). */
-export const routePermissions: Record<string, string> = {
-  '/crm/caregivers': HR,
+export const routePermissions: Record<string, string | string[]> = {
+  '/crm/caregivers': ROSTER,
   '/crm/performance': HR,
   '/crm/performance-reviews': HR,
   '/crm/applications': HR,

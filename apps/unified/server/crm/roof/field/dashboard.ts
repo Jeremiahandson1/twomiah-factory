@@ -47,7 +47,8 @@ export function createRoofDashboardRoutes(d: CrmDeps) {
   // The rows the count counts, as one list (tenant-backend reporting/newLeads.ts) — the jobs dashboard's GET /new-leads.
   app.get('/new-leads', async (c) => {
     const u = c.get('user')
-    if (!(await may(u, 'contacts:read'))) return fail(c, 403, 'Permission denied', 'forbidden')
+    // The Lead Inbox's own permission (leads:read), as the jobs dashboard's (live role check, 2026-10-23).
+    if (!(await may(u, 'leads:read'))) return fail(c, 403, 'Permission denied', 'forbidden')
     const features = await safe(() => d.features.enabledFeaturesFor(u.companyId), [] as string[])
     const limit = Number(c.req.query('limit')) || undefined
     return one(c, await listNewLeads(db, { lead, contact, quote, job, invoice }, u.companyId, { inbox: features.includes('lead_inbox'), limit }))
@@ -80,7 +81,7 @@ export function createRoofDashboardRoutes(d: CrmDeps) {
     // The jobs dashboard's count (tenant-backend reporting/newLeads.ts): unanswered inbox enquiries and the lead contacts
     // nobody has acted on yet — one rule for every dashboard that shows the tile.
     let leads: Awaited<ReturnType<typeof countNewLeads>> | null = null
-    if (await may(u, 'contacts:read')) {
+    if (await may(u, 'leads:read')) {
       const features = await safe(() => d.features.enabledFeaturesFor(companyId), [] as string[])
       leads = await safe(() => countNewLeads(db, { lead, contact, quote, job, invoice }, companyId, { inbox: features.includes('lead_inbox') }), null)
     }

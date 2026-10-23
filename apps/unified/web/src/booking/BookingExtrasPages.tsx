@@ -19,6 +19,9 @@ export function BookingInsightsPage() {
   useEffect(() => { if (tab === 'customers' && !customers) api.get('/api/booking/customers').then((r: any) => setCustomers(r.data)).catch((e: Error) => setError(e.message)) }, [tab, customers])
   const peak = (arr: number[]) => Math.max(1, ...arr)
   const chip = (on: boolean) => 'px-4 py-1.5 rounded-full text-sm font-medium border ' + (on ? 'bg-ink text-white dark:text-slate-900 border-ink' : 'bg-white dark:bg-slate-900 text-ink-soft border-line hover:border-ink-soft')
+  // Booked value is revenue:read's (server modules/booking.ts): absent for a seat without it, and then no tile, column or
+  // note about it is drawn (live role check, 2026-10-23: a stylist and a technician read the business's takings here).
+  const seesValue = stats ? stats.bookedValue !== undefined : false
   const shown = (customers || []).filter((c) => !q.trim() || [c.name, c.email, c.phone].some((v: string) => (v || '').toLowerCase().includes(q.trim().toLowerCase())))
   return (
     <div className="max-w-5xl mx-auto">
@@ -31,11 +34,11 @@ export function BookingInsightsPage() {
       <PageError message={error} className="mb-4" />
       {tab === 'numbers' && stats && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className={`grid grid-cols-2 ${seesValue ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4 mb-6`}>
             {[
               ['Bookings', String(stats.total)],
               ['Completed', String(stats.byStatus.completed || 0)],
-              ['Booked value', dollars(stats.bookedValue) || '$0'],
+              ...(seesValue ? [['Booked value', dollars(stats.bookedValue) || '$0']] : []),
               ['No-show rate', stats.noShowRate == null ? '—' : Math.round(stats.noShowRate * 100) + '%'],
             ].map(([label, value]) => (
               <div key={label} className="card card-padding"><div className="text-sm text-muted">{label}</div><div className="text-2xl font-semibold text-ink mt-1">{value}</div></div>
@@ -56,7 +59,7 @@ export function BookingInsightsPage() {
               {Object.entries(stats.bySource).map(([k, n]) => <div key={k} className="flex justify-between text-sm py-1 text-ink"><span>{k === 'public' ? 'Online' : k === 'staff' ? 'At the desk' : 'Repeating'}</span><span>{n as number}</span></div>)}
             </div>
           </div>
-          <p className="text-xs text-muted">Booked value is the price of completed visits; payments are kept in the CRM.</p>
+          {seesValue && <p className="text-xs text-muted">Booked value is the price of completed visits; payments are kept in the CRM.</p>}
         </>
       )}
       {tab === 'customers' && (
@@ -68,14 +71,14 @@ export function BookingInsightsPage() {
             <div className="card overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-paper border-b border-line"><tr className="text-left text-ink-soft text-xs uppercase tracking-wider">
-                  <th className="px-4 py-3">Customer</th><th className="px-4 py-3">Bookings</th><th className="px-4 py-3">Completed</th><th className="px-4 py-3">No-shows</th><th className="px-4 py-3">Booked value</th><th className="px-4 py-3">Last visit</th>
+                  <th className="px-4 py-3">Customer</th><th className="px-4 py-3">Bookings</th><th className="px-4 py-3">Completed</th><th className="px-4 py-3">No-shows</th>{shown.some((c) => c.bookedValue !== undefined) && <th className="px-4 py-3">Booked value</th>}<th className="px-4 py-3">Last visit</th>
                 </tr></thead>
                 <tbody className="divide-y divide-line">
                   {shown.map((c) => (
                     <tr key={c.email} className="text-ink">
                       <td className="px-4 py-3"><div className="font-semibold">{c.name}</div><div className="text-xs text-muted">{c.email}{c.phone ? ` · ${c.phone}` : ''}</div>{Array.isArray(c.names) && c.names.length > 1 && <div className="text-xs text-muted">Also booked as {c.names.slice(1).join(', ')}</div>}</td>
                       <td className="px-4 py-3">{c.bookings}</td><td className="px-4 py-3">{c.completed}</td><td className="px-4 py-3">{c.noShows}</td>
-                      <td className="px-4 py-3">{dollars(c.bookedValue) || '$0'}</td>
+                      {c.bookedValue !== undefined && <td className="px-4 py-3">{dollars(c.bookedValue) || '$0'}</td>}
                       <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">{c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: stats?.timezone }) : '—'}</td>
                     </tr>
                   ))}

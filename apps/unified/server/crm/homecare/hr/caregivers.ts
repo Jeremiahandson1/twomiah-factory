@@ -153,8 +153,10 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     return list(c, (await seesPay(c)) ? rows : stripPay(rows), { page: pageN, limit: limitN, total: Number(total) })
   })
 
-  // GET /api/users/caregivers — every caregiver, for pickers. Before /:id.
-  app.get('/caregivers', mayList, async (c) => {
+  // GET /api/users/caregivers — every caregiver, for pickers. Before /:id. Also the read-only office seat's roster
+  // (care-office:read): name, email, phone, active — this read carries no pay, address or file (live role check,
+  // 2026-10-23).
+  app.get('/caregivers', requireAnyPermission(['care-hr:read', 'care-schedule:read', 'care-office:read']), async (c) => {
     const { search, isActive = 'true' } = c.req.query()
     const conditions: any[] = [isCaregiver(companyOf(c))]
     if (isActive !== 'all') conditions.push(eq(user.isActive, isActive === 'true'))

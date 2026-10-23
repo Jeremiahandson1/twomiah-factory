@@ -54,7 +54,8 @@ export const EmailAliases = () => <EmailAliasesPage />
 // A new or changed lead shows at once (live.ts; the server announces lead:created / lead:updated).
 // The dashboard's "New leads" tile's list: exactly the rows it counts (GET /api/dashboard/new-leads).
 export const NewLeads = () => <NewLeadsPage api={api} />
-export const LeadInbox = () => <LeadInboxPage api={api} toast={useToast()} config={verticalScreens().leads as any} subscribe={subscribeLive} />
+// ownPermission: the inbox asks leads:* on both sides (server modules/company.ts; live role check, 2026-10-23).
+export const LeadInbox = () => <LeadInboxPage api={api} toast={useToast()} config={{ ...(verticalScreens().leads as any), ownPermission: true }} subscribe={subscribeLive} />
 
 export function AuditLog() {
   const { company, can } = useAuth()

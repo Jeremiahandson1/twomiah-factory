@@ -167,8 +167,26 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     return r ? one(c, { success: true, ...r }) : fail(c, 404, 'Not found')
   })
 
-  admin.get('/customers', may('bookings:read'), async (c) => { const rows = await extras.customers(co(c)); return listAll(c, rows) })
-  admin.get('/analytics', may('bookings:read'), async (c) => one(c, await extras.analytics(co(c), Math.min(365, Math.max(7, Number(c.req.query('days')) || 90)))))
+  /**
+   * "Booked value" is what the business TOOK — the price of completed visits — so it is revenue:read's, the permission
+   * the dashboards ask for their takings figure (permissions.ts: revenue:read). A stylist, a technician or a vet's front
+   * desk reads the counts, the busiest days and who books, and not the money. ABSENT rather than 0, so no tile prints
+   * "$0" for a figure it was not given. (Live role check, 2026-10-23)
+   */
+  const seesTakings = async (c: any) => {
+    const u = c.get('user')
+    return permissions.hasPermission(u.role, 'revenue:read', await permissions.getExtraPermissions(u.userId))
+  }
+  admin.get('/customers', may('bookings:read'), async (c) => {
+    const rows = await extras.customers(co(c))
+    return listAll(c, (await seesTakings(c)) ? rows : rows.map(({ bookedValue: _value, ...r }: any) => r))
+  })
+  admin.get('/analytics', may('bookings:read'), async (c) => {
+    const stats: any = await extras.analytics(co(c), Math.min(365, Math.max(7, Number(c.req.query('days')) || 90)))
+    if (await seesTakings(c)) return one(c, stats)
+    const { bookedValue: _value, ...rest } = stats
+    return one(c, rest)
+  })
 
   // ── The public API the booking pages call ─────────────────────────────────
   // Taking a booking or joining the waitlist: 10 an hour from one address (the site allowed 3, which a family

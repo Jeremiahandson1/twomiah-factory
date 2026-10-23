@@ -64,11 +64,14 @@ export function createPhoneRules(deps: {
     return sent
   }
 
-  /** The people who work leads, by permission (contacts:update), counting per-person grants. */
+  /**
+   * The people who work leads, by permission (leads:update — the inbox's own; contacts:update reached a salon's stylists
+   * and a vet's desk, whose menu no longer offers the inbox), counting per-person grants. (Live role check, 2026-10-23)
+   */
   async function leadWorkers(companyId: string): Promise<string[]> {
     const people = await activePeople(deps.db, companyId)
     const out: string[] = []
-    for (const p of people) if (deps.permissions.hasPermission(p.role, 'contacts:update', await deps.permissions.getExtraPermissions(p.id))) out.push(p.id)
+    for (const p of people) if (deps.permissions.hasPermission(p.role, 'leads:update', await deps.permissions.getExtraPermissions(p.id))) out.push(p.id)
     return out
   }
 

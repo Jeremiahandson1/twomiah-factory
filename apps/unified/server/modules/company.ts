@@ -127,7 +127,9 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
       emitToCompany: deps.realtime.emitToCompany, EVENTS: deps.realtime.EVENTS,
       // The vertical's platforms (CrmSettings.leads, templates/crm-basic routes/leads.ts T42); absent, the trades set.
       // What a converted lead becomes: a salon's is a client, in the book (templates/crm-salon routes/leads.ts, Salon T27 N13).
-      audit, options: { platforms: vertical.crm?.leads?.platforms ?? TRADES_LEAD_PLATFORMS, contactType: vertical.crm?.leads?.contactType ?? 'lead' },
+      // Leads are the desk's (leads:read / leads:update / leads:delete — admin and manager), not every seat that reads
+      // contacts: a technician, a stylist and a viewer were handed the inbox (live role check, 2026-10-23).
+      audit, options: { platforms: vertical.crm?.leads?.platforms ?? TRADES_LEAD_PLATFORMS, contactType: vertical.crm?.leads?.contactType ?? 'lead', ownPermission: true },
     } as any))
 
   const auditLogRoutes = new Hono<AppEnv>()

@@ -41,8 +41,13 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
    * move the lead's own status (PUT /:id/status → `contacts:update`). A seat holding neither still
    * reads the inbox, which is how a lead gets looked at before anybody acts on it. (T42)
    */
-  const mayConvert = useMayWrite('contacts:create')
-  const mayTriage = useMayWrite('contacts:update')
+  const mayMakeContact = useMayWrite('contacts:create')
+  const mayWorkContacts = useMayWrite('contacts:update')
+  // …or, where the inbox asks its own permission (config.ownPermission — the unified app; live role check 2026-10-23),
+  // leads:update to triage, and leads:update with contacts:create to convert: the server's gates (leads.ts).
+  const mayWorkLeads = useMayWrite('leads:update')
+  const mayConvert = config?.ownPermission ? mayWorkLeads && mayMakeContact : mayMakeContact
+  const mayTriage = config?.ownPermission ? mayWorkLeads : mayWorkContacts
   // Setting up a lead source is POST /api/leads/sources — leads:create. The empty inbox sent every seat there. (T68)
   const maySetUpSources = useMayWrite('leads:create')
   const offered: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS

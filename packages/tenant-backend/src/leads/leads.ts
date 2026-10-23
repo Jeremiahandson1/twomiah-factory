@@ -33,6 +33,15 @@ export interface LeadsOptions {
   contactType?: string
   /** Max page size for the inbox list. Default 100. */
   maxLimit?: number
+  /**
+   * Ask the inbox's OWN permission (`leads:read` / `leads:update` / `leads:delete`) instead of the contacts ones.
+   * (Live role check, 2026-10-23.) The inbox and the sources asked contacts:read, which every staff, field and viewer
+   * seat holds — so a technician, a stylist and a read-only viewer read the business's incoming leads. Leads are the
+   * desk's and up: admin and manager hold leads:* (auth/permissions.ts), the lower seats nothing. Converting a lead also
+   * makes a contact, so it asks contacts:create as well. Absent: the contacts permissions, as every template has run it
+   * (their own menus are not changed with this module).
+   */
+  ownPermission?: boolean
 }
 export interface LeadsDeps {
   db: any
@@ -148,6 +157,13 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   const inboundDomain = deps.options?.inboundDomain || env.INBOUND_PARSE_HOSTNAME || 'parse.twomiah.com'
   const contactType = deps.options?.contactType || 'lead'
   const maxLimit = deps.options?.maxLimit || 100
+  const own = !!deps.options?.ownPermission
+  const mayRead = requirePermission(own ? 'leads:read' : 'contacts:read')
+  const mayWork = requirePermission(own ? 'leads:update' : 'contacts:update')
+  // Converting works the lead AND makes a contact: both, in that order, as two ordinary middlewares.
+  const mayConvertLead = requirePermission(own ? 'leads:update' : 'contacts:create')
+  const mayMakeContact = own ? requirePermission('contacts:create') : async (_c: any, next: any) => { await next() }
+  const mayRemove = requirePermission(own ? 'leads:delete' : 'contacts:delete')
   const app = new Hono()
 
   const inboundAddress = (companyId: string, platform: string) => leadInboundAddress(companyId, platform, env, inboundDomain)
@@ -227,7 +243,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   }
   const withoutSecret = <T extends Record<string, any>>(row: T): T => { const { webhookSecret, ...rest } = row as any; return rest as T }
 
-  app.get('/sources', requirePermission('contacts:read'), async (c) => {
+  app.get('/sources', mayRead, async (c) => {
     const currentUser = (c as any).get('user')
     const sources = await db.select().from(t.leadSource)
       .where(eq(t.leadSource.companyId, currentUser.companyId))
@@ -304,7 +320,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
 
   // ─── Lead inbox ─────────────────────────────────────────────────────────────
 
-  app.get('/', requirePermission('contacts:read'), async (c) => {
+  app.get('/', mayRead, async (c) => {
     const currentUser = (c as any).get('user')
     const status = c.req.query('status') || ''
     const source = (c.req.query('source') || '').slice(0, 40)
@@ -328,7 +344,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.max(1, Math.ceil(Number(total) / limit)) } })
   })
 
-  app.get('/stats', requirePermission('contacts:read'), async (c) => {
+  app.get('/stats', mayRead, async (c) => {
     const currentUser = (c as any).get('user')
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const leads = await db.select({ sourcePlatform: t.lead.sourcePlatform, status: t.lead.status, receivedAt: t.lead.receivedAt, contactedAt: t.lead.contactedAt })
@@ -362,7 +378,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     return row
   }
 
-  app.put('/:id/status', requirePermission('contacts:update'), async (c) => {
+  app.put('/:id/status', mayWork, async (c) => {
     const currentUser = (c as any).get('user')
     const id = c.req.param('id')
     const parsed = z.object({ status: z.enum(SETTABLE_STATUSES) }).safeParse(await c.req.json().catch(() => ({})))
@@ -389,7 +405,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     return c.json(updated)
   })
 
-  app.post('/:id/convert', requirePermission('contacts:create'), async (c) => {
+  app.post('/:id/convert', mayConvertLead, mayMakeContact, async (c) => {
     const currentUser = (c as any).get('user')
     const id = c.req.param('id')
     const existing = await ownLead(id, currentUser.companyId)
@@ -446,7 +462,7 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     return c.json({ lead: { ...existing, status: 'converted', convertedContactId: contactRow.id }, contact: withoutPortalCredential(contactRow), matched })
   })
 
-  app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
+  app.delete('/:id', mayRemove, async (c) => {
     const currentUser = (c as any).get('user')
     const id = c.req.param('id')
     const existing = await ownLead(id, currentUser.companyId)
