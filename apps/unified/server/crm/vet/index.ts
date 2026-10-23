@@ -16,8 +16,15 @@ import { createPrescriptionRoutes } from './prescriptions.ts'
 import { createLabResultRoutes } from './labResults.ts'
 import { createWellnessPlanRoutes } from './wellnessPlans.ts'
 import { createReminderRoutes } from './reminders.ts'
+import { createVaccineReminders } from './vaccineReminders.ts'
 
 export function vetMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
+  // The practice's automatic vaccine reminders, hourly on each clinic's own switch and clock (./vaccineReminders.ts).
+  // Timed work: started with the CRM's at boot, never in tests.
+  if (settings.appointments === 'practice') {
+    const vaccineReminders = createVaccineReminders({ db: d.db, sms: d.services.sms, logger: d.logger, isFeatureEnabled: d.features.isFeatureEnabled })
+    d.services.addJob(() => vaccineReminders.start())
+  }
   return [
     { path: '/api/patients', access: 'user', feature: 'patient_records', router: createPatientRoutes(d) },
     { path: '/api/visits', access: 'user', feature: 'patient_records', router: createVisitRoutes(d) },
