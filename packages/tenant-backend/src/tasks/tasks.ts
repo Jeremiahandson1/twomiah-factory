@@ -25,6 +25,8 @@ const MANAGER_ROLES = new Set(['owner', 'admin', 'manager'])
 // Reading raw-SQL rows, from the one shared implementation. `rows` keeps its local name because the
 // reads below index raw column names. (T32 L7 — see ../sqlRows.ts)
 import { rowsOf as rows, camelRow } from '../sqlRows'
+import { businessToday } from '../invoicing/money'
+import { companyTimeZone } from '../time/businessDay'
 
 const SORT_COLUMNS: Record<string, string> = {
   due_date: 'due_date', dueDate: 'due_date', created_at: 'created_at', createdAt: 'created_at',
@@ -263,10 +265,14 @@ export function createTasksService(deps: TasksServiceDeps) {
     return true
   }
 
+  /** The company's today as a calendar-day marker — what a task's due DAY is compared with. */
+  const todayFor = async (companyId: string) => businessToday(await companyTimeZone(db, companyId))
+
   /** Get tasks due soon */
   async function getUpcomingTasks(companyId: string, userId: string, { days = 7 }: { days?: number } = {}) {
-    const dueDate = new Date()
-    dueDate.setDate(dueDate.getDate() + days)
+    // A due date is a calendar day: from the company's today to `days` on (the screen's isPastDay rule).
+    const today = await todayFor(companyId)
+    const dueDate = new Date(today.getTime() + days * 86_400_000)
 
     return rows(await db.execute(sql`
       SELECT t.*, json_build_object('name', p.name) as project, json_build_object('title', j.title) as job
@@ -276,7 +282,7 @@ export function createTasksService(deps: TasksServiceDeps) {
       WHERE t.company_id = ${companyId} AND t.assigned_to_id = ${userId}
         AND t.status != 'completed'
         AND t.due_date <= ${dueDate}
-        AND t.due_date >= ${new Date()}
+        AND t.due_date >= ${today}
       ORDER BY t.due_date ASC
       LIMIT 10
     `))
@@ -284,6 +290,8 @@ export function createTasksService(deps: TasksServiceDeps) {
 
   /** Get overdue tasks */
   async function getOverdueTasks(companyId: string, userId: string) {
+    // Overdue once the due DAY is over on the company's clock — not from UTC's midnight at its start.
+    const today = await todayFor(companyId)
     return rows(await db.execute(sql`
       SELECT t.*, json_build_object('name', p.name) as project, json_build_object('title', j.title) as job
       FROM task t
@@ -291,7 +299,7 @@ export function createTasksService(deps: TasksServiceDeps) {
       LEFT JOIN job j ON j.id = t.job_id
       WHERE t.company_id = ${companyId} AND t.assigned_to_id = ${userId}
         AND t.status != 'completed'
-        AND t.due_date < ${new Date()}
+        AND t.due_date < ${today}
       ORDER BY t.due_date ASC
     `))
   }
@@ -299,7 +307,7 @@ export function createTasksService(deps: TasksServiceDeps) {
   /** Get task stats for a user */
   async function getTaskStats(companyId: string, userId: string) {
     const scope = sql`company_id = ${companyId} AND assigned_to_id = ${userId}`
-    const now = new Date()
+    const now = await todayFor(companyId) // the company's today: overdue = due day before it
     const [totalRes, completedRes, pendingRes, overdueRes] = await Promise.all([
       db.execute(sql`SELECT count(*)::int as count FROM task WHERE ${scope}`),
       db.execute(sql`SELECT count(*)::int as count FROM task WHERE ${scope} AND status = 'completed'`),

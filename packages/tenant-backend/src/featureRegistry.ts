@@ -50,7 +50,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'selections', name: 'Selections', description: 'Client material selections portal', category: 'Construction', core: false, templates: ['crm'] },
 
   // Service Trade
-  { id: 'drag_drop_calendar', name: 'Drag & Drop Calendar', description: 'Visual job scheduling', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
+  { id: 'drag_drop_calendar', name: 'Drag & Drop Calendar', description: 'Drag jobs to another day or hour on the Schedule (day, week and month views)', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] /* roofing: its Schedule is the shared page, and a roofing job's day and time are PUT /api/jobs/:id like every trade's (live test 2026-10-22: "no calendar drag"). */ },
   // The page behind this id (Recurring Invoices, /crm/recurring) bills a customer on a schedule; it never made jobs. It was
   // sold as "Recurring Jobs", and testers looked for jobs that repeat (live test 2026-10-22). Named for what it does.
   { id: 'recurring_jobs', name: 'Recurring Invoices', description: 'Invoices that bill a customer on a schedule — weekly to yearly', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
@@ -68,7 +68,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Field Service
   { id: 'dispatch_board', name: 'Dispatch Board', description: 'Real-time tech dispatch and scheduling', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm', 'crm-basic'] },
-  { id: 'maintenance_contracts', name: 'Maintenance Contracts', description: 'Recurring service agreements', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
+  { id: 'maintenance_contracts', name: 'Maintenance Contracts', description: 'Maintenance plans whose included visits go on the Schedule for each term', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'flat_rate_pricebook', name: 'Flat-Rate Pricebook', description: 'Standard pricing for common services', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'parts_tracking', name: 'Parts & Inventory', description: 'Track parts, stock levels, and usage', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm-rv'] },
 
@@ -168,7 +168,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // to NO template and hidden, so it cannot be seeded by a plan, shown on a tenant's Features page, or picked in the
   // Factory wizard. Put the templates back when the service is ready.
   { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management — not yet available', category: 'Marketing', core: false, templates: [], hidden: true },
-  { id: 'google_reviews', name: 'Review Requests', description: 'Automated review requests after a visit', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-bar'] },
+  { id: 'google_reviews', name: 'Review Requests', description: 'Ask customers for a Google review after a job or visit — automatically once switched on in Reviews › Settings', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-bar'] },
   { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet', 'crm-bar'] },
   { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', category: 'Marketing', core: false, templates: [] /* offered to no industry: nothing reads it (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22) */ },
 

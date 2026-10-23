@@ -5,6 +5,7 @@ import { useAuth } from '../../shared'
 import { useMayWrite } from '../../shared'
 import { api } from '../../api'
 import { LifeBuoy, Plus, Search, MessageSquare, Star, Send, ArrowLeft, Clock, AlertTriangle, X, Bot, ChevronRight } from 'lucide-react'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 type Ticket = {
   id: string;
@@ -269,7 +270,7 @@ export default function SupportPage() {
               <div className="flex items-center gap-2 mb-1">
                 {msg.isInternal && <span className="text-xs bg-yellow-500/20 text-yellow-800 dark:text-yellow-400 px-1 py-0.5 rounded">Internal</span>}
                 {msg.isAi && <span className="text-xs bg-purple-500/20 text-purple-700 dark:text-purple-400 px-1 py-0.5 rounded">AI</span>}
-                <span className="text-xs text-gray-600 ml-auto dark:text-slate-400">{new Date(msg.createdAt).toLocaleString()}</span>
+                <span className="text-xs text-gray-600 ml-auto dark:text-slate-400">{whenDateTime(msg.createdAt)}</span>
               </div>
               <p className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap">{msg.body}</p>
             </div>

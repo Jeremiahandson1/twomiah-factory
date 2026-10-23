@@ -2,6 +2,7 @@
 // (templates/crm-bar has the same files).
 import { api } from '../../../api'
 import { useKnownPermission } from '../../../shared'
+import { companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock'
 
 // ── Who can be assigned as an event coordinator ──────────────────────────────────────────────────────────────────────
 // The logins, not /api/team's crew roster: event.coordinatorId references a login user (a roster row is a
@@ -49,10 +50,8 @@ export interface EventRiskFields { eventDate: string; guestCount: string | numbe
 export interface EventRiskOriginal { eventDate?: string; guestCount?: number | null; spaceId?: string | null }
 export type Ask = (message: string, options?: { title?: string; confirmText?: string; danger?: boolean }) => Promise<boolean>
 
-export const localToday = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+// Today on the venue's (company's) calendar — an event's day is the venue's, not the browser's.
+export const localToday = () => companyTodayKey()
 
 export async function confirmEventRisks(ask: Ask, next: EventRiskFields, spaces: SpaceCapacity[], original?: EventRiskOriginal): Promise<boolean> {
   const dateChanged = !original || original.eventDate !== next.eventDate

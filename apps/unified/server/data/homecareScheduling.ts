@@ -7,7 +7,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { camelRows, camelFirst, rowsOf } from '@twomiah/tenant-backend'
-import { SCHED_COLS, EXC_COLS, inList, occurrencesCte, authUnitsToHoursSql, type Q } from './homecareCore.ts'
+import { SCHED_COLS, EXC_COLS, inList, occurrencesCte, authUnitsToHoursSql, type Q, agencyClock } from './homecareCore.ts'
 import { billedInRangeSql, invoiceServiceDateSql } from './homecareBilling.ts'
 
 /** A caregiver's stored role: the template's `caregiver` or the unified `field`. */
@@ -534,19 +534,20 @@ export async function caregiversForAutoFill(q: Q, companyId: string): Promise<an
 
 /** The client's active authorization covering today (the one ending soonest), with its balance and health, or null. */
 export async function currentAuthorization(q: Q, companyId: string, clientId: string): Promise<any | null> {
+  const { today } = await agencyClock(q, companyId) // the agency's day (CURRENT_DATE was the database's, UTC)
   return camelFirst(await q.execute(sql`
     SELECT a.*, to_char(a.end_date, 'YYYY-MM-DD') AS end_ymd,
       (a.authorized_units - a.used_units) AS remaining_units,
       ROUND((a.used_units / NULLIF(a.authorized_units, 0)) * 100, 1) AS pct_used,
       CASE
-        WHEN a.end_date < CURRENT_DATE THEN 'expired'
+        WHEN a.end_date < ${today}::date THEN 'expired'
         WHEN a.authorized_units - a.used_units <= a.low_units_alert_threshold THEN 'low'
-        WHEN a.end_date <= CURRENT_DATE + 30 THEN 'expiring_soon'
+        WHEN a.end_date <= ${today}::date + 30 THEN 'expiring_soon'
         ELSE 'ok'
       END AS health_status
     FROM authorizations a
     WHERE a.company_id = ${companyId} AND a.client_id = ${clientId} AND a.status = 'active'
-      AND a.start_date <= CURRENT_DATE AND a.end_date >= CURRENT_DATE
+      AND a.start_date <= ${today}::date AND a.end_date >= ${today}::date
     ORDER BY a.end_date ASC
     LIMIT 1`)) ?? null
 }

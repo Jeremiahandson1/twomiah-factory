@@ -8,6 +8,7 @@ import type { ReportsPageProps } from './types'
 import { resolveReportingConfig } from './types'
 import { downloadCsv, csvName, type CsvCell } from './csv'
 import { moneyCompact } from '../money'
+import { todayKey, dayKeyPlus } from '../time/day'
 
 interface Summary {
   period: string
@@ -87,8 +88,8 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
   useEffect(() => {
     let cancelled = false
     const days = parseInt(range) || 30
-    const endDate = new Date().toISOString().slice(0, 10)
-    const startDate = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10)
+    const endDate = todayKey()
+    const startDate = dayKeyPlus(todayKey(), -days)
     const q = { startDate, endDate }
     const months = ({ '7': 3, '30': 3, '90': 6, '365': 12 } as Record<string, number>)[range] || 6
     setLoading(true); setError('')
@@ -112,7 +113,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
   /** The same period the page asked for, for an export that fetches its own rows. */
   const periodQuery = () => {
     const days = parseInt(range) || 30
-    return { startDate: new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10), endDate: new Date().toISOString().slice(0, 10) }
+    return { startDate: dayKeyPlus(todayKey(), -days), endDate: todayKey() }
   }
   /** The headline figures, one row each. */
   const summaryCsv = () => {

@@ -42,6 +42,8 @@ import { JOB_PHOTO_TYPES, MEASUREMENT_STAGE, PIPELINE_STATUSES, TERMINAL_STATUSE
 const PHOTO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 const MEDIA_PREFIX = '/media/'
+/** The stage at which a roofing job is done and the homeowner is asked for a review (askForReview). */
+const REVIEW_STAGE = 'collected'
 
 // Date fields arrive as strings from the form; an unparseable one reached Postgres as an Invalid Date and 500'd. '' clears
 // the field, a bad value is a 400 naming it. The date of loss is a calendar day (the CRM's day marker, as an invoice's due
@@ -360,6 +362,8 @@ export function createRoofJobRoutes(d: CrmDeps) {
       if (k in raw && (raw[k] === '' || raw[k] === null)) set[k] = null
     }
     const [updated] = await db.update(job).set(set as any).where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
+    // Moved to the last stage from the job's own form: the same ask as Advance (askForReview).
+    if (data.status) await askForReview(me.companyId, id, data.status)
     return one(c, withoutJobMoney(updated, await withheldFor(c)))
   })
 
@@ -481,8 +485,23 @@ export function createRoofJobRoutes(d: CrmDeps) {
       .where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     await db.insert(jobNote).values({ companyId: me.companyId, jobId: id, userId: me.userId, isInternal: true, body: `Status changed: ${existing.status} → ${next}` } as any)
     if (AUTO_SMS[next]) { try { await textHomeowner(me.companyId, existing, next) } catch { /* a text that can't go never holds up the job */ } }
+    await askForReview(me.companyId, id, next)
     return one(c, withoutJobMoney(updated, await withheldFor(c)))
   })
+
+  /**
+   * A finished roof asks the homeowner for a review, as a completed job does everywhere else (crm/services.ts
+   * jobHooks.onComplete): when Review Requests is on, a request is made for the processor to send — or not, where the
+   * owner has left Auto-Request off (the reviews service decides; live test 2026-10-22). Collected is the end of a
+   * roofing job: built, inspected, billed and paid. One request per job, however often the stage is reached.
+   */
+  async function askForReview(companyId: string, jobId: string, stage: string) {
+    if (stage !== REVIEW_STAGE) return
+    try {
+      if (!(await companyFeatures(companyId)).includes('google_reviews')) return
+      await d.services.reviews.scheduleReviewRequest(jobId)
+    } catch (err) { d.logger?.warn?.('[roof] review request not scheduled', { error: (err as Error).message }) }
+  }
 
   /** The business's switched-on features (company.enabled_features). */
   async function companyFeatures(companyId: string): Promise<string[]> {

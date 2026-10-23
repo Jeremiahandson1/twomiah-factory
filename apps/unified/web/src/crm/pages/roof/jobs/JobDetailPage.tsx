@@ -31,13 +31,14 @@ import {
   Receipt, Shield, Home,
 } from 'lucide-react'
 import { api } from '../../../../api'
-import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText } from '../../../../shared'
+import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText, ReviewRequestButton } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { formatStatus, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import AttachDocuments from './AttachDocuments'
 import JobMaterials from '../field/JobMaterials'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 const STATUS_COLORS: Record<string, string> = {
@@ -385,6 +386,8 @@ export default function JobDetailPage() {
                 </button>)}
               </>
             )}
+            {/* Ask the homeowner for a Google review now (Review Requests; the shared button the other trades' job page has). */}
+            {job.contactId && <ReviewRequestButton api={api as any} toast={toast} jobId={job.id} hasFeature={hasFeature} className="px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 disabled:opacity-50" />}
           </div>
         </div>
       </div>
@@ -697,7 +700,7 @@ export default function JobDetailPage() {
                   <div key={note.id || i} className="bg-gray-50 rounded-lg p-3 dark:bg-slate-900">
                     <p className="text-sm text-gray-900 whitespace-pre-wrap dark:text-slate-100">{note.body}</p>
                     <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-slate-400">
-                      {note.createdAt && <span>{new Date(note.createdAt).toLocaleString()}</span>}
+                      {note.createdAt && <span>{whenDateTime(note.createdAt)}</span>}
                     </div>
                   </div>
                 ))}
@@ -737,7 +740,7 @@ export default function JobDetailPage() {
                       <div>
                         <p className="text-sm text-gray-900 dark:text-slate-100">{event.body}</p>
                         <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                          {event.createdAt ? new Date(event.createdAt).toLocaleString() : ''}
+                          {event.createdAt ? whenDateTime(event.createdAt) : ''}
                         </p>
                       </div>
                     </div>

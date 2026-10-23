@@ -39,6 +39,16 @@ export interface ReviewsServiceDeps {
   }
 }
 
+/** What the person is told when there is nowhere to send the customer. */
+const NO_LINK = 'Add your Google review link under Reviews › Settings first — the message would have nowhere to send the customer.'
+/** Why nothing went out, in words: no way to reach them, or what the text or email said back. */
+function nothingSent(ct: any, channel: string, results: { sms: any; email: any }): string {
+  const failures = [results.sms?.error ? 'text message: ' + results.sms.error : null, results.email?.error ? 'email: ' + results.email.error : null].filter(Boolean)
+  if (failures.length) return `Nothing was sent — ${failures.join('; ')}`
+  const missing = channel === 'sms' ? 'mobile number' : channel === 'email' ? 'email address' : 'mobile number or email address'
+  return `Nothing was sent — ${ct?.name || 'this customer'} has no ${missing} on file.`
+}
+
 const DEFAULT_SMS_TEMPLATE = 'Hi {firstName}, thanks for choosing {companyName}! We\'d love your feedback — could you leave us a quick Google review? {trackingUrl}'
 const FOLLOW_UP_SMS_TEMPLATE = 'Hi {firstName}, just a friendly reminder from {companyName} — we\'d really appreciate a quick Google review if you have a moment! {trackingUrl}'
 
@@ -173,18 +183,22 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     }
   }
 
-  /** Send now for a job (owner button). Throws with a client-actionable message when setup is missing. */
-  async function sendReviewRequest(jobId: string, { channel = 'both' }: { channel?: string } = {}) {
+  /**
+   * Send now for a job — the job page's "Send review request" (live test 2026-10-22: there was no button anywhere).
+   * Throws with a sentence the person can act on when setup or contact details are missing, or when nothing went out.
+   * `companyId`, when given, scopes the job: an id from another company is not found (the route always gives it).
+   */
+  async function sendReviewRequest(jobId: string, { channel = 'both', companyId }: { channel?: string; companyId?: string } = {}) {
     if (!t.job) throw new Error('Job not found')
-    const [jobRow] = await db.select().from(t.job).where(eq(t.job.id, jobId))
+    const [jobRow] = await db.select().from(t.job).where(companyId ? and(eq(t.job.id, jobId), eq(t.job.companyId, companyId)) : eq(t.job.id, jobId))
     if (!jobRow) throw new Error('Job not found')
-    if (!jobRow.contactId) throw new Error('Job has no contact')
+    if (!jobRow.contactId) throw new Error('This job has no customer to ask. Add the customer to the job first.')
     const [contactRow] = await db.select().from(t.contact).where(eq(t.contact.id, jobRow.contactId))
     if (!contactRow) throw new Error('Contact not found')
     const [companyRow] = await db.select().from(t.company).where(eq(t.company.id, jobRow.companyId))
     const settings = await getReviewSettings(jobRow.companyId)
     const reviewLink = linkFor(settings)
-    if (!reviewLink) throw new Error('Google review URL not configured')
+    if (!reviewLink) throw new Error(NO_LINK)
     let [request] = await db.select().from(t.reviewRequest).where(and(eq(t.reviewRequest.jobId, jobId), eq(t.reviewRequest.companyId, jobRow.companyId))).limit(1)
     if (!request) [request] = await db.insert(t.reviewRequest).values({ companyId: jobRow.companyId, jobId, contactId: jobRow.contactId, channel, status: 'pending', reviewLink }).returning()
     const url = trackingUrl(request.id)
@@ -200,7 +214,30 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     }
     const delivered = (results.sms && !results.sms.error) || (results.email && !results.email.error)
     await db.update(t.reviewRequest).set({ status: delivered ? 'sent' : 'failed', sentAt: delivered ? new Date() : null, channel, reviewLink }).where(eq(t.reviewRequest.id, request.id))
+    // Nothing went out: say why, rather than answer 200 with a request marked failed that nobody looks at.
+    if (!delivered) throw new Error(nothingSent(contactRow, channel, results))
     return { requestId: request.id, reviewLink, results }
+  }
+
+  /**
+   * Send now to a customer, with no job behind it — the contact page's "Send review request" (a salon's client, a
+   * roofer's homeowner whose work was done under a claim). One request, sent at once, through the same sender.
+   */
+  async function sendReviewRequestToContact(companyId: string, contactId: string, { channel = 'both' }: { channel?: string } = {}) {
+    const [contactRow] = await db.select().from(t.contact).where(and(eq(t.contact.id, contactId), eq(t.contact.companyId, companyId))).limit(1)
+    if (!contactRow) throw new Error('Contact not found')
+    const settings = await getReviewSettings(companyId)
+    const reviewLink = linkFor(settings)
+    if (!reviewLink) throw new Error(NO_LINK)
+    const [request] = await db.insert(t.reviewRequest).values({ companyId, contactId, jobId: null, channel, status: 'pending', reviewLink }).returning()
+    try {
+      const sent = await sendFollowUp(request.id)
+      return { requestId: request.id, reviewLink, status: sent?.status ?? 'sent' }
+    } catch (err) {
+      // Recorded as failed, so the five-minute sweeper never sends it later behind the person's back.
+      await db.update(t.reviewRequest).set({ status: 'failed' }).where(eq(t.reviewRequest.id, request.id))
+      throw err
+    }
   }
 
   /** Every few minutes: pending requests past the delay → send; sent-but-unclicked past the follow-up delay → follow up. */
@@ -298,7 +335,7 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     }
 
     if (!sent) {
-      const missing = channel === 'sms' ? 'a mobile number' : channel === 'email' ? 'an email address' : 'a mobile number or an email address'
+      const missing = channel === 'sms' ? 'mobile number' : channel === 'email' ? 'email address' : 'mobile number or email address'
       throw new Error(failures.length ? `Nothing was sent — ${failures.join('; ')}` : `Nothing was sent — ${ct.name || 'this client'} has no ${missing} on file.`)
     }
 
@@ -378,7 +415,7 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
   }
 
   return {
-    generateGoogleReviewLink, getReviewSettings, updateReviewSettings, scheduleReviewRequest, scheduleReviewRequestForVisit, sendReviewRequest,
+    generateGoogleReviewLink, getReviewSettings, updateReviewSettings, scheduleReviewRequest, scheduleReviewRequestForVisit, sendReviewRequest, sendReviewRequestToContact,
     processScheduledRequests, sendFollowUp, markReviewCompleted, getReviewStats, getReviewRequests, startReviewProcessor,
   }
 }
@@ -453,13 +490,27 @@ export function createReviewsRoutes(deps: ReviewsRoutesDeps) {
     const { channel = 'both' } = await c.req.json().catch(() => ({}))
     if (!['sms', 'email', 'both'].includes(channel)) return c.json({ error: 'channel must be sms, email or both' }, 400)
     let result
-    try { result = await reviews.sendReviewRequest(jobId, { channel }) }
+    try { result = await reviews.sendReviewRequest(jobId, { channel, companyId: user(c).companyId }) }
     catch (e: any) {
       const msg = e?.message || 'Failed to send review request'
       // Missing Google link / unconfigured SMS are setup problems the caller can act on — 400 (404 for a missing job).
       return c.json({ error: msg }, /not found/i.test(msg) ? 404 : 400)
     }
     audit.log({ action: 'REVIEW_REQUEST_SENT', entity: 'job', entityId: jobId, metadata: { channel }, req: c })
+    return c.json(result)
+  })
+  // A customer asked directly, from their page (no job behind it). The same permission and the same refusals.
+  app.post('/request-contact/:contactId', requirePermission('marketing:create'), async (c) => {
+    const contactId = c.req.param('contactId')
+    const { channel = 'both' } = await c.req.json().catch(() => ({}))
+    if (!['sms', 'email', 'both'].includes(channel)) return c.json({ error: 'channel must be sms, email or both' }, 400)
+    let result
+    try { result = await reviews.sendReviewRequestToContact(user(c).companyId, contactId, { channel }) }
+    catch (e: any) {
+      const msg = e?.message || 'Failed to send review request'
+      return c.json({ error: msg }, /not found/i.test(msg) ? 404 : 400)
+    }
+    audit.log({ action: 'REVIEW_REQUEST_SENT', entity: 'contact', entityId: contactId, metadata: { channel }, req: c })
     return c.json(result)
   })
   app.post('/schedule/:jobId', requirePermission('marketing:create'), async (c) => {

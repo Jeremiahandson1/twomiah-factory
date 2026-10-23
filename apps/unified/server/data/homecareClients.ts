@@ -5,7 +5,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { camelRows, camelFirst, rowsOf } from '@twomiah/tenant-backend'
-import { servedBy, localDate, occurrencesCte, type Q } from './homecareCore.ts'
+import { servedBy, localDate, occurrencesCte, agencyClock, dayStartUtc, dayEndUtc, type Q } from './homecareCore.ts'
 import { weekCte, visitMinutesSql } from './homecareEvv.ts'
 
 /** A transaction-scoped lock on a name (one company's first-read seeding, so two first reads write one library). */
@@ -21,21 +21,24 @@ const CAREGIVER_CLIENT_COLS = sql.raw(`c.id, c.first_name, c.last_name, c.addres
 
 /** The active clients this caregiver serves (core/caregiverAccess.ts's rule), by name. */
 export async function caregiverClientList(q: Q, companyId: string, caregiverId: string): Promise<any[]> {
+  const { today } = await agencyClock(q, companyId)
   return camelRows(await q.execute(sql`SELECT ${CAREGIVER_CLIENT_COLS} FROM clients c
-    WHERE c.company_id = ${companyId} AND c.is_active = true AND ${servedBy(companyId, caregiverId)}
+    WHERE c.company_id = ${companyId} AND c.is_active = true AND ${servedBy(companyId, caregiverId, today)}
     ORDER BY c.last_name, c.first_name`))
 }
 
 /** The ids of every client (active or not) this caregiver serves. */
 export async function clientIdsServedBy(q: Q, companyId: string, caregiverId: string): Promise<string[]> {
-  return rowsOf(await q.execute(sql`SELECT c.id FROM clients c WHERE c.company_id = ${companyId} AND ${servedBy(companyId, caregiverId)}`))
+  const { today } = await agencyClock(q, companyId)
+  return rowsOf(await q.execute(sql`SELECT c.id FROM clients c WHERE c.company_id = ${companyId} AND ${servedBy(companyId, caregiverId, today)}`))
     .map((r: any) => String(r.id))
 }
 
 /** One client this caregiver serves, in the caregiver's columns; null when not theirs. */
 export async function caregiverClientOne(q: Q, companyId: string, caregiverId: string, clientId: string): Promise<any | null> {
+  const { today } = await agencyClock(q, companyId)
   return camelFirst(await q.execute(sql`SELECT ${CAREGIVER_CLIENT_COLS} FROM clients c
-    WHERE c.company_id = ${companyId} AND c.id = ${clientId} AND ${servedBy(companyId, caregiverId)}`)) ?? null
+    WHERE c.company_id = ${companyId} AND c.id = ${clientId} AND ${servedBy(companyId, caregiverId, today)}`)) ?? null
 }
 
 /**
@@ -238,15 +241,20 @@ export async function medicationAdherence(q: Q, companyId: string, clientId: str
      ORDER BY m.name`))
 }
 
-/** Today's date in the database (the MAR's discontinue date, as the template wrote CURRENT_DATE). */
-export async function databaseToday(q: Q): Promise<string> {
-  return String(rowsOf(await q.execute(sql`SELECT to_char(CURRENT_DATE, 'YYYY-MM-DD') AS d`))[0]?.d)
+/** Today on the agency's calendar (the MAR's discontinue date) — the database's CURRENT_DATE was UTC's day. */
+export async function databaseToday(q: Q, companyId: string): Promise<string> {
+  return (await agencyClock(q, companyId)).today
 }
 
 // ── ADL (routes/adl.ts) ──────────────────────────────────────────────────────────────────────
 
 /** Per ADL category over the window (default the last 30 days): entries by status. */
 export async function adlCompletion(q: Q, companyId: string, clientId: string, from: string | null, to: string | null): Promise<any[]> {
+  // The window is the agency's days: from its midnight on the first to the end of the last (the default: the last 30).
+  const { today, tz } = await agencyClock(q, companyId)
+  const ymd = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null)
+  const lastDay = ymd(to) ?? today
+  const firstDay = ymd(from) ?? new Date(Date.parse(`${today}T00:00:00Z`) - 30 * 86_400_000).toISOString().slice(0, 10)
   return camelRows(await q.execute(sql`
     SELECT al.adl_category,
            COUNT(*)::int AS total_entries,
@@ -256,8 +264,8 @@ export async function adlCompletion(q: Q, companyId: string, clientId: string, f
            COUNT(*) FILTER (WHERE al.status = 'not_needed')::int AS not_needed_count
       FROM adl_logs al
      WHERE al.client_id = ${clientId} AND al.company_id = ${companyId}
-       AND al.performed_at >= COALESCE(${from}::date, CURRENT_DATE - INTERVAL '30 days')
-       AND al.performed_at <= COALESCE(${to}::date, CURRENT_DATE) + INTERVAL '1 day'
+       AND al.performed_at >= ${dayStartUtc(firstDay, tz)}
+       AND al.performed_at < ${dayEndUtc(lastDay, tz)}
      GROUP BY al.adl_category
      ORDER BY al.adl_category`))
 }
@@ -340,12 +348,13 @@ const DOC_SELECT = sql`d.id, d.entity_type, d.entity_id, d.document_type, d.docu
 export async function documentRows(q: Q, companyId: string, filter: {
   entityType?: string; entityId?: string; documentType?: string; expiringDays?: number; unsignedFor?: string
 }): Promise<any[]> {
+  const { today } = await agencyClock(q, companyId) // the agency's day (CURRENT_DATE was the database's, UTC)
   const where: SQL[] = [sql`d.company_id = ${companyId}`]
   if (filter.entityType) where.push(sql`d.entity_type = ${filter.entityType}`)
   if (filter.entityId) where.push(sql`d.entity_id = ${filter.entityId}`)
   if (filter.documentType) where.push(sql`d.document_type = ${filter.documentType}`)
   if (filter.expiringDays !== undefined) {
-    where.push(sql`d.expiration_date IS NOT NULL AND d.expiration_date <= CURRENT_DATE + ${filter.expiringDays}::int AND d.expiration_date >= CURRENT_DATE`)
+    where.push(sql`d.expiration_date IS NOT NULL AND d.expiration_date <= ${today}::date + ${filter.expiringDays}::int AND d.expiration_date >= ${today}::date`)
   }
   if (filter.unsignedFor) {
     // A COMPANY document stays on a caregiver's list until THEY have signed it; their own until it is signed.

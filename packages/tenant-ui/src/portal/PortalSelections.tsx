@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { Palette, Check, Clock, ChevronDown, ChevronUp, Loader2, ImageIcon, StickyNote } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { Spinner, PageTitle, Empty, card, pill, inputCls, labelCls, formatDate, moneyShort } from './common'
+import { isPastDay } from '../invoicing/ui'
 
 const STATUS_STYLES: Record<string, string> = { pending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', selected: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', approved: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', ordered: 'bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-950/40', received: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' }
 
@@ -94,7 +95,7 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
           <div className="flex items-center gap-2"><h3 className="font-medium text-gray-900 dark:text-slate-100">{selection.name}</h3><span className={pill(STATUS_STYLES[selection.status] || 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800')}>{selection.status}</span></div>
           {selection.description && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{selection.description}</p>}
           {selection.location && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Location: {selection.location}</p>}
-          {selection.due_date && <p className={`text-xs mt-1 ${new Date(selection.due_date) < new Date() && selection.status === 'pending' ? 'text-red-500 font-medium dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>Due: {formatDate(selection.due_date)}</p>}
+          {selection.due_date && <p className={`text-xs mt-1 ${isPastDay(selection.due_date) && selection.status === 'pending' ? 'text-red-500 font-medium dark:text-red-400' : 'text-gray-500 dark:text-slate-400'}`}>Due: {formatDate(selection.due_date)}</p>}
         </div>
         <div className="text-right text-sm">
           {allowance > 0 && <p className="text-gray-500 dark:text-slate-400">Allowance: <span className="font-medium text-gray-700 dark:text-slate-200">{moneyShort(allowance)}</span></p>}

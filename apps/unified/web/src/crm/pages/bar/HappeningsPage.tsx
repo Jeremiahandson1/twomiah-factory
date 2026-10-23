@@ -4,6 +4,7 @@ import { Plus, Loader2, X, CalendarDays, Trophy, Repeat, Trash2 } from 'lucide-r
 import { api } from '../../../api'
 import { useMayWrite } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
+import { whenDateTime, companyFromLocalInput } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 /**
@@ -22,7 +23,7 @@ const DAY_CODES: Array<[string, string]> = [['MO', 'Mon'], ['TU', 'Tue'], ['WE',
 const INPUT = 'w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-900 dark:bg-slate-950 dark:border-slate-700 dark:text-slate-100';
 const LBL = 'block text-sm font-medium text-gray-700 dark:text-slate-200 mb-1';
 const CARD = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800';
-const when = (iso: string) => new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const when = (iso: string) => whenDateTime(iso, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const daysLabel = (d: string | null) => (d ? d.split(',').map((c) => DAY_CODES.find(([k]) => k === c)?.[1] || c).join(', ') : 'Every day');
 
 function DayPicker({ value, onChange, idPrefix }: { value: string; onChange: (v: string) => void; idPrefix: string }) {
@@ -72,7 +73,8 @@ export default function HappeningsPage() {
     setErr('');
     try { await api.delete(path, id); await load() } catch (e) { setErr(errorText(e, 'That was not removed.')) }
   };
-  const toIso = (local: string) => (local ? new Date(local).toISOString() : '');
+  // The box is the bar's wall clock (the times are printed on it too), not the browser's (2026-10-23).
+  const toIso = (local: string) => (local ? companyFromLocalInput(local).toISOString() : '');
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>;
 

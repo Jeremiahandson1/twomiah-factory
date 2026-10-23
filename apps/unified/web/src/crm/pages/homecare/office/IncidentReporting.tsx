@@ -13,7 +13,7 @@ import { useConfirm, usePermissions } from '../../../../shared';
 import { api, rows, errorMessage } from '../lib/http';
 import { formatDate } from '../lib/date';
 import {
-  INCIDENT_TYPES, SEVERITIES, INCIDENT_STATUSES, incidentLabel, incidentsApi, localToday, localTimeHHMM,
+  INCIDENT_TYPES, SEVERITIES, INCIDENT_STATUSES, incidentLabel, incidentsApi, agencyToday, agencyNowHHMM,
   STATUS_CHIP, SEVERITY_CHIP, SEVERITY_BORDER, FIELD, LABEL, CARD, H3, MUTED, BTN_PRIMARY, BTN_SECONDARY, BTN_DANGER,
 } from '../lib/incidentOptions';
 
@@ -54,8 +54,8 @@ const blankIncidentForm = () => ({
   caregiverId: '',
   incidentType: 'accident',
   severity: 'moderate',
-  incidentDate: localToday(),
-  incidentTime: localTimeHHMM(),
+  incidentDate: agencyToday(),
+  incidentTime: agencyNowHHMM(),
   description: '',
   witnesses: '',
   injuriesOrDamage: '',
@@ -63,7 +63,7 @@ const blankIncidentForm = () => ({
   followUpRequired: false,
   followUpNotes: '',
   reportedBy: '',
-  reportedDate: localToday(),
+  reportedDate: agencyToday(),
   reporterContactName: '',
   reporterPhone: '',
   reporterEmail: '',
@@ -153,7 +153,7 @@ export default function IncidentReporting() {
     }
   };
 
-  const today = localToday();
+  const today = agencyToday();
   const filteredIncidents = incidents
     .filter((incident) => {
       if (filter !== 'all' && incident.severity !== filter) return false;

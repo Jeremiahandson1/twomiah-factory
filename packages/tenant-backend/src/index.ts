@@ -79,6 +79,7 @@ export { createWidgetCatalog, createMenuCatalog } from './booking/catalog'
 export { BookingError } from './booking/types'
 export type { BookingDeps, BookingOptions, BookingTables, BookingCalendar, BookingCatalog, CatalogService, BookingStatus } from './booking/types'
 export { zonedWallTimeToUtc, tzParts, safeTz, isValidTz, formatWhen, addDays, isIsoDate, isRealDate, DAY_MS, minutesToHm } from './booking/time'
+export { seriesDays, describeSeriesDays, addMonthsClamped, MAX_SERIES, type SeriesDays, type SeriesFrequency } from './time/series'
 
 // Reports + the jobs-family dashboard — one implementation for every CRM; the template injects its tables.
 export { createReportingRoutes, createReportingService, parseRange, ReportError } from './reporting/reporting'
@@ -182,7 +183,7 @@ export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, 
 // Team roster, time tracking (hours + clock-in/out + weekly + approvals) and expenses — one implementation each; the template injects its tables.
 export { createTeamRoutes, teamMemberSchema } from './team/team'
 export type { TeamDeps, TeamTables } from './team/team'
-export { companyTimeZone, companyRowTimeZone, storeDayRange, storeDayStart, storeDateString, dayMarker, markerDay, isValidTimeZone, jobLocalDay, DEFAULT_BUSINESS_ZONE } from './time/businessDay'
+export { companyTimeZone, companyRowTimeZone, storeDayRange, storeDayStart, storeDateString, dayMarker, markerDay, markerDayIsOver, markerDayHasBegun, daysUntilMarker, isValidTimeZone, jobLocalDay, DEFAULT_BUSINESS_ZONE } from './time/businessDay'
 export { createTimeRoutes, createTimeClock, getWeekStart } from './time/time'
 export type { TimeDeps, TimeTables, ClockResult } from './time/time'
 export { createExpenseRoutes, DEFAULT_EXPENSE_CATEGORIES } from './expenses/expenses'

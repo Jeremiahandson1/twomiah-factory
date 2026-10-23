@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { api } from '../api/client'
+import { momentDate, whenDateTime } from '../time/companyClock'
 
 // List + detail for inbound emails routed into the CRM via crm-mode
 // aliases. V1 is a flat reverse-chrono inbox — no threading, no contact
@@ -76,7 +77,7 @@ export function InboundMessagesPage(): React.ReactElement {
               >
                 <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-0.5">
                   <span className="font-mono truncate">{m.toLocalPart}@</span>
-                  <span>{new Date(m.receivedAt).toLocaleDateString()}</span>
+                  <span>{momentDate(m.receivedAt)}</span>
                 </div>
                 <div className="text-sm font-semibold truncate">{m.fromName || m.fromEmail}</div>
                 <div className="text-xs text-gray-600 truncate dark:text-slate-300">{m.subject || '(no subject)'}</div>
@@ -88,7 +89,7 @@ export function InboundMessagesPage(): React.ReactElement {
             {selected && (
               <div>
                 <div className="border-b border-gray-100 pb-3 mb-3">
-                  <div className="text-xs text-gray-500 dark:text-slate-400 mb-1">Received {new Date(selected.receivedAt).toLocaleString()}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mb-1">Received {whenDateTime(selected.receivedAt)}</div>
                   <div className="font-semibold mb-1">{selected.subject || '(no subject)'}</div>
                   <div className="text-xs text-gray-600 dark:text-slate-300">
                     From: <span className="font-mono">{selected.fromName ? selected.fromName + ' <' + selected.fromEmail + '>' : selected.fromEmail}</span>

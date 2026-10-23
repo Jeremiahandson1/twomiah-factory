@@ -106,10 +106,13 @@ export function createBarLive(db: BarDb) {
     const [s] = await db.select().from(barSettings).where(eq(barSettings.companyId, companyId)).limit(1)
     const [co] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)
     const base: HoursConfig = isHoursConfig(s?.hours) ? JSON.parse(JSON.stringify(s!.hours)) : JSON.parse(JSON.stringify(EMPTY_HOURS))
-    base.timezone = base.timezone && base.timezone.trim() ? base.timezone : companyRowTimeZone(co)
-    // No configured zone and no state to infer one from: Central, the product's home default (home care's
-    // agencyTime uses the same), rather than UTC, which would put a 2 AM close at 9 PM on the board.
-    if (base.timezone === 'UTC' && !(s?.hours as any)?.timezone) base.timezone = 'America/Chicago'
+    // The bar's clock IS the company's (2026-10-23). The saved hours carried a zone of their own — a copy of the
+    // Chicago default that no screen shows or edits — and it outranked the company's, so a Honolulu bar closed early
+    // on Chicago's night and counted its nights on Chicago's days.
+    const zone = companyRowTimeZone(co)
+    // No zone and no state to infer one from: Central, the product's home default (home care's agencyTime uses the
+    // same), rather than UTC, which would put a 2 AM close at 9 PM on the board.
+    base.timezone = zone === 'UTC' && co?.timezone !== 'UTC' ? 'America/Chicago' : zone
     return base
   }
 

@@ -18,7 +18,7 @@ import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { api, rows } from '../lib/http'
 import { toLocalYMD } from '../lib/date'
-import { formatAgencyDateTime } from '../lib/agencyClock'
+import { formatAgencyDateTime, agencyToday } from '../lib/agencyClock'
 import { fullName } from './shared'
 
 const formatDuration = (minutes: number) => {
@@ -161,7 +161,7 @@ export default function CaregiverHistory() {
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState({
     start: toLocalYMD(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)),
-    end: toLocalYMD(new Date()),
+    end: agencyToday(),
   })
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [stats, setStats] = useState({ totalShifts: 0, totalHours: '0.00', avgDuration: 0, clients: new Set<string>() })

@@ -10,7 +10,7 @@
 import { useEffect, useState } from 'react'
 import { rows, errorMessage } from '../../lib/http'
 import { useToast } from '../../../../../shared'
-import { INCIDENT_TYPES, incidentsApi, localToday, FIELD, LABEL } from '../../lib/incidentOptions'
+import { INCIDENT_TYPES, incidentsApi, agencyToday, FIELD, LABEL } from '../../lib/incidentOptions'
 
 const MAX_PHOTOS = 3
 
@@ -27,7 +27,7 @@ const IncidentReportForm = ({ onClose }: { onClose: () => void }) => {
   const [form, setForm] = useState({
     clientId: '',
     incidentType: '',
-    incidentDate: localToday(),
+    incidentDate: agencyToday(),
     incidentTime: '',
     description: '',
     injuriesOrDamage: '',
@@ -127,7 +127,7 @@ const IncidentReportForm = ({ onClose }: { onClose: () => void }) => {
       <div className="mb-4 flex gap-3">
         <div className="flex-1">
           <label className={LABEL}>Date *</label>
-          <input className={big} type="date" value={form.incidentDate} max={localToday()} onChange={(e) => set('incidentDate', e.target.value)} />
+          <input className={big} type="date" value={form.incidentDate} max={agencyToday()} onChange={(e) => set('incidentDate', e.target.value)} />
         </div>
         <div className="flex-1">
           <label className={LABEL}>Time</label>

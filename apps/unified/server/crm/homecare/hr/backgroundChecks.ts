@@ -102,7 +102,7 @@ export function createBackgroundChecksRoutes(core: HomecareCore, d: CrmDeps) {
       .innerJoin(user, eq(backgroundChecks.caregiverId, user.id))
       .where(and(
         eq(backgroundChecks.companyId, companyOf(c)),
-        expiresWithin(backgroundChecks.expirationDate, days),
+        expiresWithin(backgroundChecks.expirationDate, days, await core.time.today(companyOf(c))),
         eq(backgroundChecks.status, 'completed'),
         eq(backgroundChecks.result, 'clear'),
       ))
@@ -115,7 +115,7 @@ export function createBackgroundChecksRoutes(core: HomecareCore, d: CrmDeps) {
     const rows = await d.db.select({ ...safeColumns, caregiverFirstName: user.firstName, caregiverLastName: user.lastName })
       .from(backgroundChecks)
       .leftJoin(user, eq(backgroundChecks.caregiverId, user.id))
-      .where(and(eq(backgroundChecks.companyId, companyOf(c)), expiresWithin30(backgroundChecks.expirationDate)))
+      .where(and(eq(backgroundChecks.companyId, companyOf(c)), expiresWithin30(backgroundChecks.expirationDate, await core.time.today(companyOf(c)))))
     return all(c, rows)
   })
 

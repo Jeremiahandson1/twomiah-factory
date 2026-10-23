@@ -12,8 +12,10 @@ import { lapsedPatients, stampVaccinationsReminded } from '../../data/vetReminde
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
+import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 
-const todayStr = () => new Date().toISOString().slice(0, 10)
+// The clinic's today (UTC's was a day ahead every evening).
+const todayStr = async (db: any, companyId: string) => storeDateString(new Date(), await companyTimeZone(db, companyId))
 
 /** A reminder sent inside this many days counts as "already chased". (Vet T12 M9) */
 const REMINDED_RECENTLY_DAYS = 7
@@ -96,7 +98,7 @@ export function createReminderRoutes(d: CrmDeps) {
       const cur = latest.get(key)
       if (!cur || (r.givenDate || '') > (cur.givenDate || '')) latest.set(key, r)
     }
-    const t = todayStr()
+    const t = await todayStr(db, u.companyId)
     const recentCutoff = Date.now() - REMINDED_RECENTLY_DAYS * 86400000
     const data = [...latest.values()]
       .filter((r) => (r.dueDate || '') <= cutoff)

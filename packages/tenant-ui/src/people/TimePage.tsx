@@ -10,11 +10,13 @@ import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, TimeConfig } from './types'
 import { isManagerRole } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { whenTime } from '../time/companyClock'
+import { todayKey, dayKeyPlus } from '../time/day'
 
 interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own date, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this pre-filled
 // TOMORROW all evening, and it is also the ceiling the date box is given. (Contractor T29 L1)
-const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0] }
+const today = () => todayKey() // the company's day, not the browser's
 const fmtElapsed = (ms: number) => { const m = Math.max(0, Math.floor(ms / 60000)); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` }
 
 export function TimePage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: TimeConfig }) {
@@ -72,9 +74,8 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
    * fortnight somebody means is worse than an empty panel with a Show button. Defaults to the last
    * two weeks up to today, which is the commonest answer.
    */
-  const dayString = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]
-  const [payFrom, setPayFrom] = useState(dayString(new Date(Date.now() - 13 * 86400000)))
-  const [payTo, setPayTo] = useState(dayString(new Date()))
+  const [payFrom, setPayFrom] = useState(dayKeyPlus(todayKey(), -13))
+  const [payTo, setPayTo] = useState(todayKey())
   const [payRun, setPayRun] = useState<any>(null)
   const [payLoading, setPayLoading] = useState(false)
   const [payError, setPayError] = useState('')
@@ -142,7 +143,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
         <Clock className="w-5 h-5 text-orange-500 dark:text-orange-200" />
         {active ? (
           <>
-            <span className="text-sm text-gray-700 dark:text-slate-200">Clocked in since {new Date(active.clockIn as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{active.job?.title ? ` · ${active.job.title}` : active.project?.name ? ` · ${active.project.name}` : ''}</span>
+            <span className="text-sm text-gray-700 dark:text-slate-200">Clocked in since {whenTime(active.clockIn as string, { hour: '2-digit', minute: '2-digit' })}{active.job?.title ? ` · ${active.job.title}` : active.project?.name ? ` · ${active.project.name}` : ''}</span>
             <span className="font-mono text-lg font-semibold text-gray-900 dark:text-slate-100">{fmtElapsed(now - new Date(active.clockIn as string).getTime())}</span>
             {mayLog && <Button variant="danger" onClick={clockOut} disabled={clockBusy}><Square className="w-4 h-4 mr-2 inline" />Clock Out</Button>}
           </>

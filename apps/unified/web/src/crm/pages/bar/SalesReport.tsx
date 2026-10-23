@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
+import { companyTodayDate } from '@twomiah/tenant-ui/src/time/companyClock'
 import { BTN, ON, OFF, CARD, LABEL, INPUT, MUTED, money } from './registerUi';
 
 /**
@@ -25,9 +26,10 @@ interface Report {
 }
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const back = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
+// The presets count the bar's nights from ITS today, not the browser's.
+const back = (n: number) => { const d = companyTodayDate(); d.setDate(d.getDate() - n); return iso(d); };
 function presets(): Array<{ id: string; label: string; from: string; to: string }> {
-  const now = new Date();
+  const now = companyTodayDate();
   const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
   const lastMon = new Date(monday); lastMon.setDate(monday.getDate() - 7);
   const lastSun = new Date(monday); lastSun.setDate(monday.getDate() - 1);

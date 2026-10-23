@@ -10,6 +10,7 @@ import ClientReportModal from './ClientReportModal'
 import { allRows, SECTION_HEAD, HINT, type Client, type ReferralSource, type CareType } from './shared'
 import { useMay } from '../lib/useMay'
 import PayerSelect from './PayerSelect'
+import { agencyToday } from '../lib/agencyClock'
 
 // AddressLink component - opens Google Maps
 const AddressLink = ({ address, city, state, zip }: { address?: string | null; city?: string | null; state?: string | null; zip?: string | null }) => {
@@ -349,7 +350,7 @@ const ClientsManagement = () => {
               </div>
               <div className="form-group">
                 <label>Date of Birth</label>
-                <input type="date" max={toLocalYMD(new Date())} value={formData.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
+                <input type="date" max={agencyToday()} value={formData.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
               </div>
               <div className="form-group">
                 <label>Gender</label>

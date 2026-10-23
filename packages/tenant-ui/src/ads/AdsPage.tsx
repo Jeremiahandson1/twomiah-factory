@@ -10,6 +10,7 @@ import { BarChart3, Target, Lightbulb, Beaker, Settings, Loader2, Pause, Play, P
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { AdsApi, AdsToast, AdsConfig, AdsOverview, AdsPlatformState, AdsProfile } from './types'
+import { whenDateTime } from '../time/companyClock'
 import { money } from '../money'
 
 type Tab = 'overview' | 'campaigns' | 'recommendations' | 'experiments' | 'settings'
@@ -18,7 +19,7 @@ interface Can { update: boolean; admin: boolean }
 const usd = (cents: unknown) => money((Number(cents || 0) / 100))
 const num = (v: unknown) => Number(v || 0).toLocaleString()
 const pct = (a: unknown, b: unknown) => (Number(b) > 0 ? ((Number(a) / Number(b)) * 100).toFixed(2) + '%' : '-')
-const when = (v?: string | null) => (v ? new Date(v).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '-')
+const when = (v?: string | null) => (v ? whenDateTime(v, { dateStyle: 'medium', timeStyle: 'short' }) : '-')
 const human = (s?: string | null) => (s ? s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()) : '-')
 const PLATFORM_LABEL: Record<string, string> = { google: 'Google Ads', meta: 'Meta (Facebook / Instagram)', tiktok: 'TikTok Ads', lsa: 'Google Local Services' }
 const card = 'bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-slate-800'
@@ -572,8 +573,8 @@ function ProfileForm({ api, toast, can, profile, industry, onSaved }: { api: Ads
       <div><h3 className="font-semibold text-gray-900 dark:text-slate-100">Business profile</h3><p className="text-sm text-gray-500 dark:text-slate-400">Twomiah Ads writes your ads from this and never spends more than the monthly budget.{ro ? ' Only an owner or admin can change it.' : ''}</p></div>
       <div className="grid md:grid-cols-2 gap-4">
         <Field label="Business name"><input className={inputCls} disabled={ro} required maxLength={200} value={f.business_name} onChange={set('business_name')} /></Field>
-        <Field label="Industry"><input className={inputCls} disabled={ro} required maxLength={100} value={f.industry} onChange={set('industry')} placeholder="e.g. hvac" /></Field>
-        <Field label="Services" hint="Comma separated"><input className={inputCls} disabled={ro} value={f.services} onChange={set('services')} placeholder="AC repair, furnace install" /></Field>
+        <Field label="Industry"><input className={inputCls} disabled={ro} required maxLength={100} value={f.industry} onChange={set('industry')} placeholder="Your trade, e.g. landscaping" /></Field>
+        <Field label="Services" hint="Comma separated"><input className={inputCls} disabled={ro} value={f.services} onChange={set('services')} placeholder="Your main services" /></Field>
         <Field label="Areas served" hint="Cities or ZIP codes, comma separated"><input className={inputCls} disabled={ro} value={f.geo_targets} onChange={set('geo_targets')} placeholder="Madison WI, 53703" /></Field>
         <Field label="Monthly budget (USD)" hint="Minimum $10"><input className={inputCls} disabled={ro} required type="number" min={10} step="1" value={f.budget} onChange={set('budget')} /></Field>
         <Field label="Website"><input className={inputCls} disabled={ro} type="url" maxLength={500} value={f.website_url} onChange={set('website_url')} placeholder="https://" /></Field>

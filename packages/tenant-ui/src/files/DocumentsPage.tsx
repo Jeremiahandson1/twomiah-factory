@@ -8,6 +8,7 @@ import type { Pagination } from '../invoicing/ui'
 import type { DocumentRow, DocumentsPageProps, FilesApi, FilesToast } from './types'
 import { resolveDocumentsConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { whenDateTime } from '../time/companyClock'
 
 // ---------------------------------------------------------------- authenticated file access
 const token = () => { try { return localStorage.getItem('accessToken') || localStorage.getItem('token') || '' } catch { return '' } }
@@ -371,7 +372,7 @@ function HistoryModal({ api, toast, doc, onClose, onChanged }: { api: FilesApi; 
                 It has no version row, so it downloads from the document and there is nothing to restore it to. */}
             {versions.map(v => (
               <div key={v.id || 'current'} className="rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 flex items-center justify-between gap-3">
-                <div className="min-w-0"><p className="text-sm font-medium truncate">v{v.versionNumber} — {v.originalName}{v.isCurrent ? <span className="ml-2 text-xs font-normal text-green-700 dark:text-green-300">current</span> : null}</p><p className="text-xs text-gray-500 dark:text-slate-400">{new Date(v.createdAt).toLocaleString()}{v.note ? ` — ${v.note}` : ''}</p></div>
+                <div className="min-w-0"><p className="text-sm font-medium truncate">v{v.versionNumber} — {v.originalName}{v.isCurrent ? <span className="ml-2 text-xs font-normal text-green-700 dark:text-green-300">current</span> : null}</p><p className="text-xs text-gray-500 dark:text-slate-400">{whenDateTime(v.createdAt)}{v.note ? ` — ${v.note}` : ''}</p></div>
                 <div className="flex gap-1 shrink-0">
                   <button onClick={() => downloadAuthed(api, v.isCurrent ? `/api/documents/${doc.id}/download` : `/api/documents/${doc.id}/versions/${v.id}/download`, v.originalName || 'download').catch(e => toast.error(errMsg(e, 'Download failed')))} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100 dark:text-slate-100" title="Download"><Download className="w-4 h-4" /></button>
                   {!v.isCurrent && mayRestore && <button onClick={() => restore(v)} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100 dark:text-slate-100" title="Restore this version"><RotateCcw className="w-4 h-4" /></button>}

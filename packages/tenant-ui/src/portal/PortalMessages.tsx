@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { MessageSquare, Send, ArrowLeft, Mail, MailOpen, Plus } from 'lucide-react'
 import { usePortal } from './PortalContext'
-import { Spinner, PageTitle, Empty, card, btnPrimary, btnSecondary, inputCls, labelCls, formatDate } from './common'
+import { Spinner, PageTitle, Empty, card, btnPrimary, btnSecondary, inputCls, labelCls, formatDate, formatWhenTime } from './common'
 
 interface PortalMessage { id: string; subject?: string | null; body: string; direction: 'inbound' | 'outbound' | string; status?: string | null; createdAt?: string; sentAt?: string | null }
 
@@ -57,7 +57,7 @@ export function PortalMessages() {
 }
 
 function MessageDetail({ message, onBack }: { message: PortalMessage; onBack: () => void }) {
-  const { fetch: portalFetch, config } = usePortal()
+  const { fetch: portalFetch, config, company } = usePortal()
   const [detail, setDetail] = useState<PortalMessage>(message)
   const [loading, setLoading] = useState(true)
   useEffect(() => {
@@ -76,7 +76,7 @@ function MessageDetail({ message, onBack }: { message: PortalMessage; onBack: ()
       <div className={`${card} overflow-hidden`}>
         <div className="p-6 border-b dark:border-slate-700">
           <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">{detail.subject || '(No subject)'}</h1>
-          <div className="flex items-center gap-3 mt-2 text-sm text-gray-500 dark:text-slate-400"><span>{detail.direction === 'outbound' ? `From your ${config.providerNoun}` : 'Sent by you'}</span><span>-</span><span>{new Date(detail.createdAt || detail.sentAt || Date.now()).toLocaleString()}</span></div>
+          <div className="flex items-center gap-3 mt-2 text-sm text-gray-500 dark:text-slate-400"><span>{detail.direction === 'outbound' ? `From your ${config.providerNoun}` : 'Sent by you'}</span><span>-</span><span>{formatWhenTime(detail.createdAt || detail.sentAt || new Date().toISOString(), company?.timeZone)}</span></div>
         </div>
         <div className="p-6"><p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{detail.body}</p></div>
       </div>
