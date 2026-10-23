@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, Send, DollarSign, Ban, RotateCcw } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { Button, ConfirmModal, DataTable, DialogError, Field, LineItemsEditor, Modal, NumberInput, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dueDateLabel, errMsg, inputCls, money, paymentAmountError, moneyInputError, refundEffectNote, selectCls } from './ui'
 
@@ -88,7 +89,8 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
     } catch (e) { toast.error(errMsg(e, 'Failed to load invoices')) }
     finally { setLoading(false) }
     // pickers load on their own so a failure there never blanks the list
-    api.get('/api/contacts', { limit: 200 }).then((r: any) => setContacts(r?.data || [])).catch(() => setContacts([]))
+    // Customers only: a vendor is never who an invoice bills (contacts/types.ts CUSTOMER_PICKER_PARAMS; the server refuses one).
+    api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }).then((r: any) => setContacts(customersOnly(r?.data || []))).catch(() => setContacts([]))
     if (cfg.projects) api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
     /**
      * The pricebook, on exactly the terms the quote screen asks for it: active items only, because a
@@ -224,8 +226,13 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${editing.number}` : 'New Invoice'} size="xl">
         <div className="space-y-4">
           <div className={`grid gap-4 ${cfg.projects ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-            <Field label={`${cfg.clientLabel} *`}><select value={form.contactId} onChange={e => setForm((f) => ({ ...f, contactId: e.target.value }))} className={inputCls}><option value="">Select…</option>{contacts.filter((c) => c.type !== 'vendor' || c.id === form.contactId).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-            {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => setForm((f) => ({ ...f, projectId: e.target.value }))} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
+            <Field label={`${cfg.clientLabel} *`}><select value={form.contactId} onChange={e => setForm((f) => ({ ...f, contactId: e.target.value }))} className={inputCls}><option value="">Select…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
+            {cfg.projects && <Field label="Project"><select value={form.projectId} onChange={e => {
+              // A project brings its customer when none is chosen yet (the server holds the same rule: contacts/customer.ts).
+              const pr = projects.find((p) => p.id === e.target.value)
+              const take = !form.contactId && pr?.contactId && contacts.some((c) => c.id === pr.contactId) ? String(pr.contactId) : ''
+              setForm((f) => ({ ...f, projectId: e.target.value, ...(take ? { contactId: take } : {}) }))
+            }} className={inputCls}><option value="">None</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
             <Field label="Due Date" hint={`Defaults to ${termsDays === 0 ? 'the day it is created' : `${termsDays} days out`} from Settings → Company`}><input type="date" value={form.dueDate} onChange={e => setForm((f) => ({ ...f, dueDate: e.target.value }))} className={inputCls} /></Field>
           </div>
           <Field label="Line Items">

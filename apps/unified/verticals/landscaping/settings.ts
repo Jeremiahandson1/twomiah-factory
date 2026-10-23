@@ -13,11 +13,11 @@ const DOC_TYPES = ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice
 const STARTER: StarterContent = {
   helpArticles: [
     { title: "Getting Started with Your Landscaping CRM", category: "Getting Started", isFaq: true,
-      content: "Welcome! Start by adding your customers on the Contacts page and each property under Locations. Then create jobs on the Jobs page (New Job) and send quotes from Quotes. Use the menu on the left to move between pages." },
+      content: "Welcome! Start by adding your customers on the Contacts page and each property under Properties. Then create jobs on the Jobs page (New Job) and send quotes from Quotes. Use the menu on the left to move between pages." },
     { title: "Managing Customers & Properties", category: "Getting Started", isFaq: false,
-      content: "Add a customer with Add Contact on the Contacts page. On their page, Add Location records each property with its address and access notes. Opening a location shows the equipment there and its service history. The customer's page also lists their jobs, quotes and invoices." },
+      content: "Add a customer with Add Contact on the Contacts page. On their page, Add Property records each property with its address and access notes. Opening a property shows the equipment there and its service history. The customer's page also lists their jobs, quotes and invoices." },
     { title: "Creating and Sending Quotes", category: "Quotes & Invoices", isFaq: false,
-      content: "Go to Quotes and click New Quote. Pick the customer and, if they have several, the property (Location). Add a line item for each part of the work, then Save & send to email it; the customer needs an email address on file. If their client portal is on, they can approve online. Otherwise use Mark approved. An approved quote can become a job (Convert to Job) or an invoice (Create Invoice). With Area Pricing on, the Area Pricing page prices services by measured square footage." },
+      content: "Go to Quotes and click New Quote. Pick the customer and, if they have several, the property. Add a line item for each part of the work, then Save & send to email it; the customer needs an email address on file. If their client portal is on, they can approve online. Otherwise use Mark approved. An approved quote can become a job (Convert to Job) or an invoice (Create Invoice). With Area Pricing on, the Area Pricing page prices services by measured square footage." },
     { title: "Invoice Management", category: "Quotes & Invoices", isFaq: false,
       content: "Create an invoice with New Invoice on the Invoices page, or from an approved quote (Create Invoice). Bill a visit or a project like this. For regular billing, the Recurring page sets up Recurring Invoices (weekly, bi-weekly, monthly…). Snow Billing handles snow and ice contracts per push, per event, per inch or seasonal. Use Send to email an invoice, Record Payment when paid, and Send again to chase one that is unpaid." },
     { title: "How do I schedule jobs and routes?", category: "Scheduling", isFaq: true,
@@ -27,7 +27,7 @@ const STARTER: StarterContent = {
     { title: "How do I track crew time?", category: "Time & Expenses", isFaq: true,
       content: "Use the Time page. Click Clock In when you start and Clock Out when you finish, or use Log Time to enter hours by hand. With Log Time you can link the hours to a job. Managers approve entries." },
     { title: "Property & Job History", category: "Documents", isFaq: false,
-      content: "Each property (a customer's Location) keeps its access notes, the equipment there and its service history. With Crew View and Photo Capture on, crews add before-and-after photos to a job from Crew View, and the photos show on the job." },
+      content: "Each property (on the customer's page, under Properties) keeps its access notes, the equipment there and its service history. With Crew View and Photo Capture on, crews add before-and-after photos to a job from Crew View, and the photos show on the job." },
   ],
   pricebookCategories: { byIndustry: {}, default: ["Maintenance", "Design & Install", "Irrigation", "Hardscape", "Snow"] },
 }
@@ -65,7 +65,12 @@ const landscaping: VerticalSettings = {
     nav: { '/crm/tech': 'Crew View', '/crm/parts': 'Parts & Materials', '/crm/pricebook-rates': 'Flat-Rate Pricing' },
     navSections: { 'Field Service': 'Operations' },
     searchPlaceholder: 'Search contacts, jobs, invoices...',
-    contacts: { sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true } },
+    // Projects are construction's (featureRegistry offers them to the contractor only): no Projects list or count on a
+    // landscaper's contact (live test 2026-10-22). Each list also follows its own feature on the screen.
+    contacts: { sections: { projects: false, quotes: true, equipment: true, sites: true, sms: true, portal: true } },
+    // A landscaper works at a customer's property, not a "location" (live test 2026-10-22): the contact's page, the quote
+    // and job forms.
+    sites: { singular: 'Property', plural: 'Properties', namePlaceholder: 'e.g. "Home", "Lake cottage"' },
     // A landscaper does not take service calls: the work is a scheduled visit to a property — a job. (T41)
     jobs: { labels: { singular: 'Job', plural: 'Jobs', add: 'New Job' }, equipment: true, sites: true, photos: true },
     invoicing: { clientLabel: 'Customer', projects: false, jobs: true, quoteSites: true, quoteEquipment: true, quoteCustomerMessage: true, quoteDecline: true, quickbooks: true, quoteNamePlaceholder: 'e.g. Spring cleanup and mulch', pricebook: true },
@@ -92,7 +97,9 @@ const landscaping: VerticalSettings = {
       ],
     },
     migration: { entityLabels: { jobs: 'Service Visits & Work Orders' } },
-    pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. Spring cleanup' },
+    // The Pricebook and the Flat-Rate Pricebook (one book of items) in a grounds crew's words (live test 2026-10-22:
+    // the flat-rate form said "AC Diagnostic - Residential" and "DIAG-001").
+    pricebook: { tiersTitle: 'Good-Better-Best options', namePlaceholder: 'e.g. Spring cleanup', codePlaceholder: 'e.g., MOW-01', partsPlaceholder: 'Comma-separated, e.g., 2 yd mulch, 1x edging roll' },
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
     dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
@@ -103,6 +110,7 @@ const landscaping: VerticalSettings = {
     fleet: { gps: true },
     // A grounds crew's stock, not an HVAC van's (T63). Any category already stored on a part is still offered.
     parts: {
+      namePlaceholder: 'e.g., 21" mower blade',
       categories: [
         'Mower & Equipment Parts', 'Blades & Line', 'Irrigation', 'Fertilizer & Chemicals', 'Seed & Sod',
         'Mulch, Soil & Stone', 'Plants & Trees', 'Hardscape', 'Misc',

@@ -12,6 +12,7 @@ import { api } from '../../../api'
 import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
@@ -398,11 +399,11 @@ function ContractFormModal({ contract, onSave, onClose }: {
   const loadFormData = async () => {
     try {
       const [contactsRes, plansRes] = await Promise.all([
-        api.get('/api/contacts?limit=200'),
+        api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }),
         api.get('/api/agreements/plans'),
       ]);
       // Contacts are a list ({ data, pagination }); the plans are a bare array.
-      setContacts(Array.isArray(contactsRes?.data) ? (contactsRes.data as ContactOption[]) : []);
+      setContacts(Array.isArray(contactsRes?.data) ? customersOnly(contactsRes.data as ContactOption[]) : []);
       setPlans(Array.isArray(plansRes) ? (plansRes as AgreementPlan[]) : []);
     } catch (error) {
       console.error('Failed to load form data:', error);

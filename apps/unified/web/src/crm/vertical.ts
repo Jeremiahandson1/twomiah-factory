@@ -43,8 +43,11 @@ export interface VerticalScreens {
   migration: Record<string, unknown>
   import: Record<string, unknown>
   settings: Record<string, unknown>
-  /** Parts & Materials (crm/pages/fieldservice/PartsInventory): the categories a part is filed under (absent: field service's). */
-  parts: { categories?: string[] }
+  /**
+   * Parts & Materials (crm/pages/fieldservice/PartsInventory): the categories a part is filed under (absent: field
+   * service's), and the part-name example in the trade's words (absent: a neutral one).
+   */
+  parts: { categories?: string[]; namePlaceholder?: string }
   /** The first-run wizard: the integrations its second step offers, by id (absent: all of them). */
   onboarding: {
     integrations?: string[]
@@ -81,6 +84,12 @@ export interface VerticalScreens {
    * Read it with `typeof … === 'string'`.
    */
   book?: string
+  /**
+   * What the trade calls a customer's service site, on every screen that shows one (the contact's page, the quote and job
+   * forms): a landscaper's Property / Properties. Absent: Location / Locations. Read `.singular` before trusting it: an
+   * absent setting reads as an empty object here.
+   */
+  sites: { singular?: string; plural?: string; namePlaceholder?: string }
   /** The Schedule screen: `events` shows calendar appointments (/api/schedule-events) with "New Appointment" (RV). */
   schedule: { events?: boolean }
   /** Settings › Integrations: the vertical's words for its cards and which extra panels it shows (RV's call tracking). */

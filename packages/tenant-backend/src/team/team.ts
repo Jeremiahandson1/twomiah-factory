@@ -5,7 +5,8 @@
 // Before: two copies differing only in whether a negative hourly rate was refused; phone was free text; paging unclamped.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, ne, count, asc, ilike, or, inArray } from 'drizzle-orm'
+import { eq, and, count, asc, ilike, or, inArray, notInArray } from 'drizzle-orm'
+import { NOT_GIVEN_WORK_ROLES } from './work'
 import { isValidPhone } from '../contacts/contacts'
 import { isRealCalendarDay } from '../invoicing/money'
 import { withinHorizon } from '../dateInput'
@@ -251,7 +252,7 @@ export function createTeamRoutes(deps: TeamDeps) {
       .from(t.user).where(and(
         eq(t.user.companyId, user.companyId),
         eq(t.user.isActive, true),
-        ne(t.user.role, 'viewer'),
+        notInArray(t.user.role, [...NOT_GIVEN_WORK_ROLES]), // ./work.ts: the one rule, also online booking's
       )).orderBy(asc(t.user.firstName), asc(t.user.id))
     const data = rows.map((u: any) => ({ id: u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email, email: u.email, role: u.role, active: u.isActive, kind: 'user' as const }))
     // Roster-only crew can be assigned work too, so they belong in the picker — matched to the login users by

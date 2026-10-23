@@ -5,6 +5,7 @@ import { Hono } from 'hono'
 import { eq, and, gte, lt, count, desc, inArray, sql, asc } from 'drizzle-orm'
 import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
 import { invoiceBalance } from '../invoicing/money'
+import { countNewLeads, type NewLeads } from './newLeads'
 
 export interface JobsDashboardTables { contact: any; project: any; job: any; quote: any; invoice: any; lead?: any }
 export interface JobsDashboardDeps {
@@ -12,9 +13,9 @@ export interface JobsDashboardDeps {
   tables: JobsDashboardTables
   authenticate: any
   /**
-   * The tenant's enabled feature ids. With `tables.lead`, it decides whether `newLeads` is sent: the
-   * count belongs to the Lead Inbox, so a tenant without that module gets no figure for a page it
-   * cannot open. Optional: a template that wires neither keeps exactly the response it has today.
+   * The tenant's enabled feature ids. Wired, `newLeads` is sent (./newLeads.ts): the Lead Inbox's enquiries
+   * where that feature is on, and the lead contacts nobody has acted on. Optional: a template that does
+   * not wire it keeps exactly the response it has today.
    */
   featuresFor?: (companyId: string) => Promise<string[]>
 
@@ -100,17 +101,16 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
      * marketplaces, Google, and now the website form, which writes to the inbox too. Marking one
      * contacted, converted or dismissed takes it off the count.
      *
-     * Sent only where the tenant has the Lead Inbox and the caller may open it (contacts:read, the
-     * inbox's own gate); otherwise the key is absent, the same rule the money keys follow. `contacts`
-     * stays in the response: the mobile app reads it.
+     * Sent to a caller who may open contacts (contacts:read, the inbox's own gate); otherwise the key is
+     * absent, the same rule the money keys follow. `contacts` stays in the response: the mobile app reads it.
      */
-    let newLeads: number | undefined
-    if (t.lead && deps.featuresFor && (await maySee(c, 'contacts:read'))) {
+    // Since 2026-10-23 also the lead contacts nobody has acted on yet, and for a business without the inbox too
+    // (./newLeads.ts — the landscaper's 0 beside the contractor's 1). `newLeadsFrom` says where they wait, so the tile
+    // opens the right page.
+    let leads: NewLeads | null = null
+    if (deps.featuresFor && (await maySee(c, 'contacts:read'))) {
       const features = await safe(() => deps.featuresFor!(companyId), [] as string[])
-      if (features.includes('lead_inbox')) {
-        const rows = await safe(() => db.select({ value: count() }).from(t.lead).where(and(eq(t.lead.companyId, companyId), eq(t.lead.status, 'new'))), [{ value: 0 }])
-        newLeads = Number(rows[0]?.value ?? 0)
-      }
+      leads = await safe(() => countNewLeads(db, t, companyId, { inbox: features.includes('lead_inbox') }), null)
     }
 
     const byStatus = (rows: any[]) => Object.fromEntries(rows.map(r => [r.status, Number(r.c)]))
@@ -148,7 +148,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
 
     return c.json({
       contacts: Number(contactRows[0]?.value ?? 0),
-      ...(newLeads === undefined ? {} : { newLeads }),
+      ...(leads ? { newLeads: leads.total, newLeadsFrom: { inbox: leads.inbox, contacts: leads.contacts } } : {}),
       projects: { total: sumCounts(projectsByStatus), byStatus: byStatus(projectsByStatus) },
       jobs: {
         total: sumCounts(jobsByStatus),

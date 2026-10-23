@@ -24,6 +24,10 @@ export interface PricebookConfig {
   itemLabel?: string
   /** The item-name example, in the trade's words. Absent: a neutral one (it was "AC tune-up" for every trade). */
   namePlaceholder?: string
+  /** The flat-rate book's code example, in the trade's words (web/src/crm/pages/fieldservice/FlatRatePricebook). */
+  codePlaceholder?: string
+  /** The flat-rate book's "parts included" example, in the trade's words. */
+  partsPlaceholder?: string
   /** Heading of the tier editor, e.g. "Pricing tiers" (crm) or "Good-Better-Best options". */
   tiersTitle?: string
   /** Label of the card button that opens the tier editor. */

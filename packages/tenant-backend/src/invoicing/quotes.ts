@@ -12,6 +12,7 @@ import { checkFilter } from '../listFilter'
 // on the way out with the same helper the contact routes use — one definition, so a column added to
 // the credential set is removed everywhere at once. (T43)
 import { withoutPortalCredential } from '../contacts/contacts'
+import { resolveCustomer } from '../contacts/customer'
 import { withoutSigningEvidence } from './signingEvidence'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
@@ -254,7 +255,12 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const [co] = await db.select({ settings: t.company.settings }).from(t.company).where(eq(t.company.id, companyId)).limit(1)
     return (co?.settings as any) || {}
   }
-  const ownContact = async (companyId: string, id: string) => (await db.select({ id: t.contact.id }).from(t.contact).where(and(eq(t.contact.id, id), eq(t.contact.companyId, companyId))).limit(1))[0]
+  /** Who a quote is for, for what is made from it: its customer, else its project's (contacts/customer.ts). */
+  const customerOfQuote = async (companyId: string, q: { contactId?: string | null; projectId?: string | null }): Promise<string | null> => {
+    if (q.contactId) return q.contactId
+    const r = await resolveCustomer(db, t, companyId, { projectId: q.projectId })
+    return r.ok && r.contactId ? r.contactId : null
+  }
   const ownProject = async (companyId: string, id: string) => (await db.select({ id: t.project.id }).from(t.project).where(and(eq(t.project.id, id), eq(t.project.companyId, companyId))).limit(1))[0]
   const ownJob = async (companyId: string, id: string) => (await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.id, id), eq(t.job.companyId, companyId))).limit(1))[0]
   const findOwn = async (companyId: string, id: string) => (await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, companyId))).limit(1))[0]
@@ -336,8 +342,12 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const currentUser = c.get('user') as any
     const cid = currentUser.companyId
     const data = quoteSchema.parse(await c.req.json()) as any
-    if (data.contactId && !(await ownContact(cid, data.contactId))) return c.json({ error: 'That client does not exist.' }, 404)
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
+    // Who the quote is for: the customer named (never a vendor — the invoice it becomes would bill one), else the
+    // project's (contacts/customer.ts).
+    const forWhom = await resolveCustomer(db, t, cid, { contactId: data.contactId, projectId: data.projectId })
+    if (!forWhom.ok) return c.json({ error: forWhom.error, ...(forWhom.code ? { code: forWhom.code } : {}) }, forWhom.status)
+    if (forWhom.contactId !== undefined) data.contactId = forWhom.contactId ?? undefined
     if ((data as any).jobId && !(await ownJob(cid, (data as any).jobId))) return c.json({ error: 'That job does not exist.' }, 404)
     const subtotalRaw = rawSubtotal(data.lineItems)
     if (data.discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
@@ -398,8 +408,11 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     }
     // Once a customer has approved (or declined) a quote it is a record, not a draft. Signed acceptances must not be mutable.
     if (!EDITABLE.includes(existing.status)) return c.json({ error: 'Only draft or sent quotes can be edited' }, 400)
-    if (data.contactId && !(await ownContact(cid, data.contactId))) return c.json({ error: 'That client does not exist.' }, 404)
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
+    // The same rule on an edit; '' from the form is "not said" here (the schema's optionalId), as it always was.
+    const forWhom = await resolveCustomer(db, t, cid, { contactId: data.contactId || undefined, projectId: data.projectId }, existing)
+    if (!forWhom.ok) return c.json({ error: forWhom.error, ...(forWhom.code ? { code: forWhom.code } : {}) }, forWhom.status)
+    if (forWhom.contactId) data.contactId = forWhom.contactId
     if ((data as any).jobId && !(await ownJob(cid, (data as any).jobId))) return c.json({ error: 'That job does not exist.' }, 404)
     const exp = normalizeDateInput(data.expiryDate)
     if (exp.error) return c.json({ error: `Expiry date: ${exp.error}` }, 400)
@@ -630,6 +643,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       if (already) return c.json({ error: `This quote was already converted to invoice ${already.number}.`, invoiceId: already.id }, 400)
       const items = await lineRows(id)
       const settings = await companySettings(cid)
+      // Who it bills: the quote's customer, else its project's (contacts/customer.ts) — read before the transaction opens.
+      const customerId = await customerOfQuote(cid, found)
       const result = await db.transaction(async (tx: any) => {
         // Serialises two converters of the SAME quote against each other.
         await tx.execute(sql`SELECT id FROM quote WHERE id = ${id} AND company_id = ${cid} FOR UPDATE`)
@@ -639,7 +654,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
 
         const number = await nextNumber(tx, t.invoice, t.invoice.number, t.invoice.companyId, cid, numInvoice)
         const [inv] = await tx.insert(t.invoice).values({
-          number, contactId: found.contactId, projectId: found.projectId, quoteId: found.id,
+          number, contactId: customerId, projectId: found.projectId, quoteId: found.id,
           subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, amountPaid: '0',
           dueDate: dueDateFromTerms(settings), notes: found.notes, terms: found.terms, companyId: cid,
         }).returning()
@@ -674,7 +689,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       let address = '', city = '', state = '', zip = ''
       let src: any = null
       if (extra.has('siteId') && t.site && found.siteId) src = (await db.select().from(t.site).where(and(eq(t.site.id, found.siteId), eq(t.site.companyId, cid))).limit(1))[0]
-      if (!src && found.contactId) src = (await db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1))[0]
+      // A quote on a project that names no customer is for the project's (contacts/customer.ts) — the job made from it too.
+      const customerId = await customerOfQuote(cid, found)
+      if (!src && customerId) src = (await db.select().from(t.contact).where(and(eq(t.contact.id, customerId), eq(t.contact.companyId, cid))).limit(1))[0]
       if (src) { address = src.address || ''; city = src.city || ''; state = src.state || ''; zip = src.zip || '' }
       const result = await db.transaction(async (tx: any) => {
         const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, cid, numJob)
@@ -700,7 +717,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         const values: any = {
           number, title: found.name, description, status: 'pending', priority: 'normal', estimatedValue: exTax.toFixed(2),
           address, city, state, zip, notes: `Converted from Quote ${found.number}`,
-          contactId: found.contactId, projectId: found.projectId, quoteId: found.id, createdById: currentUser.userId, companyId: cid,
+          contactId: customerId, projectId: found.projectId, quoteId: found.id, createdById: currentUser.userId, companyId: cid,
         }
         if (o.jobHasSiteAndEquipment) { values.equipmentId = found.equipmentId || null; values.siteId = found.siteId || null }
         const [newJob] = await tx.insert(t.job).values(values).returning()

@@ -74,6 +74,11 @@ const planSchema = z.object({
   // T58k: isActive must be in the schema or zod strips it and PUT {isActive:false} answers 200 having done nothing.
   isActive: z.boolean().optional(),
   autoEarn: z.enum(COMMISSION_AUTO_EARN).optional(),
+  /**
+   * The people the plan pays (login ids of this company). Empty: anyone it reaches who is not named on another plan.
+   * Where the table has no column for it (a template's own schema), it is not offered.
+   */
+  userIds: z.array(z.string().min(1).max(64)).max(500).optional(),
 })
 
 const commissionSchema = z.object({
@@ -126,6 +131,21 @@ export function commissionFor(plan: { planType: string; flatRateAmount?: any; pe
   return { error: 'Unknown plan type' }
 }
 
+/** The people a plan names (commission_plan.user_ids), as a list of ids — empty when it names nobody. */
+export const planPeople = (plan: { userIds?: unknown }): string[] => (Array.isArray(plan.userIds) ? plan.userIds.map(String) : [])
+
+/**
+ * WHO A PLAN PAYS. A plan that names people pays them and nobody else. A plan that names nobody pays whoever it reaches —
+ * except a person some other current plan names: their own plan is the arrangement made for them, and paying them under
+ * the general one as well would pay them twice. (Contractor live re-test 2026-10-22: "the Plans page can't assign a plan
+ * to a person".) Exported so the rule is tested on its own and read in one place.
+ */
+export function planPaysPerson(plan: { id: string; userIds?: unknown }, userId: string, currentPlans: Array<{ id: string; userIds?: unknown; isActive?: boolean | null }>): boolean {
+  const named = planPeople(plan)
+  if (named.length) return named.includes(userId)
+  return !currentPlans.some((p) => p.id !== plan.id && p.isActive !== false && planPeople(p).includes(userId))
+}
+
 /**
  * Which status a commission may move to from where it is. `paid` is final: money that has gone out is
  * corrected with a new record, never by reopening the old one.
@@ -160,12 +180,27 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
    * owner who switches it on does not wake up to a commission for every invoice imported from their old system.
    * A margin plan cannot earn by itself: its base is the job's margin, which the person recording it supplies.
    */
+  /**
+   * WHO A PLAN PAYS is checked like every other reference: each person must be a login of this company. A person who
+   * has since left (switched off) may stay on a plan being edited, so their old earnings keep their name.
+   */
+  const peopleRefusal = async (companyId: string, userIds: string[] | undefined, keep: string[] = []) => {
+    if (!userIds?.length || !t.commissionPlan.userIds) return null
+    const ids = [...new Set(userIds)]
+    const rows = await db.select({ id: t.user.id, isActive: t.user.isActive }).from(t.user).where(and(eq(t.user.companyId, companyId), inArray(t.user.id, ids)))
+    const found = new Map(rows.map((r: any) => [r.id, r]))
+    if (ids.some((id) => !found.has(id))) return 'Someone chosen for this plan is not on this account.'
+    if (ids.some((id) => (found.get(id) as any).isActive === false && !keep.includes(id))) return 'Someone chosen for this plan has been switched off. Choose people who are still on the team.'
+    return null
+  }
   const autoRefusal = (planType: string | undefined, autoEarn: string | undefined) =>
     autoEarn && autoEarn !== 'none' && planType === 'percent_of_margin'
       ? 'A margin plan cannot pay automatically — its margin has to be entered when the commission is recorded.'
       : null
   const planValues = (data: Partial<z.infer<typeof planSchema>>) => {
     const v: Record<string, any> = { ...data }
+    if (data.userIds !== undefined) v.userIds = [...new Set(data.userIds)]
+    if (!t.commissionPlan.userIds) delete v.userIds
     if (data.flatRateAmount !== undefined) v.flatRateAmount = String(data.flatRateAmount)
     if (data.percentRate !== undefined) v.percentRate = String(data.percentRate)
     if (data.effectiveFrom !== undefined) v.effectiveFrom = data.effectiveFrom ? new Date(data.effectiveFrom) : null
@@ -180,6 +215,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const data = parsed.data
     const refusal = autoRefusal(data.planType, data.autoEarn)
     if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
+    const notPeople = await peopleRefusal(currentUser.companyId, data.userIds)
+    if (notPeople) return c.json({ error: notPeople, code: 'plan_people' }, 400)
     const [created] = await db.insert(t.commissionPlan).values({
       ...planValues(data),
       autoEarn: data.autoEarn || 'none',
@@ -202,6 +239,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
     const nextAuto = parsed.data.autoEarn ?? existing.autoEarn
     const refusal = autoRefusal(nextType, nextAuto)
     if (refusal) return c.json({ error: refusal, code: 'margin_not_automatic' }, 400)
+    const notPeople = await peopleRefusal(currentUser.companyId, parsed.data.userIds, Array.isArray(existing.userIds) ? existing.userIds : [])
+    if (notPeople) return c.json({ error: notPeople, code: 'plan_people' }, 400)
     const set: Record<string, any> = { ...planValues(parsed.data), updatedAt: new Date() }
     if (parsed.data.autoEarn !== undefined && parsed.data.autoEarn !== existing.autoEarn) {
       set.autoSince = parsed.data.autoEarn === 'none' ? null : (existing.autoEarn === 'none' || !existing.autoSince ? new Date() : existing.autoSince)
@@ -286,6 +325,8 @@ export function createCommissionRoutes(deps: CommissionRoutesDeps) {
       const plan = planRow
       if (!plan) return c.json({ error: 'That commission plan is not on this account' }, 400)
       if (plan.isActive === false) return c.json({ error: 'That plan has been retired. Choose a current one.' }, 400)
+      // A plan that names its people pays them only (planPaysPerson).
+      if (planPeople(plan).length && !planPeople(plan).includes(earner.id)) return c.json({ error: 'That plan is for other people. Choose the plan this person is on, or record an agreed amount without a plan.', code: 'not_on_plan' }, 400)
       if (plan.planType !== 'flat_rate' && base === undefined) {
         return c.json({ error: plan.planType === 'percent_of_margin' ? 'Enter the margin this commission is worked out on' : 'Choose an invoice or enter the amount this commission is worked out on' }, 400)
       }
@@ -433,6 +474,11 @@ export function createCommissionEarner(deps: CommissionEarnerDeps) {
     eq(t.commissionPlan.isActive, true),
     ne(t.commissionPlan.autoEarn, 'none'),
   ))
+  /** Every current plan, automatic or not: who each one names decides who the general ones pay (planPaysPerson). */
+  const currentPlans = async (companyId: string) => db.select().from(t.commissionPlan).where(and(
+    eq(t.commissionPlan.companyId, companyId),
+    eq(t.commissionPlan.isActive, true),
+  ))
   const jobFor = async (inv: any) => {
     if (invoiceJobLink === 'jobId' && inv.jobId) {
       const [j] = await db.select().from(t.job).where(and(eq(t.job.id, inv.jobId), eq(t.job.companyId, inv.companyId))).limit(1)
@@ -460,9 +506,12 @@ export function createCommissionEarner(deps: CommissionEarnerDeps) {
       const job = await jobFor(inv)
       if (!job) return out
       const base = cents(Math.max(0, Number(inv.subtotal ?? inv.total ?? 0) - Number(inv.discount ?? 0)))
+      const everyPlan = await currentPlans(inv.companyId)
       for (const plan of plans) {
         const earnerId = plan.autoEarn === 'job_assignee' ? job.assignedToId : plan.autoEarn === 'job_creator' ? job.createdById : null
         if (!earnerId) continue
+        // A plan pays the people it names; a general plan, anyone it reaches who has no plan of their own.
+        if (!planPaysPerson(plan, earnerId, everyPlan)) continue
         const [person] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, earnerId), eq(t.user.companyId, inv.companyId))).limit(1)
         if (!person) continue
         const result = commissionFor(plan, base)

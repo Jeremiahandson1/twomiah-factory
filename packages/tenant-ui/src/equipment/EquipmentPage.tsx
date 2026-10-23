@@ -8,6 +8,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { EquipmentApi, EquipmentCategory, EquipmentPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 import { money } from '../money';
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
@@ -583,8 +584,9 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
 
   const loadContacts = async () => {
     try {
-      const data = await api.get('/api/contacts?limit=100');
-      setContacts(data.data || []);
+      // The customer the unit belongs to — customers only (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+      const data = await api.get(`/api/contacts?limit=100&audience=${CUSTOMER_PICKER_PARAMS.audience}`);
+      setContacts(customersOnly(data.data || []));
     } catch (error) {
       console.error('Failed to load contacts:', error);
     }

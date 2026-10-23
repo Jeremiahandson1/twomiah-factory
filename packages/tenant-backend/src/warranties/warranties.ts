@@ -10,6 +10,7 @@
  */
 
 import { Hono } from 'hono';
+import { resolveCustomer } from '../contacts/customer';
 import { eq, and, or, count, desc, asc, gte, lte, lt, gt, inArray, notInArray, sql } from 'drizzle-orm';
 import { withoutPortalCredential } from '../contacts/contacts';
 // The shared JOB- sequence, with its per-company advisory lock. Scheduling a warranty claim was
@@ -199,6 +200,11 @@ async function createProjectWarranty(companyId: string, data: {
   if (data.contactId) {
     const [ct] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, data.contactId), eq(contact.companyId, companyId))).limit(1);
     if (!ct) throw bad('Customer not found', 404);
+  } else if (data.projectId) {
+    // A project's warranty is for the project's customer when none is named (contacts/customer.ts) — so the claim, and the
+    // job scheduled from it, know who it is for.
+    const r = await resolveCustomer(db, { contact, project }, companyId, { projectId: data.projectId });
+    if (r.ok && r.contactId) data = { ...data, contactId: r.contactId };
   }
   data = { ...data, name, durationMonths: data.durationMonths != null ? Number(data.durationMonths) : undefined };
 
@@ -680,7 +686,8 @@ async function scheduleWarrantyWork(
     const number = await nextNumber(tx, job, job.number, job.companyId, companyId, { prefix: 'JOB', pad: 5 });
     const [created] = await tx.insert(job).values({
       companyId,
-      contactId: claimRow.contact?.id ?? null,
+      // The warranty's customer, else its project's (contacts/customer.ts): the job is never "No customer" when someone is.
+      contactId: claimRow.contact?.id ?? claimRow.project?.contactId ?? null,
       projectId: claimRow.project?.id ?? null,
       // The claim has a real title since T44 — use it, rather than the first 50 characters of the
       // description, which is what this said when the title had nowhere to be stored.

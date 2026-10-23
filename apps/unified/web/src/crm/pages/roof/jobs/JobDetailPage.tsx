@@ -33,6 +33,7 @@ import { displayName } from '../lib/user'
 import { formatStatus, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { mayBeGivenWork } from '@twomiah/tenant-ui/src/people/work'
 
 const STATUS_COLORS: Record<string, string> = {
   lead: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -785,7 +786,8 @@ export default function JobDetailPage() {
                     className="w-full text-sm border rounded-lg px-3 py-2"
                   >
                     <option value="">Unassigned</option>
-                    {users.map((u) => (
+                    {/* Only a seat that can do the work (people/work.ts; the server asks the same) — the rep on it now stays shown. */}
+                    {users.filter((u) => mayBeGivenWork(u as any) || u.id === job.assignedSalesRepId).map((u) => (
                       <option key={u.id} value={u.id}>{displayName(u)}</option>
                     ))}
                   </select>

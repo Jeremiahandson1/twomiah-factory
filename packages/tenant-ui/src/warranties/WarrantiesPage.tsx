@@ -9,6 +9,7 @@ import { resolveWarrantiesConfig } from './types';
 import { usePrompt } from '../ui/ConfirmProvider'
 import { PageError, errorText } from '../ui/PageError'
 import { useMayWrite } from '../auth/PermissionsContext';
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 
 // api is injected once at the page root; child components read it via useWarranties().
 /**
@@ -717,8 +718,8 @@ function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
   useEffect(() => {
     let gone = false;
     const t = setTimeout(() => {
-      api.get('/api/contacts', { limit: 50, ...(search.trim() ? { search: search.trim() } : {}) })
-        .then((r: any) => { if (!gone) setCustomers(((r?.data || []) as any[]).map((c) => ({ id: String(c.id), name: String(c.name || c.email || 'Unnamed') }))); })
+      api.get('/api/contacts', { limit: 50, ...CUSTOMER_PICKER_PARAMS, ...(search.trim() ? { search: search.trim() } : {}) })
+        .then((r: any) => { if (!gone) setCustomers(customersOnly((r?.data || []) as any[]).map((c) => ({ id: String(c.id), name: String(c.name || c.email || 'Unnamed') }))); })
         .catch(() => { if (!gone) setCustomers([]); });
     }, 250);
     return () => { gone = true; clearTimeout(t); };

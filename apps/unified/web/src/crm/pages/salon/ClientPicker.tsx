@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, User, Check, Loader2 } from 'lucide-react'
 import { api } from '../../../api'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
 
 /**
  * Client (contact) picker — debounced search against /api/contacts?search=.
@@ -41,8 +42,9 @@ export default function ClientPicker({ value, onChange, initialLabel }: ClientPi
     debounce.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await api.get(`/api/contacts?search=${encodeURIComponent(search)}&limit=20`);
-        setResults(res.data || []);
+        // Customers only: a vendor is never who this is for (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+        const res = await api.get('/api/contacts', { search, limit: 20, ...CUSTOMER_PICKER_PARAMS });
+        setResults(customersOnly(res.data || []));
       } catch {
         setResults([]);
       } finally {

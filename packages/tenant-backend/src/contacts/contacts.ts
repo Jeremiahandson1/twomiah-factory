@@ -109,6 +109,9 @@ export interface ContactDeps {
 
 const PHONE_RE = /^[0-9+()\-.\s]+$/
 /** Offered until a manager saves the company's own list. Neutral across verticals: every business gets referrals. */
+/** The lists GET /api/contacts can be asked for by `audience`: 'customers' leaves vendors out (customer pickers). */
+export const CONTACT_AUDIENCES = ['customers'] as const
+
 export const DEFAULT_SOURCE_OPTIONS = ['Referral', 'Repeat customer', 'Website', 'Google', 'Facebook', 'Instagram', 'Walk-in']
 /** Trimmed, blanks dropped, duplicates (ignoring case) dropped — first spelling wins. Never contains "Other": that is the form's own way out. */
 export const cleanSourceOptions = (raw: unknown[]): string[] => {
@@ -243,8 +246,18 @@ export function createContactRoutes(deps: ContactDeps) {
     // governs writes rather than a second copy. (T29 N2)
     const badType = checkFilter(c, 'type', type, types)
     if (badType) return badType
+    /**
+     * ?audience=customers — WHO A CUSTOMER PICKER MAY OFFER: every contact but a vendor. A vendor is who the business
+     * buys from, never who it quotes, invoices or sends to a job (the invoice route refuses one: vendor_not_client).
+     * Asked of the server, not filtered after a page of 200, so suppliers never take a customer's place in the list.
+     * (Live tests 2026-10-22: "Test Vendor Three" in the invoice Client dropdown.)
+     */
+    const audience = c.req.query('audience')
+    const badAudience = checkFilter(c, 'audience', audience, CONTACT_AUDIENCES)
+    if (badAudience) return badAudience
     const conditions: any[] = [eq(t.contact.companyId, currentUser.companyId)]
     if (type) conditions.push(eq(t.contact.type, type))
+    if (audience === 'customers') conditions.push(ne(t.contact.type, 'vendor'))
     if (search) {
       conditions.push(or(
         ilike(t.contact.name, `%${search}%`),

@@ -3,10 +3,10 @@
 // labor hours and "show to customers" on create, saved options into a 500, built the search URL without encoding, and
 // reported every failure with alert().
 import React, { useState, useEffect, useCallback } from 'react'
-import { BookOpen, Plus, Search, Edit2, Copy, Trash2, Loader2, DollarSign, Clock, Package, Star, Percent, FolderTree, Presentation } from 'lucide-react'
+import { BookOpen, Plus, Search, Edit2, Copy, Trash2, Loader2, DollarSign, Clock, Package, Star, Percent, FolderTree, Presentation, TrendingUp } from 'lucide-react'
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
 import type { PricebookApi, PricebookToast, PricebookConfig, TierPreset } from './types'
-import { usePrompt } from '../ui/ConfirmProvider'
+import { usePrompt, useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { money } from '../money'
 
@@ -51,6 +51,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
   const [catsOpen, setCatsOpen] = useState(false)
   const [tiersFor, setTiersFor] = useState<Item | null>(null)
   const [toDelete, setToDelete] = useState<Item | null>(null)
+  const [raiseOpen, setRaiseOpen] = useState(false)
   /**
    * Does this payload carry cost at all? Read off the rows rather than from a permission, so the
    * cards and the Avg margin tile cannot disagree with each other or with the server. `cost` is the
@@ -105,6 +106,8 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
         <div className="flex gap-2">
           {/* The Categories drawer is rename + hide, both pricebook:update. */}
           {mayUpdate && <Button variant="secondary" onClick={() => setCatsOpen(true)}><FolderTree className="w-4 h-4" />Categories</Button>}
+          {/* Raise every price by a percent (POST /bulk/adjust-prices, pricebook:update — this company's items only). */}
+          {mayUpdate && items.length > 0 && <Button variant="secondary" onClick={() => setRaiseOpen(true)}><TrendingUp className="w-4 h-4" />Raise prices</Button>}
           {mayCreate && <Button onClick={() => setEditing({ open: true, item: null })}><Plus className="w-4 h-4" />Add {itemWord}</Button>}
         </div>
       </div>
@@ -180,10 +183,100 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
       )}
 
       {editing.open && <ItemModal api={api} toast={toast} item={editing.item} categories={categories} itemWord={itemWord} namePlaceholder={config?.namePlaceholder || 'e.g. Standard service call'} onClose={() => setEditing({ open: false, item: null })} onSaved={() => { setEditing({ open: false, item: null }); load() }} />}
+      {raiseOpen && <RaisePricesModal api={api} toast={toast} categories={categories} categoryId={categoryId} itemWord={itemWord} onClose={() => setRaiseOpen(false)} onDone={() => { setRaiseOpen(false); load() }} />}
       {catsOpen && <CategoriesModal api={api} toast={toast} categories={categories} onClose={() => setCatsOpen(false)} onChanged={load} />}
       {tiersFor && <TiersModal api={api} toast={toast} item={tiersFor} presets={config?.tierPresets || DEFAULT_TIERS} title={config?.tiersTitle || 'Good-Better-Best options'} onClose={() => setTiersFor(null)} onSaved={() => { setTiersFor(null); load() }} />}
       <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={remove} title={`Delete ${itemWord.toLowerCase()}`} message={`Delete "${toDelete?.name}" and its pricing tiers?`} confirmText="Delete" />
     </div>
+  )
+}
+
+/**
+ * RAISE PRICES BY A PERCENT. (Contractor and roofing live tests 2026-10-22: "there is no way to raise prices by a percent".)
+ *
+ * Choose the percent and, if not the whole book, a category; Preview asks the server what would change (nothing is
+ * written) and lists every item before and after, its Good/Better/Best prices too; Apply asks once more in the app's own
+ * confirm box and then sends the same change. The server works the prices out, rounds to the cent, keeps them to this
+ * company's items and writes all or none.
+ */
+export function RaisePricesModal({ api, toast, categories, categoryId: initialCategory, itemWord, onClose, onDone }: { api: PricebookApi; toast: PricebookToast; categories: Category[]; categoryId: string; itemWord: string; onClose: () => void; onDone: () => void }) {
+  const confirm = useConfirm()
+  const [percent, setPercent] = useState('')
+  const [categoryId, setCategoryId] = useState(initialCategory)
+  const [preview, setPreview] = useState<{ count: number; items: Array<{ id: string; name: string; code?: string | null; from: number; to: number; tiers: Array<{ tier: string; from: number; to: number }> }> } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const pct = Number(percent)
+  const valid = percent.trim() !== '' && Number.isFinite(pct) && pct !== 0 && pct >= -90 && pct <= 100
+  const body = (previewOnly: boolean) => ({ adjustmentType: 'percent', adjustmentValue: pct, applyTo: 'price', preview: previewOnly, ...(categoryId ? { categoryId } : {}) })
+  const where = categoryId ? `in ${categories.find((c) => c.id === categoryId)?.name || 'this category'}` : 'in the whole price book'
+  const look = async () => {
+    if (!valid) { setError('Enter a percent between -90 and 100, not 0.'); return }
+    setBusy(true); setError('')
+    try {
+      const r = await api.post('/api/pricebook/bulk/adjust-prices', body(true))
+      // A server from before the preview (a template's own copy) changes the prices on this same request: say so
+      // plainly and show the book as it now is, rather than a preview of something already done.
+      if (r?.preview !== true) { toast.error('These prices were changed straight away — this system has no preview. Check the price book.'); onDone(); return }
+      setPreview(r)
+    } catch (e) { setPreview(null); setError(errMsg(e, 'Could not work out the new prices')) } finally { setBusy(false) }
+  }
+  const apply = async () => {
+    if (!preview || !valid) return
+    const word = pct > 0 ? 'Raise' : 'Lower'
+    if (!(await confirm(`${word} ${preview.count} price${preview.count === 1 ? '' : 's'} ${where} by ${Math.abs(pct)}%? Each new price is shown in the preview; tier prices move with them.`, { title: `${word} prices`, confirmText: `${word} prices` }))) return
+    setBusy(true); setError('')
+    try {
+      const r = await api.post('/api/pricebook/bulk/adjust-prices', body(false))
+      toast.success(`${r?.updated ?? preview.count} price${(r?.updated ?? preview.count) === 1 ? '' : 's'} ${pct > 0 ? 'raised' : 'lowered'} by ${Math.abs(pct)}%`)
+      onDone()
+    } catch (e) { setError(errMsg(e, 'The prices could not be changed')) } finally { setBusy(false) }
+  }
+  return (
+    <Modal isOpen onClose={onClose} title="Raise prices" size="lg">
+      <div className="space-y-4" aria-label="Raise prices">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="By what percent?" hint="10 raises every price 10%; -5 lowers it 5%.">
+            <input id="raise-percent" type="number" step="0.1" min={-90} max={100} value={percent} onChange={(e) => { setPercent(e.target.value); setPreview(null) }} className={inputCls} placeholder="e.g. 5" />
+          </Field>
+          <Field label="Which prices?">
+            <select id="raise-category" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setPreview(null) }} className={selectCls}>
+              <option value="">Every {itemWord.toLowerCase()}</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+        </div>
+        {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
+        {preview && (
+          <div className="rounded-lg border border-gray-200 dark:border-slate-700">
+            <p className="px-3 py-2 text-sm font-medium text-gray-900 border-b border-gray-200 dark:text-slate-100 dark:border-slate-700">{preview.count} {itemWord.toLowerCase()}{preview.count === 1 ? '' : 's'} {where} — nothing has changed yet</p>
+            <div className="max-h-72 overflow-y-auto">
+              <table className="w-full text-sm" aria-label="Price preview">
+                <thead><tr className="text-left text-xs uppercase text-gray-600 dark:text-slate-400"><th className="px-3 py-2">{itemWord}</th><th className="px-3 py-2 text-right">Now</th><th className="px-3 py-2 text-right">After</th></tr></thead>
+                <tbody>
+                  {preview.items.map((it) => (
+                    <tr key={it.id} className="border-t border-gray-100 dark:border-slate-800 align-top">
+                      <td className="px-3 py-2 text-gray-900 dark:text-slate-100">{it.name}{it.code ? <span className="text-xs text-gray-500 dark:text-slate-400"> · {it.code}</span> : null}
+                        {it.tiers.length > 0 && <span className="block text-xs text-gray-600 dark:text-slate-400">{it.tiers.map((g) => `${g.tier}: ${usd(g.from)} → ${usd(g.to)}`).join(' · ')}</span>}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-slate-300">{usd(it.from)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-semibold text-gray-900 dark:text-slate-100">{usd(it.to)}</td>
+                    </tr>
+                  ))}
+                  {preview.items.length === 0 && <tr><td colSpan={3} className="px-3 py-4 text-center text-gray-600 dark:text-slate-400">Nothing {where} to change.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          {!preview
+            ? <Button type="button" onClick={look} disabled={busy || !valid}>{busy ? 'Working it out…' : 'Preview'}</Button>
+            : <Button type="button" onClick={apply} disabled={busy || preview.count === 0}>{busy ? 'Saving…' : pct > 0 ? 'Raise prices' : 'Lower prices'}</Button>}
+        </div>
+      </div>
+    </Modal>
   )
 }
 

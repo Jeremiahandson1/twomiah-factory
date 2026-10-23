@@ -163,13 +163,14 @@ export default function GanttChartsPage() {
 
   const rowHeight = 44;
 
-  // Generate month headers along the top
+  // Month headers along the top. The full year, never two digits: "Oct 26 / Nov 26" read as days of the month
+  // (contractor re-test 2026-10-22). "Oct 2026" cannot be a date.
   const months: { label: string; offsetPct: number }[] = [];
   const first = new Date(minDate);
   first.setUTCDate(1);
   for (let d = new Date(first); d.getTime() <= maxDate; d.setUTCMonth(d.getUTCMonth() + 1)) {
     const offsetPct = Math.max(0, ((d.getTime() - minDate) / totalSpan) * 100);
-    months.push({ label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }), offsetPct });
+    months.push({ label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }), offsetPct });
   }
   const pct = (t: number) => ((t - minDate) / totalSpan) * 100;
   const grid = months.map((m, i) => <div key={i} className="absolute top-0 bottom-0 border-l border-gray-100 dark:border-slate-800" style={{ left: `${m.offsetPct}%` }} />);

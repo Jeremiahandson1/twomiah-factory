@@ -799,6 +799,10 @@ export const commissionPlan = pgTable('commission_plan', {
   autoEarn: text('auto_earn').default('none').notNull(),
   // When automatic earning was switched on. Only invoices paid from then on earn — never imported history.
   autoSince: timestamp('auto_since'),
+  // The people this plan pays (login ids). Empty: anyone it reaches — the job's assigned person or its booker — who is
+  // not named on another plan; named: only them (contractor live re-test 2026-10-22, "the Plans page can't assign a plan
+  // to a person"). packages/tenant-backend commissions.ts.
+  userIds: json('user_ids').default([]).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Plus } from 'lucide-react'
 import { api } from '../../../api'
 import { useToast, useMayWrite } from '../../../shared'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
 
 /** A row of GET /api/sites (server/crm/landscaping/sites.ts): the property and its customer's name. */
 export interface SiteOption { id: string; name: string; address?: string | null; contactName?: string | null }
@@ -47,8 +48,9 @@ export function SitePicker({ id, value, sites, onChange, onAdded, allowAdd = tru
   const openAdd = async () => {
     setAdding(true)
     try {
-      const res = await api.get('/api/contacts', { limit: 200 })
-      setContacts(Array.isArray(res?.data) ? (res.data as ContactOption[]) : [])
+      // Customers only: a vendor is never who this is for (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+      const res = await api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS })
+      setContacts(Array.isArray(res?.data) ? customersOnly(res.data as ContactOption[]) : [])
     } catch (error) { toast.error(serverMessage(error, 'Could not load customers')) }
   }
   const save = async () => {

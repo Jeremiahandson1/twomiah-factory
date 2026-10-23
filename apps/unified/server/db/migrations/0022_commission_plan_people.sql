@@ -1,0 +1,1 @@
+ALTER TABLE "commission_plan" ADD COLUMN "user_ids" json DEFAULT '[]'::json NOT NULL;

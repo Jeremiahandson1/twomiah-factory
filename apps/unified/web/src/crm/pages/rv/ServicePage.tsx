@@ -4,6 +4,7 @@ import { Plus, Loader2, X, Wrench } from 'lucide-react'
 import { api } from '../../../api'
 import { PageError, errorText, useMayWrite } from '../../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
 
 /**
  * Service Department — repair orders backed by /api/repair-orders.
@@ -199,10 +200,11 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
     (async () => {
       try {
         const [contactsRes, unitsRes]: [Page<ContactOption>, Page<UnitOption>] = await Promise.all([
-          api.get('/api/contacts?limit=500'),
+          api.get('/api/contacts', { limit: 500, ...CUSTOMER_PICKER_PARAMS }),
           api.get('/api/units?limit=500'),
         ]);
-        setContacts(contactsRes.data || []);
+        // Customers only: a vendor is never who this is for (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+        setContacts(customersOnly(contactsRes.data || []));
         setUnits(unitsRes.data || []);
       } catch {
         /* degrade gracefully */

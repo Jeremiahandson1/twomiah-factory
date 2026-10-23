@@ -9,12 +9,13 @@ import type { Pagination } from '../invoicing/ui'
 import { resolveJobsConfig, PRIORITY_COLORS } from './types'
 import type { JobsPageProps, JobRow } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '../contacts/types'
 
 interface JobForm {
   title: string; description: string; status: string; priority: string; scheduledDate: string; scheduledTime: string; estimatedHours: string
   address: string; city: string; state: string; zip: string; projectId: string; contactId: string; assignedToId: string; equipmentId: string; siteId: string; notes: string; locationId: string
 }
-type Pick = { id: string; name?: string; firstName?: string; lastName?: string; email?: string; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; manufacturer?: string | null; model?: string | null; serialNumber?: string | null }
+type Pick = { id: string; contactId?: string | null; name?: string; firstName?: string; lastName?: string; email?: string; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; manufacturer?: string | null; model?: string | null; serialNumber?: string | null }
 
 const emptyForm = (status: string, priority: string): JobForm => ({ title: '', description: '', status, priority, scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', siteId: '', notes: '', locationId: '' })
 const label = (s: string) => s.replace(/_/g, ' ')
@@ -104,14 +105,30 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     api.get('/api/locations', { active: 'true' }).then((r: any) => setBranches(r?.data || [])).catch(() => setBranches([]))
   }, [tenantHasBranches]) // eslint-disable-line react-hooks/exhaustive-deps
   const tenantHasProjects = cfg.hasFeature('projects')
+  // Whether the project list has answered (either way): a job opened from a project waits for it, to fill the customer.
+  const [projectsLoaded, setProjectsLoaded] = useState(false)
+  const [contactsLoaded, setContactsLoaded] = useState(false)
   useEffect(() => {
-    if (!tenantHasProjects) { setProjects([]); return }
-    api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
+    if (!tenantHasProjects) { setProjects([]); setProjectsLoaded(true); return }
+    api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([])).finally(() => setProjectsLoaded(true))
   }, [tenantHasProjects]) // eslint-disable-line react-hooks/exhaustive-deps
+  /**
+   * A job made under a project is for the project's customer when none is chosen. "Add Job" on a project opened the form
+   * with the project and no customer, and the saved job read "No customer" (contractor re-test 2026-10-22). The server
+   * holds the same rule for every door (tenant-backend contacts/customer.ts).
+   */
+  const withProject = (f: JobForm, projectId: string): JobForm => {
+    const next = { ...f, projectId }
+    const pr = projects.find((p) => p.id === projectId)
+    if (next.contactId || !pr?.contactId || !contacts.some((c) => c.id === pr.contactId)) return next
+    loadForContact(String(pr.contactId))
+    return applyContact(next, String(pr.contactId))
+  }
 
   // pickers load once; a failure must not block the list
   useEffect(() => {
-    api.get('/api/contacts', { limit: 200 }).then((r: any) => setContacts(r?.data || [])).catch(() => setContacts([]))
+    // Customers only: a job is done for a customer, never a vendor (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+    api.get('/api/contacts', { limit: 200, ...CUSTOMER_PICKER_PARAMS }).then((r: any) => setContacts(customersOnly(r?.data || []))).catch(() => setContacts([])).finally(() => setContactsLoaded(true))
     // Assignable people: login users AND active roster crew (T21 M12 — crew without a login do the work). GET /api/team
     // drops users once a roster member exists, which erased everyone from the picker. (F-14 / assignee)
     // …and only for someone who may read the roster. `field` has no team:read, so this answered 403 on
@@ -138,8 +155,8 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     let f = emptyForm(cfg.statuses[0], 'normal')
     setUseAddressOnFile(false)
     if (contactId) { f = applyContact(f, contactId); loadForContact(contactId) } else { setEquipment([]); setSites([]) }
-    // Arrived from a project's Quick Action: that project is already the answer. (T51)
-    if (projectId) f = { ...f, projectId }
+    // Arrived from a project's Quick Action: that project is already the answer (T51), and so is its customer.
+    if (projectId) f = withProject(f, projectId)
     setForm(f)
     setModalOpen(true)
   }
@@ -173,6 +190,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     const wantsNew = searchParams.get('new') === 'true'
     if (!editId && !contactId && !wantsNew) return
     if (contactId && contacts.length === 0) return // wait for the picker so the address can be applied
+    if (wantsNew && projectFilter && (!projectsLoaded || !contactsLoaded)) return // wait for both, to bring the project's customer
     let cancelled = false
     const next = new URLSearchParams(searchParams); next.delete('edit'); next.delete('contactId'); next.delete('new')
     if (editId && mayUpdate) {
@@ -180,7 +198,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     } else if (contactId && mayCreate) { openCreate(contactId, projectFilter || undefined); setSearchParams(next, { replace: true }) }
     else if (wantsNew && mayCreate) { openCreate(undefined, projectFilter || undefined); setSearchParams(next, { replace: true }) }
     return () => { cancelled = true }
-  }, [searchParams, contacts.length, projectFilter, mayCreate, mayUpdate]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams, contacts.length, projectFilter, projectsLoaded, contactsLoaded, mayCreate, mayUpdate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     if (!form.title.trim()) { toast.error('Title is required'); return }
@@ -278,7 +296,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           <Field label="Status"><select value={form.status} onChange={set('status')} className={`${inputCls} capitalize`}>{statuses.map((s) => <option key={s} value={s}>{label(s)}</option>)}{!statuses.includes(form.status) && form.status && <option value={form.status}>{label(form.status)}</option>}</select></Field>
           <Field label="Priority"><select value={form.priority} onChange={set('priority')} className={`${inputCls} capitalize`}>{cfg.priorities.map((p) => <option key={p} value={p}>{p}</option>)}</select></Field>
           {branches.length > 0 && <Field label="Branch"><select value={form.locationId} onChange={set('locationId')} className={inputCls}><option value="">No branch</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}{form.locationId && !branches.some((b) => b.id === form.locationId) && <option value={form.locationId}>Inactive branch</option>}</select></Field>}
-          {projects.length > 0 && <Field label="Project"><select value={form.projectId} onChange={set('projectId')} className={inputCls}><option value="">Select...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
+          {projects.length > 0 && <Field label="Project"><select value={form.projectId} onChange={(e) => setForm(withProject(form, e.target.value))} className={inputCls}><option value="">Select...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
           {cfg.assignee && <Field label="Assigned To"><select value={form.assignedToId} onChange={set('assignedToId')} className={inputCls}><option value="">Unassigned</option>{team.map((u) => <option key={u.id} value={u.id}>{u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unnamed'}</option>)}</select></Field>}
           <Field label="Contact">
             <select value={form.contactId} onChange={(e) => { setForm(applyContact(form, e.target.value)); loadForContact(e.target.value) }} className={inputCls}>
@@ -294,9 +312,9 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
             </Field>
           )}
           {cfg.sites && sites.length > 0 && (
-            <Field label={<span><MapPinned className="w-3.5 h-3.5 inline mr-1" />Location</span>}>
+            <Field label={<span><MapPinned className="w-3.5 h-3.5 inline mr-1" />{cfg.siteLabels.singular}</span>}>
               <select value={form.siteId} onChange={(e) => { const s = sites.find((x) => x.id === e.target.value); setForm((f) => ({ ...f, siteId: e.target.value, ...(s?.address ? { address: s.address, city: s.city || '', state: s.state || '', zip: s.zip || '' } : {}) })); if (s?.address) setUseAddressOnFile(true) }} className={inputCls}>
-                <option value="">No specific location</option>
+                <option value="">No specific {cfg.siteLabels.singular.toLowerCase()}</option>
                 {sites.map((s) => <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>)}
               </select>
             </Field>

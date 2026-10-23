@@ -47,16 +47,25 @@ export function Dashboard() {
   const Own = typeof home === 'string' ? HOMES[home] : undefined
   return Own ? <Own /> : <JobsDashboard />
 }
+/**
+ * A contact's page in the trade's words: its job ("Schedule Service Call", the "Service Calls" list) and its service sites
+ * (a landscaper's Properties), from the same settings the job and quote screens read. Which lists, counts and quick
+ * actions it shows follows the business's switched-on features (packages/tenant-ui contacts/types.ts `shows`).
+ */
+const contactsFor = (hasFeature: (f: string) => boolean, can: (p: string) => boolean) => {
+  const labels = (v().jobs as any).labels
+  return { ...v().contacts, jobLabels: labels?.singular ? { singular: labels.singular, plural: labels.plural || `${labels.singular}s` } : undefined, siteLabels: v().sites, hasFeature, can }
+}
 export function Contacts() {
   const { hasFeature, can } = useAuth()
-  return <ContactsPage api={client} toast={useToast()} config={{ ...v().contacts, hasFeature, can } as any} />
+  return <ContactsPage api={client} toast={useToast()} config={contactsFor(hasFeature, can) as any} />
 }
 export function ContactDetail() {
   const { hasFeature, can } = useAuth()
-  return <ContactDetailPage api={client} toast={useToast()} config={{ ...v().contacts, hasFeature, can } as any} />
+  return <ContactDetailPage api={client} toast={useToast()} config={contactsFor(hasFeature, can) as any} />
 }
 /** The job screens pick a unit from the equipment list only where equipment_tracking is on (/api/equipment is its, on the server). */
-const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, hasFeature, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
+const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, siteLabels: v().sites, hasFeature, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
 export function Jobs() {
   const { hasFeature, can } = useAuth()
   return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can } as any} />
@@ -79,7 +88,7 @@ export function JobDetail() {
  */
 const invoicingFor = (hasFeature: (f: string) => boolean) => {
   const i = v().invoicing as any
-  return { ...i, hasFeature,
+  return { ...i, siteLabels: v().sites, hasFeature,
     pricebook: !!i.pricebook && (hasFeature('pricebook') || hasFeature('flat_rate_pricebook')),
     projects: !!i.projects && hasFeature('projects'),
     jobs: !!i.jobs && hasFeature('jobs'),
@@ -176,7 +185,12 @@ export const GoogleReviews = () => <GbpReviewsPage />
 // lead sources.
 // Settings › Texting: the business's own registered number (pages/TextingPage.tsx).
 export const Texting = () => <TextingPage />
-export const Integrations = () => <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms) }} />
+// The lead-source guides end at "Connect it under Lead Sources" — the Lead Inbox's page — so they are offered only where
+// the business has the Lead Inbox switched on (a shop has none, and was shown Angi and HomeAdvisor).
+export function Integrations() {
+  const { hasFeature } = useAuth()
+  return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: hasFeature('lead_inbox') ? leadSourceGuides((v().leads as any).platforms) : [] }} />
+}
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />
 

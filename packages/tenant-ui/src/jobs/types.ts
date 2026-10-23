@@ -1,5 +1,6 @@
 // Shared Jobs pages — the contract between a template and the vendored pages.
 import type { InvoicingApi, InvoicingToast } from '../invoicing/types'
+import { DEFAULT_SITE_LABELS, type SiteLabels } from '../contacts/types'
 
 export type JobsApi = InvoicingApi & { request?: (path: string, init?: any) => Promise<any> }
 export type JobsToast = InvoicingToast
@@ -13,6 +14,8 @@ export interface JobsConfig {
   equipment?: boolean
   /** Service-location picker on the form (fs / landscaping). */
   sites?: boolean
+  /** What the trade calls a service site (a landscaper's Property). Default Location. */
+  siteLabels?: SiteLabels
   /** Photo gallery on the detail page (needs /api/jobs/:id/photos). */
   photos?: boolean
   /**
@@ -64,6 +67,7 @@ export function resolveJobsConfig(c?: JobsConfig) {
     assignee: cfg.assignee !== false,
     equipment: !!cfg.equipment,
     sites: !!cfg.sites,
+    siteLabels: cfg.siteLabels?.singular ? cfg.siteLabels : DEFAULT_SITE_LABELS,
     photos: !!cfg.photos,
     photoStore: cfg.photoStore,
     notes: !!cfg.notes,

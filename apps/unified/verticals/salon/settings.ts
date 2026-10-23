@@ -120,10 +120,9 @@ const salon: VerticalSettings = {
     contacts: {
       types: CONTACT_TYPES,
       gateByFeature: true,
-      sections: { projects: true, quotes: true, portal: true },
+      // Projects, quotes and jobs are not offered to a salon (featureRegistry): no list, count or button for them.
+      sections: { projects: false, quotes: false, portal: true },
       quickActions: [
-        { label: 'Create Quote', to: '/crm/quotes?contactId=:id', icon: 'quote', feature: 'quotes' },
-        { label: 'Schedule Job', to: '/crm/jobs?contactId=:id', icon: 'job', feature: 'jobs' },
         { label: 'Create Invoice', to: '/crm/invoices?contactId=:id', icon: 'invoice' },
       ],
     },

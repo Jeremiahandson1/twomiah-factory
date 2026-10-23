@@ -181,7 +181,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             section decides for itself whether the API would answer: Call Tracking on + integrations:update. */}
         {config?.callTracking && <CallTrackingSection header={<SectionLabel label="Call Tracking" />} />}
 
-        <SectionLabel label="Lead Sources" />
+        {leadSources.length > 0 && <SectionLabel label="Lead Sources" />}
         {leadSources.map((g) => (
           <GuideCard key={g.id} icon={<Search className={`w-6 h-6 ${TONE[g.tone || 'emerald'].icon}`} />} iconBg={TONE[g.tone || 'emerald'].bg} title={g.title} description={g.description} expanded={expandedGuide === g.id} onToggle={() => setExpandedGuide(expandedGuide === g.id ? null : g.id)} steps={g.steps} />
         ))}

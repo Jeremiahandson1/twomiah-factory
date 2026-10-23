@@ -91,6 +91,8 @@ const roof: VerticalSettings = {
     // cost recorded, as for the other trades that sell it; roofing's own app had no pricebook behind the switch at all.
     invoicing: { clientLabel: 'Homeowner', projects: false, quoteJobs: true, quoteNamePlaceholder: 'e.g. Full roof replacement', pricebook: true },
     documents: { projects: false, markup: true, types: DOC_TYPES },
+    // The Pricebook's example in a roofer's words (it fell back to a general "Standard service call").
+    pricebook: { namePlaceholder: 'e.g. Ridge vent replacement' },
   },
   // templates/website-premium-roofing views/sections/contact/form-info.ejs
   site: {

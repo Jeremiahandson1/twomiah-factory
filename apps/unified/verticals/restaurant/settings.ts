@@ -68,11 +68,10 @@ const restaurant: VerticalSettings = {
       // A venue deals with clients and their vendors (florists, DJs, photographers) — not subcontractors. (T16/T17 L10)
       types: [{ value: 'lead', label: 'Lead' }, { value: 'client', label: 'Client' }, { value: 'vendor', label: 'Vendor' }],
       gateByFeature: true,
-      sections: { projects: true, quotes: true, events: true, portal: true },
+      // Projects, quotes and jobs are not offered to a venue (featureRegistry): no list, count or button for them.
+      sections: { projects: false, quotes: false, events: true, portal: true },
       quickActions: [
         { label: 'Create Event', to: '/crm/events?contactId=:id', icon: 'event', feature: 'event_bookings' },
-        { label: 'Create Quote', to: '/crm/quotes?contactId=:id', icon: 'quote', feature: 'quotes' },
-        { label: 'Schedule Job', to: '/crm/jobs?contactId=:id', icon: 'job', feature: 'jobs' },
         { label: 'Create Invoice', to: '/crm/invoices?contactId=:id', icon: 'invoice', feature: 'invoices' },
       ],
     },

@@ -8,6 +8,7 @@ import { useAuth } from '../../shared'
 import { DataTable, StatusBadge, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { CUSTOMER_PICKER_PARAMS, customersOnly } from '@twomiah/tenant-ui/src/contacts/types'
 
 interface ProjectForm {
   name: string;
@@ -81,11 +82,12 @@ export default function ProjectsPage() {
       const params: Record<string, string | number> = { page, limit: 25 };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
-      const [resRaw, contactsResRaw] = await Promise.all([api.projects.list(params), api.contacts.list({ limit: 100 })]);
+      const [resRaw, contactsResRaw] = await Promise.all([api.projects.list(params), api.contacts.list({ limit: 100, ...CUSTOMER_PICKER_PARAMS })]);
       const res = resRaw as Record<string, unknown>; const contactsRes = contactsResRaw as Record<string, unknown>;
       setData(res.data as Record<string, unknown>[]);
       setPagination(res.pagination as PaginationData | null);
-      setContacts(contactsRes.data as Record<string, unknown>[]);
+      // A project's client: customers only (contacts/types.ts CUSTOMER_PICKER_PARAMS).
+      setContacts(customersOnly((contactsRes.data || []) as Array<Record<string, unknown> & { id: string; type?: string | null }>));
     } catch (err) { toast.error('Failed to load projects'); }
     finally { setLoading(false); }
   }, [page, search, statusFilter]);

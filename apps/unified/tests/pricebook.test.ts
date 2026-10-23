@@ -179,7 +179,7 @@ describe('in bulk', () => {
     const cat = await json(await roof.owner('/api/pricebook/categories', { method: 'POST', json: { name: 'Gutters' } }))
     const g1 = await json(await roof.owner('/api/pricebook/items', { method: 'POST', json: { name: 'Gutter run', price: 100, cost: 40, categoryId: cat.id } }))
     const other = await json(await roof.owner('/api/pricebook/items', { method: 'POST', json: { name: 'Ridge vent', price: 100 } }))
-    expect(await json(await roof.owner('/api/pricebook/bulk/adjust-prices', { method: 'POST', json: { categoryId: cat.id, adjustmentType: 'percent', adjustmentValue: 10, applyTo: 'price' } }))).toEqual({ updated: 1 })
+    expect(await json(await roof.owner('/api/pricebook/bulk/adjust-prices', { method: 'POST', json: { categoryId: cat.id, adjustmentType: 'percent', adjustmentValue: 10, applyTo: 'price' } }))).toMatchObject({ preview: false, updated: 1 }) // the reply also lists each price before and after (2026-10-23)
     expect(Number((await json(await roof.owner(`/api/pricebook/items/${g1.id}`))).price)).toBe(110)
     expect(Number((await json(await roof.owner(`/api/pricebook/items/${other.id}`))).price)).toBe(100)
     await roof.owner('/api/pricebook/bulk/adjust-prices', { method: 'POST', json: { itemIds: [g1.id], adjustmentType: 'fixed', adjustmentValue: -500, applyTo: 'price' } })

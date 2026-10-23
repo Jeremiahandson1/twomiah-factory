@@ -374,7 +374,7 @@ function PartFormModal({ part, onSave, onClose }: {
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
-                  placeholder="e.g., 16x25x1 Pleated Filter"
+                  placeholder={verticalScreens().parts.namePlaceholder || 'e.g., Replacement part'}
                   required
                 />
               </div>

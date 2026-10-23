@@ -29,6 +29,8 @@ export interface InvoicingConfig {
   tips?: boolean
   /** Field-service quote extras: per-customer sites + equipment, customer message, decline with timestamp. */
   quoteSites?: boolean
+  /** What the trade calls a service site on a quote (a landscaper's Property). Default Location. */
+  siteLabels?: { singular: string; plural: string }
   quoteEquipment?: boolean
   quoteCustomerMessage?: boolean
   quoteDecline?: boolean

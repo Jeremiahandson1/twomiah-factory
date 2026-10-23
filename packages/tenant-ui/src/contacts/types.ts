@@ -40,6 +40,9 @@ export interface ContactSections {
   orders?: boolean
   /** customer portal access panel (needs an email) */
   portal?: boolean
+  /** Every contact has these unless the vertical turns them off; each still asks its feature (SECTION_FEATURES). */
+  invoices?: boolean
+  jobs?: boolean
 }
 
 export interface ContactsConfig {
@@ -56,10 +59,19 @@ export interface ContactsConfig {
   sections?: ContactSections
   /** Feature id that gates the portal panel; `false` shows it whenever the contact has an email. Default 'client_portal'. */
   portalGate?: string | false
-  /** Hide the projects / quotes / invoices lists + counts unless the matching feature is on (salon, events). */
+  /**
+   * Kept for the configs that still set it; it no longer changes anything. Every related list, count and quick action
+   * is shown only when its feature is switched on (SECTION_FEATURES) — the rule every vertical now follows, not one a
+   * vertical opts into. (Live tests 2026-10-22: a landscaper's contact read "Projects", a home-care agency's offered
+   * "Create Quote" — links to features the business does not have.)
+   */
   gateByFeature?: boolean
-  /** Sidebar quick actions. Default: Create Quote, Schedule Job, Create Invoice. */
+  /** Sidebar quick actions. Default: Create Quote, Schedule <Job>, Create Invoice — each behind its feature. */
   quickActions?: QuickAction[]
+  /** What this trade calls a job: "Schedule <Service Call>", the "<Service Calls>" list. Default Job / Jobs. */
+  jobLabels?: { singular: string; plural: string }
+  /** What this trade calls a customer's service site: a landscaper's Property, Properties. Default Location / Locations. */
+  siteLabels?: SiteLabels
   hasFeature?: (id: string) => boolean
   /**
    * May this person add or change a contact? Threaded in from the template's own auth context, the way hasFeature is —
@@ -67,6 +79,21 @@ export interface ContactsConfig {
    * ask", so a template that has not been rewired keeps every control it has today. (T30 M-R1)
    */
   can?: (permission: string) => boolean
+}
+
+/** A customer's service site, in the trade's words (contacts, quotes, jobs). */
+export interface SiteLabels { singular: string; plural: string; /** The Add form's example name. */ namePlaceholder?: string }
+export const DEFAULT_SITE_LABELS: SiteLabels = { singular: 'Location', plural: 'Locations' }
+
+/**
+ * THE FEATURE BEHIND EACH PART OF A CONTACT'S PAGE. A section the vertical has (config.sections) is shown only when this
+ * feature is switched on too: the list, its count in the Summary, and the quick action that opens its page. Sections
+ * missing here (sites, patients, orders) belong to the contact record itself.
+ */
+export const SECTION_FEATURES: Record<string, string> = {
+  projects: 'projects', quotes: 'quotes', invoices: 'invoices', jobs: 'jobs', equipment: 'equipment_tracking', events: 'event_bookings',
+  // The contact's text thread is Two-Way Texting's, as the Messages page is.
+  sms: 'two_way_texting',
 }
 
 export const DEFAULT_CONTACT_TYPES: ContactType[] = [
@@ -86,30 +113,62 @@ const CREATES_ON: [RegExp, string][] = [
 ]
 export const quickActionPermission = (a: QuickAction): string | undefined => a.permission ?? CREATES_ON.find(([re]) => re.test(a.to))?.[1]
 
-export const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
-  { label: 'Create Quote', to: '/crm/quotes?contactId=:id', icon: 'quote' },
-  { label: 'Schedule Job', to: '/crm/jobs?contactId=:id', icon: 'job' },
-  { label: 'Create Invoice', to: '/crm/invoices?contactId=:id', icon: 'invoice' },
+/** The default quick actions, each behind the feature whose page it opens; the job one in the trade's word. */
+export const defaultQuickActions = (jobSingular = 'Job'): QuickAction[] => [
+  { label: 'Create Quote', to: '/crm/quotes?contactId=:id', icon: 'quote', feature: 'quotes' },
+  { label: `Schedule ${jobSingular}`, to: '/crm/jobs?contactId=:id', icon: 'job', feature: 'jobs' },
+  { label: 'Create Invoice', to: '/crm/invoices?contactId=:id', icon: 'invoice', feature: 'invoices' },
 ]
+export const DEFAULT_QUICK_ACTIONS: QuickAction[] = defaultQuickActions()
+
+/**
+ * The feature a quick action needs: its own `feature`, else the one behind the page it opens — so a vertical's own
+ * list that names no feature ("Create Invoice" on the salon's) is held to the same rule.
+ */
+export const quickActionFeature = (a: QuickAction): string | undefined =>
+  a.feature ?? (/^\/crm\/quotes(\?|$)/.test(a.to) ? 'quotes' : /^\/crm\/jobs(\?|$)/.test(a.to) ? 'jobs' : /^\/crm\/invoices(\?|$)/.test(a.to) ? 'invoices' : /^\/crm\/events(\?|$)/.test(a.to) ? 'event_bookings' : undefined)
 
 export const DEFAULT_SECTIONS: ContactSections = { projects: true, quotes: true, portal: true }
 
 export function resolveContactsConfig(c?: ContactsConfig) {
   const cfg = c || {}
+  const hasFeature = cfg.hasFeature || (() => true)
+  const sections = { ...DEFAULT_SECTIONS, ...(cfg.sections || {}) } as ContactSections & Record<string, boolean | undefined>
+  const jobLabels = cfg.jobLabels?.singular ? cfg.jobLabels : { singular: 'Job', plural: 'Jobs' }
   return {
     title: cfg.title || 'Contacts',
     types: cfg.types && cfg.types.length ? cfg.types : DEFAULT_CONTACT_TYPES,
     convertLabel: cfg.convertLabel || 'Client',
     addLabel: cfg.addLabel || 'Contact',
     vendorPortalInvite: !!cfg.vendorPortalInvite,
-    sections: { ...DEFAULT_SECTIONS, ...(cfg.sections || {}) },
+    sections,
     portalGate: cfg.portalGate === undefined ? 'client_portal' : cfg.portalGate,
-    gateByFeature: !!cfg.gateByFeature,
-    quickActions: cfg.quickActions || DEFAULT_QUICK_ACTIONS,
-    hasFeature: cfg.hasFeature || (() => true),
+    /**
+     * Is this part of the page shown? The vertical has it (a section it set, or one every contact has — invoices, jobs)
+     * AND the business has its feature on. One answer for the list, its Summary count and its quick action.
+     */
+    shows: (part: string): boolean => {
+      const offered = part === 'invoices' || part === 'jobs' ? sections[part] !== false : !!sections[part]
+      const feature = SECTION_FEATURES[part]
+      return offered && (!feature || hasFeature(feature))
+    },
+    quickActions: (cfg.quickActions || defaultQuickActions(jobLabels.singular)).filter((a) => { const f = quickActionFeature(a); return !f || hasFeature(f) }),
+    jobLabels,
+    siteLabels: cfg.siteLabels?.singular ? cfg.siteLabels : DEFAULT_SITE_LABELS,
+    hasFeature,
     can: cfg.can || (() => true),
   }
 }
+
+/**
+ * A CUSTOMER PICKER LISTS CUSTOMERS. Every picker that chooses who is quoted, invoiced, booked or worked for asks the
+ * server for customers only (GET /api/contacts?audience=customers — every contact but a vendor) and leaves vendors out
+ * itself as well, for a server that does not know the word yet; a vendor already on a record stays shown so editing it
+ * does not silently drop them. A vendor is who the business buys from. (Live tests 2026-10-22.)
+ */
+export const CUSTOMER_PICKER_PARAMS = { audience: 'customers' } as const
+export const customersOnly = <T extends { id: string; type?: string | null }>(rows: T[], keep?: string | null): T[] =>
+  rows.filter((c) => c.type !== 'vendor' || (!!keep && c.id === keep))
 
 export interface ContactsPageProps { api: ContactsApi; toast: ContactsToast; config?: ContactsConfig }
 
