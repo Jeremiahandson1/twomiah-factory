@@ -7,9 +7,21 @@ const read = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n'
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
+// The shared formatter (packages/tenant-ui/src/money.ts, a6b342dfa: one money() for every screen, the sign before the
+// "$"). A page that hands its figure to it — with no digits of its own — shows what IT shows, so the rule is checked on
+// what it prints, not on a toLocaleString the page no longer writes: cents always, thousands grouped.
+const sharedMoney = (await import(ROOT + 'packages/tenant-ui/src/money.ts')).money as (n: unknown, digits?: number) => string
+const SHARED_SHOWS_CENTS = sharedMoney(824.6) === '$824.60' && sharedMoney(1234.5) === '$1,234.50' && sharedMoney(-200) === '-$200.00'
+if (!SHARED_SHOWS_CENTS) fail('the shared money() must show cents: $824.60, $1,234.50, -$200.00')
+/** The page imports the shared money() (under `local`). */
+const usesShared = (src: string, local: string) => src.includes(local === 'money' ? "import { money } from '../money'" : `import { money as ${local} } from '../money'`)
+
 // L1 — the portal's money helpers both carry cents (moneyShort used to drop them: "$824.6")
 const common = read('packages/tenant-ui/src/portal/common.tsx')
-if (!/export const money = .*minimumFractionDigits: 2, maximumFractionDigits: 2/.test(common)) fail('portal money() must show cents')
+const portalOwn = /export const money = .*minimumFractionDigits: 2, maximumFractionDigits: 2/.test(common)
+// …or the shared one, given the number alone (a second argument could ask for whole dollars).
+const portalShared = usesShared(common, 'formatMoney') && common.includes('export const money = (n: unknown) => `${formatMoney(Number(n || 0))}`') && SHARED_SHOWS_CENTS
+if (!portalOwn && !portalShared) fail('portal money() must show cents')
 if (!/export const moneyShort = money\b/.test(common)) fail('portal moneyShort must show cents too (it is money)')
 // L2 — a team rate is money
 const team = read('packages/tenant-ui/src/people/TeamPage.tsx')
@@ -17,7 +29,9 @@ const team = read('packages/tenant-ui/src/people/TeamPage.tsx')
 // toLocaleString with minimumFractionDigits 2, which also groups thousands — so this accepts either
 // formatter and still refuses a bare figure. (T41)
 const TWO_DP = /\$\{Number\(v\)\.(?:toFixed\(2\)|toLocaleString\(undefined, \{ minimumFractionDigits: 2, maximumFractionDigits: 2 \}\))\}\/hr/
-if (!TWO_DP.test(team)) fail('the team Rate column must show 2 decimals')
+// …or the shared money(), given the number alone.
+const teamShared = usesShared(team, 'money') && team.includes('`${money(Number(v))}/hr`') && SHARED_SHOWS_CENTS
+if (!TWO_DP.test(team) && !teamShared) fail('the team Rate column must show 2 decimals')
 // A login account's role is a PERMISSION role, and the Team page printed the stored slug — "field" and "user"
 // on a page whose own Settings › Users calls both of them Staff. One vocabulary, one map. (T14 M10)
 if (!/import \{ ROLE_LABELS \} from '\.\.\/shell\/types'/.test(team)) fail('the Team page must read the shared role vocabulary, not invent a second one')

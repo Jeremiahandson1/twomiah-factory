@@ -1007,7 +1007,7 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
               <button
                 onClick={() => setShowAddForm(true)}
                 disabled={showAddForm}
-                className="px-4 py-2 bg-orange-700 hover:bg-orange-800 text-white rounded-lg disabled:opacity-50"
+                className="px-4 py-2 bg-orange-700 hover:bg-orange-900 text-white rounded-lg disabled:opacity-50"
               >
                 Add Service Record
               </button>
@@ -1114,7 +1114,7 @@ function AddServiceRecordForm({ api, equipmentId, onCancel, onSaved }: { api: Eq
       {error && <p id="service-record-error" role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
       <div className="flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 dark:border-slate-600 dark:text-slate-200">Cancel</button>
-        <button type="submit" disabled={saving} className="px-4 py-2 bg-orange-700 hover:bg-orange-800 text-white rounded-lg disabled:opacity-50">{saving ? 'Saving…' : 'Save record'}</button>
+        <button type="submit" disabled={saving} className="px-4 py-2 bg-orange-700 hover:bg-orange-900 text-white rounded-lg disabled:opacity-50">{saving ? 'Saving…' : 'Save record'}</button>
       </div>
     </form>
   );
