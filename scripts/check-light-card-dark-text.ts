@@ -73,8 +73,19 @@ for (const root of roots) {
      */
     const lines = stripSource(src).split('\n')
     lines.forEach((line, i) => {
+      /**
+       * A WHITE WASH IS NOT A WHITE CARD. (d3840d04a, the shared photo viewer)
+       *
+       * `\bbg-white\b` also matches `bg-white/10`, because `/` is a word boundary. A 10% white wash paints no white
+       * surface — the ground behind it shows through, which is the point: the viewer's Remove button is
+       * `bg-white/10 hover:bg-white/20` on the viewer's own `bg-black/95`. So a translucent white below half opacity
+       * (`bg-white/0` … `bg-white/49`, with any variant prefix) is taken out of the line before the test. Half
+       * opacity and above (`bg-white/50`, `/80`, `/95` — a frosted card) still read as a white surface and are held
+       * to the rule, as is plain `bg-white`.
+       */
+      const opaque = line.replace(/(?:[a-z-]+:)*bg-white\/(?:[0-4]?\d)(?![\d.])/g, '')
       // A className carrying bg-white and no dark partner on the same element.
-      if (!/\bbg-white\b/.test(line)) return
+      if (!/\bbg-white\b/.test(opaque)) return
       /**
        * `dark:*bg-` — not just `dark:bg-`. A hover surface's partner is `dark:hover:bg-slate-800`,
        * and the narrower pattern did not see it, so correctly-paired
