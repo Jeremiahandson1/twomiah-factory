@@ -38,6 +38,8 @@ beforeAll(async () => {
   await t.db.insert(t.schema.aiReceptionistRule).values([
     { companyId, name: 'Missed', trigger: 'missed_call', channel: 'sms', messageTemplate: 'Sorry we missed you — {{company}} will call back.' },
     { companyId, name: 'Voicemail', trigger: 'voicemail', channel: 'sms', messageTemplate: 'Got your message.' },
+    // Fires on a missed call AND on a voicemail outside hours — the rule that would answer one call twice.
+    { companyId, name: 'After hours', trigger: 'after_hours', channel: 'sms', messageTemplate: 'We are closed now.' },
   ] as any)
 }, 120_000)
 
@@ -46,7 +48,8 @@ describe('the settings', () => {
     const bad = await settings({ forwardingNumber: '555-12' })
     expect(bad.status).toBe(400)
     expect((await json(bad)).fields).toEqual({ forwardingNumber: 'Enter a 10-digit US phone number' })
-    const ok = await settings({ isEnabled: true, forwardingNumber: '(608) 555-0111', greetingText: 'You reached Tom & Jerry’s. Leave a message <please>.' })
+    // Hours that make every minute "after hours" (start 23:59, end 00:00), so the after-hours rule fires whatever the clock.
+    const ok = await settings({ isEnabled: true, businessHoursStart: '23:59', businessHoursEnd: '00:00', forwardingNumber: '(608) 555-0111', greetingText: 'You reached Tom & Jerry’s. Leave a message <please>.' })
     expect(ok.status).toBe(200)
     expect((await json(ok)).forwardingNumber).toBe('(608) 555-0111')
   })
@@ -81,13 +84,13 @@ describe('the line', () => {
     expect(body).toContain('<Say voice="alice">You reached Tom &amp; Jerry’s. Leave a message &lt;please&gt;.</Say>')
     expect(body).toContain(`<Record maxLength="120" playBeep="true" timeout="5" action="/api/ai-receptionist/webhook/voicemail-done/${companyId}" method="POST" recordingStatusCallback="/api/ai-receptionist/webhook/recording/${companyId}" recordingStatusCallbackMethod="POST" recordingStatusCallbackEvent="completed"/>`)
     expect((await callRow('CA2'))[0].status).toBe('missed')
-    await until(() => texts.length > 0)
-    expect(texts.map((m) => [m.toPhone, m.message])).toEqual([['+16085550198', 'Sorry we missed you — Tom & Jerry’s <Plumbing> will call back.']])
+    await until(() => texts.length > 1)
+    expect(texts.map((m) => [m.toPhone, m.message]).sort()).toEqual([['+16085550198', 'Sorry we missed you — Tom & Jerry’s <Plumbing> will call back.'], ['+16085550198', 'We are closed now.']])
     expect((await callRow('CA2'))[0].aiResponseSent).toBe(true)
     expect(await (await twilio(`/api/ai-receptionist/webhook/voicemail-done/${companyId}`, { CallSid: 'CA2' })).text()).toContain('<Hangup/>')
   })
 
-  test('the message arrives: the call is a voicemail, and only the voicemail rules reply — not the missed-call one again', async () => {
+  test('the message arrives: the call is a voicemail, and only the voicemail rules reply — not the missed-call or after-hours one again', async () => {
     texts.length = 0
     const r = await twilio(`/api/ai-receptionist/webhook/recording/${companyId}`, { CallSid: 'CA2', RecordingUrl: 'https://api.twilio.com/2010-04-01/Accounts/AC0/Recordings/RE1', RecordingStatus: 'completed' })
     expect(r.status).toBe(200)
@@ -113,8 +116,8 @@ describe('the line', () => {
     expect(body).not.toContain('<Dial')
     expect(body).toContain('<Say voice="alice">Thanks for calling Tom &amp; Jerry’s &lt;Plumbing&gt;. We can&apos;t'.replace('&apos;', "'"))
     expect(body).toContain('<Record ')
-    await until(() => texts.length > 0)
-    expect(texts.map((m) => m.toPhone)).toEqual(['+16085550197'])
+    await until(() => texts.length > 1)
+    expect(texts.map((m) => m.toPhone)).toEqual(['+16085550197', '+16085550197'])
   })
 
   test('the receptionist switched off: the call still rings and takes a message, but nobody is texted', async () => {
