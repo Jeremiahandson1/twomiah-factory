@@ -1,6 +1,7 @@
 // Drawn e-signature: canvas pad, saved-signature display, and the consent modal the approve flows use.
 import React, { useRef, useState, useEffect } from 'react'
 import { Eraser, Check } from 'lucide-react'
+import { formatWhenTime } from './common'
 
 interface SignaturePadProps { onSave: (dataUrl: string) => void; onCancel?: () => void; width?: number; height?: number; penColor?: string; backgroundColor?: string }
 
@@ -61,7 +62,7 @@ export function SignaturePad({ onSave, onCancel, width = 500, height = 200, penC
   )
 }
 
-export function SignatureDisplay({ signature, signedBy, signedAt, className = '' }: { signature: string | null; signedBy?: string; signedAt?: string; className?: string }) {
+export function SignatureDisplay({ signature, signedBy, signedAt, timeZone, className = '' }: { signature: string | null; signedBy?: string; signedAt?: string; timeZone?: string | null; className?: string }) {
   if (!signature) return null
   return (
     <div className={className}>
@@ -69,7 +70,7 @@ export function SignatureDisplay({ signature, signedBy, signedAt, className = ''
         <img src={signature} alt="Signature" className="max-h-20 bg-white rounded dark:bg-slate-900" />
         <div className="mt-2 text-sm text-gray-600 dark:text-slate-300">
           <p className="font-medium">{signedBy}</p>
-          <p className="text-xs text-gray-500 dark:text-slate-400">{signedAt ? new Date(signedAt).toLocaleString() : ''}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{signedAt ? formatWhenTime(signedAt, timeZone) : ''}</p>
         </div>
       </div>
     </div>

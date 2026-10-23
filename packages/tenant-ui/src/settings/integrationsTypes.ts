@@ -57,4 +57,9 @@ export interface ReviewsConfig {
   subjectLabel?: string
   autoRequestHelp?: string
   emptyHelp?: string
+  /**
+   * Where this vertical asks one customer by hand (the Send review request button), as the end of a sentence:
+   * "on a job or a customer's page". Empty: the vertical has no such button, and the page does not claim one.
+   */
+  manualHelp?: string
 }

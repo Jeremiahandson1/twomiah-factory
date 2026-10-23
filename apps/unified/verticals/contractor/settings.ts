@@ -32,6 +32,7 @@ const contractor: VerticalSettings = {
     },
     pricebook: {
       tiersTitle: 'Pricing tiers',
+      itemNamePlaceholder: 'e.g. Drywall patch and paint',
       tiersButton: 'Tiers',
       tierPresets: [
         { tier: 'best', name: 'Sign Today', description: 'Best price — available today only', recommended: true },
@@ -50,7 +51,7 @@ const contractor: VerticalSettings = {
     leads: {},
     marketing: {},
     messages: {},
-    agreements: {},
+    agreements: { planNamePlaceholder: 'e.g., Annual Home Maintenance Plan' },
     // The live map of the drivers' vehicles (BASE_CRM fleet.gps).
     fleet: { gps: true },
     reviews: {},

@@ -90,6 +90,7 @@ const roof: VerticalSettings = {
     // pricebook: roofing is sold the Pricebook (featureRegistry), and a quote or invoice line is priced from it, with its
     // cost recorded, as for the other trades that sell it; roofing's own app had no pricebook behind the switch at all.
     invoicing: { clientLabel: 'Homeowner', projects: false, quoteJobs: true, quoteNamePlaceholder: 'e.g. Full roof replacement', pricebook: true },
+    pricebook: { itemNamePlaceholder: 'e.g. Ridge vent replacement' },
     documents: { projects: false, markup: true, types: DOC_TYPES },
   },
   // templates/website-premium-roofing views/sections/contact/form-info.ejs

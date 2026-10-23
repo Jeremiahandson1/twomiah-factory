@@ -8,11 +8,16 @@ import { serviceRate, site } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
+import { readNumber, type NumberRule } from '../../http/numberInput.ts'
 
 // Site columns that can drive area-based pricing
 const AREA_FIELDS = ['lawnSqft', 'bedSqft', 'hardscapeSqft', 'lotSqft', 'drivewaySqft'] as const
 type AreaField = (typeof AREA_FIELDS)[number]
 const isAreaField = (v: unknown): v is AreaField => typeof v === 'string' && (AREA_FIELDS as readonly string[]).includes(v)
+const AREA_LABELS: Record<AreaField, string> = { lawnSqft: 'Lawn area', bedSqft: 'Bed area', hardscapeSqft: 'Hardscape area', lotSqft: 'Lot size', drivewaySqft: 'Driveway area' }
+/** The rate card's two numbers: the rate is required, the minimum charge is $0 when left blank. */
+const RATE: NumberRule = { label: 'Rate per 1,000 sq ft', min: 0, max: 1_000_000, example: '12.50' }
+const MIN_CHARGE: NumberRule = { label: 'Minimum charge', blank: 0, min: 0, max: 1_000_000, example: '45' }
 
 /** price = max(minCharge, (areaSqft / 1000) * ratePer1000Sqft), rounded to cents */
 export function computeAreaPrice(areaSqft: number, ratePer1000Sqft: number, minCharge: number) {
@@ -36,14 +41,19 @@ export function createAreaPricingRoutes(d: CrmDeps) {
   app.post('/rates', requirePermission('quotes:create'), async (c) => {
     const u = c.get('user')
     const body = await c.req.json()
-    if (!body.serviceType || body.ratePer1000Sqft == null) return fail(c, 400, 'serviceType and ratePer1000Sqft are required')
+    if (!body.serviceType || String(body.serviceType).trim() === '') return fail(c, 400, 'Name the service this rate is for.', undefined, { serviceType: 'Name the service this rate is for.' })
+    // A blank or non-number box is refused by name, not passed to the numeric column (http/numberInput.ts).
+    const ratePer = readNumber(body.ratePer1000Sqft, RATE)
+    if (ratePer.error) return fail(c, 400, ratePer.error, undefined, { ratePer1000Sqft: ratePer.error })
+    const min = readNumber(body.minCharge, MIN_CHARGE)
+    if (min.error) return fail(c, 400, min.error, undefined, { minCharge: min.error })
     const areaField: AreaField = isAreaField(body.areaField) ? body.areaField : 'lawnSqft'
     const [rate] = await db.insert(serviceRate).values({
       companyId: u.companyId,
       serviceType: String(body.serviceType),
       areaField,
-      ratePer1000Sqft: String(body.ratePer1000Sqft),
-      minCharge: String(body.minCharge ?? '0'),
+      ratePer1000Sqft: String(ratePer.value),
+      minCharge: String(min.value ?? 0),
       unitLabel: body.unitLabel ?? 'per visit',
       active: body.active !== false,
     }).returning()
@@ -58,8 +68,16 @@ export function createAreaPricingRoutes(d: CrmDeps) {
     const patch: Record<string, unknown> = { updatedAt: new Date() }
     if (body.serviceType != null) patch.serviceType = String(body.serviceType)
     if (isAreaField(body.areaField)) patch.areaField = body.areaField
-    if (body.ratePer1000Sqft != null) patch.ratePer1000Sqft = String(body.ratePer1000Sqft)
-    if (body.minCharge != null) patch.minCharge = String(body.minCharge)
+    if (body.ratePer1000Sqft !== undefined) {
+      const ratePer = readNumber(body.ratePer1000Sqft, RATE)
+      if (ratePer.error) return fail(c, 400, ratePer.error, undefined, { ratePer1000Sqft: ratePer.error })
+      patch.ratePer1000Sqft = String(ratePer.value)
+    }
+    if (body.minCharge !== undefined) {
+      const min = readNumber(body.minCharge, MIN_CHARGE)
+      if (min.error) return fail(c, 400, min.error, undefined, { minCharge: min.error })
+      patch.minCharge = String(min.value ?? 0)
+    }
     if (body.unitLabel != null) patch.unitLabel = body.unitLabel
     if (body.active != null) patch.active = !!body.active
     const [rate] = await db.update(serviceRate).set(patch)
@@ -86,8 +104,13 @@ export function createAreaPricingRoutes(d: CrmDeps) {
     const siteId = c.req.param('siteId')
     const body = await c.req.json()
     const patch: Record<string, unknown> = { updatedAt: new Date(), measuredAt: new Date() }
+    // A blank box leaves the measurement alone; anything else must be whole square feet ('abc' was parseInt'd to NaN
+    // and refused by the database as "not in a valid format").
     for (const f of AREA_FIELDS) {
-      if (body[f] != null && body[f] !== '') patch[f] = parseInt(body[f], 10)
+      if (body[f] === undefined || body[f] === null || String(body[f]).trim() === '') continue
+      const area = readNumber(body[f], { label: AREA_LABELS[f], min: 0, max: 100_000_000, example: '4500' })
+      if (area.error) return fail(c, 400, area.error, undefined, { [f]: area.error })
+      patch[f] = Math.round(area.value as number)
     }
     if (body.measurementSource) patch.measurementSource = String(body.measurementSource)
     const [updated] = await db.update(site).set(patch)

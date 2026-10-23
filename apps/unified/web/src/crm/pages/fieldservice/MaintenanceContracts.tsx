@@ -44,6 +44,20 @@ interface Contract {
   amount?: string | number;
   contact?: { id: string; name: string; email?: string | null; phone?: string | null } | null;
   plan?: AgreementPlan | null;
+  /** This term's visits (tenant-backend agreements.ts withRelations): the plan's allowance, booked and done. */
+  visitsIncluded?: number;
+  visitsScheduled?: number;
+  visitsCompleted?: number;
+}
+
+/**
+ * What the Visits column says. A plan with an allowance puts its term's visits on the Schedule when the contract is made
+ * (server scheduleTermVisits; live test 2026-10-22: "a contract with 2 visits a year should create visit jobs").
+ */
+const visitsText = (c: Contract) => {
+  const included = Number(c.visitsIncluded || 0), booked = Number(c.visitsScheduled || 0), done = Number(c.visitsCompleted || 0)
+  if (included > 0) return `${booked} booked · ${done} done of ${included}`
+  return booked + done > 0 ? `${booked} booked · ${done} done` : 'Booked by hand'
 }
 
 /** A row of GET /api/contacts — the picker reads the id and the name. */
@@ -220,6 +234,7 @@ export default function MaintenanceContracts() {
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Customer</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Plan</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Next Service</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Visits this term</th>
                 {maySeeMoney && <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Amount</th>}
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Status</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Expires</th>
@@ -259,6 +274,7 @@ export default function MaintenanceContracts() {
                           : '-'}
                       </p>
                     </td>
+                    <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-300">{visitsText(contract)}</td>
                     {maySeeMoney && <td className="px-4 py-3 text-right">
                       <p className="font-medium text-gray-900 dark:text-white">
                         ${Number(contract.amount || 0).toFixed(2)}
@@ -377,6 +393,7 @@ function ContractFormModal({ contract, onSave, onClose }: {
     billingFrequency: string;
     amount: string;
     autoRenew: boolean;
+    firstVisitDate: string;
   }>({
     contactId: contract?.contactId || '',
     planId: contract?.planId || '',
@@ -384,7 +401,23 @@ function ContractFormModal({ contract, onSave, onClose }: {
     billingFrequency: contract?.billingFrequency || 'monthly',
     amount: contract?.amount != null ? String(contract.amount) : '', // the agreement's billed amount (API field `amount`)
     autoRenew: contract?.renewalType ? contract.renewalType === 'auto' : true, // the API stores renewalType
+    firstVisitDate: '',
   });
+  /** The picked plan's visits per term: they go on the Schedule when the contract is saved (server scheduleTermVisits). */
+  const planVisits = Number(plans.find((p) => p.id === form.planId)?.visitsIncluded || 0);
+  const [scheduling, setScheduling] = useState(false);
+  const scheduleTerm = async () => {
+    if (!contract) return;
+    setScheduling(true);
+    try {
+      const r = await api.post(`/api/agreements/${contract.id}/schedule-visits`, {});
+      const made = Number(r?.made || 0);
+      toast.success(made > 0 ? `${made} visit${made === 1 ? '' : 's'} put on the Schedule: ${(r?.dates || []).map((d: string) => formatDate(d)).join(', ')}` : "This term's visits are already on the Schedule");
+      onSave();
+    } catch (error) {
+      toast.error(serverMessage(error, 'The visits could not be scheduled'));
+    } finally { setScheduling(false); }
+  };
   // A seat without invoices:read is never sent `amount` (agreements.ts withholds it), so on an edit its blank box
   // means "not shown", not "blank": the box is left off the form and `amount` out of the request.
   const amountHidden = !!contract && contract.amount === undefined;
@@ -415,12 +448,14 @@ function ContractFormModal({ contract, onSave, onClose }: {
       // A blank amount is never a value the server takes ('' is refused with a 400). Left out, an edit keeps the
       // stored amount (or takes a newly picked plan's), and a new contract takes its plan's price — or the server
       // says, in its own words, that it needs one.
-      const { amount, ...rest } = form;
+      const { amount, firstVisitDate, ...rest } = form;
       const payload = amountHidden || amount.trim() === '' ? rest : { ...rest, amount };
       if (contract) {
         await api.put(`/api/agreements/${contract.id}`, payload);
       } else {
-        await api.post('/api/agreements', payload);
+        const made = await api.post('/api/agreements', { ...payload, ...(planVisits > 0 && firstVisitDate ? { firstVisitDate } : {}) });
+        // Say where the visits went: the Schedule, on these days.
+        if (Number(made?.visitsMade || 0) > 0) toast.success(`${made.visitsMade} visit${made.visitsMade === 1 ? '' : 's'} put on the Schedule: ${(made.visitDates || []).map((d: string) => formatDate(d)).join(', ')}`);
       }
       onSave();
     } catch (error) {
@@ -534,6 +569,31 @@ function ContractFormModal({ contract, onSave, onClose }: {
                 </div>
               </div>}
             </div>
+
+            {/* The plan's visits per term go on the Schedule with the contract. */}
+            {planVisits > 0 && (
+              <div className="rounded-lg border border-gray-200 p-3 dark:border-slate-600 space-y-2" data-testid="contract-visits">
+                <p className="text-sm text-gray-700 dark:text-slate-200">
+                  This plan includes <strong>{planVisits} visit{planVisits === 1 ? '' : 's'}</strong> a term.{' '}
+                  {contract
+                    ? `This term: ${Number(contract.visitsScheduled || 0)} booked, ${Number(contract.visitsCompleted || 0)} done.`
+                    : 'They go on the Schedule when you save, spread evenly across the term from the first visit.'}
+                </p>
+                {!contract && (
+                  <div>
+                    <label htmlFor="contract-first-visit" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">First visit</label>
+                    <input id="contract-first-visit" type="date" min={form.startDate} value={form.firstVisitDate || form.startDate}
+                      onChange={(e) => setForm({ ...form, firstVisitDate: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600" />
+                  </div>
+                )}
+                {contract && contract.status === 'active' && Number(contract.visitsScheduled || 0) + Number(contract.visitsCompleted || 0) < planVisits && (
+                  <button type="button" onClick={scheduleTerm} disabled={scheduling} className="px-4 py-2 border rounded-lg text-sm text-gray-800 hover:bg-gray-50 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700 disabled:opacity-60">
+                    {scheduling ? 'Scheduling…' : "Schedule this term's visits"}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Auto-Renew */}
             <label className="flex items-center gap-2">

@@ -147,7 +147,7 @@ interface EquipmentFormModalProps {
   types: CategoryRow[];
   suggestions: EquipmentCategory[];
   onTypesChanged: () => void;
-  config: { contacts: boolean; sites: boolean; linkedJobs: boolean };
+  config: { contacts: boolean; sites: boolean; linkedJobs: boolean; namePlaceholder?: string };
   onSave: () => void;
   onClose: () => void;
 }
@@ -155,7 +155,7 @@ interface EquipmentFormModalProps {
 interface ServiceHistoryModalProps {
   equipment: Equipment;
   api: EquipmentApi;
-  config: { contacts: boolean; sites: boolean; linkedJobs: boolean };
+  config: { contacts: boolean; sites: boolean; linkedJobs: boolean; namePlaceholder?: string };
   onClose: () => void;
   onRefresh: () => void;
 }
@@ -179,7 +179,7 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
    * history of the machine in front of them, and hiding those is the more expensive mistake.
    */
   const mayCreate = useMayWrite('equipment:create');
-  const cfg = { contacts: !!config?.contacts, sites: !!config?.sites, linkedJobs: !!config?.linkedJobs };
+  const cfg = { contacts: !!config?.contacts, sites: !!config?.sites, linkedJobs: !!config?.linkedJobs, namePlaceholder: config?.namePlaceholder };
   const [types, setTypes] = useState<CategoryRow[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [stats, setStats] = useState<EquipmentStats | null>(null);
@@ -693,7 +693,7 @@ function EquipmentFormModal({ equipment, api, types, suggestions, onTypesChanged
                   value={form.name}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))}
                   className="w-full px-3 py-2 border rounded-lg"
-                  placeholder="e.g., Main AC Unit"
+                  placeholder={config.namePlaceholder || 'e.g., Unit at the main building'}
                   required
                 />
               </div>

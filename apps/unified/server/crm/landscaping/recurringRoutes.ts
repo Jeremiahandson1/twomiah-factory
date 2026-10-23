@@ -7,6 +7,7 @@ import { recurringRoute, recurringRouteStop, site } from '../../db/schema/index.
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
+import { readNumber, type NumberRule } from '../../http/numberInput.ts'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -17,15 +18,18 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 const DAY_INDEX_HELP = 'Pick the day this route runs — Sunday (0) through Saturday (6).'
 const NAME_HELP = 'Give the route a name — it is what the crew sees on the board.'
 
-/** Hours must be a number, on both paths (T58c): a non-number reached the decimal column and 500'd. */
-const hoursRefusal = (value: unknown): string | null => {
-  if (value === null || value === undefined || value === '') return null
-  const n = Number(value)
-  if (!Number.isFinite(n)) return 'Estimated hours must be a number — for example 2.5.'
-  if (n < 0) return 'Estimated hours cannot be negative.'
-  if (n > 24) return 'A route cannot take more than 24 hours in a day. Split it across days instead.'
-  return null
+/**
+ * Hours must be a number, on both paths (T58c): a non-number reached the decimal column and 500'd. A blank box is no
+ * estimate yet — 0 — on both paths: the create kept the '' (`?? '0'` lets it through) and Postgres refused it as "One of
+ * the values is not in a valid format." (live test 2026-10-22). One reader for every number box (http/numberInput.ts).
+ */
+const HOURS: NumberRule = { label: 'Estimated hours', blank: 0, min: 0, max: 24, example: '2.5' }
+const hoursOf = (value: unknown) => {
+  const r = readNumber(value, HOURS)
+  return r.error && Number(value) > 24 ? { error: 'A route cannot take more than 24 hours in a day. Split it across days instead.' } : r
 }
+/** A stop's minutes: blank is the half hour the form starts with. */
+const MINUTES: NumberRule = { label: 'Minutes at the stop', blank: 30, min: 0, max: 24 * 60, integer: true, example: '30' }
 
 /**
  * A route runs on one of the seven days (T58). One parser for create, edit and the list filter, so the filter cannot
@@ -147,14 +151,14 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
     if (body.dayOfWeek == null) return fail(c, 400, 'Pick the day this route runs.', undefined, { dayOfWeek: 'Pick the day this route runs.' })
     const day = dayIndex(body.dayOfWeek)
     if (day === null) return fail(c, 400, DAY_INDEX_HELP, 'BAD_DAY_OF_WEEK', { dayOfWeek: DAY_INDEX_HELP })
-    const badHours = hoursRefusal(body.estimatedHours)
-    if (badHours) return fail(c, 400, badHours, undefined, { estimatedHours: badHours })
+    const hours = hoursOf(body.estimatedHours)
+    if (hours.error) return fail(c, 400, hours.error, undefined, { estimatedHours: hours.error })
     const [route] = await db.insert(recurringRoute).values({
       companyId: u.companyId,
       name: String(body.name),
       dayOfWeek: day,
       assignedToId: body.assignedToId ?? null,
-      estimatedHours: String(body.estimatedHours ?? '0'),
+      estimatedHours: String(hours.value ?? 0),
       status: body.status ?? 'active',
       notes: body.notes ?? null,
     }).returning()
@@ -180,10 +184,10 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
       patch.dayOfWeek = day
     }
     if (body.assignedToId !== undefined) patch.assignedToId = body.assignedToId || null
-    if (body.estimatedHours != null) {
-      const badHours = hoursRefusal(body.estimatedHours)
-      if (badHours) return fail(c, 400, badHours, undefined, { estimatedHours: badHours })
-      patch.estimatedHours = String(Number(body.estimatedHours))
+    if (body.estimatedHours !== undefined) {
+      const hours = hoursOf(body.estimatedHours)
+      if (hours.error) return fail(c, 400, hours.error, undefined, { estimatedHours: hours.error })
+      patch.estimatedHours = String(hours.value ?? 0)
     }
     if (body.status) patch.status = body.status
     if (body.notes != null) patch.notes = body.notes
@@ -237,6 +241,10 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
       const why = 'Pricing a stop is for an owner or manager. Add the stop without a price and they can set it.'
       return fail(c, 403, why, undefined, { pricePerVisit: why })
     }
+    const minutes = readNumber(body.estimatedMinutes, MINUTES)
+    if (minutes.error) return fail(c, 400, minutes.error, undefined, { estimatedMinutes: minutes.error })
+    const price = readNumber(body.pricePerVisit, { label: 'Price per visit', blank: 0, min: 0, max: 1_000_000, example: '45' })
+    if (price.error) return fail(c, 400, price.error, undefined, { pricePerVisit: price.error })
     const existing = await db.select().from(recurringRouteStop).where(eq(recurringRouteStop.recurringRouteId, routeId))
     const [stop] = await db.insert(recurringRouteStop).values({
       companyId: u.companyId,
@@ -245,8 +253,8 @@ export function createRecurringRouteRoutes(d: CrmDeps) {
       contactId: body.contactId ?? null,
       serviceType: body.serviceType ?? 'mowing',
       sortOrder: body.sortOrder ?? existing.length,
-      estimatedMinutes: parseInt(body.estimatedMinutes ?? '30', 10),
-      pricePerVisit: priceGiven ? String(body.pricePerVisit) : '0',
+      estimatedMinutes: minutes.value ?? 30,
+      pricePerVisit: priceGiven ? String(price.value ?? 0) : '0',
     }).returning()
     return one(c, money ? stop : withoutPrice(stop), 201)
   })

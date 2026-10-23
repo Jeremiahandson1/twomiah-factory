@@ -21,7 +21,7 @@ const STARTER: StarterContent = {
     { title: "Invoice Management", category: "Quotes & Invoices", isFaq: false,
       content: "Create an invoice with New Invoice on the Invoices page, or from an approved quote (Create Invoice). Bill a visit or a project like this. For regular billing, the Recurring page sets up Recurring Invoices (weekly, bi-weekly, monthly…). Snow Billing handles snow and ice contracts per push, per event, per inch or seasonal. Use Send to email an invoice, Record Payment when paid, and Send again to chase one that is unpaid." },
     { title: "How do I schedule jobs and routes?", category: "Scheduling", isFaq: true,
-      content: "Give a job its Scheduled Date and Time, and pick the crew member under Assigned To. The Schedule page shows the week: click a job to open it, and with Drag & Drop Calendar on, drag it to another day. For weekly mowing, the Route Board (Recurring Route Board) holds a route for each day: click New Route, then Add Stop for each property." },
+      content: "Give a job its Scheduled Date and Time, and pick the crew member under Assigned To. The Schedule page shows a day, a week or a month: click a job to open it, and with Drag & Drop Calendar on, drag it to another day, or in the Day view to another hour. For weekly mowing, choose Repeat on the New Job form (every week, every 2 weeks… or every month) and how many visits or until when: every visit goes on the Schedule, and Stop the series on any visit's page ends it. The Route Board (Recurring Route Board) holds a crew's route for each day: click New Route, then Add Stop for each property." },
     { title: "Team & Crew Management", category: "Team", isFaq: false,
       content: "Give someone a sign-in from Settings › Users (Add User), which can email them an invite. Their Access Role sets what they can do:\n• Viewer can look but change nothing.\n• Staff handles day-to-day work.\n• Manager has full access to work and invoicing.\n• Admin also has company settings and the team.\n\nThe Team page is your roster: each person's job title, department and hourly rate. Crew members can be assigned to jobs, and their hours are logged on the Time page." },
     { title: "How do I track crew time?", category: "Time & Expenses", isFaq: true,
@@ -71,7 +71,7 @@ const landscaping: VerticalSettings = {
     // to this vertical).
     documents: { markup: false, projects: false, types: DOC_TYPES },
     equipment: {
-      contacts: true, sites: true, linkedJobs: true,
+      contacts: true, sites: true, linkedJobs: true, namePlaceholder: 'e.g., Backyard irrigation controller',
       // A lawn-care crew's own kit, not HVAC / Plumbing / Electrical. (T41)
       categories: [
         { name: 'Mowers', icon: 'mower' }, { name: 'Trimmers & blowers', icon: 'tree' }, { name: 'Tree & stump', icon: 'tree' },
@@ -89,14 +89,14 @@ const landscaping: VerticalSettings = {
       ],
     },
     migration: { entityLabels: { jobs: 'Service Visits & Work Orders' } },
-    pricebook: { tiersTitle: 'Good-Better-Best options' },
+    pricebook: { tiersTitle: 'Good-Better-Best options', itemNamePlaceholder: 'e.g. Weekly mowing' },
     reporting: { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: false, team: true, eventsPipeline: false, dealership: false },
     dashboard: { jobsLabel: 'Jobs', todayBoard: true, projects: false },
     jobCosting: { jobsLabel: 'Jobs', costingLabel: 'Job Costing' },
     time: { jobLabel: 'Service Visit' },
     expenses: { jobLabel: 'Service Visit' },
     team: { rolePlaceholder: 'e.g. Crew Lead' },
-    agreements: { recurrence: true },
+    agreements: { recurrence: true, planNamePlaceholder: 'e.g., Seasonal Lawn Care Plan' },
     fleet: { gps: true },
     // A grounds crew's stock, not an HVAC van's (T63). Any category already stored on a part is still offered.
     parts: {

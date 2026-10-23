@@ -13,7 +13,8 @@ import { Hono } from 'hono'
 import crypto from 'crypto'
 import path from 'path'
 import { eq, and, inArray, count, sql, desc, asc, gte, lte, notInArray } from 'drizzle-orm'
-import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry, startOfUtcDay } from '../invoicing/money'
+import { nextNumber, invoiceBalance, deriveStatus, quotePastExpiry } from '../invoicing/money'
+import { companyTimeZone, dayMarker, storeDateString } from '../time/businessDay'
 import { isDocumentToken } from './documentLinks'
 import { mailFailureReason } from '../integrations/mailError'
 import { JOB_MONEY, withoutJobMoney } from '../jobs/jobMoney'
@@ -411,7 +412,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     c.set('portal', {
       contact: found,
       companyId: found.companyId,
-      company: { id: found.companyId, name: found.companyName, logo: found.companyLogo, primaryColor: found.companyPrimaryColor, email: found.companyEmail, phone: found.companyPhone, address: found.companyAddress, city: found.companyCity, state: found.companyState, zip: found.companyZip },
+      company: { id: found.companyId, name: found.companyName, logo: found.companyLogo, primaryColor: found.companyPrimaryColor, email: found.companyEmail, phone: found.companyPhone, address: found.companyAddress, city: found.companyCity, state: found.companyState, zip: found.companyZip, timeZone: await companyTimeZone(db, found.companyId) },
     })
     await next()
   }
@@ -455,7 +456,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     c.set('portal', {
       contact: found,
       companyId: found.companyId,
-      company: { id: found.companyId, name: found.companyName, logo: found.companyLogo, primaryColor: found.companyPrimaryColor, email: found.companyEmail, phone: found.companyPhone, address: found.companyAddress, city: found.companyCity, state: found.companyState, zip: found.companyZip },
+      company: { id: found.companyId, name: found.companyName, logo: found.companyLogo, primaryColor: found.companyPrimaryColor, email: found.companyEmail, phone: found.companyPhone, address: found.companyAddress, city: found.companyCity, state: found.companyState, zip: found.companyZip, timeZone: await companyTimeZone(db, found.companyId) },
       doc: { kind: doc.kind, id: doc.id },
     })
     await next()
@@ -511,7 +512,8 @@ export function createPortalRoutes(deps: PortalDeps) {
       : [{ value: 0 }]
     const [quoteCount] = await db.select({ value: count() }).from(t.quote).where(and(eq(t.quote.contactId, contact.id), inArray(t.quote.status, QUOTE_RESPONDABLE),
       // Awaiting an answer means still open: a quote past its valid-until day is expired (customerQuoteStatus below).
-      sql`(${t.quote.expiryDate} IS NULL OR ${t.quote.expiryDate} >= ${startOfUtcDay(new Date())})`))
+      // On the company's clock: a quote valid until today is still open all of today there (time/zoneDay.ts).
+      sql`(${t.quote.expiryDate} IS NULL OR ${t.quote.expiryDate} >= ${dayMarker(storeDateString(new Date(), company.timeZone || 'UTC'))})`))
     const [invoiceCount] = await db.select({ value: count() }).from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN)))
     const [balance] = await db.select({ total: sql<string>`COALESCE(SUM(CASE WHEN ${t.invoice.amountPaid} >= ${t.invoice.total} THEN 0 ELSE GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0))) END), 0)` }).from(t.invoice)
       .where(and(eq(t.invoice.contactId, contact.id), inArray(t.invoice.status, ['sent', 'open', 'viewed', 'partial', 'overdue'])))
@@ -532,7 +534,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     }
     return c.json({
       contact: { name: contact.name, email: contact.email, type: contact.type || 'client' },
-      company: { name: company.name, logo: company.logo, primaryColor: company.primaryColor, email: company.email, phone: company.phone },
+      company: { name: company.name, logo: company.logo, primaryColor: company.primaryColor, email: company.email, phone: company.phone, timeZone: company.timeZone },
       // Only what this vertical actually has: a veterinary practice was being told how many active projects and
       // pending quotes its client had. (T12 H6)
       summary: {
@@ -626,12 +628,13 @@ export function createPortalRoutes(deps: PortalDeps) {
    * day is the customer's, the rule isOverdue keeps for a due date. Applied wherever a customer reads or answers a
    * quote — the portal and the quote's own link — so the two cannot disagree.
    */
-  const customerQuoteStatus = (q: any) => (QUOTE_RESPONDABLE.includes(q.status) && quotePastExpiry(q) ? 'expired' : q.status)
+  // …on the company's clock: the valid-until day ends at the company's midnight, not UTC's (live test 2026-10-22).
+  const customerQuoteStatus = (q: any, timeZone?: string) => (QUOTE_RESPONDABLE.includes(q.status) && quotePastExpiry(q, Date.now(), timeZone) ? 'expired' : q.status)
   app.get('/p/:token/quotes', portalAuth, async (c) => {
-    const { contact } = P(c)
+    const { contact, company } = P(c)
     const rows = await db.select({ id: t.quote.id, number: t.quote.number, name: t.quote.name, status: t.quote.status, total: t.quote.total, expiryDate: t.quote.expiryDate, createdAt: t.quote.createdAt })
       .from(t.quote).where(and(eq(t.quote.contactId, contact.id), notInArray(t.quote.status, PORTAL_QUOTE_HIDDEN))).orderBy(desc(t.quote.createdAt), asc(t.quote.id))
-    return c.json(rows.map((r: any) => ({ ...r, status: customerQuoteStatus(r) })))
+    return c.json(rows.map((r: any) => ({ ...r, status: customerQuoteStatus(r, company.timeZone) })))
   })
   const visibleQuote = async (quoteId: string, contactId: string) => {
     const [q] = await db.select().from(t.quote).where(and(eq(t.quote.id, quoteId), eq(t.quote.contactId, contactId), notInArray(t.quote.status, PORTAL_QUOTE_HIDDEN))).limit(1)
@@ -652,7 +655,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       await db.update(t.quote).set({ status: 'viewed', updatedAt: new Date() }).where(eq(t.quote.id, quoteId))
       found.status = 'viewed'
     }
-    return c.json({ ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found), lineItems: lineItems.map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)), project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone } })
+    return c.json({ ...pick(found, PORTAL_QUOTE_FIELDS), status: customerQuoteStatus(found, company.timeZone), lineItems: lineItems.map((li: any) => pick(li, PORTAL_QUOTE_LINE_FIELDS)), project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone } })
   }
 
   // E-signature evidence: WHO signed, WHAT they saw, and that they agreed to sign electronically (ESIGN/UETA).
@@ -679,9 +682,9 @@ export function createPortalRoutes(deps: PortalDeps) {
 
   /** Why this quote cannot be answered now, in words — or null. One rule for the portal and the quote's own link. */
   const expiryDay = (d: unknown) => new Date(d as any).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' })
-  const notAnswerable = (found: any, verb: 'approved' | 'declined', companyName?: string | null): string | null => {
+  const notAnswerable = (found: any, verb: 'approved' | 'declined', companyName?: string | null, timeZone?: string): string | null => {
     if (verb === 'approved' && found.status === 'approved') return 'Quote already approved'
-    const status = customerQuoteStatus(found)
+    const status = customerQuoteStatus(found, timeZone)
     if (status === 'expired') return `This quote expired on ${expiryDay(found.expiryDate)}. Please contact ${companyName || 'us'} for an updated quote.`
     if (!QUOTE_RESPONDABLE.includes(status)) return `This quote is ${status} and can no longer be ${verb}`
     return null
@@ -695,7 +698,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (!check.ok) return c.json({ error: check.error }, 400)
     const found = await visibleQuote(quoteId, contact.id)
     if (!found) return c.json({ error: 'Quote not found' }, 404)
-    const refused = notAnswerable(found, 'approved', company?.name)
+    const refused = notAnswerable(found, 'approved', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
     const lineItems = await db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, quoteId))
     const signedAt = new Date(), ip = signerIp(c), userAgent = c.req.header('user-agent') || null
@@ -713,7 +716,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     const found = await visibleQuote(quoteId, contact.id)
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     // A signed approval is a contract — it cannot be flipped to rejected from the portal afterwards.
-    const refused = notAnswerable(found, 'declined', company?.name)
+    const refused = notAnswerable(found, 'declined', company?.name, company?.timeZone)
     if (refused) return c.json({ error: refused }, 400)
     const [updated] = await db.update(t.quote).set({ status: 'rejected', updatedAt: new Date() }).where(eq(t.quote.id, quoteId)).returning()
     notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'quote', entityId: quoteId, action: 'rejected', actorName: contact.name, actorRole: contact.type || 'client', summary: `rejected quote ${found.number} "${found.name}"`, details: { reason: reason || null } })
@@ -747,7 +750,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     try { return !!(await deps.canTakeCardPayments(companyId)) } catch { return false }
   }
   app.get('/p/:token/invoices', portalAuth, async (c) => {
-    const { contact } = P(c)
+    const { contact, company } = P(c)
     // Balance mirrors the invoicing module (net of refunds): void or a fully-returned sale (refunded ≥
     // total) owes nothing; otherwise total − money actually kept (paid − refunded). A refunded *deposit*
     // therefore reopens the balance, matching the owner side to the cent.
@@ -755,7 +758,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       .from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN))).orderBy(desc(t.invoice.createdAt), asc(t.invoice.id))
     // Show "overdue" (derived from due date + balance), matching the owner side — a past-due invoice
     // used to still read "sent" here. deriveStatus only flips open+past-due+owing rows; the rest pass through.
-    return c.json(rows.map(r => ({ ...r, status: deriveStatus(r) })))
+    return c.json(rows.map(r => ({ ...r, status: deriveStatus(r, undefined, company.timeZone) })))
   })
   const invoiceDetail = async (c: any) => {
     const { contact, company } = P(c)
@@ -773,7 +776,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     // The invoice's own link is a credential: it is never echoed back in the customer's copy.
     const { publicToken: _link, ...invoiceRow } = found
     return c.json({
-      ...invoiceRow, status: deriveStatus(found), balance, lineItems, payments, project: projectInfo,
+      ...invoiceRow, status: deriveStatus(found, undefined, company.timeZone), balance, lineItems, payments, project: projectInfo,
       payOnline: await payOnlineFor(contact.companyId),
       company: { name: company.name, email: company.email, phone: company.phone, address: company.address, city: company.city, state: company.state, zip: company.zip },
     })
@@ -802,7 +805,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   // sees, and how approving, declining and paying are recorded, is one rule whichever door they came in by.
   app.get('/d/:token', docAuth, async (c) => {
     const { contact, company, doc } = P(c)
-    return c.json({ document: doc, contact: { name: contact.name }, company: { name: company.name, logo: company.logo, primaryColor: company.primaryColor, email: company.email, phone: company.phone } })
+    return c.json({ document: doc, contact: { name: contact.name }, company: { name: company.name, logo: company.logo, primaryColor: company.primaryColor, email: company.email, phone: company.phone, timeZone: company.timeZone } })
   })
   app.get('/d/:token/quotes/:quoteId', docAuth, onlyLinked('quote', 'quoteId'), quoteDetail)
   app.post('/d/:token/quotes/:quoteId/approve', docAuth, onlyLinked('quote', 'quoteId'), approveQuote)

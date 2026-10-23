@@ -25,7 +25,7 @@ import {
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
   gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
-  documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto,
+  documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto, jobSeries,
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
@@ -190,7 +190,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const jobs = createJobRoutes({
     db,
     tables: {
-      job, project, contact, user, timeEntry, teamMember, location,
+      job, project, contact, user, timeEntry, teamMember, location, jobSeries,
       ...(sites ? { equipment } : {}), ...(v.jobs?.photos ? { jobPhoto } : {}), ...(v.jobs?.billing ? { invoice, invoiceLineItem } : {}),
     },
     authenticate, requirePermission, canSee, ...live, cleanText, cleanLines,
@@ -349,6 +349,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Home care's /api/expenses is its own expense book (server/crm/homecare/payroll/expenses.ts), so the shared one stands aside there.
     ...(v.homecare ? [] : [{ path: '/api/expenses', access: 'user' as const, feature: 'expense_tracking', router: createExpenseRoutes({
       db, tables: { expense, project, job, staffAccountEntry, user, company }, authenticate, requirePermission, audit,
+      // A receipt's photo, kept in the company's private store (POST/GET /api/expenses/:id/receipt).
+      storage: s.storage,
       // The trade's own categories, refused outside the list as the shared ones are (templates/crm-salon routes/expenses.ts).
       ...(v.expenses ? { options: { categories: v.expenses.categories, categoryLabels: v.expenses.categoryLabels } } : {}),
     } as any) }]),

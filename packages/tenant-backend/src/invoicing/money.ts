@@ -1,6 +1,7 @@
 // Money rules shared by invoices and quotes in every CRM template. One implementation, vendored into
 // each tenant (see ../index.ts). Nothing here knows a vertical; callers inject their Drizzle tables.
 import { withinHorizon, MAX_PLAN_YEARS } from '../dateInput'
+import { markerDayIsOver } from '../time/zoneDay'
 // drizzle-orm is imported lazily inside nextNumber() only, so the pure money helpers (invoiceBalance,
 // recomputeStatus, calcTotals, …) can be imported and unit-tested without pulling drizzle-orm.
 
@@ -129,28 +130,36 @@ export function recomputeStatus(inv: { total: any; amountPaid: any; amountRefund
  * "Overdue" is derived, never stored: billed, not fully paid, past its due date. Computed at read
  * time so the list, the stats, the dashboard and Reports agree without a job flipping statuses.
  */
-export function isOverdue(inv: { status: string; dueDate: Date | string | null; total: any; amountPaid: any; amountRefunded?: any }, openStatuses: string[] = DEFAULT_OPEN_STATUSES): boolean {
+export function isOverdue(inv: { status: string; dueDate: Date | string | null; total: any; amountPaid: any; amountRefunded?: any }, openStatuses: string[] = DEFAULT_OPEN_STATUSES, timeZone?: string): boolean {
   if (!openStatuses.includes(inv.status) || !inv.dueDate) return false
   if (invoiceBalance(inv) <= 0.005) return false
   // The customer has the WHOLE of the due day. Comparing the stored instant made an invoice due today
   // overdue from the moment of day it happened to be stamped with — and it disagreed with the screens,
   // which have always waited for the day to end (isPastDay). (Contractor T14 M17)
-  const due = new Date(inv.dueDate as any)
-  const endOfDueDay = Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate(), 23, 59, 59, 999)
-  return endOfDueDay < Date.now()
+  return dayIsOver(inv.dueDate, Date.now(), timeZone)
 }
-export const deriveStatus = (inv: any, openStatuses: string[] = DEFAULT_OPEN_STATUSES) => (isOverdue(inv, openStatuses) ? 'overdue' : inv.status)
+export const deriveStatus = (inv: any, openStatuses: string[] = DEFAULT_OPEN_STATUSES, timeZone?: string) => (isOverdue(inv, openStatuses, timeZone) ? 'overdue' : inv.status)
+
+/**
+ * A calendar-day marker's day is over: on the company's clock when its zone is given (time/zoneDay.ts), else at UTC
+ * midnight as before. UTC's midnight is 7pm in Chicago, so without the zone a quote valid until today read "expired" to
+ * a customer opening it after supper (live test 2026-10-22).
+ */
+function dayIsOver(marker: Date | string, now: number, timeZone?: string): boolean {
+  const d = new Date(marker as any)
+  if (isNaN(d.getTime())) return false
+  if (timeZone) return markerDayIsOver(d, timeZone, now)
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999) < now
+}
 
 /**
  * A quote's offer has lapsed: the whole of its "valid until" day is over — the same rule isOverdue keeps for a due date.
  * Nothing stores 'expired', so a quote nobody answered read 'sent' for ever and could still be signed (2026-10-22). No
  * expiry date: it does not lapse.
  */
-export function quotePastExpiry(q: { expiryDate?: Date | string | null }, now: number = Date.now()): boolean {
+export function quotePastExpiry(q: { expiryDate?: Date | string | null }, now: number = Date.now(), timeZone?: string): boolean {
   if (!q.expiryDate) return false
-  const d = new Date(q.expiryDate as any)
-  if (isNaN(d.getTime())) return false
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999) < now
+  return dayIsOver(q.expiryDate, now, timeZone)
 }
 
 /** Company default sales-tax rate (Settings → Company). An explicit rate on the request still wins. */

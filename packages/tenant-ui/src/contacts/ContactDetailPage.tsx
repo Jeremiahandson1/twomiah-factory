@@ -13,6 +13,7 @@ import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dat
 import { resolveContactsConfig } from './types'
 import type { ContactsPageProps, ContactRow, QuickActionIcon } from './types'
 import { quickActionPermission } from './types'
+import { ReviewRequestButton } from '../reviews/ReviewRequestButton'
 
 type Related = { id: string; name?: string; number?: string; title?: string; total?: unknown; amountPaid?: unknown; amountRefunded?: unknown; dueDate?: string; scheduledDate?: string; status?: string; eventDate?: string }
 type Equipment = { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null; purchaseDate?: string | null; warrantyExpiry?: string | null }
@@ -353,6 +354,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           {mayMerge && (
             <Button variant="secondary" onClick={() => setMergeOpen(true)}><Merge className="w-4 h-4 inline mr-2" />Merge duplicate</Button>
           )}
+          {/* Ask this customer for a Google review now (Review Requests; reviews/ReviewRequestButton.tsx). */}
+          <ReviewRequestButton api={api} toast={toast} contactId={id} hasFeature={config?.hasFeature} />
           {mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>}
         </div>
       </div>

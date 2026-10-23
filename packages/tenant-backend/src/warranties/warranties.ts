@@ -15,6 +15,7 @@ import { withoutPortalCredential } from '../contacts/contacts';
 // The shared JOB- sequence, with its per-company advisory lock. Scheduling a warranty claim was
 // numbering its job `WC-<timestamp>`; see the comment at the insert. (T48)
 import { nextNumber } from '../invoicing/money';
+import { companyTimeZone, dayMarker, storeDateString, daysUntilMarker } from '../time/businessDay';
 
 /**
  * HOW LONG A WARRANTY HAS LEFT — computed in ONE place. (T51 follow-up)
@@ -34,19 +35,26 @@ import { nextNumber } from '../invoicing/money';
  * `isExpired` is the field that carries that case.
  */
 const EXPIRING_SOON_DAYS = 30;
-function withExpiry<T extends { expiresAt?: Date | null }>(w: T, now = new Date()) {
-  const expires = w.expiresAt ? new Date(w.expiresAt) : null;
+/**
+ * …and counted in DAYS ON THE COMPANY'S CLOCK. (live test 2026-10-22: the countdown was a day short every evening)
+ *
+ * expiresAt is a calendar-day marker (midnight UTC naming the day), and this subtracted the current INSTANT from it and
+ * rounded up: from 7pm in Chicago — the moment UTC's day turns — "365 days left" read 364, and on the evening before
+ * the expiry day a live warranty read expired. Now: the whole days from the company's today to the expiry day, the
+ * same rule as the start of the expiry day before (a warranty runs until its expiry day begins), on the right clock.
+ */
+function withExpiry<T extends { expiresAt?: Date | null }>(w: T, now = new Date(), tz = 'UTC') {
+  const days = w.expiresAt ? daysUntilMarker(new Date(w.expiresAt), tz, now) : null;
   return {
     ...w,
-    isExpired: expires ? expires < now : false,
-    daysRemaining: expires
-      ? Math.max(0, Math.ceil((expires.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-      : 0,
-    isExpiringSoon: expires
-      ? expires > now && expires < new Date(now.getTime() + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000)
-      : false,
+    isExpired: days !== null ? days <= 0 : false,
+    daysRemaining: days !== null ? Math.max(0, days) : 0,
+    isExpiringSoon: days !== null ? days > 0 && days <= EXPIRING_SOON_DAYS : false,
   };
 }
+/** The company's today as a calendar-day marker, and that marker N days on — what expiresAt is compared with. */
+const todayMarker = (tz: string, now = new Date()) => dayMarker(storeDateString(now, tz));
+const markerPlusDays = (m: Date, days: number) => new Date(m.getTime() + days * 86_400_000);
 
 /**
  * The five statuses a claim can be in — the exact set WarrantiesPage's CLAIM_STATUS map renders and
@@ -202,9 +210,12 @@ async function createProjectWarranty(companyId: string, data: {
   }
   data = { ...data, name, durationMonths: data.durationMonths != null ? Number(data.durationMonths) : undefined };
 
-  const startDate = data.startDate ? new Date(data.startDate) : new Date();
+  // A day, not a moment: the company's today when none is given (a bare new Date() put the start at this instant and the
+  // expiry at the same instant a year on, so the screens read a different day from the one the owner meant), and the
+  // term added in calendar months on the marker itself (setMonth worked in the server's zone).
+  const startDate = data.startDate ? dayMarker(new Date(data.startDate).toISOString()) : todayMarker(await companyTimeZone(db, companyId));
   const expiresAt = new Date(startDate);
-  expiresAt.setMonth(expiresAt.getMonth() + (data.durationMonths || 12));
+  expiresAt.setUTCMonth(expiresAt.getUTCMonth() + (data.durationMonths || 12));
 
   const [warranty] = await db.insert(projectWarranty).values({
     companyId,
@@ -292,10 +303,11 @@ async function getProjectWarranties(projectId: string, companyId: string) {
     .orderBy(asc(projectWarranty.expiresAt));
 
   const now = new Date();
+  const tz = await companyTimeZone(db, companyId);
   return warranties.map(({ warranty: w, claimCount }) => withExpiry({
     ...w,
     _count: { claims: claimCount },
-  }, now));
+  }, now, tz));
 }
 
 /**
@@ -313,11 +325,12 @@ async function getActiveWarranties(
   const conditions = [eq(projectWarranty.companyId, companyId), eq(projectWarranty.status, 'active')];
 
   if (contactId) conditions.push(eq(projectWarranty.contactId, contactId));
+  const tz = await companyTimeZone(db, companyId);
   if (expiringSoon) {
-    const thirtyDays = new Date();
-    thirtyDays.setDate(thirtyDays.getDate() + 30);
-    conditions.push(gte(projectWarranty.expiresAt, new Date()));
-    conditions.push(lte(projectWarranty.expiresAt, thirtyDays));
+    // The same days withExpiry counts: after today, within the next thirty, on the company's clock.
+    const today = todayMarker(tz);
+    conditions.push(gt(projectWarranty.expiresAt, today));
+    conditions.push(lte(projectWarranty.expiresAt, markerPlusDays(today, EXPIRING_SOON_DAYS)));
   }
 
   const whereClause = and(...conditions);
@@ -351,7 +364,7 @@ async function getActiveWarranties(
     project: p,
     contact: c,
     _count: { claims: claimCount },
-  }, now));
+  }, now, tz));
 
   return { data: result, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
 }
@@ -360,8 +373,8 @@ async function getActiveWarranties(
  * Get expiring warranties for notifications
  */
 async function getExpiringWarranties(companyId: string, { days = 30 }: { days?: number } = {}) {
-  const expiryDate = new Date();
-  expiryDate.setDate(expiryDate.getDate() + days);
+  const tz = await companyTimeZone(db, companyId);
+  const today = todayMarker(tz);
 
   const rows = await db.select({
     warranty: projectWarranty,
@@ -374,8 +387,8 @@ async function getExpiringWarranties(companyId: string, { days = 30 }: { days?: 
     .where(and(
       eq(projectWarranty.companyId, companyId),
       eq(projectWarranty.status, 'active'),
-      gte(projectWarranty.expiresAt, new Date()),
-      lte(projectWarranty.expiresAt, expiryDate),
+      gt(projectWarranty.expiresAt, today),
+      lte(projectWarranty.expiresAt, markerPlusDays(today, days)),
     ))
     .orderBy(asc(projectWarranty.expiresAt), asc(projectWarranty.id));
 
@@ -386,7 +399,7 @@ async function getExpiringWarranties(companyId: string, { days = 30 }: { days?: 
     ...w,
     project: p,
     contact: c,
-  }, now));
+  }, now, tz));
 }
 
 /**
@@ -745,9 +758,9 @@ async function denyClaim(
  * Get warranty stats
  */
 async function getWarrantyStats(companyId: string) {
-  const now = new Date();
-  const thirtyDays = new Date(now);
-  thirtyDays.setDate(thirtyDays.getDate() + 30);
+  // The tiles count the days the list counts (withExpiry), on the company's clock.
+  const now = todayMarker(await companyTimeZone(db, companyId));
+  const thirtyDays = markerPlusDays(now, EXPIRING_SOON_DAYS);
 
   const [
     [{ value: active }],
@@ -758,7 +771,7 @@ async function getWarrantyStats(companyId: string) {
     db.select({ value: count() }).from(projectWarranty)
       .where(and(eq(projectWarranty.companyId, companyId), eq(projectWarranty.status, 'active'), gt(projectWarranty.expiresAt, now))),
     db.select({ value: count() }).from(projectWarranty)
-      .where(and(eq(projectWarranty.companyId, companyId), eq(projectWarranty.status, 'active'), gte(projectWarranty.expiresAt, now), lte(projectWarranty.expiresAt, thirtyDays))),
+      .where(and(eq(projectWarranty.companyId, companyId), eq(projectWarranty.status, 'active'), gt(projectWarranty.expiresAt, now), lte(projectWarranty.expiresAt, thirtyDays))),
     db.select({ value: count() }).from(warrantyClaim)
       .where(and(eq(warrantyClaim.companyId, companyId), inArray(warrantyClaim.status, ['open', 'scheduled', 'in_progress']))),
     db.select({ value: count() }).from(warrantyClaim)

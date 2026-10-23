@@ -34,6 +34,8 @@ export interface EquipmentConfig {
   linkedJobs?: boolean
   /** Starter categories this trade would suggest. Omitted → no suggestions, just the company's own. */
   categories?: EquipmentCategory[]
+  /** The example in the form's name box, in this trade's words. Absent: a neutral one ("e.g., Main AC Unit" was HVAC's, on every vertical). */
+  namePlaceholder?: string
 }
 
 export interface EquipmentPageProps { api: EquipmentApi; config?: EquipmentConfig }

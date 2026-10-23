@@ -24,8 +24,11 @@ function formatDate(value?: string | number | Date | null): string {
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
 }
 
+/** The plan form's example name where the vertical gives none: no one trade's words. */
+const DEFAULT_PLAN_NAME_PLACEHOLDER = 'e.g., Annual Maintenance Plan';
+
 // api + the recurrence flag are injected once at the page root; child components read them via useAgreements().
-const AgreementsCtx = createContext<{ api: AgreementsApi; recurrence: boolean }>({ api: null as any, recurrence: false });
+const AgreementsCtx = createContext<{ api: AgreementsApi; recurrence: boolean; planNamePlaceholder: string }>({ api: null as any, recurrence: false, planNamePlaceholder: DEFAULT_PLAN_NAME_PLACEHOLDER });
 const useAgreements = () => useContext(AgreementsCtx);
 
 interface AgreementContact {
@@ -222,7 +225,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
   );
 
   return (
-    <AgreementsCtx.Provider value={{ api, recurrence: !!config?.recurrence }}>
+    <AgreementsCtx.Provider value={{ api, recurrence: !!config?.recurrence, planNamePlaceholder: config?.planNamePlaceholder || DEFAULT_PLAN_NAME_PLACEHOLDER }}>
     <div className="space-y-6">
       {actionError && (
         <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
@@ -795,7 +798,7 @@ function VisitsTab() {
 }
 
 function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
-  const { api } = useAgreements();
+  const { api, planNamePlaceholder } = useAgreements();
   const [form, setForm] = useState<{
     name: string;
     description: string;
@@ -865,7 +868,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 value={form.name}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full px-3 py-2 border rounded-lg"
-                placeholder="e.g., HVAC Maintenance Plan"
+                placeholder={planNamePlaceholder}
                 required
               />
             </div>
@@ -991,6 +994,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     recurrenceFrequency: string;
     nextServiceDate: string;
     reminderDaysBefore: string | number;
+    firstVisitDate: string;
   }>({
     planId: agreement?.planId || '',
     contactId: agreement?.contactId || '',
@@ -1000,7 +1004,29 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     recurrenceFrequency: agreement?.recurrenceRule?.frequency || 'quarterly',
     nextServiceDate: agreement?.nextServiceDate?.split('T')[0] || defaultNextDate.toISOString().split('T')[0],
     reminderDaysBefore: agreement?.reminderDaysBefore ?? 7,
+    firstVisitDate: '',
   });
+  /**
+   * The plan's visits per term go on the Schedule when the agreement is saved (server scheduleTermVisits), spread
+   * across the term from the first visit. (live test 2026-10-22: a two-visit contract scheduled nothing.)
+   */
+  const selectedPlan = plans.find((p: Plan) => p.id === form.planId);
+  const planVisits = Number(selectedPlan?.visitsIncluded || 0);
+  const [visitMsg, setVisitMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [scheduling, setScheduling] = useState<boolean>(false);
+  const scheduleTerm = async () => {
+    if (!agreement) return;
+    setScheduling(true); setVisitMsg(null);
+    try {
+      const r = await api.post(`/api/agreements/${agreement.id}/schedule-visits`, {});
+      const made = Number(r?.made || 0);
+      setVisitMsg(made > 0
+        ? { kind: 'ok', text: `${made} visit${made === 1 ? '' : 's'} put on the Schedule: ${(r?.dates || []).map((d: string) => formatDate(d)).join(', ')}.` }
+        : { kind: 'ok', text: "This term's visits are already on the Schedule." });
+    } catch (err) {
+      setVisitMsg({ kind: 'err', text: err instanceof Error && err.message ? err.message : 'The visits could not be scheduled.' });
+    } finally { setScheduling(false); }
+  };
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
 
@@ -1028,6 +1054,8 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
         contactId: form.contactId,
         startDate: form.startDate,
         autoRenew: form.autoRenew,
+        // The first of the term's visits; blank is the start date (server scheduleTermVisits).
+        ...(!agreement && planVisits > 0 && form.firstVisitDate ? { firstVisitDate: form.firstVisitDate } : {}),
       };
       const saveRecurrence = async (id: string, on: boolean) => {
         await api.put(`/api/agreements/${id}/recurrence`, {
@@ -1039,12 +1067,12 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
       };
       if (agreement) {
         await api.put(`/api/agreements/${agreement.id}`, payload);
-        if (recurrence && (form.autoSchedule || agreement.autoSchedule)) {
+        if (recurrence && planVisits === 0 && (form.autoSchedule || agreement.autoSchedule)) {
           await saveRecurrence(agreement.id, form.autoSchedule);
         }
       } else {
         const created = await api.post('/api/agreements', payload);
-        if (recurrence && form.autoSchedule && created?.id) {
+        if (recurrence && planVisits === 0 && form.autoSchedule && created?.id) {
           await saveRecurrence(created.id, true);
         }
       }
@@ -1134,8 +1162,34 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
               <span className="text-sm text-gray-700 dark:text-slate-200">Auto-renew when term ends</span>
             </label>
 
-            {/* Scheduling — fs / landscaping maintenance contracts (config.recurrence) */}
-            {recurrence && (
+            {/* The plan's visits — every vertical: they go on the Schedule with the agreement. */}
+            {planVisits > 0 && (
+              <div className="border-t pt-4 mt-4 space-y-3" data-testid="agreement-visits">
+                <p className="text-sm text-gray-700 dark:text-slate-200">
+                  {selectedPlan?.name} includes <strong>{planVisits} visit{planVisits === 1 ? '' : 's'}</strong> a term.{' '}
+                  {agreement
+                    ? `This term: ${Number(agreement.visitsScheduled || 0)} booked, ${Number(agreement.visitsCompleted || 0)} done.`
+                    : 'They go on the Schedule when you save, spread evenly across the term from the first visit.'}
+                </p>
+                {!agreement && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200" htmlFor="agreement-first-visit">First visit</label>
+                    <input id="agreement-first-visit" type="date" min={form.startDate} value={form.firstVisitDate || form.startDate}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, firstVisitDate: e.target.value }))}
+                      className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                )}
+                {agreement && !readOnly && agreement.status === 'active' && Number(agreement.visitsScheduled || 0) + Number(agreement.visitsCompleted || 0) < planVisits && (
+                  <button type="button" onClick={scheduleTerm} disabled={scheduling} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-60">
+                    {scheduling ? 'Scheduling…' : "Schedule this term's visits"}
+                  </button>
+                )}
+                {visitMsg && <p role={visitMsg.kind === 'err' ? 'alert' : 'status'} className={`text-sm ${visitMsg.kind === 'err' ? 'text-red-700 dark:text-red-300' : 'text-green-800 dark:text-green-300'}`}>{visitMsg.text}</p>}
+              </div>
+            )}
+
+            {/* Scheduling — fs / landscaping maintenance contracts (config.recurrence), for a plan that sets no visits */}
+            {recurrence && planVisits === 0 && (
             <div className="border-t pt-4 mt-4">
               <label className="flex items-center gap-2 mb-3">
                 <input

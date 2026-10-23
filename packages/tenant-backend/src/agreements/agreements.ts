@@ -15,7 +15,9 @@
 import { Hono } from 'hono'
 import { eq, and, lte, gte, count, asc, desc, sql, inArray } from 'drizzle-orm'
 import { nextNumber, businessToday } from '../invoicing/money'
-import { companyTimeZone } from '../time/businessDay'
+import { companyTimeZone, markerDay } from '../time/businessDay'
+import { seriesDays } from '../time/series'
+import { addDays } from '../booking/time'
 
 /** A refused agreement write: bad input (400) or a customer / plan / agreement not in this company (404). */
 export class AgreementError extends Error {
@@ -190,6 +192,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         const termMonths = agreementTermMonths(agr.startDate, agr.endDate)
         const newEnd = new Date(end); newEnd.setMonth(newEnd.getMonth() + termMonths)
         const [renewed] = await db.update(serviceAgreement).set({ startDate: end, endDate: newEnd, updatedAt: now }).where(stillEnded(agr.id)).returning()
+        // An automatic renewal starts a term too: its visits go on the calendar (scheduleTermVisits).
+        if (renewed) await scheduleTermVisits(agr.id, agr.companyId).catch((err) => console.error('[agreements] renewal visits not scheduled:', (err as Error).message))
         if (renewed) audit?.log({ action: 'renew', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId: agr.companyId,
           metadata: { automatic: true, termMonths, previousStartDate: agr.startDate, previousEndDate: agr.endDate, newEndDate: newEnd } })
         continue
@@ -233,6 +237,23 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       agreementIds.length ? db.select({ agreementId: agreementVisit.agreementId, status: agreementVisit.status, scheduledDate: agreementVisit.scheduledDate }).from(agreementVisit)
         .where(inArray(agreementVisit.agreementId, agreementIds)) : [],
     ])
+    // …and the visits that are JOBS against the agreement (the term's visits, and the recurrence engine's): booked while
+    // open, done when completed, nothing when cancelled — one idea of a visit across both stores. (2026-10-22)
+    const jobVisits: any[] = agreementIds.length && job && 'serviceAgreementId' in (job as any)
+      ? await db.select({ agreementId: job.serviceAgreementId, status: job.status, scheduledDate: job.scheduledDate }).from(job)
+        .where(and(eq(job.companyId, companyId), inArray(job.serviceAgreementId, agreementIds), sql`${job.status} <> 'cancelled'`))
+      : []
+    for (const j of jobVisits) (visitRows as any[]).push({ agreementId: j.agreementId, status: j.status === 'completed' ? 'completed' : 'scheduled', scheduledDate: j.scheduledDate })
+    /** The next visit actually on the calendar for each agreement: its earliest open visit job from today on. */
+    const today = new Date(markerDay(new Date()))
+    const nextVisit = new Map<string, Date>()
+    for (const j of jobVisits) {
+      if (j.status === 'completed' || !j.scheduledDate) continue
+      const at = new Date(j.scheduledDate)
+      if (at < today) continue
+      const was = nextVisit.get(j.agreementId)
+      if (!was || at < was) nextVisit.set(j.agreementId, at)
+    }
     const contactById = new Map(contacts.map((x: any) => [x.id, x]))
     const planById = new Map(plans.map((x: any) => [x.id, x]))
     return rows.map((r) => {
@@ -258,7 +279,9 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       const ended = r.status !== 'active' || (!!r.endDate && new Date(r.endDate).getTime() < Date.now())
       return {
         ...r,
-        nextServiceDate: ended ? null : (r as any).nextServiceDate ?? null,
+        // The next visit on the calendar when there is one (the term's visits are jobs), else what the recurrence
+        // settings say is due — the "Next Service" column read only the latter and stayed "-" on a plan's contract.
+        nextServiceDate: ended ? null : nextVisit.get(r.id) ?? (r as any).nextServiceDate ?? null,
         contact: contactById.get(r.contactId) || null,
         plan,
         visitsIncluded,
@@ -342,11 +365,92 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   async function createAgreement(companyId: string, data: any) {
     const fields = await agreementFields(companyId, data ?? {}, null)
-    return db.transaction(async (tx: any) => {
+    const firstVisit = data?.firstVisitDate === undefined || data?.firstVisitDate === null || data?.firstVisitDate === '' ? undefined : String(data.firstVisitDate)
+    if (firstVisit !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(firstVisit) || isNaN(Date.parse(firstVisit)))) throw new AgreementError('First visit must be a valid date.', 400)
+    const agreement = await db.transaction(async (tx: any) => {
       const number = await nextNumber(tx, serviceAgreement, serviceAgreement.number, serviceAgreement.companyId, companyId, { prefix: 'AGR', pad: 5 })
-      const [agreement] = await tx.insert(serviceAgreement).values({ ...fields, companyId, number, status: 'active' }).returning()
-      return agreement
+      const [row] = await tx.insert(serviceAgreement).values({ ...fields, companyId, number, status: 'active' }).returning()
+      return row
     })
+    const visits = await scheduleTermVisits(agreement.id, companyId, { firstVisitDate: firstVisit })
+    return { ...agreement, visitsMade: visits.made, visitDates: visits.dates }
+  }
+
+  /**
+   * THE TERM'S VISITS, ON THE CALENDAR. (live test 2026-10-22: "a contract with 2 visits a year should create visit
+   * jobs/dates" — it created none)
+   *
+   * The plan says how many visits a term includes (visitsIncluded) and the agreement says when the term runs. Nothing
+   * turned the one into the other: "Auto-schedule recurring visits" was a separate opt-in with its own frequency, and
+   * even on, it made one job a week before each visit was due. So a two-visit plan sold today showed nothing anywhere.
+   *
+   * Now the term's visits are made as JOBS against the agreement (job.service_agreement_id — what the calendar, the
+   * Visits tab and the Visits column all read), spread evenly from the first visit across the term: two a year are six
+   * months apart, four are three months apart (time/series.ts, the same stepping a repeating job uses), and a count that
+   * does not divide the term is spaced by days. Days already covered by a visit of this agreement in this term are not
+   * made twice, so running it again — after a renewal, or from the agreement's "Schedule this term's visits" — only
+   * fills what is missing. A plan with no allowance makes none: its visits are booked by hand or by the recurrence
+   * settings, as before.
+   */
+  async function scheduleTermVisits(agreementId: string, companyId: string, opts: { firstVisitDate?: string } = {}): Promise<{ made: number; dates: string[] }> {
+    if (!job || !('serviceAgreementId' in (job as any))) return { made: 0, dates: [] }
+    const [agr] = await db.select().from(serviceAgreement).where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
+    if (!agr || agr.status !== 'active' || !agr.planId) return { made: 0, dates: [] }
+    const [plan] = await db.select().from(agreementPlan).where(and(eq(agreementPlan.id, agr.planId), eq(agreementPlan.companyId, companyId))).limit(1)
+    const visits = Math.min(52, Number(plan?.visitsIncluded || 0))
+    if (!(visits > 0)) return { made: 0, dates: [] }
+    const termStart = markerDay(new Date(agr.startDate))
+    const termEnd = agr.endDate ? markerDay(new Date(agr.endDate)) : null
+    const first = opts.firstVisitDate && opts.firstVisitDate >= termStart && (!termEnd || opts.firstVisitDate < termEnd) ? opts.firstVisitDate : termStart
+    const termMonths = agreementTermMonths(agr.startDate, agr.endDate)
+    let days: string[]
+    if (termMonths % visits === 0) {
+      days = seriesDays({ frequency: 'monthly', intervalCount: termMonths / visits, firstDate: first, occurrencesCount: visits }).map((d) => d.date)
+    } else {
+      const span = termEnd ? Math.max(1, Math.round((Date.parse(termEnd) - Date.parse(first)) / 86_400_000)) : termMonths * 30
+      days = Array.from({ length: visits }, (_, k) => addDays(first, Math.floor((k * span) / visits)))
+    }
+    if (termEnd) days = days.filter((d) => d < termEnd)
+    const existing = await db.select({ scheduledDate: job.scheduledDate, status: job.status }).from(job).where(and(
+      eq(job.companyId, companyId), eq(job.serviceAgreementId, agreementId), gte(job.scheduledDate, new Date(termStart)),
+    ))
+    const live = existing.filter((j: any) => j.status !== 'cancelled')
+    const taken = new Set(live.map((j: any) => markerDay(new Date(j.scheduledDate))))
+    const room = Math.max(0, visits - live.length)
+    const todo = days.filter((d) => !taken.has(d)).slice(0, room)
+    if (!todo.length) return { made: 0, dates: [] }
+    const [agrContact] = await db.select().from(contact).where(eq(contact.id, agr.contactId)).limit(1)
+    await db.transaction(async (tx: any) => {
+      for (const day of todo) {
+        const k = days.indexOf(day) + 1
+        const number = await nextNumber(tx, job, job.number, job.companyId, companyId, { prefix: 'JOB', pad: 5 })
+        await tx.insert(job).values({
+          number,
+          title: `${agr.name} — visit ${k} of ${visits}`,
+          description: `Included in service agreement ${agr.number} (${plan?.name || agr.name}).`,
+          status: 'scheduled',
+          priority: 'normal',
+          ...('jobType' in (job as any) ? { jobType: 'maintenance' } : {}),
+          scheduledDate: new Date(day),
+          address: agrContact?.address || '',
+          city: agrContact?.city || '',
+          state: agrContact?.state || '',
+          zip: agrContact?.zip || '',
+          notes: `Service Agreement: ${agr.number}`,
+          companyId,
+          contactId: agr.contactId,
+          serviceAgreementId: agreementId,
+        })
+      }
+    })
+    audit?.log({ action: 'schedule', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId, metadata: { visits: todo } })
+    return { made: todo.length, dates: todo }
+  }
+  /** Does this agreement's plan set a visit allowance? Then its visits are the term's (scheduleTermVisits), not the recurrence engine's. */
+  async function planOwnsVisits(agr: any): Promise<boolean> {
+    if (!agr?.planId) return false
+    const [plan] = await db.select({ visitsIncluded: agreementPlan.visitsIncluded }).from(agreementPlan).where(eq(agreementPlan.id, agr.planId)).limit(1)
+    return Number(plan?.visitsIncluded || 0) > 0
   }
 
   async function getAgreements(companyId: string, {
@@ -410,8 +514,16 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         console.error('Failed to cancel Stripe subscription:', (err as Error).message)
       }
     }
-    return db.update(serviceAgreement).set({ status: 'cancelled', updatedAt: new Date() })
+    const cancelled = await db.update(serviceAgreement).set({ status: 'cancelled', updatedAt: new Date() })
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).returning()
+    // "No more visits are planned from it" (the page's confirm): the visits still to come are cancelled, not left on the
+    // calendar for a customer who has left. Work already under way or done stays.
+    if (job && 'serviceAgreementId' in (job as any)) {
+      await db.update(job).set({ status: 'cancelled', updatedAt: new Date() }).where(and(
+        eq(job.companyId, companyId), eq(job.serviceAgreementId, agreementId),
+        inArray(job.status, ['scheduled', 'pending', 'confirmed']), gte(job.scheduledDate, new Date(markerDay(new Date())))))
+    }
+    return cancelled
   }
 
   async function renewAgreement(agreementId: string, companyId: string) {
@@ -422,6 +534,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     const [renewed] = await db.update(serviceAgreement)
       .set({ startDate, endDate, status: 'active', updatedAt: new Date() })
       .where(eq(serviceAgreement.id, agreementId)).returning()
+    // The new term's visits, as a new agreement's are (scheduleTermVisits).
+    await scheduleTermVisits(agreementId, companyId).catch((err) => console.error('[agreements] renewal visits not scheduled:', (err as Error).message))
     return renewed
   }
 
@@ -842,6 +956,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
     if (!agr) throw Object.assign(new Error('Agreement not found'), { status: 404 })
     if (!agr.nextServiceDate || !agr.recurrenceRule) throw new Error('No recurrence configured')
+    // Its plan sets the visits for each term, and they are already on the calendar (scheduleTermVisits).
+    if (await planOwnsVisits(agr)) throw new Error("This agreement's visits come from its plan and are already scheduled")
     if (agr.lastGeneratedJobId) {
       const [lastJob] = await db.select({ status: job.status }).from(job).where(eq(job.id, agr.lastGeneratedJobId)).limit(1)
       if (lastJob && !['completed', 'cancelled'].includes(lastJob.status)) throw new Error('Previous scheduled job still pending')
@@ -887,6 +1003,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     let generated = 0
     for (const agr of allActive) {
       if (!agr.nextServiceDate || !agr.recurrenceRule) continue
+      if (await planOwnsVisits(agr)) continue
       const triggerDate = new Date(agr.nextServiceDate)
       triggerDate.setDate(triggerDate.getDate() - (agr.reminderDaysBefore || 7))
       if (triggerDate > now) continue
@@ -907,7 +1024,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     scheduleVisit, completeVisit, getUpcomingVisits,
     getAgreementsDueForBilling, setAgreementAutopay, processAgreementBilling, processDueAgreements, startBillingProcessor,
     getAgreementStats, getExpiringAgreements,
-    setRecurrence, generateNextJob, scanAndGenerateJobs,
+    setRecurrence, generateNextJob, scanAndGenerateJobs, scheduleTermVisits,
   }
 }
 
@@ -1034,6 +1151,16 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
     return c.json({ success: true })
   })
   app.post('/:id/renew', requirePermission('agreements:update'), async (c: any) => c.json(await service.renewAgreement(c.req.param('id'), (c.get('user')).companyId)))
+  // Put this term's visits on the calendar — an agreement sold before visits were scheduled, or one whose visits were
+  // cancelled. Only what is missing is made (scheduleTermVisits).
+  app.post('/:id/schedule-visits', requirePermission('agreements:update'), async (c: any) => {
+    const companyId = (c.get('user')).companyId
+    const agr = await service.getAgreement(c.req.param('id'), companyId)
+    if (!agr) return c.json({ error: 'Agreement not found' }, 404)
+    if (agr.status !== 'active') return c.json({ error: 'Only an active agreement has visits to schedule.' }, 400)
+    if (!(Number((agr as any).visitsIncluded || 0) > 0)) return c.json({ error: "This agreement's plan sets no visits per term, so there is nothing to schedule. Give the plan a number of visits, or book a visit by hand." }, 400)
+    return c.json(await service.scheduleTermVisits(agr.id, companyId))
+  })
 
   // ---- visits ----
   app.get('/visits/upcoming', async (c: any) => c.json(await service.getUpcomingVisits((c.get('user')).companyId, { days: parseInt(c.req.query('days')) || 30 })))

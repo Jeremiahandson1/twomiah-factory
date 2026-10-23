@@ -103,7 +103,7 @@ const rv: VerticalSettings = {
       copy: { quickbooks: 'Sync invoices, payments and customers with your books.', sms: 'Send service updates and reminders to customers and techs.' },
     },
     reviews: {
-      subjectLabel: 'Service', subtitle: 'Automate Google review requests after a completed service',
+      manualHelp: "on a customer's contact page", subjectLabel: 'Service', subtitle: 'Automate Google review requests after a completed service',
       autoRequestHelp: 'Automatically request reviews after a completed service job', emptyHelp: 'Requests are created automatically when service jobs are completed',
     },
     pricebook: {},

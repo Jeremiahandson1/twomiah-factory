@@ -7,7 +7,11 @@ import { resolvePortalConfig, roleFor } from './types'
 export const API_URL: string = ((import.meta as any).env && (import.meta as any).env.VITE_API_URL) || ''
 
 export interface PortalContactInfo { name: string; email?: string | null; type?: string | null }
-export interface PortalCompanyInfo { name: string; logo?: string | null; primaryColor?: string | null; email?: string | null; phone?: string | null }
+export interface PortalCompanyInfo {
+  name: string; logo?: string | null; primaryColor?: string | null; email?: string | null; phone?: string | null
+  /** The company's zone (server companyTimeZone): when a quote was approved or a payment made is printed on its clock. */
+  timeZone?: string | null
+}
 export interface PortalSummary {
   /** only sent by a vertical that HAS projects — a veterinary practice's client is not told about active projects */
   activeProjects?: number

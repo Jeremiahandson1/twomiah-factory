@@ -27,7 +27,7 @@ import {
   Receipt, Shield, Home,
 } from 'lucide-react'
 import { api } from '../../../../api'
-import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText } from '../../../../shared'
+import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText, ReviewRequestButton } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { formatStatus, rowsOf } from './model'
@@ -377,6 +377,8 @@ export default function JobDetailPage() {
                 </button>)}
               </>
             )}
+            {/* Ask the homeowner for a Google review now (Review Requests; the shared button the other trades' job page has). */}
+            {job.contactId && <ReviewRequestButton api={api as any} toast={toast} jobId={job.id} hasFeature={hasFeature} className="px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 disabled:opacity-50" />}
           </div>
         </div>
       </div>

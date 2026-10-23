@@ -6,6 +6,29 @@ import { dateOnly } from '../invoicing/ui'
 
 /** Date-only values (due dates, scheduled dates) rendered without the UTC-midnight day shift. */
 export const formatDate = (v: unknown): string => { if (!v) return ''; const s = dateOnly(v); return s === '-' ? '' : s }
+
+/**
+ * A moment — when a quote was approved, a payment made — as the COMPANY's date, not UTC's and not the reader's.
+ * formatDate takes the first ten characters of the value, which for a moment is UTC's date: a quote approved at 8pm in
+ * Chicago read "approved on" tomorrow (live test 2026-10-22). A midnight-UTC value is a calendar-day marker (a typed
+ * payment date) and keeps its own day, the rule every date screen here uses.
+ */
+export const formatWhen = (v: unknown, timeZone?: string | null): string => {
+  if (!v) return ''
+  const d = new Date(String(v))
+  if (isNaN(d.getTime())) return ''
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) return formatDate(d.toISOString())
+  try { return d.toLocaleDateString(undefined, { timeZone: timeZone || undefined }) } catch { return d.toLocaleDateString() }
+}
+/** The same moment with its time, on the company's clock, the zone named so nobody reads it as their own. */
+export const formatWhenTime = (v: unknown, timeZone?: string | null): string => {
+  if (!v) return ''
+  const d = new Date(String(v))
+  if (isNaN(d.getTime())) return ''
+  // Field by field: dateStyle/timeStyle cannot be combined with timeZoneName (a RangeError), which fell back to the
+  // reader's clock — found clicking the page with the browser on UTC.
+  try { return d.toLocaleString(undefined, { timeZone: timeZone || undefined, year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', ...(timeZone ? { timeZoneName: 'short' } : {}) }) } catch { return d.toLocaleString() }
+}
 export const money = (n: unknown) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 // Money the customer is shown always carries its cents — this used to drop them, so a $824.60 quote read "$824.6".
 // (Landscaping T14 L1; the name is kept because the portal pages use it throughout.)

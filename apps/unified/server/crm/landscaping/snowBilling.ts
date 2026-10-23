@@ -389,8 +389,9 @@ export function createSnowBillingRoutes(d: CrmDeps) {
     if (!contract) return fail(c, 404, 'Contract not found')
 
     const ev = {
-      pushes: parseInt(body.pushes ?? '1', 10),
-      snowfallInches: Number(body.snowfallInches ?? 0),
+      // A blank box is one push and no snowfall, as the form starts (snowEventInputError has refused anything else).
+      pushes: String(body.pushes ?? '').trim() === '' ? 1 : Number(body.pushes),
+      snowfallInches: String(body.snowfallInches ?? '').trim() === '' ? 0 : Number(body.snowfallInches),
       saltApplied: !!body.saltApplied,
       billBelowTrigger: !!body.billBelowTrigger,
     }

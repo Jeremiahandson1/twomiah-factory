@@ -22,6 +22,11 @@ export interface PricebookConfig {
   subtitle?: string
   /** Singular noun for a catalog entry — "Service" by default. */
   itemLabel?: string
+  /**
+   * The example in the item form's name box, in this trade's words (the vertical's settings). Absent: a neutral example.
+   * It read "e.g. AC tune-up" on every vertical, landscaping included (live test 2026-10-22).
+   */
+  itemNamePlaceholder?: string
   /** Heading of the tier editor, e.g. "Pricing tiers" (crm) or "Good-Better-Best options". */
   tiersTitle?: string
   /** Label of the card button that opens the tier editor. */
