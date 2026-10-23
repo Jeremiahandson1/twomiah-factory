@@ -11,12 +11,13 @@
 //   • "What we do" lists what the owner gave: the services they typed. Where the site was given only the one card
 //     that repeats its trade (the composer's stand-in when the signup listed none — the home hero's eyebrow already
 //     says "Roofing · Eau Claire, WI"), the business's own list is shown instead: the price book's services marked to
-//     show customers, else a salon's service menu. With neither, the section isn't shown: the site states only what the
+//     show customers, else a salon's service menu, else a venue's own event spaces and menu packages (a restaurant: the
+//     rooms and the per-head packages the owner entered). With none, the section isn't shown: the site states only what the
 //     owner supplied, and a lone "Roofing" card under "What we do" said nothing they did.
 //   • A page's tab reads "Page — Business, City, ST"; the home page "Business, City, ST", or the owner's own default
 //     title (Website › Settings) when it says more than the name. A page's own SEO title always wins.
 import { and, asc, eq } from 'drizzle-orm'
-import { pricebookItem, serviceMenu } from '../db/schema/index.ts'
+import { eventSpace, menuPackage, pricebookItem, serviceMenu } from '../db/schema/index.ts'
 
 export interface SiteService { title: string; description: string }
 
@@ -47,16 +48,38 @@ export function isTradeCard(items: unknown, trade: string): boolean {
   return !!trade && !extra && bareTrade(str((it as any).title)) === bareTrade(trade)
 }
 
-/** The business's own services for the site: the price book's (active, shown to customers), else a salon's menu. */
+/** "Seats 80 · 120 standing" — a room's capacity as the owner entered it, or ''. */
+const capacityOf = (seated: unknown, standing: unknown) =>
+  [Number(seated) > 0 ? `Seats ${Number(seated)}` : '', Number(standing) > 0 ? `${Number(standing)} standing` : ''].filter(Boolean).join(' · ')
+
+/**
+ * The business's own services for the site, from the first of its own lists that has any: the price book's (active,
+ * shown to customers), a salon's service menu, or a venue's active event spaces then menu packages (Restaurant ›
+ * Spaces and Menu Packages — the owner's own entries: a room's description or its capacity, a package's description).
+ */
 export async function businessServices(db: any, companyId: string): Promise<SiteService[]> {
   const book = await db.select({ name: pricebookItem.name, customer: pricebookItem.customerDescription })
     .from(pricebookItem)
     .where(and(eq(pricebookItem.companyId, companyId), eq(pricebookItem.active, true), eq(pricebookItem.showToCustomer, true), eq(pricebookItem.type, 'service')))
     .orderBy(asc(pricebookItem.name)).limit(24)
-  const list = book.length ? book.map((r: any) => ({ title: str(r.name), description: str(r.customer) }))
-    : (await db.select({ name: serviceMenu.name, description: serviceMenu.description }).from(serviceMenu)
-        .where(and(eq(serviceMenu.companyId, companyId), eq(serviceMenu.active, true))).orderBy(asc(serviceMenu.name)).limit(24))
-        .map((r: any) => ({ title: str(r.name), description: str(r.description) }))
+  let list: SiteService[] = book.map((r: any) => ({ title: str(r.name), description: str(r.customer) }))
+  if (!list.length) {
+    list = (await db.select({ name: serviceMenu.name, description: serviceMenu.description }).from(serviceMenu)
+      .where(and(eq(serviceMenu.companyId, companyId), eq(serviceMenu.active, true))).orderBy(asc(serviceMenu.name)).limit(24))
+      .map((r: any) => ({ title: str(r.name), description: str(r.description) }))
+  }
+  if (!list.length) {
+    const [spaces, packages] = await Promise.all([
+      db.select({ name: eventSpace.name, description: eventSpace.description, seated: eventSpace.seatedCapacity, standing: eventSpace.standingCapacity }).from(eventSpace)
+        .where(and(eq(eventSpace.companyId, companyId), eq(eventSpace.active, true))).orderBy(asc(eventSpace.name)).limit(12),
+      db.select({ name: menuPackage.name, description: menuPackage.description }).from(menuPackage)
+        .where(and(eq(menuPackage.companyId, companyId), eq(menuPackage.active, true))).orderBy(asc(menuPackage.name)).limit(12),
+    ])
+    list = [
+      ...spaces.map((r: any) => ({ title: str(r.name), description: str(r.description) || capacityOf(r.seated, r.standing) })),
+      ...packages.map((r: any) => ({ title: str(r.name), description: str(r.description) })),
+    ]
+  }
   const seen = new Set<string>()
   return list.filter((s: SiteService) => s.title && !seen.has(s.title.toLowerCase()) && seen.add(s.title.toLowerCase()))
 }

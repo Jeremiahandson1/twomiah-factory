@@ -10,6 +10,7 @@ import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootTenant, seedOwner } from './harness.ts'
 import { addDays, tzParts } from '@twomiah/tenant-backend'
+import { scheduleBookingsOf } from '../web/src/booking/scheduleBookings.ts'
 
 let t: Awaited<ReturnType<typeof bootTenant>>
 let token = '', ownerId = '', companyId = '', serviceId = ''
@@ -221,6 +222,27 @@ describe('Convert to job: the booking becomes a job on the schedule, linked, and
     const [j] = await t.db.select().from(t.schema.job).where(eq(t.schema.job.id, made.id))
     expect(j.scheduledTime).toBe('10:30')
     expect(j.scheduledDate?.toISOString()).toBe(`${addDays(today, 13)}T00:00:00.000Z`)
+  })
+
+  test('a converted booking whose job the crew moved to another day is drawn once, as the job, on the job day', async () => {
+    const at = addDays(today, 18), moved = addDays(today, 20)
+    const x = await (await desk({ email: 'moved-job@example.com', date: at, time: '09:00' })).json()
+    const made = await (await as(`/api/booking/bookings/${x.id}/job`, { method: 'POST' })).json()
+    expect((await as(`/api/jobs/${made.id}`, { method: 'PUT', json: { scheduledDate: moved } })).status).toBe(200)
+    const span = `from=${at}T00:00:00.000Z&to=${addDays(moved, 1)}T00:00:00.000Z`
+    // What the Schedule is given to draw (screens.tsx Schedule → scheduleBookingsOf): not this booking, on any day.
+    const rows = (await (await as(`/api/booking/bookings?${span}&limit=500`)).json()).data
+    expect(rows.find((r: any) => r.id === x.id)?.job?.id).toBe(made.id)
+    expect(scheduleBookingsOf(rows).some((r) => r.id === x.id)).toBe(false)
+    // The job is on its new day, and only there.
+    const jobs = (await (await as(`/api/jobs?startDate=${at}T00:00:00.000Z&endDate=${addDays(moved, 1)}T00:00:00.000Z&limit=500`)).json()).data as any[]
+    const it = jobs.filter((j) => j.id === made.id)
+    expect(it).toHaveLength(1)
+    expect(String(it[0].scheduledDate).slice(0, 10)).toBe(moved)
+    // An unconverted booking on the same days is still drawn.
+    const plain = await (await desk({ email: 'plain-chip@example.com', date: at, time: '11:00' })).json()
+    const rows2 = (await (await as(`/api/booking/bookings?${span}&limit=500`)).json()).data
+    expect(scheduleBookingsOf(rows2).map((r) => r.id)).toContain(plain.id)
   })
 
   test('a cancelled booking is refused', async () => {

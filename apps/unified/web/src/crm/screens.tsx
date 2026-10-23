@@ -27,6 +27,7 @@ import { dashboard as roofDashboard } from './verticals/roof'
 import { dashboard as storeDashboard } from './verticals/store'
 import TextingPage from './pages/TextingPage'
 import { ContactBookings } from '../booking/ContactBookings'
+import { scheduleBookingsOf } from '../booking/scheduleBookings'
 
 const v = verticalScreens
 const client = api as any
@@ -117,13 +118,8 @@ export function Schedule() {
   const loadBookings = async (from: string, to: string) => {
     if (!hasFeature('online_booking')) return []
     const r: any = await client.get('/api/booking/bookings', { from, to, limit: 500 })
-    // A booking converted into a job is on the board as that job, wherever the job now sits — drawing the booking too
-    // would put one visit up twice (or on two days, once the crew's job was moved). Every other live booking is drawn as
-    // a booking that opens its own page, where "Convert to job" is.
-    return (r?.data || []).filter((b: any) => b.status !== 'cancelled' && !b.job).map((b: any) => ({
-      id: b.id, startAt: b.startAt, status: b.status, customerName: b.customerName, serviceName: b.serviceName ?? null,
-      customerAddress: b.customerAddress ?? null, calendarId: b.job?.id ?? null, source: b.source === 'public' ? 'website' as const : 'crm' as const,
-    }))
+    // Converted bookings are drawn as their jobs, once, wherever the job sits (booking/scheduleBookings.ts).
+    return scheduleBookingsOf(r?.data || [])
   }
   // Appointments (test drives, drop-offs, deliveries) where the vertical has them (VerticalScreens.schedule; the RV copy's
   // SchedulePage passed events: true).

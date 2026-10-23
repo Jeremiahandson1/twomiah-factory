@@ -226,3 +226,33 @@ describe('the rules themselves', () => {
     expect(pageTitle({ companyName: 'Acme', addressLocality: 'Verona', addressRegion: 'WI', seoTitle: 'acme' }, { home: true })).toBe('Acme, Verona, WI')
   })
 })
+
+describe("a restaurant's \"What we do\": its own event spaces and menu packages (coordinator's decision, fix-h)", () => {
+  let s: Awaited<ReturnType<typeof started>>
+  beforeAll(async () => { s = await started('restaurant', {}, 'restaurant') }, 60_000)
+
+  test('with none entered, the section is not shown (nothing invented)', async () => {
+    const home = await page(s.t, '/')
+    expect(home.status).toBe(200)
+    expect(whatWeDo(home.body)).toBeNull()
+  })
+
+  test('the active spaces, then the active menu packages, are what it does — each in the owner\'s words or capacity', async () => {
+    await s.t.db.insert(s.t.schema.eventSpace).values([
+      { companyId: s.companyId, name: 'The Garden Room', description: 'A glass room on the river.' },
+      { companyId: s.companyId, name: 'Cellar Bar', seatedCapacity: 40, standingCapacity: 70 },
+      { companyId: s.companyId, name: 'Old Annex', active: false },
+    ] as any)
+    await s.t.db.insert(s.t.schema.menuPackage).values([
+      { companyId: s.companyId, name: 'Wedding Dinner', description: 'Three courses, per head.' },
+      { companyId: s.companyId, name: 'Retired Buffet', active: false },
+    ] as any)
+    const home = await page(s.t, '/')
+    expect(whatWeDo(home.body)).toEqual(['Cellar Bar', 'The Garden Room', 'Wedding Dinner'])
+    expect(home.body).toContain('A glass room on the river.')
+    expect(home.body).toContain('Seats 40 · 70 standing')
+    expect(home.body).toContain('Three courses, per head.')
+    expect(home.body).not.toContain('Old Annex')
+    expect(home.body).not.toContain('Retired Buffet')
+  })
+})
