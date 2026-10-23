@@ -131,18 +131,57 @@ function ReceptionistSetup({ enabled, hasRules }: { enabled: boolean; hasRules: 
     <section aria-label="How the AI Receptionist works" className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
       <h2 className="font-semibold text-slate-900 dark:text-slate-100">How the AI Receptionist works</h2>
       <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
-        When nobody picks up a call to your business — at any hour, or only outside your business hours, as you choose — it gets back to the caller
-        for you, by text, email or both, with the reply you write in a rule. If they leave a voicemail, it is written out, so a rule can answer what
-        they asked for, like a booking.
+        A call to your business number rings your forwarding number — your own phone — for 20 seconds. If nobody picks up, or you have no
+        forwarding number, the caller hears your greeting and can leave a voicemail. Then it gets back to them for you, by text, email or both,
+        with the reply you write in a rule — at any hour, or only outside your business hours. A voicemail is written out, so a rule can answer
+        what they asked for, like a booking. It does not talk with callers or book appointments itself.
       </p>
       <h3 className="mt-4 text-sm font-semibold text-slate-900 dark:text-slate-100">How to set it up</h3>
       <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-slate-700 dark:text-slate-300">
-        <li>Connect your phone line. Email <a href="mailto:support@twomiah.com?subject=Connect%20my%20phone%20line%20to%20the%20AI%20Receptionist" className="font-medium text-brand-700 hover:underline dark:text-brand-200">support@twomiah.com</a> and we connect your business number to it. Calls then show under Call Log.</li>
+        <li>Connect your phone line. Email <a href="mailto:support@twomiah.com?subject=Connect%20my%20phone%20line%20to%20the%20AI%20Receptionist" className="font-medium text-brand-700 hover:underline dark:text-brand-200">support@twomiah.com</a> and we point your business number at it. Calls then show under Call Log.</li>
+        <li>On the Settings tab, enter your forwarding number (the phone that rings first) and the greeting a caller hears before leaving a message.</li>
         <li>For text replies, turn on texting in <button type="button" onClick={() => navigate('/crm/settings/texting')} className="font-medium text-brand-700 hover:underline dark:text-brand-200">Settings › Texting</button> — replies go out from your business&rsquo;s own number. Email replies need nothing.</li>
         <li className={hasRules ? done : undefined}>Write a rule: what happened (a missed call, a voicemail, after hours, a new caller) and the reply to send.{hasRules ? ' ✓ Done' : ''}</li>
         <li className={enabled ? done : undefined}>Press Enable AI. Until then no reply is sent.{enabled ? ' ✓ On' : ''}</li>
       </ol>
     </section>
+  )
+}
+
+/**
+ * The phone line's two settings, saved together with a button (they were saved on every keystroke, and nothing used
+ * them): the number a call rings first, and the greeting a caller hears before leaving a message (server
+ * aiReceptionist.ts /webhook/voice and /webhook/dial-result).
+ */
+function LineSettings({ settings, mayEdit, onSave }: { settings: AISettings; mayEdit: boolean; onSave: (u: Partial<AISettings>) => Promise<boolean> }) {
+  const [forwardingNumber, setForwarding] = useState<string>(settings.forwardingNumber || '')
+  const [greetingText, setGreeting] = useState<string>(settings.greetingText || '')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  useEffect(() => { setForwarding(settings.forwardingNumber || ''); setGreeting(settings.greetingText || '') }, [settings.forwardingNumber, settings.greetingText])
+  const dirty = forwardingNumber !== (settings.forwardingNumber || '') || greetingText !== (settings.greetingText || '')
+  const save = async () => {
+    setSaving(true); setSaved(false)
+    const ok = await onSave({ forwardingNumber: forwardingNumber.trim() || null, greetingText: greetingText.trim() || null } as any)
+    setSaving(false); setSaved(ok)
+  }
+  return (
+    <div className="space-y-4" data-testid="line-settings">
+      <div>
+        <label htmlFor="ai-forwarding" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Forward calls to</label>
+        <Input id="ai-forwarding" value={forwardingNumber} onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setForwarding(e.target.value); setSaved(false) }} disabled={!mayEdit} placeholder="(608) 555-0123" inputMode="tel" />
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Your own phone. A call to your business number rings here for 20 seconds first. Left blank, every call goes straight to your greeting and voicemail.</p>
+      </div>
+      <div>
+        <label htmlFor="ai-greeting" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Voicemail greeting</label>
+        <Textarea id="ai-greeting" value={greetingText} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => { setGreeting(e.target.value); setSaved(false) }} disabled={!mayEdit} placeholder="Thanks for calling. We can't take your call right now. Please leave a message after the tone and we'll get back to you." rows={3} />
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Read out to a caller nobody picked up, before the beep. Left blank, they hear &ldquo;Thanks for calling&rdquo; with your business name and are asked to leave a message.</p>
+      </div>
+      {mayEdit && <div className="flex items-center gap-3">
+        <Button onClick={save} disabled={!dirty || saving}>{saving ? 'Saving…' : 'Save'}</Button>
+        {saved && !dirty && <span className="text-sm text-emerald-700 dark:text-emerald-400" role="status">Saved</span>}
+      </div>}
+    </div>
   )
 }
 
@@ -154,9 +193,9 @@ interface AISettings {
   isEnabled: boolean;
   businessHoursStart: string;
   businessHoursEnd: string;
-  greetingText: string;
+  greetingText: string | null;
   timezone?: string;
-  forwardingNumber?: string;
+  forwardingNumber?: string | null;
 }
 
 export function AIReceptionistPage() {
@@ -269,12 +308,13 @@ export function AIReceptionistPage() {
     } catch (e) { setError(errorText(e, 'The AI Receptionist could not be switched over.')); }
   };
 
-  const updateSettings = async (updates: Partial<AISettings>) => {
+  const updateSettings = async (updates: Partial<AISettings>): Promise<boolean> => {
     try {
       await api('/settings', { method: 'PUT', body: JSON.stringify(updates) });
       setError(null);
       fetchSettings();
-    } catch (e) { setError(errorText(e, 'Those settings could not be saved.')); }
+      return true;
+    } catch (e) { setError(errorText(e, 'Those settings could not be saved.')); return false; }
   };
 
   const activeRules = rules.filter((r: Record<string, unknown>) => r.isActive).length;
@@ -283,13 +323,13 @@ export function AIReceptionistPage() {
 
   // The server said this module is off. Say that, once, instead of a red banner over a page of
   // controls that cannot work. (T58d)
-  if (moduleOff) return <ModuleNotEnabled title="AI Receptionist" what="Automatic call handling, transcription and smart replies are part of your product but are not enabled on this account." />;
+  if (moduleOff) return <ModuleNotEnabled title="AI Receptionist" what="Missed-call text-back, voicemail with a written-out transcript, and replies by text or email are part of your product but are not enabled on this account." />;
 
   return (
     <div className="space-y-6">
       <PageError message={error} onDismiss={() => setError(null)} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">AI Receptionist</h1><p className="text-slate-600 dark:text-slate-400 mt-1">Automatic call handling with AI transcription & smart replies</p></div>
+        <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">AI Receptionist</h1><p className="text-slate-600 dark:text-slate-400 mt-1">Rings your phone first, then takes a voicemail, writes it out and texts or emails the caller back</p></div>
         <div className="flex gap-2">
           {mayEdit && <Button variant={settings.isEnabled ? 'primary' : 'secondary'} onClick={toggleEnabled} icon={settings.isEnabled ? Check : Zap}>
             {settings.isEnabled ? 'Enabled' : 'Enable AI'}
@@ -373,7 +413,7 @@ export function AIReceptionistPage() {
           <Card><CardHeader title="AI Receptionist Settings" /><CardBody className="space-y-6">
             {!mayEdit && <p className="text-sm text-slate-600 dark:text-slate-400">You can see these settings. Only an owner or admin can change them.</p>}
             <div className="flex items-center justify-between p-4 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
-              <div><p className="font-medium text-slate-900 dark:text-white">AI Receptionist</p><p className="text-sm text-slate-600 dark:text-slate-400">Automatically transcribe voicemails and send smart replies</p></div>
+              <div><p className="font-medium text-slate-900 dark:text-white">AI Receptionist</p><p className="text-sm text-slate-600 dark:text-slate-400">Send your rules&rsquo; replies to missed calls and voicemails. Off, calls still ring your forwarding number and still go to voicemail, but nobody is replied to.</p></div>
               {mayEdit
                 ? <Button variant={settings.isEnabled ? 'primary' : 'secondary'} onClick={toggleEnabled}>{settings.isEnabled ? 'Enabled' : 'Disabled'}</Button>
                 : <span className="text-sm font-medium text-slate-900 dark:text-white">{settings.isEnabled ? 'Enabled' : 'Disabled'}</span>}
@@ -388,8 +428,7 @@ export function AIReceptionistPage() {
               <span className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Time zone</span>
               <p className="text-sm text-slate-900 dark:text-white">{zoneWords(settings.timezone)} — your business&rsquo;s time zone. <Link to="/crm/settings" className="font-medium text-brand-700 hover:underline dark:text-brand-200">Change it in Settings › Company</Link></p>
             </div>
-            <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Default Greeting</label><Textarea value={settings.greetingText || ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateSettings({ greetingText: e.target.value })} disabled={!mayEdit} placeholder="Hi, thanks for calling! We're currently away but will get back to you soon." rows={3} /></div>
-            <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Forwarding Number</label><Input value={settings.forwardingNumber || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ forwardingNumber: e.target.value })} disabled={!mayEdit} placeholder="(555) 123-4567" /></div>
+            <LineSettings settings={settings} mayEdit={mayEdit} onSave={updateSettings} />
           </CardBody></Card>
           {maySetUpCallRail && <div className="mt-6"><CallTrackingSettings /></div>}
         </TabsContent>

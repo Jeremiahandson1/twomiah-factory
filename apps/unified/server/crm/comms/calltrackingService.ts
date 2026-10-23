@@ -204,7 +204,10 @@ export function createCalltrackingService(d: CrmDeps) {
     tagCallAsLead: (id: string, companyId: string, body: { value?: number; notes?: string }) => q.tagCallAsLead(db, id, companyId, body),
     /** CallRail's field names (customer_phone_number, customer_name, source_name …), mapped by the shared reader. */
     handleCallRailWebhook: (companyId: string, payload: any) => logCall(companyId, mapCallRailPayload(payload) as CallInput),
-    handleTwilioWebhook: (companyId: string, payload: any) => logCall(companyId, {
+    // A call the AI receptionist answered is already in the log (its voice webhook logged it): updated, never logged twice.
+    handleTwilioWebhook: async (companyId: string, payload: any) => (payload.CallSid && await q.updateCallFromProvider(db, companyId, String(payload.CallSid), {
+      status: mapTwilioStatus(payload.CallStatus), duration: parseInt(payload.CallDuration) || 0, recordingUrl: payload.RecordingUrl || null,
+    })) || logCall(companyId, {
       trackingNumber: payload.To,
       callerNumber: payload.From,
       callerCity: payload.FromCity,

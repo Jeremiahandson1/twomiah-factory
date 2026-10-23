@@ -9,8 +9,9 @@ import { eq, and, desc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { aiReceptionistRule, aiReceptionistSettings, clients, company, contact } from '../../db/schema/index.ts'
 import * as q from '../../data/aiReceptionist.ts'
-import { companyRowTimeZone } from '@twomiah/tenant-backend'
+import { companyRowTimeZone, formatPhoneE164 } from '@twomiah/tenant-backend'
 import { clientByPhone } from '../../data/calltracking.ts'
+import { createCalltrackingService } from './calltrackingService.ts'
 import type { CrmDeps } from '../deps.ts'
 
 /**
@@ -51,6 +52,8 @@ export function createAiReceptionistService(d: CrmDeps) {
   const { db, logger } = d
   /** Callers are home-care clients (CrmSettings.callers). */
   const callersAreClients = d.settings?.callers === 'clients'
+  // The call log is call tracking's: a call the line answers is logged the way a tracked call is.
+  const calltracking = createCalltrackingService(d)
   // The providers' keys, read when used (the template read them once at import).
   const env = () => ({
     openai: process.env.OPENAI_API_KEY,
@@ -242,6 +245,11 @@ export function createAiReceptionistService(d: CrmDeps) {
   /** Every active rule against a call; the matching ones reply by text and/or email. */
   async function evaluateRules(companyId: string, callData: {
     callLogId: string; callerNumber?: string; callerName?: string; callerEmail?: string; status: string; transcription?: string; duration?: number
+    /**
+     * The caller was already answered for this call (the missed-call rules ran when nobody picked up): only what a
+     * voicemail adds runs now — the voicemail, keyword and booking rules — so one call is not replied to twice.
+     */
+    alreadyAnswered?: boolean
   }) {
     const settings: any = await getSettings(companyId)
     if (!settings.isEnabled) return
@@ -252,7 +260,9 @@ export function createAiReceptionistService(d: CrmDeps) {
       .where(and(eq(aiReceptionistRule.companyId, companyId), eq(aiReceptionistRule.isActive, true)))
     const isAfterHours = checkAfterHours(new Date(), settings.businessHoursStart, settings.businessHoursEnd, settings.timezone)
 
+    const VOICEMAIL_ONLY = new Set(['voicemail', 'keyword', 'booking_request'])
     for (const rule of rules as any[]) {
+      if (callData.alreadyAnswered && !VOICEMAIL_ONLY.has(rule.trigger)) continue
       let shouldTrigger = false
       switch (rule.trigger) {
         case 'after_hours':
@@ -310,6 +320,8 @@ export function createAiReceptionistService(d: CrmDeps) {
       logger.info('[AIReceptionist] No call log found for CallSid', { callSid: payload.CallSid })
       return
     }
+    // A message was left: the call is a voicemail (the receptionist logged it 'missed' when nobody picked up).
+    if (callRow.status === 'missed' || callRow.status === 'ringing') { await q.setCallStatus(db, callRow.id, 'voicemail'); callRow.status = 'voicemail' }
     const transcription = await transcribeRecording(recordingUrl)
     if (transcription) await q.setCallTranscription(db, callRow.id, transcription, recordingUrl)
     if (transcription) {
@@ -334,7 +346,53 @@ export function createAiReceptionistService(d: CrmDeps) {
       callerEmail,
       status: callRow.status,
       transcription: transcription || undefined,
+      alreadyAnswered: callRow.aiResponseSent,
     })
+  }
+
+  // ── The phone line (Twilio's voice webhooks, ./aiReceptionist.ts) ──
+  // Twilio's voice URL for the business's number points at /webhook/voice: the call rings the forwarding number (the
+  // business's own phone) for 20 seconds; nobody picks up — or there is no forwarding number — and the caller hears the
+  // greeting and can leave a message. The voicemail is recorded, written out, and answered by the rules.
+
+  /** What the caller hears before the beep: the greeting written on the Settings tab, else a plain one. */
+  function greetingFor(settings: { greetingText?: string | null }, companyName: string): string {
+    const own = String(settings.greetingText ?? '').trim()
+    return own || `Thanks for calling ${companyName}. We can't take your call right now. Please leave a message after the tone and we'll get back to you.`
+  }
+
+  /** The number unanswered calls ring first, E.164, or null when none (or not a dialable number). */
+  function forwardTo(settings: { forwardingNumber?: string | null }): string | null {
+    const digits = String(settings.forwardingNumber ?? '').replace(/\D/g, '')
+    if (digits.length === 10 || (digits.length === 11 && digits.startsWith('1'))) return formatPhoneE164(digits)
+    return null
+  }
+
+  /** A call arriving: logged (call tracking's log, its first caller filed as call tracking does), then rung or greeted. */
+  async function callArrived(companyId: string, p: Record<string, string>) {
+    if (p.CallSid && !(await q.findCallByProviderId(db, companyId, p.CallSid))) {
+      await calltracking.logCall(companyId, {
+        trackingNumber: p.To, callerNumber: p.From, callerCity: p.FromCity, callerState: p.FromState,
+        direction: 'inbound', status: 'ringing', providerId: p.CallSid,
+      })
+    }
+    const settings: any = await getSettings(companyId)
+    const [co] = await db.select({ name: company.name }).from(company).where(eq(company.id, companyId)).limit(1)
+    return { forwardTo: forwardTo(settings), greeting: greetingFor(settings, co?.name || 'us') }
+  }
+
+  /** The forwarded leg's outcome. Not picked up: the call is missed, the missed-call rules reply, and voicemail follows. */
+  async function dialEnded(companyId: string, p: Record<string, string>): Promise<{ answered: boolean; greeting: string }> {
+    const answered = p.DialCallStatus === 'completed' || p.DialCallStatus === 'answered'
+    const callRow = p.CallSid ? await q.findCallByProviderId(db, companyId, p.CallSid) : null
+    if (callRow) await q.setCallStatus(db, callRow.id, answered ? 'completed' : 'missed')
+    const settings: any = await getSettings(companyId)
+    const [co] = await db.select({ name: company.name }).from(company).where(eq(company.id, companyId)).limit(1)
+    if (!answered && callRow) {
+      evaluateRules(companyId, { callLogId: callRow.id, callerNumber: callRow.callerNumber || p.From, callerName: callRow.callerName || undefined, status: 'missed' })
+        .catch((err: any) => logger.error('[AIReceptionist] missed-call rules failed', { error: err?.message }))
+    }
+    return { answered, greeting: greetingFor(settings, co?.name || 'us') }
   }
 
   /** A manual re-transcribe of one of this company's calls (the call's stored recording). */
@@ -356,7 +414,7 @@ export function createAiReceptionistService(d: CrmDeps) {
   }
 
   return {
-    getRules, createRule, updateRule, deleteRule, getSettings, upsertSettings,
+    getRules, createRule, updateRule, deleteRule, getSettings, upsertSettings, callArrived, dialEnded, forwardTo,
     transcribeRecording, transcribeExistingCall, summarizeAndGenerateReply, evaluateRules, processRecordingWebhook,
   }
 }

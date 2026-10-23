@@ -165,6 +165,23 @@ export async function updateCall(db: any, callId: string, companyId: string, dat
   }
 }
 
+/**
+ * The provider's end-of-call report for a call already in the log (the AI receptionist logs a call when it answers):
+ * its length, end time and recording. The receptionist's own outcome stands — a call it took a voicemail on is
+ * 'completed' to the carrier, and was 'missed' or 'voicemail' to the business. Null when the call is not in the log.
+ */
+export async function updateCallFromProvider(db: any, companyId: string, providerId: string, r: { status: string; duration: number; recordingUrl: string | null }) {
+  return camelFirst(await db.execute(sql`
+    UPDATE call_log SET
+      duration = ${r.duration},
+      end_time = NOW(),
+      recording_url = COALESCE(recording_url, ${r.recordingUrl}),
+      status = CASE WHEN status IN ('missed', 'voicemail') THEN status ELSE ${r.status} END
+    WHERE company_id = ${companyId} AND provider_id = ${providerId}
+    RETURNING *
+  `))
+}
+
 /** Mark a call as a lead, with its value and a note. */
 export async function tagCallAsLead(db: any, callId: string, companyId: string, { value, notes }: { value?: number; notes?: string }) {
   await db.execute(sql`
