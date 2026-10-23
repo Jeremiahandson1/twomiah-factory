@@ -22,6 +22,8 @@ export interface SiteContext {
    */
   options: { textSizeToggle: boolean; shop: boolean; cover: boolean; ctaHref: string }
   colours: { primary: string; accent: string | null; secondary: string | null }
+  /** The company's switched-on features: a section that IS a feature (the financing calculator) renders only with it on. */
+  features: string[]
 }
 
 /**
@@ -53,6 +55,7 @@ export async function loadSiteContext(db: any, vertical: VerticalSettings): Prom
     words: vertical.site.words,
     options: { textSizeToggle: !!vertical.site.textSizeToggle, shop: !!vertical.crm?.store, cover: COVER_DESIGNS.has(design), ctaHref: vertical.site.ctaHref || '/contact' },
     colours: { primary: co.primaryColor, accent: s?.accentColor ?? null, secondary: co.secondaryColor ?? null },
+    features: Array.isArray(co.enabledFeatures) ? co.enabledFeatures : [],
     settings: {
       companyName: co.name,
       phone: co.phone || '',

@@ -23,8 +23,8 @@ type Props = {
 
 const CRM_PRESETS: { id: string; name: string; icon: string; description: string; features: string[] | 'all'; templates?: string[] }[] = [
   { id: 'service-starter', name: 'Service Starter', icon: '🔧', description: 'HVAC, plumbing, electrical, cleaning', templates: ['crm', 'crm-fieldservice'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','drag_drop_calendar','recurring_jobs','online_booking','service_dispatch','pricebook','time_tracking','online_payments','expense_tracking','two_way_texting','google_reviews','lead_inbox'] },
-  { id: 'project-pro', name: 'Project Pro', icon: '🏗️', description: 'Remodeling, general contracting', templates: ['crm'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','selections','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','consumer_financing','documents','client_portal','google_reviews','lead_inbox'] },
-  { id: 'roofing-pro', name: 'Roofing Pro', icon: '🏠', description: 'Roofing contractors & storm restoration', templates: ['crm-roof'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','consumer_financing','documents','client_portal','google_reviews','lead_inbox','insurance_workflow','pipeline_board','crews','materials','canvassing_tool','storm_lead_gen'] },
+  { id: 'project-pro', name: 'Project Pro', icon: '🏗️', description: 'Remodeling, general contracting', templates: ['crm'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','selections','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','documents','client_portal','google_reviews','lead_inbox'] },
+  { id: 'roofing-pro', name: 'Roofing Pro', icon: '🏠', description: 'Roofing contractors & storm restoration', templates: ['crm-roof'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','documents','client_portal','google_reviews','lead_inbox','insurance_workflow','pipeline_board','crews','materials','canvassing_tool','storm_lead_gen'] },
   { id: 'contractor-suite', name: 'Contractor Suite', icon: '🏢', description: 'Full commercial construction', templates: ['crm', 'crm-roof'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','rfis','change_orders','punch_lists','daily_logs','inspections','bid_management','takeoff_tools','selections','time_tracking','gps_tracking','photo_capture','fleet','online_payments','expense_tracking','job_costing','quickbooks','documents','reports','client_portal','call_tracking','lead_inbox'] },
   { id: 'everything', name: 'Enterprise', icon: '🚀', description: 'Every feature enabled', features: 'all' },
 ]
@@ -126,7 +126,8 @@ const CRM_REGISTRY = [
     { id: 'online_payments', name: 'Online Payments', description: 'Stripe payment processing', core: false },
     { id: 'expense_tracking', name: 'Expense Tracking', description: 'Expense logging and receipts', core: false },
     { id: 'job_costing', name: 'Job Costing', description: 'Detailed job cost analysis', core: false },
-    { id: 'consumer_financing', name: 'Consumer Financing', description: 'Wisetack financing integration', core: false },
+    // Consumer Financing is not ready (registry: hidden) — not listed here or in any preset, and named nowhere a
+    // business sees until a real lender sandbox run passes (owner, 2026-10-23). Put it back when it launches.
     { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync', core: false },
   ]},
   { category: 'Communication', features: [

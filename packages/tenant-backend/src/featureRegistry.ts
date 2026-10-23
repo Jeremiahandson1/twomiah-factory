@@ -22,6 +22,19 @@ export type FeatureDef = {
    * work right yet.") check-not-ready-features.ts holds every one of those paths. Set to false to launch.
    */
   hidden?: boolean
+  /**
+   * How the feature is spoken of in copy, as word starts matched without case ('financing' also matches "Financing:").
+   * While the feature is not ready (hidden), none of these may reach a business or its customers: not the Factory's
+   * wizard and price lists, not a composed website, not a screen, page or PDF of a business that has not got it switched
+   * on (owner, 2026-10-23: nothing advertises financing until it is live). notReadyWords() is the list;
+   * apps/unified/tests/not-ready-unseen.test.ts holds the surfaces to it, with each hidden feature's name and description.
+   */
+  words?: string[]
+  /**
+   * Website section types that ARE this feature (the financing calculator is Consumer Financing's). A site renders one
+   * only for a business with the feature on, and the Factory's composer offers it only while the feature is ready.
+   */
+  siteSections?: string[]
 }
 
 export const FEATURE_REGISTRY: FeatureDef[] = [
@@ -150,8 +163,14 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'purchase_orders', name: 'Purchase Orders', description: 'Commit spend with vendors per job — sent, acknowledged, received, billed', category: 'Finance', core: false, templates: ['crm', 'crm-dispensary'] },
   { id: 'vendor_bills', name: 'Bills & Payables', description: 'Vendor bills with due dates, payments, and committed-vs-billed job rollups', category: 'Finance', core: false, templates: ['crm'] },
   { id: 'vendor_portal', name: 'Vendor Portal', description: 'Subs and suppliers acknowledge POs and submit invoices through a private link', category: 'Communication', core: false, templates: ['crm'] },
-  // No screen asks /api/financing or /api/wisetack; the RV dealer's F&I page is its deal pipeline's, not this switch's.
-  { id: 'consumer_financing', name: 'Consumer Financing', description: 'F&I lender pre-qualification and finance offers on the deal', category: 'Finance', core: false, templates: [] /* offered to no industry: no screen in any industry's menu or pages (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22). The id stays because the server still gates its API on it. */ },
+  // Consumer Financing — NOT ready (2026-10-23). The trades the pros offer it to (Jobber, Housecall Pro, ServiceTitan:
+  // contractors, roofers, HVAC/field service, landscapers; and RV/powersports service) get the lender flow in the unified
+  // app: connect the lender in Settings › Integrations, "as low as $X/mo" + Apply on quotes and on the customer's quote and
+  // invoice pages, an application link texted or emailed, signed lender webhooks that move the application and record the
+  // funded payment, and a Financing page. Hidden until a real lender sandbox run passes (owner: untested features stay
+  // off), so no plan, signup, Features page or Factory save switches it on, and nothing advertises it while it is off
+  // (apps/unified/tests/not-ready-unseen.test.ts). The RV dealer's F&I page is its deal pipeline's, not this switch's.
+  { id: 'consumer_financing', name: 'Consumer Financing', description: 'Customers apply for a loan from your quote or invoice; the lender pays you', category: 'Finance', core: false, templates: ['crm', 'crm-roof', 'crm-fieldservice', 'crm-landscaping', 'crm-rv'], hidden: true, words: ['financing', 'finance option', 'wisetack'], siteSections: ['financing'] },
   { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync — we integrate accounting, we do not replace it', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-bar'] },
 
   // Communication
@@ -314,6 +333,21 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 ]
 
 export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f]))
+
+/** The feature a website section type belongs to (FeatureDef.siteSections), if any. */
+export function siteSectionFeature(type: string): string | null {
+  return FEATURE_REGISTRY.find((f) => f.siteSections?.includes(type))?.id ?? null
+}
+
+/** The words of every not-ready feature (FeatureDef.words), and their pattern: null when none is not ready. */
+export function notReadyWords(): string[] {
+  return [...new Set(FEATURE_REGISTRY.filter((f) => f.hidden).flatMap((f) => f.words || []))]
+}
+export function notReadyPattern(): RegExp | null {
+  const w = notReadyWords()
+  // Words are letters only (the registry's own), so they go into the pattern as they are.
+  return w.length ? new RegExp('\\b(?:' + w.join('|') + ')', 'i') : null
+}
 
 /**
  * A feature list with the not-ready (hidden) ones taken out. A not-ready feature is switched on by no path — the

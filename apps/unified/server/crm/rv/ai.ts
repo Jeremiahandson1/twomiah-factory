@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import { eq, and, desc, inArray } from 'drizzle-orm'
 import { salesLead, contact, unit, company, user, repairOrder, invoice } from '../../db/schema/index.ts'
-import { reportAiUsage, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
+import { reportAiUsage, companyTimeZone, storeDateString, withoutNotReadyCopy } from '@twomiah/tenant-backend'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -31,8 +31,8 @@ const UNIT_STATUS_NOTE: Record<string, string> = {
   in_service: 'in the service department and not for sale right now',
 }
 
-const LEAD_SYSTEM = `You are an elite powersports / RV / marine dealership salesperson writing the FIRST response to a fresh internet lead. Warm, concise, human — NOT corporate spam. Use the customer's first name. Reference the SPECIFIC unit they asked about (year/make/model + price if given). Offer a clear next step (schedule a test ride / visit, answer questions, financing pre-qual). If an "alsoAvailable" unit fits, you may mention ONE briefly as an alternative. NEVER invent specs or prices not provided. Write like a top closer who replies within 5 minutes.
-If "interestedIn.availableNow" is false, that unit can NOT be sold to this customer: say briefly and honestly what "interestedIn.status" says (e.g. already sold), do NOT offer a test ride, visit, price or financing on it, and offer ONE "alsoAvailable" unit instead (or, if there are none, offer to find them a similar one). Only units in "alsoAvailable" or an available "interestedIn" may be offered.
+const LEAD_SYSTEM = `You are an elite powersports / RV / marine dealership salesperson writing the FIRST response to a fresh internet lead. Warm, concise, human — NOT corporate spam. Use the customer's first name. Reference the SPECIFIC unit they asked about (year/make/model + price if given). Offer a clear next step (schedule a test ride / visit, answer questions). If an "alsoAvailable" unit fits, you may mention ONE briefly as an alternative. NEVER invent specs or prices not provided. Write like a top closer who replies within 5 minutes.
+If "interestedIn.availableNow" is false, that unit can NOT be sold to this customer: say briefly and honestly what "interestedIn.status" says (e.g. already sold), do NOT offer a test ride, visit or price on it, and offer ONE "alsoAvailable" unit instead (or, if there are none, offer to find them a similar one). Only units in "alsoAvailable" or an available "interestedIn" may be offered.
 Return your answer in EXACTLY this format — these three literal markers each on their own line, with the content between them, and nothing else:
 ===SUBJECT===
 (the email subject line)
@@ -141,10 +141,11 @@ export function createAiLeadRoutes(d: CrmDeps) {
       const j = end ? txt.indexOf('===' + end + '===', from) : -1
       return txt.slice(from, j < 0 ? txt.length : j).trim()
     }
-    const parsed: any = { email: { subject: between('SUBJECT', 'EMAIL'), body: between('EMAIL', 'SMS') }, sms: between('SMS', null) }
+    // A draft never offers what is not ready (financing, until it is live — owner, 2026-10-23): such sentences come out.
+    const parsed: any = withoutNotReadyCopy({ email: { subject: between('SUBJECT', 'EMAIL'), body: between('EMAIL', 'SMS') }, sms: between('SMS', null) })
     // The model ignored the markers but emitted JSON: salvage it.
     if (!parsed.email.body && !parsed.sms) {
-      try { const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || [txt])[0]); if (j?.email) { parsed.email = { subject: j.email.subject || '', body: j.email.body || '' }; parsed.sms = j.sms || '' } } catch { /* unreadable */ }
+      try { const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || [txt])[0]); if (j?.email) Object.assign(parsed, withoutNotReadyCopy({ email: { subject: j.email.subject || '', body: j.email.body || '' }, sms: j.sms || '' })) } catch { /* unreadable */ }
     }
     // (The template also sent the first 300 characters of the raw answer; no screen showed it.)
     if (!parsed.email.body && !parsed.sms) return fail(c, 502, 'AI returned an unreadable draft. Try again.')

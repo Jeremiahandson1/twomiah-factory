@@ -58,7 +58,7 @@ const rv: VerticalSettings = {
     websiteEnquiries: 'pipeline',
     // routes/support.ts
     support: {
-      assistant: "an RV & powersports dealership CRM. The app's features are: unit Inventory, Contacts/leads, Deals, Service, Parts, F&I / financing, and Reports. Answer from these features and the knowledge base articles provided.",
+      assistant: "an RV & powersports dealership CRM. The app's features are: unit Inventory, Contacts/leads, Deals, Service, Parts, F&I (the finance and insurance office), and Reports. Answer from these features and the knowledge base articles provided.",
     },
   },
   // templates/crm-rv/frontend/src/*Config.ts
@@ -125,7 +125,7 @@ const rv: VerticalSettings = {
       collaboratorNav: ['myJobs', 'sharedDocuments', 'messages'],
       reviewerNav: ['sharedDocuments', 'messages'],
       labels: { myJobs: 'Service' },
-      docTypeLabels: { general: 'General', contract: 'Sales Contract', title: 'Title & Registration', finance: 'Financing', warranty: 'Warranty', insurance: 'Insurance', photo: 'Photo' },
+      docTypeLabels: { general: 'General', contract: 'Sales Contract', title: 'Title & Registration', finance: 'Loan Documents', warranty: 'Warranty', insurance: 'Insurance', photo: 'Photo' },
     },
     // leadsConfig.ts — the ids are crm.leads.platforms.
     leads: {

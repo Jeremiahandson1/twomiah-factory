@@ -1,6 +1,7 @@
 // Rendering a public page: a section list through views/home.ejs into views/base.ejs, from the premium site's
 // server-static.ts (renderSections, absolutizeHrefs, markdownToHtml). The views are the site templates' own.
 import ejs from 'ejs'
+import { siteSectionFeature } from '@twomiah/tenant-backend'
 import { consentBoxHtml } from './smsConsent.ts'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -45,7 +46,18 @@ export interface RenderOptions {
 }
 
 /** Any section list through home.ejs + base.ejs: a stored page, or one the server builds (service areas, a project). */
-export async function renderSections(ctx: SiteContext, sections: any[], meta: PageMeta, o: RenderOptions): Promise<string> {
+/**
+ * The sections this business may show: one that IS a feature (FeatureDef.siteSections — the financing calculator is
+ * Consumer Financing's) only while that feature is switched on for it. A not-ready feature is on for nobody, so nothing on
+ * any site advertises it (owner, 2026-10-23: no financing anywhere until it is live); a page composed or saved with one
+ * keeps the rest of its sections.
+ */
+export function sectionsShown(ctx: Pick<SiteContext, 'features'>, sections: any[]): any[] {
+  return sections.filter((s) => { const f = siteSectionFeature(String(s?.type || '')); return !f || (ctx.features || []).includes(f) })
+}
+
+export async function renderSections(ctx: SiteContext, all: any[], meta: PageMeta, o: RenderOptions): Promise<string> {
+  const sections = sectionsShown(ctx, Array.isArray(all) ? all : [])
   const { currentPath, origin, extraNav = [] } = o
   const settings = ctx.settings
   let nav: any[] = Array.isArray(settings.nav) ? settings.nav : []

@@ -9,8 +9,9 @@ import { PortalInvoiceDetail } from './PortalInvoices'
 import { Spinner } from './common'
 import { useTheme } from '../shell/hooks'
 
-function DocumentPage() {
+function DocumentPage({ below }: { below?: (link: { token: string; kind: 'quote' | 'invoice'; id: string }) => React.ReactNode }) {
   const { company, loading, error, link } = usePortal()
+  const { token } = useParams<{ token: string }>()
   useTheme()
   if (loading) return <div className="min-h-screen bg-gray-50 dark:bg-slate-900"><Spinner className="py-24" /></div>
   if (error || !link) {
@@ -38,6 +39,7 @@ function DocumentPage() {
       </header>
       <main className="max-w-4xl w-full mx-auto px-4 py-8 flex-1">
         {link.kind === 'quote' ? <PortalQuoteDetail quoteId={link.id} /> : <PortalInvoiceDetail invoiceId={link.id} />}
+        {below?.({ token: token || '', kind: link.kind, id: link.id })}
       </main>
       {(company?.email || company?.phone) && (
         <footer className="border-t bg-white dark:bg-slate-900 dark:border-slate-800">
@@ -48,8 +50,8 @@ function DocumentPage() {
   )
 }
 
-/** Mounted at /d/:token. */
-export function PortalDocumentLink() {
+/** Mounted at /d/:token. `below`: an app's own section under the document (the unified app's customer financing). */
+export function PortalDocumentLink({ below }: { below?: (link: { token: string; kind: 'quote' | 'invoice'; id: string }) => React.ReactNode } = {}) {
   const { token } = useParams<{ token: string }>()
-  return <PortalLinkProvider token={token}><DocumentPage /></PortalLinkProvider>
+  return <PortalLinkProvider token={token}><DocumentPage below={below} /></PortalLinkProvider>
 }

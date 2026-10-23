@@ -15,6 +15,8 @@ import path from 'path'
 import { getHeroLibrary } from '../config/heroLibrary.ts'
 import { enforceIntakeFacts, type IntakeFacts, type ContentGap } from './composerFacts.ts'
 import { tradeFlagsFor } from '../config/tradeDetect.ts'
+import { FEATURE_MAP, siteSectionFeature } from '../config/featureRegistry'
+import { mentionsNotReady, withoutNotReadyCopy } from '../../../../packages/tenant-backend/src/notReadyCopy.ts'
 
 export interface ComposerInput {
   businessName: string
@@ -406,6 +408,29 @@ export const SECTION_SCHEMA = {
 type SectionType = keyof typeof SECTION_SCHEMA
 
 /**
+ * A section type that IS a feature of the product: composed only while that feature is ready. The financing calculator is
+ * Consumer Financing's (registry: consumer_financing, siteSections), and the owner's rule (2026-10-23) is that nothing advertises
+ * financing until it is live — so while the registry marks it not ready (hidden), no site is composed with it.
+ */
+const sectionReady = (type: string) => { const f = siteSectionFeature(type); return !f || !FEATURE_MAP[f]?.hidden }
+
+/**
+ * The catalogue the composer is offered and may answer in: SECTION_SCHEMA without a not-ready feature's types, and
+ * without any option named in a not-ready feature's words (quote/instant-address's showFinancing).
+ */
+export function composableSchema(): Record<string, Record<string, { required: readonly string[]; optional: readonly string[]; use_when: string }>> {
+  const out: Record<string, Record<string, any>> = {}
+  for (const [type, variants] of Object.entries(SECTION_SCHEMA)) {
+    if (!sectionReady(type)) continue
+    out[type] = {}
+    for (const [variant, spec] of Object.entries(variants as Record<string, any>)) {
+      out[type][variant] = { ...spec, optional: (spec.optional || []).filter((k: string) => !mentionsNotReady(k)) }
+    }
+  }
+  return out
+}
+
+/**
  * Sanitize the AI's output: drop unknown types/variants, coerce data
  * shapes, cap counts so the renderer doesn't choke on absurd input.
  */
@@ -416,8 +441,9 @@ export function sanitizeSections(raw: any): Section[] {
     if (!s || typeof s !== 'object') continue
     const type = String(s.type || '').toLowerCase()
     const variant = String(s.variant || '').toLowerCase()
-    if (!(type in SECTION_SCHEMA)) continue
-    const variants = SECTION_SCHEMA[type as SectionType] as Record<string, unknown>
+    const schema = composableSchema()
+    if (!(type in schema)) continue
+    const variants = schema[type] as Record<string, unknown>
     if (!(variant in variants)) continue
     // The model sometimes writes a section FLAT — { type, variant, title, … }
     // with no `data` wrapper. Reading only s.data turned every such section
@@ -431,7 +457,8 @@ export function sanitizeSections(raw: any): Section[] {
     if (Array.isArray(data.items)) data.items = data.items.slice(0, 8)
     if (Array.isArray(data.stats)) data.stats = data.stats.slice(0, 6)
     if (Array.isArray(data.bullets)) data.bullets = data.bullets.slice(0, 6)
-    out.push({ type, variant, data })
+    // A sentence or list item that names a not-ready feature (an FAQ answer offering financing) is taken out (notReadyCopy.ts).
+    out.push({ type, variant, data: withoutNotReadyCopy(data, { dropEmpty: true }) })
   }
   return out
 }
@@ -477,7 +504,7 @@ who pulls permits, what is included); business hours; an address or schedule.
   not make an invented figure true.
 - When a recipe asks for a section whose facts the intake does not have
   (stats, testimonials, team, pricing, packages prices, menu, strains, deals,
-  schedule, financing, instant quote, before/after, a portfolio gallery), OMIT
+  schedule, instant quote, before/after, a portfolio gallery), OMIT
   that section. The recipes are a maximum, not a quota. A shorter true site
   beats a fuller invented one.
 - Photos: you cannot see them. Stock photos may set a mood (hero, service
@@ -494,7 +521,7 @@ credential or photo caption is removed automatically, and a section left empty
 is dropped — so inventing one only wastes the space.`
 
 function buildPrompt(input: ComposerInput): string {
-  const schemaSummary = Object.entries(SECTION_SCHEMA).map(([type, variants]) =>
+  const schemaSummary = Object.entries(composableSchema()).map(([type, variants]) =>
     `  ${type}: ${Object.keys(variants).join(', ')}`
   ).join('\n')
 
@@ -542,7 +569,7 @@ Propose a homepage as an ordered list of sections. Each section has a type, a va
 ${schemaSummary}
 
 # When to use each variant
-${Object.entries(SECTION_SCHEMA).map(([type, variants]) =>
+${Object.entries(composableSchema()).map(([type, variants]) =>
   Object.entries(variants).map(([variant, spec]) =>
     `- ${type}/${variant}: ${(spec as any).use_when}`
   ).join('\n')
@@ -706,7 +733,7 @@ export async function composeHomepageSections(input: ComposerInput): Promise<Com
 
   const enforced = enforceIntakeFacts({ home: sanitizeSections(parsed.sections) }, input, {
     requiredOf: requiredFieldsOf,
-    allowedTypes: new Set(Object.keys(SECTION_SCHEMA)),
+    allowedTypes: new Set(Object.keys(composableSchema())),
   })
   return {
     sections: enforced.pages.home,
@@ -819,7 +846,7 @@ const CONTRACTOR_PAGE_RECIPES = {
   services: {
     purpose: 'The full services menu — what they build, install, remodel. Each service with description + scope.',
     allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
-    required_sequence: '1 hero/centered-stats (eyebrow="Services"), 1 services/alternating (each specialty the intake lists: what it covers and how the work goes, photo of that kind of work), optional 1 gallery (Tier 1 only), 1 faq (only questions the intake answers — e.g. whether estimates are free, what areas they cover; no lead times, permit policies, minimums or financing it did not state), close with 1 cta',
+    required_sequence: '1 hero/centered-stats (eyebrow="Services"), 1 services/alternating (each specialty the intake lists: what it covers and how the work goes, photo of that kind of work), optional 1 gallery (Tier 1 only), 1 faq (only questions the intake answers — e.g. whether estimates are free, what areas they cover; no lead times, permit policies or minimums it did not state), close with 1 cta',
   },
   projects: {
     purpose: 'Portfolio of finished work — kitchens, baths, decks, additions, full builds. The "can they actually do this" page.',
@@ -1085,7 +1112,7 @@ const FIELDSERVICE_PAGE_RECIPES = {
   pricing: {
     purpose: 'Transparent pricing page. Customers searching for "drain clear cost" / "water heater install cost" land here.',
     allowed_types: ['hero', 'pricing', 'financing', 'faq', 'cta'],
-    required_sequence: '1 hero/centered-stats (eyebrow="Pricing", title that takes the transparency-position), 1 pricing/flat-rate-menu (the full menu), optional 1 financing/calculator for $5k+ jobs, 1 faq (diagnostic fee, why prices are firm, what changes the price), close with 1 cta',
+    required_sequence: '1 hero/centered-stats (eyebrow="Pricing", title that takes the transparency-position), 1 pricing/flat-rate-menu (the full menu), 1 faq (diagnostic fee, why prices are firm, what changes the price), close with 1 cta',
   },
   about: {
     purpose: 'Owner + crew + credentials + history. Where adult homeowners decide whether to trust you with their utility lines.',
@@ -1137,12 +1164,12 @@ const RV_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for an RV / marine / powersports dealership. Units sell units — lead with inventory, then the reasons to buy here instead of the dealer two hours away.',
     allowed_types: ['hero', 'inventory', 'trust', 'services', 'stats', 'testimonials', 'reservation', 'cta'],
-    required_sequence: '1 hero/full-bleed (real lot or a delivered customer, not a catalogue render), 1 inventory/showcase with featured units (this is the page — buyers browse units, not copy), 1 trust/badges (manufacturer certifications, dealer awards, financing partners, years in business — real ones only), optional 1 services/cards-grid covering service, parts and consignment (service revenue is why a dealership survives), optional 1 stats/bar, optional 1 testimonials from delivered buyers, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), close with 1 cta',
+    required_sequence: '1 hero/full-bleed (real lot or a delivered customer, not a catalogue render), 1 inventory/showcase with featured units (this is the page — buyers browse units, not copy), 1 trust/badges (manufacturer certifications, dealer awards, years in business — real ones only), optional 1 services/cards-grid covering service, parts and consignment (service revenue is why a dealership survives), optional 1 stats/bar, optional 1 testimonials from delivered buyers, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), close with 1 cta',
   },
   inventory: {
     purpose: 'The full featured-unit page. Browsing surface for buyers who are already shopping.',
     allowed_types: ['hero', 'inventory', 'faq', 'cta'],
-    required_sequence: '1 hero/centered-stats (eyebrow="Inventory"), 1 inventory/showcase with as many units as supplied, 1 faq covering trade-ins, financing terms, delivery radius and what "as-is" means on a used unit, close with 1 cta. NEVER imply the list is a live feed of everything on the lot — it is a featured selection and the disclaimer says so',
+    required_sequence: '1 hero/centered-stats (eyebrow="Inventory"), 1 inventory/showcase with as many units as supplied, 1 faq covering trade-ins, delivery radius and what "as-is" means on a used unit, close with 1 cta. NEVER imply the list is a live feed of everything on the lot — it is a featured selection and the disclaimer says so',
   },
   service: {
     purpose: 'Service and parts department. Recurring revenue, and the reason a buyer comes back.',
@@ -1157,7 +1184,7 @@ const RV_PAGE_RECIPES = {
   contact: {
     purpose: 'Get them to the lot or on the phone.',
     allowed_types: ['hero', 'contact', 'reservation', 'faq'],
-    required_sequence: 'optional 1 hero (short), 1 contact/form-info with lot hours and directions, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), optional 1 faq about trade appraisals and financing pre-approval',
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info with lot hours and directions, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), optional 1 faq about trade appraisals',
   },
 } as const
 
@@ -1243,7 +1270,7 @@ const ROOFING_PAGE_RECIPES = {
   quote: {
     purpose: 'Standalone estimator page. SEO-targeted to "roof replacement cost" / "ballpark roof estimate" searches.',
     allowed_types: ['hero', 'quote', 'financing', 'faq', 'cta'],
-    required_sequence: '1 hero/centered-stats (eyebrow="Estimator"), 1 quote/instant-address, 1 financing/calculator, 1 faq/accordion (sq-ft estimation, what the range includes, insurance overlap), close with 1 cta',
+    required_sequence: '1 hero/centered-stats (eyebrow="Estimator"), 1 quote/instant-address, 1 faq/accordion (sq-ft estimation, what the range includes, insurance overlap), close with 1 cta',
   },
   storm: {
     purpose: 'Storm-damage / insurance-claim landing page. This is where high-ticket post-event jobs come from. SEO-targeted to "hail damage roof inspection" / "storm damage insurance claim" searches.',
@@ -1398,6 +1425,10 @@ type PageRecipe = { purpose: string; allowed_types: readonly string[]; required_
 
 /** The page set (and per-page recipe) for a business type. */
 export function pageRecipesFor(businessType: string): Record<string, PageRecipe> {
+  const recipes = recipeSetFor(businessType)
+  return Object.fromEntries(Object.entries(recipes).map(([page, r]) => [page, { ...r, allowed_types: r.allowed_types.filter(sectionReady) }]))
+}
+function recipeSetFor(businessType: string): Record<string, PageRecipe> {
   const { ft, dispensary, vet, rv, roofing, landscaping, homecare, fieldservice, cafe, restaurant, salon, bar, fitness, hotel, events, contractor, store } = tradeFlagsFor(businessType)
   return ft
     ? FOODTRUCK_PAGE_RECIPES
@@ -1436,7 +1467,7 @@ export function pageRecipesFor(businessType: string): Record<string, PageRecipe>
                               : PAGE_RECIPES
 }
 function buildSitePrompt(input: ComposerInput): string {
-  const schemaSummary = Object.entries(SECTION_SCHEMA).map(([type, variants]) =>
+  const schemaSummary = Object.entries(composableSchema()).map(([type, variants]) =>
     `  ${type}: ${Object.keys(variants).join(', ')}`
   ).join('\n')
 
@@ -1850,7 +1881,7 @@ pattern-matching across 3-5 contractors before requesting an estimate.
    hero sets the mood only — never caption it or call it their project.
 8. FAQ: answer what the intake answers — whether estimates are free,
    where they work, what they do and do not take on. Do NOT state a lead
-   time, a project minimum, a financing option or who pulls permits
+   time, a project minimum or who pulls permits
    unless the intake says so; those are the owner's commitments, and a
    homeowner will hold them to it. Leave unanswerable questions out.
 ` : ''}${fieldservice ? `
@@ -2016,15 +2047,11 @@ This is a residential roofing business. Industry-specific guidance:
    hail/wind events in the service area. If the intake mentions specific
    storm dates or recent events, include a banner/storm-alert on the
    home page and /storm pages with the date and inspection offer.
-6. Financing: include financing/calculator only if the intake indicates
-   they actually offer financing. Don't fabricate a financing program
-   that doesn't exist. The widget is a marketing tool — the actual
-   financing is a side deal the customer arranges with their lender.
-7. before_after/slider: ONLY the roofer's own before/after photos (Tier
+6. before_after/slider: ONLY the roofer's own before/after photos (Tier
    1), 3-6 on /projects and 3-4 on home when there are that many. No
    cities, materials or years — you cannot see the photos. With none,
    omit it (the Projects page is held back until the owner adds some).
-8. trust/badges: ONLY include badges the intake actually mentions
+7. trust/badges: ONLY include badges the intake actually mentions
    (GAF Master Elite, Owens Corning Preferred Contractor, CertainTeed
    SELECT ShingleMaster, BBB rating). Never fabricate credentials.
 ` : ''}${dispensary ? `
@@ -2138,8 +2165,7 @@ deals/strip: { "heading": "Today's specials", "intro": "...", "expiresLabel": "T
 quote/instant-address: { "heading": "Get a ballpark estimate", "intro": "...", "pricePerSqFt": 5.50, "minSqFt": 800, "maxSqFt": 4000, "callToAction": "See my range" }
 banner/storm-alert: { "heading": "Hail storm in Eau Claire on May 12", "subtitle": "Free post-storm roof inspection — claim help included.", "cta": { "label": "Schedule inspection", "href": "/contact" }, "startDate": "2026-05-12", "endDate": "2026-08-12", "dismissable": true }
 before_after/slider: { "heading": "Before & after", "intro": "...", "filters": ["material", "year"], "items": [{ "beforeImage": "<url>", "afterImage": "<url>", "caption": "Re-roof after July 2024 hail", "location": "Eau Claire, WI", "year": 2024, "material": "GAF Timberline HDZ" }] }
-financing/calculator: { "heading": "Roof financing from $99/mo", "intro": "...", "fromMonthly": 99, "maxTermMonths": 84, "apr": 7.99, "minLoanAmount": 3000, "maxLoanAmount": 35000, "ctaLabel": "Get my estimate" }
-trust/badges: { "heading": "Credentials", "intro": "...", "items": [{ "name": "GAF Master Elite", "image": "<url>", "url": "..." }, { "name": "BBB A+", "image": "<url>" }] }
+${sectionReady('financing') ? `financing/calculator: { "heading": "Roof financing from $99/mo", "intro": "...", "fromMonthly": 99, "maxTermMonths": 84, "apr": 7.99, "minLoanAmount": 3000, "maxLoanAmount": 35000, "ctaLabel": "Get my estimate" }\n` : ''}trust/badges: { "heading": "Credentials", "intro": "...", "items": [{ "name": "GAF Master Elite", "image": "<url>", "url": "..." }, { "name": "BBB A+", "image": "<url>" }] }
 packages/seasonal: { "heading": "Packages", "intro": "...", "items": [{ "title": "Weekly mow", "tier": "standard", "pricePerMonth": 180, "includes": ["Mow + trim", "Edge driveways", "Blow off hardscape"], "seasonOnly": "spring-fall" }, { "title": "Snow contract", "tier": "premium", "pricePerMonth": 320, "includes": ["Push at 2 inches", "Salt walkways", "Tracker app access"], "seasonOnly": "winter" }] }
 care/finder: { "heading": "Find the right care for your loved one", "intro": "...", "relationships": ["My parent", "My spouse", "Myself", "Another family member"], "careTypes": ["Companion care", "Personal care"], "hoursOptions": ["A few hours a week", "10–25 hours", "25–40 hours", "40+ hours"], "ctaLabel": "Request an assessment", "responsePromise": "" }
 caregivers/grid: { "heading": "Meet some of our caregivers", "intro": "...", "filters": ["specialty", "languages"], "items": [{ "name": "Maria", "yearsExperience": 8, "certifications": ["CNA"], "specialties": ["Dementia", "Companion care"], "languages": ["English", "Spanish"], "photo": "<url>", "blurb": "Former hospital aide. Specializes in afternoon sundowning support and gentle redirection." }] }

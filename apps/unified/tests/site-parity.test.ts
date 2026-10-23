@@ -20,6 +20,7 @@ import { renderSections, VIEWS, absolutizeHrefs } from '../server/site/render.ts
 import { siteStylesheet } from '../server/site/routes.ts'
 import { consentBoxHtml } from '../server/site/smsConsent.ts'
 import type { SiteContext } from '../server/site/context.ts'
+import { FEATURE_REGISTRY } from '@twomiah/tenant-backend'
 import { accentOnLight, DEFAULT_ACCENT, ensureDark, inkOn } from '../server/core/brandColour.ts'
 import type { SiteFacts } from '../server/site/facts.ts'
 
@@ -63,6 +64,8 @@ function ctxFor(design: typeof DESIGNS[number]): SiteContext {
     companyId: 'co_test', slug: 'westridge', settings: SETTINGS, design: designOf(design), words: WORDS[design],
     options: { textSizeToggle: design === 'homecare', shop: false, cover: design === 'bar', ctaHref: design === 'bar' ? '/visit' : '/contact' },
     colours: { primary: SETTINGS.primaryColor, accent: SETTINGS.accentColor, secondary: SETTINGS.secondaryColor },
+    // Every feature on: the parity is of the pieces, whichever a business has switched on.
+    features: FEATURE_REGISTRY.map((f) => f.id),
   }
 }
 

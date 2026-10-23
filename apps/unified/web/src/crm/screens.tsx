@@ -26,6 +26,7 @@ import { dashboard as homecareDashboard } from './verticals/homecare'
 import { dashboard as roofDashboard } from './verticals/roof'
 import { dashboard as storeDashboard } from './verticals/store'
 import TextingPage from './pages/TextingPage'
+import FinancingPage, { FinancingPanel, FinancingIntegrationCard } from './financing'
 
 const v = verticalScreens
 const client = api as any
@@ -93,9 +94,12 @@ export function Quotes() {
   const { company, hasFeature } = useAuth()
   return <QuotesPage api={client} toast={useToast()} settings={settingsOf(company)} config={invoicingFor(hasFeature) as any} />
 }
+/** Customer financing on a quote or an invoice (crm/financing.tsx): shown only with consumer_financing on. */
+const financingAside = ({ kind, record }: { kind: 'quote' | 'invoice'; record: Record<string, any> }) => <FinancingPanel kind={kind} record={record} />
+export { FinancingPage }
 export function QuoteDetail() {
   const { company, hasFeature } = useAuth()
-  return <QuoteDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={invoicingFor(hasFeature) as any} />
+  return <QuoteDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...invoicingFor(hasFeature), aside: financingAside } as any} />
 }
 export function Invoices() {
   const { company, hasFeature } = useAuth()
@@ -105,7 +109,7 @@ export function InvoiceDetail() {
   // hasFeature and can: the QuickBooks sync follows the quickbooks feature (the field-service, basic and bar copies'
   // InvoiceDetailPage.tsx passed them; the base CRM's didn't, and it offers no QuickBooks button here).
   const { company, hasFeature, can } = useAuth()
-  return <InvoiceDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...invoicingFor(hasFeature), can } as any} />
+  return <InvoiceDetailPage api={client} toast={useToast()} settings={settingsOf(company)} config={{ ...invoicingFor(hasFeature), can, aside: financingAside } as any} />
 }
 export function Schedule() {
   const { hasFeature } = useAuth()
@@ -184,7 +188,7 @@ export const GoogleReviews = () => <GbpReviewsPage />
 // lead sources.
 // Settings › Texting: the business's own registered number (pages/TextingPage.tsx).
 export const Texting = () => <TextingPage />
-export const Integrations = () => { const { hasFeature } = useAuth(); return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms), hasFeature }} /> }
+export const Integrations = () => { const { hasFeature } = useAuth(); return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms), hasFeature, paymentsExtra: hasFeature('consumer_financing') ? <FinancingIntegrationCard /> : null }} /> }
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />
 

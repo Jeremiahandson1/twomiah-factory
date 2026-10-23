@@ -13,12 +13,12 @@ const features = async (list: string[]) => {
   t.services.features.forgetFeatures()
 }
 
-const SIGNED_IN = [
+const SIGNED_IN: ReadonlyArray<readonly ['GET' | 'POST', string, string]> = [
   ['GET', '/api/routing/optimize-day', 'route_optimization'],
   ['GET', '/api/maps/jobs', 'map_view'],
   ['GET', '/api/weather/forecast?lat=44.8&lon=-91.5', 'jobs'],
-  ['POST', '/api/financing/apply', 'consumer_financing'],
-] as const
+  ['GET', '/api/financing/status', 'consumer_financing'],
+]
 
 beforeAll(async () => {
   t = await bootTenant()
@@ -36,7 +36,7 @@ describe('modules no screen calls are their feature\'s', () => {
     }
     // The public two answer as if they were not there.
     expect((await t.call('/api/pricebook-present/no-such-link')).status).toBe(404)
-    expect((await t.call('/api/wisetack/webhook', { method: 'POST', json: {} })).status).toBe(404)
+    expect((await t.call('/api/financing-public/webhook/wisetack', { method: 'POST', json: {} })).status).toBe(404)
   })
 
   test('with the feature on, each gate opens', async () => {

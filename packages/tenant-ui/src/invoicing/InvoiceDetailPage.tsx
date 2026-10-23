@@ -209,6 +209,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
         </div>
 
         <div className="space-y-6 min-w-0">
+          {cfg.aside?.({ kind: 'invoice', record: invoice })}
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6 text-sm text-gray-900 dark:text-slate-100">
             <h2 className="font-semibold mb-4">Details</h2>
             <div className="space-y-3">
