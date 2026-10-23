@@ -101,6 +101,16 @@ const ADAPT: Record<string, [string, string, string][]> = {
     ["/INV-/.test(String(r.json?.error))", "/LYR-/.test(String(r.json?.error))", "the bill it names is the fixture's, now in the LYR- series"],
     ["await Bun.file(new URL('./src/routes/loyalty.ts', import.meta.url)).text()", "await Bun.file(new URL('../../server/crm/salon/loyalty.ts', import.meta.url)).text()", "the loyalty router is the unified app's (server/crm/salon/loyalty.ts; the sandbox sits in apps/unified/.suite)"],
   ],
+  'salon/salon-n2-calendar-day.test.ts': [
+    ["slug: 'shear-n2', email: 'n2@test.local', settings: {}, enabledFeatures: ['appointments', 'memberships'] }", "slug: 'shear-n2', email: 'n2@test.local', settings: {}, enabledFeatures: ['appointments', 'memberships'], timezone: 'America/Chicago' }", "ONE CLOCK (batch 2, fix-e): the shop's day is the company's time zone (Settings › Company, company.timezone); booking_settings.timezone is no longer read, so the shop's zone is set where the app reads it"],
+    ["const setTz = (tz: string) => db.update(bookingSettings).set({ timezone: tz }).where(eq(bookingSettings.companyId, co.id))", "const setTz = (tz: string) => db.update(company).set({ timezone: tz } as any).where(eq(company.id, co.id))", "ONE CLOCK (batch 2, fix-e): the shop's day is the company's time zone (Settings › Company, company.timezone); booking_settings.timezone is no longer read, so the shop's zone is set where the app reads it"],
+  ],
+  'salon/t27-highs.test.ts': [
+    ["slug: 'shear-t27', email: 't27@test.local', settings: {}, enabledFeatures: ['salon', 'memberships'] }", "slug: 'shear-t27', email: 't27@test.local', settings: {}, enabledFeatures: ['salon', 'memberships'], timezone: 'America/Chicago' }", "ONE CLOCK (batch 2, fix-e): the shop's day is the company's time zone (Settings › Company, company.timezone); booking_settings.timezone is no longer read, so the shop's zone is set where the app reads it"],
+  ],
+  'salon/recall-salon-day.test.ts': [
+    ["slug: 'shear-recall', email: 'r@test.local', settings: {}, enabledFeatures: ['salon'] }", "slug: 'shear-recall', email: 'r@test.local', settings: {}, enabledFeatures: ['salon'], timezone: 'America/Chicago' }", "ONE CLOCK (batch 2, fix-e): the shop's day is the company's time zone (Settings › Company, company.timezone); booking_settings.timezone is no longer read, so the shop's zone is set where the app reads it"],
+  ],
   'salon/t28.test.ts': [
     ["console.log('\\n── H1: configuring online booking is company setup, and needs company:update ──')", "console.log('\\n── H1: not run — it drives the CRM booking module the unified app replaces ──'); if (false)","H1 drives the template's /api/booking/settings, replaced by the one booking engine (server/booking)"],
     ["console.log('\\n── H2: online booking only takes services ticked \"Bookable online\" ──')", "console.log('\\n── H2: not run — it drives the CRM booking module the unified app replaces ──'); if (false)","H2 drives the template's public booking API (/api/booking/public), replaced by the one booking engine"],

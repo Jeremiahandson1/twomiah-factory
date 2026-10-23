@@ -208,6 +208,21 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     },
   },
   salon: {
+    'salon-n2-calendar-day.test.ts': {
+      assertions: [/^[A-Za-z]+\/[A-Za-z_]+: (start date is the SHOP's day|…which is NOT the UTC day|the invoice line names the shop's period|the renewal anniversary follows the shop's day|a patch test done TODAY on the shop's calendar is accepted|a date that is only \"today\" in UTC is refused)/, /^at least one zone sat on a different calendar day from UTC/],
+      why: "On purpose (batch 2, fix-e ONE CLOCK, migration 0027): the business's time zone is the company's (Settings › Company, company.timezone; blank = its state's). The fixture sets the shop's zone on booking_settings.timezone, which the app no longer reads, so the shop is on the company's default clock and the assertions about the shop's day read UTC's.",
+      heldBy: "tests/unified/salon/salon-n2-calendar-day.test.ts (the same file, the zone set on the company: every zone's start date, invoice line, renewal and patch test on the shop's day; run by adapted.ts) and apps/unified/tests/one-clock-1023.test.ts",
+    },
+    't27-highs.test.ts': {
+      assertions: [/^H1: /],
+      why: "On purpose (batch 2, fix-e ONE CLOCK, migration 0027): the business's time zone is the company's (Settings › Company, company.timezone; blank = its state's). The fixture sets the shop's zone on booking_settings.timezone, which the app no longer reads, so the shop is on the company's default clock and the assertions about the shop's day read UTC's.",
+      heldBy: "tests/unified/salon/t27-highs.test.ts (the same file, the zone set on the company; run by adapted.ts) and apps/unified/tests/one-clock-1023.test.ts",
+    },
+    'recall-salon-day.test.ts': {
+      assertions: [/^a client due TOMORROW is not called overdue at 9pm/, /^…and a client due TODAY is not called overdue either/, /^a one-day window is measured from the salon day, not UTC's/],
+      why: "On purpose (batch 2, fix-e ONE CLOCK, migration 0027): the business's time zone is the company's (Settings › Company, company.timezone; blank = its state's). The fixture sets the shop's zone on booking_settings.timezone, which the app no longer reads, so the shop is on the company's default clock and the assertions about the shop's day read UTC's.",
+      heldBy: "tests/unified/salon/recall-salon-day.test.ts (the same file, the zone set on the company; run by adapted.ts) and apps/unified/tests/one-clock-1023.test.ts",
+    },
     // Two reasons, one file (a whole-file entry: the first stops it before its summary).
     'lyr.test.ts': {
       why: "1) Its fixture writes bills straight into the table numbered INV-00201, -00202…, the series the app also issues (highest + 1). Once the book raises a bill through the API the next hand-written number is one the app already used, and the unified app's guard (no two live invoices share a number, migration 0008, for every vertical) refuses it; the template has no guard, so the file silently made duplicate invoice numbers. 2) N4 reads the template's own routes/loyalty.ts source for the sentence; the router is server/crm/salon/loyalty.ts now.",
@@ -410,6 +425,11 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     't59-new-leads-inbox-off.test.ts': WEBHOOK_REPLACED,
   },
   crm: {
+    't68-open-writes.test.ts': {
+      assertions: [/^(viewer|crew): a Wisetack application is refused/, /^(viewer|crew): a financing application is refused/],
+      why: "Consumer Financing was rebuilt (batch 2, fix-i): the template's guessed lender doors, POST /api/wisetack/applications and POST /api/financing/apply, are gone. An application is opened on its quote or invoice, POST /api/financing/:kind/:id/applications, asking financing:create (not invoices:create), behind consumer_financing. The rule held is the same: a viewer and a crew seat may not open one.",
+      heldBy: "apps/unified/tests/financing.test.ts ('who may open an application': viewer and field refused 403, asks financing:create; a manager gets past) and ('switched off, it is not there')",
+    },
     'calltracking-fields.test.ts': {
       assertions: [/^the tracking numbers answer/, /^a tracking number carries/, /^…its number, forward-to and call count/],
       why: 'GET /api/calltracking/numbers is a list reply, { data, pagination } (RULEBOOK §3); the test reads a bare array.',

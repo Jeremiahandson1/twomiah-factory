@@ -22,7 +22,8 @@ export default s
   'src/utils/salonDate.ts': `
 import { crmDeps } from '../services/crmDeps.ts'
 import { salonServicesFor } from '@app/server/crm/salon/index.ts'
-export { calendarDateIn, salonDayStart, DEFAULT_TZ } from '@app/server/crm/salon/days.ts'
+// DEFAULT_TZ is gone (fix-e ONE CLOCK): the shop's zone is the company's, companyTimeZone's default when it has none.
+export { calendarDateIn, salonDayStart } from '@app/server/crm/salon/days.ts'
 export const { salonTimezone, salonToday, salonDayWindows } = salonServicesFor(crmDeps).clock
 `,
 }

@@ -126,6 +126,25 @@ describe('connecting the lender account', () => {
   })
 })
 
+// The CRM templates' t68 (tests/crm/t68-open-writes): a read-only viewer and a crew seat may not open a finance
+// application. The templates' doors (/api/wisetack/applications, /api/financing/apply) are gone; this is the one door.
+describe('who may open an application', () => {
+  test('a viewer and a crew seat are refused (403, asks financing:create); a manager gets past the permission', async () => {
+    const q = await quoteFor(6000)
+    const seat = async (role: string) => {
+      const email = `${role}-seat@test.example`
+      await t.db.insert(t.schema.user).values({ email, passwordHash: await Bun.password.hash('Seat-pass-1', 'bcrypt'), firstName: 'Sam', lastName: role, role, companyId } as any)
+      return (await json(await t.call('/api/auth/login', { method: 'POST', json: { email, password: 'Seat-pass-1' } }))).accessToken as string
+    }
+    for (const role of ['viewer', 'field']) {
+      const r = await as(`/api/financing/quotes/${q.id}/applications`, { method: 'POST', json: {} }, await seat(role))
+      expect({ role, status: r.status, required: (await json(r)).required }).toEqual({ role, status: 403, required: 'financing:create' })
+    }
+    const m = await as(`/api/financing/quotes/${q.id}/applications`, { method: 'POST', json: {} }, managerToken)
+    expect([401, 403]).not.toContain(m.status)
+  })
+})
+
 describe('the estimate on a quote', () => {
   test('in range: as low as the example payment; out of range: none, with the reason', async () => {
     const q = await quoteFor(8000)

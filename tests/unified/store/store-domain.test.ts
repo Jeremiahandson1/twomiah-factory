@@ -97,11 +97,11 @@ const TID = process.env.TENANT_ID
   const ROOT = (process.env.FACTORY_ROOT || '').replace(/\\/g, '/').replace(/\/?$/, '/')
   const idx = readFileSync(ROOT + 'apps/unified/server/modules/company.ts', 'utf8') /* unified: the engine's company modules mount it, for every vertical */
   check('mounted: /api/admin/domain is served', /\{ path: '\/api\/admin\/domain', access: 'user' as const, router: createDomainRoutes\(/.test(idx)) /* unified: the mount in the company modules' list */
-  const nav = readFileSync(ROOT + 'apps/unified/web/src/crm/pages/store/catalog/index.tsx', 'utf8') /* unified: the store add-on's menu entries */
+  const nav = readFileSync(ROOT + 'apps/unified/web/src/shell.ts', 'utf8') /* unified: every business's menu (fix-e: the Domain page is every business's, not the store add-on's) */
   check('sidebar: a Domain entry for the seat the API answers (settings:update)', /\{ to: '\/crm\/domain', icon: Globe, label: 'Domain', permission: 'settings:update' \}/.test(nav)) /* unified: the entry is /crm/domain, its keys in the add-on's order */
-  const appSrc = readFileSync(ROOT + 'apps/unified/web/src/crm/pages/store/catalog/index.tsx', 'utf8') /* unified: the store add-on's routes, under /crm */
-  check('route: /domain opens the Domain page', /<Route key="store-domain" path="domain" element={<DomainPage \/>} \/>/.test(appSrc)) /* unified: the route carries its key in the add-on's list */
-  const page = readFileSync(ROOT + 'apps/unified/web/src/crm/pages/store/catalog/DomainPage.tsx', 'utf8') /* unified: the store add-on's Domain screen */
+  const appSrc = readFileSync(ROOT + 'apps/unified/web/src/App.tsx', 'utf8') /* unified: the app's routes, under /crm (fix-e: every business's) */
+  check('route: /domain opens the Domain page', /<Route path="domain" element={<DomainPage \/>} \/>/.test(appSrc) && /const DomainPage = page\(\(\) => import\('\.\/crm\/pages\/DomainPage'\)\)/.test(appSrc)) /* unified: one route for every business, the page crm/pages/DomainPage */
+  const page = readFileSync(ROOT + 'apps/unified/web/src/crm/pages/DomainPage.tsx', 'utf8') /* unified: the Domain screen (fix-e moved it out of the store add-on, for every business) */
   check('page: both prices, the renewal in bold, a warning when it jumps, no Register without a price — as the premium page',
     /<strong>\{usd\(check\.quote\.renewalCents\)\} a year<\/strong>/.test(page) && /check\.quote\.renewsHigher &&/.test(page) && /disabled=\{submitting \|\| !check\.quote\}/.test(page))
   check('page: a domain bought through Twomiah is not asked to change nameservers the owner cannot reach', /const ours = !!status\.registrar && status\.registrar !== 'byod'/.test(page) && /there's nothing for you to do/.test(page))

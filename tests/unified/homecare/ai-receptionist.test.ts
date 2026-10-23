@@ -74,12 +74,14 @@ console.log('\n══════════ settings: save and read back ═�
 {
   const first = await A('GET', `${R}/settings`)
   check('settings read before any save → defaults', first.status === 200 && first.json?.isEnabled === false, first.json)
-  const save = await O('PUT', `${R}/settings`, { isEnabled: true, businessHoursStart: '08:30', businessHoursEnd: '18:00', timezone: 'America/Denver', greetingText: 'Thank you for calling.', forwardingNumber: '+16085550111' })
+  const save = await O('PUT', `${R}/settings`, { isEnabled: true, businessHoursStart: '08:30', businessHoursEnd: '18:00', greetingText: 'Thank you for calling.', forwardingNumber: '+16085550111' }) /* unified: ONE CLOCK (fix-e) — the receptionist keeps time on the business's time zone (Settings › Company); it is read back, never saved here */
   check('save → 200', save.status === 200, save.json)
   const again = await A('GET', `${R}/settings`)
-  check('…read back exactly', again.json?.isEnabled === true && again.json?.businessHoursStart === '08:30' && again.json?.businessHoursEnd === '18:00' && again.json?.timezone === 'America/Denver' && again.json?.greetingText === 'Thank you for calling.' && again.json?.forwardingNumber === '+16085550111', again.json)
-  const second = await O('PUT', `${R}/settings`, { isEnabled: false, businessHoursStart: '08:30', businessHoursEnd: '18:00', timezone: 'America/Denver', greetingText: null, forwardingNumber: null })
+  check('…read back exactly', again.json?.isEnabled === true && again.json?.businessHoursStart === '08:30' && again.json?.businessHoursEnd === '18:00' && again.json?.timezone === first.json?.timezone && !!first.json?.timezone && again.json?.greetingText === 'Thank you for calling.' && again.json?.forwardingNumber === '+16085550111', again.json)
+  const second = await O('PUT', `${R}/settings`, { isEnabled: false, businessHoursStart: '08:30', businessHoursEnd: '18:00', greetingText: null, forwardingNumber: null }) /* unified: ONE CLOCK (fix-e) — the receptionist keeps time on the business's time zone (Settings › Company); it is read back, never saved here */
   check('a second save updates the same row (cleared greeting)', second.status === 200 && second.json?.isEnabled === false && second.json?.greetingText === null, second.json)
+  const zone = await O('PUT', `${R}/settings`, { timezone: first.json?.timezone === 'America/Denver' ? 'America/Chicago' : 'America/Denver' }) /* unified: ONE CLOCK (fix-e) — the receptionist keeps time on the business's time zone (Settings › Company); it is read back, never saved here */
+  check('a zone of its own is refused by name, pointing to Settings › Company', zone.status === 400 && zone.json?.code === 'timezone_is_the_company_s' && /Settings › Company/.test(zone.json?.error), zone.json)
   const badHours = await O('PUT', `${R}/settings`, { businessHoursStart: '8am' })
   check('office hours that are not HH:MM are a 400', badHours.status === 400)
 }
@@ -135,7 +137,7 @@ console.log('\n══════════ the mounted screen sends only what
   const routes = readFileSync(ROOT + 'server/crm/comms/aiReceptionist.ts', 'utf8') /* unified: the router is server/crm/comms/aiReceptionist.ts */
   const listOf = (name: string) => (new RegExp(`export const ${name} = \\[([^\\]]*)\\]`).exec(service)?.[1] || '').match(/'([^']+)'/g)?.map((x) => x.slice(1, -1)) || []
   const RULE = listOf('RULE_FIELDS'), SETTINGS = listOf('SETTINGS_FIELDS')
-  check('the service declares its field lists', RULE.length === 7 && SETTINGS.length === 6, { RULE, SETTINGS })
+  check('the service declares its field lists', RULE.length === 7 && SETTINGS.length === 5 && !SETTINGS.includes('timezone'), /* unified: ONE CLOCK — no timezone among the settings it saves */ { RULE, SETTINGS })
   // the object literal a builder returns: `export const ruleBody = (f) => ({ … })`
   const keysOf = (fn: string) => {
     const m = new RegExp(`export const ${fn} = \\([^)]*\\) => \\(\\{([\\s\\S]*?)\\n\\}\\)`).exec(page)
@@ -145,7 +147,8 @@ console.log('\n══════════ the mounted screen sends only what
   const ruleKeys = ifaceKeys('AutoReplyFormData'), settingsKeys = ifaceKeys('AISettings') /* unified: the shared screen has no ruleBody/settingsBody builders: a rule is sent as the form's typed state (AutoReplyFormData) and a setting as a Partial<AISettings>, so the fields it can send are those two interfaces' keys */
   check('the screen builds its rule body from RULE_FIELDS only', ruleKeys.length > 0 && ruleKeys.every((k) => RULE.includes(k)), { ruleKeys, RULE })
   check('…and sends every field a whole rule has', RULE.every((k) => ruleKeys.includes(k)), { ruleKeys, RULE })
-  check('the screen builds its settings body from SETTINGS_FIELDS only, all of them', settingsKeys.length === SETTINGS.length && settingsKeys.every((k) => SETTINGS.includes(k)), { settingsKeys, SETTINGS })
+  const sentKeys = settingsKeys.filter((k) => k !== 'timezone') /* unified: ONE CLOCK — the screen shows the business's zone (a link to Settings › Company) and never sends it */
+  check('the screen builds its settings body from SETTINGS_FIELDS only, all of them', sentKeys.length === SETTINGS.length && sentKeys.every((k) => SETTINGS.includes(k)) && !/updateSettings\(\{[^}]*timezone/.test(page), { settingsKeys, SETTINGS })
   const sends = Array.from(page.matchAll(/body: JSON\.stringify\(([^)]*)\)/g)).map((m) => m[1].trim()) /* unified: the shared screen writes through its own api(path, { method, body: JSON.stringify(x) }) helper over client.raw (the session cookie) */
   check('every write sends a builder or { isActive } — never a spread row', sends.length === 5 && sends.every((s) => /^(data|updates|\{ isActive: !rule\.isActive \}|\{ isEnabled: !settings\.isEnabled \})$/.test(s)) && /const handleSave = async \(data: AutoReplyFormData\)/.test(page) && /const updateSettings = async \(updates: Partial<AISettings>\)/.test(page), sends) /* unified: a rule save sends the typed form (data: AutoReplyFormData), a settings change one field (updates: Partial<AISettings>; aiSettingsSchema takes any subset), the switches { isActive } / { isEnabled } */
   const snake = page.match(/\b(message_template|delay_minutes|greeting_text|forwarding_number|business_hours_start|business_hours_end|is_active|keyword_match|is_enabled)\b/g) || []
