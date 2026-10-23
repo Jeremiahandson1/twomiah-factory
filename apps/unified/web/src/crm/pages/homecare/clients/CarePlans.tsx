@@ -11,6 +11,7 @@ import { useConfirm } from '../../../../shared'
 import { api, rows, downloadBlob, saveBlob, errorMessage } from '../lib/http'
 import { formatDate } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
+import { agencyToday } from '../lib/agencyClock'
 import { serviceLabel } from '../lib/serviceTypes'
 import { allRows, type Client, type Caregiver } from './shared'
 import type { CareTask } from './CareTasksManager'
@@ -25,10 +26,7 @@ const TASK_GROUPS: [string, string][] = [
 const PLAN_SERVICE_TYPES = ['personal_care', 'medication_management', 'companionship', 'respite_care',
   'mobility_assistance', 'meal_prep', 'transportation', 'other']
 
-const today = () => {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-}
+const today = () => agencyToday() // the agency's day, not the browser's
 
 /** A plan of GET /api/care-plans: the care_plans row with the server's isActive and the client's name. */
 interface CarePlan {

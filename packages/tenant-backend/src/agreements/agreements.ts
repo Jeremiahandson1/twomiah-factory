@@ -15,7 +15,7 @@
 import { Hono } from 'hono'
 import { eq, and, lte, gte, count, asc, desc, sql, inArray } from 'drizzle-orm'
 import { nextNumber, businessToday } from '../invoicing/money'
-import { companyTimeZone, markerDay, markerDayHasBegun, daysUntilMarker } from '../time/businessDay'
+import { companyTimeZone, markerDay, markerDayHasBegun, daysUntilMarker, dayMarker, storeDateString } from '../time/businessDay'
 import { seriesDays } from '../time/series'
 import { addDays } from '../booking/time'
 
@@ -111,12 +111,22 @@ function billingIntervalMonths(frequency: string): number {
     default: return 1
   }
 }
+/** The next bill DAY: a calendar-day marker one billing interval on, counted on the calendar (UTC arithmetic on a marker). */
 function addInterval(from: Date, frequency: string): Date {
   const next = new Date(from)
   const months = billingIntervalMonths(frequency)
-  if (months < 1) next.setDate(next.getDate() + 7)
-  else next.setMonth(next.getMonth() + months)
+  if (months < 1) next.setUTCDate(next.getUTCDate() + 7)
+  else next.setUTCMonth(next.getUTCMonth() + months)
   return next
+}
+/**
+ * The DAY a stored next-bill date names. It is written as a calendar-day marker now (2026-10-23); rows written before
+ * held the moment of the last run plus the interval, and those are read as the company's day of that moment — a 10pm
+ * Chicago run stored 03:00Z on the next UTC day, which is still the evening's own day there.
+ */
+function billDay(v: Date | string, tz: string): string {
+  const d = v instanceof Date ? v : new Date(v)
+  return d.toISOString().endsWith('T00:00:00.000Z') ? markerDay(d) : storeDateString(d, tz)
 }
 function advanceDate(current: Date, rule: { frequency: string; dayOfMonth?: number; monthOfYear?: number[] }): Date {
   const next = new Date(current)
@@ -760,15 +770,23 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   async function getAgreementsDueForBilling(companyId?: string) {
     const conditions = [
       eq(serviceAgreement.status, 'active'),
-      sql`(${serviceAgreement.nextBillDate} IS NULL OR ${serviceAgreement.nextBillDate} <= NOW())`,
-      sql`${serviceAgreement.startDate} <= NOW()`,
+      // a day wide here; whether the bill day and the start day have come is decided on each company's clock below
+      sql`(${serviceAgreement.nextBillDate} IS NULL OR ${serviceAgreement.nextBillDate} <= NOW() + interval '1 day')`,
+      sql`${serviceAgreement.startDate} <= NOW() + interval '1 day'`,
       // a day wide here; whether the term still runs is decided on each company's clock below
       sql`(${serviceAgreement.endDate} IS NULL OR ${serviceAgreement.endDate} >= NOW() - interval '1 day')`,
     ]
     if (companyId) conditions.push(eq(serviceAgreement.companyId, companyId))
     const rows = await db.select().from(serviceAgreement).where(and(...conditions))
     const zones = zoneCache(), out: any[] = []
-    for (const r of rows) if (!r.endDate || !markerDayHasBegun(r.endDate, await zones(r.companyId))) out.push(r)
+    for (const r of rows) {
+      const tz = await zones(r.companyId)
+      // Due once the bill day has begun at the company's midnight; the term must have started and not yet ended.
+      const due = !r.nextBillDate || markerDayHasBegun(billDay(r.nextBillDate, tz), tz)
+      const started = markerDayHasBegun(r.startDate, tz)
+      const running = !r.endDate || !markerDayHasBegun(r.endDate, tz)
+      if (due && started && running) out.push(r)
+    }
     return out
   }
 
@@ -800,13 +818,15 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     // an invoice can never exist without it. (N4)
     // Today on the COMPANY's calendar, read before the transaction: `new Date()` dated an evening run's
     // invoice tomorrow on a UTC server (T59). Net 30 is counted from that day, as it always was meant to be.
-    const today = businessToday(await companyTimeZone(db, companyId))
+    const tz = await companyTimeZone(db, companyId)
+    const today = businessToday(tz)
     /**
      * BILL A PERIOD ONCE. The period is claimed first — moved on only while it still says what this run read — so two
      * runs at once, or a run on each side of the clock switch, cannot both invoice it. (2026-10-22)
      */
     const billedAt = new Date()
-    const nextBillDate = addInterval(agreement.nextBillDate ? new Date(agreement.nextBillDate) : billedAt, agreement.billingFrequency)
+    // The next bill DAY is this period's bill day (or the company's today, for a first bill) one interval on.
+    const nextBillDate = addInterval(dayMarker(agreement.nextBillDate ? billDay(agreement.nextBillDate, tz) : storeDateString(billedAt, tz)), agreement.billingFrequency)
     const [claimed] = await db.update(serviceAgreement).set({ lastBilledAt: billedAt, nextBillDate, updatedAt: billedAt })
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId),
         agreement.nextBillDate ? eq(serviceAgreement.nextBillDate, new Date(agreement.nextBillDate)) : sql`${serviceAgreement.nextBillDate} IS NULL`))

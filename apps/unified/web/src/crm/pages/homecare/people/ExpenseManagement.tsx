@@ -17,6 +17,7 @@ import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { money as formatCurrency } from './shared'
 import { useMay } from '../lib/useMay'
+import { agencyToday } from '../lib/agencyClock'
 
 interface Expense {
   id: string
@@ -61,7 +62,7 @@ const paymentMethods = [
 ]
 
 const blankForm = () => ({
-  expenseDate: toLocalYMD(new Date()),
+  expenseDate: agencyToday(),
   category: 'supplies',
   vendor: '',
   description: '',
@@ -92,7 +93,7 @@ export default function ExpenseManagement() {
   // Filters
   const [dateRange, setDateRange] = useState({
     startDate: toLocalYMD(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
-    endDate: toLocalYMD(new Date()),
+    endDate: agencyToday(),
   })
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')

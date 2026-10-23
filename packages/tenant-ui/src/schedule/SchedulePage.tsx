@@ -13,7 +13,7 @@ import { resolveScheduleConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { localDayKey } from '../time/day'
 import type { SchedulePageProps, ScheduleJob, ScheduleBooking, ScheduleEvent } from './types'
-import { whenTime, companyTodayKey, companyDayKey, companyMinutes, companyDayStart } from '../time/companyClock'
+import { whenTime, companyTodayKey, companyDayKey, companyMinutes, companyDayStart, companyMoment, companyHHMM } from '../time/companyClock'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 // This page already asked for the day LOCALLY and was right; the Dispatch Board asked UTC and was not,
@@ -386,7 +386,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
           {dragDrop && <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{hint}</p>}
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          {cfg.events && mayBook && <Button onClick={() => setNewFor(new Date())}><Plus className="w-4 h-4 inline mr-1" />New Appointment</Button>}
+          {cfg.events && mayBook && <Button onClick={() => setNewFor(companyToday())}><Plus className="w-4 h-4 inline mr-1" />New Appointment</Button>}
           <div role="group" aria-label="Calendar view" className="inline-flex rounded-lg border border-gray-300 dark:border-slate-700 overflow-hidden">
             {VIEWS.map((v) => (
               <button key={v.id} type="button" aria-pressed={view === v.id} onClick={() => setView(v.id)} className={`px-3 py-1.5 text-sm ${view === v.id ? 'bg-orange-500 text-white' : 'text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800'}`}>{v.label}</button>
@@ -422,12 +422,13 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
 }
 
 function AppointmentModal({ api, toast, date, event, types, onClose, onSaved }: { api: SchedulePageProps['api']; toast: SchedulePageProps['toast']; date: Date; event?: ScheduleEvent | null; types: Array<{ value: string; label: string }>; onClose: () => void; onSaved: () => void }) {
-  const hhmm = (iso?: string | null, fallback = '09:00') => { if (!iso) return fallback; const d = new Date(iso); return isNaN(d.getTime()) ? fallback : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
+  // An appointment's day and hours are read and written on the COMPANY's clock, as the calendar places it (2026-10-23).
+  const hhmm = (iso?: string | null, fallback = '09:00') => (iso && companyHHMM(iso)) || fallback
   const editing = !!event
   const [form, setForm] = useState({
     title: event?.title || '',
     type: event?.type || types[0]?.value || 'appointment',
-    date: localKey(event?.start ? new Date(event.start) : date),
+    date: event?.start ? companyDayKey(event.start) : localKey(date),
     startTime: hhmm(event?.start, '09:00'),
     endTime: hhmm(event?.end, '10:00'),
     notes: event?.notes || '',
@@ -437,7 +438,7 @@ function AppointmentModal({ api, toast, date, event, types, onClose, onSaved }: 
   const [confirmCancel, setConfirmCancel] = useState(false)
   const submit = async () => {
     if (!form.title.trim()) { toast.error('A title is required'); return }
-    const start = new Date(`${form.date}T${form.startTime}:00`), end = new Date(`${form.date}T${form.endTime}:00`)
+    const start = companyMoment(form.date, form.startTime), end = companyMoment(form.date, form.endTime)
     if (isNaN(start.getTime()) || isNaN(end.getTime())) { toast.error('Enter a valid date and time'); return }
     if (end < start) { toast.error('End time cannot be before start time'); return }
     setSaving(true)

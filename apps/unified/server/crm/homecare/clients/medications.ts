@@ -136,7 +136,7 @@ export function createMedicationRoutes(core: HomecareCore, d: CrmDeps, access: C
   const discontinue = async (c: any) => {
     const { user, companyId } = who(c)
     const [row] = await db.update(medications)
-      .set({ status: 'discontinued', endDate: await databaseToday(db), updatedAt: new Date() })
+      .set({ status: 'discontinued', endDate: await databaseToday(db, companyId), updatedAt: new Date() })
       .where(and(eq(medications.id, c.req.param('id')), eq(medications.companyId, companyId))).returning()
     if (!row) return fail(c, 404, 'Medication not found')
     await core.careAudit.writeCareAudit(user, 'UPDATE', 'medications', row.id, { discontinued: true })

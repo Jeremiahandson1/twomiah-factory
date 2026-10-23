@@ -87,6 +87,33 @@ describe('1 · agreements end and renew at the company’s midnight', () => {
     expect(billed.length).toBe(1)
     void id2
   })
+
+  test('a bill is due once its bill DAY begins at the company’s midnight — not at the moment stored, nor UTC’s midnight', async () => {
+    setSystemTime(EVENING)
+    const mk = async (name: string, startDate: string) => (await json(await x.owner('/api/agreements', { method: 'POST', json: { contactId, name, amount: 20, billingFrequency: 'monthly', startDate, endDate: '2027-10-01', renewalType: 'auto' } }))).id
+    const markerRow = await mk('Bill day marker', '2026-09-23')
+    const legacyRow = await mk('Bill day legacy', '2026-09-23')
+    const startsTomorrow = await mk('Starts on the 23rd', '2026-10-23')
+    const legacyEvening = await mk('Bill day legacy evening', '2026-09-22')
+    const set = (id: string, v: Date) => x.t.db.update(x.t.schema.serviceAgreement).set({ nextBillDate: v } as any).where(eq(x.t.schema.serviceAgreement.id, id))
+    await set(markerRow, new Date('2026-10-23T00:00:00Z')) // the 23rd, as a calendar day
+    await set(legacyRow, new Date('2026-10-23T05:30:00Z')) // an old row: 12:30am on the 23rd in Chicago
+    await set(legacyEvening, new Date('2026-10-23T03:30:00Z')) // an old row: 10:30pm on the 22nd in Chicago — its day is today
+    const dueIds = async () => (await svc().getAgreementsDueForBilling(x.companyId)).map((r: any) => r.id)
+    // 10pm on the 22nd in Chicago — already the 23rd by UTC: none of the three is due yet.
+    const evening = await dueIds()
+    expect([markerRow, legacyRow, startsTomorrow].filter((id) => evening.includes(id))).toEqual([])
+    // …but a bill whose day is the 22nd there is due now, though its stored moment is half an hour away.
+    expect(evening.includes(legacyEvening)).toBe(true)
+    setSystemTime(AFTER_MIDNIGHT)
+    const after = await dueIds()
+    expect([markerRow, legacyRow, startsTomorrow].every((id) => after.includes(id))).toBe(true)
+    // Billing it moves the bill day on by a month, as a calendar day.
+    await svc().processAgreementBilling(markerRow, x.companyId)
+    await svc().processAgreementBilling(legacyRow, x.companyId)
+    expect([(await row(markerRow)).nextBillDate, (await row(legacyRow)).nextBillDate].map((d: any) => new Date(d).toISOString())).toEqual(['2026-11-23T00:00:00.000Z', '2026-11-23T00:00:00.000Z'])
+    expect((await dueIds()).filter((id: string) => id === markerRow || id === legacyRow)).toEqual([])
+  })
 })
 
 describe('3 · a selection is overdue once its due day is over on the company’s clock', () => {

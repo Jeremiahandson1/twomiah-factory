@@ -9,6 +9,7 @@ import { useAuth } from '../../shared'
 import { DataTable, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
 import { RecordPhotosField, uploadRecordPhotos, releasePending, type SavedPhoto, type PendingPhoto } from '../ui/RecordPhotosField'
+import { todayKey } from '@twomiah/tenant-ui/src/time/day'
 
 interface DailyLogForm {
   date: string;
@@ -42,7 +43,7 @@ export default function DailyLogsPage() {
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<DailyLogForm>({ date: new Date().toISOString().split('T')[0], projectId: '', weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' });
+  const [form, setForm] = useState<DailyLogForm>({ date: todayKey(), projectId: '', weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' });
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
@@ -110,7 +111,7 @@ export default function DailyLogsPage() {
 
   const handleDelete = async () => { try { await api.dailyLogs.delete((toDelete as Record<string, unknown>).id as string); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
 
-  const openCreate = (projectId = '') => { setEditing(null); resetPhotos([]); setForm({ date: new Date().toISOString().split('T')[0], projectId, weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' }); setModalOpen(true); };
+  const openCreate = (projectId = '') => { setEditing(null); resetPhotos([]); setForm({ date: todayKey(), projectId, weather: '', temperature: '', crewSize: '', hoursWorked: '', workPerformed: '', materials: '', delays: '', safetyNotes: '' }); setModalOpen(true); };
 
   /** `&new=true` opens the form with that project already chosen; the parameter is then dropped so
    *  the browser's Back button does not reopen the dialog. (T51) */

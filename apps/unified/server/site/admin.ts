@@ -12,7 +12,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import sharp from 'sharp'
-import { createFileStorage } from '@twomiah/tenant-backend'
+import { createFileStorage, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { website, page, post, portfolioItem, photo, pageView, lead, contact } from '../db/schema/index.ts'
 import { SITE_DESIGNS, SITE_DESIGN_LABELS, type VerticalSettings } from '../core/vertical.ts'
 import { one, fail, done, listAll } from '../http/reply.ts'
@@ -455,8 +455,10 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
   // ── Visits and enquiries, last 30 days against the 30 before ─────────────
   app.get('/analytics', may('site:read'), async (c) => {
     const companyId = c.get('user').companyId
-    const day = (d: Date) => d.toISOString().slice(0, 10)
+    // Visits are counted per company day (data/pageViews.ts); the windows are counted back from the company's today.
+    const tz = await companyTimeZone(db, companyId)
     const now = Date.now()
+    const day = (d: Date) => storeDateString(d, tz)
     const d30 = day(new Date(now - 30 * 864e5)), d60 = day(new Date(now - 60 * 864e5))
     const views = await db.select().from(pageView).where(and(eq(pageView.companyId, companyId), gte(pageView.day, d60)))
     let viewsLast30 = 0, viewsPrev30 = 0

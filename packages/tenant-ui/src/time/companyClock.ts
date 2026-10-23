@@ -96,17 +96,75 @@ export function companyMinutes(v: unknown): number {
   return n('hour') * 60 + n('minute')
 }
 
-/** The moment a calendar day (YYYY-MM-DD) begins on the company's clock — its midnight there, as an instant. A day's
- *  bookings and appointments are fetched from this to the next day's start, the same days they are placed on. */
-export function companyDayStart(dayKey: string): Date {
-  const [y, m, d] = dayKey.split('-').map(Number)
-  const wall = Date.UTC(y, m - 1, d)
+/**
+ * The instant a zone's wall clock reads `hhmm` (HH:MM) on calendar day `dayKey` (YYYY-MM-DD) — what a typed date and
+ * time on a form mean. `new Date('2026-10-22T20:00')` read them on the BROWSER's clock instead. No zone: the browser's.
+ * The one implementation; the company's and the home care agency's clocks are both built on it.
+ */
+export function zoneMoment(dayKey: string, hhmm: string, tz: string | undefined): Date {
+  const [y, m, d] = String(dayKey).slice(0, 10).split('-').map(Number)
+  const [h, mi] = String(hhmm || '00:00').split(':').map(Number)
+  const wall = Date.UTC(y, m - 1, d, h || 0, mi || 0)
+  if (Number.isNaN(wall)) return new Date(NaN)
   const offsetAt = (t: number) => {
-    const p = new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(t))
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(t))
     const n = (k: string) => Number(p.find((x) => x.type === k)?.value)
     return Date.UTC(n('year'), n('month') - 1, n('day'), n('hour'), n('minute'), n('second')) - t
   }
   let t = wall - offsetAt(wall)
   t = wall - offsetAt(t) // once more, in case a clock change falls between
   return new Date(t)
+}
+
+/** A moment's wall date and time on a zone's clock: { date: YYYY-MM-DD, time: HH:MM } — what date/time inputs show for it. */
+export function zoneWall(v: unknown, tz: string | undefined): { date: string; time: string } {
+  const d = asDate(v)
+  if (!d) return { date: '', time: '' }
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map((x) => [x.type, x.value]))
+  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` }
+}
+
+/** The instant the company's wall clock reads `hhmm` on `dayKey`. */
+export function companyMoment(dayKey: string, hhmm = '00:00'): Date {
+  return zoneMoment(dayKey, hhmm, zone)
+}
+
+/** The moment a calendar day (YYYY-MM-DD) begins on the company's clock — its midnight there, as an instant. A day's
+ *  bookings and appointments are fetched from this to the next day's start, the same days they are placed on. */
+export function companyDayStart(dayKey: string): Date {
+  return companyMoment(dayKey, '00:00')
+}
+
+/** A moment's wall time on the company's clock, HH:MM (24-hour) — what a time input shows for it. */
+export function companyHHMM(v: unknown): string {
+  return zoneWall(v, zone).time
+}
+
+/** A moment as a datetime-local input's value (YYYY-MM-DDTHH:MM) on the company's clock; and back again. */
+export function companyLocalInput(v: unknown): string {
+  const w = zoneWall(v, zone)
+  return w.date ? `${w.date}T${w.time}` : ''
+}
+export function companyFromLocalInput(value: string): Date {
+  const [day, time] = String(value || '').split('T')
+  return zoneMoment(day, (time || '').slice(0, 5), zone)
+}
+
+/** A calendar day's window on the company's clock, as ISO instants: from its midnight to the instant before the next. */
+export function companyDayBounds(dayKey: string): { from: string; to: string } {
+  const [y, m, d] = String(dayKey).slice(0, 10).split('-').map(Number)
+  const next = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10)
+  return { from: companyDayStart(dayKey).toISOString(), to: new Date(companyDayStart(next).getTime() - 1).toISOString() }
+}
+
+/** A moment's wall date and time on the company's clock ({ date, time }); now, if none is given. */
+export function companyWall(v: unknown = new Date()): { date: string; time: string } {
+  return zoneWall(v, zone)
+}
+
+/** The company's today as a Date at local midnight — for calendar arithmetic (week starts, month starts, "30 days back")
+ *  whose keys are read back with the browser-local getters. `new Date()` there was the browser's today. */
+export function companyTodayDate(): Date {
+  const [y, m, d] = companyTodayKey().split('-').map(Number)
+  return new Date(y, m - 1, d)
 }

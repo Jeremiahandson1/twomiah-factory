@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Plus, Search, Loader2, PawPrint, AlertTriangle, X } from 'lucide-react'
 import { api } from '../../../api'
 import { useMayWrite, useToast } from '../../../shared'
+import { companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock'
 import OwnerPicker, { type ContactLite } from './OwnerPicker'
 
 /**
@@ -33,11 +34,14 @@ interface Patient {
 
 export function ageFromDob(dob?: string): string {
   if (!dob) return '';
-  const d = new Date(dob);
-  if (isNaN(d.getTime())) return '';
-  const now = new Date();
-  let months = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
-  if (now.getDate() < d.getDate()) months -= 1;
+  // A birth date is a calendar day: its own parts, against the company's today (local getters read a midnight-UTC
+  // day as the day before in any zone west of UTC).
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dob));
+  if (!m) return '';
+  const [by, bm, bd] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const [ny, nm, nd] = companyTodayKey().split('-').map(Number);
+  let months = (ny - by) * 12 + (nm - bm);
+  if (nd < bd) months -= 1;
   if (months < 0) return '';
   if (months < 12) return `${months} mo`;
   const years = Math.floor(months / 12);

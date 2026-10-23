@@ -11,6 +11,7 @@ import { api, rows, errorMessage } from '../../lib/http'
 import { formatDate, toLocalYMD } from '../../lib/date'
 import { formatTime } from '../../lib/datetime'
 import { useToast } from '../../../../../shared'
+import { agencyToday } from '../../lib/agencyClock'
 
 /** A row of GET /api/emergency/my-shifts. */
 interface MyShift {
@@ -117,7 +118,7 @@ const ShiftMissReport = ({ onClose }: { onClose: () => void }) => {
         <label className={LABEL}>Date you cannot work *</label>
         <input type="date" value={form.date} className={FIELD}
           onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
-          min={toLocalYMD(new Date())} />
+          min={agencyToday()} />
       </div>
 
       <div className="mb-4">

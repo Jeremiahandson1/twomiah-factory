@@ -13,6 +13,7 @@ import { api } from '../../../api'
 import { useToast, useConfirm } from '../../../shared'
 import { useMayWrite } from '../../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { todayKey } from '@twomiah/tenant-ui/src/time/day'
 
 /** The server's own words when it refused (the API client puts its `error` on `.message`), else the fallback. */
 const serverMessage = (error: unknown, fallback: string) =>
@@ -399,7 +400,7 @@ function ContractFormModal({ contract, onSave, onClose }: {
   }>({
     contactId: contract?.contactId || '',
     planId: contract?.planId || '',
-    startDate: contract?.startDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+    startDate: contract?.startDate?.split('T')[0] || todayKey(),
     billingFrequency: contract?.billingFrequency || 'monthly',
     amount: contract?.amount != null ? String(contract.amount) : '', // the agreement's billed amount (API field `amount`)
     autoRenew: contract?.renewalType ? contract.renewalType === 'auto' : true, // the API stores renewalType

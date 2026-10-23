@@ -8,7 +8,7 @@ import { Mail, Plus, Send, Users, Edit2, Copy, Trash2, Loader2, FileText, Zap, C
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, controlNoWidthCls } from '../invoicing/ui'
 import { DEFAULT_CONTACT_TYPES } from '../contacts/types'
 import type { MarketingApi, MarketingToast, MarketingConfig } from './types'
-import { whenDateTime } from '../time/companyClock'
+import { whenDateTime, companyFromLocalInput } from '../time/companyClock'
 
 interface Stats { totalCampaigns: number; activeSequences: number; activeEnrollments?: number; emailsSent30Days: number; campaignSends30Days?: number; openRate?: number; clickRate?: number; totalOptOuts?: number }
 interface Campaign { id: string; name: string; subject?: string; content?: string; status: string; audienceType?: string; audienceFilter?: any; recipientCount?: number; openCount?: number; clickCount?: number; unsubscribeCount?: number; lastError?: string | null; scheduledDate?: string | null; sentAt?: string | null }
@@ -94,7 +94,7 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
   const refresh = () => { load(); onChanged() }
   const send = async () => { if (!confirmSend) return; try { const r = await api.post(`/api/marketing/campaigns/${confirmSend.id}/send`); if (r?.status === 'failed') toast.error(r?.message || 'None of these emails could be sent.'); else toast.success(`Sent to ${r?.sent ?? 0} of ${r?.audience ?? 0} contacts${r?.failed ? ` (${r.failed} could not be sent)` : ''}`) } catch (e) { toast.error(errMsg(e, 'Failed to send campaign')) } finally { setConfirmSend(null); refresh() } }
   const remove = async () => { if (!toDelete) return; try { await api.delete('/api/marketing/campaigns', toDelete.id); toast.success('Campaign deleted') } catch (e) { toast.error(errMsg(e, 'Failed to delete campaign')) } finally { setToDelete(null); refresh() } }
-  const doSchedule = async () => { if (!schedule) return; try { await api.post(`/api/marketing/campaigns/${schedule.campaign.id}/schedule`, { scheduledFor: new Date(schedule.when).toISOString() }); toast.success('Campaign scheduled'); setSchedule(null); refresh() } catch (e) { toast.error(errMsg(e, 'Failed to schedule')) } }
+  const doSchedule = async () => { if (!schedule) return; try { await api.post(`/api/marketing/campaigns/${schedule.campaign.id}/schedule`, { scheduledFor: companyFromLocalInput(schedule.when).toISOString() /* the box is the company's wall clock */ }); toast.success('Campaign scheduled'); setSchedule(null); refresh() } catch (e) { toast.error(errMsg(e, 'Failed to schedule')) } }
   const unschedule = async (c: Campaign) => { try { await api.post(`/api/marketing/campaigns/${c.id}/unschedule`); toast.success('Back to draft'); refresh() } catch (e) { toast.error(errMsg(e, 'Failed to unschedule')) } }
   if (loading) return <Spinner />
   return (

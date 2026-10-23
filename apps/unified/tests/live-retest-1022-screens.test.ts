@@ -101,3 +101,43 @@ describe('2 · a booking sits on the company’s day and hour (companyDayKey / c
     clock.setCompanyTimeZone(undefined)
   })
 })
+
+describe('2026-10-23 sweep · a typed day and time, today, and a day window are the company\'s (and the agency\'s)', () => {
+  const DAY = '@twomiah/tenant-ui/src/time/day'
+  const AGENCY = '../web/src/crm/pages/homecare/lib/agencyClock.ts'
+  test('8:00 PM typed in Honolulu is 06:00Z the next day; the box reads it back as 20:00 on the 22nd', () => {
+    clock.setCompanyTimeZone('Pacific/Honolulu')
+    expect(clock.companyMoment('2026-10-22', '20:00').toISOString()).toBe('2026-10-23T06:00:00.000Z')
+    expect(clock.companyFromLocalInput('2026-10-22T20:00').toISOString()).toBe('2026-10-23T06:00:00.000Z')
+    expect(clock.companyWall('2026-10-23T06:00:00Z')).toEqual({ date: '2026-10-22', time: '20:00' })
+    expect(clock.companyLocalInput('2026-10-23T06:00:00Z')).toBe('2026-10-22T20:00')
+    expect(clock.companyHHMM('2026-10-23T06:00:00Z')).toBe('20:00')
+    expect(clock.companyDayBounds('2026-10-22')).toEqual({ from: '2026-10-22T10:00:00.000Z', to: '2026-10-23T09:59:59.999Z' })
+    clock.setCompanyTimeZone(undefined)
+  })
+  test('today is the company\'s: 10pm on the 22nd in Chicago is the 22nd, though UTC\'s day is the 23rd', async () => {
+    const day = await import(DAY) as any
+    setSystemTime(new Date('2026-10-23T03:00:00Z'))
+    clock.setCompanyTimeZone('America/Chicago')
+    expect(day.todayKey()).toBe('2026-10-22')
+    const d = clock.companyTodayDate()
+    expect([d.getFullYear(), d.getMonth() + 1, d.getDate()]).toEqual([2026, 10, 22])
+    clock.setCompanyTimeZone(undefined)
+    setSystemTime()
+  })
+  test('home care: the agency\'s today, its typed times, and an expiry day reached at its midnight', async () => {
+    const ag = await import(AGENCY) as any
+    setSystemTime(new Date('2026-10-23T03:00:00Z'))
+    ag.setAgencyTimezone('America/Chicago')
+    expect(ag.agencyToday()).toBe('2026-10-22')
+    expect(ag.agencyDayHasBegun('2026-10-22')).toBe(true)
+    expect(ag.agencyDayHasBegun('2026-10-23')).toBe(false)
+    expect(ag.agencyDaysUntil('2026-10-23')).toBe(1)
+    expect(ag.agencyFromLocalInput('2026-10-22T21:30').toISOString()).toBe('2026-10-23T02:30:00.000Z')
+    expect(ag.agencyLocalInput('2026-10-23T02:30:00Z')).toBe('2026-10-22T21:30')
+    setSystemTime(new Date('2026-10-23T06:00:00Z'))
+    expect(ag.agencyToday()).toBe('2026-10-23')
+    expect(ag.agencyDayHasBegun('2026-10-23')).toBe(true)
+    setSystemTime()
+  })
+})

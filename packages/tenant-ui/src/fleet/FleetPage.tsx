@@ -11,6 +11,7 @@ import type { FleetApi, FleetPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
 import { whenTime, whenDateTime } from '../time/companyClock'
 import { money } from '../money'
+import { todayKey } from '../time/day'
 
 // api + the gps flag are injected once at the page root; child components read them via useFleet().
 /**
@@ -699,7 +700,7 @@ function FuelEntryModal({ vehicle, onSave, onClose }: FuelEntryModalProps) {
     mileage: string | number;
     station: string;
   }>({
-    date: new Date().toISOString().split('T')[0],
+    date: todayKey(),
     gallons: '',
     pricePerGallon: '',
     mileage: vehicle.currentMileage || '',
@@ -780,7 +781,7 @@ function MaintenanceModal({ vehicle, onSave, onClose }: MaintenanceModalProps) {
     cost: string;
     vendor: string;
   }>({
-    date: new Date().toISOString().split('T')[0],
+    date: todayKey(),
     type: 'oil_change',
     description: '',
     mileage: vehicle.currentMileage || '',

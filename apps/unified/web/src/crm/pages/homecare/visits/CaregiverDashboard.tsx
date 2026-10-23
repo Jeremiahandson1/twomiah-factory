@@ -40,7 +40,7 @@ import { usePolling } from '../lib/usePolling'
 import { isBiweeklyOn, toYMD } from '../lib/biweekly'
 import { CLIENT_UNAVAILABLE_REASONS } from '../lib/cancelReasons'
 import { formatDate, parseLocalDate, toLocalYMD } from '../lib/date'
-import { formatAgencyDate, formatAgencyDateTime } from '../lib/agencyClock'
+import { formatAgencyDate, formatAgencyDateTime, agencyWall, agencyToday, agencyTodayDate } from '../lib/agencyClock'
 import { needsSandata, visitNeedsSandata, evvWeekMet, openSandata } from '../lib/sandata'
 import { compressPhoto } from '../lib/visitPhoto'
 import SignaturePad from '../lib/SignaturePad'
@@ -368,8 +368,7 @@ const CaregiverDashboard = () => {
   // Ask the office to move a shift to another day/time. Nothing changes until the office approves it — the visit is
   // billed and EVV'd against the scheduled time.
   const openMoveModal = (shift: Shift) => {
-    const t = new Date(); t.setHours(0, 0, 0, 0)
-    const onDate = occurrenceOf(shift) || toYMD(t)!
+    const onDate = occurrenceOf(shift) || agencyToday()
     setMoveModal({ ...shift, occurrenceDate: onDate })
     setMoveForm({ date: onDate, startTime: (shift.startTime || '').slice(0, 5), endTime: (shift.endTime || '').slice(0, 5), reason: '' })
   }
@@ -665,13 +664,16 @@ const CaregiverDashboard = () => {
     const lat = currentLocation.latitude
     const lng = currentLocation.longitude
 
+    // Today and the time now on the AGENCY's clock — a visit's day and hours are the agency's wall clock, so a phone
+    // set to another zone matched the wrong day's visits and the wrong hour (2026-10-23).
     const now = new Date()
-    const todayDay = now.getDay()
-    const nowMins = now.getHours() * 60 + now.getMinutes()
+    const wall = agencyWall(now)
+    const nowMins = Number(wall.time.slice(0, 2)) * 60 + Number(wall.time.slice(3, 5))
 
     // Clients with a visit that really happens today — the pattern's dates, bi-weekly parity, suspension and that
     // day's exception (a cancelled visit never auto-clocks anyone in).
-    const todayDate = new Date(now); todayDate.setHours(0, 0, 0, 0)
+    const todayDate = parseLocalDate(wall.date)!
+    const todayDay = todayDate.getDay()
     const todayYmd = toYMD(todayDate)!
     const todaysVisits = (currentSchedules || [])
       .filter((s) => s.date
@@ -954,10 +956,10 @@ const CaregiverDashboard = () => {
 
   // Today's appointments from the schedules
   const getTodaysAppointments = (): Shift[] => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Today on the AGENCY's calendar — the visits' day — not the phone's.
+    const today = agencyTodayDate()
     const dayOfWeek = today.getDay()
-    const todayStr = toYMD(today)! // the local calendar day, not UTC's
+    const todayStr = toYMD(today)!
 
     const recurring = schedules
       .filter((s) => s.dayOfWeek === dayOfWeek && s.dayOfWeek !== null && !s.date && isScheduleActiveForDate(s, today))
@@ -1414,11 +1416,11 @@ const CaregiverDashboard = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group" style={{ margin: 0 }}>
               <label htmlFor="cg-to-start">Start</label>
-              <input id="cg-to-start" type="date" value={newTimeOff.startDate} onChange={(e) => setNewTimeOff({ ...newTimeOff, startDate: e.target.value })} min={toLocalYMD(new Date())} required />
+              <input id="cg-to-start" type="date" value={newTimeOff.startDate} onChange={(e) => setNewTimeOff({ ...newTimeOff, startDate: e.target.value })} min={agencyToday()} required />
             </div>
             <div className="form-group" style={{ margin: 0 }}>
               <label htmlFor="cg-to-end">End</label>
-              <input id="cg-to-end" type="date" value={newTimeOff.endDate} onChange={(e) => setNewTimeOff({ ...newTimeOff, endDate: e.target.value })} min={newTimeOff.startDate || toLocalYMD(new Date())} required />
+              <input id="cg-to-end" type="date" value={newTimeOff.endDate} onChange={(e) => setNewTimeOff({ ...newTimeOff, endDate: e.target.value })} min={newTimeOff.startDate || agencyToday()} required />
             </div>
           </div>
           <div className="form-group">
@@ -1479,7 +1481,7 @@ const CaregiverDashboard = () => {
   const renderSchedulePage = () => {
     // Every schedule (recurring + one-time + moved-in) resolved into concrete dated visits for the next 14 days, each
     // with that day's exception applied — cancelled gone, modified at its new time.
-    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const today = agencyTodayDate() // the agency's today, not the phone's
     const todayStr = toYMD(today)!
     const concreteShifts: (Shift & { resolvedDate: string })[] = []
 

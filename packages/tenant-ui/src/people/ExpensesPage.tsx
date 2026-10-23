@@ -9,12 +9,13 @@ import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, ExpensesConfig } from './types'
 import { DEFAULT_EXPENSE_CATEGORIES, isManagerRole } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { todayKey } from '../time/day'
 
 interface Expense { id: string; receiptUrl?: string | null; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; approved?: boolean; submittedById?: string | null; submittedByName?: string | null; repaidAmount?: string | number | null; repaidReason?: string | null; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own day, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this
 // pre-filled TOMORROW all evening. It is also the ceiling the date box is given — an expense is money already
 // spent. (Contractor T30 L1, the same fix the timesheet got)
-const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0] }
+const today = () => todayKey() // the company's day, not the browser's
 
 /**
  * THE PERIOD THE TOTALS ARE FOR. (live test 2026-10-22: "Expenses: no totals")

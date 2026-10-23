@@ -18,7 +18,7 @@ import { useMay } from '../lib/useMay'
 // Why a cancelled visit was not billed (schedule_exceptions.cancel_reason) — the one label list.
 import { cancelReasonLabel } from '../lib/cancelReasons'
 import { toLocalYMD, parseLocalDate } from '../lib/date'
-import { formatAgencyDate } from '../lib/agencyClock'
+import { formatAgencyDate, agencyWall, agencyToday } from '../lib/agencyClock'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 type Num = string | number | null | undefined
@@ -259,7 +259,7 @@ const BillingDashboard = () => {
     clientId: '', referralSourceId: '', authorizationNumber: '', serviceType: '', authorizedUnits: '', unitType: '15min', startDate: '', endDate: '', notes: '',
   })
   const [paymentFormData, setPaymentFormData] = useState({
-    invoiceId: '', amount: '', paymentDate: toLocalYMD(new Date()), paymentMethod: 'check', referenceNumber: '', notes: '',
+    invoiceId: '', amount: '', paymentDate: agencyToday(), paymentMethod: 'check', referenceNumber: '', notes: '',
   })
   const [adjustmentFormData, setAdjustmentFormData] = useState({ invoiceId: '', amount: '', type: 'write_off', reason: '', notes: '' })
   const [manualFormData, setManualFormData] = useState({ clientId: '', billingPeriodStart: '', billingPeriodEnd: '', notes: '' })
@@ -372,10 +372,11 @@ const BillingDashboard = () => {
       h = parseInt(parts[0], 10)
       m = parseInt(parts[1], 10)
     } else {
-      const d = new Date(input)
-      if (isNaN(d.getTime())) return ''
-      h = d.getHours()
-      m = d.getMinutes()
+      // A stored moment's hour on the AGENCY's clock, as the dropdown's times are (not the browser's).
+      const t = agencyWall(input).time
+      if (!t) return ''
+      h = Number(t.slice(0, 2))
+      m = Number(t.slice(3, 5))
     }
     const rounded = Math.round(m / 15) * 15
     let hh = h + Math.floor(rounded / 60)
@@ -832,7 +833,7 @@ const BillingDashboard = () => {
     e.preventDefault()
     try {
       await api.post('/api/billing/invoice-payments', paymentFormData)
-      setPaymentFormData({ invoiceId: '', amount: '', paymentDate: toLocalYMD(new Date()), paymentMethod: 'check', referenceNumber: '', notes: '' })
+      setPaymentFormData({ invoiceId: '', amount: '', paymentDate: agencyToday(), paymentMethod: 'check', referenceNumber: '', notes: '' })
       setShowPaymentModal(false)
       loadData()
       setMessage('✓ Payment recorded')
@@ -904,7 +905,7 @@ const BillingDashboard = () => {
 
   const handleExportEVV = async () => {
     try {
-      saveBlob(await downloadBlob('/api/billing/export/evv'), `evv-export-${toLocalYMD(new Date())}.csv`)
+      saveBlob(await downloadBlob('/api/billing/export/evv'), `evv-export-${agencyToday()}.csv`)
     } catch (error) {
       toast.error(errorMessage(error, 'The EVV export failed'))
     }

@@ -14,7 +14,8 @@
 //     server's).
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, rows, errorMessage } from '../lib/http'
-import { formatDate, parseLocalDate } from '../lib/date'
+import { formatDate } from '../lib/date'
+import { agencyDayHasBegun } from '../lib/agencyClock'
 import { formatDateTime } from '../lib/datetime'
 import { useConfirm, usePermissions, usePrompt, useToast } from '../../../../shared'
 
@@ -212,7 +213,7 @@ const AlertsManagement = () => {
           <div className="flex flex-col gap-3">
             {alerts.map((alert) => {
               const ti = typeInfo(alert.alertType)
-              const overdue = !!alert.dueDate && parseLocalDate(alert.dueDate) < new Date()
+              const overdue = !!alert.dueDate && agencyDayHasBegun(alert.dueDate)
               return (
                 <div
                   key={alert.id}

@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react'
 import { X, Scissors, Plus, Trash2, AlertTriangle } from 'lucide-react'
 import { api } from '../../../api'
 import { fetchStaff, staffName, type StaffMember } from './staff';
-import { todayKey as todayStr, localDayKey as toDayString } from '../../../shared'
+import { todayKey as todayStr } from '../../../shared'
+import { companyDayKey as toDayString, companyMoment, companyHHMM, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 import { useConfirm } from '../../../shared'
 import { useToast } from '../../../shared'
 
@@ -63,8 +64,9 @@ function visitWarnings(profile: ClientProfileLite | null, service: ServiceOption
   const out: string[] = [];
   if (profile?.allergies && profile.allergies.trim()) out.push(`Allergies on file: ${profile.allergies.trim()}`);
   if (service?.requiresPatchTest) {
-    const at = profile?.patchTestAt ? new Date(String(profile.patchTestAt).slice(0, 10) + 'T00:00:00') : null;
-    const ageDays = at && !isNaN(at.getTime()) ? (Date.now() - at.getTime()) / 86400000 : Infinity;
+    // Whole days since the test's day, counted from the company's today (not the browser's clock).
+    const at = profile?.patchTestAt && /^\d{4}-\d{2}-\d{2}/.test(String(profile.patchTestAt)) ? String(profile.patchTestAt).slice(0, 10) : null;
+    const ageDays = at ? -daysUntilDay(at) : Infinity;
     if (ageDays > 180) out.push(at ? `${service.name || 'This service'} needs a patch test — last one was ${Math.round(ageDays)} days ago` : `${service.name || 'This service'} needs a patch test — none on file`);
   }
   return out;
@@ -80,8 +82,8 @@ interface Props {
 
 function toDateInput(s?: string): string {
   const d = s ? new Date(s) : new Date();
-  // Local day, not the UTC one: a visit performed at 7pm in Chicago is stored past midnight UTC and
-  // came back into the date box as TOMORROW. (Salon T25 N2)
+  // The COMPANY's day, not UTC's nor the browser's: a visit performed at 7pm in Chicago is stored past midnight UTC
+  // and came back into the date box as TOMORROW. (Salon T25 N2; company clock 2026-10-23)
   if (isNaN(d.getTime())) return todayStr();
   return toDayString(d);
 }
@@ -129,12 +131,12 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
   const originalPerformedAt = record?.performedAt ? new Date(record.performedAt) : null;
   const performedAtToSend = (dayStr: string): string => {
     if (!originalPerformedAt || isNaN(originalPerformedAt.getTime())) {
-      return new Date(`${dayStr}T12:00:00`).toISOString();
+      return companyMoment(dayStr, '12:00').toISOString();
     }
     if (dayStr === toDayString(originalPerformedAt)) return originalPerformedAt.toISOString();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const clock = `${pad(originalPerformedAt.getHours())}:${pad(originalPerformedAt.getMinutes())}:${pad(originalPerformedAt.getSeconds())}`;
-    return new Date(`${dayStr}T${clock}`).toISOString();
+    // The same wall-clock time on the company's clock, on the new day (seconds kept).
+    const moved = companyMoment(dayStr, companyHHMM(originalPerformedAt));
+    return new Date(moved.getTime() + originalPerformedAt.getUTCSeconds() * 1000 + originalPerformedAt.getUTCMilliseconds()).toISOString();
   };
 
   useEffect(() => {

@@ -4,7 +4,7 @@ import { Plus, Loader2, X, CalendarDays, Trophy, Repeat, Trash2 } from 'lucide-r
 import { api } from '../../../api'
 import { useMayWrite } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
-import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
+import { whenDateTime, companyFromLocalInput } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 /**
@@ -73,7 +73,8 @@ export default function HappeningsPage() {
     setErr('');
     try { await api.delete(path, id); await load() } catch (e) { setErr(errorText(e, 'That was not removed.')) }
   };
-  const toIso = (local: string) => (local ? new Date(local).toISOString() : '');
+  // The box is the bar's wall clock (the times are printed on it too), not the browser's (2026-10-23).
+  const toIso = (local: string) => (local ? companyFromLocalInput(local).toISOString() : '');
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>;
 

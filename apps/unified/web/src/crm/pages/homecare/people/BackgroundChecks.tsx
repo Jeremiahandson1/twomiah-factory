@@ -15,6 +15,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth, useConfirm, useToast } from '../../../../shared'
 import { api, downloadBlob, errorMessage, listAll, rows } from '../lib/http'
 import { formatDate, parseLocalDate } from '../lib/date'
+import { agencyDayHasBegun, agencyTodayDate } from '../lib/agencyClock'
 import type { CaregiverRow } from './shared'
 import { useMay } from '../lib/useMay'
 
@@ -60,13 +61,14 @@ const RESULT_BADGE: Record<string, string> = { clear: 'hc-badge-success', flagge
 
 const isExpiringSoon = (expirationDate: string | null) => {
   if (!expirationDate) return false
+  // Within the next 30 days on the agency's calendar, and not yet begun (isExpired's rule).
   const expDate = parseLocalDate(expirationDate)
-  const thirtyDaysFromNow = new Date()
+  const thirtyDaysFromNow = agencyTodayDate()
   thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-  return expDate <= thirtyDaysFromNow && expDate > new Date()
+  return expDate <= thirtyDaysFromNow && !agencyDayHasBegun(expirationDate)
 }
 
-const isExpired = (expirationDate: string | null) => (expirationDate ? parseLocalDate(expirationDate) < new Date() : false)
+const isExpired = (expirationDate: string | null) => (expirationDate ? agencyDayHasBegun(expirationDate) : false)
 
 export default function BackgroundChecks() {
   // Each control for whoever the server lets use it (care-hr create / update / delete) (lib/useMay.ts).

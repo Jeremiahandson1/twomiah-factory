@@ -523,7 +523,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const mine = await db.select({ id: t.patient.id }).from(t.patient).where(and(eq(t.patient.companyId, contact.companyId), eq(t.patient.ownerId, contact.id)))
       const ids = mine.map((p: any) => p.id)
       const [due] = ids.length && t.vaccination
-        ? await db.select({ value: count() }).from(t.vaccination).where(and(inArray(t.vaccination.patientId, ids), sql`${t.vaccination.dueDate} IS NOT NULL`, lte(t.vaccination.dueDate, new Date().toISOString().slice(0, 10))))
+        ? await db.select({ value: count() }).from(t.vaccination).where(and(inArray(t.vaccination.patientId, ids), sql`${t.vaccination.dueDate} IS NOT NULL`, lte(t.vaccination.dueDate, storeDateString(new Date(), company.timeZone || 'UTC'))))
         : [{ value: 0 }]
       const [next] = ids.length && t.appointment
         ? await db.select({ startTime: t.appointment.startTime }).from(t.appointment)
@@ -565,7 +565,8 @@ export function createPortalRoutes(deps: PortalDeps) {
         ? await db.select({ patientId: t.appointment.patientId, startTime: t.appointment.startTime, reason: t.appointment.reason, status: t.appointment.status }).from(t.appointment)
             .where(and(inArray(t.appointment.patientId, ids), gte(t.appointment.startTime, new Date()), notInArray(t.appointment.status, ['cancelled', 'no_show']))).orderBy(asc(t.appointment.startTime), asc(t.appointment.id))
         : []
-      const todayIso = new Date().toISOString().slice(0, 10)
+      // The clinic's today, not UTC's.
+      const todayIso = storeDateString(new Date(), await companyTimeZone(db, contact.companyId))
       return c.json(rows.map((p: any) => {
         const vax = vaccinations.filter((v: any) => v.patientId === p.id)
         const next = upcoming.find((a: any) => a.patientId === p.id)

@@ -10,6 +10,7 @@ import { useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { money } from '../invoicing/ui'
 import { whenDate, daysUntilDay } from '../time/companyClock'
+import { todayKey, dayKeyPlus } from '../time/day'
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -977,8 +978,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
   const mayUpdate = useMayWrite('agreements:update');
   const maySeeMoney = useMayWrite('invoices:read');
   const readOnly = !!agreement && !mayUpdate;
-  const defaultNextDate = new Date();
-  defaultNextDate.setDate(defaultNextDate.getDate() + 30);
+  const defaultNextDate = dayKeyPlus(todayKey(), 30); // 30 days from the company's today
   const [form, setForm] = useState<{
     planId: string;
     contactId: string;
@@ -992,11 +992,11 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
   }>({
     planId: agreement?.planId || '',
     contactId: agreement?.contactId || '',
-    startDate: agreement?.startDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+    startDate: agreement?.startDate?.split('T')[0] || todayKey(),
     autoRenew: agreement?.renewalType ? agreement.renewalType === 'auto' : true,
     autoSchedule: agreement?.autoSchedule ?? false,
     recurrenceFrequency: agreement?.recurrenceRule?.frequency || 'quarterly',
-    nextServiceDate: agreement?.nextServiceDate?.split('T')[0] || defaultNextDate.toISOString().split('T')[0],
+    nextServiceDate: agreement?.nextServiceDate?.split('T')[0] || defaultNextDate,
     reminderDaysBefore: agreement?.reminderDaysBefore ?? 7,
     firstVisitDate: '',
   });

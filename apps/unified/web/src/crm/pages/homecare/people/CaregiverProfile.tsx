@@ -17,6 +17,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useConfirm } from '../../../../shared'
 import { api, errorMessage, rows } from '../lib/http'
 import { formatDate, parseLocalDate } from '../lib/date'
+import { agencyDayHasBegun } from '../lib/agencyClock'
 import { useMay } from '../lib/useMay'
 
 interface CaregiverSummary {
@@ -174,7 +175,7 @@ export default function CaregiverProfile() {
     return daysUntilExpire < 90 && daysUntilExpire >= 0
   }
 
-  const isExpired = (expirationDate: string | null) => parseLocalDate(expirationDate) < new Date()
+  const isExpired = (expirationDate: string | null) => agencyDayHasBegun(expirationDate)
 
   if (loading) {
     return (

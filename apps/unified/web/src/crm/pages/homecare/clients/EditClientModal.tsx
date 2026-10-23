@@ -5,7 +5,7 @@ import { useState, useEffect, type FormEvent } from 'react'
 import { useAuth, useConfirm } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatDateForInput, toLocalYMD } from '../lib/date'
-import { formatAgencyDate } from '../lib/agencyClock'
+import { formatAgencyDate, agencyToday } from '../lib/agencyClock'
 import InsuranceCardUploader from './InsuranceCardUploader'
 import { useMay } from '../lib/useMay'
 import { allRows, SECTION_HEAD, HINT, type Client, type Caregiver, type CareType, type EmergencyContact, type ReferralSource } from './shared'
@@ -488,7 +488,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                 </div>
                 <div className="form-group">
                   <label>Date of Birth</label>
-                  <input type="date" max={toLocalYMD(new Date())} value={formData.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
+                  <input type="date" max={agencyToday()} value={formData.dateOfBirth} onChange={(e) => set('dateOfBirth', e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label>Gender</label>

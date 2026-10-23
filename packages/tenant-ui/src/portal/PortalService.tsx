@@ -3,11 +3,13 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { Wrench, Shield, ChevronRight, ChevronDown, ChevronUp, Calendar, CheckCircle, AlertTriangle, X, CalendarCheck, ArrowRight, LifeBuoy, Loader2 } from 'lucide-react'
 import { usePortal } from './PortalContext'
+import { isPastDay } from '../invoicing/ui'
 import { PLink, Spinner, PageTitle, Empty, card, pill, btnPrimary, inputCls, labelCls, formatDate, moneyShort } from './common'
 
 // ---------------------------------------------------------------- Equipment
 interface Unit { id: string; name: string; model?: string | null; manufacturer?: string | null; serialNumber?: string | null; status?: string | null; location?: string | null; purchaseDate?: string | null; warrantyExpiry?: string | null; lastServiceDate?: string | null }
-const warranty = (expiry?: string | null) => !expiry ? null : new Date(expiry) > new Date()
+// Covered through its expiry day on the company's calendar, not until UTC's midnight before it.
+const warranty = (expiry?: string | null) => !expiry ? null : !isPastDay(expiry)
 
 export function PortalEquipment() {
   const { token, fetch: portalFetch, config } = usePortal()

@@ -542,7 +542,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
               {contact.equipment && contact.equipment.length > 0 ? (
                 <div className="divide-y dark:divide-slate-800">
                   {contact.equipment.map((eq) => {
-                    const active = !!eq.warrantyExpiry && new Date(eq.warrantyExpiry) > new Date()
+                    const active = !!eq.warrantyExpiry && !isPastDay(eq.warrantyExpiry)
                     return (
                       <NavLink key={eq.id} to="/crm/equipment" className={rowLink}>
                         <div className="flex items-center gap-3">

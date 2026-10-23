@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, sql, inArray, lt, gte, isNull } from 'drizzle-orm'
 import { money } from './money'
+import { companyTimeZone, storeDateString } from '../time/businessDay'
 import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, businessToday, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { ACCOUNT_BALANCE_METHOD } from '../clients/accountBalance'
 import { withoutPortalCredential } from '../contacts/contacts'
@@ -421,6 +422,8 @@ export type ApplyCreditOutcome =
 export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLineItem: any }, input: ApplyCreditInput): Promise<ApplyCreditOutcome> {
   const { invoiceId: id, amount } = input
   let outcome: ApplyCreditOutcome = { ok: false, status: 400, error: 'Credit failed' }
+  // The note is dated on the company's calendar (read before the transaction — never the outer db inside it).
+  const creditDay = storeDateString(new Date(), await companyTimeZone(db, input.companyId))
   await db.transaction(async (tx: any) => {
     const locked: any = await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${input.companyId} FOR UPDATE`)
     const row = (locked.rows || locked)[0]
@@ -466,7 +469,7 @@ export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLine
     const retotal = retotalInvoice({ amountPaid: row.amount_paid, status: row.status }, lines, taxRate, newDiscount)
     if ('error' in retotal) { outcome = { ok: false, status: 400, error: retotal.error }; return }
     const balanceAfter = invoiceBalance({ ...figures, total: retotal.fields.total, status: retotal.fields.status })
-    const note = `Credit ${money(amount)} applied ${new Date().toISOString().slice(0, 10)}${input.by ? ` by ${input.by}` : ''}: ${input.reason}`
+    const note = `Credit ${money(amount)} applied ${creditDay}${input.by ? ` by ${input.by}` : ''}: ${input.reason}`
     const set: Record<string, any> = { ...retotal.fields, notes: row.notes ? `${row.notes}\n${note}` : note, updatedAt: new Date() }
     if (balanceAfter <= 0.005 && !row.paid_at) set.paidAt = new Date()
     const [updated] = await tx.update(t.invoice).set(set).where(eq(t.invoice.id, id)).returning()

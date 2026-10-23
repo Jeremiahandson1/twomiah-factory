@@ -15,6 +15,7 @@ import { useAuth } from '../../../shared'
 import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { todayKey } from '@twomiah/tenant-ui/src/time/day'
 
 /** A refusal from the API client: its status and body ride on the error. */
 type Refusal = Error & { status?: number; data?: { error?: string; code?: string } }
@@ -844,7 +845,7 @@ function VaccineModal({ patientId, rabiesTag, onSave, onClose }: { patientId: st
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<VaccineForm>({
     vaccine: '', manufacturer: '', lotNumber: '', serialNumber: '', site: '', route: '',
-    givenDate: new Date().toISOString().slice(0, 10), dueDate: '', isRabies: false,
+    givenDate: todayKey(), dueDate: '', isRabies: false,
     // The tag on the patient record is the tag this animal wears; re-typing it from the collar is how a
     // certificate ends up with a number that does not match the chart. Still editable — a re-tagged
     // animal gets a new one. (Vet T12 L5)
@@ -866,9 +867,10 @@ function VaccineModal({ patientId, rabiesTag, onSave, onClose }: { patientId: st
       // A blank due date means no reminder ever fires. Default to a one-year booster from
       // the given date so the vaccine at least schedules a follow-up. (VET-27)
       if (!form.dueDate && form.givenDate) {
-        const d = new Date(`${form.givenDate}T00:00:00`);
-        d.setFullYear(d.getFullYear() + 1);
-        payload.dueDate = d.toISOString().slice(0, 10);
+        // Calendar arithmetic on the day itself: local midnight read back through toISOString was the day before
+        // in any zone ahead of UTC.
+        const [gy, gm, gd] = form.givenDate.split('-').map(Number);
+        payload.dueDate = new Date(Date.UTC(gy + 1, gm - 1, gd)).toISOString().slice(0, 10);
       }
       await api.post('/api/vaccinations', payload);
       onSave();
@@ -1006,7 +1008,7 @@ function LabModal({ patientId, onSave, onClose }: { patientId: string; onSave: (
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<LabForm>({
-    testName: '', category: '', resultDate: new Date().toISOString().slice(0, 10),
+    testName: '', category: '', resultDate: todayKey(),
     status: '', summary: '', fileUrl: '', notes: '',
   });
   const set = (k: keyof LabForm, v: string) => setForm((f) => ({ ...f, [k]: v }));
