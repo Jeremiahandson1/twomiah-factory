@@ -74,7 +74,10 @@ export function createCareTypeRoutes(d: CrmDeps) {
   // DELETE /:id — deactivates.
   app.delete('/:id', requirePermission('care-billing:delete'), async (c) => {
     const { companyId } = who(c)
-    await db.update(careTypes).set({ isActive: false }).where(and(eq(careTypes.id, c.req.param('id')), eq(careTypes.companyId, companyId)))
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    const gone = await db.update(careTypes).set({ isActive: false }).where(and(eq(careTypes.id, c.req.param('id')), eq(careTypes.companyId, companyId)))
+      .returning({ id: careTypes.id })
+    if (!gone.length) return fail(c, 404, 'Care type not found')
     return done(c, 'Deactivated')
   })
 

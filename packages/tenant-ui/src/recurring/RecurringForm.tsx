@@ -4,6 +4,7 @@ import { Save, ArrowLeft, Plus, Trash2, Loader2 } from 'lucide-react';
 import type { RecurringPageProps } from './types';
 import { money } from '../money'
 import { todayKey } from '../time/day'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface FrequencyOption {
   value: string;
@@ -60,6 +61,12 @@ export default function RecurringForm({ api }: RecurringPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEdit = !!id;
+  // Saving asks what its route asks: POST /api/recurring is invoices:create, PUT /:id invoices:update (recurring.ts). The
+  // menu opens this page on invoices:read, so a viewer who typed /crm/recurring/new had a form whose Save was refused
+  // (live role check sweep, 2026-10-23). Without it, the form says so instead of offering the button.
+  const mayCreate = useMayWrite('invoices:create');
+  const mayUpdate = useMayWrite('invoices:update');
+  const maySave = isEdit ? mayUpdate : mayCreate;
 
   const [loading, setLoading] = useState<boolean>(isEdit);
   const [saving, setSaving] = useState<boolean>(false);
@@ -163,6 +170,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!maySave) return;
     if (!form.contactId) {
       alert('Please select a contact');
       return;
@@ -493,6 +501,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
           >
             Cancel
           </button>
+          {maySave ? (
           <button
             type="submit"
             disabled={saving}
@@ -501,6 +510,9 @@ export default function RecurringForm({ api }: RecurringPageProps) {
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             {isEdit ? 'Update' : 'Create'} Recurring Invoice
           </button>
+          ) : (
+            <p className="self-center text-sm text-gray-600 dark:text-slate-400">Your role can view recurring invoices but not {isEdit ? 'change' : 'create'} them.</p>
+          )}
         </div>
       </form>
     </div>

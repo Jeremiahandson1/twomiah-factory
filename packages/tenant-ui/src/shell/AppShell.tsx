@@ -327,9 +327,9 @@ export function AppShell({ api, auth, connected, config }: AppShellProps) {
                         <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{user?.email}</p>
                       </div>
                       <div className="py-1">
-                        {/* Every role: two-factor and your own password are yours, not the shop's. (T60) */}
+                        {/* Every role: your own name, phone, password and two-factor are yours, not the shop's. (T60; live role check 2026-10-23) */}
                         <RouterLink to="/crm/account" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700" role="menuitem" onClick={() => setUserMenuOpen(false)}>
-                          <User className="w-4 h-4" aria-hidden="true" />My account
+                          <User className="w-4 h-4" aria-hidden="true" />Profile &amp; Security
                         </RouterLink>
                         {maySeeRoute(config, '/crm/settings', user?.role, can) && (
                           <RouterLink to="/crm/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700" role="menuitem" onClick={() => setUserMenuOpen(false)}>

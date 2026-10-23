@@ -173,7 +173,10 @@ export default function DailyLogsPage() {
             <div><label className="block text-sm font-medium mb-1">Delays/Issues</label><textarea value={form.delays} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, delays: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
             <div><label className="block text-sm font-medium mb-1">Safety Notes</label><textarea value={form.safetyNotes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, safetyNotes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
-          <RecordPhotosField base="/api/daily-logs" recordId={editing?.id as string | undefined} photos={photos} onPhotosChange={(next) => { setPhotos(next); load(); }} pending={pending} onPendingChange={setPending} inputId="daily-log-photos" />
+          {/* A log's photos go up and come off through /api/daily-logs/:id/photos, which asks daily-logs:update (siteRecords/
+              dailyLogs.ts): the crew holds daily-logs:create, so a technician's photos on a new log were each refused after the
+              save (live role check sweep, 2026-10-23). The field is offered to whoever may add them. */}
+          <RecordPhotosField canEdit={can('daily-logs:update')} base="/api/daily-logs" recordId={editing?.id as string | undefined} photos={photos} onPhotosChange={(next) => { setPhotos(next); load(); }} pending={pending} onPendingChange={setPending} inputId="daily-log-photos" />
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>

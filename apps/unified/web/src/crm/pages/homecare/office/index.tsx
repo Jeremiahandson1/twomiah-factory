@@ -38,7 +38,8 @@ const Home = page(() => import('./OfficeHome'))
  * The permission each page's main API asks (server/crm/homecare/**):
  *   compliance          care-hr:read          hr/backgroundChecks.ts, hr/caregivers.ts (caregivers hold only care-schedule:read)
  *   audit-logs          care-compliance:read  office/auditLogs.ts
- *   login-activity      care-compliance:read  office/compliance.ts
+ *   login-activity      audit:read            office/compliance.ts (sign-ins and IP addresses: owner and admin only,
+ *                                             owner's decision 2026-10-09 — a manager holds care-compliance, not this)
  *   incidents(/:id)     care-compliance:read  office/incidents.ts
  *   reports             care-billing:read     planning/reports.ts (the overview; other tabs ask more, the page says so)
  *   communication-log   care-portal:update    portals/communication.ts (caregivers hold care-portal:read)
@@ -57,7 +58,7 @@ const INTEGRATIONS = 'evv:delete'
 const PERMISSION: Record<string, string> = {
   '/crm/compliance': 'care-hr:read',
   '/crm/audit-logs': 'care-compliance:read',
-  '/crm/login-activity': 'care-compliance:read',
+  '/crm/login-activity': 'audit:read',
   '/crm/incidents': 'care-compliance:read',
   '/crm/reports': 'care-billing:read',
   '/crm/communication-log': 'care-portal:update',

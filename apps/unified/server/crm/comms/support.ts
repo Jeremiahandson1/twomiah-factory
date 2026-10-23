@@ -354,8 +354,11 @@ export function createSupportRoutes(d: CrmDeps) {
 
   app.delete('/kb/:id', requirePermission('support-kb:delete'), async (c) => {
     const u = c.get('user')
-    await db.delete(supportKnowledgeBase)
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    const gone = await db.delete(supportKnowledgeBase)
       .where(and(eq(supportKnowledgeBase.id, c.req.param('id')), eq(supportKnowledgeBase.companyId, u.companyId)))
+      .returning({ id: supportKnowledgeBase.id })
+    if (!gone.length) return fail(c, 404, 'Article not found')
     return done(c)
   })
 

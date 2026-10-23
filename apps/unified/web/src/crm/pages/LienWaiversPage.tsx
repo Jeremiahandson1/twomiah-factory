@@ -27,7 +27,12 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function LienWaiversPage() {
   // Projects is its own feature: with it off, /api/projects refuses — the page goes on with no projects to pick.
-  const projectsOn = useAuth().hasFeature('projects')
+  const { hasFeature, can } = useAuth()
+  const projectsOn = hasFeature('projects')
+  // New Waiver is lien-waivers:create; send, received, approve and reject are lien-waivers:update
+  // (server/crm/projects/lienWaivers.ts; live role check sweep, 2026-10-23).
+  const mayCreate = can('lien-waivers:create')
+  const mayUpdate = can('lien-waivers:update')
   const [waivers, setWaivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -59,7 +64,7 @@ export default function LienWaiversPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div><h1 className="text-2xl font-bold flex items-center gap-2"><Shield className="w-6 h-6 text-orange-500 dark:text-orange-200" />Lien Waivers</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Protect against mechanic's liens on every payment cycle</p></div>
-        <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Waiver</button>
+        {mayCreate && <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Waiver</button>}
       </div>
 
       <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900">
@@ -76,9 +81,9 @@ export default function LienWaiversPage() {
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[w.status]}`}>{codeLabel(w.status)}</span></td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
-                      {w.status === 'draft' && <button onClick={() => act(w.id, 'request')} className="text-orange-700 hover:bg-orange-50 p-1 rounded dark:text-orange-200" title="Send request">Send</button>}
-                      {w.status === 'requested' && <button onClick={() => act(w.id, 'receive')} className="text-purple-600 hover:bg-purple-50 p-1 rounded dark:text-purple-300" title="Mark received">Received</button>}
-                      {w.status === 'received' && <><button aria-label="Approve" onClick={() => act(w.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300"><Check className="w-4 h-4" /></button><button aria-label="Reject" onClick={() => act(w.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400"><X className="w-4 h-4" /></button></>}
+                      {mayUpdate && w.status === 'draft' && <button onClick={() => act(w.id, 'request')} className="text-orange-700 hover:bg-orange-50 p-1 rounded dark:text-orange-200" title="Send request">Send</button>}
+                      {mayUpdate && w.status === 'requested' && <button onClick={() => act(w.id, 'receive')} className="text-purple-600 hover:bg-purple-50 p-1 rounded dark:text-purple-300" title="Mark received">Received</button>}
+                      {mayUpdate && w.status === 'received' && <><button aria-label="Approve" onClick={() => act(w.id, 'approve')} className="text-green-700 hover:bg-green-50 p-1 rounded dark:text-green-300"><Check className="w-4 h-4" /></button><button aria-label="Reject" onClick={() => act(w.id, 'reject')} className="text-red-600 hover:bg-red-50 p-1 rounded dark:text-red-400"><X className="w-4 h-4" /></button></>}
                     </div>
                   </td>
                 </tr>

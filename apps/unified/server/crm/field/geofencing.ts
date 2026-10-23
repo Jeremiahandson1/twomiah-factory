@@ -113,7 +113,8 @@ export function createGeofencingRoutes(d: CrmDeps) {
   // The template answered 204 with no body; the rulebook's reply for an action with nothing to return is done().
   app.delete('/:id', requirePermission('settings:update'), async (c) => {
     const user = c.get('user')
-    await geofencing.deleteGeofence(c.req.param('id'), user.companyId)
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    if (!(await geofencing.deleteGeofence(c.req.param('id'), user.companyId))) return fail(c, 404, 'Geofence not found')
     return done(c)
   })
 

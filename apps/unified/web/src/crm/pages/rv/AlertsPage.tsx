@@ -5,7 +5,7 @@ import { api } from '../../../api'
 import { useLiveEvent } from '../../../live'
 // A refusal renders on the page, not in a native pop-up — the shared one, so a vertical cannot
 // drift back to alert(). (T58d)
-import { PageError, errorText } from '../../../shared'
+import { PageError, errorText, useMayWrite } from '../../../shared'
 
 /**
  * Service-to-Sales Alerts — when a customer with an open sales lead checks
@@ -35,6 +35,10 @@ function unitDesc(row: AlertRow): string {
 }
 
 export default function AlertsPage() {
+  // Convert is POST /api/alerts/:id/convert (contacts:create), Dismiss POST /:id/dismiss (contacts:update) — the page opens
+  // on contacts:read, so a technician and a viewer were offered both and refused (live role check sweep, 2026-10-23).
+  const mayConvert = useMayWrite('contacts:create')
+  const mayDismiss = useMayWrite('contacts:update')
   const [rows, setRows] = useState<AlertRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showAll, setShowAll] = useState<boolean>(false);
@@ -120,14 +124,14 @@ export default function AlertsPage() {
                     {row.customerEmail && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {row.customerEmail}</span>}
                   </div>
                 </div>
-                {!dismissed && (
+                {!dismissed && (mayConvert || mayDismiss) && (
                   <div className="flex flex-col gap-2">
-                    <button onClick={() => convert(row.alert.id)} className="flex items-center gap-1 text-sm px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
+                    {mayConvert && <button onClick={() => convert(row.alert.id)} className="flex items-center gap-1 text-sm px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
                       <ArrowRightCircle className="w-4 h-4" /> Convert
-                    </button>
-                    <button onClick={() => dismiss(row.alert.id)} className="flex items-center gap-1 text-sm px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
+                    </button>}
+                    {mayDismiss && <button onClick={() => dismiss(row.alert.id)} className="flex items-center gap-1 text-sm px-3 py-1.5 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
                       <Check className="w-4 h-4" /> Dismiss
-                    </button>
+                    </button>}
                   </div>
                 )}
               </div>

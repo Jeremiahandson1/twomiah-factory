@@ -435,7 +435,8 @@ export function createPricebookRoutes(deps: PricebookRoutesDeps) {
     // 'margin:read' since T42, where this was one of three different permissions asked for the
     // same thing. Behaviour is unchanged for every role: pricebook:* and margin:read sit on the same
     // three rungs. See the note on the admin row of auth/permissions.ts.
-    try { return await deps.canSee(u?.role, 'margin:read', u?.userId) } catch { return true }
+    // A check that throws withholds: cost shown by accident is the leak this guards (live role check sweep, 2026-10-23).
+    try { return await deps.canSee(u?.role, 'margin:read', u?.userId) } catch { return false }
   }
   const run = (fn: (c: any, u: any) => Promise<any>, status = 200, carriesCost = false) => async (c: any) => {
     try {

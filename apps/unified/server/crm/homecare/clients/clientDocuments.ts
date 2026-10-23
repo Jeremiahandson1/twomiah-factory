@@ -180,7 +180,10 @@ export function createClientDocumentRoutes(core: HomecareCore, d: CrmDeps, acces
 
   app.delete('/templates/:id', requirePermission('care-clients:delete'), async (c) => {
     const { companyId } = who(c)
-    await db.delete(clientDocumentTemplates).where(and(eq(clientDocumentTemplates.id, c.req.param('id')), eq(clientDocumentTemplates.companyId, companyId)))
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    const gone = await db.delete(clientDocumentTemplates).where(and(eq(clientDocumentTemplates.id, c.req.param('id')), eq(clientDocumentTemplates.companyId, companyId)))
+      .returning({ id: clientDocumentTemplates.id })
+    if (!gone.length) return fail(c, 404, 'Template not found')
     return done(c)
   })
 

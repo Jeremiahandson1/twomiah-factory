@@ -86,7 +86,8 @@ export function createAiReceptionistRoutes(d: CrmDeps) {
   })
 
   app.delete('/rules/:id', requirePermission('ai-receptionist:delete'), async (c) => {
-    await aiReceptionist.deleteRule(c.req.param('id'), c.get('user').companyId)
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    if (!(await aiReceptionist.deleteRule(c.req.param('id'), c.get('user').companyId))) return fail(c, 404, 'Rule not found')
     return done(c)
   })
 

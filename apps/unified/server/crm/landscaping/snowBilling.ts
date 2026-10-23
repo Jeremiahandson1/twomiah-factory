@@ -342,13 +342,16 @@ export function createSnowBillingRoutes(d: CrmDeps) {
     return one(c, contract)
   })
 
-  // A delete leaves a trace (T58d), named from the returned row. Still 204 when nothing was there, so a retry is fine.
+  // A delete leaves a trace (T58d), named from the returned row. An id that is not this company's (or not there) is a
+  // 404: it answered 204 "so a retry is fine", which also told a mistyped or another company's id it had been deleted
+  // (live role check, 2026-10-23). A retry after a real delete reads 404, which the screen shows as already gone.
   app.delete('/contracts/:id', requirePermission('invoices:delete'), async (c) => {
     const u = c.get('user')
     const [gone] = await db.delete(snowContract)
       .where(and(eq(snowContract.id, c.req.param('id')), eq(snowContract.companyId, u.companyId)))
       .returning()
-    if (gone) {
+    if (!gone) return fail(c, 404, 'Contract not found')
+    {
       audit.log({
         req: c, action: audit.ACTIONS.DELETE, entity: 'snow_contract', entityId: gone.id,
         entityName: await contractLabel(db, u.companyId, gone.siteId, gone.billingMode), userId: u.userId, companyId: u.companyId,
@@ -429,7 +432,9 @@ export function createSnowBillingRoutes(d: CrmDeps) {
     const [gone] = await db.delete(snowEvent)
       .where(and(eq(snowEvent.id, c.req.param('id')), eq(snowEvent.companyId, u.companyId)))
       .returning()
-    if (gone) {
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    if (!gone) return fail(c, 404, 'Visit not found')
+    {
       audit.log({
         req: c, action: audit.ACTIONS.DELETE, entity: 'snow_event', entityId: gone.id,
         entityName: `$${gone.billableAmount} — ${await contractLabel(db, u.companyId, gone.siteId, gone.billingMode)}`, userId: u.userId, companyId: u.companyId,

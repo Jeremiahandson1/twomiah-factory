@@ -86,9 +86,12 @@ export function createAiReceptionistService(d: CrmDeps) {
     return rule
   }
 
-  async function deleteRule(ruleId: string, companyId: string) {
-    await db.delete(aiReceptionistRule)
+  /** Whether a rule of this company's was there to delete. */
+  async function deleteRule(ruleId: string, companyId: string): Promise<boolean> {
+    const gone = await db.delete(aiReceptionistRule)
       .where(and(eq(aiReceptionistRule.id, ruleId), eq(aiReceptionistRule.companyId, companyId)))
+      .returning({ id: aiReceptionistRule.id })
+    return gone.length > 0
   }
 
   // ── Settings ──

@@ -636,6 +636,9 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
  * Task Widget for Dashboard
  */
 export function TaskWidget({ api }: { api: TasksApi }) {
+  // Ticking a task off is POST /api/tasks/:id/toggle, tasks:update — which a viewer does not hold (live role check sweep,
+  // 2026-10-23). The list stays; the tick is offered to whoever may make it.
+  const mayToggle = useMayWrite('tasks:update');
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -674,9 +677,9 @@ export function TaskWidget({ api }: { api: TasksApi }) {
       ) : (
         tasks.slice(0, 5).map((task: TaskData) => (
           <div key={task.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-slate-800 rounded-lg">
-            <button aria-label="Mark task complete" onClick={() => handleToggle(task.id)}>
+            {mayToggle ? <button aria-label="Mark task complete" onClick={() => handleToggle(task.id)}>
               <Circle className="w-4 h-4 text-gray-300 hover:text-gray-400" />
-            </button>
+            </button> : <Circle className="w-4 h-4 text-gray-300" aria-hidden="true" />}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate dark:text-slate-100">{task.title}</p>
               {task.dueDate && (

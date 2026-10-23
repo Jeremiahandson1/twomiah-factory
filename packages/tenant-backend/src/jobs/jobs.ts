@@ -578,7 +578,14 @@ export function createJobRoutes(deps: JobDeps) {
     // The same rule as the list. Both reads return the whole job row, so both carried the value. (T41)
     const base: any = await shapeJobMoney(c, found)
     if (seriesOn && found.seriesId) base.series = await seriesOf(found, currentUser.companyId)
-    return c.json({ ...base, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries: entries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}), ...(branches ? { location: withAssignee?.location ?? null } : {}) })
+    // What each person on the job is PAID an hour is the pay run's (payroll:read), as on the team roster (team.ts
+    // maySeePay): the time lines stay, their hourlyRate goes for a seat without it — every technician and viewer read
+    // the whole crew's rates off any job they could open (live role check sweep, 2026-10-23). Open when the template
+    // wired no canSee, as shapeJobMoney is; a check that throws withholds.
+    let mayPay = true
+    if (deps.canSee) { try { mayPay = !!(await deps.canSee(currentUser.role, 'payroll:read', currentUser.userId)) } catch { mayPay = false } }
+    const timeEntries = mayPay ? entries : (entries as any[]).map(({ hourlyRate: _rate, ...e }: any) => e)
+    return c.json({ ...base, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}), ...(branches ? { location: withAssignee?.location ?? null } : {}) })
   })
 
   app.post('/', requirePermission('jobs:create'), async (c) => {

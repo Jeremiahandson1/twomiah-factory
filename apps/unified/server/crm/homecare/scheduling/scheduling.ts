@@ -80,7 +80,9 @@ export function createSchedulingRoutes(_core: HomecareCore, d: CrmDeps) {
 
   app.delete('/schedules/:id', perm('care-schedule:delete'), async (c) => {
     const { companyId } = who(c)
-    await db.delete(schedules).where(and(eq(schedules.id, c.req.param('id')), eq(schedules.companyId, companyId)))
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    const gone = await db.delete(schedules).where(and(eq(schedules.id, c.req.param('id')), eq(schedules.companyId, companyId))).returning({ id: schedules.id })
+    if (!gone.length) return fail(c, 404, 'Schedule not found')
     return done(c, 'Deleted')
   })
 

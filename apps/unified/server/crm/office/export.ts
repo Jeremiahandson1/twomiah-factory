@@ -261,8 +261,13 @@ export function createExportRoutes(d: CrmDeps) {
   // of them, so a viewer could download every invoice, and the team's pay. The team export carries hourly rates, which
   // the team list shows only with payroll:read.
   const EXPORT_PERMISSIONS: Record<string, string[]> = {
-    contacts: ['contacts:read'], projects: ['projects:read'], jobs: ['jobs:read'], quotes: ['quotes:read'],
-    invoices: ['invoices:read'], time: ['time:read'], expenses: ['expenses:read'], team: ['team:read', 'payroll:read'],
+    // A project's budget and estimated value are withheld from the list without invoices:read (projects.ts); the export
+    // carries both, so it asks the same.
+    contacts: ['contacts:read'], projects: ['projects:read', 'invoices:read'], jobs: ['jobs:read'], quotes: ['quotes:read'],
+    // Time and expenses export EVERYONE's lines — each person's hourly rate, every claim the company paid — while their
+    // lists show a seat without the office's verb only its own. So the export asks that verb too: time:approve and
+    // expenses:approve, which managers and up hold and a technician or viewer does not (live role check sweep, 2026-10-23).
+    invoices: ['invoices:read'], time: ['time:read', 'time:approve'], expenses: ['expenses:read', 'expenses:approve'], team: ['team:read', 'payroll:read'],
   }
   const mayExport = async (c: any, next: any) => {
     const need = EXPORT_PERMISSIONS[c.req.param('type')]

@@ -10,6 +10,7 @@ import { DEFAULT_CONTACT_TYPES } from '../contacts/types'
 import type { MarketingApi, MarketingToast, MarketingConfig } from './types'
 import { whenDateTime, companyFromLocalInput } from '../time/companyClock'
 import { codeLabel } from '../labels/codes'
+import { useMayWrite } from '../auth/PermissionsContext'
 
 interface Stats { totalCampaigns: number; activeSequences: number; activeEnrollments?: number; emailsSent30Days: number; campaignSends30Days?: number; openRate?: number; clickRate?: number; totalOptOuts?: number }
 interface Campaign { id: string; name: string; subject?: string; content?: string; status: string; audienceType?: string; audienceFilter?: any; recipientCount?: number; openCount?: number; clickCount?: number; unsubscribeCount?: number; lastError?: string | null; scheduledDate?: string | null; sentAt?: string | null }
@@ -83,7 +84,18 @@ const ErrorBox = ({ msg }: { msg: string }) => (msg ? <div role="alert" classNam
 const Spinner = () => <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
 
 // ─── campaigns ────────────────────────────────────────────────────────────────
+/**
+ * Each write control asks what its own route asks (packages/tenant-backend/src/marketing/marketing.ts): New and
+ * Duplicate are marketing:create; Edit, Send, Schedule, Pause/Resume and Enroll are marketing:update; Delete is
+ * marketing:delete, which a manager does not hold. Every Delete was drawn for every seat that could open the page
+ * and answered 403 for a manager (live role check, 2026-10-23).
+ */
+function useMarketingWrites() {
+  return { mayCreate: useMayWrite('marketing:create'), mayUpdate: useMayWrite('marketing:update'), mayDelete: useMayWrite('marketing:delete') }
+}
+
 function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingApi; toast: MarketingToast; contactTypes: Array<{ value: string; label: string }>; onChanged: () => void }) {
+  const { mayCreate, mayUpdate, mayDelete } = useMarketingWrites()
   const [rows, setRows] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<{ open: boolean; campaign: Campaign | null }>({ open: false, campaign: null })
@@ -100,7 +112,7 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
   if (loading) return <Spinner />
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><Button onClick={() => setForm({ open: true, campaign: null })}><Plus className="w-4 h-4 mr-2 inline" />New Campaign</Button></div>
+      {mayCreate && <div className="flex justify-end"><Button onClick={() => setForm({ open: true, campaign: null })}><Plus className="w-4 h-4 mr-2 inline" />New Campaign</Button></div>}
       {rows.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900"><Mail className="w-12 h-12 mx-auto text-gray-400 mb-3" /><p className="text-gray-500 dark:text-slate-400">No campaigns yet</p></div>
       ) : (
@@ -126,12 +138,12 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1 justify-end">
                       {(c.status === 'draft' || c.status === 'failed') && <>
-                        <button onClick={() => setConfirmSend(c)} className="p-1.5 text-green-700 hover:bg-green-50 rounded-lg dark:text-green-300" title={c.status === 'failed' ? 'Send again' : 'Send now'}><Send className="w-4 h-4" /></button>
-                        <button onClick={() => setSchedule({ campaign: c, when: '' })} className="p-1.5 text-orange-700 hover:bg-orange-50 rounded-lg dark:text-orange-200" title="Schedule"><Calendar className="w-4 h-4" /></button>
+                        {mayUpdate && <button onClick={() => setConfirmSend(c)} className="p-1.5 text-green-700 hover:bg-green-50 rounded-lg dark:text-green-300" title={c.status === 'failed' ? 'Send again' : 'Send now'}><Send className="w-4 h-4" /></button>}
+                        {mayUpdate && <button onClick={() => setSchedule({ campaign: c, when: '' })} className="p-1.5 text-orange-700 hover:bg-orange-50 rounded-lg dark:text-orange-200" title="Schedule"><Calendar className="w-4 h-4" /></button>}
                       </>}
-                      {c.status === 'scheduled' && <button onClick={() => unschedule(c)} className="p-1.5 text-orange-700 hover:bg-orange-50 rounded-lg dark:text-orange-200" title="Cancel schedule"><X className="w-4 h-4" /></button>}
-                      {c.status !== 'sent' && c.status !== 'sending' && <button onClick={() => setForm({ open: true, campaign: c })} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800" title="Edit"><Edit2 className="w-4 h-4" /></button>}
-                      {c.status !== 'sending' && <button onClick={() => setToDelete(c)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Delete"><Trash2 className="w-4 h-4" /></button>}
+                      {mayUpdate && c.status === 'scheduled' && <button onClick={() => unschedule(c)} className="p-1.5 text-orange-700 hover:bg-orange-50 rounded-lg dark:text-orange-200" title="Cancel schedule"><X className="w-4 h-4" /></button>}
+                      {mayUpdate && c.status !== 'sent' && c.status !== 'sending' && <button onClick={() => setForm({ open: true, campaign: c })} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800" title="Edit"><Edit2 className="w-4 h-4" /></button>}
+                      {mayDelete && c.status !== 'sending' && <button onClick={() => setToDelete(c)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Delete"><Trash2 className="w-4 h-4" /></button>}
                     </div>
                   </td>
                 </tr>
@@ -254,6 +266,7 @@ function CampaignForm({ api, toast, campaign, contactTypes, onSaved, onClose }: 
 
 // ─── templates ────────────────────────────────────────────────────────────────
 function TemplatesTab({ api, toast }: { api: MarketingApi; toast: MarketingToast }) {
+  const { mayCreate, mayUpdate, mayDelete } = useMarketingWrites()
   const [rows, setRows] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<{ open: boolean; template: Template | null }>({ open: false, template: null })
@@ -265,7 +278,7 @@ function TemplatesTab({ api, toast }: { api: MarketingApi; toast: MarketingToast
   if (loading) return <Spinner />
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><Button onClick={() => setForm({ open: true, template: null })}><Plus className="w-4 h-4 mr-2 inline" />New Template</Button></div>
+      {mayCreate && <div className="flex justify-end"><Button onClick={() => setForm({ open: true, template: null })}><Plus className="w-4 h-4 mr-2 inline" />New Template</Button></div>}
       {rows.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900"><FileText className="w-12 h-12 mx-auto text-gray-400 mb-3" /><p className="text-gray-500 dark:text-slate-400">No templates yet</p></div>
       ) : (
@@ -275,9 +288,9 @@ function TemplatesTab({ api, toast }: { api: MarketingApi; toast: MarketingToast
               <div className="flex items-start justify-between">
                 <div><p className="font-medium text-gray-900 dark:text-slate-100">{t.name}{t.active === false && <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">inactive</span>}</p><p className="text-sm text-gray-500 dark:text-slate-400 capitalize">{t.category || t.type}</p></div>
                 <div className="flex gap-1">
-                  <button onClick={() => setForm({ open: true, template: t })} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Edit"><Edit2 className="w-4 h-4" /></button>
-                  <button onClick={() => duplicate(t)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Duplicate"><Copy className="w-4 h-4" /></button>
-                  <button onClick={() => setToDelete(t)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                  {mayUpdate && <button onClick={() => setForm({ open: true, template: t })} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Edit"><Edit2 className="w-4 h-4" /></button>}
+                  {mayCreate && <button onClick={() => duplicate(t)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Duplicate"><Copy className="w-4 h-4" /></button>}
+                  {mayDelete && <button onClick={() => setToDelete(t)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg" title="Delete"><Trash2 className="w-4 h-4" /></button>}
                 </div>
               </div>
               <p className="mt-2 text-sm text-gray-600 line-clamp-2 dark:text-slate-400">{t.subject}</p>
@@ -324,6 +337,7 @@ function TemplateForm({ api, toast, template, onSaved, onClose }: { api: Marketi
 
 // ─── sequences ────────────────────────────────────────────────────────────────
 function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toast: MarketingToast; label: string; onChanged: () => void }) {
+  const { mayCreate, mayUpdate, mayDelete } = useMarketingWrites()
   const [rows, setRows] = useState<Sequence[]>([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState<{ open: boolean; sequence: Sequence | null }>({ open: false, sequence: null })
@@ -337,7 +351,7 @@ function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toa
   if (loading) return <Spinner />
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><Button onClick={() => setForm({ open: true, sequence: null })}><Plus className="w-4 h-4 mr-2 inline" />New Sequence</Button></div>
+      {mayCreate && <div className="flex justify-end"><Button onClick={() => setForm({ open: true, sequence: null })}><Plus className="w-4 h-4 mr-2 inline" />New Sequence</Button></div>}
       {rows.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900"><Zap className="w-12 h-12 mx-auto text-gray-400 mb-3" /><p className="text-gray-500 dark:text-slate-400">No {label.toLowerCase()} yet</p><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">A series of emails sent automatically, spaced out over days, to the contacts you enroll.</p></div>
       ) : rows.map((s) => (
@@ -352,10 +366,10 @@ function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toa
             </div>
             <div className="flex items-center gap-2">
               <span className={`px-2 py-1 text-xs rounded-full ${s.active ? 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40' : 'bg-gray-100 text-gray-600 dark:text-slate-300 dark:bg-slate-800'}`}>{s.active ? 'Active' : 'Paused'}</span>
-              <button onClick={() => setEnroll(s)} disabled={!s.active} className="flex items-center gap-1 px-2.5 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800" title={s.active ? 'Enroll a contact' : 'Resume the sequence to enroll'}><UserPlus className="w-4 h-4" /> Enroll</button>
-              <button onClick={() => toggle(s)} className="p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title={s.active ? 'Pause' : 'Resume'}>{s.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>
-              <button onClick={() => setForm({ open: true, sequence: s })} className="p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title="Edit"><Edit2 className="w-4 h-4" /></button>
-              <button onClick={() => setToDelete(s)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Delete"><Trash2 className="w-4 h-4" /></button>
+              {mayUpdate && <button onClick={() => setEnroll(s)} disabled={!s.active} className="flex items-center gap-1 px-2.5 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800" title={s.active ? 'Enroll a contact' : 'Resume the sequence to enroll'}><UserPlus className="w-4 h-4" /> Enroll</button>}
+              {mayUpdate && <button onClick={() => toggle(s)} className="p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title={s.active ? 'Pause' : 'Resume'}>{s.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>}
+              {mayUpdate && <button onClick={() => setForm({ open: true, sequence: s })} className="p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title="Edit"><Edit2 className="w-4 h-4" /></button>}
+              {mayDelete && <button onClick={() => setToDelete(s)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Delete"><Trash2 className="w-4 h-4" /></button>}
             </div>
           </div>
           {(s.steps?.length || 0) > 0 && (

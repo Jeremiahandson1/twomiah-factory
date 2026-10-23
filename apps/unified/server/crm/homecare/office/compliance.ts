@@ -165,7 +165,11 @@ export function createComplianceRoutes(d: CrmDeps) {
   // The last 100 sign-ins and failed attempts, from the app's own audit log — where the shared sign-in records every
   // one, with the person, the address and the browser. The template read its login_activity table, which nothing in
   // the unified app writes (found in the move); an agency's old rows join the audit log in the cutover data move.
-  app.get('/login-activity', read, async (c) => {
+  //
+  // The owner's and the admins' only: audit:read, the permission the app's own audit log asks (permissions.ts, owner's
+  // decision 2026-10-09 — sign-ins and IP addresses are not a manager's). It asked care-compliance:read, which an Office
+  // Manager holds, so a manager read every person's sign-ins, addresses and browsers (live role check, 2026-10-23).
+  app.get('/login-activity', d.permissions.requirePermission('audit:read'), async (c) => {
     const rows = await d.db.select({
       id: auditLog.id,
       email: auditLog.userEmail,

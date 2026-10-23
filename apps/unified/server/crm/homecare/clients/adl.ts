@@ -125,8 +125,11 @@ export function createAdlRoutes(core: HomecareCore, d: CrmDeps, access: ClientAc
 
   app.delete('/requirements/:reqId', requirePermission('care-clients:delete'), async (c) => {
     const { companyId } = who(c)
-    await db.update(adlRequirements).set({ isActive: false, updatedAt: new Date() })
+    // An id that is not this company's (or not there at all) is a 404, not a success that deleted nothing (live role check, 2026-10-23).
+    const gone = await db.update(adlRequirements).set({ isActive: false, updatedAt: new Date() })
       .where(and(eq(adlRequirements.id, c.req.param('reqId')), eq(adlRequirements.companyId, companyId)))
+      .returning({ id: adlRequirements.id })
+    if (!gone.length) return fail(c, 404, 'Requirement not found')
     return done(c)
   })
 

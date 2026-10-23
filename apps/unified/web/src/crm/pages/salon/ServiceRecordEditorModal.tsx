@@ -5,7 +5,7 @@ import { api } from '../../../api'
 import { fetchStaff, staffName, type StaffMember } from './staff';
 import { todayKey as todayStr } from '../../../shared'
 import { companyDayKey as toDayString, companyMoment, companyHHMM, daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
-import { useConfirm } from '../../../shared'
+import { useConfirm, useMayWrite } from '../../../shared'
 import { useToast } from '../../../shared'
 
 /**
@@ -91,6 +91,9 @@ function toDateInput(s?: string): string {
 export default function ServiceRecordEditorModal({ contactId, record, appointmentId, onSave, onClose }: Props) {
   const toast = useToast();
   const confirm = useConfirm();
+  // Deleting a visit is DELETE /api/service-records/:id, which asks invoices:update (a visit is what the client is billed
+  // for): a stylist edits the record (schedule:update) but was offered Delete and refused (live role check sweep, 2026-10-23).
+  const mayDelete = useMayWrite('invoices:update');
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [stylists, setStylists] = useState<StaffMember[]>([]);
@@ -319,7 +322,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
             </div>
 
             <div className="flex gap-3 pt-2">
-              {record?.id && (
+              {record?.id && mayDelete && (
                 <button type="button" onClick={handleDelete} disabled={saving} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50 dark:text-red-400">Delete</button>
               )}
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">Cancel</button>
