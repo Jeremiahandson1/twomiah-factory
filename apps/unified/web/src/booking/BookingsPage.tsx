@@ -159,6 +159,8 @@ function NewBookingDialog({ services, people, zone, requirePhone, onClose, onDon
   const [count, setCount] = useState('8')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A refusal clears once the booking is changed — never left over a day and time now chosen.
+  useEffect(() => { setError(null) }, [when, f, serviceId, repeat, frequency, count])
   const [result, setResult] = useState<{ summary: string; booked: number; skipped: Array<{ date: string; reason: string }> } | null>(null)
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }))
 

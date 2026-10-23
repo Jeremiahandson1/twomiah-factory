@@ -15,6 +15,7 @@ import type { VerticalSettings } from '../core/vertical.ts'
 import type { Audit } from '../core/audit.ts'
 import type { EmailService } from '../core/email.ts'
 import { queryAudit, auditFilterOptions } from '../data/audit.ts'
+import { userHolds } from '../data/userHolds.ts'
 import { list, one, fail, done } from '../http/reply.ts'
 import type { AppEnv } from '../http/env.ts'
 import type { Realtime } from '../core/realtime.ts'
@@ -92,6 +93,8 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     requirePermission: permissions.requirePermission, requireAnyPermission: permissions.requireAnyPermission,
     canSee, invalidateExtraPermissions: permissions.invalidateExtraPermissions, roleLabel: permissions.roleLabel,
     audit, template: vertical.featureSet,
+    // A login that still holds work (jobs, commissions, shifts …) is deactivated, never deleted (data/userHolds.ts).
+    heldBy: userHolds,
     // The owner's switch takes effect on the next request, not after the gate's 15-second cache.
     onFeaturesChanged: (features: string[]) => { deps.features.forgetFeatures(); void deps.adsConnector.onFeaturesChanged(features) },
     sendInvite: (to: string, data: any) => email.sendTeamInvite(to, { ...data, inviteLink: `${process.env.FRONTEND_URL || ''}/reset-password?token=${data.resetToken}` }),

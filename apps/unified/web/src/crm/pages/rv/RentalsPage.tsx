@@ -35,6 +35,8 @@ export default function RentalsPage() {
   const [show, setShow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A refusal clears once the form is changed — never left over a unit and customer now filled in.
+  useEffect(() => { setError(null); }, [form]);
   const [busyId, setBusyId] = useState<string | null>(null);
   // POST /api/rentals/create asks contacts:create and POST /:id/status contacts:update — the controls ask the same,
   // so a seat the server refuses is not offered them. (T62: "RV Rentals … staff see that the server refuses")

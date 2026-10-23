@@ -196,7 +196,7 @@ describe('GPS & Geofences', () => {
     const asked = await (await as('/api/geofencing?limit=25')).json()
     expect(asked.data).toEqual([])
     expect(asked.pagination).toEqual({ page: 1, limit: 25, total: 0, pages: 0 })
-    expect((await (await as('/api/geofencing')).json()).pagination.limit).toBe(0)
+    expect((await (await as('/api/geofencing')).json()).pagination.limit).toBe(50)
     expect((await (await as('/api/booking/waitlist?limit=50')).json()).pagination.limit).toBe(50)
     expect((await (await t.call('/api/book/services/furnace-check/times?date=' + addDays(today, 60) + '&limit=20')).json()).pagination).toEqual({ page: 1, limit: 20, total: 0, pages: 0 })
   })

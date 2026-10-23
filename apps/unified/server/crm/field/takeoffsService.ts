@@ -116,6 +116,20 @@ export function materialLines(materials: any[], opts: { sale?: boolean } = {}) {
   }))
 }
 
+/**
+ * What a material is SOLD at: its own selling price when one is set (more than 0); else its cost marked up by the
+ * company's default markup (Takeoffs › Material prices), to the cent; else nothing (0). The standard assemblies come
+ * with a cost and no selling price, so every takeoff quote was $0.00 until each price was typed (contractor re-test
+ * 2026-10-23) — an estimator sets one markup and every material without its own price is priced from its cost.
+ */
+export function sellingPrice(mat: { unitCost?: unknown; unitPrice?: unknown }, markupPercent: number | null): number {
+  const own = Number(mat.unitPrice || 0)
+  if (own > 0) return Math.round(own * 100) / 100
+  const cost = Number(mat.unitCost || 0)
+  if (markupPercent === null || !(cost > 0)) return 0
+  return Math.round(cost * (1 + markupPercent / 100) * 100) / 100
+}
+
 export function createTakeoffsService(d: CrmDeps) {
   const { db } = d
 
@@ -138,8 +152,23 @@ export function createTakeoffsService(d: CrmDeps) {
 
   async function getAssemblies(companyId: string, { category, active = true }: { category?: string; active?: boolean | null } = {}) {
     const assemblies = await q.listAssemblies(db, companyId, { category, active })
-    for (const assembly of assemblies) assembly.materials = await q.assemblyMaterials(db, assembly.id)
+    const markup = await q.readTakeoffMarkup(db, companyId)
+    // Each material with the price a quote charges for it (its own, or its cost at the company's markup), so the
+    // Material prices screen shows what an empty selling price comes to.
+    for (const assembly of assemblies) {
+      assembly.materials = (await q.assemblyMaterials(db, assembly.id)).map((m: any) => ({ ...m, sellingPrice: sellingPrice(m, markup) }))
+    }
     return assemblies
+  }
+
+  /** Takeoff settings: the company's default markup on cost, in percent (null: none — a material sells at its own price). */
+  const getSettings = async (companyId: string) => ({ markupPercent: await q.readTakeoffMarkup(db, companyId) })
+
+  /** Change the default markup; every sheet is worked out again at it (a sheet keeps the prices it was worked out at). */
+  async function setSettings(companyId: string, data: { markupPercent: number | null }) {
+    await q.writeTakeoffMarkup(db, companyId, data.markupPercent)
+    for (const itemId of await q.itemIdsOfCompany(db, companyId)) await calculateItemMaterials(itemId)
+    return getSettings(companyId)
   }
 
   /**
@@ -208,17 +237,20 @@ export function createTakeoffsService(d: CrmDeps) {
     if (!item) return
     const materials = await q.assemblyMaterials(db, item.assemblyId)
     await q.deleteCalculatedMaterials(db, itemId)
+    // The selling price of a material with none of its own is its cost at the company's markup (sellingPrice).
+    const markup = item.assembly?.companyId ? await q.readTakeoffMarkup(db, item.assembly.companyId) : null
 
     const wasteFactor = 1 + (item.wasteFactor || 0) / 100
     for (const mat of materials) {
       const baseQuantity = item.measurementValue * mat.quantityPer
       const quantityWithWaste = baseQuantity * wasteFactor
       const measured = Math.round(quantityWithWaste * 10000) / 10000
+      const unitPrice = sellingPrice(mat, markup)
       const totalCost = measured * Number(mat.unitCost || 0)
-      const totalPrice = measured * Number(mat.unitPrice || 0)
+      const totalPrice = measured * unitPrice
       await q.insertCalculatedMaterial(db, itemId, {
         materialName: mat.name, unit: mat.unit, baseQuantity, wasteQuantity: quantityWithWaste - baseQuantity,
-        totalQuantity: measured, unitCost: mat.unitCost, unitPrice: mat.unitPrice, totalCost, totalPrice,
+        totalQuantity: measured, unitCost: mat.unitCost, unitPrice, totalCost, totalPrice,
         inventoryItemId: mat.inventoryItemId,
       })
     }
@@ -267,7 +299,12 @@ export function createTakeoffsService(d: CrmDeps) {
   async function getSheetMaterialTotals(sheetId: string, companyId: string) {
     const sheet = await q.findSheet(db, sheetId, companyId)
     if (!sheet) throw notFound('Sheet not found')
-    return aggregateMaterials(await q.sheetCalculatedMaterials(db, sheetId))
+    const out = aggregateMaterials(await q.sheetCalculatedMaterials(db, sheetId))
+    // Two prices, each named for what it is: totalPrice is the material AS MEASURED (5.61 sheets × the price), what a
+    // quote from this sheet charges is whole sellable units (6 sheets) — quotePrice. Side by side, so 5.61 against the
+    // quote's 6 does not read as a rounding bug (contractor re-test 2026-10-23).
+    const quotePrice = materialLines(out.materials, { sale: true }).reduce((s, l) => s + Math.round(l.quantity * l.unitPrice * 100) / 100, 0)
+    return { ...out, totals: { ...out.totals, quotePrice: Math.round(quotePrice * 100) / 100 } }
   }
 
   async function getProjectMaterialTotals(projectId: string, companyId: string) {
@@ -334,6 +371,8 @@ export function createTakeoffsService(d: CrmDeps) {
     createAssembly,
     getAssembly,
     getAssemblies,
+    getSettings,
+    setSettings,
     updateAssembly,
     seedDefaultAssemblies,
     createTakeoffSheet,

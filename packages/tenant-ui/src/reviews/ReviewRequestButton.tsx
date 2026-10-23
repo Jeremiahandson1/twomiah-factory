@@ -25,8 +25,9 @@ export function ReviewRequestButton({ api, toast, jobId, contactId, hasFeature, 
   const send = async () => {
     setBusy(true)
     try {
-      await api.post(jobId ? `/api/reviews/request/${jobId}` : `/api/reviews/request-contact/${contactId}`, { channel: 'both' })
-      toast.success('Review request sent')
+      const r = await api.post(jobId ? `/api/reviews/request/${jobId}` : `/api/reviews/request-contact/${contactId}`, { channel: 'both' })
+      // Where it went ("emailed to …"), and why the other way didn't go — never a bare "sent" (server sentSummary).
+      toast.success(typeof r?.summary === 'string' && r.summary ? r.summary : 'Review request sent')
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : 'The review request could not be sent')
     } finally { setBusy(false) }

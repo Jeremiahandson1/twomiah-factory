@@ -49,6 +49,23 @@ function nothingSent(ct: any, channel: string, results: { sms: any; email: any }
   return `Nothing was sent — ${ct?.name || 'this customer'} has no ${missing} on file.`
 }
 
+/** A text the carrier refused because the business has no number to send from, said as what to do about it. */
+const smsReason = (msg: unknown) => /'From'|MessagingServiceSid|not configured|no (?:sending )?number/i.test(String(msg || ''))
+  ? 'texting is not set up for this business yet (Settings › Texting)'
+  : String(msg || 'failed')
+
+/**
+ * What went out and where, in one sentence for the person who pressed Send: "Emailed to x." and, when one of the two
+ * did not go, why. It said "Review request sent" when the text failed and the email went (live re-test 2026-10-23,
+ * roofing: the tester looked for a text and an email from the business and could not tell which had been sent).
+ */
+export function sentSummary(to: { email?: string | null; phone?: string | null }, ok: { sms: boolean; email: boolean }, failed: { sms?: unknown; email?: unknown }): string {
+  const went = [ok.email && to.email ? `emailed to ${to.email}` : null, ok.sms && to.phone ? `texted to ${to.phone}` : null].filter(Boolean)
+  const not = [failed.email !== undefined ? `the email was not sent (${String(failed.email || 'failed')})` : null, failed.sms !== undefined ? `the text was not sent: ${smsReason(failed.sms)}` : null].filter(Boolean)
+  const head = 'Review request ' + went.join(' and ') + '.'
+  return not.length ? `${head} ${not.join('; ').replace(/^./, (c) => c.toUpperCase())}.` : head
+}
+
 const DEFAULT_SMS_TEMPLATE = 'Hi {firstName}, thanks for choosing {companyName}! We\'d love your feedback — could you leave us a quick Google review? {trackingUrl}'
 const FOLLOW_UP_SMS_TEMPLATE = 'Hi {firstName}, just a friendly reminder from {companyName} — we\'d really appreciate a quick Google review if you have a moment! {trackingUrl}'
 
@@ -216,7 +233,10 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     await db.update(t.reviewRequest).set({ status: delivered ? 'sent' : 'failed', sentAt: delivered ? new Date() : null, channel, reviewLink }).where(eq(t.reviewRequest.id, request.id))
     // Nothing went out: say why, rather than answer 200 with a request marked failed that nobody looks at.
     if (!delivered) throw new Error(nothingSent(contactRow, channel, results))
-    return { requestId: request.id, reviewLink, results }
+    const summary = sentSummary({ email: contactRow.email, phone },
+      { sms: !!results.sms && !results.sms.error, email: !!results.email && !results.email.error },
+      { ...(results.sms?.error !== undefined ? { sms: results.sms.error } : {}), ...(results.email?.error !== undefined ? { email: results.email.error } : {}) })
+    return { requestId: request.id, reviewLink, results, summary }
   }
 
   /**
@@ -232,7 +252,7 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     const [request] = await db.insert(t.reviewRequest).values({ companyId, contactId, jobId: null, channel, status: 'pending', reviewLink }).returning()
     try {
       const sent = await sendFollowUp(request.id)
-      return { requestId: request.id, reviewLink, status: sent?.status ?? 'sent' }
+      return { requestId: request.id, reviewLink, status: sent?.status ?? 'sent', summary: sent?.summary }
     } catch (err) {
       // Recorded as failed, so the five-minute sweeper never sends it later behind the person's back.
       await db.update(t.reviewRequest).set({ status: 'failed' }).where(eq(t.reviewRequest.id, request.id))
@@ -320,18 +340,20 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     const phone = ct.mobile || ct.phone
     const failures: string[] = []
     let sent = false
+    const ok = { sms: false, email: false }
+    const failed: { sms?: unknown; email?: unknown } = {}
 
     if ((channel === 'sms' || channel === 'both') && phone) {
       try {
         await sendReviewSms(comp, phone, { contactName: firstName(ct.name), companyName: comp.name || '', reviewLink: url, template: firstSend ? (settings.reviewSmsTemplate || DEFAULT_SMS_TEMPLATE) : FOLLOW_UP_SMS_TEMPLATE })
-        sent = true
-      } catch (e: any) { console.error('[Reviews] SMS failed:', e?.message); failures.push('text message: ' + (e?.message || 'failed')) }
+        sent = true; ok.sms = true
+      } catch (e: any) { console.error('[Reviews] SMS failed:', e?.message); failures.push('text message: ' + (e?.message || 'failed')); failed.sms = e?.message || 'failed' }
     }
     if ((channel === 'email' || channel === 'both') && ct.email) {
       try {
         await sendReviewEmail(ct.email, { contactName: ct.name || 'Valued Customer', companyName: comp.name || '', jobTitle: '', reviewLink: url })
-        sent = true
-      } catch (e: any) { console.error('[Reviews] Email failed:', e?.message); failures.push('email: ' + (e?.message || 'failed')) }
+        sent = true; ok.email = true
+      } catch (e: any) { console.error('[Reviews] Email failed:', e?.message); failures.push('email: ' + (e?.message || 'failed')); failed.email = e?.message || 'failed' }
     }
 
     if (!sent) {
@@ -342,7 +364,7 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     await db.update(t.reviewRequest)
       .set(firstSend ? { status: 'sent', sentAt: new Date() } : { followUpSentAt: new Date() })
       .where(eq(t.reviewRequest.id, requestId))
-    return { id: requestId, status: firstSend ? 'sent' : 'follow_up_sent' }
+    return { id: requestId, status: firstSend ? 'sent' : 'follow_up_sent', summary: sentSummary({ email: ct.email, phone }, ok, failed) }
   }
 
   async function markReviewCompleted(requestId: string, { clicked }: { clicked?: boolean } = {}) {

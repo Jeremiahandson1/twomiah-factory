@@ -278,3 +278,28 @@ export async function projectCalculatedMaterials(db: any, projectId: string, com
     WHERE ts.project_id = ${projectId} AND ts.company_id = ${companyId}
   `))
 }
+
+// ── the company's default markup ─────────────────────────────────────────────────────────────────
+
+/** The company's default markup on a material's cost, in percent (company.settings.takeoffMarkupPercent), or null. */
+export async function readTakeoffMarkup(db: any, companyId: string): Promise<number | null> {
+  const row = rowsOf(await db.execute(sql`
+    SELECT CASE jsonb_typeof(settings::jsonb) WHEN 'object' THEN settings::jsonb ->> 'takeoffMarkupPercent' WHEN 'string' THEN (settings::jsonb #>> '{}')::jsonb ->> 'takeoffMarkupPercent' END AS markup FROM company WHERE id = ${companyId}
+  `))[0]
+  const n = row?.markup == null ? NaN : Number(row.markup)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+
+/** Set (or, with null, remove) the default markup — merged into the settings blob, never replacing it. */
+export async function writeTakeoffMarkup(db: any, companyId: string, percent: number | null) {
+  await db.execute(percent === null
+    ? sql`UPDATE company SET settings = ((CASE jsonb_typeof(settings::jsonb) WHEN 'object' THEN settings::jsonb WHEN 'string' THEN (settings::jsonb #>> '{}')::jsonb ELSE '{}'::jsonb END) - 'takeoffMarkupPercent')::json, updated_at = now() WHERE id = ${companyId}`
+    : sql`UPDATE company SET settings = ((CASE jsonb_typeof(settings::jsonb) WHEN 'object' THEN settings::jsonb WHEN 'string' THEN (settings::jsonb #>> '{}')::jsonb ELSE '{}'::jsonb END) || jsonb_build_object('takeoffMarkupPercent', ${percent}::numeric))::json, updated_at = now() WHERE id = ${companyId}`)
+}
+
+/** Every takeoff item of the company, so its materials can be worked out again when the markup changes. */
+export async function itemIdsOfCompany(db: any, companyId: string): Promise<string[]> {
+  return rowsOf(await db.execute(sql`
+    SELECT ti.id FROM takeoff_item ti JOIN takeoff_sheet ts ON ts.id = ti.sheet_id WHERE ts.company_id = ${companyId}
+  `)).map((r: any) => r.id)
+}

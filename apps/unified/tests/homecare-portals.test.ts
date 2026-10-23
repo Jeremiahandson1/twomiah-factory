@@ -80,7 +80,7 @@ describe("/api/portal and /api/sms: home care's routers in front of the CRM's", 
   test("home care's texting templates answer on /api/sms, and the CRM's texting routes still do", async () => {
     const tpl = await as('admin', '/api/sms/templates')
     expect(tpl.status).toBe(200)
-    expect(await tpl.json()).toEqual({ data: [], pagination: { page: 1, limit: 0, total: 0, pages: 0 } })
+    expect(await tpl.json()).toEqual({ data: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } })
     const crm = await as('admin', '/api/sms/unread-count')
     expect(crm.status).toBe(200)
     expect(typeof (await crm.json()).count).toBe('number')

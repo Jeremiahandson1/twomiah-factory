@@ -178,6 +178,8 @@ function NewMessageModal({ api, toast, contactsPath, onClose, onSent }: { api: M
   const [matches, setMatches] = useState<typeof contacts>([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  // A refusal clears once they change what it was about — never left standing over a number or message now filled in.
+  useEffect(() => { setError('') }, [to, body])
   useEffect(() => { api.get(contactsPath, { limit: 100 }).then((d: any) => setContacts(d?.data || [])).catch(() => setContacts([])) }, [api, contactsPath])
   // Typing again after picking a contact is a new destination — drop the link so the thread is not filed under the wrong person.
   const onType = (v: string) => { setTo(v); setContactId(null); setMatches(v.length >= 2 ? contacts.filter((c) => (c.name || '').toLowerCase().includes(v.toLowerCase()) || (c.phone || '').includes(v) || (c.mobile || '').includes(v)).slice(0, 5) : []) }

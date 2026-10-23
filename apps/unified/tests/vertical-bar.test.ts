@@ -31,7 +31,7 @@ describe('bar', () => {
     expect(await r.json()).toEqual({ member: null, history: [] })
     const rewards = await as('/api/loyalty/rewards')
     expect(rewards.status).toBe(200)
-    expect(await rewards.json()).toEqual({ data: [], pagination: { page: 1, limit: 0, total: 0, pages: 0 } })
+    expect(await rewards.json()).toEqual({ data: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } })
   }, 30_000)
 
   test('the header search finds a menu item (86 shown) and a tap, where the menu is on', async () => {

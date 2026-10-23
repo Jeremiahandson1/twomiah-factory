@@ -146,6 +146,8 @@ const SignatureDialog = ({ open, documentName, onClose, onSign }: {
   const [dirty, setDirty] = useState(false);
   const [typedName, setTypedName] = useState('');
   const [error, setError] = useState('');
+  // A refusal clears once the name is typed again — never left over a name now given.
+  useEffect(() => { setError(''); }, [typedName]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {

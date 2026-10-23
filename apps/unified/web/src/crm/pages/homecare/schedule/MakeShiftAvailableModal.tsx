@@ -66,6 +66,8 @@ export default function MakeShiftAvailableModal({ schedule, date, clientName, ca
   const [autoAssign, setAutoAssign] = useState(true)
   const [sendText, setSendText] = useState(true)
   const [error, setError] = useState('')
+  // A refusal clears once they change what it was about — never left over a caregiver now ticked or a bonus now fixed.
+  useEffect(() => { setError('') }, [selected, bonus])
   const [submitting, setSubmitting] = useState(false)
 
   const visitDate = date || schedule.date || ''

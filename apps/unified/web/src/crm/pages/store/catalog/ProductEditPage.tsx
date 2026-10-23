@@ -117,7 +117,11 @@ export default function ProductEditPage() {
     return () => { live = false }
   }, [id])
 
-  const set = <K extends keyof DetailsForm>(k: K, v: DetailsForm[K]) => setForm((f) => ({ ...f, [k]: v }))
+  // Editing a field takes its refusal away: "Give the product a name." stayed under a name already typed.
+  const set = <K extends keyof DetailsForm>(k: K, v: DetailsForm[K]) => {
+    setForm((f) => ({ ...f, [k]: v }))
+    setFieldErrors((e) => { if (!(k in e)) return e; const { [k as string]: _gone, ...rest } = e; return rest })
+  }
 
   const save = async () => {
     setFormError(null); setFieldErrors({})

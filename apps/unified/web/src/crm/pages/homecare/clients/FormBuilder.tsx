@@ -106,6 +106,8 @@ function FormFiller({ template, clients, caregivers, onClose, onSaved }: {
   const [signature, setSignature] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // A refusal clears once they change what it was about — never left over a client or caregiver now picked.
+  useEffect(() => { setError('') }, [entityId, entityType, formData, signature])
   const fields = parseFields(template.fields)
 
   // Long forms (the in-home assessment) are filled out over 20+ minutes — never
