@@ -30,6 +30,8 @@ beforeAll(async () => {
   t = await bootTenant({ vertical: 'homecare' })
   const seeded = await seedOwner(t)
   companyId = seeded.company.id
+  // The company's documents are the Documents switch's (2026-10-22: home care's switches hide what they name).
+  await t.db.update(t.schema.company).set({ enabledFeatures: ['documents'] } as any).where(eq(t.schema.company.id, companyId))
   ids.owner = seeded.owner.id
   tokens.owner = await login('owner@test.example', seeded.password)
   const hash = await Bun.password.hash(PASS, 'bcrypt')

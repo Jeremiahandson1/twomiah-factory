@@ -28,7 +28,8 @@ beforeAll(async () => {
   companyId = seeded.company.id
   ids.owner = seeded.owner.id
   // /api/dashboard is the shared mount, behind the core 'dashboard' feature every synced tenant has on.
-  await t.db.update(t.schema.company).set({ enabledFeatures: ['dashboard'] }).where(eq(t.schema.company.id, companyId))
+  // Reports & Analytics is the reports switch's (2026-10-22: home care's switches hide what they name).
+  await t.db.update(t.schema.company).set({ enabledFeatures: ['dashboard', 'reports'] }).where(eq(t.schema.company.id, companyId))
   for (const [role, email] of [['admin', 'admin@hc.example'], ['manager', 'mgr@hc.example'], ['caregiver', 'cg@hc.example'], ['field', 'fld@hc.example']] as const) {
     const [u] = await t.db.insert(t.schema.user).values({
       email, passwordHash: await Bun.password.hash(PASSWORD, 'bcrypt'), firstName: email.split('@')[0], lastName: 'Tester', role, companyId,
