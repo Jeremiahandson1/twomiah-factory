@@ -1,6 +1,7 @@
 // The store's catalog screens (docs/UNIFIED_STORE_PLAN.md step 4): their routes under /crm, their menu items and the
 // permission each page's main API asks. Moved from templates/crm-store/frontend/src/pages/{ProductsPage, ProductEditPage,
-// DiscountsPage, ReviewsPage, LoyaltyPage, DomainPage, SettingsPage}.tsx.
+// DiscountsPage, ReviewsPage, LoyaltyPage, SettingsPage}.tsx. DomainPage is every business's now (crm/pages/DomainPage.tsx,
+// routed in App.tsx, on the shell's menu under Website); the store's menu still lists it in its own order (verticals/store.tsx).
 //
 // The menu is the template's (components/layout/AppLayout.tsx) order for these pages — Products, Discounts, Loyalty,
 // Reviews, Domain — each gated by the permission its page's main API asks (server/crm/store/catalog/*.ts,
@@ -22,7 +23,7 @@
 // (business details, integrations, branded email, help, done), so the store's is not a second one.
 import type { ReactElement } from 'react'
 import { Route } from 'react-router-dom'
-import { Gift, Globe, Package, Star, Store, Tag } from 'lucide-react'
+import { Gift, Package, Star, Store, Tag } from 'lucide-react'
 import type { NavItem } from '../../../../shared'
 import { page } from '../../../lazy'
 
@@ -31,7 +32,6 @@ const ProductEditPage = page(() => import('./ProductEditPage'))
 const DiscountsPage = page(() => import('./DiscountsPage'))
 const ReviewsPage = page(() => import('./ReviewsPage'))
 const LoyaltyPage = page(() => import('./LoyaltyPage'))
-const DomainPage = page(() => import('./DomainPage'))
 const StoreSettingsPage = page(() => import('./StoreSettingsPage'))
 
 /** Routes inside /crm, each <Route key path element />. */
@@ -42,7 +42,6 @@ export const routes: ReactElement[] = [
   <Route key="store-discounts" path="discounts" element={<DiscountsPage />} />,
   <Route key="store-loyalty" path="store-loyalty" element={<LoyaltyPage />} />,
   <Route key="store-reviews" path="product-reviews" element={<ReviewsPage />} />,
-  <Route key="store-domain" path="domain" element={<DomainPage />} />,
   <Route key="store-settings" path="store-settings" element={<StoreSettingsPage />} />,
 ]
 
@@ -56,8 +55,6 @@ export const nav: NavItem[] = [
   { to: '/crm/store-loyalty', icon: Gift, label: 'Loyalty', permission: 'loyalty:read' },
   // GET /api/admin/reviews asks reviews:read.
   { to: '/crm/product-reviews', icon: Star, label: 'Reviews', permission: 'reviews:read' },
-  // /api/admin/domain asks settings:update on every door (the template's menu asked the same).
-  { to: '/crm/domain', icon: Globe, label: 'Domain', permission: 'settings:update' },
   // The store's settings: its own address, not under /crm/settings, which the shell holds to the owner and admins (a
   // rank, routeRoles) — the store's managers change shipping (shipping:configure, owner's decision 2026-10-10), so the
   // page is offered to whoever may, and shows the rest as a record to a seat that may not.

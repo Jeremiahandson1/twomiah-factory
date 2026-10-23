@@ -6,9 +6,9 @@
 // a number, and that has not been reminded yet gets one text. The row is stamped reminderSentAt whether or not the
 // carrier accepted it, so a failure is recorded once and never retried into a spam loop.
 import { and, eq, gte, lte, isNull, inArray } from 'drizzle-orm'
-import { appointment, contact, serviceMenu, company, bookingSettings } from '../../db/schema/index.ts'
+import { appointment, contact, serviceMenu, company } from '../../db/schema/index.ts'
+import { companyTimeZone } from '@twomiah/tenant-backend'
 import type { Logger } from '../../core/logger.ts'
-import { DEFAULT_TZ } from './days.ts'
 
 const WINDOW_START_H = 22
 const WINDOW_END_H = 26
@@ -57,8 +57,8 @@ export function createAppointmentReminders(deps: { db: any; sms: { sendSMS: (com
         continue
       }
       if (!tzByCompany.has(r.appt.companyId)) {
-        const [bs] = await db.select({ timezone: bookingSettings.timezone }).from(bookingSettings).where(eq(bookingSettings.companyId, r.appt.companyId)).limit(1)
-        tzByCompany.set(r.appt.companyId, bs?.timezone || DEFAULT_TZ)
+        // The business's one clock (Settings › Company), as every other reader of the time has.
+        tzByCompany.set(r.appt.companyId, await companyTimeZone(db, r.appt.companyId))
       }
       const when = fmtWhen(new Date(r.appt.startTime), tzByCompany.get(r.appt.companyId)!)
       const first = (r.clientName || '').split(' ')[0] || 'there'

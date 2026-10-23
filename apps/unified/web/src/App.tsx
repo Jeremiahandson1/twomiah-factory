@@ -37,6 +37,7 @@ import * as storeScreens from './crm/verticals/store'
 const PortalApp = lazy(() => import('./crm/portal'))
 // A quote's or an invoice's own page, from the link in its email (crm/documentLink.tsx).
 const DocumentLinkApp = lazy(() => import('./crm/documentLink'))
+const DomainPage = page(() => import('./crm/pages/DomainPage'))
 const ProjectsPage = page(() => import('./crm/pages/ProjectsPage'))
 const ProjectDetailPage = page(() => import('./crm/pages/ProjectDetailPage'))
 const RFIsPage = page(() => import('./crm/pages/RFIsPage'))
@@ -204,6 +205,9 @@ export default function App() {
                       <Route path="website/portfolio" element={<ArticlesListPage kind={PORTFOLIO} />} />
                       <Route path="website/portfolio/:slug" element={<ArticleEditPage kind="portfolio" />} />
                       <Route path="website/settings" element={<SiteSettingsPage />} />
+                      {/* The business's own web address — every business's, website-only too (the server's /api/admin/domain
+                          and its Stripe return to /crm/domain always were; only a store had the screen). */}
+                      <Route path="domain" element={<DomainPage />} />
                       <Route path="bookings" element={<BookingsPage />} />
                       <Route path="bookings/calendar" element={<BookingCalendarPage />} />
                       <Route path="bookings/waitlist" element={<BookingWaitlistPage />} />

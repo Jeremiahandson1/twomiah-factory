@@ -97,7 +97,12 @@ export function createAiReceptionistRoutes(d: CrmDeps) {
   app.put('/settings', requirePermission('ai-receptionist:update'), async (c) => {
     const parsed = aiSettingsSchema.safeParse(await c.req.json())
     if (!parsed.success) return invalid(c, parsed.error)
-    return one(c, await aiReceptionist.upsertSettings(c.get('user').companyId, parsed.data as any))
+    const companyId = c.get('user').companyId
+    // The zone is the business's (Settings › Company). Sending back the one shown is fine; another is refused in words.
+    if (parsed.data.timezone !== undefined && parsed.data.timezone !== (await aiReceptionist.getSettings(companyId)).timezone) {
+      return fail(c, 400, 'The AI Receptionist keeps time on your business’s time zone. Change it under Settings › Company.', 'timezone_is_the_company_s')
+    }
+    return one(c, await aiReceptionist.upsertSettings(companyId, parsed.data as any))
   })
 
   // A manual transcription of a call already in the log.

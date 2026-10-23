@@ -34,6 +34,8 @@ const ADD_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/pl
 // formatter (money-and-labels), the company clock (agreements, audience-quotes-leads-time, business-day,
 // calendar-day-dates, salon-dark-surfaces), the hook table (job-quote-rules) and the photo viewer's white wash
 // (light-card-dark-text). Each was extended to read the new single source, never loosened, and mutation-tested.
+// fix-e's 41ac845f2 made the same money-and-labels change on its branch; batch 2 keeps fix-e's form of that guard, which
+// RUNS the shared money() ($824.60, $1,234.50, -$200.00) rather than matching its source text.
 // Cutover (owner's "go", 2026-10-20): the live Factory gains the unified path behind an off/test/all switch that starts
 // off — its routes, services, the Factory database's schema and the platform screens may change; nothing reaches a
 // customer until the switch is turned.

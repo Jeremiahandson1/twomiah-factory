@@ -59,7 +59,8 @@ export function createStormRadarRoutes(d: CrmDeps, radar: StormRadar = createSto
     } catch (e: any) {
       // M10: the message names the source file and the environment variables — the log's, never the caller's.
       logger.error('Storm Radar sync failed', { message: e?.message, stack: e?.stack, companyId })
-      if (e instanceof StormRadarNotConfiguredError) return fail(c, 503, 'Storm Radar is not connected yet. Add it in Settings › Integrations.', 'not_configured')
+      // Not "Add it in Settings › Integrations": there is no Storm Radar card there to add it with (live test 10/22).
+      if (e instanceof StormRadarNotConfiguredError) return fail(c, 503, 'Storm Radar isn’t connected for your account yet. Email support@twomiah.com and we will set it up.', 'not_configured')
       return fail(c, 500, 'Could not sync storm events. Please try again shortly.', 'sync_failed')
     }
   })

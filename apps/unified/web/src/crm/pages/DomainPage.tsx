@@ -1,4 +1,7 @@
-// Moved from templates/crm-store/frontend/src/pages/DomainPage.tsx. The business's own web address at /crm/domain, over
+// Moved from templates/crm-store/frontend/src/pages/DomainPage.tsx — now EVERY business's (live test 10/22): the server's
+// /api/admin/domain and its Stripe return to /crm/domain served every vertical, but only a store had this screen, so
+// Settings › Integrations sent everyone else to a CNAME guide that does not connect this app. The business's own web
+// address at /crm/domain, over
 // /api/admin/domain (server/modules/domain.ts, settings:update): where it stands, is a name free (with both prices),
 // buy one through a Stripe checkout that returns here, or connect one the owner already owns.
 //
@@ -20,8 +23,8 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AlertCircle, Check, CheckCircle2, Copy, ExternalLink, Globe, Loader2 } from 'lucide-react'
-import { api } from '../../../../api'
-import { errorText, useMayWrite } from '../../../../shared'
+import { api } from '../../api'
+import { errorText, useMayWrite } from '../../shared'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 // What a domain costs, charged to the owner: now, and each year after (Factory services/domainQuote.ts).
@@ -101,7 +104,7 @@ export default function DomainPage() {
     return (
       <div className="max-w-3xl space-y-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Domain</h1>
-        <p className="text-sm text-gray-700 dark:text-slate-300">Only the owner can buy or connect the store's domain.</p>
+        <p className="text-sm text-gray-700 dark:text-slate-300">Only the owner or an admin can buy or connect your web address.</p>
       </div>
     )
   }
@@ -117,7 +120,7 @@ export default function DomainPage() {
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Domain</h1>
-        <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">Your store's public address.</p>
+        <p className="mt-1 text-sm text-gray-700 dark:text-slate-300">Your website's own address. Your admin moves with it, to the same address followed by /crm.</p>
       </div>
 
       {justRegistered && status.status === 'unconfigured' && (
@@ -141,12 +144,12 @@ export default function DomainPage() {
             <CheckCircle2 className="mt-0.5 h-6 w-6 flex-shrink-0 text-green-700 dark:text-green-300" />
             <div className="min-w-0 space-y-2 text-sm text-gray-700 dark:text-slate-200">
               <h2 className="text-lg font-semibold text-gray-900 break-words dark:text-slate-100">{status.domain} is live</h2>
-              <p>Your store is at{' '}
+              <p>Your website is at{' '}
                 <a href={'https://' + status.domain} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 break-all ${link}`}>https://{status.domain} <ExternalLink className="h-3 w-3" /></a>
                 {' '}and this admin at{' '}
                 <a href={`https://${status.domain}/crm`} className={`break-all ${link}`}>https://{status.domain}/crm</a>.
               </p>
-              <p className="text-xs text-gray-600 dark:text-slate-400">SSL certificates are auto-renewed. To change your domain, contact support so we don't accidentally take your store offline mid-DNS-flip.</p>
+              <p className="text-xs text-gray-600 dark:text-slate-400">SSL certificates are auto-renewed. To change your domain, contact support so we don't accidentally take your website offline mid-DNS-flip.</p>
             </div>
           </div>
         </section>
@@ -160,7 +163,7 @@ export default function DomainPage() {
               {ours ? (
                 <>
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Setting up {status.domain}</h2>
-                  <p>We registered it and are pointing it at your store — there's nothing for you to do. It usually goes live within 15 minutes.</p>
+                  <p>We registered it and are pointing it at your website — there's nothing for you to do. It usually goes live within 15 minutes.</p>
                 </>
               ) : (
                 <>
@@ -202,7 +205,7 @@ export default function DomainPage() {
           <section className="card flex items-start gap-4 p-5">
             <Globe className="mt-0.5 h-6 w-6 flex-shrink-0 text-gray-600 dark:text-slate-400" />
             <div className="text-sm text-gray-700 dark:text-slate-200">
-              <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-slate-100">Your store is launching on a temporary address</h2>
+              <h2 className="mb-1 text-lg font-semibold text-gray-900 dark:text-slate-100">Your website is on a temporary address</h2>
               <p>Once you set up a real domain below, we'll handle SSL, DNS, and email authentication automatically.</p>
             </div>
           </section>
@@ -219,7 +222,7 @@ export default function DomainPage() {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Buy a domain</h2>
               <p className="text-sm text-gray-700 dark:text-slate-200">We'll register it on your behalf and set everything up. Type the domain you want — we'll check if it's open right now.</p>
               <label className="sr-only" htmlFor="buy-domain">Domain to buy</label>
-              <input id="buy-domain" type="text" value={buyInput} onChange={(e) => setBuyInput(e.target.value)} placeholder="yourshop.com"
+              <input id="buy-domain" type="text" value={buyInput} onChange={(e) => setBuyInput(e.target.value)} placeholder="yourbusiness.com"
                 autoComplete="off" autoCapitalize="off" spellCheck={false} className="input font-mono" />
               {checking && <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300"><Loader2 className="h-3 w-3 animate-spin" /> Checking…</div>}
 
@@ -273,7 +276,7 @@ export default function DomainPage() {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Connect your existing domain</h2>
               <p className="text-sm text-gray-700 dark:text-slate-200">Enter it below. We'll show you what nameservers to point at us — you make that one-time change at your registrar (GoDaddy, Namecheap, etc.) and the rest is automatic.</p>
               <label className="sr-only" htmlFor="own-domain">Domain you own</label>
-              <input id="own-domain" type="text" value={byodInput} onChange={(e) => setByodInput(e.target.value)} placeholder="yourshop.com"
+              <input id="own-domain" type="text" value={byodInput} onChange={(e) => setByodInput(e.target.value)} placeholder="yourbusiness.com"
                 autoComplete="off" autoCapitalize="off" spellCheck={false} className="input font-mono" />
               <button type="button" onClick={() => attach(byodInput.trim().toLowerCase())} disabled={submitting || !DOMAIN_RE.test(byodInput.trim().toLowerCase())}
                 className="btn btn-primary">

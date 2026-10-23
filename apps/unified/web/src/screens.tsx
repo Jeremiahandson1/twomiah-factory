@@ -42,7 +42,8 @@ export const ResetPassword = () => <ResetPasswordPage api={api} />
 
 export function Settings() {
   const auth = useAuth()
-  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA] }} />
+  // timeZone: every vertical's PUT /api/company takes company.timezone (server/modules/company.ts).
+  return <SettingsPage api={api} auth={auth} toast={useToast()} config={{ ...verticalScreens().settings, subPages: SETTINGS_SUB_PAGES, extraSubPages: [TEXTING_SETTINGS, ...ROOF_SETTINGS_EXTRA, ...STORE_SETTINGS_EXTRA], timeZone: true }} />
 }
 
 export const FeaturesSettings = () => <FeaturesSettingsPage api={api} auth={useAuth()} toast={useToast()} />

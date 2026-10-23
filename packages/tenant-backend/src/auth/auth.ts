@@ -204,6 +204,9 @@ export function createAuthRoutes(deps: AuthDeps) {
     // company.timeZone and getting undefined, so its own store-day fix had quietly been falling back
     // to the viewer's calendar since it shipped.
     timeZone: companyRowTimeZone(c),
+    // The zone the owner CHOSE (the unified app's company.timezone; null = "from the state"), for Settings › Company's
+    // picker — timeZone above is the resolved one and cannot tell "Central, chosen" from "Central, by the state".
+    timezone: typeof c.timezone === 'string' && c.timezone ? c.timezone : null,
     createdAt: c.createdAt,
     // The Visualizer's address goes only to a business with the add-on switched on (a paid add-on, off by default).
     visionUrl: options.visionUrl && Array.isArray(c.enabledFeatures) && c.enabledFeatures.includes('visualizer') ? options.visionUrl() : null,

@@ -133,7 +133,8 @@ export function createSandataRoutes(core: HomecareCore, d: CrmDeps) {
     if (body.clearPassword === true) set.sandataPasswordEncrypted = null
     else if (typeof body.password === 'string' && body.password.trim()) {
       try { set.sandataPasswordEncrypted = encrypt(body.password.trim()) }
-      catch { return fail(c, 400, 'The server has no ENCRYPTION_KEY, so the password cannot be stored safely.') }
+      // In the agency's words: the setting's name is the server's, out of the owner's reach (live test 10/22).
+      catch { return fail(c, 503, 'The Sandata password can’t be stored safely right now, so nothing was saved. Email support@twomiah.com and we will fix it.', 'storage_unavailable') }
     }
     await db.update(company).set(set).where(eq(company.id, agency.id))
     const cfg = await sandata.getConfig(companyId)

@@ -12,6 +12,7 @@ import type { SettingsApi, IntegrationsConfig, LeadSourceGuide } from './integra
 import { leadSourceGuides } from '../leads/types'
 import { useConfirm } from '../ui/ConfirmProvider'
 import { CallTrackingSection } from './CallTrackingSettings'
+import { useNavigate } from 'react-router-dom'
 import { whenDateTime } from '../time/companyClock'
 
 // The guides are the SAME vocabulary the Lead Sources page offers (one list per vertical — the template derives
@@ -40,6 +41,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
   const confirm = useConfirm()
   const on = (feature: string) => !config?.hasFeature || config.hasFeature(feature)
   const copy = { quickbooks: 'Sync invoices, expenses, and customers with your books.', sms: 'Send text updates to customers and crew members.', email: 'Send invoices, quotes, and reminders via email.', intro: 'Connect your accounts, set up lead sources, and configure your domain.', ...(config?.copy || {}) }
+  const navigate = useNavigate()
   const leadSources = config?.leadSources || DEFAULT_LEAD_SOURCES
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
@@ -77,7 +79,6 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
   const qbAutoSync = () => run('autosync', async () => { const next = !status.quickbooks.syncEnabled; await api.post('/api/quickbooks/auto-sync', { enabled: next }); setStatus((s) => ({ ...s, quickbooks: { ...s.quickbooks, syncEnabled: next } })); flash(`Auto-sync ${next ? 'enabled' : 'disabled'}`) }, 'Failed to update auto-sync')
   const stripeConnect = () => run('stripe-connect', async () => { const d = await api.get('/api/integrations/stripe/connect-url'); if (d?.connectUrl) window.location.href = d.connectUrl; else throw new Error('Stripe did not return an onboarding link') }, 'Failed to start Stripe connection')
   const stripeDisconnect = async () => { if (!(await confirm("Disconnect Stripe? You won't be able to accept payments.", { title: 'Disconnect Stripe', confirmText: 'Disconnect' }))) return; run('stripe', async () => { await api.post('/api/integrations/stripe/disconnect'); setStatus((s) => ({ ...s, stripe: { ...EMPTY.stripe } })); flash('Stripe disconnected') }, 'Failed to disconnect Stripe') }
-  const toggle = (service: 'sms' | 'email') => run(service, async () => { const next = !status[service].enabled; await api.post(`/api/integrations/${service}/toggle`, { enabled: next }); setStatus((s) => ({ ...s, [service]: { ...s[service], enabled: next } })); flash(`${service === 'sms' ? 'Texting' : 'Email'} ${next ? 'enabled' : 'disabled'}`) }, `Failed to update ${service}`)
   const twilioSave = () => {
     if (!twilioForm.accountSid || !twilioForm.authToken || !twilioForm.phoneNumber) { fail('All Twilio fields are required'); return }
     run('twilio', async () => { const d = await api.post('/api/integrations/twilio/configure', twilioForm); setStatus((s) => ({ ...s, twilio: { configured: true, ownAccount: true, phoneNumber: d?.phoneNumber || twilioForm.phoneNumber } })); setTwilioForm((f) => ({ ...f, accountSid: '', authToken: '' })); flash('Twilio configured') }, 'Failed to save Twilio settings')
@@ -98,8 +99,18 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
 
       <div className="space-y-4">
         <SectionLabel label="Domain" />
-        <GuideCard icon={<Globe className="w-6 h-6 text-sky-700 dark:text-sky-300" />} iconBg="bg-sky-100 dark:bg-sky-500/20" title="Custom Domain (DNS)" description="Point your domain to your CRM so customers see your brand." expanded={expandedGuide === 'dns'} onToggle={() => setExpandedGuide(expandedGuide === 'dns' ? null : 'dns')}
-          steps={['Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)', 'Go to DNS settings for your domain', 'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to your CRM URL shown above', 'Save changes — DNS propagation can take up to 24 hours', 'Once propagated, your CRM will be accessible at your custom domain']} />
+        {config?.domainPage ? (
+          // This app connects the address itself (the Domain page; the Factory registers or wires it). The DNS guide told
+          // the owner to point a CNAME at "your CRM URL shown above" — nothing was shown above, and it is not how this
+          // app is connected. (Live test 10/22: every card says what it does and how, in the owner's words.)
+          <Card icon={<Globe className="w-6 h-6 text-sky-700 dark:text-sky-300" />} iconBg="bg-sky-100 dark:bg-sky-500/20" title="Your web address (domain)"
+            description="Put your website on your own address, like yourbusiness.com, instead of the temporary one it starts on."
+            body={<HowTo steps={['Open the Domain page.', 'Buy a new address there — you see the first-year price and the yearly renewal before you pay, and we set it up for you.', 'Or type in one you already own: the page shows the nameservers to set where you bought it, and checks until it is live (usually within an hour, sometimes a day).']} />}
+            actions={<button type="button" onClick={() => navigate(config.domainPage!)} className="bg-sky-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-sky-800">Open Domain</button>} />
+        ) : (
+          <GuideCard icon={<Globe className="w-6 h-6 text-sky-700 dark:text-sky-300" />} iconBg="bg-sky-100 dark:bg-sky-500/20" title="Custom Domain (DNS)" description="Point your domain to your CRM so customers see your brand." expanded={expandedGuide === 'dns'} onToggle={() => setExpandedGuide(expandedGuide === 'dns' ? null : 'dns')}
+            steps={['Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)', 'Go to DNS settings for your domain', 'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to the address in your browser bar while you are signed in', 'Save changes — DNS propagation can take up to 24 hours', 'Once propagated, your CRM will be accessible at your custom domain']} />
+        )}
 
         {/* Each card is its switch's (Settings › Features): QuickBooks' and Online Payments' doors refuse while off. */}
         {on('quickbooks') && <>
@@ -111,7 +122,9 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             // "configured" for exactly this and the card ignored it, so the one fact needed was already
             // on the page. Say it first, and offer the remedy the 503 names. (Salon T27 N15)
             <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not available on your account yet. Email <a href="mailto:support@twomiah.com" className="text-orange-600 dark:text-orange-200 hover:underline">support@twomiah.com</a> and we will switch it on.</p>
-          ) : status.quickbooks.connected && (
+          ) : !status.quickbooks.connected ? (
+            <HowTo steps={['Click Connect QuickBooks and sign in to QuickBooks Online (QuickBooks Desktop is not supported).', 'Pick your company and allow the connection.', 'Back here, press Sync Now, or turn on Auto-sync so each new invoice and customer is sent across for you.']} />
+          ) : (
             <div className="mt-2 text-sm space-y-1">
               <p className="text-green-700 dark:text-green-400 font-medium">Connected{status.quickbooks.companyName ? ` to ${status.quickbooks.companyName}` : ''}</p>
               {status.quickbooks.lastSync && <p className="text-gray-500 dark:text-slate-400">Last synced: {whenDateTime(status.quickbooks.lastSync)}</p>}
@@ -131,17 +144,24 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
         </>}
         {on('online_payments') && <>
         <SectionLabel label="Payments" />
-        <Card icon={<CreditCard className="w-6 h-6 text-purple-600 dark:text-purple-400" />} iconBg="bg-purple-100 dark:bg-purple-500/20" title="Stripe Payments" description="Accept credit card payments from customers."
-          body={status.stripe.connected && (
+        {/* What it does and how to connect it, in the owner's words — the card said only "Accept credit card payments from
+            customers." and nothing about what to do (live test 10/22). */}
+        <Card icon={<CreditCard className="w-6 h-6 text-purple-600 dark:text-purple-400" />} iconBg="bg-purple-100 dark:bg-purple-500/20" title="Stripe Payments" description="Let customers pay your invoices by card, from the link in the invoice email. The money goes into your own Stripe account, and Stripe takes its card fee."
+          body={status.stripe.configured === false ? (
+            <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not available on your account yet. Email <a href="mailto:support@twomiah.com" className="text-orange-600 dark:text-orange-200 hover:underline">support@twomiah.com</a> and we will switch it on.</p>
+          ) : status.stripe.connected ? (
             <div className="mt-2 text-sm">
               {status.stripe.chargesEnabled ? <p className="text-green-700 dark:text-green-400 font-medium">Ready to accept payments</p>
                 : <div className="flex items-center gap-3 flex-wrap"><p className="text-yellow-700 dark:text-yellow-400 font-medium">Setup incomplete — Stripe still needs a few details before payments can be accepted.</p><button onClick={stripeConnect} className="text-sm text-purple-600 dark:text-purple-300 hover:underline">Finish setup</button></div>}
             </div>
+          ) : (
+            <HowTo steps={[
+              'Click Connect Stripe. Sign in to Stripe, or create a free account there.', 'Stripe asks for your business details and the bank account to pay you into — about 10 minutes.', 'You come back here, and this card says "Ready to accept payments".',
+            ]} />
           )}
-          actions={status.stripe.connected
+          actions={status.stripe.configured === false ? null : status.stripe.connected
             ? <button onClick={stripeDisconnect} disabled={saving === 'stripe'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
             : <button onClick={stripeConnect} disabled={saving === 'stripe-connect'} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 flex items-center gap-2">Connect Stripe<ExternalLink className="w-4 h-4" /></button>} />
-
         </>}
         <SectionLabel label="Communication" />
         <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-6">
@@ -149,7 +169,11 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             <div className="w-12 h-12 bg-red-100 dark:bg-red-500/20 rounded-xl flex items-center justify-center flex-shrink-0"><Phone className="w-6 h-6 text-red-600 dark:text-red-400" /></div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <div><h3 className="font-semibold text-gray-900 dark:text-white">Twilio (Two-Way Texting)</h3><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Send and receive SMS with customers directly from your CRM.</p></div>
+                <div><h3 className="font-semibold text-gray-900 dark:text-white">{config?.textingPage ? 'Your own Twilio account (optional)' : 'Twilio (Two-Way Texting)'}</h3><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Send and receive SMS with customers directly from your CRM.</p>
+                  {config?.textingPage && !status.twilio.ownAccount && (
+                    <p className="text-sm text-gray-600 dark:text-slate-300 mt-2">Most businesses don&rsquo;t need this. <button type="button" onClick={() => navigate(config.textingPage!)} className="font-medium text-orange-700 hover:underline dark:text-orange-200">Turn on texting</button> instead and we register a local number in your business&rsquo;s name with the phone carriers. Fill this in only if you already text customers from a Twilio account of your own.</p>
+                  )}
+                </div>
                 {status.twilio.configured && <span className="text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10 px-2 py-1 rounded-full whitespace-nowrap">{status.twilio.ownAccount ? 'Your account' : 'Platform number'}</span>}
               </div>
               {status.twilio.ownAccount ? (
@@ -181,8 +205,13 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
           </div>
         </div>
 
-        <ToggleCard icon={<MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />} iconBg="bg-blue-100 dark:bg-blue-500/20" title="SMS Notifications" description={copy.sms} enabled={status.sms.enabled} usage={`${status.sms.usage} messages`} busy={saving === 'sms'} onToggle={() => toggle('sms')} onColor="text-blue-500" />
-        <ToggleCard icon={<Mail className="w-6 h-6 text-orange-600 dark:text-orange-200" />} iconBg="bg-orange-100 dark:bg-orange-500/20" title="Email" description={copy.email} enabled={status.email.enabled} usage={`${status.email.usage} emails`} busy={saving === 'email'} onToggle={() => toggle('email')} onColor="text-orange-500" />
+        {/* What was sent this month. These were two on/off switches (settings.smsEnabled / emailEnabled) that nothing on the
+            server reads — a switch an owner turns off that stops nothing. What they reported is kept; the switches are gone.
+            (Live test 10/22: every card says what it does.) */}
+        <Card icon={<MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />} iconBg="bg-blue-100 dark:bg-blue-500/20" title="Texts" description={copy.sms}
+          body={<p className="mt-2 text-sm text-gray-600 dark:text-slate-400">Sent this month: <span className="font-medium">{status.sms.usage} {status.sms.usage === 1 ? 'text' : 'texts'}</span></p>} actions={null} />
+        <Card icon={<Mail className="w-6 h-6 text-orange-600 dark:text-orange-200" />} iconBg="bg-orange-100 dark:bg-orange-500/20" title="Email" description={`${copy.email} Included — there is nothing to connect.`}
+          body={<p className="mt-2 text-sm text-gray-600 dark:text-slate-400">Sent this month: <span className="font-medium">{status.email.usage} {status.email.usage === 1 ? 'email' : 'emails'}</span></p>} actions={null} />
 
         {/* The CallRail key, for a template whose call tracking has no page of its own (config.callTracking). The
             section decides for itself whether the API would answer: Call Tracking on + integrations:update. */}
@@ -222,11 +251,13 @@ function Card({ icon, iconBg, title, description, body, actions }: { icon: React
     </div>
   )
 }
-function ToggleCard({ icon, iconBg, title, description, enabled, usage, busy, onToggle, onColor }: { icon: React.ReactNode; iconBg: string; title: string; description: string; enabled: boolean; usage: string; busy: boolean; onToggle: () => void; onColor: string }) {
+/** How to connect it, in steps — shown on a card while it is not connected. */
+function HowTo({ steps }: { steps: string[] }) {
   return (
-    <Card icon={icon} iconBg={iconBg} title={title} description={description}
-      body={enabled && <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">Usage this month: <span className="font-medium">{usage}</span></p>}
-      actions={<button onClick={onToggle} disabled={busy} className="flex items-center" aria-pressed={enabled} aria-label={`${title} ${enabled ? 'on' : 'off'}`}>{busy ? <Loader2 className="w-10 h-10 text-gray-400 animate-spin" /> : enabled ? <ToggleRight className={`w-10 h-10 ${onColor}`} /> : <ToggleLeft className="w-10 h-10 text-gray-300 dark:text-slate-600" />}</button>} />
+    <div className="mt-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-slate-300">How to connect</p>
+      <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-slate-300">{steps.map((st, i) => <li key={i}>{st}</li>)}</ol>
+    </div>
   )
 }
 function GuideCard({ icon, iconBg, title, description, expanded, onToggle, steps }: { icon: React.ReactNode; iconBg: string; title: string; description: string; expanded: boolean; onToggle: () => void; steps: string[] }) {

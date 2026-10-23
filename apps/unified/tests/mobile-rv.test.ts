@@ -94,7 +94,8 @@ describe('Trade tab (ai-trade.tsx)', () => {
     for (const condition of ['excellent', 'good', 'fair', 'rough']) {
       const res = await call('/api/ai-trade/appraise', { method: 'POST', json: { make: 'Winnebago', model: 'View', condition, year: 2020, mileageHours: '12000' } })
       const body = await res.json()
-      expect({ condition, status: res.status, error: body.error }).toEqual({ condition, status: 503, error: expect.stringContaining('ANTHROPIC_API_KEY') })
+      // Said in the dealer's words, never the server setting's name (live test 10/22; tests/setting-names-not-shown.test.ts).
+      expect({ condition, status: res.status, code: body.code, error: body.error }).toEqual({ condition, status: 503, code: 'ai_not_configured', error: expect.stringContaining('support@twomiah.com') })
     }
     // No year and no mileage: the app leaves them out.
     const bare = await call('/api/ai-trade/appraise', { method: 'POST', json: { make: 'Winnebago', model: 'View', condition: 'good' } })

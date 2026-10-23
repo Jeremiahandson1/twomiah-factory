@@ -61,7 +61,9 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
   }
 
   function getAuthUrl(companyId: string): string {
-    if (!configured()) throw new Error('QuickBooks is not configured on this server (QBO_CLIENT_ID / QBO_CLIENT_SECRET / QBO_REDIRECT_URI).')
+    // This sentence reaches the owner (GET /quickbooks/auth-url answers with it): the server's setting names stay in the
+    // code, not the message (live test 10/22). Missing: QBO_CLIENT_ID, QBO_CLIENT_SECRET or QBO_REDIRECT_URI.
+    if (!configured()) throw new Error('QuickBooks isn’t switched on for your account yet. Email support@twomiah.com and we will turn it on.')
     const params = new URLSearchParams({ client_id: CLIENT_ID()!, response_type: 'code', scope: 'com.intuit.quickbooks.accounting', redirect_uri: REDIRECT_URI()!, state: signState(companyId) })
     return `${QBO_AUTH_URL}?${params}`
   }
@@ -309,7 +311,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
 
   app.get('/status', async (c) => c.json(await qb.getConnectionStatus(user(c).companyId)))
   app.get('/auth-url', touchesTheBooks, async (c) => {
-    try { return c.json({ url: qb.getAuthUrl(user(c).companyId) }) } catch (e: any) { return c.json({ error: e?.message || 'QuickBooks is not configured' }, 503) }
+    try { return c.json({ url: qb.getAuthUrl(user(c).companyId) }) } catch (e: any) { return c.json({ error: e?.message || 'QuickBooks isn’t switched on for your account yet.', code: 'not_configured' }, 503) }
   })
   app.post('/disconnect', touchesTheBooks, async (c) => {
     await qb.disconnect(user(c).companyId)

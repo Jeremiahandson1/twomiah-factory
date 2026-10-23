@@ -3,7 +3,7 @@
 // Moved from the premium site (routes/admin.ts, server-static.ts) with its faults fixed — each named where it is.
 import crypto from 'node:crypto'
 import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, lt, lte, ne, gt } from 'drizzle-orm'
-import { tzParts, isRealDate, normaliseZip, zonedWallTimeToUtc } from '@twomiah/tenant-backend'
+import { tzParts, isRealDate, normaliseZip, zonedWallTimeToUtc, companyRowTimeZone } from '@twomiah/tenant-backend'
 import { booking, bookingService, bookingSeries, bookingWaitlist, bookingBan, bookingWebhook, bookingSettings, company } from '../db/schema/index.ts'
 import type { EmailService } from '../core/email.ts'
 import type { Logger } from '../core/logger.ts'
@@ -244,8 +244,10 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
   async function runJobs() {
     const t = now()
     const sent = { reminders: 0, rebooks: 0, reviews: 0 }
+    // Each on its business's one clock (the company's — engine.ts settingsOf), never the settings row's own column.
+    const clocks = new Map((await db.select().from(company)).map((co: any) => [co.id, companyRowTimeZone(co)]))
     const settingsRows: any[] = await db.select().from(bookingSettings)
-    const settingsOf = new Map(settingsRows.map((s) => [s.companyId, s]))
+    const settingsOf = new Map(settingsRows.map((s) => [s.companyId, { ...s, timezone: clocks.get(s.companyId) ?? companyRowTimeZone(null) }]))
     const svcCache = new Map<string, any>()
     const svcOf = async (id: string | null) => { if (!id) return null; if (!svcCache.has(id)) svcCache.set(id, (await db.select().from(bookingService).where(eq(bookingService.id, id)).limit(1))[0] ?? null); return svcCache.get(id) }
 

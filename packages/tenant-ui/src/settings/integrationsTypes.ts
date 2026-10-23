@@ -30,6 +30,16 @@ export interface IntegrationsConfig {
    * person holds integrations:update (the API's own right). Templates WITH a Call Tracking page carry it there.
    */
   callTracking?: boolean
+  /**
+   * Where this app connects a web address (its Domain page, e.g. '/crm/domain'). Given → the Domain card sends the owner
+   * there, in plain steps. Absent → the DNS guide (a template's CRM on its own subdomain).
+   */
+  domainPage?: string
+  /**
+   * Where this app turns texting on with a number registered in the business's name (e.g. '/crm/settings/texting'). Given →
+   * the Twilio card says most businesses use that instead, and is for an owner who already has a Twilio account.
+   */
+  textingPage?: string
   /** The business's switches: the QuickBooks card shows with quickbooks on, the Stripe card with online_payments. Absent: both show. */
   hasFeature?: (id: string) => boolean
 }

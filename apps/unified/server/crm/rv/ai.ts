@@ -14,6 +14,8 @@ import { hideUnitCost } from './units.ts'
 import { precomputedTotals, fixReportTotals } from './aiReportTotals.ts'
 
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6'
+/** The dealer's words when the server has no AI key — never the setting's name, which no dealer can reach (live test 10/22). */
+const AI_OFF = 'The AI tools aren’t switched on for your account yet. Email support@twomiah.com and we will turn them on.'
 
 async function askClaude(apiKey: string, body: Record<string, unknown>): Promise<Response> {
   return fetch('https://api.anthropic.com/v1/messages', {
@@ -95,7 +97,7 @@ export function createAiLeadRoutes(d: CrmDeps) {
     const leadId = String(body.leadId || '')
     if (!leadId) return fail(c, 400, 'Pick a lead first.')
     const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return fail(c, 503, 'AI isn’t configured yet (missing ANTHROPIC_API_KEY).')
+    if (!apiKey) return fail(c, 503, AI_OFF, 'ai_not_configured')
 
     const [lead] = await db.select().from(salesLead).where(and(eq(salesLead.id, leadId), eq(salesLead.companyId, cid))).limit(1)
     if (!lead) return fail(c, 404, 'Lead not found.')
@@ -186,7 +188,7 @@ export function createAiReportRoutes(d: CrmDeps) {
     const question = String(body.question || '').trim()
     if (!question) return fail(c, 400, 'Ask a question first.')
     const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return fail(c, 503, 'AI Reports isn’t configured yet (missing ANTHROPIC_API_KEY).')
+    if (!apiKey) return fail(c, 503, AI_OFF, 'ai_not_configured')
 
     const extra = await getExtraPermissions(u.userId)
     const mayCost = hasPermission(u.role, 'margin:read', extra)
@@ -254,7 +256,7 @@ export function createAiTradeRoutes(d: CrmDeps) {
     if (body.category !== undefined && body.category !== null && body.category !== '' && !CATEGORIES.includes(body.category)) return fail(c, 400, `Category must be one of: ${CATEGORIES.join(', ')}.`)
     if (body.condition !== undefined && body.condition !== null && body.condition !== '' && !CONDITIONS.includes(body.condition)) return fail(c, 400, `Condition must be one of: ${CONDITIONS.join(', ')}.`)
     const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return fail(c, 503, 'AI isn’t configured yet (missing ANTHROPIC_API_KEY).')
+    if (!apiKey) return fail(c, 503, AI_OFF, 'ai_not_configured')
 
     const tradeUnit = {
       year: body.year || undefined, make, model, category: body.category || undefined,

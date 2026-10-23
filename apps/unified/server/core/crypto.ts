@@ -16,7 +16,11 @@ function key(): Buffer {
   // PAYMENT_ENC_KEY is the blueprint name; the factory Render deploy injects the
   // same secret as ENCRYPTION_KEY (shared platform convention). Accept either.
   const raw = process.env.PAYMENT_ENC_KEY || process.env.ENCRYPTION_KEY
-  if (!raw) throw new Error('No payment encryption key set (PAYMENT_ENC_KEY / ENCRYPTION_KEY)')
+  if (!raw) {
+    // The setting's name is for the log; the error can reach a person (a store's Payments page), so it says what happened.
+    console.error('[crypto] PAYMENT_ENC_KEY / ENCRYPTION_KEY is not set')
+    throw new Error('Payment details can’t be stored safely right now. Email support@twomiah.com and we will fix it.')
+  }
   return createHash('sha256').update(raw, 'utf8').digest() // 32 bytes
 }
 

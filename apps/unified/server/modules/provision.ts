@@ -8,7 +8,7 @@
 import { Hono } from 'hono'
 import { asc } from 'drizzle-orm'
 import { z } from 'zod'
-import { withoutNotReady, withinOffer, isValidTz } from '@twomiah/tenant-backend'
+import { withoutNotReady, withinOffer } from '@twomiah/tenant-backend'
 import { company, user, supportKnowledgeBase, pricebookCategory, website, page, canvassingScript, bookingSettings, bookingHours, bookingService } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
 import { BASE_STARTER, starterArticleRows, starterCategories } from '../core/starter.ts'
@@ -100,8 +100,9 @@ export async function writeStartingSite(tx: any, companyId: string, site: Starti
  * business had no service and every day closed, and its /book page said "Bookings opening soon" until the owner found
  * three settings screens. The owner changes all of it in booking settings.
  */
-export async function startingBookings(tx: any, companyId: string, timezone: string | null) {
-  await tx.insert(bookingSettings).values({ companyId, ...(timezone && isValidTz(timezone) ? { timezone } : {}) }).onConflictDoNothing()
+export async function startingBookings(tx: any, companyId: string) {
+  // Its clock is the company's (booking/engine.ts settingsOf), given at provisioning — the row keeps no zone of its own.
+  await tx.insert(bookingSettings).values({ companyId }).onConflictDoNothing()
   await tx.insert(bookingHours).values([1, 2, 3, 4, 5].map((dayOfWeek) => ({ companyId, userId: null, dayOfWeek, startMinute: 9 * 60, endMinute: 17 * 60 })))
   await tx.insert(bookingService).values({ companyId, slug: 'consultation', name: 'Consultation', durationMinutes: 30, slotStepMinutes: 30 }).onConflictDoNothing()
 }
@@ -153,7 +154,7 @@ export function createProvisionRoute(deps: { db: any; vertical: VerticalSettings
       }
 
       if (input.site) await writeStartingSite(tx, created.id, input.site)
-      if (input.takesBookings) await startingBookings(tx, created.id, co.timezone)
+      if (input.takesBookings) await startingBookings(tx, created.id)
       return { created: { companyId: created.id, ownerId: owner.id } }
     })
 

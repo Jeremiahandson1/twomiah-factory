@@ -25,18 +25,9 @@ import { crmTemplateFor, deployProductsForVertical, verticalFor } from '../../co
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
 import { stateTimezone, notesWithTimezone } from '../../config/stateTimezone'
 import { allocateSlug, signupSlugCandidates, liveSlugLookups } from '../../services/resourceOwnership'
-
-// What a signup asked for beyond the plan. Everything free is already on for every plan; these
-// are the answers that change setup: goals ("bookings" → booking on the website once premium
-// sites are built from signups) and paid add-ons ("texting" → the $10/mo texting checkout runs
-// right after the plan checkout). Kept to known values so nothing else rides along.
-const SIGNUP_GOALS = new Set(['bookings', 'online_payments'])
-const SIGNUP_ADDONS = new Set(['texting'])
-function signupChoices(body: any): { goals: string[]; addons: string[] } {
-  const pick = (v: unknown, allowed: Set<string>) =>
-    (Array.isArray(v) ? v : []).map((x) => String(x || '').trim().toLowerCase()).filter((x, i, a) => allowed.has(x) && a.indexOf(x) === i)
-  return { goals: pick(body?.goals, SIGNUP_GOALS), addons: pick(body?.addons, SIGNUP_ADDONS) }
-}
+// What a signup asked for beyond the plan — known values only, and only the questions this industry's system is asked
+// (bookings where online_booking exists, online payments where online_payments does).
+import { signupChoices } from '../../config/signupQuestions'
 
 export function registerIntakeRoutes(factory: FactoryApp) {
 

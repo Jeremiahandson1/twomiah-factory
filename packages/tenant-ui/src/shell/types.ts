@@ -167,6 +167,12 @@ export interface SettingsConfig {
    * `permission` (when given) and has `feature` on (when given) — a permission, never a rank.
    */
   extraSubPages?: Array<{ to: string; label: string; icon: import('react').ComponentType<{ className?: string }>; permission?: string; feature?: string }>
+  /**
+   * Show the business's time zone on Settings › Company: the company row's `timezone`, which the app's PUT /api/company
+   * must accept (the unified app's does, every vertical). Blank = the state's zone, shown from `effectiveTimezone`. Off by
+   * default: a CRM template keeps its zone in settings and its PUT has no such field.
+   */
+  timeZone?: boolean
 }
 
 export interface SettingsAuth {

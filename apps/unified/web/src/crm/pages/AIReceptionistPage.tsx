@@ -1,5 +1,6 @@
 // Moved from templates/crm/frontend/src/components/features/AIReceptionistPage.tsx.
 import React, { useState, useEffect, useCallback } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Phone, MessageSquare, Bot, Edit2, Trash2, Check, PhoneIncoming, VoicemailIcon, Zap, Loader2 } from 'lucide-react'
 import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, StatusBadge, EmptyState, ConfirmDialog, Tabs, TabsList, TabsTrigger, TabsContent } from '../ui'
 import { PageError, errorText, ModuleNotEnabled, featureNotEnabled, usePermissions, CallTrackingSettings } from '../../shared'
@@ -112,6 +113,42 @@ function AutoReplyForm({ item, onSave, onClose }: AutoReplyFormProps) {
     </form>
   );
 }
+
+/**
+ * What the AI Receptionist does and how it is connected, on the first screen while no call has reached it (live test
+ * 10/22: "Disabled" with Enable AI / Create Rule and no explanation). Read from the server, not assumed:
+ *   · calls reach it only through Twilio's call callbacks (aiReceptionist.ts /webhook/status and /webhook/recording), which
+ *     nothing in the app sets up on its own — so connecting the phone line is Twomiah's to do, by email;
+ *   · a call nobody answered (no-answer, busy, failed) runs the rules — an after-hours rule only outside the hours set
+ *     here; a recording is written out (Whisper) so keyword and booking rules can
+ *     read it (aiReceptionistService.ts evaluateRules / processRecordingWebhook);
+ *   · a text reply goes out through the business's own texting (services.sms) — Settings › Texting; email needs nothing.
+ */
+function ReceptionistSetup({ enabled, hasRules }: { enabled: boolean; hasRules: boolean }) {
+  const navigate = useNavigate()
+  const done = 'text-emerald-700 dark:text-emerald-300'
+  return (
+    <section aria-label="How the AI Receptionist works" className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+      <h2 className="font-semibold text-slate-900 dark:text-slate-100">How the AI Receptionist works</h2>
+      <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">
+        When nobody picks up a call to your business — at any hour, or only outside your business hours, as you choose — it gets back to the caller
+        for you, by text, email or both, with the reply you write in a rule. If they leave a voicemail, it is written out, so a rule can answer what
+        they asked for, like a booking.
+      </p>
+      <h3 className="mt-4 text-sm font-semibold text-slate-900 dark:text-slate-100">How to set it up</h3>
+      <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-slate-700 dark:text-slate-300">
+        <li>Connect your phone line. Email <a href="mailto:support@twomiah.com?subject=Connect%20my%20phone%20line%20to%20the%20AI%20Receptionist" className="font-medium text-brand-700 hover:underline dark:text-brand-200">support@twomiah.com</a> and we connect your business number to it. Calls then show under Call Log.</li>
+        <li>For text replies, turn on texting in <button type="button" onClick={() => navigate('/crm/settings/texting')} className="font-medium text-brand-700 hover:underline dark:text-brand-200">Settings › Texting</button> — replies go out from your business&rsquo;s own number. Email replies need nothing.</li>
+        <li className={hasRules ? done : undefined}>Write a rule: what happened (a missed call, a voicemail, after hours, a new caller) and the reply to send.{hasRules ? ' ✓ Done' : ''}</li>
+        <li className={enabled ? done : undefined}>Press Enable AI. Until then no reply is sent.{enabled ? ' ✓ On' : ''}</li>
+      </ol>
+    </section>
+  )
+}
+
+/** The zone by the name an owner uses (Settings › Company's own list); any other as itself. */
+const ZONE_NAMES: Record<string, string> = { 'America/New_York': 'Eastern', 'America/Chicago': 'Central', 'America/Denver': 'Mountain', 'America/Phoenix': 'Arizona', 'America/Los_Angeles': 'Pacific', 'America/Anchorage': 'Alaska', 'Pacific/Honolulu': 'Hawaii' }
+const zoneWords = (z?: string) => (z ? ZONE_NAMES[z] || z.replace(/_/g, ' ') : '')
 
 interface AISettings {
   isEnabled: boolean;
@@ -261,6 +298,8 @@ export function AIReceptionistPage() {
         </div>
       </div>
 
+      {calls.length === 0 && <ReceptionistSetup enabled={settings.isEnabled} hasRules={rules.length > 0} />}
+
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
           { label: 'Status', value: settings.isEnabled ? 'Active' : 'Disabled', icon: Bot, color: settings.isEnabled ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400' },
@@ -343,14 +382,11 @@ export function AIReceptionistPage() {
               <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Business Hours Start</label><Input type="time" value={settings.businessHoursStart || '09:00'} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ businessHoursStart: e.target.value })} disabled={!mayEdit} /></div>
               <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Business Hours End</label><Input type="time" value={settings.businessHoursEnd || '17:00'} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ businessHoursEnd: e.target.value })} disabled={!mayEdit} /></div>
             </div>
+            {/* ONE CLOCK: after hours is judged on the business's time zone, set once under Settings › Company (coordinator
+                10/23); the receptionist kept one of its own, defaulting to Chicago. */}
             <div>
-              <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Timezone</label>
-              <Select value={settings.timezone || 'America/Chicago'} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateSettings({ timezone: e.target.value })} disabled={!mayEdit} options={[
-                { value: 'America/New_York', label: 'Eastern' },
-                { value: 'America/Chicago', label: 'Central' },
-                { value: 'America/Denver', label: 'Mountain' },
-                { value: 'America/Los_Angeles', label: 'Pacific' },
-              ]} />
+              <span className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Time zone</span>
+              <p className="text-sm text-slate-900 dark:text-white">{zoneWords(settings.timezone)} — your business&rsquo;s time zone. <Link to="/crm/settings" className="font-medium text-brand-700 hover:underline dark:text-brand-200">Change it in Settings › Company</Link></p>
             </div>
             <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Default Greeting</label><Textarea value={settings.greetingText || ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateSettings({ greetingText: e.target.value })} disabled={!mayEdit} placeholder="Hi, thanks for calling! We're currently away but will get back to you soon." rows={3} /></div>
             <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Forwarding Number</label><Input value={settings.forwardingNumber || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ forwardingNumber: e.target.value })} disabled={!mayEdit} placeholder="(555) 123-4567" /></div>

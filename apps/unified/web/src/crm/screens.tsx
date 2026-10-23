@@ -197,9 +197,11 @@ export const GoogleReviews = () => <GbpReviewsPage />
 export const Texting = () => <TextingPage />
 // The lead-source guides end at "Connect it under Lead Sources" — the Lead Inbox's page — so they are offered only where
 // the business has the Lead Inbox switched on (a shop has none, and was shown Angi and HomeAdvisor).
+// The web address is connected on this app's Domain page, and texting is the business's own registered number (Settings ›
+// Texting) — so those two cards send the owner there, in plain words, rather than to a CNAME guide and a Twilio form.
 export function Integrations() {
   const { hasFeature } = useAuth()
-  return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: hasFeature('lead_inbox') ? leadSourceGuides((v().leads as any).platforms) : [], hasFeature }} />
+  return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: hasFeature('lead_inbox') ? leadSourceGuides((v().leads as any).platforms) : [], hasFeature, domainPage: '/crm/domain', textingPage: '/crm/settings/texting' }} />
 }
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />

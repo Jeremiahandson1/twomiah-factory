@@ -6,7 +6,10 @@ import { Pool } from 'pg'
 import * as schema from './schema/index.ts'
 
 export function createDb(connectionString = process.env.DATABASE_URL) {
-  if (!connectionString) throw new Error('DATABASE_URL is not set')
+  if (!connectionString) {
+    console.error('[db] DATABASE_URL is not set')
+    throw new Error('No database is configured for this service')
+  }
   const pool = new Pool({
     connectionString,
     // The CRM templates' size. The tenant's database server is its own (SPEC §0 decision 2).

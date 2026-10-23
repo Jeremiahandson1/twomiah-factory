@@ -14,7 +14,7 @@
 // expiry then cancelled it half an hour later without a word.
 import crypto from 'node:crypto'
 import { and, asc, desc, eq, gt, inArray, lt, ne, or, count, notInArray, isNull, notExists } from 'drizzle-orm'
-import { addDays, isIsoDate, isRealDate, isValidTz, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR, mayBeGivenWork } from '@twomiah/tenant-backend'
+import { addDays, companyRowTimeZone, isIsoDate, isRealDate, isValidPhone, minutesToHm, nextNumber, normaliseZip, safeTz, tzParts, zonedWallTimeToUtc, ZIP_ERROR, mayBeGivenWork } from '@twomiah/tenant-backend'
 import { booking, bookingService, bookingSettings, bookingHours, bookingBlackout, bookingZone, bookingBan, contact, user, job, company } from '../db/schema/index.ts'
 import { freeSlots, pickWho, type Busy, type ServiceRules, type Slot } from './slots.ts'
 import { lockBookingDay, lockJobBook } from '../data/bookingLock.ts'
@@ -178,27 +178,39 @@ export function createBookingEngine(deps: EngineDeps) {
   }
 
   // ── Settings ──────────────────────────────────────────────────────────────
+  /**
+   * ONE CLOCK: the business's (Settings › Company, company.timezone, else its state's — companyRowTimeZone). Bookings
+   * kept a time zone of their own, which could disagree with the one the business's reports, invoices and website use
+   * (live test 10/22; coordinator 10/23). The settings row's own column is no longer read: every row this engine hands
+   * out carries the company's clock in `timezone`, so the slot grid, the emails and the calendar all keep one time.
+   * Migration 0027 moved a booking zone onto a company that had none.
+   */
+  async function clockOf(companyId: string, exec: any = db): Promise<string> {
+    const [co] = await exec.select().from(company).where(eq(company.id, companyId)).limit(1)
+    return companyRowTimeZone(co)
+  }
+  const withClock = (row: SettingsRow, tz: string): SettingsRow => (row ? { ...row, timezone: tz } : row)
+
   async function settingsOf(companyId: string, exec: any = db): Promise<SettingsRow> {
+    const tz = await clockOf(companyId, exec)
     const [row] = await exec.select().from(bookingSettings).where(eq(bookingSettings.companyId, companyId)).limit(1)
-    if (row) return row
-    // First read: the business's own clock (company.timezone), not the column's Chicago default — a New York business
-    // that switched bookings on later was otherwise offered times an hour off (2026-10-22, beside the provisioning fix).
-    const [co] = await exec.select({ timezone: company.timezone }).from(company).where(eq(company.id, companyId)).limit(1)
-    const [made] = await exec.insert(bookingSettings).values({ companyId, ...(co?.timezone && isValidTz(co.timezone) ? { timezone: co.timezone } : {}) }).onConflictDoNothing().returning()
-    if (made) return made
+    if (row) return withClock(row, tz)
+    const [made] = await exec.insert(bookingSettings).values({ companyId }).onConflictDoNothing().returning()
+    if (made) return withClock(made, tz)
     const [again] = await exec.select().from(bookingSettings).where(eq(bookingSettings.companyId, companyId)).limit(1)
-    return again
+    return withClock(again, tz)
   }
   const tzOf = (s: SettingsRow) => safeTz(s.timezone)
   const requireAddress = (s: SettingsRow) => (typeof s.requireAddress === 'boolean' ? s.requireAddress : deps.requireAddressDefault)
 
   async function updateSettings(companyId: string, body: Record<string, unknown>): Promise<SettingsRow> {
-    await settingsOf(companyId)
+    const current = await settingsOf(companyId)
     const u: Record<string, unknown> = {}
     if (typeof body.enabled === 'boolean') u.enabled = body.enabled
-    if (body.timezone !== undefined) {
-      if (!isValidTz(body.timezone)) throw new BookingError('That time zone is not recognised (use a name like America/Chicago).')
-      u.timezone = body.timezone
+    // The zone is the business's, set once under Settings › Company. A form that sends back the zone it was shown is
+    // fine; asking for a different one here is refused in words, never saved where nothing reads it.
+    if (body.timezone !== undefined && body.timezone !== current.timezone) {
+      throw new BookingError('Bookings keep time on your business’s time zone. Change it under Settings › Company.')
     }
     if (body.leadTimeMinutes !== undefined) u.leadTimeMinutes = whole(body.leadTimeMinutes, 'Notice needed (minutes)', 0, 60 * 24 * 60)
     if (body.maxDaysOut !== undefined) u.maxDaysOut = whole(body.maxDaysOut, 'How far ahead (days)', 1, 365)
@@ -219,14 +231,14 @@ export function createBookingEngine(deps: EngineDeps) {
     }
     if (!Object.keys(u).length) throw new BookingError('Nothing to change.')
     const [row] = await db.update(bookingSettings).set({ ...u, updatedAt: new Date() }).where(eq(bookingSettings.companyId, companyId)).returning()
-    return row
+    return withClock(row, current.timezone)
   }
 
   /** A new private address for the bookings calendar feed; the old one stops working. */
   async function rotateFeedToken(companyId: string): Promise<SettingsRow> {
-    await settingsOf(companyId)
+    const current = await settingsOf(companyId)
     const [row] = await db.update(bookingSettings).set({ icalFeedToken: newToken(), updatedAt: new Date() }).where(eq(bookingSettings.companyId, companyId)).returning()
-    return row
+    return withClock(row, current.timezone)
   }
 
   // ── Services ──────────────────────────────────────────────────────────────

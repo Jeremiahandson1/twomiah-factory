@@ -51,7 +51,13 @@ describe('the feature switch', () => {
 
 describe('who may do what', () => {
   test('the owner sets up services and hours', async () => {
+    // One clock (coordinator 10/23): the business's zone, set in Settings › Company, is the one Bookings keeps time on.
+    await t.db.update(t.schema.company).set({ timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, companyId))
     expect((await as('owner', '/api/booking/settings', { method: 'PATCH', json: { timezone: 'America/Chicago', leadTimeMinutes: 60, maxDaysOut: 30 } })).status).toBe(200)
+    // …and a different zone sent here is refused in words, never stored where nothing reads it.
+    const other = await as('owner', '/api/booking/settings', { method: 'PATCH', json: { timezone: 'America/New_York' } })
+    expect(other.status).toBe(400)
+    expect(JSON.stringify(await other.json())).toContain('Settings › Company')
     const svc = await as('owner', '/api/booking/services', { method: 'POST', json: { name: 'Gutter cleaning', durationMinutes: 60, price: 120, slotStepMinutes: 60 } })
     expect(svc.status).toBe(201)
     expect((await svc.json()).slug).toBe('gutter-cleaning')

@@ -20,6 +20,8 @@ beforeAll(async () => {
   companyId = s.company.id; ownerId = s.owner.id
   token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken
   expect((await as('/api/company/features', { method: 'PUT', json: { features: ['online_booking'] } })).status).toBe(200)
+  // One clock (coordinator 10/23): the business's zone, set in Settings › Company, is the one Bookings keeps time on.
+  await t.db.update(t.schema.company).set({ timezone: TZ } as any).where(eq(t.schema.company.id, companyId))
   expect((await as('/api/booking/settings', { method: 'PATCH', json: { timezone: TZ, enabled: true, maxDaysOut: 30, leadTimeMinutes: 60 } })).status).toBe(200)
   expect((await as('/api/booking/services', { method: 'POST', json: { name: 'Consultation', durationMinutes: 60, slotStepMinutes: 60 } })).status).toBe(201)
   expect((await as('/api/booking/hours', { method: 'PUT', json: { hours: [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d, start: '09:00', end: '17:00' })) } })).status).toBe(200)

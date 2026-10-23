@@ -33,6 +33,7 @@ import { premiumSitePages, premiumServiceAreas, buildPremiumNav, type PremiumCom
 import { composeInstant, tradeLabelFor } from '../services/instantComposer'
 import { websiteTradeFor } from '../config/websiteTrades'
 import { wantsBookings } from '../services/composerFacts'
+import { signupQuestionsFor } from '../config/signupQuestions'
 import { collectImageUrls, heroCreditsForUrls } from '../config/heroLibrary'
 import { repoKey, type OwnedResources } from '../services/resourceOwnership'
 
@@ -124,7 +125,9 @@ export function unifiedFeatures(tenant: any, config: any): string[] {
 export function takesBookings(tenant: any): boolean {
   const data = tenant?.intake_data || {}
   const goals = [...(Array.isArray(data.signup?.goals) ? data.signup.goals : []), ...(Array.isArray(data.intake?.goals) ? data.intake.goals : [])]
-  return wantsBookings({ goals } as any)
+  // Only where the business's system has online booking (config/signupQuestions.ts) — an intake's "bookings" goal on a
+  // roofer or an RV dealer starts nothing bookable.
+  return signupQuestionsFor(tenant?.industry).bookings && wantsBookings({ goals } as any)
 }
 
 /** The site's composition: the one the signup or the intake stored, else one composed now from the tenant's facts. */

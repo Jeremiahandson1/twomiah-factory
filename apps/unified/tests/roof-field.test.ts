@@ -181,7 +181,7 @@ describe('storm radar', () => {
     expect(st.body).toMatchObject({ provider: 'noaa', configured: false })
     expect((await call('rep', 'POST', '/api/storm-radar/sync', {})).status).toBe(403)
     const sync = await call('mgr', 'POST', '/api/storm-radar/sync', {})
-    expect(sync).toEqual({ status: 503, body: { error: 'Storm Radar is not connected yet. Add it in Settings › Integrations.', code: 'not_configured' } })
+    expect(sync).toEqual({ status: 503, body: { error: 'Storm Radar isn’t connected for your account yet. Email support@twomiah.com and we will set it up.', code: 'not_configured' } })
   })
 
   test('a provider\'s events are kept once each, and an event\'s contacts are matched once each', async () => {

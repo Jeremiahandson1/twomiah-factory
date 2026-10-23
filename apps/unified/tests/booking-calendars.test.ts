@@ -58,6 +58,8 @@ beforeAll(async () => {
   companyId = s.company.id; ownerId = s.owner.id
   const [staff] = await t.db.insert(t.schema.user).values({ companyId, email: 'crew@example.com', firstName: 'Sam', lastName: 'Crew', role: 'field', passwordHash: 'x' }).returning()
   staffId = staff.id
+  // One clock (coordinator 10/23): the business's zone, set in Settings › Company, is the one Bookings keeps time on.
+  await t.db.update(t.schema.company).set({ timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, companyId))
   const e = engine()
   await e.updateSettings(companyId, { timezone: 'America/Chicago', leadTimeMinutes: 60, maxDaysOut: 14 })
   await e.setHours(companyId, [1, 2, 3, 4, 5].map((d) => ({ dayOfWeek: d, start: '09:00', end: '17:00' })))

@@ -123,7 +123,9 @@ async function autoCreateWebhook(
   publishableKey: string | undefined,
 ): Promise<{ secret: string } | { warning: string }> {
   const backendUrl = webhookBase()
-  if (!backendUrl) return { warning: 'BACKEND_URL not configured on this service' }
+  // Shown to the merchant (Payments: "payment notifications need attention: …"), so in their words; the missing setting
+  // is BACKEND_URL.
+  if (!backendUrl) return { warning: 'this service has no public address for them yet — email support@twomiah.com' }
   const webhookUrl = backendUrl + '/api/public/webhooks/payment'
   try {
     if (provider === 'stripe') {
