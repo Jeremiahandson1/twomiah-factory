@@ -137,6 +137,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             <button onClick={qbConnect} disabled={saving === 'qb-connect'} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800 flex items-center gap-2">Connect QuickBooks<ExternalLink className="w-4 h-4" /></button>
           )} />
 
+        {config?.cardPayments !== 'not-offered' && (<>
         <SectionLabel label="Payments" />
         {/* What it does and how to connect it, in the owner's words — the card said only "Accept credit card payments from
             customers." and nothing about what to do (live test 10/22). */}
@@ -149,11 +150,18 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
                 : <div className="flex items-center gap-3 flex-wrap"><p className="text-yellow-700 dark:text-yellow-400 font-medium">Setup incomplete — Stripe still needs a few details before payments can be accepted.</p><button onClick={stripeConnect} className="text-sm text-purple-600 dark:text-purple-300 hover:underline">Finish setup</button></div>}
             </div>
           ) : (
-            <HowTo steps={['Click Connect Stripe. Sign in to Stripe, or create a free account there.', 'Stripe asks for your business details and the bank account to pay you into — about 10 minutes.', 'You come back here, and this card says "Ready to accept payments".']} />
+            <HowTo steps={[
+              ...(config?.cardPayments === 'off' ? ['Switch on Online Payments under Settings › Features — until it is on, invoices show no Pay button even with Stripe connected.'] : []),
+              'Click Connect Stripe. Sign in to Stripe, or create a free account there.', 'Stripe asks for your business details and the bank account to pay you into — about 10 minutes.', 'You come back here, and this card says "Ready to accept payments".',
+            ]} />
           )}
           actions={status.stripe.configured === false ? null : status.stripe.connected
             ? <button onClick={stripeDisconnect} disabled={saving === 'stripe'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
             : <button onClick={stripeConnect} disabled={saving === 'stripe-connect'} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 flex items-center gap-2">Connect Stripe<ExternalLink className="w-4 h-4" /></button>} />
+        {status.stripe.connected && config?.cardPayments === 'off' && (
+          <p role="status" className="-mt-2 text-sm text-amber-800 dark:text-amber-200">Stripe is connected, but Online Payments is switched off under Settings › Features, so invoices show no Pay button.</p>
+        )}
+        </>)}
 
         <SectionLabel label="Communication" />
         <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-6">

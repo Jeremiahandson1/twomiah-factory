@@ -40,6 +40,13 @@ export interface IntegrationsConfig {
    * the Twilio card says most businesses use that instead, and is for an owner who already has a Twilio account.
    */
   textingPage?: string
+  /**
+   * Whether this business takes cards on its invoices — the online_payments feature, which the server asks before it
+   * offers Pay. 'on': the Stripe card as always. 'off': offered but switched off — the card says to switch it on under
+   * Settings › Features first (connecting Stripe alone changes nothing). 'not-offered': the industry's system has no
+   * invoice card payments (roofing; a shop takes its payments on its own Payments page) — no Stripe card. Absent: 'on'.
+   */
+  cardPayments?: 'on' | 'off' | 'not-offered'
 }
 
 export interface ImportTypeDef {

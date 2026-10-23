@@ -14,6 +14,7 @@ import { api } from '../api'
 import { verticalScreens } from './vertical'
 import OnboardingWizard from './pages/OnboardingWizard'
 import type { ComponentType } from 'react'
+import { useEffect, useState } from 'react'
 import { dashboard as salonDashboard } from './verticals/salon'
 import { dashboard as eventsDashboard } from './verticals/restaurant'
 // 'practice': the veterinary practice's.
@@ -178,7 +179,22 @@ export const GoogleReviews = () => <GbpReviewsPage />
 export const Texting = () => <TextingPage />
 // The web address is connected on this app's Domain page, and texting is the business's own registered number (Settings ›
 // Texting) — so those two cards send the owner there, in plain words, rather than to a CNAME guide and a Twilio form.
-export const Integrations = () => <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms), domainPage: '/crm/domain', textingPage: '/crm/settings/texting' }} />
+//
+// Card payments on invoices are the online_payments feature (the server asks it before offering Pay — server/modules/crm.ts
+// canTakeCardPayments): on, switched off, or not part of this industry's system at all (the catalogue does not list it).
+export function Integrations() {
+  const { hasFeature } = useAuth()
+  const [offered, setOffered] = useState<boolean | null>(null)
+  useEffect(() => {
+    client.get('/api/company/features/catalog')
+      .then((r: any) => setOffered(Array.isArray(r?.features) ? r.features.some((f: any) => f?.id === 'online_payments') : true))
+      .catch(() => setOffered(true))
+  }, [])
+  // Asked once, before the cards are drawn — never a Stripe card that changes its mind a moment later.
+  if (!hasFeature('online_payments') && offered === null) return null
+  const cardPayments = hasFeature('online_payments') ? 'on' : offered === false ? 'not-offered' : 'off'
+  return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms), domainPage: '/crm/domain', textingPage: '/crm/settings/texting', cardPayments }} />
+}
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />
 
