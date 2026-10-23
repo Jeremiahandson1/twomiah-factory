@@ -11,7 +11,11 @@ const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 const jobs = read('packages/tenant-backend/src/jobs/jobs.ts')
 if (!/const completedAt = data\.status === undefined \|\| data\.status === existing\.status \? undefined\s*\n\s*: data\.status === 'completed' \? \(existing\.completedAt \?\? new Date\(\)\)\s*\n\s*: existing\.completedAt \? null : undefined/.test(jobs)) fail('editing a job to completed must stamp completedAt (and clear it when it leaves completed)')
 if (!/\.\.\.\(completedAt !== undefined \? \{ completedAt \} : \{\}\),/.test(jobs)) fail('the job update must write that stamp')
-if (!/transition\('complete', 'completed', \(\) => o\.onComplete, \(\) => \(\{ completedAt: new Date\(\) \}\)\)/.test(jobs)) fail('the Complete action must still stamp completedAt')
+// The hook argument is not what this checks: 78df7bb67 moved every status's hook into one table (hookFor(status) →
+// jobHookFor), shared by the buttons and the edit. The stamp — the fourth argument, spread into the update by
+// transition()'s `...extra()` — is the property, so both hook spellings are accepted and the stamp and spread required.
+if (!/transition\('complete', 'completed', \(\) => (?:o\.onComplete|hookFor\('completed'\)), \(\) => \(\{ completedAt: new Date\(\) \}\)\)/.test(jobs)
+  || !/const transition = \(path: string, status: string, hook: [^\n]*extra: \(\) => Record<string, any> = \(\) => \(\{\}\)\) => \{[\s\S]*?\.\.\.extra\(\),/.test(jobs)) fail('the Complete action must still stamp completedAt')
 // …and the lifecycle buttons follow the same rule as the dropdown: Start and Dispatch only wrote the status, so
 // reopening a finished job left the old completion time on it and "Completed today" kept counting it (T26 M1).
 if (!/\.\.\.\(status === 'completed' \? \{\} : \{ completedAt: null \}\),/.test(jobs)) fail('Start and Dispatch must clear the completion time — a reopened job must not still claim it was finished')
