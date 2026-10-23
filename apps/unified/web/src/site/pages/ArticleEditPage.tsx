@@ -8,7 +8,7 @@ import { ArrowLeft, Plus, X } from 'lucide-react'
 import { PageError, useConfirm, useMayWrite } from '../../shared'
 import { api } from '../../api'
 import { Label, TextField, TextAreaField, ImageUrlField } from '../components/Field'
-import { DraftActions, DraftStatus, LivePreview, PreviewToggle, useDraftEditor, useIsWide, type DraftRow } from '../components/Drafts'
+import { DraftActions, DraftStatus, LivePreview, PreviewToggle, PublishAllButton, useDraftEditor, useIsWide, useSiteDrafts, type DraftRow } from '../components/Drafts'
 
 /** What the editor edits: the draft where there is one, else the live post or work. */
 interface Article {
@@ -64,7 +64,10 @@ export function ArticleEditPage({ kind }: { kind: KindId }) {
     },
     publish: (show) => api.post(`/api/site/${kind}/${slug}/publish`, show ? { show: true } : {}),
     discard: () => api.delete(`/api/site/${kind}/${slug}/draft`),
+    autosave: mayEdit,
   })
+  const drafts = useSiteDrafts()
+  const settingsDraft = !!drafts.items?.some((i) => i.kind === 'settings')
 
   useEffect(() => {
     if (!slug) return
@@ -117,7 +120,7 @@ export function ArticleEditPage({ kind }: { kind: KindId }) {
             placeholder={k.titlePlaceholder}
             aria-label="Title"
           />
-          <DraftStatus isDirty={ed.isDirty} hasDraft={ed.hasDraft} justPublished={ed.justPublished} />
+          <DraftStatus isDirty={ed.isDirty} hasDraft={ed.hasDraft} saving={ed.saving} justPublished={ed.justPublished} />
           <PreviewToggle on={previewOnPhone} onChange={setPreviewOnPhone} />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -127,7 +130,8 @@ export function ArticleEditPage({ kind }: { kind: KindId }) {
           </label>
           <span className="text-xs text-muted">{onSite ? `Visitors can open it at ${k.publicPrefix}${row.slug}.` : "Off the site: visitors can't open it."}</span>
           {mayEdit && (
-            <div className="sm:ml-auto">
+            <div className="sm:ml-auto flex flex-wrap items-center gap-2">
+              <PublishAllButton changed={ed.isDirty || ed.saving || ed.hasDraft} current={{ kind: kind === 'posts' ? 'post' : 'portfolio', slug: row.slug }} drafts={drafts} beforeOpen={ed.saveNow} onPublished={() => api.get(`/api/site/${kind}/${slug}`).then(ed.adopt)} />
               <DraftActions ed={ed} noun={kind === 'posts' ? 'post' : 'project'} offSite={!onSite} show={showOnPublish} setShow={setShowOnPublish} showLabel="Also show it on the site" />
             </div>
           )}
@@ -206,6 +210,7 @@ export function ArticleEditPage({ kind }: { kind: KindId }) {
           data={mayEdit ? article : null}
           label={ed.isDirty || ed.hasDraft ? 'Preview of your changes' : 'Preview'}
           publicHref={onSite ? k.publicPrefix + row.slug : null}
+          settingsDraft={settingsDraft}
           className={`card overflow-hidden ${wide ? 'lg:sticky lg:top-4 h-[calc(100vh-10rem)]' : 'h-[calc(100svh-12rem)] min-h-[24rem]'}`}
         />
       )}

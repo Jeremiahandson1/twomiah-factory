@@ -127,7 +127,7 @@ export function addPreviewRoutes(app: Hono<any>, may: (p: string) => any, deps: 
     // ?settings=draft: the page under the site's saved draft settings too — the whole site as it will be once everything
     // is published (the editor offers it while the settings have a draft).
     if (kind !== 'settings' && c.req.query('settings') === 'draft') {
-      const [site] = await deps.db.select().from(website).where(eq(website.companyId, c.get('user').companyId)).limit(1)
+      const [site] = await deps.db.select().from(website).where(eq(website.companyId, (c as any).get('user').companyId)).limit(1)
       if (site && draftOf(site)) overlay = { ...overlay, settings: workingOf(site, SETTINGS_DRAFT) }
     }
     const url = new URL(c.req.url)

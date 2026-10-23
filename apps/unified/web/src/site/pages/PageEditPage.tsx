@@ -9,7 +9,7 @@ import { api } from '../../api'
 import { findSectionDef, SECTION_DEFS } from '../sectionSchema'
 import { SectionFormDispatcher } from '../components/SectionFormDispatcher'
 import { AddSectionMenu } from '../components/AddSectionMenu'
-import { DraftActions, DraftStatus, LivePreview, PreviewToggle, useDraftEditor, useIsWide, type DraftRow } from '../components/Drafts'
+import { DraftActions, DraftStatus, LivePreview, PreviewToggle, PublishAllButton, useDraftEditor, useIsWide, useSiteDrafts, type DraftRow } from '../components/Drafts'
 
 interface Section { type: string; variant: string; data: Record<string, any> }
 
@@ -82,7 +82,10 @@ export function PageEditPage() {
     save: (v) => api.patch(`/api/site/pages/${slug}`, { title: v.title, sections: v.sections, metaTitle: v.metaTitle ?? null, metaDescription: v.metaDescription ?? null }),
     publish: (show) => api.post(`/api/site/pages/${slug}/publish`, show ? { show: true } : {}),
     discard: () => api.delete(`/api/site/pages/${slug}/draft`),
+    autosave: mayEdit,
   })
+  const drafts = useSiteDrafts()
+  const settingsDraft = !!drafts.items?.some((i) => i.kind === 'settings')
 
   useEffect(() => {
     if (!slug) return
@@ -175,7 +178,7 @@ export function PageEditPage() {
           className="text-xl text-ink bg-transparent dark:bg-transparent border-0 focus:outline-none focus:ring-0 flex-1 min-w-[10rem] px-0"
           placeholder="Page title"
         />
-        <DraftStatus isDirty={ed.isDirty} hasDraft={ed.hasDraft} justPublished={ed.justPublished} />
+        <DraftStatus isDirty={ed.isDirty} hasDraft={ed.hasDraft} saving={ed.saving} justPublished={ed.justPublished} />
         <PreviewToggle on={previewOnPhone} onChange={setPreviewOnPhone} />
       </div>
       <div className="border-b border-line px-4 sm:px-6 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2 shrink-0 bg-paper">
@@ -195,7 +198,8 @@ export function PageEditPage() {
           {shownOnSite ? 'Visitors can open it at ' + publicHref + '.' : "Hidden: visitors can't open it, and it isn't in the menu."}
         </span>
         {mayEdit && (
-          <div className="sm:ml-auto">
+          <div className="sm:ml-auto flex flex-wrap items-center gap-2">
+            <PublishAllButton changed={ed.isDirty || ed.saving || ed.hasDraft} current={{ kind: 'page', slug: row.slug }} drafts={drafts} beforeOpen={ed.saveNow} onPublished={() => api.get(`/api/site/pages/${slug}`).then(ed.adopt)} />
             <DraftActions ed={ed} noun="page" offSite={!shownOnSite} show={showOnPublish} setShow={setShowOnPublish} showLabel="Also show it on the site" />
           </div>
         )}
@@ -303,6 +307,7 @@ export function PageEditPage() {
             data={mayEdit ? page : null}
             label={ed.isDirty || ed.hasDraft ? 'Preview of your changes' : 'Preview'}
             publicHref={shownOnSite ? publicHref : null}
+            settingsDraft={settingsDraft}
             className={`border-t lg:border-t-0 border-line ${wide ? 'flex-1' : 'shrink-0 h-[calc(100svh-12rem)] min-h-[24rem]'}`}
           />
         )}

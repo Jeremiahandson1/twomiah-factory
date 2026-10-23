@@ -10,7 +10,7 @@ import { Plus, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { PageError, useMayWrite } from '../../shared'
 import { api } from '../../api'
 import { Label, TextField, TextAreaField, ImageUrlField } from '../components/Field'
-import { DraftActions, DraftStatus, LivePreview, PreviewToggle, useDraftEditor, useIsWide, type DraftRow } from '../components/Drafts'
+import { DraftActions, DraftStatus, LivePreview, PreviewToggle, PublishAllButton, useDraftEditor, useIsWide, useSiteDrafts, type DraftRow } from '../components/Drafts'
 
 interface NavItem { label: string; href: string }
 interface Design { id: string; label: string; isDefault: boolean }
@@ -62,7 +62,9 @@ export function SiteSettingsPage() {
     save: (v) => api.patch('/api/site/settings', { ...v, serviceAreas: (v.serviceAreas || []).map((s) => s.trim()).filter(Boolean) }),
     publish: () => api.post('/api/site/settings/publish', {}),
     discard: () => api.delete('/api/site/settings/draft'),
+    autosave: mayEdit,
   })
+  const drafts = useSiteDrafts()
 
   useEffect(() => {
     Promise.all([api.get('/api/site/settings'), api.get('/api/site/designs')])
@@ -102,8 +104,9 @@ export function SiteSettingsPage() {
           <p className="text-muted text-sm mt-1">The site's look, navigation, search defaults and tracking.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <DraftStatus isDirty={ed.isDirty} hasDraft={ed.hasDraft} justPublished={ed.justPublished} />
+          <DraftStatus isDirty={ed.isDirty} hasDraft={ed.hasDraft} saving={ed.saving} justPublished={ed.justPublished} />
           <PreviewToggle on={previewOnPhone} onChange={setPreviewOnPhone} />
+          {mayEdit && <PublishAllButton changed={ed.isDirty || ed.saving || ed.hasDraft} current={{ kind: 'settings', slug: 'site' }} drafts={drafts} beforeOpen={ed.saveNow} onPublished={() => api.get('/api/site/settings').then(ed.adopt)} />}
           {mayEdit && <DraftActions ed={ed} noun="site's settings" />}
         </div>
       </div>

@@ -6,6 +6,7 @@ import { ExternalLink, FileText, Image, Newspaper, Briefcase, Settings as Settin
 import { PageError, useMayWrite } from '../../shared'
 import { api } from '../../api'
 import { FinishYourSiteCard } from '../components/FinishYourSiteCard'
+import { UnpublishedList, useSiteDrafts } from '../components/Drafts'
 
 interface Analytics {
   viewsLast30: number
@@ -30,6 +31,9 @@ const PARTS = [
 
 export function WebsiteOverviewPage() {
   const maySettings = useMayWrite('site:settings')
+  const mayEdit = useMayWrite('site:update')
+  const drafts = useSiteDrafts()
+  const [publishedNote, setPublishedNote] = useState<string | null>(null)
   const [data, setData] = useState<Analytics | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -49,6 +53,21 @@ export function WebsiteOverviewPage() {
           View your site
         </a>
       </div>
+
+      {/* Everything saved but not on the site yet, and Publish all — as Wix and Webflow keep it (components/Drafts.tsx). */}
+      {drafts.items && drafts.items.length > 0 && (
+        <section className="card card-padding mb-6" aria-labelledby="unpublished-heading">
+          <h2 id="unpublished-heading" className="text-lg font-semibold text-ink mb-1">Unpublished changes</h2>
+          <p className="text-sm text-muted mb-4">Saved, but not on your site yet. Open one to look it over, or publish them all together.</p>
+          {mayEdit
+            ? <UnpublishedList items={drafts.items} onPublished={(r) => { setPublishedNote(`${r.published.length} ${r.published.length === 1 ? 'change is' : 'changes are'} live now.`); drafts.refresh() }} />
+            : <UnpublishedList items={drafts.items.map((i) => ({ ...i, mayPublish: false }))} onPublished={() => {}} />}
+        </section>
+      )}
+      {publishedNote && (!drafts.items || drafts.items.length === 0) && (
+        <div role="status" className="card card-padding mb-6 text-sm text-green-800 dark:text-green-300">{publishedNote}</div>
+      )}
+      <PageError message={drafts.error} className="mb-6" />
 
       <FinishYourSiteCard />
 
