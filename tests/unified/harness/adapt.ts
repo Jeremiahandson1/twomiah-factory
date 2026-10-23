@@ -47,6 +47,16 @@ const ADAPT: Record<string, [string, string, string][]> = {
   'restaurant/t62-event-money.test.ts': [
     ["&& list.json?.moneyWithheld === true, row)", ", row)", "the events list is a list reply ({ data, pagination }): its rows carry no quote or deposit, and it sends no moneyWithheld (no screen read it there; the event page and the dashboard still say it)"],
   ],
+  'rv/t39-deal-desk-and-adf.test.ts': [
+    ["slug: 'zacho-desk', email: 'zacho@test.local', state: 'OH',\n  settings: {}, enabledFeatures: [],", "slug: 'zacho-desk', email: 'zacho@test.local', state: 'OH',\n  settings: {}, enabledFeatures: ['deal_desk'],", 'desking a deal is the Deal Desk switch\'s own (salesLeads.ts PUT /:id/deal), not "any dealership feature": the dealer under test has it switched on'],
+    ["name: 'Rival RV', slug: 'rival-desk', email: 'rival@test.local', state: 'OH', settings: {}, enabledFeatures: [],", "name: 'Rival RV', slug: 'rival-desk', email: 'rival@test.local', state: 'OH', settings: {}, enabledFeatures: ['deal_desk'],", 'the rival dealer has Deal Desk too, so the 404 it gets is the ownership check the test is about (the comment above it: a payload the route would otherwise accept), not the switch'],
+  ],
+  'vet/t39-visit-billing-and-reminders.test.ts': [
+    ["slug: 'fernwood-vet-t39', email: 'fernwood@test.local', state: 'OH',\n  settings: {}, enabledFeatures: [],", "slug: 'fernwood-vet-t39', email: 'fernwood@test.local', state: 'OH',\n  settings: {}, enabledFeatures: ['rabies_certificates'],", 'the rabies certificate is its own switch (featureRegistry rabies_certificates, gated on the server 2026-10-22): the practice under test has it on'],
+  ],
+  'vet/t51-rabies-and-dates.test.ts': [
+    ["settings: {}, enabledFeatures: ['patients', 'vaccinations', 'reminders', 'contacts'],", "settings: {}, enabledFeatures: ['patients', 'vaccinations', 'reminders', 'contacts', 'rabies_certificates'],", 'the rabies certificate is its own switch (rabies_certificates): the practice under test has it on'],
+  ],
   'landscaping/t62-route-money.test.ts': [
     ["priced.status === 403 && priced.json?.field === 'pricePerVisit'", "priced.status === 403 && !!priced.json?.fields?.pricePerVisit", 'a refusal names its box in fields (RULEBOOK §3), not a field key'],
   ],

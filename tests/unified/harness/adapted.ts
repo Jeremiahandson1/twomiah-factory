@@ -20,6 +20,7 @@ const SUITES: Record<string, { template: string; vertical: string; sandboxFiles?
   restaurant: { template: 'crm-restaurant', vertical: 'restaurant' },
   vet: { template: 'crm-vet', vertical: 'vet' },
   bar: { template: 'crm-bar', vertical: 'bar' },
+  rv: { template: 'crm-rv', vertical: 'rv' },
   salon: { template: 'crm-salon', vertical: 'salon', sandboxFiles: SALON_SANDBOX },
   homecare: { template: 'crm-homecare', vertical: 'homecare', homecare: true, sandboxFiles: HOMECARE_SANDBOX },
   roof: { template: 'crm-roof', vertical: 'roofing', sandboxFiles: ROOF_SANDBOX },

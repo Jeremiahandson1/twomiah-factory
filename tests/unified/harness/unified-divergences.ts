@@ -331,12 +331,25 @@ export const UNIFIED_DIVERGENCES: Record<string, Record<string, Divergence>> = {
     },
   },
   rv: {
+    't39-deal-desk-and-adf.test.ts': {
+      why: "On purpose (2026-10-22): desking a deal (PUT /api/sales-leads/:id/deal) is the Deal Desk switch's own (featureRegistry deal_desk), as the Desking page is — not \"any dealership feature\". The test's dealer is made with no features switched on, so the desk is refused 403 FEATURE_NOT_ENABLED; reading the saved deal stays open for F&I.",
+      heldBy: "tests/unified/rv/t39-deal-desk-and-adf.test.ts (the same file, its dealer with deal_desk switched on: every desk, figure, rounding and refusal assertion) and apps/unified/tests/feature-switches-hide.test.ts (Deal Desk off refuses the desk, on allows it)",
+    },
     't59-website-lead-one-person.test.ts': {
       why: "Drives POST /api/webhooks/leads, the separate website's contact-form webhook (and its chat's phone-only, unitOfInterest posts). The website is the same app now; a dealership's enquiry goes straight into the sales pipeline (CrmSettings.websiteEnquiries 'pipeline', server/crm/rv/enquiry.ts), on the customer's existing contact by the same rule.",
       heldBy: "apps/unified/tests/rv-enquiry.test.ts (one contact and one sales lead at new; the same message again is the same lead; another question is a second lead on the same contact; a different name on a shared phone is a second person; the Lead Inbox on doesn't divert it) and apps/unified/tests/rv-chat-enquiry.test.ts (the chat's phone-only lead is taken; unitOfInterest is on the notes and its stock number links this dealer's unit, case aside; an unknown stock number links nothing and the enquiry is still taken)",
     },
   },
   vet: {
+    't39-visit-billing-and-reminders.test.ts': {
+      assertions: [/^the certificate renders/, /^T41: it prints the age at vaccination/, /^T41: …and the label says which age it means/],
+      why: "On purpose (2026-10-22): the rabies certificate is its own switch (featureRegistry rabies_certificates), refused 403 FEATURE_NOT_ENABLED while off; the test's practice is made with no features switched on. The two T41 checks read the certificate page.",
+      heldBy: 'tests/unified/vet/t39-visit-billing-and-reminders.test.ts (the same file, its practice with rabies_certificates on) and apps/unified/tests/feature-switches-hide.test.ts (off refuses the certificate, on prints it)',
+    },
+    't51-rabies-and-dates.test.ts': {
+      why: "On purpose (2026-10-22): the rabies certificate is its own switch (rabies_certificates); the test's practice switches on patients, vaccinations, reminders and contacts but not the certificate, so every certificate request is refused 403 before its own rule is reached.",
+      heldBy: 'tests/unified/vet/t51-rabies-and-dates.test.ts (the same file, with rabies_certificates on: a real rabies shot prints with its tag, DHPP is refused by name, an unknown id is 404) and apps/unified/tests/feature-switches-hide.test.ts',
+    },
     't62-billed-visit-delete.test.ts': {
       assertions: [/cannot delete a visit billed on INV-\d+ \(409 visit_already_invoiced\)$/],
       why: "A refusal is { error, code } (RULEBOOK §3): the invoice that holds the visit is named by its number in the sentence; the template's reply also carried an invoiceId field, which the test reads (no screen did). Still a 409 with code visit_already_invoiced, for every role.",
