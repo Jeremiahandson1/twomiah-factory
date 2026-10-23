@@ -408,7 +408,10 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
         'Content-Disposition': `inline; filename="receipt.${name.split('.').pop()}"`,
         'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
-        'Cache-Control': 'private, max-age=300',
+        // A receipt is somebody's private paper behind sign-in: the browser must not keep a copy it can replay
+        // without credentials after sign-out (`private` still lets it). Same rule as documents and photos. (T32 M12)
+        'Cache-Control': 'no-store, must-revalidate',
+        Pragma: 'no-cache',
       })
     })
 

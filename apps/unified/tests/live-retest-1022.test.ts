@@ -173,6 +173,9 @@ describe('4 · expenses: a receipt photo, and totals', () => {
     const back = await x.owner(saved.receiptUrl)
     expect(back.status).toBe(200)
     expect(back.headers.get('content-type')).toBe('image/png')
+    // Private paper: the browser keeps no copy to replay after sign-out.
+    expect(back.headers.get('cache-control')).toMatch(/\bno-store\b/)
+    expect(back.headers.get('cache-control')).not.toMatch(/max-age=[1-9]/)
     expect(Buffer.from(await back.arrayBuffer()).equals(PNG)).toBe(true)
     // A colleague below manager cannot read someone else's claim, nor its receipt.
     await x.t.db.insert(x.t.schema.user).values({ email: 'crew@test.example', passwordHash: await Bun.password.hash('Pass-word-1', 'bcrypt'), firstName: 'Cr', lastName: 'Ew', role: 'field', companyId: x.companyId } as any)
