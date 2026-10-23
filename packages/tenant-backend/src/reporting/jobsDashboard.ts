@@ -121,7 +121,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     for (const q of quotes) {
       const v = num(q.total)
       quoteStats.totalValue = r2(quoteStats.totalValue + v)
-      if (q.status === 'draft' || q.status === 'sent') quoteStats.pending++
+      if (q.status === 'draft' || q.status === 'sent' || q.status === 'viewed') quoteStats.pending++
       if (q.status === 'approved') { quoteStats.approved++; quoteStats.approvedValue = r2(quoteStats.approvedValue + v) }
     }
 

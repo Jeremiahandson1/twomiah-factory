@@ -57,7 +57,7 @@ export function createRoofDashboardRoutes(d: CrmDeps) {
       safe(() => db.select({ value: count() }).from(job).where(and(mine, gte(job.installDate, start), lt(job.installDate, end))), [{ value: 0 }]),
       safe(() => db.select({ value: count() }).from(job).where(and(mine, notInArray(job.status, NOT_OPEN))), [{ value: 0 }]),
       safe(() => db.select({ value: count() }).from(job).where(and(mine, eq(job.status, 'in_production'))), [{ value: 0 }]),
-      safe(() => db.select({ value: count() }).from(quote).where(and(eq(quote.companyId, companyId), inArray(quote.status, ['draft', 'sent']))), [{ value: 0 }]),
+      safe(() => db.select({ value: count() }).from(quote).where(and(eq(quote.companyId, companyId), inArray(quote.status, ['draft', 'sent', 'viewed']))), [{ value: 0 }]),
     ])
 
     let invoices: { outstanding: number; outstandingValue: number } | undefined

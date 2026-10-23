@@ -308,7 +308,7 @@ export function createBulkService(deps: BulkServiceDeps) {
     projects: { table: project },
     jobs: { table: job },
     invoices: { table: invoice, restrictDelete: ['sent', 'paid', 'partial'] },
-    quotes: { table: quote, restrictDelete: ['sent', 'approved'] },
+    quotes: { table: quote, restrictDelete: ['sent', 'viewed', 'approved'] },
     timeEntries: { table: timeEntry },
   };
 

@@ -147,8 +147,16 @@ const lineItemSchema = z.object({
   pricebookItemId: z.string().optional().transform(v => (v === '' ? undefined : v)),
 })
 const optionalId = z.string().optional().transform(v => (v === '' ? undefined : v))
-const QUOTE_STATUSES = ['draft', 'sent', 'approved', 'rejected', 'declined', 'expired'] as const
-const EDITABLE = ['draft', 'sent']
+const QUOTE_STATUSES = ['draft', 'sent', 'viewed', 'approved', 'rejected', 'declined', 'expired'] as const
+/**
+ * A quote not yet answered. 'viewed' is a sent quote the customer has opened (portal.ts marks it when they do): still
+ * open — the office edits it, sends it again, and marks it approved or declined when the customer says so by phone.
+ * Live retest 2026-10-23: once the customer had opened the link, the office could no longer mark it approved.
+ */
+export const OPEN_QUOTE_STATUSES = ['draft', 'sent', 'viewed']
+const EDITABLE = OPEN_QUOTE_STATUSES
+/** The statuses an edit may set by hand: 'viewed' is the customer's act, never typed in. */
+const SETTABLE = ['draft', 'sent']
 
 const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false) => items.map((item, i) => ({
   description: item.description,
@@ -327,7 +335,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // anything reading only its own word was short by the quotes refused under the other. (Landscaping T21 L5)
     const refused = o.hasDeclinedAt ? 'declined' : 'rejected'
     const stats: Record<string, number> = { total: quotes.length, draft: 0, sent: 0, approved: 0, [refused]: 0, expired: 0, totalValue: 0, approvedValue: 0 }
-    for (const q of quotes) { const k = q.status === 'rejected' || q.status === 'declined' ? refused : q.status; stats[k] = (stats[k] || 0) + 1; stats.totalValue = round2(stats.totalValue + Number(q.total)); if (q.status === 'approved') stats.approvedValue = round2(stats.approvedValue + Number(q.total)) }
+    // A viewed quote is a sent one the customer has opened: still awaiting an answer, counted with Sent.
+    for (const q of quotes) { const k = q.status === 'rejected' || q.status === 'declined' ? refused : q.status === 'viewed' ? 'sent' : q.status; stats[k] = (stats[k] || 0) + 1; stats.totalValue = round2(stats.totalValue + Number(q.total)); if (q.status === 'approved') stats.approvedValue = round2(stats.approvedValue + Number(q.total)) }
     return c.json(stats)
   })
 
@@ -430,7 +439,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     for (const k of COPY_FIELDS) if (data[k] !== undefined) update[k] = data[k]
     if (exp.value !== undefined) update.expiryDate = exp.value
     // status may move between draft and sent from the editor; approvals go through their own routes
-    if (data.status && EDITABLE.includes(data.status) && data.status !== existing.status) { update.status = data.status; if (data.status === 'sent') update.sentAt = new Date() }
+    if (data.status && SETTABLE.includes(data.status) && data.status !== existing.status) { update.status = data.status; if (data.status === 'sent') update.sentAt = new Date() }
     const recompute = data.lineItems !== undefined || data.taxRate !== undefined || data.discount !== undefined
     if (recompute) {
       const lines: z.infer<typeof lineItemSchema>[] = data.lineItems ?? (await lineRows(id)).map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
@@ -594,7 +603,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const r: any = await setStatus(
       c, id,
       { status: 'sent', sentAt: new Date(), ...(stampedExpiry ? { expiryDate: stampedExpiry } : {}) },
-      ['draft', 'sent'], EVENTS.QUOTE_SENT,
+      OPEN_QUOTE_STATUSES, EVENTS.QUOTE_SENT,
     )
     if (!r.updated) return r
     if (o.onSent && r.updated.contactId) {
@@ -609,16 +618,16 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     return c.json({ ...r.updated, approveOnline })
   })
   app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
-    const r: any = await setStatus(c, c.req.param('id'), { status: 'approved', approvedAt: new Date() }, ['draft', 'sent', 'approved'], EVENTS.QUOTE_APPROVED, q => ({ total: q.total }))
+    const r: any = await setStatus(c, c.req.param('id'), { status: 'approved', approvedAt: new Date() }, [...OPEN_QUOTE_STATUSES, 'approved'], EVENTS.QUOTE_APPROVED, q => ({ total: q.total }))
     return r.updated ? c.json(r.updated) : r
   })
   app.post('/:id/reject', requirePermission('quotes:update'), async (c) => {
-    const r: any = await setStatus(c, c.req.param('id'), { status: 'rejected', ...(o.hasDeclinedAt ? { declinedAt: new Date() } : {}) }, ['draft', 'sent', 'rejected'])
+    const r: any = await setStatus(c, c.req.param('id'), { status: 'rejected', ...(o.hasDeclinedAt ? { declinedAt: new Date() } : {}) }, [...OPEN_QUOTE_STATUSES, 'rejected'])
     return r.updated ? c.json(r.updated) : r
   })
   if (o.hasDeclinedAt) {
     app.post('/:id/decline', requirePermission('quotes:update'), async (c) => {
-      const r: any = await setStatus(c, c.req.param('id'), { status: 'declined', declinedAt: new Date() }, ['draft', 'sent', 'declined'])
+      const r: any = await setStatus(c, c.req.param('id'), { status: 'declined', declinedAt: new Date() }, [...OPEN_QUOTE_STATUSES, 'declined'])
       return r.updated ? c.json(r.updated) : r
     })
   }

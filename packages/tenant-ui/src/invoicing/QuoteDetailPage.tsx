@@ -7,7 +7,9 @@ import { useMayWrite } from '../auth/PermissionsContext'
 import { Button, ConfirmModal, NavLink, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, expiryLabel, isPastDay, money, quoteSentMessage } from './ui'
 
 type Q = Record<string, any>
-const EDITABLE = ['draft', 'sent']
+// Still open (tenant-backend quotes.ts OPEN_QUOTE_STATUSES): a quote the customer has opened is still the office's to
+// mark approved or declined.
+const EDITABLE = ['draft', 'sent', 'viewed']
 
 export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
   const cfg = resolveConfig(config)

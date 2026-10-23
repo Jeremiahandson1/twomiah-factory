@@ -10,7 +10,8 @@ import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberI
 type Row = Record<string, any> & { id: string }
 interface QuoteForm { name: string; contactId: string; projectId: string; jobId: string; siteId: string; equipmentId: string; expiryDate: string; taxRate: number; discount: number; notes: string; customerMessage: string; terms: string; lineItems: LineItemInput[] }
 const blankLine = (): LineItemInput => ({ description: '', quantity: 1, unitPrice: 0 })
-const EDITABLE = ['draft', 'sent']
+// Still open (tenant-backend quotes.ts OPEN_QUOTE_STATUSES), a viewed quote included.
+const EDITABLE = ['draft', 'sent', 'viewed']
 
 export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps) {
   const cfg = resolveConfig(config)
@@ -35,7 +36,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
   // Every status a quote can hold here. 'rejected' is written by the owner's Reject and the portal's decline in every
   // vertical, so it is offered beside 'declined' where that exists — found sweeping the jobs filter's missing 'pending'
   // (live test 2026-10-22): a vertical with quoteDecline could not filter to a quote its customer had declined.
-  const statuses = ['draft', 'sent', 'approved', 'rejected', ...(cfg.quoteDecline ? ['declined'] : []), 'expired']
+  const statuses = ['draft', 'sent', 'viewed', 'approved', 'rejected', ...(cfg.quoteDecline ? ['declined'] : []), 'expired']
   const emptyForm = (): QuoteForm => ({ name: '', contactId: '', projectId: '', jobId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [blankLine()] })
 
   const [data, setData] = useState<Row[]>([])

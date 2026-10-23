@@ -86,6 +86,10 @@ describe('2. takeoffs: the standard assemblies are priced, and the quote lines c
     const before = (await body(await as('ownerA', 'GET', `/api/takeoffs/sheets/${sheet.id}/quote-lines`))).lines
     const screws = before.find((l: any) => l.description.startsWith('Drywall Screws'))
     expect(screws.quantity).toBe(7)
+    // …while the sheet's totals (and its purchase-order export) keep the measured weight: 6.72 lb, not 7 (crm harness
+    // t32-takeoff-export, "nails keep their decimals"). The rounding is the sale's, not the measure's.
+    const totals = await body(await as('ownerA', 'GET', `/api/takeoffs/sheets/${sheet.id}/totals`))
+    expect(totals.materials.find((m: any) => m.name.startsWith('Drywall Screws')).totalQuantity).toBe(6.72)
     expect(before.find((l: any) => l.description.startsWith('1/2" Drywall')).quantity).toBe(5)
     // What the live test got: no selling price anywhere.
     expect(before.every((l: any) => l.unitPrice === 0)).toBe(true)

@@ -38,19 +38,24 @@ function calculateMeasurement(data: any, measurementType: string): number {
 
 /**
  * A thing you buy one of, or a measure you buy some of (T32 L8). Anything unrecognised keeps its decimals.
- *
- * Goods sold BY WEIGHT are bought in whole pounds (or kilos): screws and nails come in 1 lb boxes, and nobody orders
- * 1.23 lb of drywall screws. The standard Drywall assembly's screws are in lb, so a quote showed "1.23" of them
- * (live test 2026-10-22, contractor).
  */
 const DISCRETE_UNITS = new Set([
   'each', 'ea', 'pc', 'pcs', 'piece', 'pieces', 'unit', 'units',
   'sheet', 'sheets', 'board', 'boards', 'stud', 'studs', 'panel', 'panels',
   'bag', 'bags', 'box', 'boxes', 'roll', 'rolls', 'tube', 'tubes', 'bundle', 'bundles',
   'can', 'cans', 'bucket', 'buckets', 'pail', 'pails',
-  'lb', 'lbs', 'pound', 'pounds', 'kg', 'kgs',
 ])
 const isDiscreteUnit = (unit: unknown) => DISCRETE_UNITS.has(String(unit || '').trim().toLowerCase())
+
+/**
+ * Goods sold BY WEIGHT. Two rules, each in its own place:
+ *   · the takeoff's totals and its purchase-order export are the MEASURED quantity — 7.98 lb of nails stays 7.98
+ *     (T32 L8: rounding a measure up to a whole number invents material);
+ *   · a QUOTE line is what the customer buys, in whole sellable units — nobody is sold 1.23 lb of drywall screws
+ *     (live test 2026-10-22, contractor), so the quote line rounds the weight up to the whole pound or kilo.
+ */
+const WEIGHT_UNITS = new Set(['lb', 'lbs', 'pound', 'pounds', 'kg', 'kgs', 'kilo', 'kilos'])
+const isWeightUnit = (unit: unknown) => WEIGHT_UNITS.has(String(unit || '').trim().toLowerCase())
 
 /**
  * Totals per material. Whole units for anything sold as a thing, two decimals (rounded up) for anything sold by
@@ -98,13 +103,14 @@ function aggregateMaterials(allMaterials: any[]) {
 
 /**
  * One line per material, the one rule both exports use: the ORDER quantity (rounded up, as aggregateMaterials gives it)
- * and the price and cost per unit, each rounded to the cent first, so quantity × unit is the line's total.
+ * and the price and cost per unit, each rounded to the cent first, so quantity × unit is the line's total. A quote's
+ * lines (`sale`) are sold in whole units, so a weight is rounded up to the whole pound or kilo there (WEIGHT_UNITS).
  */
-export function materialLines(materials: any[]) {
+export function materialLines(materials: any[], opts: { sale?: boolean } = {}) {
   const per = (total: number, exact: number) => Math.round((exact > 0 ? total / exact : 0) * 100) / 100
   return materials.map((m: any) => ({
     description: `${m.name}${m.unit ? ` (${m.unit})` : ''}`,
-    quantity: Number(m.totalQuantity),
+    quantity: opts.sale && isWeightUnit(m.unit) ? Math.ceil(Number(m.totalQuantity) - 1e-9) : Number(m.totalQuantity),
     unitCost: per(m.totalCost, m.exactQuantity),
     unitPrice: per(m.totalPrice, m.exactQuantity),
   }))
@@ -318,7 +324,7 @@ export function createTakeoffsService(d: CrmDeps) {
   async function quoteLines(sheetId: string, companyId: string) {
     const { materials } = await getSheetMaterialTotals(sheetId, companyId)
     const sheet = await q.findSheetWithProjectName(db, sheetId, companyId)
-    const lines = materialLines(materials).map((m) => ({ description: m.description, quantity: m.quantity, unitPrice: m.unitPrice, unitCost: m.unitCost, type: 'material' as const }))
+    const lines = materialLines(materials, { sale: true }).map((m) => ({ description: m.description, quantity: m.quantity, unitPrice: m.unitPrice, unitCost: m.unitCost, type: 'material' as const }))
     return { sheetId, sheetName: sheet?.name ?? null, projectId: sheet?.projectId ?? null, lines }
   }
 
