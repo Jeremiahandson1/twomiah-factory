@@ -2,8 +2,9 @@
 //
 // Sending website enquiries to the inbox is only right where there is an inbox to read them in. A
 // tenant without the module would otherwise lose every enquiry from view, so here the form keeps the
-// Contact it always wrote, and the dashboard sends no `newLeads` — the key is absent, so the tile drops
-// out rather than printing a zero for a page the owner cannot open.
+// Contact it always wrote. Since 2026-10-23 (fix-f, packages/tenant-backend/src/reporting/newLeads.ts) "New leads" is
+// every enquiry nobody has acted on, wherever it waits — so without an inbox it is that lead contact: counted, and
+// said to be waiting on Contacts, not in an inbox (newLeadsFrom.inbox 0).
 process.env.WEBHOOK_SECRET = 'whsec-t59-off'
 import { Hono } from 'hono'
 import { setupSchema } from './setup.ts'
@@ -60,11 +61,12 @@ console.log('\n══════════ no inbox: the enquiry stays a cont
   check('…and nothing in an inbox this tenant cannot open', rows.length === 0, { leads: rows.length })
 }
 
-console.log('\n══════════ no inbox: no New leads figure ══════════')
+console.log('\n══════════ no inbox: New leads is the lead contact nobody has acted on ══════════')
 {
   const s = await api('GET', '/api/dashboard/stats')
   check('the dashboard answers', s.status === 200, { status: s.status, body: s.text?.slice(0, 200) })
-  check('newLeads is ABSENT, not zero', s.json && !('newLeads' in s.json), { keys: Object.keys(s.json || {}) })
+  check('newLeads counts the enquiry, kept as a lead contact', s.json?.newLeads === 1, { newLeads: s.json?.newLeads })
+  check('…waiting on Contacts, none in an inbox this tenant cannot open', s.json?.newLeadsFrom?.inbox === 0 && s.json?.newLeadsFrom?.contacts === 1, { newLeadsFrom: s.json?.newLeadsFrom })
   check('contacts is still sent (the mobile app reads it)', s.json?.contacts === 1, { contacts: s.json?.contacts })
 }
 

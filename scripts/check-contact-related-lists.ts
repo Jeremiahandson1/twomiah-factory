@@ -33,7 +33,12 @@ for (const t of TEMPLATES) {
 // the page
 const page = read('packages/tenant-ui/src/contacts/ContactDetailPage.tsx')
 if (!/<RelatedList title="Invoices"/.test(page)) fail('the contact page must render an Invoices list, not only a count')
-if (!/<RelatedList title="Jobs"/.test(page)) fail('…and a Jobs list')
+// …and a Jobs list — titled "Jobs", or by the vertical's own word for a job (batch 2 fix-f), which is "Jobs" unless it
+// names one (contacts/types.ts resolveContactsConfig).
+const contactTypes = read('packages/tenant-ui/src/contacts/types.ts')
+const jobsList = /<RelatedList title="Jobs"/.test(page)
+  || (/<RelatedList title=\{cfg\.jobLabels\.plural\} rows=\{jobs\}/.test(page) && /const jobLabels = cfg\.jobLabels\?\.singular \? cfg\.jobLabels : \{ singular: 'Job', plural: 'Jobs' \}/.test(contactTypes))
+if (!jobsList) fail('…and a Jobs list')
 if (!/const invoiceStatus = \(r: Related\) =>/.test(page)) fail('an invoice row must derive its status')
 if (!/isPastDay\(r\.dueDate\)/.test(page)) fail('…from the due DAY, so it agrees with the rest of the product')
 if (!/outstanding > 0\.005/.test(page)) fail('…and only call it overdue when money is actually owed')

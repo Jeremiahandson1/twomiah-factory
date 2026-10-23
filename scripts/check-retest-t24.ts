@@ -53,7 +53,11 @@ const badge = read('packages/tenant-ui/src/invoicing/ui.tsx')
 if (!/export function StatusBadge\(\{ status, label \}: \{ status: string; label\?: string \}\)/.test(badge)) {
   fail('a status badge must accept the vertical\'s own word for the value')
 }
-if (!/\{\(label \|\| status\)\.replace\(/.test(badge)) fail('…and print it')
+// …the label first; without one the stored code goes through the one rule for codes (labels/codes.ts, batch 2 fix-f),
+// which never prints the raw code either.
+const printsLabel = /\{\(label \|\| status\)\.replace\(/.test(badge)
+  || (/\{label \|\| codeLabel\(status\)\}/.test(badge) && /import \{ codeLabel \} from '\.\.\/labels\/codes'/.test(badge))
+if (!printsLabel) fail('…and print it')
 const list = read('packages/tenant-ui/src/contacts/ContactsPage.tsx')
 if (!/<StatusBadge status=\{String\(val \|\| ''\)\} label=\{typeLabel\(String\(val \|\| ''\)\)\} \/>/.test(list)) {
   fail('the contacts list must label the type chip — a clinic\'s row read "client"')

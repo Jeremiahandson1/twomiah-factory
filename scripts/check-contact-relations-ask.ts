@@ -46,7 +46,14 @@ for (const t of readdirSync(join(ROOT, 'templates'))) {
 if (mounts < 8) fail(`only ${mounts} createContactRoutes mounts found — the walk is not reading the templates`)
 
 const ui = read('packages/tenant-ui/src/contacts/ContactDetailPage.tsx')
-if (!/const hasQuotes = 'quotes' in contact/.test(ui) || !/const showInvoices = gated\('invoices'\) && 'invoices' in contact/.test(ui)) fail('ContactDetailPage.tsx: an absent quotes/invoices list must hide its section and its sidebar count')
+// The invoices list is asked of the page's feature gate — gated(), or since batch 2 (fix-f) cfg.shows(), which is the
+// vertical's section AND its feature (contacts/types.ts SECTION_FEATURES, invoices: 'invoices') — AND of the payload.
+const contactTypes = read('packages/tenant-ui/src/contacts/types.ts')
+const showsAsksFeature = /const shows = cfg\.shows/.test(ui) && /invoices: 'invoices'/.test(contactTypes)
+  && /return offered && \(!feature \|\| hasFeature\(feature\)\)/.test(contactTypes)
+const invoicesAsked = /const showInvoices = gated\('invoices'\) && 'invoices' in contact/.test(ui)
+  || (showsAsksFeature && /const showInvoices = shows\('invoices'\) && 'invoices' in contact/.test(ui))
+if (!/const hasQuotes = 'quotes' in contact/.test(ui) || !invoicesAsked) fail('ContactDetailPage.tsx: an absent quotes/invoices list must hide its section and its sidebar count')
 
 if (failed) { console.error(`\ncontact relations: ${failed} check(s) FAILED`); process.exit(1) }
 console.log(`contact relations: quotes and invoices ask their own permission on a contact read, across ${mounts} templates`)

@@ -34,6 +34,9 @@ const ADD_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/pl
 // formatter (money-and-labels), the company clock (agreements, audience-quotes-leads-time, business-day,
 // calendar-day-dates, salon-dark-surfaces), the hook table (job-quote-rules) and the photo viewer's white wash
 // (light-card-dark-text). Each was extended to read the new single source, never loosened, and mutation-tested.
+// batch 2 (fix-f, one rule for stored codes and the vertical's own words): a status chip prints its label or codeLabel(),
+// a contact's jobs list is titled by the vertical's word (default "Jobs"), and its lists ask cfg.shows() — section AND
+// feature. retest-t24, contact-related-lists and contact-relations-ask were extended to read those, never loosened.
 // fix-e's 41ac845f2 made the same money-and-labels change on its branch; batch 2 keeps fix-e's form of that guard, which
 // RUNS the shared money() ($824.60, $1,234.50, -$200.00) rather than matching its source text.
 // Cutover (owner's "go", 2026-10-20): the live Factory gains the unified path behind an off/test/all switch that starts
@@ -46,7 +49,7 @@ const ADD_ALLOWED = [/^apps\/api\/src\//, /^apps\/api\/migrations\//, /^apps\/pl
  * the Monday of the same caregiver, client and hours as another — and the one-active-pattern rule refused it.
  */
 const SUITE_TESTS = /^tests\/(bar|basic|crm|dispensary|fieldservice|homecare|landscaping|restaurant|roof|rv|salon|store|vet)\/[^/]+\.test\.ts$/
-const MODIFY_ALLOWED = [SUITE_TESTS, /^apps\/api\/src\//, /^apps\/api\/schema\.sql$/, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary|composer-facts|trade-detect-slugs|dashboard-counts|money-and-labels|agreements|audience-quotes-leads-time|business-day|calendar-day-dates|salon-dark-surfaces|job-quote-rules|light-card-dark-text)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/, ...UNIFIED_OWN]
+const MODIFY_ALLOWED = [SUITE_TESTS, /^apps\/api\/src\//, /^apps\/api\/schema\.sql$/, /^apps\/api\/migrations\//, /^apps\/platform\/src\//, /^tests\/shared\//, /^apps\/mobile\//, /^tests\/mobile\//,/^scripts\/check-(feature-vocabulary|not-ready-features|parked-features|vertical-vocabulary|composer-facts|trade-detect-slugs|dashboard-counts|money-and-labels|agreements|audience-quotes-leads-time|business-day|calendar-day-dates|salon-dark-surfaces|job-quote-rules|light-card-dark-text|retest-t24|contact-related-lists|contact-relations-ask)\.ts$/, /^packages\/[^/]+\/src\//, /^docs\/SPEC_UNIFIED_PRODUCT\.md$/, /^bun\.lock$/, /^packages\/[^/]+\/package\.json$/, /^\.github\/workflows\/build-check\.yml$/, ...UNIFIED_OWN]
 const DEP_KEYS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']
 
 export function checkFence(changes: Change[], read: (ref: 'base' | 'head', path: string) => string | null): FenceViolation[] {
