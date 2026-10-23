@@ -68,7 +68,7 @@ import { rvMounts } from '../crm/rv/index.ts'
 import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
-import { createRoofJobRoutes } from '../crm/roof/jobs.ts'
+import { createRoofJobRoutes, insertRoofJob } from '../crm/roof/jobs.ts'
 import { roofMounts } from '../crm/roof/index.ts'
 import { storeMounts } from '../crm/store/index.ts'
 import { storeOrder } from '../db/schema/store.ts'
@@ -220,6 +220,16 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.invoices?.numbering ? { numbering: { invoice: v.invoices.numbering } } : {}),
       // A roofing proposal belongs to its job (quote.job_id; CrmSettings.roof).
       extraFields: [...(sites ? ['siteId', 'equipmentId'] : []), 'customerMessage', ...(v.roof ? ['jobId'] : [])],
+      // An approved roofing proposal converts to a roofing job, made the one way a roofing job is made (ROOF-0001, titled
+      // by the property address — server/crm/roof/jobs.ts insertRoofJob), at `signed`: an approved quote is the signed
+      // contract. The CRM's default made a JOB-00001 at `pending`, a status no roofing screen has a column for.
+      ...(v.roof ? {
+        makeJob: (tx: any, f: any) => insertRoofJob(tx, f.companyId, f.userId, {
+          contactId: f.quote.contactId, quoteId: f.quote.id, jobType: 'retail', status: 'signed', source: 'quote',
+          address: f.address || f.quote.name, city: f.city || null, state: f.state || null, zip: f.zip || null,
+          estimatedValue: f.estimatedValue, notes: `Converted from Quote ${f.quote.number}`,
+        }),
+      } : {}),
       ...(sites ? { jobHasSiteAndEquipment: true } : {}),
       // Text the customer a link when a quote goes out.
       ...(v.quotes?.textOnSend ? {
@@ -259,6 +269,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.invoices?.numbering ? { numbering: v.invoices.numbering } : {}),
       // The owner pays, but the bill is for an animal: an invoice names its patient (templates/crm-vet routes/invoices.ts T12 M6).
       ...(v.patients ? { links: { patientId: patient } } : {}),
+      // A roofing invoice is a job's bill (invoice.job_id): listed by ?jobId=, set on create and edit, checked to be this
+      // business's job. The job page's Invoice card reads it.
+      ...(v.roof ? { links: { jobId: job } } : {}),
       // Money books the date: a deposit on an enquiry confirms it (refused while its room is held), inside the payment's
       // own transaction (templates/crm-restaurant routes/invoices.ts, T16 M8).
       ...(v.events ? { onPayment: bookOnDepositForInvoice } : {}),

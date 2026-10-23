@@ -27,13 +27,13 @@
 //   · every read asks jobs:read, as the shared jobs module's do (the template's reads asked only that you were signed in).
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, gt } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, or, gt } from 'drizzle-orm'
 import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney } from '@twomiah/tenant-backend'
 import { company, contact, crew, invoice, job, jobNote, jobPhoto, measurementReport, quote, smsConversation, smsMessage } from '../../db/schema/index.ts'
 import { cleanText, cleanLines } from '../../core/sanitize.ts'
 import { invalid } from '../../http/errors.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { done, fail, list, one } from '../../http/reply.ts'
 import { uploadedForm } from '../office/upload.ts'
 import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
@@ -81,13 +81,52 @@ const AUTO_SMS: Record<string, (p: { first: string; company: string; date: strin
 /** The refusal for the measurement stage while Measurement Reports is off (./validation.ts pipelineFor). */
 const STAGE_OFF = 'Measurement Ordered is the measurement reports’ stage, and measurement reports are not switched on.'
 
+/**
+ * What a roofing job cannot be made without, each with the word the form uses for it. A job is a roof at an address —
+ * its title is the address, the crew drives to it, the claim and the permit name it — so the address, city, state and
+ * ZIP are all required (the template's rule, kept), and the New Job form marks them. A blank one is refused in those
+ * words ("Enter the city, state and ZIP code."), never as the validator's "city: String must contain at least 1
+ * character(s)" the form printed raw (live test 2026-10-22).
+ */
+export const REQUIRED_JOB_FIELDS: Record<string, string> = {
+  contactId: 'homeowner', jobType: 'job type', propertyAddress: 'property address', city: 'city', state: 'state', zip: 'ZIP code',
+}
+const needed = (k: string) => {
+  const say = `Enter the ${REQUIRED_JOB_FIELDS[k]}.`
+  return z.string({ required_error: say, invalid_type_error: say }).trim().min(1, say)
+}
+
+/** "a", "a and b", "a, b and c". */
+const spoken = (words: string[]) => (words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`)
+
+/**
+ * A refused job form in plain words: the missing required fields as one sentence, then anything else wrong, each named
+ * by its label — with `fields` still marking each box (RULEBOOK §3). Create and edit both answer through it.
+ */
+function refuseJob(c: any, error: z.ZodError) {
+  const fields: Record<string, string> = {}
+  const missing: string[] = []
+  const other: string[] = []
+  for (const i of error.issues) {
+    const k = i.path.join('.')
+    if (k && !fields[k]) fields[k] = i.message
+    const word = REQUIRED_JOB_FIELDS[k]
+    if (word && i.message === `Enter the ${word}.`) { if (!missing.includes(word)) missing.push(word); continue }
+    const label = k.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+    const said = /^[A-Z]/.test(i.message) || !label ? i.message : `${label[0].toUpperCase()}${label.slice(1)} ${i.message}`
+    other.push(/[.!?]$/.test(said) ? said : `${said}.`)
+  }
+  const sentence = [...(missing.length ? [`Enter the ${spoken(missing)}.`] : []), ...other].join(' ')
+  return fail(c, 400, sentence || 'Check the job form.', 'validation_failed', fields)
+}
+
 const jobSchema = z.object({
-  contactId: z.string().min(1),
-  jobType: z.string().min(1),
-  propertyAddress: z.string().min(1),
-  city: z.string().min(1),
-  state: z.string().min(1),
-  zip: z.string().min(1),
+  contactId: needed('contactId'),
+  jobType: needed('jobType'),
+  propertyAddress: needed('propertyAddress'),
+  city: needed('city'),
+  state: needed('state'),
+  zip: needed('zip'),
   assignedSalesRepId: z.string().optional().transform((v) => (v === '' ? undefined : v)),
   assignedCrewId: z.string().optional().transform((v) => (v === '' ? undefined : v)),
   status: optional(jobStatus),
@@ -164,6 +203,41 @@ export function createRoofJobRoutes(d: CrmDeps) {
     return Object.fromEntries(rows.map((r: any) => [r.id, r]))
   }
 
+  /**
+   * What each job's own documents say it is worth (live test 2026-10-22: a job showed "No quotes", Reports $0 Avg Job
+   * Value and $0 Pipeline Value against $9,125.75 invoiced — a roofer prices a job with a quote and bills it with an
+   * invoice, and nothing carried either figure to the job):
+   *   · invoicedValue — the job's invoices that went out: every one not draft and not void, refunded included (the rule
+   *     GET /api/invoices/stats counts "invoiced" by);
+   *   · quotedValue   — the job's newest approved quote, else its newest quote still open (not rejected, declined or
+   *     expired), without the tax: tax is the state's money, not what the job is worth (the rule convert-to-job uses).
+   * Options on one job (good / better / best) are not added together: the newest stands for the job.
+   */
+  const DEAD_QUOTE = ['rejected', 'declined', 'expired']
+  async function documentValues(companyId: string, jobIds: string[]) {
+    const invoiced: Record<string, number> = {}
+    const quoted: Record<string, number> = {}
+    if (jobIds.length) {
+      const [invs, quotes] = await Promise.all([
+        db.select({ jobId: invoice.jobId, total: invoice.total, status: invoice.status }).from(invoice)
+          .where(and(eq(invoice.companyId, companyId), inArray(invoice.jobId, jobIds))),
+        db.select({ jobId: quote.jobId, total: quote.total, taxAmount: quote.taxAmount, status: quote.status, createdAt: quote.createdAt }).from(quote)
+          .where(and(eq(quote.companyId, companyId), inArray(quote.jobId, jobIds))).orderBy(desc(quote.createdAt), desc(quote.id)),
+      ])
+      for (const i of invs as any[]) {
+        if (i.status === 'draft' || i.status === 'void') continue
+        invoiced[i.jobId] = Math.round(((invoiced[i.jobId] || 0) + Number(i.total || 0)) * 100) / 100
+      }
+      const pick: Record<string, any> = {}
+      for (const q of quotes as any[]) {
+        if (DEAD_QUOTE.includes(q.status)) continue
+        if (!pick[q.jobId] || (q.status === 'approved' && pick[q.jobId].status !== 'approved')) pick[q.jobId] = q
+      }
+      for (const [id, q] of Object.entries(pick)) quoted[id] = Math.round((Number(q.total || 0) - Number(q.taxAmount || 0)) * 100) / 100
+    }
+    return (id: string) => ({ quotedValue: quoted[id] ?? null, invoicedValue: invoiced[id] ?? null })
+  }
+
   // GET / — jobs, filtered; "My jobs" (?mine=1) are the jobs this person is the sales rep on, read from the session.
   // Crews carry a foreman's NAME, not a login, so a crew is not something a person can be matched to. (T63)
   app.get('/', requirePermission('jobs:read'), async (c) => {
@@ -197,17 +271,19 @@ export function createRoofJobRoutes(d: CrmDeps) {
       db.select({ value: count() }).from(job).where(where),
     ])
     const names = await contactNames(me.companyId, [...new Set(rows.map((j: any) => j.contactId).filter(Boolean))] as string[])
+    const values = await documentValues(me.companyId, rows.map((j: any) => j.id))
     // A job's money is not part of reading the job list (T41/T42): Reports built revenue by rep and by crew in the
-    // browser from this list, so fetching it was enough to disclose them.
-    const data = withoutJobMoney(rows.map((j: any) => ({ ...j, contact: j.contactId ? names[j.contactId] || null : null })), await withheldFor(c))
+    // browser from this list, so fetching it was enough to disclose them. quotedValue / invoicedValue go by the same rule
+    // (jobs/jobMoney.ts: quotes:read, invoices:read).
+    const data = withoutJobMoney(rows.map((j: any) => ({ ...j, ...values(j.id), contact: j.contactId ? names[j.contactId] || null : null })), await withheldFor(c))
     return list(c, data, { page, limit, total: Number(total) })
   })
 
   // POST / — a job, numbered ROOF-0001, ROOF-0002…
   app.post('/', requirePermission('jobs:create'), async (c) => {
     const me = c.get('user')
-    const parsed = jobSchema.safeParse(await c.req.json().catch(() => null))
-    if (!parsed.success) return invalid(c, parsed.error)
+    const parsed = jobSchema.safeParse((await c.req.json().catch(() => null)) ?? {})
+    if (!parsed.success) return refuseJob(c, parsed.error)
     const data = parsed.data
     const dates = jobDates(data, await companyTimeZone(db, me.companyId))
     if (dates.error) return fail(c, 400, dates.error)
@@ -269,7 +345,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const raw = (await c.req.json().catch(() => null)) ?? {}
     const cleaned = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v === null ? undefined : v]))
     const parsed = jobSchema.partial().safeParse(cleaned)
-    if (!parsed.success) return invalid(c, parsed.error)
+    if (!parsed.success) return refuseJob(c, parsed.error)
     const data = parsed.data
     const dates = jobDates(data, await companyTimeZone(db, me.companyId))
     if (dates.error) return fail(c, 400, dates.error)
@@ -284,6 +360,65 @@ export function createRoofJobRoutes(d: CrmDeps) {
     }
     const [updated] = await db.update(job).set(set as any).where(and(eq(job.id, id), eq(job.companyId, me.companyId))).returning()
     return one(c, withoutJobMoney(updated, await withheldFor(c)))
+  })
+
+  /**
+   * POST /:id/attach { quoteId } | { invoiceId } — put an existing quote or invoice on this job. A quote written from the
+   * Quotes page, or an invoice raised from a contact, belongs to no job; the job then read "No quotes" / "No invoices"
+   * beside the homeowner's QTE-00001 and INV-00001 (live test 2026-10-22). Rules:
+   *   · the document is this business's, and the same homeowner's as the job — a job never shows another customer's bill;
+   *   · a document already on another job says which, and stays there (detach it there first);
+   *   · an approved quote is a signed record and can't be edited (quotes.ts), but which job it is for is filing, not its
+   *     terms — so it is attached here, not through PUT /api/quotes;
+   *   · attaching a quote brings the invoices made from it (invoice.quoteId) that sit on no job.
+   * Asks jobs:update and the document's own update permission (quotes:update / invoices:update).
+   * POST /:id/detach takes the same body and takes it off this job.
+   */
+  const docBody = z.object({ quoteId: z.string().min(1).optional(), invoiceId: z.string().min(1).optional() })
+    .refine((b) => !!b.quoteId !== !!b.invoiceId, { message: 'Say which quote or which invoice.' })
+  const mayDo = async (c: any, permission: string) => { const u = c.get('user'); try { return !!(await canSee(u.role, permission, u.userId)) } catch { return false } }
+
+  app.post('/:id/attach', requirePermission('jobs:update'), async (c) => {
+    const me = c.get('user')
+    const parsed = docBody.safeParse((await c.req.json().catch(() => null)) ?? {})
+    if (!parsed.success) return fail(c, 400, 'Say which quote or which invoice.')
+    const found = await ownJob(me.companyId, c.req.param('id'))
+    if (!found) return fail(c, 404, 'Job not found')
+    const { quoteId, invoiceId } = parsed.data
+    const table: any = quoteId ? quote : invoice
+    const kind = quoteId ? 'quote' : 'invoice'
+    if (!(await mayDo(c, `${kind}s:update`))) return fail(c, 403, `You don't have permission to change ${kind}s.`, 'forbidden')
+    const [doc] = await db.select().from(table).where(and(eq(table.id, (quoteId || invoiceId)!), eq(table.companyId, me.companyId))).limit(1)
+    if (!doc) return fail(c, 404, `That ${kind} does not exist.`)
+    if (found.contactId && doc.contactId !== found.contactId) return fail(c, 400, `${doc.number} is for a different homeowner than this job.`, 'other_customer')
+    if (doc.jobId && doc.jobId !== found.id) {
+      const [other] = await db.select({ number: job.number }).from(job).where(and(eq(job.id, doc.jobId), eq(job.companyId, me.companyId))).limit(1)
+      return fail(c, 409, `${doc.number} is already on job ${other?.number || 'another job'}. Take it off that job first.`, 'on_another_job')
+    }
+    await db.transaction(async (tx: any) => {
+      await tx.update(table).set({ jobId: found.id, updatedAt: new Date() }).where(and(eq(table.id, doc.id), eq(table.companyId, me.companyId)))
+      if (quoteId) {
+        await tx.update(invoice).set({ jobId: found.id, updatedAt: new Date() } as any)
+          .where(and(eq(invoice.companyId, me.companyId), eq(invoice.quoteId, doc.id), isNull(invoice.jobId)))
+      }
+    })
+    return done(c, `${doc.number} is on ${found.number}.`)
+  })
+
+  app.post('/:id/detach', requirePermission('jobs:update'), async (c) => {
+    const me = c.get('user')
+    const parsed = docBody.safeParse((await c.req.json().catch(() => null)) ?? {})
+    if (!parsed.success) return fail(c, 400, 'Say which quote or which invoice.')
+    const found = await ownJob(me.companyId, c.req.param('id'))
+    if (!found) return fail(c, 404, 'Job not found')
+    const { quoteId, invoiceId } = parsed.data
+    const table: any = quoteId ? quote : invoice
+    const kind = quoteId ? 'quote' : 'invoice'
+    if (!(await mayDo(c, `${kind}s:update`))) return fail(c, 403, `You don't have permission to change ${kind}s.`, 'forbidden')
+    const [doc] = await db.select().from(table).where(and(eq(table.id, (quoteId || invoiceId)!), eq(table.companyId, me.companyId), eq(table.jobId, found.id))).limit(1)
+    if (!doc) return fail(c, 404, `That ${kind} is not on this job.`)
+    await db.update(table).set({ jobId: null, updatedAt: new Date() }).where(and(eq(table.id, doc.id), eq(table.companyId, me.companyId)))
+    return done(c, `${doc.number} is off ${found.number}.`)
   })
 
   /**

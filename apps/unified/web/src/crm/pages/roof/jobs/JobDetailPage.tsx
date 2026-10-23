@@ -19,6 +19,10 @@
 //   · "New quote" opens the CRM's quote form filled in with the homeowner and this job (packages/tenant-ui
 //     invoicing/QuotesPage.tsx, roofing's screens set quoteJobs; /crm/quotes?new=1&contactId=&jobId=) — a quote for a
 //     job is how a roofing proposal is made, and the job's Quotes list reads them back.
+//   · the homeowner's quotes and invoices on no job are offered under each card with an Attach button (./AttachDocuments,
+//     POST /api/jobs/:id/attach) — the job read "No quotes" beside a QTE-00001 made from the Quotes page (2026-10-22);
+//   · Materials: the job's material orders, and a New order form (../field/JobMaterials) — the Materials page had no way
+//     to add one (2026-10-22).
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
@@ -32,6 +36,8 @@ import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { formatStatus, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
+import AttachDocuments from './AttachDocuments'
+import JobMaterials from '../field/JobMaterials'
 
 const STATUS_COLORS: Record<string, string> = {
   lead: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -845,6 +851,7 @@ export default function JobDetailPage() {
                     ))}
                   </div>
                 )}
+                {job && <AttachDocuments kind="quote" jobId={job.id} contactId={job.contactId} onAttached={load} />}
               </div>
             )}
 
@@ -888,8 +895,12 @@ export default function JobDetailPage() {
                     })}
                   </div>
                 )}
+                {job && <AttachDocuments kind="invoice" jobId={job.id} contactId={job.contactId} onAttached={load} />}
               </div>
             )}
+
+            {/* Materials ordered for this job (the materials feature; GET/POST /api/materials?jobId=). */}
+            {job && hasFeature('materials') && <JobMaterials jobId={job.id} jobAddress={job.address} />}
           </div>
         </div>
       </div>

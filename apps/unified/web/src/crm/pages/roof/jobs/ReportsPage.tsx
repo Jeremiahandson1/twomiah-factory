@@ -4,7 +4,9 @@
 //   · the money tiles and panels (Avg Job Value, Pipeline Value, Pipeline Value by Stage, Revenue by Sales Rep, Revenue
 //     by Crew) are summed in the browser from the job list, so each is shown only to a seat that holds every
 //     permission the figures it reads sit under — the same permissions the server strips them by (jobs/jobMoney.ts):
-//     a job's value is finalRevenue, then estimatedValue, then RCV, so invoices:read (finalRevenue, RCV) AND
+//     a job's value is model.ts jobValue — finalRevenue, then its invoices (invoicedValue), then its quote (quotedValue),
+//     then estimatedValue, then RCV (2026-10-22: the last three alone left every form-made job at $0) — so
+//     invoices:read (finalRevenue, invoicedValue, RCV) AND
 //     quotes:read (estimatedValue — roofing's estimatedRevenue sat under invoices:read, the CRM's estimatedValue under
 //     quotes:read). With either missing the fallback would print a different figure, not an empty one. The template
 //     read the list's `moneyWithheld` signal, which the unified list doesn't carry (RULEBOOK §3). None of these tiles
@@ -19,7 +21,7 @@ import { BarChart3, TrendingUp, DollarSign, Users, Briefcase } from 'lucide-reac
 import { api } from '../../../../api'
 import { useAuth, useKnownPermission, usePermissions, useToast } from '../../../../shared'
 import { displayName } from '../lib/user'
-import { PIPELINE_STATUSES, TERMINAL_STATUSES, pipelineFor, rowsOf } from './model'
+import { PIPELINE_STATUSES, TERMINAL_STATUSES, jobValue, pipelineFor, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
 
 /** The chart's shorter labels for the pipeline stages. */
@@ -160,15 +162,15 @@ export default function ReportsPage() {
     )
   }
 
-  // The job's value — finalRevenue, then the estimate, then RCV.
-  const jobValue = (j: RoofJob) => Number(j.finalRevenue ?? j.estimatedValue ?? j.rcv ?? 0)
+  // The job's value — model.ts jobValue: paid, else billed, else quoted, else the estimate, else RCV.
+  const valueOf = (j: RoofJob) => jobValue(j) ?? 0
 
   // Pipeline value by stage
   const pipelineByStage: Record<string, number> = {}
   const pipelineCountByStage: Record<string, number> = {}
   jobs.forEach((j) => {
     const stage = j.status || 'lead'
-    pipelineByStage[stage] = (pipelineByStage[stage] || 0) + jobValue(j)
+    pipelineByStage[stage] = (pipelineByStage[stage] || 0) + valueOf(j)
     pipelineCountByStage[stage] = (pipelineCountByStage[stage] || 0) + 1
   })
   const maxPipelineValue = Math.max(...Object.values(pipelineByStage), 1)
@@ -195,9 +197,9 @@ export default function ReportsPage() {
   const closeRate = proposalsSent > 0 ? ((signed / proposalsSent) * 100).toFixed(1) : '0'
 
   // Average job value
-  const jobsWithValue = jobs.filter((j) => jobValue(j) > 0)
+  const jobsWithValue = jobs.filter((j) => valueOf(j) > 0)
   const avgJobValue = jobsWithValue.length > 0
-    ? jobsWithValue.reduce((s, j) => s + jobValue(j), 0) / jobsWithValue.length
+    ? jobsWithValue.reduce((s, j) => s + valueOf(j), 0) / jobsWithValue.length
     : 0
 
   // Revenue by sales rep
@@ -207,7 +209,7 @@ export default function ReportsPage() {
   jobs.forEach((j) => {
     if (j.assignedSalesRepId) {
       const name = repMap[j.assignedSalesRepId] || 'Unknown'
-      revByRep[name] = (revByRep[name] || 0) + jobValue(j)
+      revByRep[name] = (revByRep[name] || 0) + valueOf(j)
     }
   })
   const maxRepRev = Math.max(...Object.values(revByRep), 1)
@@ -219,7 +221,7 @@ export default function ReportsPage() {
   jobs.forEach((j) => {
     if (j.assignedCrewId) {
       const name = crewMap[j.assignedCrewId] || 'Unknown'
-      revByCrew[name] = (revByCrew[name] || 0) + jobValue(j)
+      revByCrew[name] = (revByCrew[name] || 0) + valueOf(j)
     }
   })
   const maxCrewRev = Math.max(...Object.values(revByCrew), 1)
@@ -277,7 +279,7 @@ export default function ReportsPage() {
                 <span className="text-sm text-gray-500 dark:text-slate-400">Pipeline Value</span>
               </div>
               <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">
-                ${jobs.reduce((s, j) => s + jobValue(j), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                ${jobs.reduce((s, j) => s + valueOf(j), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
               <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">estimated value of all jobs</p>
             </div>

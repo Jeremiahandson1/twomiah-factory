@@ -10,12 +10,13 @@
 //   · the total and the page count are the reply's pagination.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Filter } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Filter, Plus } from 'lucide-react'
 import { api } from '../../../../api'
-import { errorText, usePermissions, useToast } from '../../../../shared'
+import { errorText, useMayWrite, usePermissions, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { supplierName } from '../lib/supplier'
 import { listOf, paginationOf } from './http'
+import MaterialOrderForm from './MaterialOrderForm'
 
 /** server/crm/roof/validation.ts MATERIAL_ORDER_STATUSES, each with its badge. */
 const STATUS_COLORS: Record<string, string> = {
@@ -51,6 +52,9 @@ export default function MaterialsPage() {
   const navigate = useNavigate()
   // What the business paid: shown to the seats the server shows it to (margin:read). (T42)
   const showCost = usePermissions().can('margin:read')
+  // A new order (POST /api/materials asks inventory:create): the page had no add control (live test 2026-10-22).
+  const mayAdd = useMayWrite('inventory:create')
+  const [adding, setAdding] = useState(false)
 
   const [orders, setOrders] = useState<MaterialOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -99,7 +103,13 @@ export default function MaterialsPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Material Orders</h1>
             <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{total} {total === 1 ? 'order' : 'orders'}</p>
           </div>
+          {mayAdd && (
+            <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-lg hover:bg-orange-700">
+              <Plus className="w-4 h-4" /> New order
+            </button>
+          )}
         </div>
+        {adding && <MaterialOrderForm onClose={() => setAdding(false)} onSaved={load} />}
 
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <Filter className="w-4 h-4 text-gray-400" />

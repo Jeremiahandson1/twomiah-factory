@@ -170,12 +170,15 @@ async function walk(who: string, fields: string[], checkKeys: boolean) {
   return { leaks: [...new Set(leaks)], skipped, answered }
 }
 
+// Figures the rule withholds that are no job column (nothing to seed): actualValue, and a roofing job's quotedValue / invoicedValue, summed
+// from its own quotes and invoices (server/crm/roof/jobs.ts documentValues).
+const DERIVED = ['actualValue', 'quotedValue', 'invoicedValue']
 const ALL_FIELDS = Object.keys(MONEY)
 const ROOF_FIELDS = [...JOB_MONEY['invoices:read'], ...JOB_MONEY['margin:read']].filter((f) => MONEY[f])
 
 describe("a job's money, on every route", () => {
   test('the rule names every money column this test seeds, and the walk reads the app itself', () => {
-    expect([...new Set(Object.values(JOB_MONEY).flat())].filter((f) => f !== 'actualValue').sort()).toEqual(ALL_FIELDS.slice().sort())
+    expect([...new Set(Object.values(JOB_MONEY).flat())].filter((f) => !DERIVED.includes(f)).sort()).toEqual(ALL_FIELDS.slice().sort())
     expect(gets.length).toBeGreaterThan(400)
     for (const p of ['/api/jobs', '/api/jobs/:id', '/api/tech/my-jobs', '/api/projects/:id', '/api/routing/optimize-day']) expect(gets).toContain(p)
   })

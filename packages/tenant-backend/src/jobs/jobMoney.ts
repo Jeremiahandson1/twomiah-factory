@@ -16,10 +16,12 @@
  *   • margin:read  — what the SHOP paid (materials, labour): margin, not revenue; the read-only seat holds invoices:read
  *     for the books and must not be able to price every job (T42).
  * A roof's size (total squares) is not money: it is what the crew installs.
+ * quotedValue / invoicedValue are what a roofing job's own quotes and invoices say it is worth (server/crm/roof/jobs.ts
+ * documentValues): a quoted figure and a billed one, under the same two permissions.
  */
 export const JOB_MONEY: Readonly<Record<string, readonly string[]>> = {
-  'quotes:read': ['estimatedValue', 'actualValue'],
-  'invoices:read': ['finalRevenue', 'deductible', 'rcv', 'acv', 'approvedScope'],
+  'quotes:read': ['estimatedValue', 'actualValue', 'quotedValue'],
+  'invoices:read': ['finalRevenue', 'invoicedValue', 'deductible', 'rcv', 'acv', 'approvedScope'],
   'margin:read': ['materialCost', 'laborCost'],
 }
 

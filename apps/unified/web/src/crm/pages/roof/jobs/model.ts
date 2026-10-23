@@ -100,12 +100,28 @@ export interface RoofJob {
   approvedScope?: string | null
   estimatedValue?: string | number | null
   finalRevenue?: string | number | null
+  /** On the list: what the job's own quotes and invoices say it is worth (server/crm/roof/jobs.ts documentValues). */
+  quotedValue?: string | number | null
+  invoicedValue?: string | number | null
   lostReason?: string | null
   closedAt?: string | null
   createdAt?: string | null
   updatedAt?: string | null
   /** { id, name } on the list. */
   contact?: { id: string; name?: string | null } | null
+}
+
+/**
+ * What a job is worth, one rule for the Jobs list's Revenue column and every Reports figure: what it was paid
+ * (finalRevenue), else what it was billed (its invoices), else what it was quoted (its quote, without tax), else the
+ * office's estimate, else the claim's RCV. Reports read only the estimate and RCV, which a job made from the form never
+ * has, so a job with a $9,125.75 invoice counted $0 (live test 2026-10-22).
+ */
+export function jobValue(j: Pick<RoofJob, 'finalRevenue' | 'invoicedValue' | 'quotedValue' | 'estimatedValue' | 'rcv'>): number | null {
+  for (const v of [j.finalRevenue, j.invoicedValue, j.quotedValue, j.estimatedValue, j.rcv]) {
+    if (v !== null && v !== undefined && v !== '' && Number(v) > 0) return Number(v)
+  }
+  return null
 }
 
 /** A person from GET /api/company/users (a team:read seat gets only id, names, role, isActive). */
