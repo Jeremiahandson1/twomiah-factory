@@ -4,6 +4,7 @@
 // while email, phone, name length and contact type were all validated properly. An address that cannot be posted
 // is worse than a missing one — it reaches invoices, statements, rabies certificates and mailing labels.
 // (Vet T12 L3)
+import { z } from 'zod'
 export const US_STATES: Record<string, string> = {
   AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut',
   DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho',
@@ -38,3 +39,12 @@ export function normaliseZip(v: unknown): string | null {
 
 export const STATE_ERROR = 'Enter a US state — its two-letter code (WI) or its name (Wisconsin).'
 export const ZIP_ERROR = 'Enter a ZIP code as 12345 or 12345-6789.'
+
+/**
+ * A ZIP box in any create/update schema: blank stays blank, anything else must be a US ZIP (12345 or 12345-6789) and is
+ * stored tidied. One field for every schema that takes a ZIP — contacts had the rule, the company, jobs, projects and
+ * branches took "abcdef" (live test 2026-10-22).
+ */
+export const zipField = () => z.string().max(20).optional().nullable()
+  .refine((v) => !v || !v.trim() || normaliseZip(v) !== null, { message: ZIP_ERROR })
+  .transform((v) => (v && v.trim() ? normaliseZip(v)! : v))

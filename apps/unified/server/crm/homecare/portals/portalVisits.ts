@@ -9,7 +9,7 @@
 // company's own office (core.notify.notifyAdmins); replies are lists ({ data, pagination }) and camelCase keys
 // (scheduledDate, startTime, caregiverId, canChange …; a filed request's autoApplied, cancelReason, adminNotes).
 import { Hono, type Context } from 'hono'
-import { fail, list, one, done } from '../../../http/reply.ts'
+import { fail, list, one, done, listAll } from '../../../http/reply.ts'
 import {
   servesClient, portalScheduledVisits, portalOccurrences, workedVisitKeys, setVisitClientNote, openClientRequestFor,
   insertClientCancelRequest, insertClientRescheduleRequest, cancelClientVisit, insertClientCancelledDay, answerCounterOffer,
@@ -27,7 +27,7 @@ import type { ClientPortal, PortalEnv } from './clientPortal.ts'
 const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 const fromMin = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}:00`
-const all = <T,>(c: Context, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: Context, rows: T[]) => listAll(c, rows)
 const ALREADY_WAITING = 'A request for this visit is already waiting on the office.'
 
 export function createPortalVisitRoutes(core: HomecareCore, d: CrmDeps, clientPortal: ClientPortal) {

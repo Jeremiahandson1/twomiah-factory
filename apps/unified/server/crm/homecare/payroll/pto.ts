@@ -13,7 +13,7 @@ import { Hono } from 'hono'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { caregiverTimeOff, user } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { actsForAnyone } from '../core/caregiverAccess.ts'
 import { selfSubject } from '../core/selfService.ts'
@@ -57,7 +57,7 @@ export function createPtoRoutes(d: CrmDeps) {
       ...entry,
       caregiverName: caregiverFirstName ? `${caregiverFirstName} ${caregiverLastName}` : null,
     }))
-    return list(c, entries, { page: 1, limit: entries.length, total: entries.length })
+    return listAll(c, entries)
   })
 
   // POST / — the office records a request for any caregiver of the company; a caregiver requests their own.

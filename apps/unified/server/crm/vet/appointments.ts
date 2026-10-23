@@ -8,7 +8,7 @@ import { appointment, patient, contact, user } from '../../db/schema/index.ts'
 import { lockAppointmentBook, appointmentsInRoom } from '../../data/vetAppointments.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 
 // Documented value sets (see the schema's comments on appointment.type/status). Free text here silently corrupted
 // calendar filters and status pills, so they are pinned down and anything off-list is a 400, not a 500.
@@ -90,7 +90,7 @@ export function createVetAppointmentRoutes(d: CrmDeps) {
       .orderBy(appointment.startTime)
 
     const rows = data.map((r: any) => ({ ...r.appointment, patientName: r.patientName, ownerName: r.ownerName, ownerPhone: r.ownerPhone, providerFirstName: r.providerFirstName, providerLastName: r.providerLastName }))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.post('/', requirePermission('contacts:create'), async (c) => {

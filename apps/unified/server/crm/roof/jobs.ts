@@ -28,12 +28,12 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, gt } from 'drizzle-orm'
-import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney } from '@twomiah/tenant-backend'
+import { companyTimeZone, nextNumber, normalizeDateInput, sniffType, withoutPortalCredential, jobMoneyWithheld, withoutJobMoney, normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
 import { company, contact, crew, invoice, job, jobNote, jobPhoto, measurementReport, quote, smsConversation, smsMessage } from '../../db/schema/index.ts'
 import { cleanText, cleanLines } from '../../core/sanitize.ts'
 import { invalid } from '../../http/errors.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, list, one, listAll } from '../../http/reply.ts'
 import { uploadedForm } from '../office/upload.ts'
 import type { CrmDeps } from '../deps.ts'
 import { canSeeWith } from '../deps.ts'
@@ -87,7 +87,7 @@ const jobSchema = z.object({
   propertyAddress: z.string().min(1),
   city: z.string().min(1),
   state: z.string().min(1),
-  zip: z.string().min(1),
+  zip: z.string().min(1).refine((v) => normaliseZip(v) !== null, { message: ZIP_ERROR }),
   assignedSalesRepId: z.string().optional().transform((v) => (v === '' ? undefined : v)),
   assignedCrewId: z.string().optional().transform((v) => (v === '' ? undefined : v)),
   status: optional(jobStatus),
@@ -226,7 +226,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
   app.get('/types', requirePermission('jobs:read'), async (c) => {
     const rows = await db.selectDistinct({ jobType: job.jobType }).from(job).where(eq(job.companyId, c.get('user').companyId))
     const types = rows.map((r: any) => r.jobType).filter(Boolean).sort()
-    return list(c, types, { page: 1, limit: types.length, total: types.length })
+    return listAll(c, types)
   })
 
   // GET /:id — the job with its homeowner, crew, measurement, photos, notes, and — to whoever reads the books — its quotes
@@ -406,7 +406,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
     const id = c.req.param('id')
     if (!(await ownJob(me.companyId, id))) return fail(c, 404, 'Job not found')
     const rows = await db.select().from(jobPhoto).where(and(eq(jobPhoto.jobId, id), eq(jobPhoto.companyId, me.companyId))).orderBy(desc(jobPhoto.createdAt), asc(jobPhoto.id))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   app.delete('/:id/photos/:photoId', requirePermission('jobs:delete'), async (c) => {
@@ -453,7 +453,7 @@ export function createRoofJobRoutes(d: CrmDeps) {
         body: `Photo added${p.photoType && p.photoType !== 'general' ? ` — ${p.photoType}` : ''}${p.caption ? `: ${p.caption}` : ''}` })),
       ...texts.map((m: any) => ({ type: 'sms', id: m.id, body: m.body, direction: m.direction, createdAt: m.createdAt })),
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    return list(c, timeline, { page: 1, limit: timeline.length, total: timeline.length })
+    return listAll(c, timeline)
   })
 
   return app

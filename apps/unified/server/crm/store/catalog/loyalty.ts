@@ -40,7 +40,7 @@ import { loyaltyConfigResponse, punchCardProgress } from '@twomiah/tenant-backen
 import { company, contact, loyaltyMember, loyaltyReward } from '../../../db/schema/index.ts'
 import { invalid } from '../../../http/errors.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { normalizeEmail, STORE_LOYALTY_DEFAULTS, type StoreCore } from '../core.ts'
 import { changedKeys } from './audit.ts'
@@ -178,7 +178,7 @@ export function createLoyaltyAdminRoutes(d: CrmDeps, core: StoreCore) {
   app.get('/rewards', requirePermission('loyalty:read'), async (c) => {
     const rewards = await db.select().from(loyaltyReward).where(eq(loyaltyReward.companyId, c.get('user').companyId))
       .orderBy(asc(loyaltyReward.pointsCost), asc(loyaltyReward.id))
-    return list(c, rewards, { page: 1, limit: Math.max(rewards.length, 1), total: rewards.length })
+    return listAll(c, rewards)
   })
 
   app.post('/rewards', requirePermission('loyalty:configure'), async (c) => {

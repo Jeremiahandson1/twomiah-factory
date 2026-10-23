@@ -27,7 +27,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import jwt from 'jsonwebtoken'
 import { clearViewAsCookie, requestToken, setViewAsCookie, wantsCookieSession } from '@twomiah/tenant-backend'
 import { auditLogs, user } from '../../../db/schema/index.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createTokenRevocation } from '../core/tokenRevocation.ts'
@@ -93,7 +93,7 @@ export function createStaffPickerRoutes(d: CrmDeps) {
       id: user.id, firstName: user.firstName, lastName: user.lastName,
       email: user.email, role: user.role, isActive: user.isActive,
     }).from(user).where(and(eq(user.companyId, c.get('user').companyId), eq(user.isActive, true))).orderBy(asc(user.lastName))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
   return app
 }

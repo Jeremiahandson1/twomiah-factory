@@ -16,6 +16,8 @@
 //   · the create and edit write only the caregiver's own columns: the template spread the body into the user row, so
 //     a body could set its company, its permission grants, its refresh/reset token or its IVR PIN.
 import { Hono } from 'hono'
+import { normaliseZip, ZIP_ERROR } from '@twomiah/tenant-backend'
+import { optionalPointProblem } from '../../../core/geo.ts'
 import { and, asc, count, desc, eq, ilike, inArray, isNotNull, notInArray, or } from 'drizzle-orm'
 import {
   user, caregiverProfiles, caregiverAvailability, clientAssignments, clients, backgroundChecks,
@@ -364,6 +366,8 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     const b = await body(c)
     const { password, profile } = b
     const data: any = pickCaregiver(b)
+    const badPlace = (data.zip && normaliseZip(data.zip) === null ? ZIP_ERROR : null) ?? optionalPointProblem(data)
+    if (badPlace) return fail(c, 400, badPlace)
     // H-01: a login into a PHI system — a real password minimum, and no shared default.
     if (!password || String(password).length < 8) return fail(c, 400, 'Password must be at least 8 characters')
     // H-11: a usable 400/409 instead of a bare 500 on a missing/duplicate email.
@@ -400,6 +404,8 @@ export function createCaregiversRoutes(core: HomecareCore, d: CrmDeps) {
     const b = await body(c)
     const { profile, availability, password, payRate } = b
     const data: any = pickCaregiver(b)
+    const badPlace = (data.zip && normaliseZip(data.zip) === null ? ZIP_ERROR : null) ?? optionalPointProblem(data)
+    if (badPlace) return fail(c, 400, badPlace)
     if (payRate !== undefined && data.defaultPayRate === undefined) data.defaultPayRate = String(payRate)
     if (data.email) data.email = String(data.email).toLowerCase().trim()
 

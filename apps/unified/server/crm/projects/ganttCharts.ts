@@ -10,7 +10,7 @@ import { z } from 'zod'
 import { eq, and, asc, inArray } from 'drizzle-orm'
 import { project, projectTask } from '../../db/schema/index.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 
@@ -66,7 +66,7 @@ export function createGanttChartRoutes(d: CrmDeps) {
     const projects: any[] = await db.select().from(project).where(and(...conditions))
     const tasks: any[] = await tasksOf(currentUser.companyId, projects.map((p) => p.id))
     const ganttData = projects.map((p) => bar(p, tasks.filter((t) => t.projectId === p.id)))
-    return list(c, ganttData, { page: 1, limit: ganttData.length, total: ganttData.length })
+    return listAll(c, ganttData)
   })
 
   // One project's bar — the project detail page.

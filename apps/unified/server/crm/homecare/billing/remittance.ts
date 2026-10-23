@@ -13,7 +13,7 @@ import { remittanceBatches, remittanceLineItems, referralSources } from '../../.
 import type { HomecareCore } from '../core/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import { body, who, withoutOwnership } from './shared.ts'
 
 export function createRemittanceRoutes(_core: HomecareCore, d: CrmDeps) {
@@ -38,14 +38,14 @@ export function createRemittanceRoutes(_core: HomecareCore, d: CrmDeps) {
       for (const li of items) (byBatch[li.batchId] ||= []).push(li)
     }
     const result = rows.map((r: any) => ({ ...r.batch, payer: r.payerName ? { name: r.payerName } : null, lineItems: byBatch[r.batch.id] || [] }))
-    return list(c, result, { page: 1, limit: result.length, total: result.length })
+    return listAll(c, result)
   })
 
   // GET /payers — payers are referral sources here. A list reply.
   app.get('/payers', read, async (c) => {
     const rows = await db.select({ id: referralSources.id, name: referralSources.name, type: referralSources.type })
       .from(referralSources).where(eq(referralSources.companyId, who(c).companyId)).orderBy(asc(referralSources.name))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // GET /payer-summary — remittance totals grouped by payer. A list reply.
@@ -63,7 +63,7 @@ export function createRemittanceRoutes(_core: HomecareCore, d: CrmDeps) {
       byPayer[key].totalPaid += num(r.batch.totalPaid ?? r.batch.totalAmount)
     }
     const out = Object.values(byPayer).map((p) => ({ ...p, totalPaid: Number(p.totalPaid.toFixed(2)) }))
-    return list(c, out, { page: 1, limit: out.length, total: out.length })
+    return listAll(c, out)
   })
 
   // POST / — a batch and its lines.

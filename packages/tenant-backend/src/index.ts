@@ -64,7 +64,7 @@ export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
 // roundsToNothing: the one answer to "is this a real amount" — a positive value that stores as 0.00.
 // The owner reported that twice on Events; thirteen more fields across salon, RV and the dispensary
 // had the same hole. (T51 follow-up)
-export { round2, roundsToNothing, calcTotals, isOverdue, deriveStatus, startOfUtcDay, overdueCutoff, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, dueDateFromTerms, quoteValidityDaysFrom, quoteExpiryFromTerms, normalizeDateInput, isRealCalendarDay, businessToday, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'
+export { round2, roundsToNothing, calcTotals, isOverdue, deriveStatus, startOfUtcDay, overdueCutoff, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, paymentTermsProblem, PAYMENT_TERMS_MAX_DAYS, dueDateFromTerms, quoteValidityDaysFrom, quoteExpiryFromTerms, normalizeDateInput, isRealCalendarDay, businessToday, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'
 
 // Online booking — one implementation for every CRM; the template injects its tables + the calendar it books onto.
 export { createBookingRoutes, externalBookingsProxy } from './booking/routes'
@@ -95,7 +95,7 @@ export { createPhotoRoutes, PHOTO_CATEGORIES } from './files/photos'
 export type { PhotoDeps, PhotoTables } from './files/photos'
 
 // Contacts — one implementation for every CRM; the template injects its tables, guards and related lists.
-export { US_STATES, normaliseState, normaliseZip, STATE_ERROR, ZIP_ERROR } from './address'
+export { US_STATES, normaliseState, normaliseZip, zipField, STATE_ERROR, ZIP_ERROR } from './address'
 export { createContactRoutes, standardRelations, standardGuards, isValidPhone, DEFAULT_CONTACT_TYPES, withoutPortalCredential, withoutPaymentInternals, PAYMENT_INTERNAL_KEYS } from './contacts/contacts'
 export type { ContactDeps, ContactOptions, ContactRelation, ContactGuard, ContactSitesTables } from './contacts/contacts'
 

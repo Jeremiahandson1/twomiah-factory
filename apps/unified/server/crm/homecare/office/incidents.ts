@@ -31,7 +31,7 @@ import {
 } from '../../../data/homecareOffice.ts'
 import { lastCaregiverClockInDate } from '../../../data/homecareIncidents.ts'
 import type { Q } from '../../../data/homecareCore.ts'
-import { fail, list, one, done } from '../../../http/reply.ts'
+import { fail, listAll, one, done } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
@@ -77,7 +77,6 @@ const parseRemoval = (v: unknown): any => {
   if (typeof v === 'string') { try { return JSON.parse(v) } catch { return null } }
   return v
 }
-const all = <T>(rows: T[]) => ({ page: 1, limit: rows.length, total: rows.length })
 
 /** Editable incident fields. Returns an error message or null. */
 export function validateIncidentBody(b: any): string | null {
@@ -140,7 +139,7 @@ export function createIncidentRoutes(core: HomecareCore, d: CrmDeps) {
     const u = c.get('user')
     const today = await core.time.today(u.companyId)
     const rows = await reportableClients(d.db, u.companyId, (await isOffice(c)) ? null : u.userId, today)
-    return list(c, rows, all(rows))
+    return listAll(c, rows)
   })
 
   // Caregiver field report (caregiver app → "Report Incident"). The office gets an incident_alert notification and
@@ -212,7 +211,7 @@ export function createIncidentRoutes(core: HomecareCore, d: CrmDeps) {
   app.get('/', read, async (c) => {
     const { status, severity } = c.req.query()
     const rows = (await listIncidents(d.db, c.get('user').companyId, { status, severity })).map(withoutSignature)
-    return list(c, rows, all(rows))
+    return listAll(c, rows)
   })
 
   app.get('/:id', read, async (c) => {
@@ -289,7 +288,7 @@ export function createIncidentRoutes(core: HomecareCore, d: CrmDeps) {
   // ─── Investigation timeline ──────────────────────────────────────────────────
   app.get('/:id/notes', read, async (c) => {
     const rows = await timelineEntries(d.db, c.get('user').companyId, c.req.param('id'))
-    return list(c, rows, all(rows))
+    return listAll(c, rows)
   })
 
   app.post('/:id/notes', create, async (c) => {
@@ -316,7 +315,7 @@ export function createIncidentRoutes(core: HomecareCore, d: CrmDeps) {
   // ─── Attachments (stored in the database) ────────────────────────────────────
   app.get('/:id/attachments', read, async (c) => {
     const rows = await attachmentIndex(d.db, c.get('user').companyId, c.req.param('id'))
-    return list(c, rows, all(rows))
+    return listAll(c, rows)
   })
 
   app.get('/:id/attachments/:attachmentId', read, async (c) => {

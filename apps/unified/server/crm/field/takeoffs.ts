@@ -4,7 +4,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import type { AppEnv } from '../../http/env.ts'
-import { done, fail, list, one } from '../../http/reply.ts'
+import { done, fail, one, listAll } from '../../http/reply.ts'
 import { invalid } from '../../http/errors.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createTakeoffsService } from './takeoffsService.ts'
@@ -19,7 +19,7 @@ const assemblyUpdateBody = z.object({
   materials: z.array(z.object({ id: z.string().min(1), unitCost: price.optional(), unitPrice: price.optional() })).optional(),
 }).passthrough()
 
-const all = <T,>(c: any, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: any, rows: T[]) => listAll(c, rows)
 
 export function createTakeoffsRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions

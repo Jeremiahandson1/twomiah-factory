@@ -7,7 +7,7 @@
 import type { Context, Next } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { clients, user as userTable } from '../../../db/schema/index.ts'
-import { fail, list } from '../../../http/reply.ts'
+import { fail, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { CARE_WRITE_REFUSAL } from '../core/caregiverAccess.ts'
@@ -24,7 +24,7 @@ export function who(c: Context): { user: any; companyId: string; me: string } {
 }
 
 /** A whole list as a list reply (RULEBOOK §3): one page holding every row. */
-export const whole = <T>(c: Context, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+export const whole = <T>(c: Context, rows: T[]) => listAll(c, rows)
 
 /** A typed body, or {} when it is not JSON. */
 export const body = async (c: Context): Promise<any> => (await c.req.json().catch(() => ({}))) ?? {}

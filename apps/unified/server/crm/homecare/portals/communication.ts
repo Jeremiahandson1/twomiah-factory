@@ -20,13 +20,13 @@ import { Hono, type Context } from 'hono'
 import { and, asc, count, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { createActorName } from '@twomiah/tenant-backend'
 import { communicationLog, messageThreads, messageThreadParticipants, messages, user } from '../../../db/schema/index.ts'
-import { fail, list, one, done } from '../../../http/reply.ts'
+import { fail, list, one, done, listAll } from '../../../http/reply.ts'
 import type { AppEnv } from '../../../http/env.ts'
 import { actsForAnyone } from '../core/caregiverAccess.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 
-const all = <T,>(c: Context, rows: T[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const all = <T,>(c: Context, rows: T[]) => listAll(c, rows)
 const blankToNull = (v: unknown) => (v === undefined || v === null || v === '' ? null : v)
 
 /** A log entry's fields from a request body: only these, blank optional fields as null (C-06: "" into a date 500'd). */

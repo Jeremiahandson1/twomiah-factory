@@ -24,7 +24,7 @@ import { uploadedForm } from '../core/upload.ts'
 import type { HomecareCore } from '../core/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import { addDays } from '../core/agencyTime.ts'
 import { body, who, isDate } from './shared.ts'
 
@@ -185,7 +185,7 @@ If a field is not visible, use null.`,
   app.get('/', read, async (c) => {
     const { status, payerId, startDate, endDate } = c.req.query()
     const rows = await payerPaymentRows(db, who(c).companyId, { status, payerId, startDate, endDate })
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // ─── RECONCILIATION SUMMARY ─────────────────────────────────────────────────

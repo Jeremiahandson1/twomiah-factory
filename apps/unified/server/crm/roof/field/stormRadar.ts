@@ -13,7 +13,7 @@ import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
 import { contact, stormRadarEvent, stormRadarEventMatch } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { createStormRadar, StormRadarNotConfiguredError, type StormRadar } from './stormRadarService.ts'
 
@@ -81,7 +81,7 @@ export function createStormRadarRoutes(d: CrmDeps, radar: StormRadar = createSto
       .leftJoin(contact, and(eq(contact.id, stormRadarEventMatch.contactId), eq(contact.companyId, companyId)))
       .where(and(...conditions)).orderBy(desc(stormRadarEventMatch.createdAt), desc(stormRadarEventMatch.id))
     const matches = rows.map((r: any) => ({ ...r.match, contactName: r.contactName ?? null }))
-    return list(c, matches, { page: 1, limit: matches.length, total: matches.length })
+    return listAll(c, matches)
   })
 
   // POST /matches/:id/status — the follow-up (new → contacted → quoted → booked / not_interested), the caller's company only.

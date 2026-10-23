@@ -17,6 +17,17 @@ export function list<T>(c: Context, data: T[], page: { page: number; limit: numb
   return c.json({ data, pagination: { page: page.page, limit: page.limit, total: page.total, pages } })
 }
 
+/**
+ * A whole list (no paging on the server): every row, on page 1. Its `limit` is the limit the caller asked for, or the
+ * number returned if that is more — never a made-up 1 for an empty list (live test 2026-10-22: an empty list said
+ * limit 1; others said 0, each route spelling it its own way). Nothing asked and nothing found: 0.
+ */
+export function listAll<T>(c: Context, data: T[]) {
+  const asked = Number(c.req.query('limit'))
+  const limit = Math.max(Number.isInteger(asked) && asked > 0 ? asked : 0, data.length)
+  return list(c, data, { page: 1, limit, total: data.length })
+}
+
 /** One record, as it is. */
 export function one<T extends object>(c: Context, record: T, status: ContentfulStatusCode = 200) {
   return c.json(record, status)

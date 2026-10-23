@@ -17,7 +17,7 @@ import { routeClaim, generateMidasExport, generateIRISExport, generateHMOExport 
 import type { HomecareCore } from '../core/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, one, listAll } from '../../../http/reply.ts'
 import { body, who, download, withoutOwnership } from './shared.ts'
 
 export function createEdiRoutes(_core: HomecareCore, d: CrmDeps) {
@@ -36,7 +36,7 @@ export function createEdiRoutes(_core: HomecareCore, d: CrmDeps) {
   // GET /service-codes — HCPCS/service codes for claims setup. A list reply.
   app.get('/service-codes', read, async (c) => {
     const rows = await db.select().from(serviceCodes).where(eq(serviceCodes.companyId, who(c).companyId)).orderBy(asc(serviceCodes.code))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // GET /batches — a list reply.
@@ -55,7 +55,7 @@ export function createEdiRoutes(_core: HomecareCore, d: CrmDeps) {
       payer: r.payerName ? { name: r.payerName } : null,
       _count: { claims: claimsIn.get(r.batch.id) ?? 0 },
     }))
-    return list(c, result, { page: 1, limit: result.length, total: result.length })
+    return listAll(c, result)
   })
 
   app.post('/batches', create, async (c) => {

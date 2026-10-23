@@ -21,7 +21,7 @@ import {
   timeEntries, gpsTracking, geofenceSettings, user, clients, evvVisits, referralSources, visitPhotos, notifications,
 } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { decideBilling, parseOfflineAt, withOfflineFlag, hasOfflineFlag } from '../core/punchRules.ts'
@@ -175,7 +175,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
         gpsPoints,
       }
     }))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   // GET /recent — the caregiver's last finished visits
@@ -266,7 +266,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
   // GET /pending-approval — the office's queue of flagged, finished entries
   app.get('/pending-approval', requirePermission(OFFICE_EVV), async (c) => {
     const rows = await pendingApprovalEntries(db, who(c).companyId)
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // PATCH /:id/approve { billable_minutes?, notes?, reject? } — the office resolves a flagged entry.
@@ -675,7 +675,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
       firstName: user.firstName, lastName: user.lastName,
     }).from(visitPhotos).leftJoin(user, eq(user.id, visitPhotos.caregiverId))
       .where(and(eq(visitPhotos.companyId, companyId), eq(visitPhotos.timeEntryId, c.req.param('id')))).orderBy(asc(visitPhotos.takenAt))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // The list omits the image itself; fetch one with GET /photo/:photoId.
@@ -744,7 +744,7 @@ export function createTimeTrackingRoutes(core: HomecareCore, d: CrmDeps) {
     }
     const points = await db.select().from(gpsTracking)
       .where(and(eq(gpsTracking.companyId, companyId), eq(gpsTracking.timeEntryId, id))).orderBy(asc(gpsTracking.timestamp))
-    return list(c, points, { page: 1, limit: points.length, total: points.length })
+    return listAll(c, points)
   })
 
   // GET /geofence/:clientId — the client's geofence (a caregiver: only a client they serve)

@@ -10,7 +10,7 @@
 // ({ data, pagination }); the 409 on a swap already waiting is { error, code: 'swap_pending' }.
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { DATE_RE } from '../core/scheduleOccurrences.ts'
@@ -32,7 +32,7 @@ export function createShiftSwapsRoutes(core: HomecareCore, d: CrmDeps) {
     const { user, companyId, me } = who(c)
     const { status, caregiverId } = c.req.query()
     const rows = await listSwaps(db, companyId, { status: status || undefined, who: isCaregiver(d, user) ? me : (caregiverId || null) })
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /api/shift-swaps { scheduleId, targetCaregiverId, reason, shiftDate? }

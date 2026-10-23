@@ -16,7 +16,7 @@ import { and, asc, desc, eq, gt, gte, inArray, lte } from 'drizzle-orm'
 import { clients, expenses, gustoSyncLog, mileageEntries, payrollRecords, payrollShiftReviews, timeEntries, user } from '../../../db/schema/index.ts'
 import { allottedPunchesOnAgencyDays } from '../../../data/homecarePayrollRoutes.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one } from '../../../http/reply.ts'
+import { fail, list, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { isYmd } from '../core/agencyTime.ts'
@@ -111,7 +111,7 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
       .where(and(eq(expenses.companyId, companyId), status ? eq(expenses.status, status) : undefined))
       .orderBy(desc(expenses.createdAt))
     const result = rows.map((r: any) => ({ ...r.expense, user: { firstName: r.userFirstName, lastName: r.userLastName } }))
-    return list(c, result, { page: 1, limit: result.length, total: result.length })
+    return listAll(c, result)
   })
 
   // POST /expenses — the office records an expense for a person of the company.
@@ -393,7 +393,7 @@ export function createHomecarePayrollRoutes(core: HomecareCore, d: CrmDeps) {
       caregiverName: r.caregiverFirstName ? `${r.caregiverFirstName} ${r.caregiverLastName}` : null,
       clientName: r.clientFirstName ? `${r.clientFirstName} ${r.clientLastName}` : null,
     }))
-    return list(c, result, { page: 1, limit: result.length, total: result.length })
+    return listAll(c, result)
   })
 
   return app

@@ -7,6 +7,8 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, ne, count, asc, ilike, or, inArray } from 'drizzle-orm'
 import { isValidPhone } from '../contacts/contacts'
+import { isRealCalendarDay } from '../invoicing/money'
+import { withinHorizon } from '../dateInput'
 
 export interface TeamTables { teamMember: any; user: any
   /**
@@ -43,13 +45,24 @@ const stripTags = (s: string) => s.replace(/<[^>]*>/g, '').trim()
 const optText = (max: number) => z.string().trim().max(max).transform(stripTags).optional().nullable()
 const phoneField = z.string().trim().max(40).optional().nullable().refine(isValidPhone, { message: 'Enter a valid phone number (at least 7 digits)' })
 
+/**
+ * A roster member's role is their JOB TITLE (Lead Technician, Helper, Stylist) — the roster has no logins, and what a
+ * person may do is their login's role, set under Settings › Users from the vertical's own list. A title that names an
+ * access level ("superadmin", "admin", "owner") was saved and then shown beside real seats as if it were one (live
+ * test 2026-10-22), so a title that IS an access-level word is refused with where access is set.
+ */
+export const ACCESS_LEVEL_WORDS = new Set(['owner', 'admin', 'administrator', 'superadmin', 'superuser', 'root', 'sysadmin', 'systemadmin', 'systemadministrator', 'siteadmin', 'useradmin'])
+export const isAccessLevelWord = (v: unknown) => typeof v === 'string' && ACCESS_LEVEL_WORDS.has(v.toLowerCase().replace(/[^a-z]/g, ''))
+const ACCESS_TITLE_ERROR = 'That is an access level, not a job title. Type what the person does (e.g. Lead Technician); who can do what is set under Settings › Users.'
+
 export const teamMemberSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(120).transform(stripTags),
   email: z.string().trim().email('Enter a valid email').max(320).optional().nullable().or(z.literal('').transform(() => null)),
   phone: phoneField,
-  role: optText(80),
+  role: optText(80).refine((v) => !isAccessLevelWord(v), { message: ACCESS_TITLE_ERROR }),
   department: optText(80),
-  hireDate: z.string().optional().nullable().refine((v) => !v || !isNaN(new Date(v).getTime()), { message: 'Enter a valid hire date' }),
+  // A real calendar day in a plausible year: "99999-01-01" parsed as a Date and then 500'd in the database (sweep 2026-10-22).
+  hireDate: z.string().optional().nullable().refine((v) => !v || (!isNaN(new Date(v).getTime()) && isRealCalendarDay(v) && new Date(v).getUTCFullYear() >= 1900 && withinHorizon(v, 1)), { message: 'Enter a valid hire date (a real day, from 1900 up to a year ahead)' }),
   hourlyRate: z.coerce.number().min(0, 'Hourly rate cannot be negative').max(100000).optional().nullable(),
   active: z.boolean().default(true),
   skills: z.array(z.string().trim().max(60)).max(50).optional(),

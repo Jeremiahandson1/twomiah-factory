@@ -9,7 +9,7 @@ import { insertInvoice, defaultTaxRateFrom, dueDateFromTerms, businessToday, com
 import { snowContract, snowEvent, site, invoice, invoiceLineItem, company } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 
 // The same numbering as the CRM's invoices (the shared default INV-00001).
 const INVOICE_NUMBERING = { prefix: 'INV', pad: 5, seed: 0 }
@@ -278,7 +278,7 @@ export function createSnowBillingRoutes(d: CrmDeps) {
       .where(eq(snowContract.companyId, u.companyId))
       .orderBy(desc(snowContract.createdAt))
     const data = rows.map((r: any) => ({ ...r.contract, siteName: r.siteName, siteAddress: r.siteAddress }))
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.post('/contracts', requirePermission('invoices:create'), async (c) => {
@@ -374,7 +374,7 @@ export function createSnowBillingRoutes(d: CrmDeps) {
       const triggerDepthInches = triggerFor.get(e.snowContractId) ?? null
       return { ...e, triggerDepthInches, belowTrigger: isBelowTrigger({ triggerDepthInches }, e) }
     })
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.post('/events', requirePermission('invoices:create'), async (c) => {
@@ -496,7 +496,7 @@ export function createSnowBillingRoutes(d: CrmDeps) {
         lifetimeTotal: Math.round(sum(ev) * 100) / 100,
       }
     })
-    return list(c, summary, { page: 1, limit: summary.length, total: summary.length })
+    return listAll(c, summary)
   })
 
   return app

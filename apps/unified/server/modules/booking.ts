@@ -3,7 +3,7 @@
 // The owner's and public APIs are behind the 'online_booking' feature through the registry
 // — the public half answers 404 when it is off, so nobody can tell what exists (SPEC §5.2).
 import { Hono, type Context } from 'hono'
-import { list, one, fail, done } from '../http/reply.ts'
+import { list, one, fail, done, listAll } from '../http/reply.ts'
 import { createRateLimiter, isWrite } from '../http/guards.ts'
 import type { AppEnv } from '../http/env.ts'
 import type { Mount } from '../http/registry.ts'
@@ -31,7 +31,6 @@ async function guard<T>(c: Context, fn: () => Promise<T>) {
 }
 const body = async (c: Context): Promise<Record<string, any>> => (c.req.header('content-type') || '').includes('application/json') ? await c.req.json().catch(() => ({})) : await c.req.parseBody().catch(() => ({})) as any
 const pageOf = (c: Context) => ({ page: Math.max(1, Number(c.req.query('page')) || 1), limit: Math.min(500, Math.max(1, Number(c.req.query('limit')) || 100)) })
-const allOf = <T>(rows: T[]) => ({ page: 1, limit: Math.max(rows.length, 1), total: rows.length })
 /** The vertical's own questions' answers from a form (BookingAddOn.questions). */
 const answersOf = (engine: BookingEngine, b: Record<string, any>) => Object.fromEntries(engine.questions.map((q) => [q.name, b[q.name]]))
 
@@ -66,7 +65,7 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   admin.patch('/settings', may('bookings:settings'), (c) => guard(c, async () => one(c, await engine.updateSettings(co(c), await body(c)))))
   admin.post('/settings/feed-token', may('bookings:settings'), async (c) => one(c, await engine.rotateFeedToken(co(c))))
 
-  admin.get('/services', may('bookings:read'), async (c) => { const rows = await engine.listServices(co(c)); return list(c, rows, allOf(rows)) })
+  admin.get('/services', may('bookings:read'), async (c) => { const rows = await engine.listServices(co(c)); return listAll(c, rows) })
   admin.post('/services', may('bookings:settings'), (c) => guard(c, async () => one(c, await engine.createService(co(c), await body(c)), 201)))
   admin.patch('/services/:id', may('bookings:settings'), (c) => guard(c, async () => {
     const s = await engine.updateService(co(c), c.req.param('id'), await body(c))
@@ -75,12 +74,12 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
   admin.delete('/services/:id', may('bookings:settings'), (c) => guard(c, async () => (await engine.deleteService(co(c), c.req.param('id'))) ? done(c) : fail(c, 404, 'Service not found')))
 
   // Hours and days off are the day-to-day running of the book: anyone who may change bookings may set them.
-  admin.get('/hours', may('bookings:read'), async (c) => { const rows = await engine.getHours(co(c)); return list(c, rows, allOf(rows)) })
-  admin.put('/hours', may('bookings:update'), (c) => guard(c, async () => { const b = await body(c); const rows = await engine.setHours(co(c), b.hours); return list(c, rows, allOf(rows)) }))
-  admin.get('/days-off', may('bookings:read'), async (c) => { const rows = await engine.listDaysOff(co(c), c.req.query('from')); return list(c, rows, allOf(rows)) })
+  admin.get('/hours', may('bookings:read'), async (c) => { const rows = await engine.getHours(co(c)); return listAll(c, rows) })
+  admin.put('/hours', may('bookings:update'), (c) => guard(c, async () => { const b = await body(c); const rows = await engine.setHours(co(c), b.hours); return listAll(c, rows) }))
+  admin.get('/days-off', may('bookings:read'), async (c) => { const rows = await engine.listDaysOff(co(c), c.req.query('from')); return listAll(c, rows) })
   admin.post('/days-off', may('bookings:update'), (c) => guard(c, async () => one(c, await engine.addDayOff(co(c), await body(c)), 201)))
   admin.delete('/days-off/:id', may('bookings:update'), async (c) => (await engine.removeDayOff(co(c), c.req.param('id'))) ? done(c) : fail(c, 404, 'Not found'))
-  admin.get('/zones', may('bookings:read'), async (c) => { const rows = await engine.listZones(co(c)); return list(c, rows, allOf(rows)) })
+  admin.get('/zones', may('bookings:read'), async (c) => { const rows = await engine.listZones(co(c)); return listAll(c, rows) })
   admin.put('/zones/:userId', may('bookings:settings'), (c) => guard(c, async () => { const z = await engine.setZone(co(c), c.req.param('userId'), (await body(c)).zips); return z ? one(c, z) : done(c) }))
 
   admin.get('/bookings', may('bookings:read'), async (c) => {
@@ -94,9 +93,9 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     const svc = await engine.serviceById(co(c), c.req.query('serviceId') || '')
     if (!svc) return fail(c, 404, 'Service not found')
     const date = c.req.query('date')
-    if (date) { const rows = await engine.availableTimes(co(c), svc.slug, date, c.req.query('zip'), c.req.query('except')); return list(c, rows, allOf(rows)) }
+    if (date) { const rows = await engine.availableTimes(co(c), svc.slug, date, c.req.query('zip'), c.req.query('except')); return listAll(c, rows) }
     const rows = await engine.availableDates(co(c), svc.slug, c.req.query('zip'))
-    return list(c, rows, allOf(rows))
+    return listAll(c, rows)
   }))
   admin.post('/bookings', may('bookings:create'), (c) => guard(c, async () => {
     const b = await body(c)
@@ -118,25 +117,25 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     return one(c, await engine.withNames(u))
   }))
 
-  admin.get('/series', may('bookings:read'), async (c) => { const rows = await extras.listSeries(co(c)); return list(c, rows, allOf(rows)) })
+  admin.get('/series', may('bookings:read'), async (c) => { const rows = await extras.listSeries(co(c)); return listAll(c, rows) })
   admin.post('/series', may('bookings:create'), (c) => guard(c, async () => one(c, await extras.createSeries(co(c), await body(c)), 201)))
   admin.get('/series/:id', may('bookings:read'), async (c) => { const s = await extras.getSeries(co(c), c.req.param('id')); return s ? one(c, s) : fail(c, 404, 'Not found') })
   admin.delete('/series/:id', may('bookings:update'), async (c) => { const s = await extras.cancelSeries(co(c), c.req.param('id')); return s ? one(c, s) : fail(c, 404, 'Not found') })
 
-  admin.get('/waitlist', may('bookings:read'), async (c) => { const rows = await extras.listWaitlist(co(c)); return list(c, rows, allOf(rows)) })
+  admin.get('/waitlist', may('bookings:read'), async (c) => { const rows = await extras.listWaitlist(co(c)); return listAll(c, rows) })
   admin.delete('/waitlist/:id', may('bookings:update'), async (c) => (await extras.removeWaitlist(co(c), c.req.param('id'))) ? done(c) : fail(c, 404, 'Not found'))
 
-  admin.get('/bans', may('bookings:settings'), async (c) => { const rows = await extras.listBans(co(c)); return list(c, rows, allOf(rows)) })
+  admin.get('/bans', may('bookings:settings'), async (c) => { const rows = await extras.listBans(co(c)); return listAll(c, rows) })
   admin.post('/bans', may('bookings:settings'), (c) => guard(c, async () => one(c, await extras.addBan(co(c), await body(c), c.get('user').userId), 201)))
   admin.delete('/bans/:id', may('bookings:settings'), async (c) => (await extras.removeBan(co(c), c.req.param('id'))) ? done(c) : fail(c, 404, 'Not found'))
 
-  admin.get('/webhooks', may('bookings:settings'), async (c) => { const rows = await extras.listWebhooks(co(c)); return list(c, rows, allOf(rows)) })
+  admin.get('/webhooks', may('bookings:settings'), async (c) => { const rows = await extras.listWebhooks(co(c)); return listAll(c, rows) })
   admin.post('/webhooks', may('bookings:settings'), (c) => guard(c, async () => one(c, await extras.addWebhook(co(c), await body(c)), 201)))
   admin.patch('/webhooks/:id', may('bookings:settings'), (c) => guard(c, async () => { const w = await extras.updateWebhook(co(c), c.req.param('id'), await body(c)); return w ? one(c, w) : fail(c, 404, 'Not found') }))
   admin.delete('/webhooks/:id', may('bookings:settings'), async (c) => (await extras.removeWebhook(co(c), c.req.param('id'))) ? done(c) : fail(c, 404, 'Not found'))
 
   // A person's own calendar: linked through the Factory's sign-in, which comes back to the page it was started from.
-  admin.get('/calendar/connections', may('bookings:read'), async (c) => { const rows = await calendars.connectionsOf(c.get('user').userId); return list(c, rows, allOf(rows)) })
+  admin.get('/calendar/connections', may('bookings:read'), async (c) => { const rows = await calendars.connectionsOf(c.get('user').userId); return listAll(c, rows) })
   admin.get('/calendar/providers', may('bookings:read'), (c) => one(c, { providers: calendars.providers() }))
   admin.get('/calendar/:provider/connect-url', may('bookings:read'), (c) => {
     const provider = c.req.param('provider') as Provider
@@ -152,7 +151,7 @@ export function createBookingModule(deps: { db: any; vertical: VerticalSettings;
     return r ? one(c, { success: true, ...r }) : fail(c, 404, 'Not found')
   })
 
-  admin.get('/customers', may('bookings:read'), async (c) => { const rows = await extras.customers(co(c)); return list(c, rows, allOf(rows)) })
+  admin.get('/customers', may('bookings:read'), async (c) => { const rows = await extras.customers(co(c)); return listAll(c, rows) })
   admin.get('/analytics', may('bookings:read'), async (c) => one(c, await extras.analytics(co(c), Math.min(365, Math.max(7, Number(c.req.query('days')) || 90)))))
 
   // ── The public API the booking pages call ─────────────────────────────────
@@ -188,17 +187,17 @@ export function bookingMounts(m: ReturnType<typeof createBookingModule>, company
   pub.get('/services', (c) => withCompany(c, async (id) => {
     const s = await engine.settingsOf(id)
     const rows = s.enabled ? (await engine.listServices(id, { activeOnly: true })).map((x) => ({ slug: x.slug, name: x.name, description: x.description, durationMinutes: x.durationMinutes, price: x.price, tipPresets: x.tipPresets })) : []
-    return list(c, rows, { page: 1, limit: Math.max(rows.length, 1), total: rows.length })
+    return listAll(c, rows)
   }))
   pub.get('/services/:slug/dates', (c) => withCompany(c, (id) => guard(c, async () => {
     const rows = await engine.availableDates(id, c.req.param('slug'), c.req.query('zip'))
-    return list(c, rows, { page: 1, limit: Math.max(rows.length, 1), total: rows.length })
+    return listAll(c, rows)
   }) as Promise<Response>))
   pub.get('/services/:slug/times', (c) => withCompany(c, (id) => guard(c, async () => {
     // Moving a booking: its own time doesn't block itself. Reached by its token, never its id.
     const moving = c.req.query('token') ? await engine.byToken(id, c.req.query('token')!) : null
     const rows = await engine.availableTimes(id, c.req.param('slug'), c.req.query('date') || '', c.req.query('zip'), moving?.id)
-    return list(c, rows, { page: 1, limit: Math.max(rows.length, 1), total: rows.length })
+    return listAll(c, rows)
   }) as Promise<Response>))
   pub.post('/services/:slug', (c) => withCompany(c, (id) => guard(c, async () => {
     const b = await body(c)

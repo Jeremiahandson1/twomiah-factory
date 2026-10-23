@@ -4,7 +4,7 @@
 // check no permission (as the template); writing onto a daily log is daily-logs:update (T68).
 import { Hono } from 'hono'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createWeatherService } from './weatherService.ts'
 
@@ -43,7 +43,7 @@ export function createWeatherRoutes(d: CrmDeps) {
     if (!lat || !lng) return fail(c, 400, 'lat and lng are required')
     const data = await weather.getForecast(parseFloat(lat), parseFloat(lng))
     if (!data) return fail(c, 404, 'Forecast data not available')
-    return list(c, data, { page: 1, limit: data.length, total: data.length })
+    return listAll(c, data)
   })
 
   app.get('/job/:jobId', async (c) => {

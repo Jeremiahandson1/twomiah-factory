@@ -2,7 +2,7 @@
 // search.ts; the queries are in searchService.ts.
 import { Hono } from 'hono'
 import type { AppEnv } from '../../http/env.ts'
-import { list, one } from '../../http/reply.ts'
+import { one, listAll } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createSearchService } from './searchService.ts'
 
@@ -94,7 +94,7 @@ export function createSearchRoutes(d: CrmDeps) {
     const results = (await search.quickSearch(user.companyId, c.req.query('q'), Math.min(parseInt(limit), 20), {
       types: DEFAULT_TYPES.filter(shown), clientChart: await clientChartOn(user.companyId),
     })).filter((r: any) => shown(r.type))
-    return list(c, results, { page: 1, limit: results.length, total: results.length })
+    return listAll(c, results)
   })
 
   app.get('/recent', async (c) => {
@@ -102,7 +102,7 @@ export function createSearchRoutes(d: CrmDeps) {
     const limit = c.req.query('limit') || '10'
     const shown = await shownTypes(user.companyId, user)
     const results = (await search.getRecentItems(user.companyId, Math.min(parseInt(limit), 20), await clientChartOn(user.companyId))).filter((r: any) => shown(r.type))
-    return list(c, results, { page: 1, limit: results.length, total: results.length })
+    return listAll(c, results)
   })
 
   return app

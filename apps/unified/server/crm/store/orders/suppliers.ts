@@ -26,7 +26,7 @@ import { and, eq } from 'drizzle-orm'
 import type { Context } from 'hono'
 import { storeOrder, storeProduct, storeProductVariant, supplierConfig, variantSupplierMap } from '../../../db/schema/store.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { buildSupplierProvider, type StoreCore } from '../core.ts'
 import { encryptJSON } from '../../../core/crypto.ts'
@@ -161,7 +161,7 @@ export function createSupplierRoutes(d: CrmDeps, core: StoreCore) {
       .innerJoin(storeProductVariant, eq(storeProductVariant.id, variantSupplierMap.variantId))
       .innerJoin(storeProduct, eq(storeProduct.id, storeProductVariant.productId))
       .where(eq(storeProduct.companyId, own(c)))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // Manual forward (also the retry button) — bypasses autoForward but not 'hold'

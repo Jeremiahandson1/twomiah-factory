@@ -12,7 +12,7 @@ import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { caregiverTimeOff, user } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { actsForAnyone } from '../core/caregiverAccess.ts'
@@ -45,7 +45,7 @@ export function createBlackoutDatesRoutes(_core: HomecareCore, d: CrmDeps) {
       .from(caregiverTimeOff)
       .leftJoin(user, eq(caregiverTimeOff.caregiverId, user.id))
       .where(and(eq(caregiverTimeOff.companyId, companyId), eq(caregiverTimeOff.type, 'blackout'), mine))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST / — a blackout date. The office names the caregiver; a caregiver adds their own (a caregiverId for anyone else

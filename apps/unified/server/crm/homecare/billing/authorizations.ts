@@ -15,7 +15,7 @@ import { normalizeAuthUnit, AUTH_UNITS, AUTH_UNIT_LABEL } from '../core/authUnit
 import type { HomecareCore } from '../core/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { fail, list, one, done } from '../../../http/reply.ts'
+import { fail, one, done, listAll } from '../../../http/reply.ts'
 import { body, who, withoutOwnership } from './shared.ts'
 
 /**
@@ -108,7 +108,7 @@ export function createAuthorizationRoutes(_core: HomecareCore, d: CrmDeps) {
       client: { firstName: clientFirstName, lastName: clientLastName },
       payer: { name: payerName },
     }))
-    return list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+    return listAll(c, rows)
   })
 
   // POST /import-csv { rows } — authorizations exported from Wisconsin's MIDAS portal, in the columns the Integrations

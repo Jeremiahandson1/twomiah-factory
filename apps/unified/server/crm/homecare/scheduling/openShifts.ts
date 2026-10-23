@@ -13,7 +13,7 @@
 // refusals that carried a record (the 409 on a visit already posted) are { error, code: 'already_posted' }.
 import { Hono } from 'hono'
 import type { AppEnv } from '../../../http/env.ts'
-import { done, fail, list, one } from '../../../http/reply.ts'
+import { done, fail, one, listAll } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import type { HomecareCore } from '../core/index.ts'
 import { hms, shiftHours, DATE_RE } from '../core/scheduleOccurrences.ts'
@@ -29,7 +29,7 @@ import { actsForAnyone } from '../core/caregiverAccess.ts'
 const fmtHm = (t: string) => { const [h, m] = String(t).split(':').map(Number); return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}` }
 const fmtDay = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' })
 const clientShort = (first: string | undefined, last: string | undefined) => `${first || ''} ${String(last || '').charAt(0)}.`.trim()
-const asList = (c: any, rows: any[]) => list(c, rows, { page: 1, limit: rows.length, total: rows.length })
+const asList = (c: any, rows: any[]) => listAll(c, rows)
 
 export function createOpenShiftsRoutes(core: HomecareCore, d: CrmDeps, shared: SchedulingShared) {
   const app = new Hono<AppEnv>()

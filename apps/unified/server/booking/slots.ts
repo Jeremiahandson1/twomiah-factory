@@ -110,7 +110,8 @@ export function freeSlots(args: {
   // 4. Service area: someone whose zone list lacks the customer's ZIP can't take it. No zone = serves everywhere;
   //    "anyone" hours always qualify.
   const eligible = new Set(byWho.keys())
-  const zip = args.customerZip?.trim()
+  // A zone lists five-digit ZIPs; a customer's ZIP+4 is in the zone of its first five.
+  const zip = args.customerZip?.trim().slice(0, 5)
   if (zip && args.zones?.length) {
     for (const who of eligible) {
       if (who === null) continue

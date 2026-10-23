@@ -4,7 +4,7 @@
 import { Hono } from 'hono'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
-import { fail, list, one } from '../../http/reply.ts'
+import { fail, one, listAll } from '../../http/reply.ts'
 import { createMigrationService } from './migrationService.ts'
 import { createImportService } from './importService.ts'
 import { uploadedForm } from './upload.ts'
@@ -18,7 +18,7 @@ export function createMigrationRoutes(d: CrmDeps) {
   // The providers a business can move from. A list: { data, pagination } (the template answered a bare array).
   app.get('/providers', (c) => {
     const providers = migration.getAvailableProviders()
-    return list(c, providers, { page: 1, limit: providers.length, total: providers.length })
+    return listAll(c, providers)
   })
 
   // A platform's CSV column presets for one kind of record
