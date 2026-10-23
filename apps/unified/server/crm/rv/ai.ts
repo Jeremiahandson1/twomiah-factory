@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import { eq, and, desc, inArray } from 'drizzle-orm'
 import { salesLead, contact, unit, company, user, repairOrder, invoice } from '../../db/schema/index.ts'
-import { reportAiUsage } from '@twomiah/tenant-backend'
+import { reportAiUsage, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
 import type { CrmDeps } from '../deps.ts'
@@ -205,7 +205,7 @@ export function createAiReportRoutes(d: CrmDeps) {
     ])
     const units = mayCost ? unitRows : unitRows.map(hideUnitCost)
 
-    const today = new Date().toISOString().slice(0, 10)
+    const today = storeDateString(new Date(), await companyTimeZone(db, cid)) // the dealer's day, not UTC's
     const dataContext = [
       `TODAY: ${today}`,
       `=== PRECOMPUTED TOTALS (exact — copy counts and totals from here; money in dollars) ===\n${JSON.stringify(precomputedTotals(units, leads, ros, invoices))}`,

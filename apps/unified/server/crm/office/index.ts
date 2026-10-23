@@ -23,7 +23,7 @@ export function officeMounts(d: CrmDeps): Mount[] {
     // Public doors inside: Wisetack's webhook, a vendor's token link, the presenter page. Each router signs people in
     // itself for its other paths.
     { path: '/api/wisetack', access: 'public', feature: 'consumer_financing', router: createWisetackRoutes(d) },
-    { path: '/api/vendor-portal', access: 'public', router: createVendorPortalRoutes(d) },
+    { path: '/api/vendor-portal', access: 'public', feature: 'vendor_portal', router: createVendorPortalRoutes(d) }, // off: the portal and its invite are not there (404)
     { path: '/api/pricebook-present', access: 'public', feature: 'pricebook', router: createPricebookPresentRoutes(d) },
   ]
 }

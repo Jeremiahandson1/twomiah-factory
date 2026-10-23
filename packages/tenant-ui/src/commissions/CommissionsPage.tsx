@@ -20,6 +20,7 @@ import { DollarSign, Plus, Check, AlertTriangle, Pencil, Printer, Zap } from 'lu
 import { usePermissions } from '../auth/PermissionsContext'
 import { useConfirm, usePrompt } from '../ui/ConfirmProvider'
 import { PageHeader, Button, Modal, Field, inputCls, money, instantDay, errMsg, StatusBadge } from '../invoicing/ui'
+import { companyTodayKey } from '../time/companyClock'
 
 export interface CommissionsApi {
   get: (path: string, params?: Record<string, any>) => Promise<any>
@@ -68,7 +69,7 @@ export function CommissionsPage({ api, toast, config }: CommissionsPageProps) {
   const [tab, setTab] = useState<'records' | 'plans' | 'statements'>('records')
   const [stmtWho, setStmtWho] = useState('')
   const [stmtFrom, setStmtFrom] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` })
-  const [stmtTo, setStmtTo] = useState(() => new Date().toLocaleDateString('en-CA'))
+  const [stmtTo, setStmtTo] = useState(() => companyTodayKey())
   const [statement, setStatement] = useState<any | null>(null)
   const [records, setRecords] = useState<any[]>([])
   const [plans, setPlans] = useState<any[]>([])

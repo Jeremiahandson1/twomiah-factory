@@ -160,7 +160,7 @@ export function createBookingEngine(deps: EngineDeps) {
    * kept a time zone of their own, which could disagree with the one the business's reports, invoices and website use
    * (live test 10/22; coordinator 10/23). The settings row's own column is no longer read: every row this engine hands
    * out carries the company's clock in `timezone`, so the slot grid, the emails and the calendar all keep one time.
-   * Migration 0022 moved a booking zone onto a company that had none.
+   * Migration 0027 moved a booking zone onto a company that had none.
    */
   async function clockOf(companyId: string, exec: any = db): Promise<string> {
     const [co] = await exec.select().from(company).where(eq(company.id, companyId)).limit(1)

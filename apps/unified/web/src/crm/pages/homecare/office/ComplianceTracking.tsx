@@ -21,7 +21,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatDate, parseLocalDate } from '../lib/date'
-import { useConfirm, useMayWrite, useToast } from '../../../../shared'
+import { useAuth, useConfirm, useMayWrite, useToast } from '../../../../shared'
 
 interface Caregiver { id: string; firstName: string | null; lastName: string | null; email?: string | null; phone?: string | null }
 
@@ -126,6 +126,8 @@ const EMPTY_TRAINING: TrainingForm = {
 
 const ComplianceTracking = () => {
   const confirm = useConfirm()
+  // The Documents page is the documents switch's: off, nothing here links to it.
+  const documentsOn = useAuth().hasFeature('documents')
   const mayCreate = useMayWrite('care-hr:create')
   const mayDelete = useMayWrite('care-hr:delete')
   const [caregivers, setCaregivers] = useState<Caregiver[]>([])
@@ -647,8 +649,7 @@ const ComplianceTracking = () => {
               <p style={{ color: 'var(--hc-muted)', textAlign: 'center', padding: '2rem' }}>
                 Compliance documents are not listed here yet. Background check letters are on the{' '}
                 <Link to="/crm/background-checks" style={{ color: 'var(--color-teal-dark)', textDecoration: 'underline' }}>Background Checks</Link>{' '}
-                page; the agency&apos;s files are under{' '}
-                <Link to="/crm/documents" style={{ color: 'var(--color-teal-dark)', textDecoration: 'underline' }}>Documents</Link>.
+                page{documentsOn ? <>; the agency&apos;s files are under{' '}<Link to="/crm/documents" style={{ color: 'var(--color-teal-dark)', textDecoration: 'underline' }}>Documents</Link></> : null}.
               </p>
             </div>
           )}

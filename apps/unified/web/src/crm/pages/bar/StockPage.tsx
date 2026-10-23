@@ -5,6 +5,7 @@ import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dialog } from './registerUi';
+import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
  * STOCK & COSTING — the manager's side (routes/barStock.ts, bar:update). Stock bought by the pack and used by the
@@ -19,7 +20,7 @@ interface Vendor { id: string; name: string; email: string | null; phone: string
 interface Meta { categories: Array<{ id: string; label: string }>; units: Record<string, string>; presets: Array<{ name: string; unit: string; size: number }> }
 
 const pct = (n: number | null) => (n === null ? '—' : `${n}%`);
-const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—');
+const day = (iso: string | null) => (iso ? momentDate(iso, { month: 'short', day: 'numeric' }) : '—');
 
 export default function StockPage() {
   const [tab, setTab] = useState<Tab>('stock');

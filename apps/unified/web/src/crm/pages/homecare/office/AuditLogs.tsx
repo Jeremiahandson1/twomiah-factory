@@ -23,6 +23,7 @@ import { api, rows, errorMessage, saveBlob } from '../lib/http'
 import { toLocalYMD } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
 import { useToast } from '../../../../shared'
+import { agencyToday } from '../lib/agencyClock'
 
 /** One row of GET /api/audit-logs. */
 interface AuditRow {
@@ -120,7 +121,7 @@ const AuditLogs = () => {
   const [selectedLog, setSelectedLog] = useState<AuditRow | null>(null)
   const [filters, setFilters] = useState<Filters>({
     startDate: toLocalYMD(new Date(new Date().setDate(new Date().getDate() - 30))),
-    endDate: toLocalYMD(new Date()),
+    endDate: agencyToday(),
     userId: '',
     action: '',
     tableName: '',
@@ -236,7 +237,7 @@ const AuditLogs = () => {
         log.ipAddress, log.reasonCode,
       ].map(csvCell).join(','))
       const blob = new Blob([[header.join(','), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' })
-      saveBlob(blob, `audit-logs-${toLocalYMD(new Date())}.csv`)
+      saveBlob(blob, `audit-logs-${agencyToday()}.csv`)
     } catch (err) {
       toast.error('Failed to export: ' + errorMessage(err))
     }

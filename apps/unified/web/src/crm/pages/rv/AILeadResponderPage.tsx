@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { MessageSquare, Mail, Send, Loader2, Copy, Check, Sparkles, RefreshCw, Zap } from 'lucide-react'
 import { api } from '../../../api'
-import { errorText } from '../../../shared'
+import { errorText, useAuth } from '../../../shared'
 import type { InboxLead as Lead, InboxReply } from './deal'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
@@ -31,6 +31,8 @@ export default function AILeadResponderPage() {
   const [copied, setCopied] = useState<string | null>(null);
   // Only a text the server confirms is shown as sent. (The buttons used to flip to "Sent ✓" without sending anything.)
   const [smsSent, setSmsSent] = useState(false);
+  // Sending the text is Two-Way Texting's (/api/sms refuses it when off); the draft can still be copied.
+  const textingOn = useAuth().hasFeature('two_way_texting');
   const [smsSending, setSmsSending] = useState(false);
   const [smsError, setSmsError] = useState<string | null>(null);
 
@@ -132,7 +134,8 @@ export default function AILeadResponderPage() {
                       <textarea value={sms} onChange={(e) => setSms(e.target.value)} className="w-full text-sm p-2 border rounded-lg h-20" />
                       <div className="flex items-center gap-2">
                         <button onClick={() => copy('sms', sms)} className="text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5">{copied === 'sms' ? <Check size={13} /> : <Copy size={13} />} Copy</button>
-                        <button onClick={sendSms} disabled={smsSending || smsSent || !sms.trim() || !selected.contactId} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 inline-flex items-center gap-1.5">{smsSending ? <Loader2 className="animate-spin" size={13} /> : <Send size={13} />} {smsSent ? 'Sent ✓' : smsSending ? 'Sending…' : 'Send text'}</button>
+                        {!textingOn && <span className="text-[11px] text-gray-600 dark:text-slate-400" data-testid="texting-off">Two-Way Texting is off — copy the text, or turn it on in Settings › Features to send it here.</span>}
+                        {textingOn && <button onClick={sendSms} disabled={smsSending || smsSent || !sms.trim() || !selected.contactId} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 inline-flex items-center gap-1.5">{smsSending ? <Loader2 className="animate-spin" size={13} /> : <Send size={13} />} {smsSent ? 'Sent ✓' : smsSending ? 'Sending…' : 'Send text'}</button>}
                         <span className="text-[11px] text-gray-500 dark:text-slate-400 ml-auto">{sms.length} chars</span>
                       </div>
                       {smsError && <p className="text-xs text-red-600 dark:text-red-400">{smsError}</p>}

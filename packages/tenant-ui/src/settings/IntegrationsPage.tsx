@@ -13,6 +13,7 @@ import { leadSourceGuides } from '../leads/types'
 import { useConfirm } from '../ui/ConfirmProvider'
 import { CallTrackingSection } from './CallTrackingSettings'
 import { useNavigate } from 'react-router-dom'
+import { whenDateTime } from '../time/companyClock'
 
 // The guides are the SAME vocabulary the Lead Sources page offers (one list per vertical — the template derives
 // config.leadSources from its leadsConfig). Before: a second, hand-written list here pointed users at a
@@ -38,6 +39,7 @@ const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallba
 
 export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: IntegrationsConfig }) {
   const confirm = useConfirm()
+  const on = (feature: string) => !config?.hasFeature || config.hasFeature(feature)
   const copy = { quickbooks: 'Sync invoices, expenses, and customers with your books.', sms: 'Send text updates to customers and crew members.', email: 'Send invoices, quotes, and reminders via email.', intro: 'Connect your accounts, set up lead sources, and configure your domain.', ...(config?.copy || {}) }
   const navigate = useNavigate()
   const leadSources = config?.leadSources || DEFAULT_LEAD_SOURCES
@@ -110,6 +112,8 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             steps={['Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)', 'Go to DNS settings for your domain', 'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to the address in your browser bar while you are signed in', 'Save changes — DNS propagation can take up to 24 hours', 'Once propagated, your CRM will be accessible at your custom domain']} />
         )}
 
+        {/* Each card is its switch's (Settings › Features): QuickBooks' and Online Payments' doors refuse while off. */}
+        {on('quickbooks') && <>
         <SectionLabel label="Accounting" />
         <Card icon={<BookOpen className="w-6 h-6 text-green-700 dark:text-green-400" />} iconBg="bg-green-100 dark:bg-green-500/20" title="QuickBooks" description={copy.quickbooks}
           body={status.quickbooks.configured === false ? (
@@ -123,7 +127,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
           ) : (
             <div className="mt-2 text-sm space-y-1">
               <p className="text-green-700 dark:text-green-400 font-medium">Connected{status.quickbooks.companyName ? ` to ${status.quickbooks.companyName}` : ''}</p>
-              {status.quickbooks.lastSync && <p className="text-gray-500 dark:text-slate-400">Last synced: {new Date(status.quickbooks.lastSync).toLocaleString()}</p>}
+              {status.quickbooks.lastSync && <p className="text-gray-500 dark:text-slate-400">Last synced: {whenDateTime(status.quickbooks.lastSync)}</p>}
               <button onClick={qbAutoSync} disabled={saving === 'autosync'} className="flex items-center gap-2 text-gray-700 dark:text-slate-300" data-testid="qb-autosync">
                 {saving === 'autosync' ? <Loader2 className="w-8 h-8 text-gray-400 animate-spin" /> : status.quickbooks.syncEnabled ? <ToggleRight className="w-8 h-8 text-green-500 dark:text-green-300" /> : <ToggleLeft className="w-8 h-8 text-gray-300 dark:text-slate-600" />}
                 <span className="text-sm">Auto-sync new invoices and customers</span>
@@ -137,7 +141,8 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             <button onClick={qbConnect} disabled={saving === 'qb-connect'} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800 flex items-center gap-2">Connect QuickBooks<ExternalLink className="w-4 h-4" /></button>
           )} />
 
-        {config?.cardPayments !== 'not-offered' && (<>
+        </>}
+        {on('online_payments') && <>
         <SectionLabel label="Payments" />
         {/* What it does and how to connect it, in the owner's words — the card said only "Accept credit card payments from
             customers." and nothing about what to do (live test 10/22). */}
@@ -151,18 +156,13 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             </div>
           ) : (
             <HowTo steps={[
-              ...(config?.cardPayments === 'off' ? ['Switch on Online Payments under Settings › Features — until it is on, invoices show no Pay button even with Stripe connected.'] : []),
               'Click Connect Stripe. Sign in to Stripe, or create a free account there.', 'Stripe asks for your business details and the bank account to pay you into — about 10 minutes.', 'You come back here, and this card says "Ready to accept payments".',
             ]} />
           )}
           actions={status.stripe.configured === false ? null : status.stripe.connected
             ? <button onClick={stripeDisconnect} disabled={saving === 'stripe'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
             : <button onClick={stripeConnect} disabled={saving === 'stripe-connect'} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 flex items-center gap-2">Connect Stripe<ExternalLink className="w-4 h-4" /></button>} />
-        {status.stripe.connected && config?.cardPayments === 'off' && (
-          <p role="status" className="-mt-2 text-sm text-amber-800 dark:text-amber-200">Stripe is connected, but Online Payments is switched off under Settings › Features, so invoices show no Pay button.</p>
-        )}
-        </>)}
-
+        </>}
         <SectionLabel label="Communication" />
         <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-6">
           <div className="flex items-start gap-4">

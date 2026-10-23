@@ -133,7 +133,7 @@ const restaurant: VerticalSettings = {
     },
     marketing: {},
     messages: {},
-    reviews: { subjectLabel: 'Event', subtitle: 'Automate Google review requests after an event or job', autoRequestHelp: 'Automatically request reviews after a completed job', emptyHelp: 'Requests are created automatically when jobs are completed' },
+    reviews: { manualHelp: "on a customer's contact page", subjectLabel: 'Event', subtitle: 'Automate Google review requests after an event or job', autoRequestHelp: 'Automatically request reviews after a completed job', emptyHelp: 'Requests are created automatically when jobs are completed' },
     // No trade licence for a venue (settingsConfig.ts).
     settings: { licenseNumber: false },
     // Jobber import and Angi / Thumbtack / Local Services lead sources are field-service concepts (OnboardingWizard.tsx,

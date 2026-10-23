@@ -7,7 +7,9 @@ import { useToast, useConfirm } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
+import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { todayKey } from '@twomiah/tenant-ui/src/time/day'
 
 interface BillForm {
   vendorId: string;
@@ -39,7 +41,7 @@ const STATUS_STYLES: Record<string, string> = {
   void: 'bg-gray-100 text-gray-600 line-through dark:bg-slate-700 dark:text-slate-300',
 };
 
-const EMPTY_FORM: BillForm = { vendorId: '', number: '', jobId: '', purchaseOrderId: '', billDate: new Date().toISOString().split('T')[0], dueDate: '', amount: '', notes: '' };
+const EMPTY_FORM: BillForm = { vendorId: '', number: '', jobId: '', purchaseOrderId: '', billDate: todayKey(), dueDate: '', amount: '', notes: '' };
 
 export default function BillsPage() {
   const toast = useToast();
@@ -98,7 +100,7 @@ export default function BillsPage() {
   const contactName = (c: Record<string, unknown>) =>
     (c.name as string) || (c.company as string) || (c.email as string) || 'Unnamed';
 
-  const openCreate = () => { setEditing(null); setForm({ ...EMPTY_FORM, billDate: new Date().toISOString().split('T')[0] }); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ ...EMPTY_FORM, billDate: todayKey() }); setModalOpen(true); };
   const openEdit = (item: Record<string, unknown>) => {
     setEditing(item);
     setForm({
@@ -184,7 +186,7 @@ export default function BillsPage() {
   };
 
   const isOverdue = (r: Record<string, unknown>) =>
-    ['open', 'partial'].includes(r.status as string) && r.dueDate && new Date(r.dueDate as string) < new Date();
+    ['open', 'partial'].includes(r.status as string) && r.dueDate && isPastDay(r.dueDate);
 
   const columns = [
     { key: 'number', label: 'Invoice #', render: (v: unknown) => (v as string) || '-' },

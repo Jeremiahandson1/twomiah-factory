@@ -2,13 +2,16 @@
 // photos (when the vertical has them), notes (where the app mounts them), related project / contact / equipment.
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench, Camera, X, FileText } from 'lucide-react'
+import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench, Camera, FileText } from 'lucide-react'
 import { StatusBadge, ConfirmModal, Button, NavLink, dateOnly, errMsg } from '../invoicing/ui'
 import { resolveJobsConfig, PRIORITY_COLORS } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { useConfirm } from '../ui/ConfirmProvider'
 import { JobPartsPanel } from '../inventory/JobPartsPanel'
 import { JobNotesPanel } from './JobNotesPanel'
 import { JobPhotosPanel } from './JobPhotosPanel'
+import { PhotoViewer } from '../files/PhotoViewer'
+import { ReviewRequestButton } from '../reviews/ReviewRequestButton'
 import type { JobsPageProps, JobRow, JobPhoto } from './types'
 
 const card = 'bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6'
@@ -35,6 +38,16 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
    * every CRM that can switch either feature on mounts /api/inventory, and one that cannot must never call it.
    */
   const showParts = !!config?.hasFeature && (config.hasFeature('inventory') || config.hasFeature('parts_tracking'))
+  const confirm = useConfirm()
+  /** Stop a repeating job from this visit on: the later visits still open are cancelled (POST /:id/series/stop). */
+  const [stopping, setStopping] = useState(false)
+  const stopSeries = async () => {
+    const left = job?.series?.upcoming ?? 0
+    if (!(await confirm(`The ${left} visit${left === 1 ? '' : 's'} after this one ${left === 1 ? 'is' : 'are'} cancelled. This visit and the earlier ones stay as they are.`, { title: 'Stop repeating?', confirmText: 'Stop the series' }))) return
+    setStopping(true)
+    try { const r = await api.post(`/api/jobs/${id}/series/stop`); toast.success(`Series stopped — ${r?.cancelled ?? 0} later visit${r?.cancelled === 1 ? '' : 's'} cancelled`); load() }
+    catch (err) { toast.error(errMsg(err, 'Could not stop the series')) } finally { setStopping(false) }
+  }
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -131,6 +144,8 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
               <FileText className="w-4 h-4 inline mr-2" />{billing ? 'Raising…' : 'Invoice'}
             </Button>
           )}
+          {/* Ask the job's customer for a Google review now (Review Requests; reviews/ReviewRequestButton.tsx). */}
+          {job.contactId && <ReviewRequestButton api={api} toast={toast} jobId={id} hasFeature={config?.hasFeature} />}
           {mayUpdate && <NavLink to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2"><Edit className="w-4 h-4" />Edit</NavLink>}
           {mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="w-4 h-4 inline mr-2" />Delete</Button>}
         </div>
@@ -159,6 +174,16 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
               {(job as any).location && <div className="flex items-center gap-3"><MapPin className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Branch</p><p className="text-gray-900 dark:text-slate-100">{(job as any).location.name}</p></div></div>}
               {job.assignedTo && <div className="flex items-center gap-3"><User className="w-5 h-5 text-gray-400" /><div><p className="text-sm text-gray-500 dark:text-slate-400">Assigned To</p><p className="text-gray-900 dark:text-slate-100">{job.assignedTo.firstName} {job.assignedTo.lastName}</p></div></div>}
             </div>
+            {job.series && (
+              <div className="mt-4 pt-4 border-t dark:border-slate-800 flex flex-wrap items-center justify-between gap-3" data-testid="job-series">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Repeats</p>
+                  <p className="text-gray-900 dark:text-slate-100">{job.series.summary}{job.series.index ? ` — visit ${job.series.index} of ${job.series.total}` : ''}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{job.series.status === 'stopped' ? 'Stopped — no more visits will be added.' : `${job.series.upcoming} later visit${job.series.upcoming === 1 ? '' : 's'} on the Schedule`}</p>
+                </div>
+                {mayUpdate && job.series.status !== 'stopped' && job.series.upcoming > 0 && <Button variant="secondary" onClick={stopSeries} disabled={stopping}>{stopping ? 'Stopping…' : 'Stop the series'}</Button>}
+              </div>
+            )}
             {job.description && <div className="mt-4 pt-4 border-t dark:border-slate-800"><p className="text-sm text-gray-500 mb-2 dark:text-slate-400">Description</p><p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{job.description}</p></div>}
             {job.notes && <div className="mt-4 pt-4 border-t dark:border-slate-800"><p className="text-sm text-gray-500 mb-2 dark:text-slate-400">Notes</p><p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{job.notes}</p></div>}
           </div>
@@ -204,16 +229,15 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
         </div>
       </div>
 
-      {fullscreen && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="Photo">
-          <div className="flex items-center justify-between p-4">
-            <button type="button" onClick={() => setFullscreen(null)} className="p-2 text-white hover:text-gray-300" aria-label="Close"><X className="w-6 h-6" /></button>
-            {mayUpdate && <button type="button" onClick={() => deletePhoto(fullscreen.id)} className="p-2 text-red-400 hover:text-red-300" aria-label="Delete photo"><Trash2 className="w-5 h-5" /></button>}
-          </div>
-          <div className="flex-1 flex items-center justify-center p-4"><img src={fullscreen.url} alt={fullscreen.caption || ''} className="max-w-full max-h-full object-contain" /></div>
-          {fullscreen.caption && <p className="text-white text-center p-4 text-sm">{fullscreen.caption}</p>}
-        </div>
-      )}
+      {/* The shared full-size viewer (files/PhotoViewer.tsx): next and previous, the keyboard, a phone's swipe. */}
+      <PhotoViewer
+        label={`${cfg.labels.singular} photos`}
+        photos={photos.map((p) => ({ id: p.id, src: p.url, caption: p.caption }))}
+        index={fullscreen ? Math.max(0, photos.findIndex((p) => p.id === fullscreen.id)) : null}
+        onIndex={(i) => setFullscreen(photos[i] ?? null)}
+        onClose={() => setFullscreen(null)}
+        actions={(p) => (mayUpdate && p.id ? <button type="button" onClick={() => deletePhoto(p.id as string)} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-red-300 hover:bg-white/20" aria-label="Delete photo"><Trash2 className="w-5 h-5" /></button> : null)}
+      />
 
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={remove} title={`Delete ${cfg.labels.singular}`} message={`Delete "${job.title}"?`} confirmText="Delete" />
     </div>

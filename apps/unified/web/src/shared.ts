@@ -63,6 +63,7 @@ export { default as RecurringForm } from '@twomiah/tenant-ui/src/recurring/Recur
 export { default as RecurringList } from '@twomiah/tenant-ui/src/recurring/RecurringList'
 export { default as TasksPage } from '@twomiah/tenant-ui/src/tasks/TasksPage'
 export { ReviewsPage } from '@twomiah/tenant-ui/src/reviews/ReviewsPage'
+export { ReviewRequestButton } from '@twomiah/tenant-ui/src/reviews/ReviewRequestButton'
 export { MarketingPage } from '@twomiah/tenant-ui/src/marketing/MarketingPage'
 export { MessagesPage } from '@twomiah/tenant-ui/src/marketing/MessagesPage'
 export { AdsPage } from '@twomiah/tenant-ui/src/ads/AdsPage'

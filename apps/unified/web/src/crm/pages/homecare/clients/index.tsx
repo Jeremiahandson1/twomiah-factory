@@ -44,7 +44,7 @@ export const nav: NavItem[] = [
   { to: '/crm/adl', icon: Stethoscope, label: 'ADL Tracking', permission: OFFICE },
   { to: '/crm/medications', icon: Pill, label: 'Medications', permission: OFFICE },
   { to: '/crm/form-builder', icon: FilePen, label: 'Form Builder', permission: OFFICE },
-  { to: '/crm/documents', icon: FolderOpen, label: 'Documents', permission: OFFICE },
+  { to: '/crm/documents', icon: FolderOpen, label: 'Documents', permission: OFFICE, features: ['documents'] },
 ]
 
 export const routePermissions: Record<string, string> = Object.fromEntries(nav.map((item) => [item.to, OFFICE]))

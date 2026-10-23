@@ -914,6 +914,8 @@ export interface StripeRoutesDeps {
    * a template that does not wire it charges as it always did. (2026-10-22)
    */
   canTakeCardPayments?: (companyId: string) => Promise<boolean>
+  /** The Online Payments gate for the office's card routes (the unified app: online_payments). */
+  requireFeature?: (c: any, next: any) => any
 }
 
 export function createStripeRoutes(deps: StripeRoutesDeps) {
@@ -964,6 +966,14 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
   // All other routes require authentication — except the customer-portal ones, which carry the portal token in
   // the body and are called by customers who have no login.
   app.use('*', async (c, next) => (c.req.path.includes('/portal/') ? next() : authenticate(c, next)))
+  // Taking a card is the Online Payments switch's (deps.requireFeature — the unified app: online_payments): off, the
+  // office's card routes are refused, as the customer's are (canTakeCardPayments below). The webhooks above stay.
+  if (deps.requireFeature) {
+    const gate = deps.requireFeature
+    app.use('*', async (c: any, next: any) => (c.req.path.includes('/portal/') ? next() : gate(c, next)))
+  }
+  /** A customer's saved-card door, refused while this business takes no cards online (the switch, the account, the keys). */
+  const portalTakesCards = async (contactRow: any) => !deps.canTakeCardPayments || (await deps.canTakeCardPayments(contactRow.companyId).catch(() => false))
 
   // ============================================
   // CONFIG
@@ -1199,6 +1209,7 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
     const { portalToken } = await c.req.json()
     const contactRow = await contactForPortalToken(portalToken)
     if (!contactRow) return c.json({ error: 'Invalid portal access' }, 401)
+    if (!(await portalTakesCards(contactRow))) return c.json({ error: 'This business does not take card payments online.' }, 400)
     try {
       return c.json(await stripeService.createSetupIntent(contactRow))
     } catch (err: any) {
@@ -1211,6 +1222,7 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
     const { portalToken } = await c.req.json()
     const contactRow = await contactForPortalToken(portalToken)
     if (!contactRow) return c.json({ error: 'Invalid portal access' }, 401)
+    if (!(await portalTakesCards(contactRow))) return c.json({ data: [] })
     return c.json({ data: await stripeService.listSavedPaymentMethods(contactRow) })
   })
 

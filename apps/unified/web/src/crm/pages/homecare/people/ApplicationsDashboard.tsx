@@ -58,7 +58,7 @@ export default function ApplicationsDashboard() {
   const [selectedApp, setSelectedApp] = useState<ApplicationRow | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [hireModal, setHireModal] = useState<ApplicationRow | null>(null)
-  const [hireForm, setHireForm] = useState({ hourlyRate: '15.00', email: '', password: '' })
+  const [hireForm, setHireForm] = useState({ hourlyRate: '', email: '', password: '' })
   const [hiring, setHiring] = useState(false)
   const [hireResult, setHireResult] = useState<HireResult | null>(null)
 
@@ -78,7 +78,7 @@ export default function ApplicationsDashboard() {
 
   const openHireModal = (app: ApplicationRow, e: MouseEvent) => {
     e.stopPropagation()
-    setHireForm({ hourlyRate: '15.00', email: app.email || '', password: '' })
+    setHireForm({ hourlyRate: '', email: app.email || '', password: '' })
     setHireModal(app)
     setHireResult(null)
   }
@@ -261,7 +261,7 @@ export default function ApplicationsDashboard() {
                   </div>
                   <div style={{ marginBottom: '1rem' }}>
                     <label style={fieldLabel}>Hourly Rate ($)</label>
-                    <input inputMode="decimal" value={hireForm.hourlyRate} onChange={(e) => setHireForm((p) => ({ ...p, hourlyRate: e.target.value }))} style={fieldInput} />
+                    <input inputMode="decimal" value={hireForm.hourlyRate} onChange={(e) => setHireForm((p) => ({ ...p, hourlyRate: e.target.value }))} placeholder={hireModal?.desiredPayRate ? `Blank: their asked rate, $${hireModal.desiredPayRate}` : "e.g. 15.00"} style={fieldInput} />
                   </div>
 
                   {/* Applicant Summary */}

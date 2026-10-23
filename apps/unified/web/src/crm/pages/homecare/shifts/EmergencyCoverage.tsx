@@ -13,6 +13,7 @@ import { formatDate, toLocalYMD } from '../lib/date'
 import { api, rows, errorMessage, listAll } from '../lib/http'
 import { useConfirm, useMayWrite, useToast } from '../../../../shared'
 import { SOLID, field } from './ui'
+import { agencyToday } from '../lib/agencyClock'
 
 /** One open call-out (an absences row of type call_out, with its caregiver and the visit it was for). */
 interface MissReport {
@@ -60,7 +61,7 @@ const EmergencyCoverage = () => {
   const [searching, setSearching] = useState(false)
   const [selectedReport, setSelectedReport] = useState<MissReport | null>(null)
   const [searchForm, setSearchForm] = useState<SearchForm>({
-    date: toLocalYMD(new Date()),
+    date: agencyToday(),
     startTime: '08:00',
     endTime: '16:00',
     clientId: '',

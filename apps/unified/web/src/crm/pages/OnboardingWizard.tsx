@@ -30,6 +30,8 @@ interface Integration {
 /** A lead platform's steps as the Lead Sources page gives them (forward its emails to your inbound address) — the wizard
  *  said "Click Connect Angi and enter your Angi Pro credentials", a button no page has. */
 const platformSteps = (id: string) => leadSourceGuides().find((g) => g.id === id)?.steps ?? []
+/** Integrations a switch (Settings › Features) governs: their setup guide shows only while it is on. */
+const SWITCHED: Record<string, string> = { quickbooks: 'quickbooks', stripe: 'online_payments' }
 
 const INTEGRATIONS: Integration[] = [
   {
@@ -545,10 +547,12 @@ function StepIntegrations({
   onDone: (id: string) => void;
   onSkip: (id: string) => void;
 }) {
+  // A guide to connect QuickBooks or Stripe only where that switch is on: its card in Integrations is shown only then.
+  const { hasFeature } = useAuth();
   const grouped = CATEGORY_ORDER.map(cat => ({
     category: cat,
     label: CATEGORY_LABELS[cat],
-    integrations: offeredIntegrations().filter(i => i.category === cat),
+    integrations: offeredIntegrations().filter(i => i.category === cat && (!SWITCHED[i.id] || hasFeature(SWITCHED[i.id]))),
   })).filter(g => g.integrations.length > 0);
 
   return (

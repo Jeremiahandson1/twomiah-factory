@@ -5,6 +5,7 @@ import { FEATURE_REGISTRY, getFeaturesForTemplate, getDefaultFeaturesForTemplate
 import { crmTemplateFor } from '../../config/industryRouting'
 import { getAuthorizationUrl, exchangeCodeForTokens, refreshAccessToken, getCompanyInfo } from '../../services/quickbooksOnline'
 import { qboRelayDecision, tenantOriginLookup } from '../../services/qboRelay'
+import { featureSyncVerdict } from '../../services/featureSyncVerdict'
 import { type FactoryApp, parseJsonBody, UUID_RE, DOMAIN_RE, logTenantAudit, diffTenantChanges, qboOAuthStates, cleanExpiredStates } from './shared'
 
 export function registerAdminRoutes(factory: FactoryApp) {
@@ -586,19 +587,11 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
           body: JSON.stringify({ features: newFeatures }),
         })
         const body = await syncRes.json().catch(() => ({} as any))
-        if (!syncRes.ok) {
-          syncError = body?.error || `HTTP ${syncRes.status}`
-        } else {
-          // Verify-after-push: CRM returns the persisted feature list.
-          const returned: string[] = Array.isArray(body?.features) ? body.features : []
-          receivedCount = returned.length
-          const missing = newFeatures.filter(f => !returned.includes(f))
-          if (missing.length > 0) {
-            syncError = `CRM returned divergent feature list (missing: ${missing.join(', ')})`
-          } else {
-            syncedToCrm = true
-          }
-        }
+        // Verify-after-push: the CRM returns the list it stored (services/featureSyncVerdict.ts — the one reading of it).
+        const verdict = featureSyncVerdict(newFeatures, syncRes.status, body)
+        if (syncRes.ok) receivedCount = verdict.received.length
+        syncError = verdict.error
+        syncedToCrm = verdict.synced
       } catch (syncErr: any) {
         syncError = syncErr.message
         console.error('[Features] HTTP sync failed for', tenant.slug, ':', syncErr.message)

@@ -10,6 +10,7 @@
 // The fragments are SQL, for the route groups' own server/data/homecare*.ts files to compose; the reads return camelCase.
 import { sql, type SQL } from 'drizzle-orm'
 import { camelRows, camelFirst, rowsOf } from '@twomiah/tenant-backend'
+import { resolveTimezone, ymdIn } from '../crm/homecare/core/agencyTime.ts'
 
 /** Anything that can run a query: `db`, or a transaction handle (inside a transaction, never `db`). */
 export type Q = { execute: (q: SQL) => Promise<any> }
@@ -39,6 +40,18 @@ export const dayEndUtc = (ymd: string, tz: string): SQL => sql`((((${ymd})::date
 /** "Now" as a naive-UTC timestamp, so it subtracts cleanly from the timestamp columns. */
 export const nowUtc = sql`(NOW() AT TIME ZONE 'UTC')`
 
+/**
+ * The agency's zone and today (YYYY-MM-DD) — what a query compares a calendar day with. CURRENT_DATE is the DATABASE
+ * server's day (UTC on Render): every evening in the Americas it was already tomorrow (2026-10-23). Same rule as the
+ * agency clock (core/agencyTime.ts resolveTimezone); `q` may be a transaction.
+ */
+export async function agencyClock(q: Q, companyId: string): Promise<{ today: string; tz: string }> {
+  let tz: string
+  try { tz = resolveTimezone(rowsOf(await q.execute(sql`SELECT timezone, state FROM company WHERE id = ${companyId}`))[0] ?? null) }
+  catch { tz = resolveTimezone(null) }
+  return { today: ymdIn(new Date(), tz), tz }
+}
+
 // ── Who is private pay (helpers/payerFunding.ts) ─────────────────────────────────────────────
 
 export const PRIVATE_PAY_PAYER_TYPE = 'private_pay'
@@ -64,17 +77,18 @@ export async function clientPrivatePay(q: Q, companyId: string, clientId: string
  * (recurring, or one-time — a pattern that ended more than 14 days ago no longer counts), a 'modified' cover of one of
  * their days in the last 14 days or later, or an active assignment. Scoped to the company.
  */
-export const servedBy = (companyId: string, caregiverId: string, clientCol: SQL = sql.raw('c.id')): SQL => sql`(
+export const servedBy = (companyId: string, caregiverId: string, today: string, clientCol: SQL = sql.raw('c.id')): SQL => sql`(
   EXISTS (SELECT 1 FROM schedules s WHERE s.company_id = ${companyId} AND s.client_id = ${clientCol} AND s.caregiver_id = ${caregiverId} AND s.is_active = true
-          AND (s.day_of_week IS NULL OR s.end_date IS NULL OR s.end_date >= CURRENT_DATE - 14))
+          AND (s.day_of_week IS NULL OR s.end_date IS NULL OR s.end_date >= ${today}::date - 14))
   OR EXISTS (SELECT 1 FROM schedule_exceptions se JOIN schedules s2 ON s2.id = se.schedule_id
           WHERE s2.company_id = ${companyId} AND COALESCE(se.override_client_id, s2.client_id) = ${clientCol} AND se.override_caregiver_id = ${caregiverId}
-            AND se.exception_type = 'modified' AND se.exception_date >= CURRENT_DATE - 14)
+            AND se.exception_type = 'modified' AND se.exception_date >= ${today}::date - 14)
   OR EXISTS (SELECT 1 FROM client_assignments a WHERE a.company_id = ${companyId} AND a.client_id = ${clientCol} AND a.caregiver_id = ${caregiverId} AND a.status = 'active'))`
 
 /** Does this caregiver serve this client (the rule above)? */
 export async function caregiverServesClient(q: Q, companyId: string, caregiverId: string, clientId: string): Promise<boolean> {
-  const r = rowsOf(await q.execute(sql`SELECT ${servedBy(companyId, caregiverId, sql`${clientId}`)} AS ok`))[0]
+  const { today } = await agencyClock(q, companyId)
+  const r = rowsOf(await q.execute(sql`SELECT ${servedBy(companyId, caregiverId, today, sql`${clientId}`)} AS ok`))[0]
   return r?.ok === true
 }
 

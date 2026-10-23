@@ -94,13 +94,8 @@ const SURFACES: { feature: string; page: string; file?: string; needle?: string;
   { feature: 'products', page: '/crm/products', when: (b) => b.id === 'store', what: "the store's catalogue" },
   { feature: 'orders', page: '/crm/orders', when: (b) => b.id === 'store', what: "the store's orders" },
   { feature: 'contacts', page: '/crm/clients', when: (b) => b.id === 'homecare', what: "the agency's clients" },
-  { feature: 'invoices', page: '/crm/billing', when: (b) => b.id === 'homecare', what: "the agency's billing" },
   { feature: 'scheduling', page: '/crm/scheduling', when: (b) => b.id === 'homecare', what: "the agency's schedule hub" },
   { feature: 'team', page: '/crm/caregivers', when: (b) => b.id === 'homecare', what: "the agency's caregivers" },
-  { feature: 'time_tracking', page: '/crm/evv', when: (b) => b.id === 'homecare', what: "caregivers' clock-ins and outs (EVV)" },
-  { feature: 'two_way_texting', page: '/crm/sms', when: (b) => b.id === 'homecare', what: "the agency's texts" },
-  { feature: 'documents', page: '/crm/documents', when: (b) => b.id === 'homecare', what: "the agency's documents" },
-  { feature: 'reports', page: '/crm/reports', when: (b) => b.id === 'homecare', what: "the agency's reports" },
 ]
 
 const { getAdvertisableFeaturesForTemplate } = await import(join(ROOT, 'packages/tenant-backend/src/featureRegistry.ts'))

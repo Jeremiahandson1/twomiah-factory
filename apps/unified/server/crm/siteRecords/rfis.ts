@@ -3,7 +3,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, count, desc } from 'drizzle-orm'
-import { createActorName } from '@twomiah/tenant-backend'
+import { createActorName, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { rfi, project, user } from '../../db/schema/index.ts'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
@@ -143,7 +143,7 @@ export function createRfiRoutes(d: CrmDeps) {
     const responder = await actorName(currentUser)
     // The thread, not a replacement. The old answer stays above the new one, each with who and when.
     const text = replacing
-      ? `${existing.response}\n\n--- Revised ${new Date().toISOString().slice(0, 10)} by ${responder} ---\n${response}`
+      ? `${existing.response}\n\n--- Revised ${storeDateString(new Date(), await companyTimeZone(db, currentUser.companyId))} by ${responder} ---\n${response}`
       : response
 
     const [updated] = await db.update(rfi).set({

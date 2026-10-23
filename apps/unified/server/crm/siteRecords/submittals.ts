@@ -6,6 +6,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { submittal, project, user } from '../../db/schema/index.ts'
+import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, list, one } from '../../http/reply.ts'
@@ -164,7 +165,7 @@ export function createSubmittalRoutes(d: CrmDeps) {
         const who = [me?.firstName, me?.lastName].filter(Boolean).join(' ') || currentUser.email || 'the office'
         set.reviewNotes = notes
         if (action === 'approve') { set.approvedDate = now; set.approvedBy = who }
-        if (notes) set.notes = (found.notes ? `${found.notes}\n\n` : '') + `[${VERB[action]} by ${who} on ${now.toISOString().slice(0, 10)}] ${notes}`
+        if (notes) set.notes = (found.notes ? `${found.notes}\n\n` : '') + `[${VERB[action]} by ${who} on ${storeDateString(now, await companyTimeZone(db, currentUser.companyId))}] ${notes}`
       }
       const [updated] = await db.update(submittal).set(set)
         .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId))).returning()

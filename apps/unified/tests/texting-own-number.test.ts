@@ -25,6 +25,8 @@ beforeAll(async () => {
   t = await bootTenant()
   const s = await seedOwner(t)
   companyId = s.company.id
+  // The texting doors are Two-Way Texting's (2026-10-22): this business has it on.
+  await t.db.update(t.schema.company).set({ enabledFeatures: ['contacts', 'two_way_texting'] } as any).where(eq(t.schema.company.id, companyId))
   owner = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken
 })
 

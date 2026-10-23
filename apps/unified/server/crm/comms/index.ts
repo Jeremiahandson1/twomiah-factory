@@ -3,6 +3,7 @@
 // The template's /api/webhooks (POST /leads, the separate website's contact form posting to its CRM with a shared
 // secret) is not moved: in the one app the website's enquiry goes straight into the CRM (core/enquiry.ts via
 // site/enquiryHandler.ts), and only the Factory-built website was ever given that secret.
+import { Hono } from 'hono'
 import type { Mount } from '../../http/registry.ts'
 import type { CrmDeps } from '../deps.ts'
 import { createCalltrackingRoutes } from './calltracking.ts'
@@ -23,7 +24,9 @@ export function commsMounts(d: CrmDeps): Mount[] {
     // on every tenant's menu.
     { path: '/api/comments', access: 'user', router: createCommentsRoutes(d) },
     { path: '/api/search', access: 'user', router: createSearchRoutes(d) },
-    { path: '/api/support', access: 'user', router: createSupportRoutes(d) },
+    // The ticket desk (/tickets…) is the Support Tickets switch's, on the server as in the menu (2026-10-22); the Help page's
+    // knowledge base and AI chat stay everyone's.
+    { path: '/api/support', access: 'user', router: new Hono().use('/tickets', d.features.requireEnabledFeature('support_tickets')).use('/tickets/*', d.features.requireEnabledFeature('support_tickets')).route('/', createSupportRoutes(d)) },
     { path: '/api/platform-support', access: 'user', router: createPlatformSupportRoutes(d) },
   ]
 }

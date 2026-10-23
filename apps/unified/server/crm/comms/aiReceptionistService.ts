@@ -95,7 +95,7 @@ export function createAiReceptionistService(d: CrmDeps) {
   /**
    * ONE CLOCK: "after hours" is judged on the business's own time zone (company.timezone, else its state's —
    * companyRowTimeZone), the one Settings › Company sets. The receptionist kept a zone of its own, defaulting to Chicago
-   * whatever the business (coordinator 10/23). Its column is no longer read; migration 0022 moved a saved one onto a
+   * whatever the business (coordinator 10/23). Its column is no longer read; migration 0027 moved a saved one onto a
    * company that had none.
    */
   async function clockOf(companyId: string): Promise<string> {

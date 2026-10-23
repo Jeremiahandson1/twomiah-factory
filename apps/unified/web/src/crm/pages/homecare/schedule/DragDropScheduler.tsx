@@ -16,7 +16,6 @@
 import { Fragment, useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage, listAll } from '../lib/http'
-import { getTodayCT } from '../lib/timezone'
 import { isBiweeklyOn } from '../lib/biweekly'
 import { CLIENT_UNAVAILABLE_REASONS } from '../lib/cancelReasons'
 import { endsBeforeStart, shiftTimesError } from '../lib/shiftTimes'
@@ -26,6 +25,7 @@ import { useMay } from '../lib/useMay'
 import { C, CHIP_FILLS, FILL, dialog, overlay, tint } from './theme'
 import { fullName, isRecurringRow, type Caregiver, type Client, type SavedReply, type ScheduleRow } from './types'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { agencyToday, agencyTodayDate, agencyWeekday } from '../lib/agencyClock'
 
 /** A shift as the grid draws it on one day: the row, with that day's exception applied. */
 interface CellShift extends ScheduleRow {
@@ -53,7 +53,7 @@ function initialWeekOf(): Date {
       return getWeekStart(new Date(y, m - 1, d))
     }
   } catch { /* storage blocked — fall through */ }
-  return getWeekStart(new Date())
+  return getWeekStart(agencyTodayDate())
 }
 function localYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -141,7 +141,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
   const [hasLoaded, setHasLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
-  const [mobileDay, setMobileDay] = useState(new Date().getDay())
+  const [mobileDay, setMobileDay] = useState(agencyWeekday())
 
   // ── Create ──
   const [newShift, setNewShift] = useState<{ caregiverId: string; dayIndex: number } | null>(null)
@@ -205,7 +205,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
 
   const weekDates = getWeekDates(weekOf)
   const weekDateStrs = weekDates.map(localYmd)
-  const todayStr = getTodayCT()
+  const todayStr = agencyToday()
   const todayIdx = weekDateStrs.indexOf(todayStr)
 
   // ═══ OCCURRENCES — exception-aware ═══
@@ -278,7 +278,7 @@ export default function DragDropScheduler({ onScheduleChange }: { onScheduleChan
 
   function prevWeek() { const d = parseLocalDate(weekOf); d.setDate(d.getDate() - 7); setWeekOf(d) }
   function nextWeek() { const d = parseLocalDate(weekOf); d.setDate(d.getDate() + 7); setWeekOf(d) }
-  function goToday() { setWeekOf(getWeekStart(new Date())) }
+  function goToday() { setWeekOf(getWeekStart(agencyTodayDate())) }
 
   // ═══ CREATE ═══
 

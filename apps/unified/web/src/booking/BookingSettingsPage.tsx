@@ -8,6 +8,7 @@ import { Plus, Trash2, Edit3, X, Copy, ExternalLink, RefreshCw, CalendarCheck } 
 import { api } from '../api'
 import { PageError, useConfirm, useKnownPermission, useMayWrite, useToast } from '../shared'
 import { useBookingBasics, dollars, minutesWords, dateWords, type BookingSettings, type Service, type Person } from './common'
+import { todayKey } from '@twomiah/tenant-ui/src/time/day'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
@@ -263,7 +264,7 @@ function DaysOff({ people }: { people: Person[] }) {
   const [rows, setRows] = useState<Array<{ id: string; userId: string | null; date: string; startMinute: number | null; endMinute: number | null; reason: string | null }>>([])
   const [f, setF] = useState({ date: '', userId: '', start: '', end: '', reason: '' })
   const [error, setError] = useState<string | null>(null)
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayKey()
   const load = () => api.get('/api/booking/days-off', { from: today }).then((r: any) => setRows(r.data)).catch((e: Error) => setError(e.message))
   useEffect(() => { load() }, [])
   const add = async (e: FormEvent) => {

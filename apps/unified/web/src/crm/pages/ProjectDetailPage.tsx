@@ -13,6 +13,7 @@ import { EmptyState } from '../ui/EmptyState'
 import { StatusBadge } from '../ui/DataTable'
 import { ConfirmModal } from '../ui/Modal'
 import { usePermissions } from '../../shared'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
 
 interface RelatedItem {
@@ -627,7 +628,7 @@ export default function ProjectDetailPage() {
                         {role && <span className="text-gray-500 dark:text-slate-400"> ({role})</span>}{' '}
                         {a.description || `${a.action} ${a.entityType}`}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-slate-400">{new Date(a.createdAt).toLocaleString()}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{whenDateTime(a.createdAt)}</p>
                     </li>
                   );
                 })}

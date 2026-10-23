@@ -12,12 +12,11 @@
 // names the period and only matches a row not yet billed for it. Two concurrent runs, or a retry after a half-finished
 // one, can only produce one invoice per period.
 import { and, eq, isNotNull, isNull, lt, lte, or } from 'drizzle-orm'
-import { insertInvoice, dueDateFromTerms, defaultTaxRateFrom, businessToday, companyTimeZone } from '@twomiah/tenant-backend'
+import { insertInvoice, dueDateFromTerms, defaultTaxRateFrom, businessToday, companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 import { wellnessPlan, wellnessEnrollment, patient, invoice, invoiceLineItem, company } from '../../db/schema/index.ts'
 
 const INVOICE_NUMBERING = { prefix: 'INV', pad: 5, seed: 0 }
 const iso = (d: Date) => d.toISOString().slice(0, 10)
-const today = () => iso(new Date())
 const isAnnual = (cycle: string) => ['annual', 'yearly'].includes(String(cycle).toLowerCase())
 
 /** The next renewal date after `from`: monthly plans roll a month, annual plans a year. */
@@ -83,19 +82,29 @@ export function createWellnessBillingService(db: any) {
    * Bill every active enrolment that has come due, one period at a time (a plan nobody looked at for three months
    * raises three invoices, each for its own period), up to a ceiling per run.
    */
+  const zones = new Map<string, Promise<string>>()
+  /** The clinic's today, YYYY-MM-DD. */
+  const todayOf = async (cid: string) => {
+    if (!zones.has(cid)) zones.set(cid, companyTimeZone(db, cid))
+    return storeDateString(new Date(), await zones.get(cid)!)
+  }
+
   async function settle(companyId?: string, maxPeriodsPerEnrollment = 12): Promise<BilledOne[]> {
     const billed: BilledOne[] = []
+    // A period is due once its day has begun on the CLINIC's calendar (UTC's was a day early every evening). A day wide
+    // here — no zone is more than 14 hours ahead — and decided per clinic below.
     const due = await db.select().from(wellnessEnrollment).where(and(
       eq(wellnessEnrollment.status, 'active'),
       isNotNull(wellnessEnrollment.renewsAt),
-      lte(wellnessEnrollment.renewsAt, today()),
+      lte(wellnessEnrollment.renewsAt, iso(new Date(Date.now() + 86_400_000))),
       ...(companyId ? [eq(wellnessEnrollment.companyId, companyId)] : []),
     ))
     for (const row of due) {
+      const today = await todayOf(row.companyId)
       let cursor = { ...row }
       for (let i = 0; i < maxPeriodsPerEnrollment; i++) {
         const period = cursor.renewsAt
-        if (!period || period > today()) break
+        if (!period || period > today) break
         const one = await billPeriod(cursor, period)
         if (one) billed.push(one)
         const [fresh] = await db.select().from(wellnessEnrollment).where(eq(wellnessEnrollment.id, row.id)).limit(1)
@@ -108,7 +117,7 @@ export function createWellnessBillingService(db: any) {
 
   /** Enrolling bills the first period straight away, so a plan sold today is invoiced today. */
   async function billFirstPeriod(enrollment: any): Promise<BilledOne | null> {
-    const start = enrollment.startDate || today()
+    const start = enrollment.startDate || await todayOf(enrollment.companyId)
     const one = await billPeriod(enrollment, start)
     if (!one) {
       // Nothing billable (a free plan, or no owner): still schedule the renewal so the enrolment is not stuck.

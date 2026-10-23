@@ -128,7 +128,7 @@ const vet: VerticalSettings = {
     leads: { platforms: LEAD_PLATFORMS, jobTypeLabel: 'Service', sourcesSubtitle: 'Where new-client enquiries arrive: Google, Yelp, Meta and your website' },
     marketing: {},
     messages: {},
-    reviews: { subtitle: 'Automatically ask pet owners for a Google review after a visit', subjectLabel: 'Visit', autoRequestHelp: 'Automatically request a review after a completed visit', emptyHelp: 'Requests are created automatically after completed visits' },
+    reviews: { manualHelp: '', subtitle: 'Automatically ask pet owners for a Google review after a visit', subjectLabel: 'Visit', autoRequestHelp: 'Automatically request a review after a completed visit', emptyHelp: 'Requests are created automatically after completed visits' },
     import: {
       intro: 'Import clients, products and invoices from CSV files',
       types: [

@@ -208,8 +208,9 @@ export function createRepairOrderRoutes(d: CrmDeps) {
       }
     }
 
-    // Service status text: tell the customer on a customer-facing status change.
-    if (body.status && body.status !== existing.status && RO_STATUS_TEXT[body.status] && updated.customerId) {
+    // Service status text: tell the customer on a customer-facing status change — while Service Status Updates
+    // (service_status_texts) is on; off, no text goes (the switch hid nothing before, live retest 2026-10-22).
+    if (body.status && body.status !== existing.status && RO_STATUS_TEXT[body.status] && updated.customerId && await d.features.isFeatureEnabled(currentUser.companyId, 'service_status_texts')) {
       try {
         const [customer] = await db.select().from(contact).where(eq(contact.id, updated.customerId)).limit(1)
         const to = (customer as any)?.mobile || customer?.phone

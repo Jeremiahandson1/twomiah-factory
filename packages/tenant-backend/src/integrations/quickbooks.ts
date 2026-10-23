@@ -7,6 +7,7 @@
 import { Hono } from 'hono'
 import { eq, and, gte, lte, sql, asc } from 'drizzle-orm'
 import { signQboState, verifyQboState } from './quickbooksState'
+import { itemCodes, withoutItemCodes } from '../invoicing/itemCodes'
 
 const QBO_AUTH_URL = 'https://appcenter.intuit.com/connect/oauth2'
 const QBO_TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
@@ -164,8 +165,9 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
   }
 
   // ── Invoices
-  const invoiceLines = (invoiceData: any) => (invoiceData.lineItems || []).map((item: any, index: number) => ({
-    LineNum: index + 1, Amount: Number(item.total), DetailType: 'SalesItemLineDetail', Description: item.description,
+  // QuickBooks can email the invoice to the customer, so its lines are the customer's: no pricebook item codes.
+  const invoiceLines = (invoiceData: any, codes: Set<string>) => (invoiceData.lineItems || []).map((item: any, index: number) => ({
+    LineNum: index + 1, Amount: Number(item.total), DetailType: 'SalesItemLineDetail', Description: withoutItemCodes(item.description, codes),
     SalesItemLineDetail: { Qty: Number(item.quantity), UnitPrice: Number(item.unitPrice) },
   }))
   const day = (d: any) => (d ? new Date(d).toISOString().split('T')[0] : undefined)
@@ -176,7 +178,7 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
     const [updatedContact] = await db.select().from(t.contact).where(eq(t.contact.id, invoiceData.contactId))
     const result = await apiRequest(companyId, 'POST', '/invoice', { Invoice: {
       CustomerRef: { value: (updatedContact as any)?.qbCustomerId }, DocNumber: invoiceData.number, TxnDate: day(invoiceData.issueDate), DueDate: day(invoiceData.dueDate),
-      Line: invoiceLines(invoiceData), CustomerMemo: invoiceData.notes ? { value: invoiceData.notes } : undefined,
+      Line: invoiceLines(invoiceData, await itemCodes(db, companyId)), CustomerMemo: invoiceData.notes ? { value: invoiceData.notes } : undefined,
     } })
     await db.update(t.invoice).set({ qbInvoiceId: result.Invoice.Id, syncedAt: new Date() } as any).where(eq(t.invoice.id, invoiceData.id))
     return result.Invoice
@@ -187,7 +189,7 @@ export function createQuickBooksService(deps: QuickBooksServiceDeps) {
     const [c] = await db.select().from(t.contact).where(eq(t.contact.id, invoiceData.contactId))
     const result = await apiRequest(companyId, 'POST', '/invoice', { Invoice: {
       Id: invoiceData.qbInvoiceId, SyncToken: current.Invoice.SyncToken, CustomerRef: { value: (c as any)?.qbCustomerId }, DocNumber: invoiceData.number,
-      TxnDate: day(invoiceData.issueDate), DueDate: day(invoiceData.dueDate), Line: invoiceLines(invoiceData),
+      TxnDate: day(invoiceData.issueDate), DueDate: day(invoiceData.dueDate), Line: invoiceLines(invoiceData, await itemCodes(db, companyId)),
     } })
     await db.update(t.invoice).set({ syncedAt: new Date() } as any).where(eq(t.invoice.id, invoiceData.id))
     return result.Invoice
@@ -267,6 +269,8 @@ export interface QuickBooksRoutesDeps {
    */
   requirePermission: (permission: string) => any
   audit?: { log: (input: any) => any }
+  /** The QuickBooks switch's gate for everything but the OAuth callback (the unified app: quickbooks). */
+  requireFeature?: (c: any, next: any) => any
   frontendUrl?: string
 }
 
@@ -300,6 +304,9 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
   })
 
   app.use('*', authenticate)
+  // Connecting, syncing and reading the books are the QuickBooks switch's (deps.requireFeature): off, refused, as the
+  // Integrations card and the invoice's Sync button are gone (2026-10-22). The callback above stays (no session).
+  if (deps.requireFeature) app.use('*', deps.requireFeature)
   const user = (c: any) => c.get('user') as any
 
   app.get('/status', async (c) => c.json(await qb.getConnectionStatus(user(c).companyId)))

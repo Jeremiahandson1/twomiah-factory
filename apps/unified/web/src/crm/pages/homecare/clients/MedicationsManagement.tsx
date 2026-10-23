@@ -6,6 +6,7 @@ import { useConfirm, useToast } from '../../../../shared'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatDate, toLocalYMD } from '../lib/date'
 import { formatDateTime } from '../lib/datetime'
+import { agencyTodayDate } from '../lib/agencyClock'
 import VitalsTracker from './VitalsTracker'
 import { allRows, type Client } from './shared'
 import { useMay } from '../lib/useMay'
@@ -122,8 +123,8 @@ const MedicationsManagement = () => {
   }
 
   const getDateRange = () => {
-    const end = new Date()
-    const start = new Date()
+    const end = agencyTodayDate() // the agency's today
+    const start = agencyTodayDate()
     start.setDate(start.getDate() - 30)
     return { start: toLocalYMD(start), end: toLocalYMD(end) }
   }

@@ -142,7 +142,6 @@ export function createCrmServices(deps: CrmServiceDeps) {
   } as any)
   const pricebook = createPricebookService({ db, tables: { company, pricebookCategory, pricebookItem, pricebookGoodBetterBest } } as any)
   const tasks = createTasksService({ db } as any)
-  const bulk = createBulkService({ db, tables: { contact, project, job, invoice, quote, timeEntry, payment } } as any)
   const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
 
   /**
@@ -173,6 +172,9 @@ export function createCrmServices(deps: CrmServiceDeps) {
       }
     },
   }
+
+  // Bulk status changes run the same moments as the job routes (packages/tenant-backend jobs.ts jobHookFor).
+  const bulk = createBulkService({ db, tables: { contact, project, job, invoice, quote, timeEntry, payment }, jobHooks } as any)
 
   /** A module's own timed work (home care's reminders and polls), registered when it mounts, started with the rest. */
   const moduleJobs: Array<() => void> = []

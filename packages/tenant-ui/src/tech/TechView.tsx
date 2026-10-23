@@ -21,6 +21,8 @@ import {
 import { todayKey } from '../time/day'
 import { errMsg } from '../invoicing/ui'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { PhotoViewer } from '../files/PhotoViewer'
+import { whenDate, companyTodayKey } from '../time/companyClock'
 
 export interface TechApi {
   get: (path: string, params?: Record<string, any>) => Promise<any>
@@ -150,7 +152,7 @@ export function TechView({ api, toast, config }: TechViewProps) {
     <div className="flex flex-col h-full bg-gray-50 dark:bg-slate-950">
       <div className="bg-white border-b border-gray-200 px-4 py-3 dark:bg-slate-900 dark:border-slate-700">
         <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">{config.title || 'My Jobs'}</h1>
-        <p className="text-sm text-gray-600 mt-0.5 dark:text-slate-400">{new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+        <p className="text-sm text-gray-600 mt-0.5 dark:text-slate-400">{whenDate(companyTodayKey(), { weekday: 'long', month: 'long', day: 'numeric' })}</p>
       </div>
       <div className="flex-1 overflow-y-auto pb-20">
         {loading ? (
@@ -351,16 +353,15 @@ function JobDetail({ api, toast, job, checklist, acting, onBack, onNavigate, onM
         </div>
       </div>
 
-      {fullscreen && (
-        <div className="fixed inset-0 bg-black z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="Photo">
-          <div className="flex items-center justify-between p-4">
-            <button aria-label="Close" onClick={() => setFullscreen(null)} className="p-2 text-white"><X className="w-6 h-6" /></button>
-            {mayMove && <button aria-label="Remove photo" onClick={() => removePhoto(fullscreen.id)} className="p-2 text-red-300"><Trash2 className="w-5 h-5" /></button>}
-          </div>
-          <div className="flex-1 flex items-center justify-center p-4"><img src={fullscreen.url} alt={fullscreen.caption || ''} className="max-w-full max-h-full object-contain" /></div>
-          {fullscreen.caption && <p className="text-white text-center p-4 text-sm">{fullscreen.caption}</p>}
-        </div>
-      )}
+      {/* The shared full-size viewer (files/PhotoViewer.tsx): next and previous, the keyboard, a phone's swipe. */}
+      <PhotoViewer
+        label="Job photos"
+        photos={photos.map((p: any) => ({ id: p.id, src: p.url, caption: p.caption }))}
+        index={fullscreen ? Math.max(0, photos.findIndex((p: any) => p.id === fullscreen.id)) : null}
+        onIndex={(i) => setFullscreen(photos[i] ?? null)}
+        onClose={() => setFullscreen(null)}
+        actions={(p) => (mayMove && p.id ? <button aria-label="Remove photo" onClick={() => removePhoto(p.id as string)} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-red-300 hover:bg-white/20"><Trash2 className="w-5 h-5" /></button> : null)}
+      />
 
       {confirmComplete && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end" role="dialog" aria-modal="true" aria-label="Complete job">

@@ -40,13 +40,8 @@ export interface IntegrationsConfig {
    * the Twilio card says most businesses use that instead, and is for an owner who already has a Twilio account.
    */
   textingPage?: string
-  /**
-   * Whether this business takes cards on its invoices — the online_payments feature, which the server asks before it
-   * offers Pay. 'on': the Stripe card as always. 'off': offered but switched off — the card says to switch it on under
-   * Settings › Features first (connecting Stripe alone changes nothing). 'not-offered': the industry's system has no
-   * invoice card payments (roofing; a shop takes its payments on its own Payments page) — no Stripe card. Absent: 'on'.
-   */
-  cardPayments?: 'on' | 'off' | 'not-offered'
+  /** The business's switches: the QuickBooks card shows with quickbooks on, the Stripe card with online_payments. Absent: both show. */
+  hasFeature?: (id: string) => boolean
 }
 
 export interface ImportTypeDef {
@@ -74,4 +69,9 @@ export interface ReviewsConfig {
   subjectLabel?: string
   autoRequestHelp?: string
   emptyHelp?: string
+  /**
+   * Where this vertical asks one customer by hand (the Send review request button), as the end of a sentence:
+   * "on a job or a customer's page". Empty: the vertical has no such button, and the page does not claim one.
+   */
+  manualHelp?: string
 }

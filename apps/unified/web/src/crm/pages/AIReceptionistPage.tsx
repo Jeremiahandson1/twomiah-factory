@@ -6,6 +6,7 @@ import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Tab
 import { PageError, errorText, ModuleNotEnabled, featureNotEnabled, usePermissions, CallTrackingSettings } from '../../shared'
 import { verticalScreens } from '../vertical'
 import { api as client } from '../../api'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 // The template read a token from localStorage and did nothing without one. This app's session is the server's
 // httpOnly cookie (the page never holds a credential), so that check would have left every list empty; client.raw
@@ -356,7 +357,7 @@ export function AIReceptionistPage() {
                     <TableCell className="text-slate-600 dark:text-slate-400">{call.duration ? `${Math.floor((call.duration as number) / 60)}:${String((call.duration as number) % 60).padStart(2, '0')}` : '-'}</TableCell>
                     <TableCell><StatusBadge status={call.status === 'completed' ? 'completed' : call.ai_response_sent ? 'pending' : 'in_progress'} /></TableCell>
                     <TableCell className="text-slate-600 dark:text-slate-400 text-sm max-w-xs truncate">{(call.ai_summary as string) || (call.aiSummary as string) || (call.transcription ? 'Transcribed' : '-')}</TableCell>
-                    <TableCell className="text-slate-600 dark:text-slate-400 text-sm">{call.start_time || call.startTime ? new Date((call.start_time || call.startTime) as string).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-'}</TableCell>
+                    <TableCell className="text-slate-600 dark:text-slate-400 text-sm">{call.start_time || call.startTime ? whenDateTime((call.start_time || call.startTime) as string, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody></Table>

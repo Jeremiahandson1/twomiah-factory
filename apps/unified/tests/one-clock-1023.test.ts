@@ -1,6 +1,6 @@
 // ONE CLOCK (coordinator 2026-10-23): the business's time zone is the company's (Settings › Company), and every reader
 // keeps time on it — online bookings, the AI Receptionist, a salon's day, a bar's hours. Each kept a zone of its own,
-// which could disagree with the reports'. Migration 0022 moves the old values with care and never silently.
+// which could disagree with the reports'. Migration 0027 moves the old values with care and never silently.
 import { describe, test, expect } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -11,11 +11,11 @@ import { createSalonClock } from '../server/crm/salon/days.ts'
 import { createBarLive } from '../server/crm/bar/barLive.ts'
 import { MIGRATIONS } from '../server/db/migrate.ts'
 
-const MIGRATION = readFileSync(path.join(MIGRATIONS, '0022_one_time_zone.sql'), 'utf8')
+const MIGRATION = readFileSync(path.join(MIGRATIONS, '0027_one_time_zone.sql'), 'utf8')
 /** Run 0022 again over rows made the way the old code left them (the harness has already applied it to an empty one). */
 const runMigration = async (t: any) => { for (const stmt of MIGRATION.split('--> statement-breakpoint')) if (stmt.trim()) await t.client.exec(stmt) }
 
-describe('migration 0022: the old zones move onto the company, never silently', () => {
+describe('migration 0027: the old zones move onto the company, never silently', () => {
   test('a company without a zone takes its booking zone, then the AI receptionist’s, then the bar’s; a different one is put on the audit log; bookings keep their times', async () => {
     const t = await bootTenant()
     const mk = async (name: string, timezone: string | null) => (await t.db.insert(t.schema.company).values({ name, slug: name.toLowerCase().replace(/\W+/g, '-'), timezone } as any).returning())[0]

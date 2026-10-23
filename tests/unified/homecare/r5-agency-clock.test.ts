@@ -38,7 +38,7 @@ setSystemTime(new Date('2026-10-17T01:30:00Z'))
 const TODAY = '2026-10-16'
 
 // No timezone of its own: the zone comes from the state (WI → America/Chicago).
-const [ag] = await db.insert(agencies).values({ name: 'Run Five Care', slug: 'r5care', state: 'WI', settings: {} } as any).returning()
+const [ag] = await db.insert(agencies).values({ name: 'Run Five Care', slug: 'r5care', state: 'WI', settings: {}, enabledFeatures: ['documents', 'reports', 'two_way_texting'] } as any).returning()
 const mkUser = async (role: string, tag: string) => (await db.insert(users).values({
   email: `${tag}-r5@test.local`, passwordHash: 'x', firstName: tag, lastName: 'Tester', role, isActive: true,
 } as any).returning())[0]

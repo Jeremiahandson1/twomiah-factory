@@ -2,19 +2,46 @@
 // the shared /api/expenses routes. Before: two copies — the crm-family one had no job picker and posted the amount as a
 // string the backend refused; both silently dropped validation errors into a generic toast.
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Edit, Trash2, CheckCircle, Undo2 } from 'lucide-react'
+import { Plus, Edit, Trash2, CheckCircle, Undo2, Paperclip, Receipt } from 'lucide-react'
 import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, dateOnly, money } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, ExpensesConfig } from './types'
 import { DEFAULT_EXPENSE_CATEGORIES, isManagerRole } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { todayKey } from '../time/day'
 
-interface Expense { id: string; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; approved?: boolean; submittedById?: string | null; submittedByName?: string | null; repaidAmount?: string | number | null; repaidReason?: string | null; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
+interface Expense { id: string; receiptUrl?: string | null; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; approved?: boolean; submittedById?: string | null; submittedByName?: string | null; repaidAmount?: string | number | null; repaidReason?: string | null; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own day, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this
 // pre-filled TOMORROW all evening. It is also the ceiling the date box is given — an expense is money already
 // spent. (Contractor T30 L1, the same fix the timesheet got)
-const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0] }
+const today = () => todayKey() // the company's day, not the browser's
+
+/**
+ * THE PERIOD THE TOTALS ARE FOR. (live test 2026-10-22: "Expenses: no totals")
+ *
+ * GET /api/expenses/summary has always added the spend up — by category, net of anything handed back — and no screen
+ * asked it. The list and the totals now share one period, so the figure at the top is the sum of the rows below it.
+ * The days are the company's (config.timeZone), the clock every report keeps.
+ */
+type Period = 'month' | 'last_month' | 'year' | 'all'
+const PERIODS: Array<{ value: Period; label: string }> = [
+  { value: 'month', label: 'This month' }, { value: 'last_month', label: 'Last month' }, { value: 'year', label: 'This year' }, { value: 'all', label: 'All time' },
+]
+const companyToday = (timeZone?: string) => {
+  try { if (timeZone) return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()) } catch { /* the browser's day */ }
+  return today()
+}
+export function periodRange(period: Period, timeZone?: string, now = companyToday(timeZone)): { startDate?: string; endDate?: string } {
+  if (period === 'all') return {}
+  const [y, m] = now.split('-').map(Number)
+  const iso = (yy: number, mm: number, dd: number) => new Date(Date.UTC(yy, mm - 1, dd)).toISOString().slice(0, 10)
+  if (period === 'month') return { startDate: iso(y, m, 1), endDate: iso(y, m + 1, 0) }
+  if (period === 'last_month') return { startDate: iso(y, m - 1, 1), endDate: iso(y, m, 0) }
+  return { startDate: iso(y, 1, 1), endDate: iso(y, 12, 31) }
+}
+/** The receipt this app keeps for the expense (its own address), or a link typed in long ago. */
+const receiptHref = (r: Expense) => (r.receiptUrl ? r.receiptUrl : null)
 
 export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: ExpensesConfig }) {
   const auth = useAuth()
@@ -59,19 +86,26 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [toDelete, setToDelete] = useState<Expense | null>(null)
+  const [period, setPeriod] = useState<Period>('all')
+  const range = periodRange(period, config?.timeZone)
+  const [summary, setSummary] = useState<{ total: number; claimed: number; repaid: number; byCategory: Record<string, { amount: number; count: number }> } | null>(null)
+  const receipts = !!config?.receipts && !!api.upload
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [res, projRes, jobRes] = await Promise.all([
-        api.get('/api/expenses', { page, limit: 25 }),
+      const [res, projRes, jobRes, sum] = await Promise.all([
+        api.get('/api/expenses', { page, limit: 25, ...range }),
         showProjects ? api.get('/api/projects', { limit: 100 }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
         showJobs ? api.get('/api/jobs', { limit: 100 }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        api.get('/api/expenses/summary', range).catch(() => null),
       ])
       setData(res?.data || []); setPagination(res?.pagination || null); setProjects(projRes?.data || []); setJobs(jobRes?.data || [])
+      setSummary(sum && typeof sum.total === 'number' ? sum : null)
     } catch (e) { toast.error(errMsg(e, 'Failed to load expenses')) }
     finally { setLoading(false) }
-  }, [api, page, showJobs, showProjects])
+  }, [api, page, showJobs, showProjects, period]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
   // Asked once, not per page. A backend without the route (or a network blip) leaves
   // `serverCategories` null and the configured list stands — the form still works. (Salon RR7 X1)
@@ -106,15 +140,24 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     try {
       // Unselected pickers post '' which the API treats as a (non-existent) FK — send null instead.
       const payload = { date: form.date, category: form.category, vendor: form.vendor.trim() || null, description: form.description.trim(), amount: Number(form.amount), billable: form.billable, reimbursable: form.reimbursable, projectId: form.projectId || null, jobId: form.jobId || null }
+      // The receipt's photo goes up after the expense is saved, against its id. A failed photo leaves the expense saved
+      // and says so, rather than losing what was typed.
+      const attach = async (expenseId?: string) => {
+        if (!receiptFile || !expenseId || !api.upload) return
+        const fd = new FormData(); fd.append('receipt', receiptFile)
+        try { await api.upload(`/api/expenses/${expenseId}/receipt`, fd) }
+        catch (e) { toast.error(errMsg(e, 'The expense was saved, but the receipt could not be attached')) }
+      }
       if (editing) {
         // An edit that ends an approval (the figure changed, or "Reimburse me" went on after approval) is saved, and the
         // server says why the approval went in `warnings`. "Expense updated" alone left the person thinking it was
         // still approved. Two toast kinds exist; the warning is shown as the one that gets read.
         const res: any = await api.put(`/api/expenses/${editing.id}`, payload)
+        await attach(editing.id)
         const warning = (res?.warnings ?? res?.data?.warnings)?.[0]
         if (warning) toast.error(`Saved. ${warning}`); else toast.success('Expense updated')
       }
-      else { await api.post('/api/expenses', payload); toast.success('Expense added') }
+      else { const created: any = await api.post('/api/expenses', payload); await attach(created?.id ?? created?.data?.id); toast.success('Expense added') }
       setModalOpen(false); load()
     } catch (e) { setFormError(errMsg(e, 'Failed to save expense')) }
     finally { setSaving(false) }
@@ -245,8 +288,8 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
       setForm((f) => (list.some((c) => c.value === f.category) ? f : { ...f, category: list[0].value }))
     })
   }
-  const openCreate = () => { setEditing(null); setForm(empty()); setFormError(''); setModalOpen(true); refreshCategories(true) }
-  const openEdit = (item: Expense) => { setEditing(item); setForm({ date: String(item.date || '').slice(0, 10) || today(), category: item.category, vendor: item.vendor || '', description: item.description || '', amount: String(item.amount ?? ''), billable: !!item.billable, reimbursable: !!item.reimbursable, projectId: item.projectId || '', jobId: item.jobId || '' }); setFormError(''); setModalOpen(true); refreshCategories(false) }
+  const openCreate = () => { setEditing(null); setForm(empty()); setFormError(''); setReceiptFile(null); setModalOpen(true); refreshCategories(true) }
+  const openEdit = (item: Expense) => { setEditing(item); setForm({ date: String(item.date || '').slice(0, 10) || today(), category: item.category, vendor: item.vendor || '', description: item.description || '', amount: String(item.amount ?? ''), billable: !!item.billable, reimbursable: !!item.reimbursable, projectId: item.projectId || '', jobId: item.jobId || '' }); setFormError(''); setReceiptFile(null); setModalOpen(true); refreshCategories(false) }
   // A value with no label is title-cased the way the server does it, so `dispensary_fee` reads
   // "Dispensary Fee" in the table instead of showing the raw id. (Salon RR7 X1)
   const catLabel = (v: string) => categories.find((c) => c.value === v)?.label || String(v || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase())
@@ -313,6 +356,10 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     // Whether it can be passed on to the customer — the question an expense list exists to answer, and the
     // one column it did not have. The form has always asked it and the row has always carried it; only the
     // table was silent, so you had to open every row to find out. (Evergreen T12 L8)
+    ...(receipts ? [{ key: 'receiptUrl', label: 'Receipt', render: (_v: any, row: Expense) => {
+      const href = receiptHref(row)
+      return href ? <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-orange-700 hover:underline dark:text-orange-200"><Receipt className="w-3.5 h-3.5" />View</a> : <span className="text-gray-500 dark:text-slate-400">-</span>
+    } }] : []),
     { key: 'billable', label: 'Billable', render: (v: any) => (v ? <span className="text-blue-700 dark:text-blue-300">Yes</span> : '-') },
     // Approval is now the step reimbursing depends on, so it has to be visible. Without this the
     // Approve action appears and disappears with no column explaining why. (Salon RR6 N1)
@@ -350,6 +397,30 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
   return (
     <div data-testid="expenses-page-shared">
       <PageHeader title="Expenses" action={mayClaim ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Expense</Button> : undefined} />
+      {/* The totals for the period the list shows — the sum of the rows below it. */}
+      <div className="mb-4 flex flex-wrap items-stretch gap-3" data-testid="expense-totals">
+        <label className="flex flex-col justify-center text-sm text-gray-700 dark:text-slate-200">
+          <span className="mb-1 text-xs font-medium text-gray-500 dark:text-slate-400">Period</span>
+          <select aria-label="Period" value={period} onChange={(e) => { setPeriod(e.target.value as Period); setPage(1) }} className={inputCls}>
+            {PERIODS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </label>
+        {summary && (
+          <>
+            <div className="rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900">
+              <p className="text-xs text-gray-500 dark:text-slate-400">{manager ? 'Spent' : 'Your expenses'}</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100" data-testid="expense-total">{money(summary.total)}</p>
+              {summary.repaid > 0 && <p className="text-xs text-gray-500 dark:text-slate-400">{money(summary.claimed)} claimed · {money(summary.repaid)} back</p>}
+            </div>
+            {Object.entries(summary.byCategory).sort((a, b) => b[1].amount - a[1].amount).slice(0, 4).map(([cat, v]) => (
+              <div key={cat} className="rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-slate-700 dark:bg-slate-900">
+                <p className="text-xs text-gray-500 dark:text-slate-400">{catLabel(cat)} · {v.count}</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-slate-100">{money(v.amount)}</p>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
       <DataTable<Expense> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage={emptyMessage}
         actions={[
           // Approve really is FIRST now — it is the step reimbursing depends on, so it is what a
@@ -386,6 +457,21 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
           <Field label="Amount *"><input type="number" min="0.01" step="0.01" value={form.amount} onChange={set('amount')} className={inputCls} /></Field>
           {showJobs && <Field label={jobLabel}><select value={form.jobId} onChange={set('jobId')} className={inputCls}><option value="">None</option>{jobs.map((j) => <option key={j.id} value={j.id}>{j.number ? `${j.number} - ` : ''}{j.title}</option>)}</select></Field>}
           {showProjects && <Field label="Project"><select value={form.projectId} onChange={set('projectId')} className={inputCls}><option value="">None</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
+          {receipts && (
+            <Field label="Receipt photo">
+              <div className="space-y-1">
+                {editing && receiptHref(editing) && !receiptFile && (
+                  <a href={receiptHref(editing) as string} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-orange-700 hover:underline dark:text-orange-200"><Receipt className="w-4 h-4" />Receipt attached — view</a>
+                )}
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
+                  <Paperclip className="w-4 h-4" />
+                  <span className="truncate">{receiptFile ? receiptFile.name : editing && receiptHref(editing) ? 'Replace with a new photo or PDF' : 'Take a photo or choose a file (JPEG, PNG or PDF)'}</span>
+                  <input type="file" accept="image/*,application/pdf" capture="environment" className="sr-only" aria-label="Receipt photo"
+                    onChange={(e) => { const f = e.target.files?.[0] || null; e.target.value = ''; if (f && f.size > 10 * 1024 * 1024) { setFormError('A receipt must be under 10 MB.'); return } setReceiptFile(f) }} />
+                </label>
+              </div>
+            </Field>
+          )}
           <div className="flex gap-6">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.billable} onChange={(e) => setForm((f) => ({ ...f, billable: e.target.checked }))} className="rounded" /> Billable to customer</label>
             {/*

@@ -14,7 +14,6 @@ import { api } from '../api'
 import { verticalScreens } from './vertical'
 import OnboardingWizard from './pages/OnboardingWizard'
 import type { ComponentType } from 'react'
-import { useEffect, useState } from 'react'
 import { dashboard as salonDashboard } from './verticals/salon'
 import { dashboard as eventsDashboard } from './verticals/restaurant'
 // 'practice': the veterinary practice's.
@@ -50,14 +49,17 @@ export function Dashboard() {
 }
 export function Contacts() {
   const { hasFeature, can } = useAuth()
-  return <ContactsPage api={client} toast={useToast()} config={{ ...v().contacts, hasFeature, can } as any} />
+  // The vendor portal invite is the vendor_portal switch's (Settings › Features), as its server mount is.
+  return <ContactsPage api={client} toast={useToast()} config={{ ...v().contacts, vendorPortalInvite: !!(v().contacts as any)?.vendorPortalInvite && hasFeature('vendor_portal'), hasFeature, can } as any} />
 }
 export function ContactDetail() {
   const { hasFeature, can } = useAuth()
   return <ContactDetailPage api={client} toast={useToast()} config={{ ...v().contacts, hasFeature, can } as any} />
 }
 /** The job screens pick a unit from the equipment list only where equipment_tracking is on (/api/equipment is its, on the server). */
-const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, hasFeature, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
+// repeat: a new job can repeat (weekly mowing), its visits made on the calendar at once — the server keeps job series for
+// every vertical whose jobs are the shared module's (server/modules/crm.ts tables.jobSeries; live test 2026-10-22).
+const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, hasFeature, repeat: true, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
 export function Jobs() {
   const { hasFeature, can } = useAuth()
   return <JobsPage api={client} toast={useToast()} config={{ ...jobsFor(hasFeature), can } as any} />
@@ -121,7 +123,12 @@ export function Schedule() {
   return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, events: !!v().schedule?.events }} />
 }
 export const Time = () => <TimePage api={client} toast={useToast()} config={v().time as any} />
-export const Expenses = () => <ExpensesPage api={client} toast={useToast()} config={v().expenses as any} />
+// A receipt's photo is kept in the company's private store (server /api/expenses/:id/receipt), and the totals' months are
+// the company's (live test 2026-10-22: no receipt photo, no totals).
+export function Expenses() {
+  const { company } = useAuth()
+  return <ExpensesPage api={client} toast={useToast()} config={{ ...(v().expenses as any), receipts: true, timeZone: (company as { timeZone?: string } | null)?.timeZone }} />
+}
 export function Team() {
   const { hasFeature } = useAuth()
   return <TeamPage api={client} toast={useToast()} config={{ ...v().team, hasFeature } as any} />
@@ -179,22 +186,7 @@ export const GoogleReviews = () => <GbpReviewsPage />
 export const Texting = () => <TextingPage />
 // The web address is connected on this app's Domain page, and texting is the business's own registered number (Settings ›
 // Texting) — so those two cards send the owner there, in plain words, rather than to a CNAME guide and a Twilio form.
-//
-// Card payments on invoices are the online_payments feature (the server asks it before offering Pay — server/modules/crm.ts
-// canTakeCardPayments): on, switched off, or not part of this industry's system at all (the catalogue does not list it).
-export function Integrations() {
-  const { hasFeature } = useAuth()
-  const [offered, setOffered] = useState<boolean | null>(null)
-  useEffect(() => {
-    client.get('/api/company/features/catalog')
-      .then((r: any) => setOffered(Array.isArray(r?.features) ? r.features.some((f: any) => f?.id === 'online_payments') : true))
-      .catch(() => setOffered(true))
-  }, [])
-  // Asked once, before the cards are drawn — never a Stripe card that changes its mind a moment later.
-  if (!hasFeature('online_payments') && offered === null) return null
-  const cardPayments = hasFeature('online_payments') ? 'on' : offered === false ? 'not-offered' : 'off'
-  return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms), domainPage: '/crm/domain', textingPage: '/crm/settings/texting', cardPayments }} />
-}
+export const Integrations = () => { const { hasFeature } = useAuth(); return <IntegrationsPage api={client} config={{ ...v().integrations, leadSources: leadSourceGuides((v().leads as any).platforms), hasFeature, domainPage: '/crm/domain', textingPage: '/crm/settings/texting' }} /> }
 export const Import = () => <ImportPage api={client} config={v().import as any} />
 export const Migration = () => <MigrationPage api={client} config={v().migration as any} />
 

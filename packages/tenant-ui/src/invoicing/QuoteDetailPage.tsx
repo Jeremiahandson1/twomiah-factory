@@ -7,7 +7,9 @@ import { useMayWrite } from '../auth/PermissionsContext'
 import { Button, ConfirmModal, NavLink, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, expiryLabel, isPastDay, money, quoteSentMessage } from './ui'
 
 type Q = Record<string, any>
-const EDITABLE = ['draft', 'sent']
+// Still open (tenant-backend quotes.ts OPEN_QUOTE_STATUSES): a quote the customer has opened is still the office's to
+// mark approved or declined.
+const EDITABLE = ['draft', 'sent', 'viewed']
 
 export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
   const cfg = resolveConfig(config)
@@ -56,18 +58,33 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
           {editable && mayUpdate && <Button variant="secondary" onClick={() => act(`/api/quotes/${id}/send`, quoteSentMessage)} disabled={busy}><Send className="w-4 h-4" /> {quote.sentAt ? 'Send again' : 'Send'}</Button>}
           {editable && mayUpdate && <Button variant="success" onClick={() => act(`/api/quotes/${id}/approve`, 'Quote approved')} disabled={busy}><Check className="w-4 h-4" /> Mark approved</Button>}
           {editable && mayUpdate && <Button variant="secondary" onClick={() => act(`/api/quotes/${id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected')} disabled={busy}><X className="w-4 h-4" /> {cfg.quoteDecline ? 'Mark declined' : 'Mark rejected'}</Button>}
-          {quote.status === 'approved' && cfg.jobs && mayJob && !quote.convertedToJobId && <Button variant="success" onClick={async () => { const job = await act(`/api/quotes/${id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }} disabled={busy}><Briefcase className="w-4 h-4" /> Convert to Job</Button>}
-          {quote.status === 'approved' && mayInvoice && <Button onClick={async () => { const inv = await act(`/api/quotes/${id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }} disabled={busy}><FileText className="w-4 h-4" /> Create Invoice</Button>}
+          {quote.status === 'approved' && cfg.jobs && mayJob && !quote.convertedToJobId && !quote.jobId && <Button variant="success" onClick={async () => { const job = await act(`/api/quotes/${id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }} disabled={busy}><Briefcase className="w-4 h-4" /> Convert to Job</Button>}
+          {/* One invoice per quote: the server refuses a second (convert-to-invoice), so a billed quote links its invoice instead. */}
+          {quote.status === 'approved' && mayInvoice && !quote.invoiced && <Button onClick={async () => { const inv = await act(`/api/quotes/${id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }} disabled={busy}><FileText className="w-4 h-4" /> Create Invoice</Button>}
           <Button variant="secondary" onClick={handlePdf}><Download className="w-4 h-4" /> PDF</Button>
           {editable && mayUpdate && <NavLink to={`/crm/quotes?edit=${id}`} className={secondary}><Edit className="w-4 h-4" /> Edit</NavLink>}
           {quote.status === 'draft' && mayDelete && <Button variant="danger" onClick={() => setDeleteOpen(true)} aria-label="Delete quote"><Trash2 className="w-4 h-4" /></Button>}
         </div>
       </div>
 
+      {quote.invoiced && (
+        <div data-testid="quote-invoiced" className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-center justify-between gap-3 text-blue-900 dark:text-blue-100">
+          <p>{quote.invoice?.number ? `This quote has been invoiced as ${quote.invoice.number}.` : 'This quote has been invoiced.'} A quote is invoiced once.</p>
+          {quote.invoice?.id && <NavLink to={`/crm/invoices/${quote.invoice.id}`} className="font-medium hover:underline inline-flex items-center gap-1 shrink-0"><FileText className="w-4 h-4" /> View invoice</NavLink>}
+        </div>
+      )}
+
       {quote.convertedToJobId && cfg.jobs && (
         <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center justify-between text-green-800 dark:text-green-200">
           <p>This quote has been converted to a job.</p>
           <NavLink to={cfg.jobPath(quote.convertedToJobId)} className="font-medium hover:underline inline-flex items-center gap-1"><Briefcase className="w-4 h-4" /> View job</NavLink>
+        </div>
+      )}
+      {/* A quote written for a job (roofing's quote.jobId) is that job's proposal: it is not converted into a second job. */}
+      {quote.jobId && !quote.convertedToJobId && (cfg.jobs || cfg.quoteJobs) && (
+        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 flex items-center justify-between text-blue-900 dark:text-blue-100">
+          <p>This quote is for a job.</p>
+          <NavLink to={cfg.jobPath(quote.jobId)} className="font-medium hover:underline inline-flex items-center gap-1"><Briefcase className="w-4 h-4" /> View job</NavLink>
         </div>
       )}
 

@@ -1,3 +1,4 @@
+import { whenDate } from '@twomiah/tenant-ui/src/time/companyClock'
 // UTC-safe date formatting.
 //
 // Date-only values (project start, due dates, expected dates) are stored as
@@ -7,15 +8,7 @@
 // the shift. Values that carry a real time-of-day are rendered as-is.
 
 export function formatDate(value?: string | number | Date | null): string {
-  if (value === null || value === undefined || value === '') return '';
-  let d: Date;
-  if (value instanceof Date) {
-    d = value;
-  } else {
-    const s = String(value);
-    // Treat "YYYY-MM-DD" and midnight-UTC timestamps as date-only → local midnight.
-    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(s) || /T00:00:00(\.000)?Z?$/.test(s);
-    d = dateOnly ? new Date(s.slice(0, 10) + 'T00:00:00') : new Date(s);
-  }
-  return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+  // A calendar day (YYYY-MM-DD or midnight UTC) as the day it names; a moment on the company's clock, not the reader's
+  // (time/companyClock.ts — the one rule every screen prints a stored time by).
+  return whenDate(value)
 }

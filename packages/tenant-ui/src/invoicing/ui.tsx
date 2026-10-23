@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { MoreVertical, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import type { LineItemInput, PricebookPick } from './types'
 import { api } from '../api/client'
+import { whenDateTime, momentDate, companyTodayKey } from '../time/companyClock'
 
 // ---------------------------------------------------------------- formatting
 // The one money formatter (../money.ts): the sign before the dollar sign.
@@ -21,7 +22,8 @@ export const dateOnly = (v: unknown) => {
   const [y, m, d] = day.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString()
 }
-export const dateTime = (v: unknown) => (v ? new Date(String(v)).toLocaleString() : '-')
+/** A moment's date and time on the company's clock (time/companyClock.ts), not the reader's. */
+export const dateTime = (v: unknown) => whenDateTime(v) || '-'
 
 /**
  * WHAT A MISSING DUE DATE MEANS, in one place. (T58)
@@ -55,14 +57,17 @@ export const expiryLabel = (v: unknown) => (v ? dateOnly(v) : 'No expiry')
  * the date shown was a day the salon had not reached yet. Anything with a time in it belongs here.
  * (Salon T23)
  */
-export const instantDay = (v: unknown) => (v ? new Date(String(v)).toLocaleDateString() : '-')
-/** Calendar-day comparison for "past due": the due day has to be over in the viewer's zone. */
+export const instantDay = (v: unknown) => momentDate(v) || '-'
+/**
+ * Calendar-day comparison for "past due": the due day has to be over on the COMPANY's clock — the server's rule
+ * (packages/tenant-backend time/zoneDay.ts markerDayIsOver, which isOverdue uses), so a screen and the server never
+ * disagree about whether an invoice is overdue. It used the reader's zone. (2026-10-22)
+ */
 export const isPastDay = (v: unknown) => {
   if (!v) return false
   const day = String(v).slice(0, 10)
-  const [y, m, d] = day.split('-').map(Number)
-  const end = new Date(y, m - 1, d, 23, 59, 59, 999)
-  return end.getTime() < Date.now()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false
+  return day < companyTodayKey()
 }
 /** Same rule as the server: tax on the post-discount amount, discount clamped, whole cents. */
 export const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number) => {
@@ -469,7 +474,9 @@ export function pricebookLine(pb: PricebookPick, option?: { name?: string | null
     if (t === 'service') return 'service'
     return 'other'
   })()
-  const name = pb.code ? `${pb.name} (${pb.code})` : pb.name
+  // The item's NAME: its code (SVC-0001) is the office's filing number, and a line's description is what the customer
+  // reads on the quote, the invoice, the email and the PDF (live test 2026-10-22). pricebookItemId keeps the link.
+  const name = pb.name
   if (option) return { description: option.name ? `${name} — ${option.name}` : name, quantity: 1, unitPrice: Number(option.price) || 0, type: kind, pricebookItemId: pb.id }
   return {
     description: name,

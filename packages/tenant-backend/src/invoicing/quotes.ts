@@ -15,6 +15,7 @@ import { withoutPortalCredential } from '../contacts/contacts'
 import { withoutSigningEvidence } from './signingEvidence'
 import { documentLinkToken, documentLinkPath } from '../portal/documentLinks'
 import { jobMoneyWithheld, withoutJobMoney } from '../jobs/jobMoney'
+import { customerLines } from './itemCodes'
 
 
 export interface QuoteTables {
@@ -65,6 +66,12 @@ export interface QuoteOptions {
    * (Field Service T28 M4)
    */
   timeZoneFor?: (companyId: string) => Promise<string | null | undefined> | string | null | undefined
+  /**
+   * Make the job a quote converts to, inside the conversion's transaction, in place of the CRM's default job — for a
+   * vertical whose jobs are made one way of their own (roofing: numbered ROOF-0001 and titled by the property address,
+   * server/crm/roof/jobs.ts insertRoofJob). Handed what the default job would have been made from; returns the new row.
+   */
+  makeJob?: (tx: any, from: { companyId: string; userId: string; quote: any; description: string; address: string; city: string; state: string; zip: string; estimatedValue: string }) => Promise<any>
   /** Optional: text the customer when a quote is sent (field service). */
   onSent?: (ctx: { companyId: string; quote: any; contact: any; company: any }) => Promise<void>
 }
@@ -140,8 +147,16 @@ const lineItemSchema = z.object({
   pricebookItemId: z.string().optional().transform(v => (v === '' ? undefined : v)),
 })
 const optionalId = z.string().optional().transform(v => (v === '' ? undefined : v))
-const QUOTE_STATUSES = ['draft', 'sent', 'approved', 'rejected', 'declined', 'expired'] as const
-const EDITABLE = ['draft', 'sent']
+const QUOTE_STATUSES = ['draft', 'sent', 'viewed', 'approved', 'rejected', 'declined', 'expired'] as const
+/**
+ * A quote not yet answered. 'viewed' is a sent quote the customer has opened (portal.ts marks it when they do): still
+ * open — the office edits it, sends it again, and marks it approved or declined when the customer says so by phone.
+ * Live retest 2026-10-23: once the customer had opened the link, the office could no longer mark it approved.
+ */
+export const OPEN_QUOTE_STATUSES = ['draft', 'sent', 'viewed']
+const EDITABLE = OPEN_QUOTE_STATUSES
+/** The statuses an edit may set by hand: 'viewed' is the customer's act, never typed in. */
+const SETTABLE = ['draft', 'sent']
 
 const toRow = (items: z.infer<typeof lineItemSchema>[], quoteId: string, hasLineCost = false) => items.map((item, i) => ({
   description: item.description,
@@ -259,6 +274,22 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   const ownJob = async (companyId: string, id: string) => (await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.id, id), eq(t.job.companyId, companyId))).limit(1))[0]
   const findOwn = async (companyId: string, id: string) => (await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, companyId))).limit(1))[0]
   const lineRows = (id: string) => db.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder), asc(t.quoteLineItem.id))
+  /**
+   * The invoice each quote was billed as (invoice.quote_id — the one convert-to-invoice writes and refuses a second of).
+   * A quote's screens read it so they stop offering "Create Invoice" on a quote already billed and link the invoice
+   * instead (live test 2026-10-22: offered beside INV-00001, refused only once pressed). `invoiced` goes to every reader
+   * of the quote; the invoice's number and id only to a seat that reads invoices.
+   */
+  const invoicedAs = async (c: any, cid: string, quoteIds: string[]): Promise<Map<string, { invoiced: true; invoice: { id: string; number: string } | null }>> => {
+    const out = new Map<string, { invoiced: true; invoice: { id: string; number: string } | null }>()
+    if (!quoteIds.length || !t.invoice || !conversions.has('invoice')) return out
+    const rows = await db.select({ id: t.invoice.id, number: t.invoice.number, quoteId: t.invoice.quoteId }).from(t.invoice)
+      .where(and(eq(t.invoice.companyId, cid), inArray(t.invoice.quoteId, quoteIds))).orderBy(asc(t.invoice.createdAt), asc(t.invoice.id))
+    const seesInvoices = await may(c, 'invoices:read')
+    for (const r of rows) if (!out.has(r.quoteId)) out.set(r.quoteId, { invoiced: true, invoice: seesInvoices ? { id: r.id, number: r.number } : null })
+    return out
+  }
+  const withInvoice = (q: any, billed: Map<string, any>) => ({ ...q, ...(billed.get(q.id) || { invoiced: false, invoice: null }) })
 
   // ---------------------------------------------------------------- list
   app.get('/', requirePermission('quotes:read'), async (c) => {
@@ -290,8 +321,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     ])
     const contactMap = Object.fromEntries(contacts.map((ct: any) => [ct.id, ct]))
     const lineItemMap: Record<string, any[]> = {}; lineItems.forEach((li: any) => { (lineItemMap[li.quoteId] ||= []).push(li) })
-    const [seesCost, seesEvidence] = await Promise.all([may(c, 'margin:read'), may(c, 'quotes:update')])
-    const rows = data.map((q: any) => forCaller({ ...q, contact: q.contactId ? contactMap[q.contactId] || null : null, lineItems: lineItemMap[q.id] || [] }, seesCost, seesEvidence, true))
+    const [seesCost, seesEvidence, billed] = await Promise.all([may(c, 'margin:read'), may(c, 'quotes:update'), invoicedAs(c, currentUser.companyId, quoteIds)])
+    const rows = data.map((q: any) => forCaller({ ...withInvoice(q, billed), contact: q.contactId ? contactMap[q.contactId] || null : null, lineItems: lineItemMap[q.id] || [] }, seesCost, seesEvidence, true))
     return c.json({ data: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
   })
 
@@ -304,7 +335,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // anything reading only its own word was short by the quotes refused under the other. (Landscaping T21 L5)
     const refused = o.hasDeclinedAt ? 'declined' : 'rejected'
     const stats: Record<string, number> = { total: quotes.length, draft: 0, sent: 0, approved: 0, [refused]: 0, expired: 0, totalValue: 0, approvedValue: 0 }
-    for (const q of quotes) { const k = q.status === 'rejected' || q.status === 'declined' ? refused : q.status; stats[k] = (stats[k] || 0) + 1; stats.totalValue = round2(stats.totalValue + Number(q.total)); if (q.status === 'approved') stats.approvedValue = round2(stats.approvedValue + Number(q.total)) }
+    // A viewed quote is a sent one the customer has opened: still awaiting an answer, counted with Sent.
+    for (const q of quotes) { const k = q.status === 'rejected' || q.status === 'declined' ? refused : q.status === 'viewed' ? 'sent' : q.status; stats[k] = (stats[k] || 0) + 1; stats.totalValue = round2(stats.totalValue + Number(q.total)); if (q.status === 'approved') stats.approvedValue = round2(stats.approvedValue + Number(q.total)) }
     return c.json(stats)
   })
 
@@ -325,7 +357,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // THE LEAK T43 FOUND, and the shape guard #201 could not see: the row is indexed and
     // defaulted on its way into the payload, so its bare name never appears. Measured live on
     // ctrtest, basictest and lndtest — owner and manager both received a working portalToken.
-    const out: any = { ...found, contact: withoutPortalCredential(ct[0]) || null, project: pr[0] || null, lineItems }
+    const out: any = { ...withInvoice(found, await invoicedAs(c, cid, [found.id])), contact: withoutPortalCredential(ct[0]) || null, project: pr[0] || null, lineItems }
     if (extra.has('equipmentId')) out.equipment = eq_[0] || null
     if (extra.has('siteId')) out.site = st[0] || null
     return c.json(forCaller(out, await may(c, 'margin:read'), await may(c, 'quotes:update')))
@@ -407,7 +439,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     for (const k of COPY_FIELDS) if (data[k] !== undefined) update[k] = data[k]
     if (exp.value !== undefined) update.expiryDate = exp.value
     // status may move between draft and sent from the editor; approvals go through their own routes
-    if (data.status && EDITABLE.includes(data.status) && data.status !== existing.status) { update.status = data.status; if (data.status === 'sent') update.sentAt = new Date() }
+    if (data.status && SETTABLE.includes(data.status) && data.status !== existing.status) { update.status = data.status; if (data.status === 'sent') update.sentAt = new Date() }
     const recompute = data.lineItems !== undefined || data.taxRate !== undefined || data.discount !== undefined
     if (recompute) {
       const lines: z.infer<typeof lineItemSchema>[] = data.lineItems ?? (await lineRows(id)).map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
@@ -543,7 +575,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         const portalLive = !token && !!((!features.length || features.includes('client_portal')) && contactRow?.portalEnabled && contactRow?.portalToken &&
           (!contactRow.portalTokenExp || new Date(contactRow.portalTokenExp).getTime() > Date.now()))
         approveOnline = !!token || portalLive
-        const lines = await lineRows(found.id)
+        // The customer's copy: no pricebook item codes (itemCodes.ts).
+        const lines = await customerLines(db, cid, await lineRows(found.id))
         try {
           await deps.sendQuoteEmail(recipient.email, {
             quoteNumber: found.number, quoteName: found.name || '', companyName: co?.name || 'Your provider', companyEmail: co?.email || '',
@@ -570,7 +603,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const r: any = await setStatus(
       c, id,
       { status: 'sent', sentAt: new Date(), ...(stampedExpiry ? { expiryDate: stampedExpiry } : {}) },
-      ['draft', 'sent'], EVENTS.QUOTE_SENT,
+      OPEN_QUOTE_STATUSES, EVENTS.QUOTE_SENT,
     )
     if (!r.updated) return r
     if (o.onSent && r.updated.contactId) {
@@ -585,16 +618,16 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     return c.json({ ...r.updated, approveOnline })
   })
   app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
-    const r: any = await setStatus(c, c.req.param('id'), { status: 'approved', approvedAt: new Date() }, ['draft', 'sent', 'approved'], EVENTS.QUOTE_APPROVED, q => ({ total: q.total }))
+    const r: any = await setStatus(c, c.req.param('id'), { status: 'approved', approvedAt: new Date() }, [...OPEN_QUOTE_STATUSES, 'approved'], EVENTS.QUOTE_APPROVED, q => ({ total: q.total }))
     return r.updated ? c.json(r.updated) : r
   })
   app.post('/:id/reject', requirePermission('quotes:update'), async (c) => {
-    const r: any = await setStatus(c, c.req.param('id'), { status: 'rejected', ...(o.hasDeclinedAt ? { declinedAt: new Date() } : {}) }, ['draft', 'sent', 'rejected'])
+    const r: any = await setStatus(c, c.req.param('id'), { status: 'rejected', ...(o.hasDeclinedAt ? { declinedAt: new Date() } : {}) }, [...OPEN_QUOTE_STATUSES, 'rejected'])
     return r.updated ? c.json(r.updated) : r
   })
   if (o.hasDeclinedAt) {
     app.post('/:id/decline', requirePermission('quotes:update'), async (c) => {
-      const r: any = await setStatus(c, c.req.param('id'), { status: 'declined', declinedAt: new Date() }, ['draft', 'sent', 'declined'])
+      const r: any = await setStatus(c, c.req.param('id'), { status: 'declined', declinedAt: new Date() }, [...OPEN_QUOTE_STATUSES, 'declined'])
       return r.updated ? c.json(r.updated) : r
     })
   }
@@ -628,7 +661,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
        */
       const [already] = await db.select({ id: t.invoice.id, number: t.invoice.number }).from(t.invoice).where(and(eq(t.invoice.quoteId, id), eq(t.invoice.companyId, cid))).limit(1)
       if (already) return c.json({ error: `This quote was already converted to invoice ${already.number}.`, invoiceId: already.id }, 400)
-      const items = await lineRows(id)
+      // The invoice is the customer's document: its lines are written without pricebook item codes (itemCodes.ts).
+      const items = await customerLines(db, cid, await lineRows(id))
       const settings = await companySettings(cid)
       const result = await db.transaction(async (tx: any) => {
         // Serialises two converters of the SAME quote against each other.
@@ -640,6 +674,8 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         const number = await nextNumber(tx, t.invoice, t.invoice.number, t.invoice.companyId, cid, numInvoice)
         const [inv] = await tx.insert(t.invoice).values({
           number, contactId: found.contactId, projectId: found.projectId, quoteId: found.id,
+          // The quote's job is the invoice's (roofing): the job's page lists the bill made from its proposal.
+          ...(extra.has('jobId') && found.jobId ? { jobId: found.jobId } : {}),
           subtotal: found.subtotal, taxRate: found.taxRate, taxAmount: found.taxAmount, discount: found.discount, total: found.total, amountPaid: '0',
           dueDate: dueDateFromTerms(settings), notes: found.notes, terms: found.terms, companyId: cid,
         }).returning()
@@ -668,7 +704,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
         ? [{ id: found.convertedToJobId }]
         : await db.select({ id: t.job.id }).from(t.job).where(and(eq(t.job.quoteId, id), eq(t.job.companyId, cid))).limit(1)
       if (existingJob) return c.json({ error: 'Quote already converted to a job', jobId: existingJob.id }, 400)
-      const items = await lineRows(id)
+      // A quote written for a job (quote.job_id, roofing) is that job's proposal: it is not made into a second job.
+      if (extra.has('jobId') && found.jobId) return c.json({ error: 'This quote is already on a job.', jobId: found.jobId }, 400)
+      const items = await customerLines(db, cid, await lineRows(id))
       const description = items.map((li: any) => `${li.description} (${Number(li.quantity)} × ${money(Number(li.unitPrice))})`).join('\n')
       // Service address: the quote's site when the vertical has sites, else the contact's address.
       let address = '', city = '', state = '', zip = ''
@@ -703,8 +741,13 @@ export function createQuoteRoutes(deps: QuoteDeps) {
           contactId: found.contactId, projectId: found.projectId, quoteId: found.id, createdById: currentUser.userId, companyId: cid,
         }
         if (o.jobHasSiteAndEquipment) { values.equipmentId = found.equipmentId || null; values.siteId = found.siteId || null }
-        const [newJob] = await tx.insert(t.job).values(values).returning()
-        if (o.hasConvertedToJobId) await tx.update(t.quote).set({ convertedToJobId: newJob.id, updatedAt: new Date() }).where(eq(t.quote.id, id))
+        const newJob = o.makeJob
+          ? await o.makeJob(tx, { companyId: cid, userId: currentUser.userId, quote: found, description, address, city, state, zip, estimatedValue: exTax.toFixed(2) })
+          : (await tx.insert(t.job).values(values).returning())[0]
+        // The quote is the new job's proposal: it records the job it became and, where quotes belong to jobs, sits on it.
+        if (o.hasConvertedToJobId || extra.has('jobId')) {
+          await tx.update(t.quote).set({ ...(o.hasConvertedToJobId ? { convertedToJobId: newJob.id } : {}), ...(extra.has('jobId') ? { jobId: newJob.id } : {}), updatedAt: new Date() }).where(eq(t.quote.id, id))
+        }
         return newJob
       })
       const [pr, ct] = await Promise.all([
@@ -728,7 +771,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (!found) return c.json({ error: 'Quote not found' }, 404)
     const [ct, lineItems, [co]] = await Promise.all([
       found.contactId ? db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1) : Promise.resolve([]),
-      lineRows(id),
+      lineRows(id).then((rows: any[]) => customerLines(db, cid, rows)),
       db.select().from(t.company).where(eq(t.company.id, cid)),
     ])
     // Same strip for the PDF payload. The renderer does not print a token today, but handing it

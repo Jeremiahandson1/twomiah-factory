@@ -19,6 +19,10 @@
 //   · "New quote" opens the CRM's quote form filled in with the homeowner and this job (packages/tenant-ui
 //     invoicing/QuotesPage.tsx, roofing's screens set quoteJobs; /crm/quotes?new=1&contactId=&jobId=) — a quote for a
 //     job is how a roofing proposal is made, and the job's Quotes list reads them back.
+//   · the homeowner's quotes and invoices on no job are offered under each card with an Attach button (./AttachDocuments,
+//     POST /api/jobs/:id/attach) — the job read "No quotes" beside a QTE-00001 made from the Quotes page (2026-10-22);
+//   · Materials: the job's material orders, and a New order form (../field/JobMaterials) — the Materials page had no way
+//     to add one (2026-10-22).
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
@@ -27,12 +31,16 @@ import {
   Receipt, Shield, Home,
 } from 'lucide-react'
 import { api } from '../../../../api'
-import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText } from '../../../../shared'
+import { useAuth, useMayWrite, useKnownPermission, usePermissions, useToast, errorText, ReviewRequestButton } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { formatStatus, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
+import AttachDocuments from './AttachDocuments'
+import JobMaterials from '../field/JobMaterials'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
 
 const STATUS_COLORS: Record<string, string> = {
   lead: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -148,13 +156,16 @@ export default function JobDetailPage() {
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [uploading, setUploading] = useState(false)
+  // The open photo in the full-size viewer: its place in the tab's photos.
+  const [viewing, setViewing] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
       const [jobData, usersRes, crewsRes, timelineRes] = await Promise.all([
         api.get(`/api/jobs/${id}`) as Promise<JobDetail>,
         maySeeRoster ? api.get('/api/company/users') : Promise.resolve([]),
-        api.get('/api/crews'),
+        // Crews are the crews switch's (GET /api/crews refuses when off): the lists, filters and pickers go with it.
+        hasFeature('crews') ? api.get('/api/crews') : Promise.resolve({ data: [] }),
         api.get(`/api/jobs/${id}/timeline`).catch(() => null),
       ])
       setJob(jobData)
@@ -174,6 +185,11 @@ export default function JobDetailPage() {
 
   useEffect(() => { load() }, [load])
 
+  /** The timeline again, after something that adds to it (a stage move, closing, reopening, a photo). */
+  const reloadTimeline = async () => {
+    try { setTimeline(rowsOf<TimelineEvent>(await api.get(`/api/jobs/${id}/timeline`))) } catch { /* the page keeps what it had */ }
+  }
+
   /** A write's reply is the job row alone: keep what came with the page (the contact, the lists). */
   const merge = (updated: RoofJob) => {
     const { contact: _contact, notes: _notes, ...row } = updated
@@ -185,6 +201,7 @@ export default function JobDetailPage() {
     try {
       merge(await api.post(`/api/jobs/${id}/advance`) as RoofJob)
       toast.success('Stage advanced')
+      reloadTimeline()
     } catch (err) {
       toast.error(errorText(err, 'Failed to advance stage'))
     } finally {
@@ -208,6 +225,7 @@ export default function JobDetailPage() {
       setCloseOpen(false)
       setCloseReason('')
       toast.success(closeStatus === 'lost' ? 'Job closed as lost' : 'Job cancelled')
+      reloadTimeline()
     } catch (err) {
       toast.error(errorText(err, 'Failed to close the job'))
     } finally {
@@ -220,6 +238,7 @@ export default function JobDetailPage() {
     try {
       merge(await api.post(`/api/jobs/${id}/reopen`, { status: 'lead' }) as RoofJob)
       toast.success('Job reopened')
+      reloadTimeline()
     } catch (err) {
       toast.error(errorText(err, 'Failed to reopen the job'))
     } finally {
@@ -277,6 +296,7 @@ export default function JobDetailPage() {
       }
       setPhotos((prev) => [...prev, ...created])
       toast.success(created.length > 1 ? `${created.length} photos uploaded` : 'Photo uploaded')
+      reloadTimeline()
     } catch (err) {
       toast.error(uploadRefusal(err))
     } finally {
@@ -290,7 +310,8 @@ export default function JobDetailPage() {
     setSavingNote(true)
     try {
       const note = await api.post(`/api/jobs/${id}/notes`, { body: noteText }) as JobNote
-      setNotes((prev) => [...prev, note])
+      // Newest first, as the server lists them.
+      setNotes((prev) => [note, ...prev])
       setNoteText('')
       toast.success('Note added')
     } catch (err) {
@@ -347,7 +368,7 @@ export default function JobDetailPage() {
             {isClosed ? (
               <>
                 <span className="text-sm text-gray-600 dark:text-slate-300">
-                  Closed as <span className="font-semibold">{job.status}</span>
+                  Closed as <span className="font-semibold">{formatStatus(job.status)}</span>
                   {job.lostReason ? ` — ${job.lostReason}` : ''}
                 </span>
                 {mayWorkJob && (<button
@@ -378,6 +399,8 @@ export default function JobDetailPage() {
                 </button>)}
               </>
             )}
+            {/* Ask the homeowner for a Google review now (Review Requests; the shared button the other trades' job page has). */}
+            {job.contactId && <ReviewRequestButton api={api as any} toast={toast} jobId={job.id} hasFeature={hasFeature} className="px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 disabled:opacity-50" />}
           </div>
         </div>
       </div>
@@ -419,7 +442,7 @@ export default function JobDetailPage() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setCloseOpen(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
               <button onClick={closeJob} disabled={closing} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
-                {closing ? 'Closing…' : `Close as ${closeStatus}`}
+                {closing ? 'Closing…' : `Close as ${formatStatus(closeStatus)}`}
               </button>
             </div>
           </div>
@@ -635,7 +658,7 @@ export default function JobDetailPage() {
                   {PHOTO_TABS.map((tab) => (
                     <button
                       key={tab}
-                      onClick={() => setPhotoTab(tab)}
+                      onClick={() => { setPhotoTab(tab); setViewing(null) }}
                       className={`px-3 py-2 text-sm font-medium border-b-2 capitalize ${
                         photoTab === tab
                           ? 'border-orange-600 text-orange-600 dark:text-orange-200'
@@ -648,13 +671,19 @@ export default function JobDetailPage() {
                 </div>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
                   {filteredPhotos.map((photo, i) => (
-                    <div key={photo.id || i} className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800">
+                    <button
+                      type="button"
+                      key={photo.id || i}
+                      onClick={() => setViewing(i)}
+                      aria-label={`Open ${photo.caption || `${photoTab} photo ${i + 1}`} full size`}
+                      className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                    >
                       <img
-                        src={photo.url || photo.thumbnailUrl || ''}
+                        src={photo.thumbnailUrl || photo.url || ''}
                         alt={photo.caption || `Photo ${i + 1}`}
                         className="w-full h-full object-cover"
                       />
-                    </div>
+                    </button>
                   ))}
                   {filteredPhotos.length === 0 && (
                     <p className="text-sm text-gray-500 dark:text-slate-400 col-span-full">No {photoTab} photos yet</p>
@@ -667,6 +696,13 @@ export default function JobDetailPage() {
                   multiple
                   className="hidden"
                   onChange={(e) => e.target.files && uploadPhotos(e.target.files)}
+                />
+                <PhotoViewer
+                  label={`${formatStatus(photoTab)} photos`}
+                  photos={filteredPhotos.map((p) => ({ id: p.id, src: p.url || p.thumbnailUrl, caption: p.caption }))}
+                  index={viewing}
+                  onIndex={setViewing}
+                  onClose={() => setViewing(null)}
                 />
                 {mayWorkJob && (<button
                   onClick={() => fileInputRef.current?.click()}
@@ -690,7 +726,7 @@ export default function JobDetailPage() {
                   <div key={note.id || i} className="bg-gray-50 rounded-lg p-3 dark:bg-slate-900">
                     <p className="text-sm text-gray-900 whitespace-pre-wrap dark:text-slate-100">{note.body}</p>
                     <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-slate-400">
-                      {note.createdAt && <span>{new Date(note.createdAt).toLocaleString()}</span>}
+                      {note.createdAt && <span>{whenDateTime(note.createdAt)}</span>}
                     </div>
                   </div>
                 ))}
@@ -730,7 +766,7 @@ export default function JobDetailPage() {
                       <div>
                         <p className="text-sm text-gray-900 dark:text-slate-100">{event.body}</p>
                         <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                          {event.createdAt ? new Date(event.createdAt).toLocaleString() : ''}
+                          {event.createdAt ? whenDateTime(event.createdAt) : ''}
                         </p>
                       </div>
                     </div>
@@ -790,7 +826,7 @@ export default function JobDetailPage() {
                     ))}
                   </select>
                 </div>
-                <div>
+                {hasFeature('crews') && <div>
                   <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Crew</label>
                   <select disabled={!mayWorkJob}
                     value={job.assignedCrewId || ''}
@@ -802,7 +838,7 @@ export default function JobDetailPage() {
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>
-                </div>
+                </div>}
               </div>
             </div>
 
@@ -846,6 +882,7 @@ export default function JobDetailPage() {
                     ))}
                   </div>
                 )}
+                {job && <AttachDocuments kind="quote" jobId={job.id} contactId={job.contactId} onAttached={load} />}
               </div>
             )}
 
@@ -889,8 +926,12 @@ export default function JobDetailPage() {
                     })}
                   </div>
                 )}
+                {job && <AttachDocuments kind="invoice" jobId={job.id} contactId={job.contactId} onAttached={load} />}
               </div>
             )}
+
+            {/* Materials ordered for this job (the materials feature; GET/POST /api/materials?jobId=). */}
+            {job && hasFeature('materials') && <JobMaterials jobId={job.id} jobAddress={job.address} />}
           </div>
         </div>
       </div>

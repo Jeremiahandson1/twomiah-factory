@@ -15,7 +15,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { useToast } from '../../../../shared'
 import { api, errorMessage } from '../lib/http'
 import { EVV_REASONS, EVV_REASONS_NEEDING_MEMO } from '../lib/sandata'
-import { formatAgencyDateTime } from '../lib/agencyClock'
+import { formatAgencyDateTime, agencyLocalInput, agencyFromLocalInput } from '../lib/agencyClock'
 
 /** One EVV record of GET /api/sandata/status (evvVisitsInRange: ev.* with the client's and caregiver's names). */
 export interface EvvVisit {
@@ -76,14 +76,8 @@ interface QueueReply {
 interface Editing { visit: EvvVisit; mode: 'ack' | 'fix'; reasonCode: string; memo: string; start: string; end: string }
 
 const fmtDT = (d: string | null | undefined) => (d ? formatAgencyDateTime(d, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—')
-// datetime-local wants local wall time without a zone.
-const toLocalInput = (d: string | null | undefined) => {
-  if (!d) return ''
-  const x = new Date(d)
-  if (isNaN(x.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`
-}
+// datetime-local wants wall time without a zone: the AGENCY's wall time, as the visit is printed (not the browser's).
+const toLocalInput = (d: string | null | undefined) => (d ? agencyLocalInput(d) : '')
 
 const card = 'rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800'
 const h4 = 'mb-2 text-base font-extrabold text-gray-900 dark:text-slate-100'
@@ -156,8 +150,8 @@ export default function SandataPanel({ visits = [], onChanged }: { visits?: EvvV
       return
     }
     const body: { reasonCode: string; reasonMemo: string; actualStart?: string; actualEnd?: string } = { reasonCode: e.reasonCode, reasonMemo: e.memo }
-    if (e.start && e.start !== toLocalInput(e.visit.actualStart)) body.actualStart = new Date(e.start).toISOString()
-    if (e.end && e.end !== toLocalInput(e.visit.actualEnd)) body.actualEnd = new Date(e.end).toISOString()
+    if (e.start && e.start !== toLocalInput(e.visit.actualStart)) body.actualStart = agencyFromLocalInput(e.start).toISOString()
+    if (e.end && e.end !== toLocalInput(e.visit.actualEnd)) body.actualEnd = agencyFromLocalInput(e.end).toISOString()
     if (!body.actualStart && !body.actualEnd) { toast.error('Change the start or end time first.'); return }
     if (e.start && e.end && new Date(e.end) <= new Date(e.start)) { toast.error('The visit must end after it starts.'); return }
     setBusy('fix')

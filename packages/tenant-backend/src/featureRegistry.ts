@@ -50,7 +50,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'selections', name: 'Selections', description: 'Client material selections portal', category: 'Construction', core: false, templates: ['crm'] },
 
   // Service Trade
-  { id: 'drag_drop_calendar', name: 'Drag & Drop Calendar', description: 'Visual job scheduling', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
+  { id: 'drag_drop_calendar', name: 'Drag & Drop Calendar', description: 'Drag jobs to another day or hour on the Schedule (day, week and month views)', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof'] /* roofing: its Schedule is the shared page, and a roofing job's day and time are PUT /api/jobs/:id like every trade's (live test 2026-10-22: "no calendar drag"). */ },
   // The page behind this id (Recurring Invoices, /crm/recurring) bills a customer on a schedule; it never made jobs. It was
   // sold as "Recurring Jobs", and testers looked for jobs that repeat (live test 2026-10-22). Named for what it does.
   { id: 'recurring_jobs', name: 'Recurring Invoices', description: 'Invoices that bill a customer on a schedule — weekly to yearly', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
@@ -68,7 +68,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Field Service
   { id: 'dispatch_board', name: 'Dispatch Board', description: 'Real-time tech dispatch and scheduling', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm', 'crm-basic'] },
-  { id: 'maintenance_contracts', name: 'Maintenance Contracts', description: 'Recurring service agreements', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
+  { id: 'maintenance_contracts', name: 'Maintenance Contracts', description: 'Maintenance plans whose included visits go on the Schedule for each term', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'flat_rate_pricebook', name: 'Flat-Rate Pricebook', description: 'Standard pricing for common services', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'parts_tracking', name: 'Parts & Inventory', description: 'Track parts, stock levels, and usage', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm-rv'] },
 
@@ -133,7 +133,9 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'event_deposits', name: 'Deposits & Balances', description: 'Staged payment schedule per event with overdue tracking across the whole book', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant', 'crm-bar'] },
 
   // Field Operations
-  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in and out, or log hours by hand; hours by person and day', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-homecare', 'crm-salon', 'crm-bar'] },
+  // Not home care: a caregiver's clock-in and clock-out is EVV (Compliance › EVV), the agency's own and always on — this
+  // switch opened the trades' Time page, which an agency's menu does not have, so it switched nothing (live test 2026-10-22).
+  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in and out, or log hours by hand; hours by person and day', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-salon', 'crm-bar'] },
   // Where's the crew and the job-site geofences (/crm/geofences) and the phone app's location sharing. Not home care: its
   // caregivers' location is EVV's, at clock-in and clock-out, and the phone app offers tracking to the trades only.
   { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping'] },
@@ -166,7 +168,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // to NO template and hidden, so it cannot be seeded by a plan, shown on a tenant's Features page, or picked in the
   // Factory wizard. Put the templates back when the service is ready.
   { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management — not yet available', category: 'Marketing', core: false, templates: [], hidden: true },
-  { id: 'google_reviews', name: 'Review Requests', description: 'Automated review requests after a visit', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-bar'] },
+  { id: 'google_reviews', name: 'Review Requests', description: 'Ask customers for a Google review after a job or visit — automatically once switched on in Reviews › Settings', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-bar'] },
   { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet', 'crm-bar'] },
   { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', category: 'Marketing', core: false, templates: [] /* offered to no industry: nothing reads it (scripts/check-unified-feature-has-screen.ts, live test 2026-10-22) */ },
 
@@ -321,6 +323,22 @@ export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f
  */
 export function withoutNotReady(features: string[]): string[] {
   return features.filter((f) => !FEATURE_MAP[f]?.hidden)
+}
+
+/**
+ * A feature list with what this product does not offer taken out — ONE rule for every door that writes a business's
+ * features (the owner's Settings › Features, the Factory's sync, a first setup, the in-CRM subscription service) and for
+ * the boot-time sweep of the rows already written (apps/unified server/modules/company.ts dropUnofferedFeatures).
+ *
+ * A feature taken off an industry's templates[] stayed switched on for every business that already had it: home care's
+ * shared Invoices was withdrawn on 2026-10-22, but an agency created before then still had it on — a second billing
+ * book beside its own Billing, its payments counted by neither the dashboard nor Billing, its pages reachable only by a
+ * typed address (live test 2026-10-22). So the list is the offer: an id kept is one this template lists (a not-ready one
+ * a platform admin already switched on included — withoutNotReady is the rule for switching one ON); an id no template
+ * lists, or only other templates, goes.
+ */
+export function withinOffer(template: string, features: string[]): string[] {
+  return [...new Set(features)].filter((f) => typeof f === 'string' && !!FEATURE_MAP[f]?.templates.includes(template))
 }
 
 export function getCategories(): string[] {

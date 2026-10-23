@@ -93,7 +93,8 @@ describe('roofing jobs', () => {
     expect(back.body).toMatchObject({ status: 'inspected', lostReason: null, closedAt: null })
     const tl = await json(await as('owner')(`/api/jobs/${ids.job}/timeline`))
     expect(tl.body.pagination.total).toBe(3)
-    expect(tl.body.data.map((e: any) => e.type).sort()).toEqual(['note', 'note', 'status_change'])
+    // What happened, in stage names: the move, the close and the reopen (server/crm/roof/jobRecord.ts).
+    expect(tl.body.data.map((e: any) => e.type).sort()).toEqual(['closed', 'reopened', 'status_change'])
   })
 
   test('a photo is an image by its bytes, with a type from the list; HTML sent as image/png is refused', async () => {

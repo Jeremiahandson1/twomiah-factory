@@ -25,7 +25,7 @@ import {
   location, expense, staffAccountEntry, lead, document, documentVersion, planMarkup, formSubmission, formTemplate,
   commission, commissionPlan, reviewRequest, emailLog, adsExperiment, adsExperimentAssignment, adsExperimentConversion,
   gbpConnection, inboundMessage, message, auditLog, activity, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal,
-  documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto,
+  documentShare, equipment, serviceAgreement, agreementVisit, site, jobPhoto, jobSeries,
   event,
   patient, vaccination, appointment, visit,
   repairOrder, salesLead,
@@ -68,7 +68,7 @@ import { rvMounts } from '../crm/rv/index.ts'
 import { salonMounts } from '../crm/salon/index.ts'
 import { vetMounts } from '../crm/vet/index.ts'
 import { homecareMounts } from '../crm/homecare/index.ts'
-import { createRoofJobRoutes } from '../crm/roof/jobs.ts'
+import { createRoofJobRoutes, insertRoofJob } from '../crm/roof/jobs.ts'
 import { roofMounts } from '../crm/roof/index.ts'
 import { storeMounts } from '../crm/store/index.ts'
 import { storeOrder } from '../db/schema/store.ts'
@@ -190,7 +190,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
   const jobs = createJobRoutes({
     db,
     tables: {
-      job, project, contact, user, timeEntry, teamMember, location,
+      job, project, contact, user, timeEntry, teamMember, location, jobSeries,
       ...(sites ? { equipment } : {}), ...(v.jobs?.photos ? { jobPhoto } : {}), ...(v.jobs?.billing ? { invoice, invoiceLineItem } : {}),
     },
     authenticate, requirePermission, canSee, ...live, cleanText, cleanLines,
@@ -220,6 +220,16 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.invoices?.numbering ? { numbering: { invoice: v.invoices.numbering } } : {}),
       // A roofing proposal belongs to its job (quote.job_id; CrmSettings.roof).
       extraFields: [...(sites ? ['siteId', 'equipmentId'] : []), 'customerMessage', ...(v.roof ? ['jobId'] : [])],
+      // An approved roofing proposal converts to a roofing job, made the one way a roofing job is made (ROOF-0001, titled
+      // by the property address — server/crm/roof/jobs.ts insertRoofJob), at `signed`: an approved quote is the signed
+      // contract. The CRM's default made a JOB-00001 at `pending`, a status no roofing screen has a column for.
+      ...(v.roof ? {
+        makeJob: (tx: any, f: any) => insertRoofJob(tx, f.companyId, f.userId, {
+          contactId: f.quote.contactId, quoteId: f.quote.id, jobType: 'retail', status: 'signed', source: 'quote',
+          address: f.address || f.quote.name, city: f.city || null, state: f.state || null, zip: f.zip || null,
+          estimatedValue: f.estimatedValue, notes: `Converted from Quote ${f.quote.number}`,
+        }),
+      } : {}),
       ...(sites ? { jobHasSiteAndEquipment: true } : {}),
       // Text the customer a link when a quote goes out.
       ...(v.quotes?.textOnSend ? {
@@ -259,6 +269,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       ...(v.invoices?.numbering ? { numbering: v.invoices.numbering } : {}),
       // The owner pays, but the bill is for an animal: an invoice names its patient (templates/crm-vet routes/invoices.ts T12 M6).
       ...(v.patients ? { links: { patientId: patient } } : {}),
+      // A roofing invoice is a job's bill (invoice.job_id): listed by ?jobId=, set on create and edit, checked to be this
+      // business's job. The job page's Invoice card reads it.
+      ...(v.roof ? { links: { jobId: job } } : {}),
       // Money books the date: a deposit on an enquiry confirms it (refused while its room is held), inside the payment's
       // own transaction (templates/crm-restaurant routes/invoices.ts, T16 M8).
       ...(v.events ? { onPayment: bookOnDepositForInvoice } : {}),
@@ -349,6 +362,8 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     // Home care's /api/expenses is its own expense book (server/crm/homecare/payroll/expenses.ts), so the shared one stands aside there.
     ...(v.homecare ? [] : [{ path: '/api/expenses', access: 'user' as const, feature: 'expense_tracking', router: createExpenseRoutes({
       db, tables: { expense, project, job, staffAccountEntry, user, company }, authenticate, requirePermission, audit,
+      // A receipt's photo, kept in the company's private store (POST/GET /api/expenses/:id/receipt).
+      storage: s.storage,
       // The trade's own categories, refused outside the list as the shared ones are (templates/crm-salon routes/expenses.ts).
       ...(v.expenses ? { options: { categories: v.expenses.categories, categoryLabels: v.expenses.categoryLabels } } : {}),
     } as any) }]),
@@ -395,7 +410,7 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
         ...(v.reports?.teamProductivity === 'serviceRecords' ? { teamProductivity: (companyId: string, range: { gte?: Date; lte?: Date }) => salonTeamProductivity(db, companyId, range) } : {}),
       },
     } as any) },
-    { path: '/api/pricebook', access: 'user', router: createPricebookRoutes({ service: s.pricebook, db, tables: { company }, authenticate, requirePermission, canSee } as any) },
+    { path: '/api/pricebook', access: 'user', router: createPricebookRoutes({ service: s.pricebook, db, tables: { company }, authenticate, requirePermission, requireFeature: features.requireEnabledFeature(['pricebook', 'flat_rate_pricebook']), canSee } as any) },
     { path: '/api/ads', access: 'user', router: ads },
     { path: '/api/onboarding', access: 'user', router: signedInAdmin(createOnboardingRoutes({ db, companyTable: company } as any)) },
     { path: '/api/messaging-billing', access: 'user', router: messagingBilling },
@@ -407,10 +422,10 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
     { path: '/api/inbound-messages', access: 'user', router: inboundMessages },
 
     // Public doors inside: each router signs people in itself after them.
-    { path: '/api/sms', access: 'public', router: inFront('/api/sms', createSmsRoutes({ service: s.sms, authenticate, requirePermission, requireAdmin: isAdmin } as any)) },
+    { path: '/api/sms', access: 'public', router: inFront('/api/sms', createSmsRoutes({ service: s.sms, authenticate, requirePermission, requireAdmin: isAdmin, requireFeature: features.requireEnabledFeature('two_way_texting') } as any)) },
     // Home care's /api/stripe pays its visit invoices (server/crm/homecare/billing/stripe.ts), so the shared one — which
     // pays the CRM's invoice — stands aside there.
-    ...(v.homecare ? [] : [{ path: '/api/stripe', access: 'public' as const, router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit, canTakeCardPayments } as any) }]),
+    ...(v.homecare ? [] : [{ path: '/api/stripe', access: 'public' as const, router: createStripeRoutes({ db, tables: { invoice, contact, payment, company }, stripeService: s.stripeService, authenticate, requirePermission, audit, canTakeCardPayments, requireFeature: features.requireEnabledFeature('online_payments') } as any) }]),
     // The drips are also the dealership's Follow-Up product (follow_up_sequences): either switch keeps the follow-up parts
     // open, while campaigns and templates need Email Marketing itself — the union the RV copy gated (RV T19 M6); only
     // crm-rv is offered follow_up_sequences, so everyone else's gate is what it was.
@@ -419,9 +434,9 @@ export function createCrmModules(deps: CrmModuleDeps): Mount[] {
       featureGate: features.requireEnabledFeature(['email_marketing', 'follow_up_sequences']),
       campaignsGate: features.requireEnabledFeature('email_marketing'),
     } as any) },
-    { path: '/api/quickbooks', access: 'public', router: createQuickBooksRoutes({ service: s.quickbooks, db, tables: { contact, invoice, invoiceLineItem, payment }, authenticate, requirePermission, audit } as any) },
+    { path: '/api/quickbooks', access: 'public', router: createQuickBooksRoutes({ service: s.quickbooks, db, tables: { contact, invoice, invoiceLineItem, payment }, authenticate, requirePermission, audit, requireFeature: features.requireEnabledFeature('quickbooks') } as any) },
     { path: '/api/reviews', access: 'public', router: createReviewsRoutes({ service: s.reviews, db, tables: { reviewRequest }, authenticate, requireRole, requirePermission, audit, requireEnabledFeature: features.requireEnabledFeature } as any) },
-    { path: '/api/integrations', access: 'public', router: createIntegrationsRoutes({ db, tables: { company, emailLog }, authenticate, requireAdmin: isAdmin, quickbooks: s.quickbooks, stripe: s.stripe, factoryApiClient } as any) },
+    { path: '/api/integrations', access: 'public', router: createIntegrationsRoutes({ db, tables: { company, emailLog }, authenticate, requireAdmin: isAdmin, quickbooks: s.quickbooks, stripe: s.stripe, factoryApiClient, requireQuickbooks: features.requireEnabledFeature('quickbooks'), requireOnlinePayments: features.requireEnabledFeature('online_payments') } as any) },
     // The customer portal: a customer's own pages by their private link (/p/:token), and the staff switches that hand
     // the link out, which sign people in themselves (portal:share).
     // Home care's client portal answers first on the same path (inFront above).
