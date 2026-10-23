@@ -431,7 +431,8 @@ describe('roofing\'s dashboard', () => {
     const crew = await stats(people.crew)
     expect(crew.body.jobs.open).toBe(3)
     expect(crew.body).not.toHaveProperty('invoices') // absent, not $0 (T42)
-    expect(crew.body.newLeads).toBe(1) // the field rung holds contacts:read
+    // New leads are the Lead Inbox's (leads:read — managers and up), not the crew's (live role check, 2026-10-23).
+    expect(crew.body).not.toHaveProperty('newLeads')
     const books = await stats(people.books)
     expect(books.body.invoices).toEqual({ outstanding: 2, outstandingValue: 1600 }) // the read-only seat reads the books
   })

@@ -70,7 +70,7 @@ export function ClientDirectory() {
       <Problem text={error} />
       <div className="hc-card" style={{ marginBottom: '1rem' }}>
         <label htmlFor="ro-client-search" className="sr-only">Search clients</label>
-        <input id="ro-client-search" type="search" placeholder="Search name, phone, email, city…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input id="ro-client-search" type="search" style={{ width: '100%' }} placeholder="Search name, phone, email, city…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       {clients === null ? <div className="loading"><div className="spinner" /></div> : (
         <div className="hc-card" style={{ overflowX: 'auto' }}>
