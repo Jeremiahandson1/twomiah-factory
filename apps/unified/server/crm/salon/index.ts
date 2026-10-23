@@ -21,6 +21,7 @@ import { createMembershipRoutes } from './memberships.ts'
 import { createLoyaltyRoutes } from './loyalty.ts'
 import { createReminderRoutes } from './reminders.ts'
 import { createSalonDashboardRoutes } from './dashboard.ts'
+import { company } from '../../db/schema/index.ts'
 
 // One set of services per app (the routers and the dashboard share it).
 const built = new WeakMap<object, SalonServices>()
@@ -28,6 +29,17 @@ export const salonServicesFor = (d: CrmDeps): SalonServices => {
   let s = built.get(d.db)
   if (!s) { s = createSalonServices(d); built.set(d.db, s) }
   return s
+}
+
+/** One timed pass: every business with Memberships on has its due renewals billed (claimed, once per period). */
+export async function settleMembershipsForAll(d: CrmDeps) {
+  const s = salonServicesFor(d)
+  let billed = 0
+  for (const co of await d.db.select({ id: company.id }).from(company)) {
+    if (!(await d.features.isFeatureEnabled(co.id, 'salon_memberships'))) continue
+    billed += (await s.memberships.settleMembershipBilling(co.id).catch((e: any) => { d.logger.error('[memberships] timed billing failed', { company: co.id, error: e?.message }); return [] })).length
+  }
+  return billed
 }
 
 /** /api/dashboard for a salon (CrmSettings.dashboard 'salon'). */
@@ -41,6 +53,14 @@ export const createSalonDashboard = (d: CrmDeps) => createSalonDashboardRoutes(d
 export function salonMounts(d: CrmDeps, settings: CrmSettings): Mount[] {
   const s = salonServicesFor(d)
   const salonBook = settings.appointments !== 'practice'
+  // Memberships renew on their own (the help said "renewals are billed as they come due", and they were billed only when
+  // someone opened the list or pressed Run billing): every 6 hours, for each business with Memberships on, the same
+  // claimed, once-per-period settle the list runs (./membershipBilling.ts). Boot only, never in tests.
+  if (salonBook) d.services.addJob(() => {
+    const tick = () => settleMembershipsForAll(d)
+    setTimeout(() => { void tick() }, 5 * 60_000)
+    setInterval(() => { void tick() }, 6 * 3600_000)
+  })
   return [
     // /api/clients is home care's people in care where CrmSettings.homecare is on (server/crm/homecare/clients).
     ...(settings.homecare ? [] : [{ path: '/api/clients', access: 'user', feature: 'client_profiles', router: createClientRoutes(d, s) } as Mount]),

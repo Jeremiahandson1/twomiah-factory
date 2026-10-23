@@ -31,7 +31,7 @@ const STARTER: StarterContent = {
     { title: "Patient Records", category: "Patients", isFaq: false,
       content: "Each patient has a chart with Visits (including SOAP notes), Vaccinations, Prescriptions, Lab Results, Documents and Invoices. Open a patient from the Patients page, or from the owner's page." },
     { title: "Vaccinations & Reminders", category: "Patients", isFaq: true,
-      content: "Click Add Vaccine on a patient and enter the given date and due date. The Reminders page shows Vaccines Due and Lapsed Clients; select owners and Send Reminder to text them." },
+      content: "Click Add Vaccine on a patient and enter the given date and due date. The Reminders page shows Vaccines Due and Lapsed Clients. Switch on Automatic reminders there and each owner is texted once about every vaccine coming due, on your clinic's clock; or select owners and Send Reminder to text them yourself. Owners who replied STOP are not texted." },
     { title: "Appointments", category: "Appointments", isFaq: false,
       content: "Click New Appointment on the Appointments page and pick the patient, type, provider, time and room. Use Check In when they arrive, Start when they go in, and Complete when done. Record the care with New Visit on the patient." },
     { title: "Wellness Plans", category: "Wellness", isFaq: false,
