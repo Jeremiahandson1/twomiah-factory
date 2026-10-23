@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CreditCard, Loader2, Send, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
 import { api } from '../../../api'
-import { useMayWrite, errorText } from '../../../shared'
+import { useMayWrite, errorText, useAuth } from '../../../shared'
 import { DEAL_DEFAULTS, dealTotals, leadLabel, type Deal, type DealInfo, type InboxLead, type InboxReply } from './deal';
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
@@ -34,6 +34,8 @@ export default function FIPage() {
   const [leads, setLeads] = useState<InboxLead[]>([]);
   // POST /api/fi/submit asks financing:create — managers and up. Staff were offered the button and refused. (T63)
   const maySubmit = useMayWrite('financing:create');
+  // Desking is the Deal Desk switch's (deal_desk): off, F&I says so rather than linking to a page that is refused.
+  const deskOn = useAuth().hasFeature('deal_desk');
   const [products, setProducts] = useState<FiProduct[]>([]);
   const [leadId, setLeadId] = useState('');
   const [info, setInfo] = useState<DealInfo | null>(null);
@@ -108,7 +110,8 @@ export default function FIPage() {
         <div className="mt-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-4 text-sm dark:bg-amber-900/30 dark:border-amber-800 dark:text-amber-200">
           <div className="font-semibold">This deal hasn't been desked yet.</div>
           <p className="mt-1">{lead.deal ? 'A desk from the Sales Pipeline is waiting to be saved. ' : ''}Structure it in Desking first (price, trade, tax and fees) so F&I finances the right amount.</p>
-          <Link to={`/crm/desking?lead=${leadId}`} className="mt-2 inline-block font-medium text-orange-700 hover:underline dark:text-orange-200">Open in Desking →</Link>
+          {deskOn ? <Link to={`/crm/desking?lead=${leadId}`} className="mt-2 inline-block font-medium text-orange-700 hover:underline dark:text-orange-200">Open in Desking →</Link>
+            : <p className="mt-2" data-testid="desk-off">Deal Desk is switched off — turn it on in Settings › Features to structure deals.</p>}
         </div>
       )}
 
@@ -117,7 +120,7 @@ export default function FIPage() {
           <div className="bg-white rounded-xl border shadow-sm p-4 space-y-3 dark:bg-slate-900">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-gray-700 dark:text-slate-200">Deal structure <span className="font-normal text-gray-500 dark:text-slate-400">(from Desking)</span></div>
-              <Link to={`/crm/desking?lead=${leadId}`} className="text-xs text-orange-700 hover:underline dark:text-orange-200">Edit in Desking</Link>
+              {deskOn && <Link to={`/crm/desking?lead=${leadId}`} className="text-xs text-orange-700 hover:underline dark:text-orange-200">Edit in Desking</Link>}
             </div>
             <div className="text-sm divide-y">
               {([

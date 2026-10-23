@@ -7,6 +7,7 @@ import { and, eq, gte, inArray, notInArray, ne, isNotNull, count, countDistinct 
 import { createId } from '@paralleldrive/cuid2'
 import { event, eventSpace, eventMenuItem, user } from '../../db/schema/index.ts'
 import { lockEventBook } from '../../data/restaurantEvents.ts'
+import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 
 // The lists the screens offer (crm/pages/restaurant/EventsPage.tsx STATUSES / EVENT_TYPES), so a status or type is
 // one vocabulary end to end.
@@ -253,14 +254,15 @@ export async function coordinatorRefusal(exec: any, companyId: string, coordinat
 
 // ── Retiring what upcoming bookings still use (T15 H1) ─────────────────────────────────────────────────────────────
 // Rooms and packages are retired (active = false), never deleted, so history keeps them. A room still holding upcoming
-// bookings, or a package still on upcoming menus, must have those moved first. "Upcoming": today (UTC) or later.
-export const todayUtc = () => new Date().toISOString().slice(0, 10)
+// bookings, or a package still on upcoming menus, must have those moved first. "Upcoming": today or later on the venue's
+// calendar (it was UTC's, a day ahead every evening).
+export const venueToday = async (db: any, companyId: string) => storeDateString(new Date(), await companyTimeZone(db, companyId))
 const UPCOMING_HOLDS = ['tentative', 'confirmed']
 
 /** Upcoming bookings (today or later, tentative/confirmed) still in this room. */
 export async function upcomingEventsUsingSpace(db: any, companyId: string, spaceId: string): Promise<number> {
   const [row] = await db.select({ value: count() }).from(event)
-    .where(and(eq(event.companyId, companyId), eq(event.spaceId, spaceId), gte(event.eventDate, todayUtc()), inArray(event.status, UPCOMING_HOLDS)))
+    .where(and(eq(event.companyId, companyId), eq(event.spaceId, spaceId), gte(event.eventDate, await venueToday(db, companyId)), inArray(event.status, UPCOMING_HOLDS)))
   return Number(row?.value || 0)
 }
 
@@ -268,7 +270,7 @@ export async function upcomingEventsUsingSpace(db: any, companyId: string, space
 export async function upcomingEventsUsingPackage(db: any, companyId: string, packageId: string): Promise<number> {
   const [row] = await db.select({ value: countDistinct(eventMenuItem.eventId) }).from(eventMenuItem)
     .innerJoin(event, eq(event.id, eventMenuItem.eventId))
-    .where(and(eq(eventMenuItem.companyId, companyId), eq(eventMenuItem.packageId, packageId), gte(event.eventDate, todayUtc()), notInArray(event.status, EXIT_STATUSES)))
+    .where(and(eq(eventMenuItem.companyId, companyId), eq(eventMenuItem.packageId, packageId), gte(event.eventDate, await venueToday(db, companyId)), notInArray(event.status, EXIT_STATUSES)))
   return Number(row?.value || 0)
 }
 

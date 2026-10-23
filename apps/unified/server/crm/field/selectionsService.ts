@@ -6,7 +6,7 @@
 // The customer portal (packages/tenant-backend portal.ts) takes this object as its `selections` and calls
 // getClientSelections and clientMakeSelection.
 import { and, eq } from 'drizzle-orm'
-import { nextNumber } from '@twomiah/tenant-backend'
+import { nextNumber, businessToday, companyTimeZone } from '@twomiah/tenant-backend'
 import { project, changeOrder } from '../../db/schema/index.ts'
 import { notFound } from '../../http/errors.ts'
 import * as q from '../../data/selections.ts'
@@ -84,14 +84,16 @@ export function createSelectionsService(d: CrmDeps) {
       netDifference: 0,
       overdue: 0,
     } as any
-    const now = new Date()
+    // Overdue once the due DAY is over on the company's clock — the invoices' rule (money.ts overdueCutoff). Comparing the
+    // due day's midnight-UTC marker with this instant made a selection overdue all of its own due day. (2026-10-22)
+    const today = businessToday(await companyTimeZone(db, companyId))
     for (const sel of selections) {
       summary[sel.status]++
       // decimal columns come back as strings; Number() prevents "0" + "450.00" = "0450.00"
       summary.totalAllowance += Number(sel.allowance) || 0
       if (sel.selectedOption) summary.totalSelected += Number(sel.selectedOption.price) * Number(sel.quantity)
       summary.netDifference += Number(sel.priceDifference) || 0
-      if (sel.dueDate && new Date(sel.dueDate) < now && sel.status === 'pending') summary.overdue++
+      if (sel.dueDate && new Date(sel.dueDate) < today && sel.status === 'pending') summary.overdue++
     }
     return summary
   }
@@ -233,7 +235,7 @@ export function createSelectionsService(d: CrmDeps) {
     return q.pendingSelectionsDueBy(db, companyId, dueDate)
   }
 
-  const getOverdueSelections = (companyId: string) => q.pendingSelectionsDueBefore(db, companyId, new Date())
+  const getOverdueSelections = async (companyId: string) => q.pendingSelectionsDueBefore(db, companyId, businessToday(await companyTimeZone(db, companyId)))
 
   return {
     createCategory,

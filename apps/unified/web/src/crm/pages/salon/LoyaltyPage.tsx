@@ -6,6 +6,7 @@ import { money as fmtMoney } from '../../../shared'
 import { useToast } from '../../../shared'
 import { useConfirm } from '../../../shared'
 import { useAuth } from '../../../shared'
+import { momentDate, whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
  * Loyalty — who is on the programme, what they can spend it on, and how the programme is set up.
@@ -718,7 +719,7 @@ function MemberPanel({
                 <option value="">Choose a visit…</option>
                 {usable.map((v) => (
                   <option key={v.appointmentId} value={v.appointmentId}>
-                    {new Date(v.startTime).toLocaleDateString()} · {v.serviceName || 'Visit'} · {v.invoiceNumber} · {fmtMoney(v.remaining)} left
+                    {momentDate(v.startTime)} · {v.serviceName || 'Visit'} · {v.invoiceNumber} · {fmtMoney(v.remaining)} left
                   </option>
                 ))}
               </select>
@@ -791,7 +792,7 @@ function MemberPanel({
                   <div>
                     <div className="text-sm text-gray-900 dark:text-slate-100">{LEDGER_LABEL[t.type] || t.type}</div>
                     {t.description && <div className="text-xs text-gray-500 dark:text-slate-400">{t.description}</div>}
-                    <div className="text-xs text-gray-500 dark:text-slate-400">{new Date(t.createdAt).toLocaleString()}</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">{whenDateTime(t.createdAt)}</div>
                   </div>
                   <div className={`tabular-nums text-sm font-medium ${t.points < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
                     {t.points > 0 ? `+${t.points}` : t.points}

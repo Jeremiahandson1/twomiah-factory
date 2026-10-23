@@ -12,7 +12,10 @@ import { ageFromDob, NewPatientModal } from './PatientsPage';
 import { ConfirmDialog } from '../../ui/Modal'
 import { fetchStaff, useMayPickStaff, staffName, openPrintable, type StaffMember } from './vetHelpers'
 import { useAuth } from '../../../shared'
+import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
+import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { todayKey } from '@twomiah/tenant-ui/src/time/day'
 
 /** A refusal from the API client: its status and body ride on the error. */
 type Refusal = Error & { status?: number; data?: { error?: string; code?: string } }
@@ -137,7 +140,7 @@ function fmtDate(s?: string): string {
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
   const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return dateOnly ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : momentDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function money(v: number | string | undefined | null): string {
   return `${formatMoney(Number(v || 0))}`;
@@ -147,10 +150,7 @@ function ownerName(o?: Owner): string {
   return o.name || [o.firstName, o.lastName].filter(Boolean).join(' ') || o.email || 'Owner';
 }
 function isOverdue(dueDate?: string): boolean {
-  if (!dueDate) return false;
-  const d = new Date(dueDate);
-  if (isNaN(d.getTime())) return false;
-  return d.getTime() < Date.now();
+  return isPastDay(dueDate);
 }
 
 interface PatientDocument {
@@ -195,6 +195,9 @@ export default function PatientDetailPage() {
   const mayBill = useMayWrite('invoices:create');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // Prescriptions, Lab Results and Rabies Certificates are switches of their own (Settings › Features); off, the chart
+  // shows none of them, as their APIs refuse them (server/crm/vet/index.ts, reminders.ts).
+  const { hasFeature } = useAuth();
   const [detail, setDetail] = useState<Detail>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [tab, setTab] = useState<Tab>('visits');
@@ -391,8 +394,8 @@ export default function PatientDetailPage() {
   const tabs: { id: Tab; label: string; icon: ReactNode; count: number }[] = [
     { id: 'visits', label: 'Visits', icon: <Stethoscope className="w-4 h-4" />, count: visitsTotal },
     { id: 'vaccinations', label: 'Vaccinations', icon: <Syringe className="w-4 h-4" />, count: vaccinations.length },
-    { id: 'prescriptions', label: 'Prescriptions', icon: <Pill className="w-4 h-4" />, count: prescriptions.length },
-    { id: 'labs', label: 'Lab Results', icon: <FlaskConical className="w-4 h-4" />, count: labResults.length },
+    ...(hasFeature('prescriptions') ? [{ id: 'prescriptions' as Tab, label: 'Prescriptions', icon: <Pill className="w-4 h-4" />, count: prescriptions.length }] : []),
+    ...(hasFeature('lab_results') ? [{ id: 'labs' as Tab, label: 'Lab Results', icon: <FlaskConical className="w-4 h-4" />, count: labResults.length }] : []),
     { id: 'documents', label: 'Documents', icon: <FileText className="w-4 h-4" />, count: documents.length },
     { id: 'invoices', label: 'Invoices', icon: <Receipt className="w-4 h-4" />, count: invoices.length },
   ];
@@ -603,7 +606,7 @@ export default function PatientDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{v.lotNumber || '—'}</td>
                       <td className="px-4 py-3">
-                        {v.isRabies && (
+                        {v.isRabies && hasFeature('rabies_certificates') && (
                           <button
                             onClick={() => printCertificate(v.id)}
                             className="inline-flex items-center gap-1 text-xs text-teal-700 hover:text-teal-800 dark:hover:text-teal-300 dark:text-teal-300"
@@ -622,7 +625,7 @@ export default function PatientDetailPage() {
       )}
 
       {/* Prescriptions */}
-      {tab === 'prescriptions' && (
+      {tab === 'prescriptions' && hasFeature('prescriptions') && (
         <div className="space-y-3">
           {mayChart && <div className="flex justify-end">
             <button onClick={() => setShowRx(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
@@ -655,7 +658,7 @@ export default function PatientDetailPage() {
       )}
 
       {/* Lab Results */}
-      {tab === 'labs' && (
+      {tab === 'labs' && hasFeature('lab_results') && (
         <div className="space-y-3">
           {mayChart && <div className="flex justify-end">
             <button onClick={() => setShowLab(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
@@ -845,7 +848,7 @@ function VaccineModal({ patientId, rabiesTag, onSave, onClose }: { patientId: st
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<VaccineForm>({
     vaccine: '', manufacturer: '', lotNumber: '', serialNumber: '', site: '', route: '',
-    givenDate: new Date().toISOString().slice(0, 10), dueDate: '', isRabies: false,
+    givenDate: todayKey(), dueDate: '', isRabies: false,
     // The tag on the patient record is the tag this animal wears; re-typing it from the collar is how a
     // certificate ends up with a number that does not match the chart. Still editable — a re-tagged
     // animal gets a new one. (Vet T12 L5)
@@ -867,9 +870,10 @@ function VaccineModal({ patientId, rabiesTag, onSave, onClose }: { patientId: st
       // A blank due date means no reminder ever fires. Default to a one-year booster from
       // the given date so the vaccine at least schedules a follow-up. (VET-27)
       if (!form.dueDate && form.givenDate) {
-        const d = new Date(`${form.givenDate}T00:00:00`);
-        d.setFullYear(d.getFullYear() + 1);
-        payload.dueDate = d.toISOString().slice(0, 10);
+        // Calendar arithmetic on the day itself: local midnight read back through toISOString was the day before
+        // in any zone ahead of UTC.
+        const [gy, gm, gd] = form.givenDate.split('-').map(Number);
+        payload.dueDate = new Date(Date.UTC(gy + 1, gm - 1, gd)).toISOString().slice(0, 10);
       }
       await api.post('/api/vaccinations', payload);
       onSave();
@@ -1007,7 +1011,7 @@ function LabModal({ patientId, onSave, onClose }: { patientId: string; onSave: (
   const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<LabForm>({
-    testName: '', category: '', resultDate: new Date().toISOString().slice(0, 10),
+    testName: '', category: '', resultDate: todayKey(),
     status: '', summary: '', fileUrl: '', notes: '',
   });
   const set = (k: keyof LabForm, v: string) => setForm((f) => ({ ...f, [k]: v }));

@@ -164,8 +164,20 @@ export function createHomecareReportsRoutes(d: CrmDeps) {
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
 
+  /**
+   * The Reports switch (Settings › Features, `reports`) is Reports & Analytics: every report it runs and exports. Off,
+   * they are refused as every switched-off module is (FEATURE_NOT_ENABLED) — the switch hid nothing before (live test
+   * 2026-10-22). A client's own report (Clients › Report, /client/:id) and the Client Week (/client-week) are those
+   * pages' tools, not Reports & Analytics, and stay. Registered before the routes, so it runs first.
+   */
+  const reportsSwitch = d.features.requireEnabledFeature('reports')
+  for (const p of ['/overview', '/hours', '/performance', '/satisfaction', '/revenue', '/pnl', '/caregiver-productivity', '/hours-by-payer',
+    '/caregiver-utilization', '/client-incidents', '/client-revenue-by-month', '/client-visits-summary', '/:type/export', '/:type/export-pdf']) {
+    app.use(p, reportsSwitch)
+  }
+
   /** The permission that depends on the path's report type. */
-  const byType = (perm: (type: string) => string) => (c: Context, next: Next) => requirePermission(perm(c.req.param('type') || ''))(c, next)
+  const byType =(perm: (type: string) => string) => (c: Context, next: Next) => requirePermission(perm(c.req.param('type') || ''))(c, next)
 
   /** The report window's default: one month back through the agency's today. */
   async function defaultRange(companyId: string, tz: string) {

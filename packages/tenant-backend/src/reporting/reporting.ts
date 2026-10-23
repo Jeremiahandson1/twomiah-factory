@@ -135,7 +135,7 @@ export function createReportingService(deps: ReportingDeps) {
     const [over] = await db.select({ total: sql<string>`coalesce(sum(${balanceExpr}), 0)`, count: sql<number>`coalesce(sum(CASE WHEN ${balanceExpr} > 0.005 THEN 1 ELSE 0 END), 0)` })
       // the customer has the whole of the due day, so the cut-off is the start of today — the same rule
       // isOverdue and the invoice list use, or Reports disagrees with the page it links to (T14 M17)
-      .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), issued, isNotNull(t.invoice.dueDate), lt(t.invoice.dueDate, overdueCutoff())))
+      .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), issued, isNotNull(t.invoice.dueDate), lt(t.invoice.dueDate, overdueCutoff(new Date(), await companyTimeZone(db, companyId)))))
     const invoiced = r2(num(inv.total)), collected = r2(num(col.total))
     return {
       invoiced, invoiceCount: Number(inv.count),

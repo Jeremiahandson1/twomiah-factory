@@ -6,7 +6,7 @@ import { Hono } from 'hono'
 import {
   createCompanyRoutes, createBillingRoutes, createSubscriptionSyncRoute, createAccountRoutes, createFactoryApiClient,
   createEmailAliasesRoutes, createEmailAliasesInternalRoute, createLeadsRoutes, TRADES_LEAD_PLATFORMS, refreshSubscriptionFromFactory,
-  withoutNotReady,
+  withoutNotReady, withinOffer,
 } from '@twomiah/tenant-backend'
 import { asc, eq } from 'drizzle-orm'
 import { company, user, emailAlias, lead, leadSource, contact } from '../db/schema/index.ts'
@@ -131,22 +131,54 @@ export function createCompanyModules(deps: CompanyModuleDeps) {
     })
 
   // The Factory sets which features this tenant has (it replaces the list; the Factory reconciles first). A not-ready
-  // feature in it is dropped: no path switches one on (withoutNotReady).
+  // feature in it is dropped: no path switches one on (withoutNotReady); so is one this industry is not offered
+  // (withinOffer) — a list sent from an older Factory row cannot switch back on what the industry no longer has.
   const syncFeatures = new Hono().post('/', async (c) => {
     const body = await c.req.json().catch(() => ({})) as { features?: unknown }
     if (!Array.isArray(body.features) || !body.features.every((f) => typeof f === 'string')) return fail(c, 400, 'features must be an array of feature ids')
     const [co] = await db.select({ id: company.id }).from(company).orderBy(asc(company.createdAt)).limit(1)
     if (!co) return fail(c, 404, 'No company found')
-    const features = withoutNotReady(body.features as string[])
+    const features = withinOffer(vertical.featureSet, withoutNotReady(body.features as string[]))
     await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, co.id))
     deps.features.forgetFeatures(co.id)
     void deps.adsConnector.onFeaturesChanged(features)
-    return done(c)
+    // The reply is what the Factory's admin save verifies (apps/api services/featureSyncVerdict.ts): the list as stored,
+    // read back, so a feature sent and not kept — withheld as not ready or not offered — reads as missing, never as
+    // in sync. It answered { success } alone, so every admin save to a unified tenant read "divergent (missing: all)".
+    const [stored] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, co.id)).limit(1)
+    const kept: string[] = Array.isArray(stored?.enabledFeatures) ? (stored.enabledFeatures as string[]) : []
+    return one(c, { success: true, features: kept, withheld: (body.features as string[]).filter((f) => !kept.includes(f)) })
   })
+
+  /**
+   * At boot: the business's switched-on features, less any this industry no longer offers (withinOffer — the one rule
+   * every writer of the list applies). A feature withdrawn from an industry stayed on for every business that already
+   * had it: a home-care agency made before 2026-10-22 kept the shared Invoices — a second billing book whose payments
+   * neither its dashboard nor its Billing counted, reachable only by a typed address — and Time Tracking, whose Time page
+   * an agency's menu doesn't have (live test 2026-10-22). Only rows that change are written; the gate's cache is dropped
+   * for them. Never throws: a failed sweep leaves the list as it was. Returns what it took off, for the log and tests.
+   */
+  async function dropUnofferedFeatures(): Promise<Array<{ companyId: string; dropped: string[] }>> {
+    const out: Array<{ companyId: string; dropped: string[] }> = []
+    try {
+      const rows = await db.select({ id: company.id, enabledFeatures: company.enabledFeatures }).from(company)
+      for (const r of rows as Array<{ id: string; enabledFeatures: unknown }>) {
+        const was = Array.isArray(r.enabledFeatures) ? (r.enabledFeatures as unknown[]).filter((f): f is string => typeof f === 'string') : []
+        const kept = withinOffer(vertical.featureSet, was)
+        const dropped = was.filter((f) => !kept.includes(f))
+        if (!dropped.length) continue
+        await db.update(company).set({ enabledFeatures: kept, updatedAt: new Date() }).where(eq(company.id, r.id))
+        deps.features.forgetFeatures(r.id)
+        out.push({ companyId: r.id, dropped })
+      }
+    } catch { /* the list stays as it was; the next boot tries again */ }
+    return out
+  }
 
   return {
     /** Pull the subscription from the Factory (at boot), so the mirror is right even if a push was missed. */
     refreshSubscription: () => refreshSubscriptionFromFactory(billingDeps as any),
+    dropUnofferedFeatures,
     mounts: [
       // POST /logo (Settings › Company's logo upload, ./companyLogo.ts) beside the shared company routes.
       { path: '/api/company', access: 'user' as const, router: new Hono().route('/', createCompanyLogoRoute({ db, store: deps.store, requireAdmin: isAdmin })).route('/', companyRoutes) },

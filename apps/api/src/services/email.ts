@@ -148,26 +148,25 @@ async function ownerOf(tenant: { id?: string | null; name?: string | null }, giv
 
 // ─── Product name helper ────────────────────────────────────────────────────
 
-function getProductName(industry?: string, products?: string[]): string {
-  if (industry === 'home_care') return 'Care'
+/**
+ * Each CRM's product name, by the template the industry is routed to (config/industryRouting.ts crmTemplateFor) — the
+ * names the rest of the system sells them by (the platform's PRODUCT_META, twomiah.com/signup/roof, StepCompany): a
+ * roofer is on Twomiah Roof. The welcome and ready emails called a roofing business's product "Twomiah Build" (live test
+ * 2026-10-22), because only some verticals were listed and everything else fell through to the contractor's name —
+ * landscaping, cannabis and the shop too. Keyed by template, so every industry a template serves gets its name and a new
+ * template is one line here.
+ */
+const PRODUCT_BY_TEMPLATE: Record<string, string> = {
+  'crm': 'Build', 'crm-homecare': 'Care', 'crm-fieldservice': 'Wrench', 'crm-roof': 'Roof', 'crm-landscaping': 'Landscaping',
+  'crm-dispensary': 'Leaf', 'crm-rv': 'Roam', 'crm-vet': 'Vet', 'crm-salon': 'Salon', 'crm-restaurant': 'Events',
+  'crm-bar': 'Bar', 'crm-store': 'Store', 'crm-basic': 'Basic', 'crm-automotive': 'Drive',
+}
+
+export function getProductName(industry?: string, products?: string[]): string {
   if (industry === 'automotive') return 'Drive'
-  if (verticalFor(industry) === 'rv') return 'Roam'
-  if (verticalFor(industry) === 'veterinary') return 'Vet'
-  if (verticalFor(industry) === 'salon') return 'Salon'
-  if (verticalFor(industry) === 'bar') return 'Bar'
-  if (verticalFor(industry) === 'events') return 'Events'
-  if (industry === 'field_service' || industry === 'hvac' || industry === 'plumbing' || industry === 'electrical') return 'Wrench'
-  // basic, showcase and foodtruck all land on crm-basic, so key on the TEMPLATE rather than adding three
-  // vertical checks that could drift apart. 'Build' stays the contractor default below.
-  if (crmTemplateFor(industry) === 'crm-basic') return 'Basic'
-  if (products?.includes('crm-fieldservice')) return 'Wrench'
-  if (products?.includes('crm-homecare')) return 'Care'
-  if (products?.includes('crm-automotive')) return 'Drive'
-  if (products?.includes('crm-rv')) return 'Roam'
-  if (products?.includes('crm-vet')) return 'Vet'
-  if (products?.includes('crm-salon')) return 'Salon'
-  if (products?.includes('crm-bar')) return 'Bar'
-  if (products?.includes('crm-restaurant')) return 'Events'
+  if (industry) return PRODUCT_BY_TEMPLATE[crmTemplateFor(industry)] || 'Build'
+  // No industry on the row: an older tenant whose products name the template.
+  for (const [template, name] of Object.entries(PRODUCT_BY_TEMPLATE)) if (template !== 'crm' && products?.includes(template)) return name
   return 'Build'
 }
 

@@ -220,7 +220,7 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
         { label: 'Mark approved', icon: Check, onClick: r => act(`/api/quotes/${r.id}/approve`, 'Quote approved'), show: r => mayUpdate && EDITABLE.includes(r.status) },
         { label: cfg.quoteDecline ? 'Mark declined' : 'Mark rejected', icon: X, onClick: r => act(`/api/quotes/${r.id}/${cfg.quoteDecline ? 'decline' : 'reject'}`, cfg.quoteDecline ? 'Quote declined' : 'Quote rejected'), show: r => mayUpdate && EDITABLE.includes(r.status) },
         { label: 'Convert to Invoice', icon: FileText, onClick: async r => { const inv = await act(`/api/quotes/${r.id}/convert-to-invoice`, 'Invoice created'); if (inv?.id) navigate(`/crm/invoices/${inv.id}`) }, show: r => mayInvoice && r.status === 'approved' },
-        ...(cfg.jobs ? [{ label: 'Convert to Job', icon: Briefcase, onClick: async (r: Row) => { const job = await act(`/api/quotes/${r.id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }, show: (r: Row) => mayJob && r.status === 'approved' && !r.convertedToJobId }] : []),
+        ...(cfg.jobs ? [{ label: 'Convert to Job', icon: Briefcase, onClick: async (r: Row) => { const job = await act(`/api/quotes/${r.id}/convert-to-job`, 'Job created from quote'); if (job?.id) navigate(cfg.jobPath(job.id)) }, show: (r: Row) => mayJob && r.status === 'approved' && !r.convertedToJobId && !r.jobId }] : []),
         { label: 'Delete', icon: Trash2, onClick: r => setDeleteTarget(r), className: 'text-red-600', show: r => mayDelete && r.status === 'draft' },
       ]} />
 

@@ -10,6 +10,7 @@ import {
 import { api } from '../../../api'
 import FormError, { errorText } from '../../ui/FormError'
 import { STATUS_COLORS, fmtEventDate, prettyType, localDay } from './EventsPage';
+import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
 
 /**
@@ -42,7 +43,7 @@ function money(v: number | string | undefined | null): string {
   return `${formatMoney(Number(v || 0))}`;
 }
 function isOverdue(dueDate?: string): boolean {
-  return !!dueDate && dueDate < localDay();
+  return isPastDay(dueDate);
 }
 
 export default function DashboardPage() {

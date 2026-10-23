@@ -20,6 +20,7 @@ import { errorText, useMayWrite, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
 import { listOf } from './http'
 import PinMap, { coord, type Pin } from './PinMap'
+import { todayKey } from '@twomiah/tenant-ui/src/time/day'
 
 const DAMAGE_COLORS: Record<string, string> = {
   minor: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40',
@@ -86,7 +87,7 @@ export default function StormLeadsPage() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
 
   // New event form
-  const [newDate, setNewDate] = useState(new Date().toISOString().slice(0, 10))
+  const [newDate, setNewDate] = useState(todayKey())
   const [newType, setNewType] = useState('hail')
   const [newHailSize, setNewHailSize] = useState('1.5')
   const [newWindSpeed, setNewWindSpeed] = useState('')

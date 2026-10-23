@@ -14,7 +14,7 @@
 // caregiver's record in place (CaregiverDetail), as it did.
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useConfirm, useToast, usePermissions } from '../../../../shared'
+import { useAuth, useConfirm, useToast, usePermissions } from '../../../../shared'
 import { api, errorMessage, rows, listAll } from '../lib/http'
 import { useMay } from '../lib/useMay'
 import { formatDate } from '../lib/date'
@@ -107,6 +107,8 @@ export default function CaregiverManagement() {
   const mayHr = useMay('care-hr')
   const mayPayroll = useMay('care-payroll')
   const mayPortal = useMay('care-portal')
+  // Texting caregivers is the Two-Way Texting switch's (two_way_texting), as the SMS page is.
+  const textingOn = useAuth().hasFeature('two_way_texting')
   const { can } = usePermissions()
   const toast = useToast()
   const confirm = useConfirm()
@@ -337,7 +339,7 @@ export default function CaregiverManagement() {
           <button onClick={exportCsv} style={{ padding: '0.35rem 0.75rem', background: 'var(--hc-surface)', color: 'var(--hc-ink)', border: '1px solid var(--hc-line)', borderRadius: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
             📥 Export CSV
           </button>
-          {mayPortal.create && <button onClick={() => setShowBulkMsg(true)}
+          {mayPortal.create && textingOn && <button onClick={() => setShowBulkMsg(true)}
             style={{ padding: '0.35rem 0.75rem', background: 'var(--hc-brand-deep)', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
             📱 Send SMS
           </button>}

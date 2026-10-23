@@ -9,6 +9,7 @@ import {
 import { api } from '../../api'
 import { CallTrackingSettings, usePermissions } from '../../shared'
 import type { LucideIcon } from 'lucide-react'
+import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 interface CallFilters {
   source: string;
@@ -377,7 +378,7 @@ function CallRow({ call }: CallRowProps) {
       </td>
       <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
         <p>{formatDate(call.startTime)}</p>
-        <p className="text-sm">{new Date(call.startTime).toLocaleTimeString()}</p>
+        <p className="text-sm">{whenTime(call.startTime)}</p>
       </td>
       <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
         {call.duration > 0 ? formatDuration(call.duration) : '-'}

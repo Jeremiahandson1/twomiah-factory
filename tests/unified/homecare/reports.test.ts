@@ -39,7 +39,7 @@ const templateShape = (v: any): any => Array.isArray(v) ? v.map(templateShape) :
 await setupSchema()
 
 // ── the agency: Wisconsin, no zone set → America/Chicago (CDT, UTC-5, in September) ─────────────
-const [ag] = await db.insert(agencies).values({ name: 'Northwoods Care', slug: 'northwoods', state: 'WI' } as any).returning()
+const [ag] = await db.insert(agencies).values({ name: 'Northwoods Care', slug: 'northwoods', state: 'WI', enabledFeatures: ['documents', 'reports', 'two_way_texting'] } as any).returning()
 const mkUser = async (role: string, tag: string, extra: Record<string, unknown> = {}) => (await db.insert(users).values({
   email: `${tag}-rpt@test.local`, passwordHash: 'x', firstName: tag, lastName: 'Test', role, ...extra,
 } as any).returning())[0]

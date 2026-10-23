@@ -11,6 +11,7 @@
 import { useState } from 'react'
 import { api, errorMessage } from '../lib/http'
 import { usePolling } from '../lib/usePolling'
+import { agencyFromLocalInput } from '../lib/agencyClock'
 import { useMayWrite } from '../../../../shared'
 import VisitGpsMap from './VisitGpsMap'
 import { CHIP, EDGE, INK, RING, backdrop, field, panel, type Tone } from './ui'
@@ -129,7 +130,7 @@ const LiveBoard = () => {
     if (closeMode === 'scheduled') body.scheduled = true
     else if (closeMode === 'time') {
       if (!closeEndTime) { setCloseError('Pick an end time.'); return }
-      body.endTime = new Date(closeEndTime).toISOString()
+      body.endTime = agencyFromLocalInput(closeEndTime).toISOString() // the box is the agency's wall clock
     } // 'now' → neither (the server uses now)
     setClosing(true)
     try {

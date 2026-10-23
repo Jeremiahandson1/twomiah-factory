@@ -116,6 +116,8 @@ export function createPatientRoutes(d: CrmDeps) {
       .where(and(eq(labResult.patientId, id), eq(labResult.companyId, currentUser.companyId)))
       .orderBy(desc(labResult.resultDate))
 
+    // A switched-off Prescriptions or Lab Results is not on the chart either (the tabs follow the same switches).
+    const [rxOn, labsOn] = await Promise.all([d.features.isFeatureEnabled(currentUser.companyId, 'prescriptions'), d.features.isFeatureEnabled(currentUser.companyId, 'lab_results')])
     return one(c, {
       patient: pat,
       owner: owner ? withoutPortalCredential(owner) : null,
@@ -124,8 +126,8 @@ export function createPatientRoutes(d: CrmDeps) {
       visitsTotal: Number(visitsTotal) || 0,
       visitsCap: VISIT_CAP,
       vaccinations,
-      prescriptions,
-      labResults,
+      prescriptions: rxOn ? prescriptions : [],
+      labResults: labsOn ? labResults : [],
     })
   })
 

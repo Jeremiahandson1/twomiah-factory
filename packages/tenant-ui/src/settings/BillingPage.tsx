@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 // The shared money format (cents and thousands separators) — this page's own `money` below is the plan-price short form.
 import { money as usd } from '../invoicing/ui'
 import { api } from '../api/client'
+import { momentDate } from '../time/companyClock'
 
 // Settings → Billing — READ-ONLY. Plans are sold, changed and cancelled by the Twomiah Factory
 // (Stripe lives there). This page shows the subscription the Factory reports for this tenant and
@@ -52,7 +53,7 @@ function authHeaders(): Record<string, string> {
   return { 'Content-Type': 'application/json' }
 }
 const money = (n: number | null) => (n == null ? null : '$' + (Number.isInteger(n) ? n.toString() : n.toFixed(2)))
-const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null)
+const date = (iso: string | null) => (iso ? momentDate(iso, { year: 'numeric', month: 'short', day: 'numeric' }) : null)
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   active:   { label: 'Active',    cls: 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' },

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useConfirm } from '../ui/ConfirmProvider'
 import { api } from '../api/client'
+import { momentDate } from '../time/companyClock'
 
 // One-click Leave Twomiah + 30-day grace countdown + reactivate.
 // Calls are proxied through the tenant backend; X-Factory-Key auth happens
@@ -88,7 +89,7 @@ export function AccountOffboardPage(): React.ReactElement {
         <div className="border border-yellow-300 dark:border-yellow-700/50 rounded-md p-5 bg-yellow-50 dark:bg-yellow-900/20 mb-6">
           <div className="font-semibold text-yellow-900 dark:text-yellow-200 mb-2">Offboarding in progress</div>
           <p className="text-sm text-yellow-900 dark:text-yellow-200 mb-3">
-            Your 30-day grace period {graceExpired ? 'has ended' : 'ends on'} <strong>{graceEnd.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
+            Your 30-day grace period {graceExpired ? 'has ended' : 'ends on'} <strong>{momentDate(graceEnd, { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
             {!graceExpired && <> — <strong>{daysRemaining} day{daysRemaining === 1 ? '' : 's'} remaining</strong>.</>}
           </p>
           <ul className="text-sm text-yellow-900 dark:text-yellow-200 space-y-1 mb-4 pl-5 list-disc">

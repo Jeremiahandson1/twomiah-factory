@@ -16,6 +16,7 @@ import { ChevronRight, CloudLightning, Plus, Save, Trash2, Trophy, X } from 'luc
 import { api } from '../../../../api'
 import { errorText, useAuth, useMayWrite, usePermissions, useToast } from '../../../../shared'
 import { formatDate } from '../../../date'
+import { companyDayBounds, companyDayStart, companyTodayKey } from '@twomiah/tenant-ui/src/time/companyClock'
 import { displayName } from '../lib/user'
 import { listOf } from './http'
 import PinMap, { coord, type Pin } from './PinMap'
@@ -112,15 +113,14 @@ export default function CanvassingDashboard() {
   const filteredSessions = sessions.filter((s) => {
     if (filterRep && s.userId !== filterRep) return false
     if (filterWeather && !s.weatherEvent?.toLowerCase().includes(filterWeather.toLowerCase())) return false
-    if (filterDateFrom && new Date(s.startedAt || s.createdAt) < new Date(filterDateFrom)) return false
-    if (filterDateTo && new Date(s.startedAt || s.createdAt) > new Date(filterDateTo + 'T23:59:59')) return false
+    // The picked days are the company's: from its midnight on the first to the end of the last (not UTC's, not the browser's).
+    if (filterDateFrom && new Date(s.startedAt || s.createdAt) < new Date(companyDayBounds(filterDateFrom).from)) return false
+    if (filterDateTo && new Date(s.startedAt || s.createdAt) > new Date(companyDayBounds(filterDateTo).to)) return false
     return true
   })
 
   // Leaderboard: leads this month
-  const thisMonth = new Date()
-  thisMonth.setDate(1)
-  thisMonth.setHours(0, 0, 0, 0)
+  const thisMonth = companyDayStart(companyTodayKey().slice(0, 8) + '01') // the 1st, at the company's midnight
   const monthSessions = sessions.filter((s) => new Date(s.startedAt || s.createdAt) >= thisMonth)
   const repLeads: Record<string, { name: string; leads: number; doors: number }> = {}
   monthSessions.forEach((s) => {

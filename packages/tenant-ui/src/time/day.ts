@@ -13,15 +13,21 @@
 // the day on the wall behind them, so the browser's own local day is the correct question here, not UTC
 // and not a configured zone.
 //
+// 2026-10-23: there IS a company zone on the client now (time/companyClock.ts, set at sign-in), and "today" is the
+// company's day — the day its jobs, visits and due dates are counted on — as the server's businessToday() is. Before
+// a session names the zone, companyTodayKey() is the browser's day, which is what this returned.
+//
 // Dates are compared as `YYYY-MM-DD` strings throughout the CRM (`scheduledDate.startsWith(today)`,
 // `key === localDayKey(d)`), so these return that shape rather than a Date.
+
+import { companyTodayKey } from './companyClock'
 
 /** The calendar day of `d` where the viewer is sitting, as `YYYY-MM-DD`. Never UTC. */
 export const localDayKey = (d: Date = new Date()): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-/** Today, on the viewer's own calendar. The replacement for `new Date().toISOString().split('T')[0]`. */
-export const todayKey = (): string => localDayKey(new Date())
+/** Today, on the COMPANY's calendar (the browser's until a session names the zone). Replaces `new Date().toISOString().split('T')[0]`. */
+export const todayKey = (): string => companyTodayKey()
 
 /**
  * Step a `YYYY-MM-DD` key forward or back by whole days.

@@ -7,7 +7,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, inArray } from 'drizzle-orm'
-import { getFeaturesForTemplate, FEATURE_MAP } from '../featureRegistry'
+import { getFeaturesForTemplate, FEATURE_MAP, withinOffer } from '../featureRegistry'
 import { seatRefusal } from './seats'
 import { HAS_SCHEME, looksLikeWebAddress, healLogo, normalizeLogo } from './logoAddress'
 import { checkBusinessHours } from './businessHours'
@@ -476,8 +476,9 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     const currentUser = c.get('user') as any
     const { features } = (await readBody(c)) as { features?: unknown }
     if (!Array.isArray(features) || features.some((f: unknown) => typeof f !== 'string')) return c.json({ error: 'features must be an array of feature ids' }, 400)
-    // Only ids this template offers may be switched on. Ids the Factory already enabled stay (it may
-    // grant beyond the catalog); anything else is a 400. Core features are always kept on.
+    // Only ids this template offers may be switched on. Ids already on may be sent back (no 400 for them), and those
+    // this template still lists stay — a not-ready one a platform admin switched on included; anything else is a 400.
+    // Core features are always kept on.
     const [current] = await db.select({ enabledFeatures: t.company.enabledFeatures }).from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1)
     // Not-ready (hidden) features are not the owner's to switch on — the catalogue never shows them, and
     // the save does not accept them either. One already on (a platform admin's choice) survives a save.
@@ -492,7 +493,10 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       return c.json({ error: `${names} ${notReady.length === 1 ? "isn't" : "aren't"} ready yet, so ${notReady.length === 1 ? 'it' : 'they'} can't be switched on.`, code: 'feature_not_ready', notReady }, 400)
     }
     if (unknown.length) return c.json({ error: `Unknown feature ids for this product: ${unknown.join(', ')}` }, 400)
-    const next = [...new Set([...offered.filter((f) => f.core).map((f) => f.id), ...(features as string[])])]
+    // An id already on may come back in the save (the page sends what it was given), but only what this product still
+    // offers is kept (withinOffer): a feature taken off the industry goes at the owner's next save, never kept because
+    // it happened to be on (home care's shared Invoices, live test 2026-10-22).
+    const next = withinOffer(template, [...offered.filter((f) => f.core).map((f) => f.id), ...(features as string[])])
     const [row] = await db.update(t.company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(t.company.id, currentUser.companyId)).returning()
     if (!row) return c.json({ error: 'Company not found' }, 404)
     try { deps.onFeaturesChanged?.(next) } catch (e: any) { console.warn('[Features] onFeaturesChanged failed:', e?.message || e) }

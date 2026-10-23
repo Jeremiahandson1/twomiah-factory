@@ -12,8 +12,10 @@ import { lapsedPatients, stampVaccinationsReminded } from '../../data/vetReminde
 import type { CrmDeps } from '../deps.ts'
 import type { AppEnv } from '../../http/env.ts'
 import { fail, one } from '../../http/reply.ts'
+import { companyTimeZone, storeDateString } from '@twomiah/tenant-backend'
 
-const todayStr = () => new Date().toISOString().slice(0, 10)
+// The clinic's today (UTC's was a day ahead every evening).
+const todayStr = async (db: any, companyId: string) => storeDateString(new Date(), await companyTimeZone(db, companyId))
 
 /** A reminder sent inside this many days counts as "already chased". (Vet T12 M9) */
 const REMINDED_RECENTLY_DAYS = 7
@@ -66,6 +68,9 @@ export function createReminderRoutes(d: CrmDeps) {
   const { db } = d
   const { requirePermission } = d.permissions
   const app = new Hono<AppEnv>()
+  // The printable rabies certificate is the rabies_certificates switch's (Settings › Features): off, it is refused, as the
+  // chart's Rabies Certificate button is gone (live retest 2026-10-22: the switch hid nothing).
+  app.use('/rabies/*', d.features.requireEnabledFeature('rabies_certificates'))
 
   // GET /reminders/due?window=30 — the latest administration per pet+vaccine whose due date is within `window` days
   // (or past). A report: its counts beside its rows, as the template answered.
@@ -93,7 +98,7 @@ export function createReminderRoutes(d: CrmDeps) {
       const cur = latest.get(key)
       if (!cur || (r.givenDate || '') > (cur.givenDate || '')) latest.set(key, r)
     }
-    const t = todayStr()
+    const t = await todayStr(db, u.companyId)
     const recentCutoff = Date.now() - REMINDED_RECENTLY_DAYS * 86400000
     const data = [...latest.values()]
       .filter((r) => (r.dueDate || '') <= cutoff)

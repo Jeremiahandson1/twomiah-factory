@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { MessageSquare, Send, Search, User, Clock, Check, CheckCheck, AlertCircle, Loader2, Plus, ArrowLeft, Archive } from 'lucide-react'
 import { errMsg, inputCls } from '../invoicing/ui'
 import type { MarketingApi, MarketingToast, MessagesConfig } from './types'
+import { momentDate, whenTime } from '../time/companyClock'
 
 interface Conversation { id: string; phoneNumber?: string; unreadCount?: number; contact?: { id?: string; name?: string; email?: string } | null; lastMessage?: { body?: string; direction?: string; createdAt?: string } | null; archived?: boolean }
 interface Msg { id: string; body: string; direction: 'inbound' | 'outbound' | string; status?: string; createdAt: string }
@@ -24,7 +25,7 @@ function timeAgo(v?: string): string {
   if (m < 60) return `${m}m`
   if (h < 24) return `${h}h`
   if (d < 7) return `${d}d`
-  return new Date(v).toLocaleDateString()
+  return momentDate(v)
 }
 /** Backend rows are { conversation, contact } — flatten so conv.id / phoneNumber / unreadCount resolve (CC-03/VET-05). */
 const flatten = (rows: any[]): Conversation[] => (rows || []).map((row: any) => (row?.conversation ? { ...row.conversation, contact: row.contact } : row))
@@ -152,7 +153,7 @@ function Thread({ api, toast, messages, loading, conversationId, onSent }: { api
             <div key={msg.id} className={`flex ${out ? 'justify-end' : 'justify-start'}`}>
               <div className="max-w-[70%]">
                 <div className={`px-4 py-2 rounded-2xl ${out ? 'bg-orange-500 text-white rounded-br-md' : 'bg-white border rounded-bl-md dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100'}`}><p className="text-sm whitespace-pre-wrap">{msg.body}</p></div>
-                <div className={`flex items-center gap-1 mt-1 ${out ? 'justify-end' : ''}`}><span className="text-xs text-gray-500 dark:text-slate-400">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>{out && icon(msg.status)}</div>
+                <div className={`flex items-center gap-1 mt-1 ${out ? 'justify-end' : ''}`}><span className="text-xs text-gray-500 dark:text-slate-400">{whenTime(msg.createdAt, { hour: '2-digit', minute: '2-digit' })}</span>{out && icon(msg.status)}</div>
               </div>
             </div>
           )

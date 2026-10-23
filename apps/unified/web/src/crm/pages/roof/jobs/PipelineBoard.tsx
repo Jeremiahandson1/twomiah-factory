@@ -84,7 +84,8 @@ export default function PipelineBoard() {
       const [jobsRes, usersRes, crewsRes] = await Promise.all([
         api.get('/api/jobs', { limit: 500 }),
         maySeeRoster ? api.get('/api/company/users') : Promise.resolve([]),
-        api.get('/api/crews'),
+        // Crews are the crews switch's (GET /api/crews refuses when off): the lists, filters and pickers go with it.
+        hasFeature('crews') ? api.get('/api/crews') : Promise.resolve({ data: [] }),
       ])
       setJobs(rowsOf<RoofJob>(jobsRes))
       setUsers(rowsOf<Person>(usersRes))
@@ -195,7 +196,7 @@ export default function PipelineBoard() {
             <option key={u.id} value={u.id}>{displayName(u)}</option>
           ))}
         </select>
-        <select
+        {hasFeature('crews') && <select
           value={filterCrew}
           onChange={(e) => setFilterCrew(e.target.value)}
           className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900"
@@ -204,7 +205,7 @@ export default function PipelineBoard() {
           {crews.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
-        </select>
+        </select>}
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}

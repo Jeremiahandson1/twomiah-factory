@@ -19,6 +19,8 @@ export interface TabDef {
   activeIcon: string
   /** Shown only to a seat the server grants this (useAuth().can) — the route behind the tab checks the same one. */
   permission?: string
+  /** Shown only while this switch (Settings › Features) is on — the API behind the tab is gated on the same one. */
+  feature?: string
 }
 
 const CONTRACTOR_TABS: TabDef[] = [
@@ -67,7 +69,7 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
     { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid', permission: 'dashboard:read' },
     { name: 'units', title: 'Inventory', icon: 'car-sport-outline', activeIcon: 'car-sport' },
     { name: 'parts', title: 'Parts', icon: 'construct-outline', activeIcon: 'construct' },
-    { name: 'ai-trade', title: 'Trade', icon: 'cash-outline', activeIcon: 'cash', permission: 'contacts:update' },
+    { name: 'ai-trade', title: 'Trade', icon: 'cash-outline', activeIcon: 'cash', permission: 'contacts:update', feature: 'trade_in' },
     { name: 'contacts', title: 'Customers', icon: 'people-outline', activeIcon: 'people', permission: 'contacts:read' },
   ],
   unavailable: [],

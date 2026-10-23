@@ -19,10 +19,11 @@ import { jobMoneyWithheld, withoutJobMoney } from './jobMoney'
 // totals and the UTC date normalisation cannot drift from invoices, quotes, agreements or visits. (T41)
 import { insertInvoice } from '../invoicing/invoices'
 import { withoutPortalCredential } from '../contacts/contacts'
-import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
+import { companyTimeZone, storeDayRange, jobLocalDay, storeDateString, markerDay } from '../time/businessDay'
 import { checkFilter } from '../listFilter'
 import { withinHorizon, horizonMessage } from '../dateInput'
 import { sniffType } from '../files/storage'
+import { seriesDays, describeSeriesDays, MAX_SERIES, type SeriesFrequency } from '../time/series'
 import { zipField } from '../address'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
@@ -35,9 +36,25 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
    * The company's branches (multi_location). Present, with a location_id column on the job table → a job can be put
    * at a branch, the list filters by it (?locationId=), and each job comes back with its branch's name and code.
    */
-  location?: any }
+  location?: any
+  /**
+   * Repeating jobs (job_series, with job.series_id / series_index). Present → a new job may carry `repeat` and is made
+   * as a series of visits, GET /:id says which series a visit is in, and POST /:id/series/stop ends it. Absent → none
+   * of that, as before (the CRM templates' job tables have no series).
+   */
+  jobSeries?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
 export type JobHook = (ctx: { job: any; companyId: string; userId: string }) => Promise<Record<string, any> | void> | Record<string, any> | void
+/** A job's moments: on the way, on site, done (the vertical's texts, the review request, an agreement's next visit). */
+export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook }
+/**
+ * The hook a status runs when a job moves INTO it — one table for every door a status is reached by: the buttons, the
+ * edit form, the Dispatch Board (PUT /:id) and bulk updates (bulk.ts). Staying in a status runs nothing. (2026-10-22)
+ */
+export function jobHookFor(status: string, hooks: JobHooks | undefined): JobHook | undefined {
+  if (!hooks) return undefined
+  return status === 'completed' ? hooks.onComplete : status === 'in_progress' ? hooks.onStart : status === 'dispatched' ? hooks.onDispatch : undefined
+}
 
 export interface JobOptions {
   numbering?: { prefix?: string; pad?: number }
@@ -220,6 +237,37 @@ export function createJobRoutes(deps: JobDeps) {
     ...(o.extraFields || {}),
   })
   const branches = !!(t.location && t.job.locationId)
+  /** Repeating jobs, where the vertical's tables have them (JobTables.jobSeries). */
+  const seriesOn = !!(t.jobSeries && t.job.seriesId)
+  /**
+   * A job's `repeat`: { frequency: 'weekly' | 'monthly', interval?: 1–12, count?: 2–52, until?: YYYY-MM-DD }. It needs
+   * the job's day (the first visit), and an end — a number of visits or a last day — because a series with no end would
+   * fill the calendar for good. Refusals are sentences about the boxes on the form.
+   */
+  const readRepeat = (raw: any, firstDate?: string): { spec: { frequency: SeriesFrequency; intervalCount: number; firstDate: string; occurrencesCount?: number | null; untilDate?: string | null } } | { error: string } => {
+    const frequency = raw?.frequency
+    if (frequency !== 'weekly' && frequency !== 'monthly') return { error: 'Choose how often it repeats: every week, every few weeks, or every month.' }
+    const day = typeof firstDate === 'string' ? firstDate.slice(0, 10) : ''
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { error: `Give the ${jobWord} a scheduled date — the first visit — before making it repeat.` }
+    const interval = raw?.interval === undefined || raw?.interval === null || raw?.interval === '' ? 1 : Number(raw.interval)
+    if (!Number.isInteger(interval) || interval < 1 || interval > 12) return { error: 'Repeat every 1 to 12 weeks or months.' }
+    const hasCount = raw?.count !== undefined && raw?.count !== null && raw?.count !== ''
+    const hasUntil = typeof raw?.until === 'string' && raw.until.trim() !== ''
+    if (!hasCount && !hasUntil) return { error: 'Say when the repeats end: after a number of visits, or on a date.' }
+    let occurrencesCount: number | null = null, untilDate: string | null = null
+    if (hasCount) {
+      const n = Number(raw.count)
+      if (!Number.isInteger(n) || n < 2 || n > MAX_SERIES) return { error: `A repeating ${jobWord} has 2 to ${MAX_SERIES} visits.` }
+      occurrencesCount = n
+    }
+    if (hasUntil) {
+      const u = String(raw.until).trim()
+      if (!validDate(u) || !/^\d{4}-\d{2}-\d{2}$/.test(u)) return { error: 'The last day of the repeats is not a real date.' }
+      if (u <= day) return { error: 'The repeats must end after the first visit.' }
+      untilDate = u
+    }
+    return { spec: { frequency, intervalCount: interval, firstDate: day, occurrencesCount, untilDate } }
+  }
   /** A branch must be one of this company's — an id from anywhere else is refused, not stored. */
   const branchRefusal = async (companyId: string, locationId: unknown) => {
     if (!branches || !locationId) return null
@@ -355,7 +403,18 @@ export function createJobRoutes(deps: JobDeps) {
       ...(branches ? { location: j.locationId ? lm[j.locationId] || null : null } : {}),
     }))
   }
-  const isOverdue = (j: any) => !!(j.scheduledDate && OPEN_JOB_STATUSES.includes(String(j.status)) && new Date(j.scheduledDate).getTime() < Date.now() - 86400000)
+  /**
+   * Overdue: still open and its day is over on the company's clock (2026-10-22). It was "24 hours after midnight UTC of
+   * the day", which is 7pm the next day in Chicago. The job's day is read by the rule jobLocalDay states: a booking's
+   * instant on the company's clock, a day marker as the day it names.
+   */
+  const isOverdue = (j: any, tz: string) => {
+    if (!j.scheduledDate || !OPEN_JOB_STATUSES.includes(String(j.status))) return false
+    const day = j.source === 'online_booking' ? storeDateString(new Date(j.scheduledDate), tz) : markerDay(new Date(j.scheduledDate))
+    return day < storeDateString(new Date(), tz)
+  }
+  /** The hook a status runs when a job moves into it — one table for the buttons and the edit (see PUT /:id). */
+  const hookFor = (status: string): JobHook | undefined => jobHookFor(status, o)
   const runHook = async (hook: JobHook | undefined, job: any, currentUser: any) => {
     if (!hook) return {}
     try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId })) || {} } catch (err: any) { console.warn('[jobs] hook failed:', err?.message || err); return {} }
@@ -422,7 +481,7 @@ export function createJobRoutes(deps: JobDeps) {
       db.select().from(t.job).where(where).orderBy(...order).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.job).where(where),
     ])
-    const withOverdue = (await withRelations(rows, currentUser.companyId)).map((j) => ({ ...j, isOverdue: isOverdue(j) }))
+    const withOverdue = (await withRelations(rows, currentUser.companyId)).map((j) => ({ ...j, isOverdue: isOverdue(j, tzForOrder) }))
     // What the work is WORTH is not part of reading the schedule. (T41)
     const data = await shapeJobMoney(c, withOverdue)
     // Every status a job can hold (JOB_STATUSES, the list the filter above and every write are checked against), so the
@@ -515,13 +574,18 @@ export function createJobRoutes(deps: JobDeps) {
     // one assignedTo whichever kind of person is on the job — same shape the list gives (T21 M12)
     const [withAssignee] = await withRelations([found], currentUser.companyId)
     // The same rule as the list. Both reads return the whole job row, so both carried the value. (T41)
-    const base = await shapeJobMoney(c, found)
+    const base: any = await shapeJobMoney(c, found)
+    if (seriesOn && found.seriesId) base.series = await seriesOf(found, currentUser.companyId)
     return c.json({ ...base, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries: entries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}), ...(branches ? { location: withAssignee?.location ?? null } : {}) })
   })
 
   app.post('/', requirePermission('jobs:create'), async (c) => {
     const currentUser = c.get('user') as any
-    const data: any = jobSchema.parse(await c.req.json())
+    const body: any = await c.req.json()
+    const data: any = jobSchema.parse(body)
+    // A repeat is read beside the job (the job schema knows nothing of it) and refused in words before anything is made.
+    const repeat = seriesOn && body?.repeat ? readRepeat(body.repeat, data.scheduledDate) : null
+    if (repeat && 'error' in repeat) return c.json({ error: repeat.error, fields: { repeat: repeat.error } }, 400)
     const badBranch = await branchRefusal(currentUser.companyId, data.locationId)
     if (badBranch) return c.json({ error: badBranch }, 400)
     const who = await resolveAssignee(currentUser.companyId, data.assignedToId, data.assignedToMemberId)
@@ -533,36 +597,73 @@ export function createJobRoutes(deps: JobDeps) {
     // New-Job requests for the same tech/slot can't both pass the check and double-book (the check ran
     // outside the write before, so a race stacked two jobs at 10:00). (FS double-booking race)
     let clash: any = null
-    const created = await db.transaction(async (tx: any) => {
-      await jobLock(tx, currentUser.companyId)
-      clash = await assigneeConflict(currentUser.companyId, who, data.scheduledDate, data.scheduledTime, undefined, tx, data.estimatedHours)
-      if (clash) return null
+    // A repeating job's visits that could not be booked for their assignee, listed back rather than silently made.
+    const skipped: Array<{ date: string; reason: string }> = []
+    let seriesRow: any = null
+    let made = 0
+    const insertOne = async (tx: any, scheduledDate: string | undefined, extra: Record<string, unknown> = {}) => {
       const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, currentUser.companyId, { prefix, pad })
       const [row] = await tx.insert(t.job).values({
         ...data,
         ...(o.defaultJobType && t.job.jobType && !(data as any).jobType ? { jobType: o.defaultJobType } : {}),
         number,
-        scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
+        scheduledDate: scheduledDate ? new Date(scheduledDate) : null,
         estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : null,
         // decimal columns take a string, the same as estimatedHours above — and only on a vertical
         // whose job table actually has the column (T32 M7).
         ...(t.job.estimatedValue ? { estimatedValue: data.estimatedValue !== undefined ? String(data.estimatedValue) : null } : { estimatedValue: undefined }),
         companyId: currentUser.companyId,
         createdById: currentUser.userId,
+        ...extra,
       }).returning()
       return row
+    }
+    const created = await db.transaction(async (tx: any) => {
+      await jobLock(tx, currentUser.companyId)
+      if (repeat && 'spec' in repeat) {
+        /**
+         * EVERY VISIT, ON THE CALENDAR, NOW. (live test 2026-10-22: "jobs have no repeat option")
+         *
+         * The series' days (time/series.ts — the booking engine's stepping) become job rows in this one transaction,
+         * under the same lock and the same overlap check as a single job, each numbered like any other. A day the
+         * assignee is already booked is listed back, not made; if none can be made, nothing is.
+         */
+        const days = seriesDays({ ...repeat.spec, max: MAX_SERIES })
+        ;[seriesRow] = await tx.insert(t.jobSeries).values({
+          companyId: currentUser.companyId, frequency: repeat.spec.frequency, intervalCount: repeat.spec.intervalCount,
+          firstDate: repeat.spec.firstDate, occurrencesCount: repeat.spec.occurrencesCount ?? null, untilDate: repeat.spec.untilDate ?? null,
+          createdById: currentUser.userId,
+        }).returning()
+        let first: any = null
+        for (const day of days) {
+          const other = await assigneeConflict(currentUser.companyId, who, day.date, data.scheduledTime, undefined, tx, data.estimatedHours)
+          if (other) { clash = clash || other; skipped.push({ date: day.date, reason: `already booked on ${other.number}${other.scheduledTime ? ` at ${other.scheduledTime}` : ''}` }); continue }
+          const row = await insertOne(tx, day.date, { seriesId: seriesRow.id, seriesIndex: day.index })
+          made++
+          if (!first) first = row
+        }
+        if (!first) { await tx.delete(t.jobSeries).where(eq(t.jobSeries.id, seriesRow.id)); seriesRow = null; return null }
+        clash = null
+        return first
+      }
+      clash = await assigneeConflict(currentUser.companyId, who, data.scheduledDate, data.scheduledTime, undefined, tx, data.estimatedHours)
+      if (clash) return null
+      return insertOne(tx, data.scheduledDate)
     })
     // Name the call AND when it starts: the clash is now an overlap, so "at this time" would be a lie
     // for a 09:30 call refused because an 09:00 two-hour one is already there. (FS T28 H1)
     if (clash) return c.json({ error: `That person is already booked on ${clash.number}${clash.scheduledTime ? ` at ${clash.scheduledTime}` : ''}, which overlaps this one. Pick another time or assignee.`, conflictId: clash.id }, 409)
+    if (!created && repeat && 'spec' in repeat) return c.json({ error: `None of the visits could be booked: that person is ${skipped[0]?.reason || 'already booked'}. Pick another time or assignee.` }, 409)
     const [result] = await withRelations([created], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, result)
     // The saved row comes back whole; a write's reply is a read like any other (./jobMoney.ts).
-    return c.json(await shapeJobMoney(c, result), 201)
+    const reply: any = await shapeJobMoney(c, result)
+    if (seriesRow) reply.series = { id: seriesRow.id, summary: describeSeriesDays(seriesRow), made, skipped }
+    return c.json(reply, 201)
   })
 
   app.put('/:id', requirePermission('jobs:update'), async (c) => {
-    const currentUser = c.get('user') as any
+    const currentUser = (c as any).get('user')
     const id = c.req.param('id')
     // The edit form posts back exactly what the API returned, including null for empty relations;
     // optional string fields reject null, so map null → undefined (clearing a field uses '').
@@ -662,8 +763,17 @@ export function createJobRoutes(deps: JobDeps) {
     if (clash) return c.json({ error: `That person is already booked on ${clash.number}${clash.scheduledTime ? ` at ${clash.scheduledTime}` : ''}, which overlaps this one. Pick another time or assignee.`, conflictId: clash.id }, 409)
     const [result] = await withRelations([updated], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, result)
+    /**
+     * A STATUS IS REACHED ONE WAY, WHICHEVER DOOR. (live test 2026-10-22: no review request when a job completed)
+     *
+     * Complete, Start and Dispatch ran their hooks (the review request, the next agreement visit, the customer's
+     * texts) only through POST /:id/complete|start|dispatch. The edit form's status box and the Dispatch Board both
+     * PUT the status here, so a job completed that way asked nobody for a review and made no next visit. Moving INTO a
+     * status now runs that status's hook here too; staying in it runs nothing.
+     */
+    const more = data.status !== undefined && data.status !== existing.status ? await runHook(hookFor(data.status), updated, currentUser) : {}
     // A field seat holds jobs:update: the saved row's money is withheld as the read's is (./jobMoney.ts).
-    return c.json(await shapeJobMoney(c, result))
+    return c.json({ ...(await shapeJobMoney(c, result)), ...more })
   })
 
   app.delete('/:id', requirePermission('jobs:delete'), async (c) => {
@@ -674,6 +784,46 @@ export function createJobRoutes(deps: JobDeps) {
     emitToCompany(currentUser.companyId, EVENTS.JOB_DELETED, { id })
     return c.body(null, 204)
   })
+
+  // ---------------------------------------------------------------- repeating jobs
+  /**
+   * What a series is, for the job page: "Every week, 12 times — visit 3 of 12, 9 still to come".
+   * `upcoming` counts the visits after this one that are still open; those are what Stop cancels.
+   */
+  async function seriesOf(visit: any, companyId: string) {
+    const [row] = await db.select().from(t.jobSeries).where(and(eq(t.jobSeries.id, visit.seriesId), eq(t.jobSeries.companyId, companyId))).limit(1)
+    if (!row) return null
+    const visits = await db.select({ id: t.job.id, status: t.job.status, scheduledDate: t.job.scheduledDate }).from(t.job)
+      .where(and(eq(t.job.companyId, companyId), eq(t.job.seriesId, row.id)))
+    const after = (v: any) => !!v.scheduledDate && !!visit.scheduledDate && new Date(v.scheduledDate).getTime() > new Date(visit.scheduledDate).getTime()
+    const upcoming = visits.filter((v: any) => after(v) && !SERIES_DONE.includes(String(v.status))).length
+    return { id: row.id, summary: describeSeriesDays(row), status: row.status, index: visit.seriesIndex ?? null, total: visits.length, upcoming }
+  }
+  /** A visit already under way or over is never cancelled by stopping its series. */
+  const SERIES_DONE = ['in_progress', 'completed', 'cancelled']
+  if (seriesOn) {
+    /**
+     * Stop the series from this visit on: every LATER visit still open is cancelled (kept, greyed on the calendar, the
+     * way a cancelled booking series is — not deleted), and the series is marked stopped. This visit and the earlier
+     * ones stay as they are. jobs:update, the right that changes a job's status.
+     */
+    app.post('/:id/series/stop', requirePermission('jobs:update'), async (c) => {
+      const currentUser = (c as any).get('user')
+      const visit = await findOwned(c.req.param('id'), currentUser.companyId)
+      if (!visit) return c.json({ error: 'Job not found' }, 404)
+      if (!visit.seriesId) return c.json({ error: `This ${jobWord} does not repeat.` }, 400)
+      const later = and(
+        eq(t.job.companyId, currentUser.companyId), eq(t.job.seriesId, visit.seriesId),
+        notInArray(t.job.status, SERIES_DONE),
+        visit.scheduledDate ? sql`${t.job.scheduledDate} > ${new Date(visit.scheduledDate)}` : sql`false`,
+      )
+      const cancelled = await db.update(t.job).set({ status: 'cancelled', updatedAt: new Date() }).where(later).returning({ id: t.job.id })
+      await db.update(t.jobSeries).set({ status: 'stopped', stoppedAt: new Date(), updatedAt: new Date() })
+        .where(and(eq(t.jobSeries.id, visit.seriesId), eq(t.jobSeries.companyId, currentUser.companyId)))
+      for (const r of cancelled) emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: r.id, status: 'cancelled' })
+      return c.json({ cancelled: cancelled.length, series: await seriesOf(visit, currentUser.companyId) })
+    })
+  }
 
   // ---------------------------------------------------------------- lifecycle
   const transition = (path: string, status: string, hook: () => JobHook | undefined, extra: () => Record<string, any> = () => ({})) => {
@@ -696,9 +846,9 @@ export function createJobRoutes(deps: JobDeps) {
       return c.json({ ...(await shapeJobMoney(c, updated)), ...more })
     })
   }
-  transition('start', 'in_progress', () => o.onStart)
-  transition('complete', 'completed', () => o.onComplete, () => ({ completedAt: new Date() }))
-  transition('dispatch', 'dispatched', () => o.onDispatch)
+  transition('start', 'in_progress', () => hookFor('in_progress'))
+  transition('complete', 'completed', () => hookFor('completed'), () => ({ completedAt: new Date() }))
+  transition('dispatch', 'dispatched', () => hookFor('dispatched'))
 
   /**
    * POST /:id/invoice — bill this job. Mounted only where options.billing says the template can. (T41)

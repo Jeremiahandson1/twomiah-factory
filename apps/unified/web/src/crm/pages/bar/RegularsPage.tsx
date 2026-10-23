@@ -5,6 +5,7 @@ import { api } from '../../../api'
 import { useMayWrite } from '../../../shared'
 import FormError, { errorText } from '../../ui/FormError'
 import { BTN, ON, OFF, DANGER, CARD, LABEL, INPUT, MUTED, money, centsFrom, Dialog } from './registerUi';
+import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
  * THE REGULARS — the bar's loyalty programme. Points on what a regular spends on food and drink (never tax, tips
@@ -131,7 +132,7 @@ function MemberList() {
             <button className="w-full text-left py-2 flex items-center justify-between gap-3 min-h-[48px] text-gray-900 dark:text-slate-100" onClick={() => setOpen(m)}>
               <span className="min-w-0">
                 <span className="font-semibold block truncate">{m.name}</span>
-                <span className={`block text-xs ${MUTED}`}>{[m.phone, m.lastActivityAt ? `last in ${new Date(m.lastActivityAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : null].filter(Boolean).join(' · ')}</span>
+                <span className={`block text-xs ${MUTED}`}>{[m.phone, m.lastActivityAt ? `last in ${momentDate(m.lastActivityAt, { month: 'short', day: 'numeric' })}` : null].filter(Boolean).join(' · ')}</span>
               </span>
               <span className="font-mono text-right shrink-0">{m.pointsBalance} pts<span className={`block text-xs ${MUTED}`}>{m.lifetimePoints} all time</span></span>
             </button>
@@ -165,7 +166,7 @@ function MemberDialog({ member, onClose, onChanged }: { member: Member; onClose:
       <ul className="text-sm divide-y divide-gray-200 dark:divide-slate-800 max-h-64 overflow-y-auto">
         {history?.map((t) => (
           <li key={t.id} className="py-1.5 flex justify-between gap-3 text-gray-900 dark:text-slate-100">
-            <span className="min-w-0">{t.description || t.type}<span className={`block text-xs ${MUTED}`}>{new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{t.createdBy ? ` · ${t.createdBy}` : ''}</span></span>
+            <span className="min-w-0">{t.description || t.type}<span className={`block text-xs ${MUTED}`}>{momentDate(t.createdAt, { month: 'short', day: 'numeric', year: 'numeric' })}{t.createdBy ? ` · ${t.createdBy}` : ''}</span></span>
             <span className="font-mono shrink-0">{t.points > 0 ? '+' : ''}{t.points}</span>
           </li>
         ))}

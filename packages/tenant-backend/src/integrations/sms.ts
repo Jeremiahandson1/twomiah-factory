@@ -427,6 +427,8 @@ export interface SmsRoutesDeps {
   twilioAuthToken?: string
   tables?: { company?: any }
   db?: any
+  /** The feature gate for everything but the webhooks and the admin's test text (the unified app: two_way_texting). */
+  requireFeature?: (c: any, next: any) => any
 }
 
 export function createSmsRoutes(deps: SmsRoutesDeps) {
@@ -472,6 +474,15 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
   })
 
   app.use('*', authenticate)
+  // The inbox, the 1:1 send, bulk, templates and auto-replies are Two-Way Texting's (deps.requireFeature: the
+  // two_way_texting switch, as its Messages item is). Off, they are refused — the menu, the contact's thread and the
+  // other send buttons are gone too. The webhooks above stay (the provider calls them), and so does the admin's test
+  // text: it checks the account every text goes through, booking reminders and review requests included, which are
+  // their own features' and send through the service, not these routes (2026-10-22).
+  if (deps.requireFeature) {
+    const gate = deps.requireFeature
+    app.use('*', async (c: any, next: any) => (c.req.path.endsWith('/test') && c.req.method === 'POST' ? next() : gate(c, next)))
+  }
 
   // READING a customer's texts asks what the Messages link asks — sms:send. It asked nothing, so a seat with no
   // SMS right on Events read every conversation the business had. (T62) Unread-count stays open: a number, no text.

@@ -9,7 +9,7 @@ export interface ScheduleConfig {
   events?: boolean
   /** Event type choices for the New Appointment form. */
   eventTypes?: Array<{ value: string; label: string }>
-  /** Drag a job block onto another day to reschedule it. Default true. */
+  /** Drag a job to another day (week, month) or another hour (day) to reschedule it. Default true. */
   dragDrop?: boolean
   /** Word for a job block in tooltips / legend. Default "Job". */
   jobLabel?: string

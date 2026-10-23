@@ -105,7 +105,8 @@ export function createBulkRoutes(d: CrmDeps) {
     const user = c.get('user') as any
     const { ids, status } = await c.req.json()
     if (!ids?.length) return noIds(c)
-    return one(c, { updated: await bulk.bulkUpdateJobStatus(user.companyId, ids, status) })
+    // Moving INTO a status runs its moment for each job, as the job routes do (packages/tenant-backend jobs.ts jobHookFor).
+    return one(c, { updated: await bulk.bulkUpdateJobStatus(user.companyId, ids, status, user.userId) })
   })
 
   // Invoices

@@ -160,6 +160,32 @@ export const project = pgTable('project', {
   index('project_status_idx').on(t.status),
 ])
 
+/**
+ * A job that repeats — "every week, 12 times" (live test 2026-10-22: a landscaper's weekly mowing had no repeat). Each
+ * visit is a job row pointing here, made when the series is made, so the visits are on the calendar and each one is
+ * moved, worked and billed like any job. Stopping the series cancels the visits still to come.
+ */
+export const jobSeries = pgTable('job_series', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  /** 'weekly' | 'monthly' — every `interval_count` weeks or months. */
+  frequency: text('frequency').notNull(),
+  intervalCount: integer('interval_count').default(1).notNull(),
+  /** YYYY-MM-DD, the first visit's day. */
+  firstDate: text('first_date').notNull(),
+  /** Stops at whichever comes first. */
+  occurrencesCount: integer('occurrences_count'),
+  untilDate: text('until_date'),
+  /** 'active' | 'stopped' */
+  status: text('status').default('active').notNull(),
+  stoppedAt: timestamp('stopped_at'),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('job_series_company_id_idx').on(t.companyId),
+])
+
 export const job = pgTable('job', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   number: text('number').notNull(),
@@ -236,12 +262,16 @@ export const job = pgTable('job', {
   // Why a job ended without being paid, and when (roofing's close with a reason).
   lostReason: text('lost_reason'),
   closedAt: timestamp('closed_at'),
+  /** The repeating series this visit belongs to (job_series), and its place in it: 3 of 12. */
+  seriesId: text('series_id').references((): AnyPgColumn => jobSeries.id, { onDelete: 'set null' }),
+  seriesIndex: integer('series_index'),
 }, (t) => [
   index('job_company_id_idx').on(t.companyId),
   index('job_status_idx').on(t.status),
   index('job_scheduled_date_idx').on(t.scheduledDate),
   index('job_assigned_to_id_idx').on(t.assignedToId),
   index('job_subcontractor_id_idx').on(t.subcontractorId),
+  index('job_series_id_idx').on(t.seriesId),
 ])
 
 /**

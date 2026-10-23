@@ -30,9 +30,9 @@ describe('boot', () => {
     // Every layer: 15 core, website and enquiry tables, 11 bookings, the base CRM's other 135 (the CRM's own three
     // booking tables are replaced by the bookings layer), the 65 the near-copy CRMs add (migration 0006), home care's
     // 123 (0007), roofing's own 16 (0012), the store's 13 (0013), what each job was last announced as (0015, phone notifications),
-    // and who agreed to be texted (0017, sms_consent).
-    expect(declared.length).toBe(380)
-    for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket', 'insurance_claim', 'orders', 'store_settings', 'sms_consent']) expect(declared).toContain(name)
+    // who agreed to be texted (0017, sms_consent), and a repeating job's series (0022, job_series).
+    expect(declared.length).toBe(381)
+    for (const name of ['job', 'invoice', 'change_order', 'pricebook_item', 'sms_message', 'support_ticket', 'insurance_claim', 'orders', 'store_settings', 'sms_consent', 'job_series']) expect(declared).toContain(name)
   })
 
   test('health answers', async () => {

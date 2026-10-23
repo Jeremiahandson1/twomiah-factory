@@ -13,6 +13,7 @@ import { api, errorMessage, rows, listAll } from '../lib/http'
 import { formatDate, parseLocalDate, toLocalYMD } from '../lib/date'
 import type { CaregiverPick } from './shared'
 import { useMay } from '../lib/useMay'
+import { agencyToday } from '../lib/agencyClock'
 
 interface ClientPick { id: string; firstName: string | null; lastName: string | null }
 interface Review {
@@ -29,7 +30,7 @@ interface Review {
 const EMPTY = () => ({
   caregiverId: '',
   clientId: '',
-  reviewDate: toLocalYMD(new Date()),
+  reviewDate: agencyToday(),
   performanceNotes: '',
   strengths: '',
   areasForImprovement: '',

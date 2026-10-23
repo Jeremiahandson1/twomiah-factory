@@ -205,7 +205,8 @@ export function createAuthRoutes(deps: AuthDeps) {
     // to the viewer's calendar since it shipped.
     timeZone: companyRowTimeZone(c),
     createdAt: c.createdAt,
-    visionUrl: options.visionUrl ? options.visionUrl() : null,
+    // The Visualizer's address goes only to a business with the add-on switched on (a paid add-on, off by default).
+    visionUrl: options.visionUrl && Array.isArray(c.enabledFeatures) && c.enabledFeatures.includes('visualizer') ? options.visionUrl() : null,
     vertical: options.vertical,
   })
   // roleLabel: the vertical's own word for this rung. The id stays "field" — every gate in the fleet is

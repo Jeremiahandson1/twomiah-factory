@@ -34,7 +34,7 @@ const templateShape = (v: any): any => Array.isArray(v) ? v.map(templateShape) :
 
 await setupSchema()
 
-const [ag] = await db.insert(agencies).values({ name: 'Test Home Care Co', slug: 'thcc', state: 'WI' } as any).returning()
+const [ag] = await db.insert(agencies).values({ name: 'Test Home Care Co', slug: 'thcc', state: 'WI', enabledFeatures: ['documents', 'reports', 'two_way_texting'] } as any).returning()
 const mkUser = async (role: string, tag: string) => (await db.insert(users).values({
   email: `${tag}-r3@test.local`, passwordHash: 'x', firstName: tag, lastName: 'U', role,
 } as any).returning())[0]

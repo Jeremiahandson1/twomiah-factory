@@ -21,7 +21,8 @@ let otherId = ''
 const tokens: Record<string, string> = {}
 const ids: Record<string, string> = {}
 const PASS = 'Seat-pass-1'
-const FEATURES = ['jobs', 'contacts', 'dashboard', 'lead_inbox', 'storm_lead_gen', 'storm_radar_overlay', 'canvassing_tool', 'materials']
+// crews: the Crews switch gates /api/crews (2026-10-22: it was ungated).
+const FEATURES = ['jobs', 'contacts', 'dashboard', 'lead_inbox', 'storm_lead_gen', 'storm_radar_overlay', 'canvassing_tool', 'materials', 'crews']
 
 const login = async (email: string, password: string) =>
   (await (await t.call('/api/auth/login', { method: 'POST', json: { email, password } })).json()).accessToken as string
@@ -354,7 +355,7 @@ describe('materials', () => {
     await t.db.update(t.schema.company).set({ enabledFeatures: FEATURES.filter((f) => f !== 'materials') } as any).where(eq(t.schema.company.id, companyId))
     ;(t.services as any).features.forgetFeatures(companyId)
     expect((await call('mgr', 'GET', '/api/materials')).status).toBe(403)
-    expect((await call('mgr', 'GET', '/api/crews')).status).toBe(200) // ungated, as roofing's menu shows it
+    expect((await call('mgr', 'GET', '/api/crews')).status).toBe(200) // its own switch, still on
     await t.db.update(t.schema.company).set({ enabledFeatures: FEATURES } as any).where(eq(t.schema.company.id, companyId))
     ;(t.services as any).features.forgetFeatures(companyId)
   })

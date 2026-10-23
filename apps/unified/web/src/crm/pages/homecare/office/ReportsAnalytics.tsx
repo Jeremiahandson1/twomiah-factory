@@ -21,6 +21,7 @@ import { serviceLabel } from '../lib/serviceTypes';
 import { usePermissions, useToast } from '../../../../shared';
 import AgencyTimezone from './AgencyTimezone';
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { agencyToday } from '../lib/agencyClock'
 
 /** pg numerics arrive as strings, counts as numbers. */
 type Num = number | string | null | undefined;
@@ -140,7 +141,7 @@ const ReportsAnalytics = () => {
   const [reportType, setReportType] = useState('overview');
   const [dateRange, setDateRange] = useState({
     startDate: toLocalYMD(new Date(new Date().setMonth(new Date().getMonth() - 1))),
-    endDate: toLocalYMD(new Date()),
+    endDate: agencyToday(),
   });
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(false);

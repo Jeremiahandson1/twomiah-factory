@@ -24,6 +24,7 @@ import { formatDate, toLocalYMD } from '../lib/date'
 import VisitPhotoGallery from './VisitPhotoGallery'
 import { useMay } from '../lib/useMay'
 import { money as formatMoney } from '@twomiah/tenant-ui/src/money'
+import { agencyToday, agencyTodayDate } from '../lib/agencyClock'
 
 /** A row of GET /api/clients (the office's list). */
 interface ClientRow { id: string; firstName: string | null; lastName: string | null; isActive?: boolean | null }
@@ -51,8 +52,8 @@ interface VisitDocs {
   invoices: Invoice[]
 }
 
-const todayStr = () => toLocalYMD(new Date())
-const daysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return toLocalYMD(d) }
+const todayStr = () => agencyToday()
+const daysAgo = (n: number) => { const d = agencyTodayDate(); d.setDate(d.getDate() - n); return toLocalYMD(d) }
 const fmtDate = (s: string) => { const [y, m, d] = String(s).slice(0, 10).split('-'); return `${Number(m)}/${Number(d)}/${y}` }
 const weekday = (s: string) => formatDate(s, { weekday: 'short' })
 const fmtTime = (t: string) => {

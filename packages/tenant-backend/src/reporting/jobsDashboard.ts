@@ -3,7 +3,7 @@
 // built on their own tables; this is the one the three job-based CRMs used to carry as identical copies.
 import { Hono } from 'hono'
 import { eq, and, gte, lt, count, desc, inArray, sql, asc } from 'drizzle-orm'
-import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
+import { companyTimeZone, storeDayRange, jobLocalDay, markerDayIsOver } from '../time/businessDay'
 import { invoiceBalance } from '../invoicing/money'
 
 export interface JobsDashboardTables { contact: any; project: any; job: any; quote: any; invoice: any; lead?: any }
@@ -130,7 +130,8 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
     // What was BILLED (total / totalValue) is gross — a refunded sale was still invoiced, and is still
     // counted here, exactly as Reports and the invoice /stats count it (T14 H4 → #204). Only draft and
     // void never happened.
-    const now = new Date()
+    // Overdue once the due DAY is over on the company's clock (time/zoneDay.ts) — the invoice list's rule. This compared
+    // the due date's midnight-UTC marker with this instant, so an invoice was "overdue" all of its own due day.
     const invoiceStats = { total: 0, outstanding: 0, overdue: 0, paid: 0, totalValue: 0, outstandingValue: 0, overdueValue: 0 }
     for (const inv of invoices) {
       if (inv.status === 'draft' || inv.status === 'void') continue
@@ -142,7 +143,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
         const balance = invoiceBalance(inv)
         invoiceStats.outstanding++
         invoiceStats.outstandingValue = r2(invoiceStats.outstandingValue + balance)
-        if (inv.dueDate && new Date(inv.dueDate) < now) { invoiceStats.overdue++; invoiceStats.overdueValue = r2(invoiceStats.overdueValue + balance) }
+        if (inv.dueDate && markerDayIsOver(inv.dueDate, tz)) { invoiceStats.overdue++; invoiceStats.overdueValue = r2(invoiceStats.overdueValue + balance) }
       }
     }
 
@@ -183,7 +184,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
       safe(() => db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, updatedAt: t.invoice.updatedAt })
         .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), sql`${t.invoice.status} <> 'draft'`)).orderBy(desc(t.invoice.updatedAt), asc(t.invoice.id)).limit(5), [] as any[]),
     ])
-    const now = new Date()
+    const tz = await companyTimeZone(db, companyId)
     // A quote total and an invoice balance are both company money. Recent JOBS are the work itself and
     // stay — that is what the panel is for on a technician's screen.
     const money = await maySeeMoney(c)
@@ -192,7 +193,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
       recentQuotes: money ? recentQuotes : [],
       recentInvoices: !money ? [] : recentInvoices.map((inv: any) => {
         const balance = ISSUED.includes(inv.status) ? 0 : invoiceBalance(inv)
-        const status = open.includes(inv.status) && inv.dueDate && new Date(inv.dueDate) < now ? 'overdue' : inv.status
+        const status = open.includes(inv.status) && inv.dueDate && markerDayIsOver(inv.dueDate, tz) ? 'overdue' : inv.status
         return { ...inv, balance: r2(balance), status }
       }),
     })

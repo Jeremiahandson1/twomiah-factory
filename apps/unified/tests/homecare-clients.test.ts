@@ -26,8 +26,8 @@ const body = async (r: Response) => { const s = await r.text(); try { return JSO
 beforeAll(async () => {
   t = await bootTenant({ vertical: 'homecare' })
   const S = t.schema
-  const [a] = await t.db.insert(S.company).values({ name: 'Agency A', slug: 'agency-a', state: 'WI', timezone: 'UTC' }).returning()
-  const [b] = await t.db.insert(S.company).values({ name: 'Agency B', slug: 'agency-b', state: 'WI', timezone: 'UTC' }).returning()
+  const [a] = await t.db.insert(S.company).values({ name: 'Agency A', slug: 'agency-a', state: 'WI', timezone: 'UTC', enabledFeatures: ['documents'] } as any).returning()
+  const [b] = await t.db.insert(S.company).values({ name: 'Agency B', slug: 'agency-b', state: 'WI', timezone: 'UTC', enabledFeatures: ['documents'] } as any).returning()
   coA = a.id; coB = b.id
   const hash = await Bun.password.hash('Seat-pass-1', 'bcrypt')
   const people: [string, string, string][] = [
@@ -232,7 +232,7 @@ describe('defects fixed in the move', () => {
 })
 
 describe('the store at /api/documents is home care\'s', () => {
-  test('home care\'s document store answers, a list reply, with no CRM documents feature switched on', async () => {
+  test('home care\'s document store answers, a list reply, with its Documents switch on (off, it refuses: feature-switches-hide.test.ts)', async () => {
     const fd = new FormData()
     fd.append('file', new File(['%PDF-1.4 x'], 'handbook.pdf', { type: 'application/pdf' }))
     fd.append('entityType', 'company')

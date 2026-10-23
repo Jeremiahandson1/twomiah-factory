@@ -4,7 +4,7 @@
 // and claims engines' own SQL is in homecareBilling.ts and homecareClaims.ts.
 import { sql, type SQL } from 'drizzle-orm'
 import { camelRows, camelFirst } from '@twomiah/tenant-backend'
-import { occurrencesCte, type Q } from './homecareCore.ts'
+import { occurrencesCte, type Q, agencyClock } from './homecareCore.ts'
 import { billedInRangeSql } from './homecareBilling.ts'
 
 const isYmd = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
@@ -438,6 +438,7 @@ const CVHC_ALIASES = sql.raw(`
 
 /** The company's claims, newest first (500 at most), filtered by status, payer and service dates. */
 export async function claimRows(q: Q, companyId: string, f: { status?: string | null; payerId?: string | null; startDate?: string | null; endDate?: string | null }): Promise<any[]> {
+  const { today } = await agencyClock(q, companyId) // the agency's day (CURRENT_DATE was the database's, UTC)
   const st = f.status || null, payer = f.payerId || null, s = ymdOrNull(f.startDate), e = ymdOrNull(f.endDate)
   return camelRows(await q.execute(sql`
     SELECT cl.*, ${CVHC_ALIASES},
@@ -445,7 +446,7 @@ export async function claimRows(q: Q, companyId: string, f: { status?: string | 
            c.first_name AS client_first_name, c.last_name AS client_last_name, c.medicaid_id,
            u.first_name AS caregiver_first_name, u.last_name AS caregiver_last_name,
            i.invoice_number, i.seq_number AS invoice_seq_number, a.auth_number, eb.batch_number,
-           CASE WHEN cl.submission_date IS NULL THEN NULL ELSE (CURRENT_DATE - cl.submission_date) END AS days_since_submission
+           CASE WHEN cl.submission_date IS NULL THEN NULL ELSE (${today}::date - cl.submission_date) END AS days_since_submission
       FROM claims cl
       LEFT JOIN referral_sources rs ON cl.payer_id = rs.id
       LEFT JOIN clients c ON cl.client_id = c.id
@@ -464,6 +465,7 @@ export async function claimRows(q: Q, companyId: string, f: { status?: string | 
 
 /** The claims dashboard: status rollup, by payer, aging of what is out, A/R, paid this month, denied, totals. */
 export async function claimsSummaryFigures(q: Q, companyId: string) {
+  const { today } = await agencyClock(q, companyId) // the agency's day (CURRENT_DATE was the database's, UTC)
   const byStatus = camelRows(await q.execute(sql`
     SELECT status, COUNT(*)::int AS count, COALESCE(SUM(billed_amount), 0) AS total_charged, COALESCE(SUM(paid_amount), 0) AS total_paid
       FROM claims WHERE company_id = ${companyId} GROUP BY status`))
@@ -477,17 +479,17 @@ export async function claimsSummaryFigures(q: Q, companyId: string) {
   // Named in camelCase here: the template's under_30 / days_30_60 … would camelise to under30 / days3060.
   const aging = camelFirst(await q.execute(sql`
     SELECT
-      COALESCE(SUM(CASE WHEN submission_date > CURRENT_DATE - 30 THEN billed_amount ELSE 0 END), 0) AS "under30",
-      COALESCE(SUM(CASE WHEN submission_date BETWEEN CURRENT_DATE - 60 AND CURRENT_DATE - 30 THEN billed_amount ELSE 0 END), 0) AS "days30To60",
-      COALESCE(SUM(CASE WHEN submission_date BETWEEN CURRENT_DATE - 90 AND CURRENT_DATE - 61 THEN billed_amount ELSE 0 END), 0) AS "days60To90",
-      COALESCE(SUM(CASE WHEN submission_date < CURRENT_DATE - 90 THEN billed_amount ELSE 0 END), 0) AS "over90"
+      COALESCE(SUM(CASE WHEN submission_date > ${today}::date - 30 THEN billed_amount ELSE 0 END), 0) AS "under30",
+      COALESCE(SUM(CASE WHEN submission_date BETWEEN ${today}::date - 60 AND ${today}::date - 30 THEN billed_amount ELSE 0 END), 0) AS "days30To60",
+      COALESCE(SUM(CASE WHEN submission_date BETWEEN ${today}::date - 90 AND ${today}::date - 61 THEN billed_amount ELSE 0 END), 0) AS "days60To90",
+      COALESCE(SUM(CASE WHEN submission_date < ${today}::date - 90 THEN billed_amount ELSE 0 END), 0) AS "over90"
       FROM claims WHERE company_id = ${companyId} AND status IN ('submitted', 'accepted')`))
   const ar = camelFirst(await q.execute(sql`
     SELECT COALESCE(SUM(billed_amount - COALESCE(paid_amount, 0)), 0) AS total_ar
       FROM claims WHERE company_id = ${companyId} AND status IN ('draft', 'pending', 'submitted', 'accepted')`))
   const paidThisMonth = camelFirst(await q.execute(sql`
     SELECT COALESCE(SUM(paid_amount), 0) AS amount, COUNT(*)::int AS count
-      FROM claims WHERE company_id = ${companyId} AND status = 'paid' AND paid_date >= DATE_TRUNC('month', CURRENT_DATE)`))
+      FROM claims WHERE company_id = ${companyId} AND status = 'paid' AND paid_date >= DATE_TRUNC('month', ${today}::date)`))
   const denied = camelFirst(await q.execute(sql`
     SELECT COUNT(*)::int AS count, COALESCE(SUM(billed_amount), 0) AS total FROM claims WHERE company_id = ${companyId} AND status = 'denied'`))
   const totals = camelFirst(await q.execute(sql`
@@ -546,12 +548,13 @@ export async function resubmitDeniedClaim(tx: Q, companyId: string, id: string, 
 export async function setClaimStatusRow(q: Q, companyId: string, claimId: string, s: {
   status: string; paidAmount: number | null; denialCode: string | null; denialReason: string | null; eobNotes: string | null
 }): Promise<boolean> {
+  const { today } = await agencyClock(q, companyId) // the agency's day (CURRENT_DATE was the database's, UTC)
   return camelRows(await q.execute(sql`
     UPDATE claims SET
       status = ${s.status}::text,
-      submission_date = CASE WHEN ${s.status}::text = 'submitted' THEN CURRENT_DATE ELSE submission_date END,
-      accepted_date = CASE WHEN ${s.status}::text = 'accepted' THEN CURRENT_DATE ELSE accepted_date END,
-      paid_date = CASE WHEN ${s.status}::text = 'paid' THEN CURRENT_DATE ELSE paid_date END,
+      submission_date = CASE WHEN ${s.status}::text = 'submitted' THEN ${today}::date ELSE submission_date END,
+      accepted_date = CASE WHEN ${s.status}::text = 'accepted' THEN ${today}::date ELSE accepted_date END,
+      paid_date = CASE WHEN ${s.status}::text = 'paid' THEN ${today}::date ELSE paid_date END,
       paid_amount = CASE WHEN ${s.status}::text = 'paid' AND ${s.paidAmount}::numeric IS NOT NULL THEN ${s.paidAmount}::numeric ELSE paid_amount END,
       denial_code = CASE WHEN ${s.status}::text = 'denied' AND ${s.denialCode}::text IS NOT NULL THEN ${s.denialCode}::text ELSE denial_code END,
       denial_reason = CASE WHEN ${s.status}::text = 'denied' AND ${s.denialReason}::text IS NOT NULL THEN ${s.denialReason}::text ELSE denial_reason END,
@@ -583,8 +586,9 @@ export async function claimsForExport(q: Q, companyId: string, ids: string[]): P
 
 /** Exported claims become submitted, by `method` (only those not already past pending). */
 export async function markClaimsExported(q: Q, companyId: string, ids: string[], method: string): Promise<void> {
+  const { today } = await agencyClock(q, companyId) // the agency's day (CURRENT_DATE was the database's, UTC)
   await q.execute(sql`
-    UPDATE claims SET submission_method = ${method}, status = 'submitted', submission_date = CURRENT_DATE, updated_at = NOW()
+    UPDATE claims SET submission_method = ${method}, status = 'submitted', submission_date = ${today}::date, updated_at = NOW()
      WHERE company_id = ${companyId} AND id = ANY(string_to_array(${ids.join(',')}::text, ',')) AND status IN ('pending', 'draft', 'ready')`)
 }
 
@@ -635,11 +639,12 @@ export async function editClaimNotes(q: Q, companyId: string, id: string, b: { n
 
 /** Counts for the Claims & EVV Engine's authorizations tab. */
 export async function authorizationSummary(q: Q, companyId: string): Promise<any> {
+  const { today } = await agencyClock(q, companyId) // the agency's day (CURRENT_DATE was the database's, UTC)
   return camelFirst(await q.execute(sql`
     SELECT COUNT(*)::int AS total,
            COUNT(*) FILTER (WHERE status = 'active')::int AS active,
-           COUNT(*) FILTER (WHERE end_date < CURRENT_DATE)::int AS expired,
-           COUNT(*) FILTER (WHERE status = 'active' AND end_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 30)::int AS expiring_soon,
+           COUNT(*) FILTER (WHERE end_date < ${today}::date)::int AS expired,
+           COUNT(*) FILTER (WHERE status = 'active' AND end_date BETWEEN ${today}::date AND ${today}::date + 30)::int AS expiring_soon,
            COUNT(*) FILTER (WHERE status = 'active' AND (authorized_units - used_units) <= low_units_alert_threshold)::int AS low_units,
            COUNT(*) FILTER (WHERE status = 'exhausted')::int AS exhausted
       FROM authorizations WHERE company_id = ${companyId}`))

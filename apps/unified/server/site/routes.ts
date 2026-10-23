@@ -6,7 +6,7 @@ import { Hono, type Context } from 'hono'
 import { and, asc, desc, eq } from 'drizzle-orm'
 import fs from 'node:fs'
 import path from 'node:path'
-import { page, post, portfolioItem } from '../db/schema/index.ts'
+import { company, page, post, portfolioItem } from '../db/schema/index.ts'
 import type { VerticalSettings } from '../core/vertical.ts'
 import { accentOnLight, DEFAULT_ACCENT, ensureDark, inkOn } from '../core/brandColour.ts'
 import { countView } from '../data/pageViews.ts'
@@ -124,14 +124,24 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
     return null
   }
   /** Nav items the site adds when the owner's nav lacks them: the dealer's Inventory, the Visualizer, a store's Shop. */
-  function toolNav(ctx: SiteContext) {
+  function toolNav(ctx: SiteContext, visualizer: boolean) {
     const items: Array<{ label: string; href: string }> = []
     if (feedUrlOk(ctx.settings.inventoryFeedUrl)) items.push({ label: 'Inventory', href: '/inventory' })
-    if (visionOrigin()) items.push({ label: 'Visualizer', href: '/visualize' })
+    if (visualizer) items.push({ label: 'Visualizer', href: '/visualize' })
     if (shop) items.push({ label: 'Shop', href: '/shop' })
     return items
   }
   const visionOrigin = () => { try { const u = new URL(String(vertical.visionUrl?.() || '')); return u.protocol === 'https:' ? u.origin : '' } catch { return '' } }
+  /**
+   * The Exterior Visualizer is a paid add-on, off by default (featureRegistry 'visualizer'): the public site offers its
+   * page and nav item only while the business has it switched on — a configured Visualizer address is not enough
+   * (2026-10-22: the add-on's only server gate was the admin page's own check).
+   */
+  const visualizerOn = async (companyId: string) => {
+    if (!visionOrigin()) return false
+    const [co] = await db.select({ f: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
+    return Array.isArray(co?.f) && (co!.f as string[]).includes('visualizer')
+  }
   /**
    * Count a visit — unless it is the admin's live preview: a same-origin frame (the browser sets both headers; a page
    * can't). Every save reloads the preview, which counted the owner's own edits as traffic.
@@ -146,7 +156,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   async function page200(c: Context, ctx: SiteContext, pathname: string, sections: any[], meta: PageMeta, pageFacts?: { page: PageFacts; source: SiteFacts; about?: unknown }) {
     count(c, ctx, pathname)
     const f = pageFacts ?? await factsOf(ctx)
-    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx), facts: f }))
+    return c.html(await renderSections(ctx, sections, meta, { currentPath: pathname, origin: siteOrigin(c), extraNav: toolNav(ctx, await visualizerOn(ctx.companyId)), facts: f }))
   }
 
   // ── Assets ────────────────────────────────────────────────────────────────
@@ -367,7 +377,7 @@ export function createSiteRoutes(deps: { db: any; vertical: VerticalSettings; en
   app.get('/visualize', async (c, next) => {
     const origin = visionOrigin()
     const ctx = await ctxOf()
-    if (!origin || !ctx) return next()
+    if (!origin || !ctx || !(await visualizerOn(ctx.companyId))) return next()
     const name = ctx.settings.companyName
     c.header('Content-Security-Policy', [
       "default-src 'self'", "img-src 'self' data: https:", "font-src 'self' https://fonts.gstatic.com data:",

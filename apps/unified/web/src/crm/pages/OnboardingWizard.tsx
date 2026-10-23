@@ -27,6 +27,9 @@ interface Integration {
   fields?: { key: string; label: string; placeholder: string; type?: string }[];
 }
 
+/** Integrations a switch (Settings › Features) governs: their setup guide shows only while it is on. */
+const SWITCHED: Record<string, string> = { quickbooks: 'quickbooks', stripe: 'online_payments' }
+
 const INTEGRATIONS: Integration[] = [
   {
     id: 'dns',
@@ -550,10 +553,12 @@ function StepIntegrations({
   onDone: (id: string) => void;
   onSkip: (id: string) => void;
 }) {
+  // A guide to connect QuickBooks or Stripe only where that switch is on: its card in Integrations is shown only then.
+  const { hasFeature } = useAuth();
   const grouped = CATEGORY_ORDER.map(cat => ({
     category: cat,
     label: CATEGORY_LABELS[cat],
-    integrations: offeredIntegrations().filter(i => i.category === cat),
+    integrations: offeredIntegrations().filter(i => i.category === cat && (!SWITCHED[i.id] || hasFeature(SWITCHED[i.id]))),
   })).filter(g => g.integrations.length > 0);
 
   return (

@@ -28,6 +28,8 @@ beforeAll(async () => {
   t = await bootTenant({ vertical: 'homecare' })
   const seeded = await seedOwner(t)
   companyId = seeded.company.id
+  // The SMS page is Two-Way Texting's (2026-10-22: home care's switches hide what they name).
+  await t.db.update(t.schema.company).set({ enabledFeatures: ['two_way_texting'] } as any).where(eq(t.schema.company.id, companyId))
   ids.owner = seeded.owner.id
   for (const [role, email] of [['admin', 'admin@hc.example'], ['manager', 'mgr@hc.example'], ['caregiver', 'cg@hc.example'], ['field', 'fld@hc.example']] as const) {
     const [u] = await t.db.insert(t.schema.user).values({

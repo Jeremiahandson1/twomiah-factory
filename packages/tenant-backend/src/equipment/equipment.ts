@@ -11,6 +11,8 @@
  */
 import { Hono } from 'hono'
 import { eq, and, ne, lte, gte, count, countDistinct, asc, desc, ilike, or, sql } from 'drizzle-orm'
+import { businessToday } from '../invoicing/money'
+import { companyTimeZone } from '../time/businessDay'
 
 export interface EquipmentTables {
   equipment: any
@@ -68,6 +70,13 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
   /** Still in the yard: anything not marked replaced. See RETIRED above for why. */
   const stillOwned = () => ne(equipment.status, RETIRED)
   const opt = { contacts: !!deps.options?.contacts, sites: !!deps.options?.sites, linkedJobs: !!deps.options?.linkedJobs }
+  /**
+   * The company's today as a calendar-day marker (2026-10-23). A warranty's expiry and a service's next due date are
+   * calendar days (stored at UTC midnight); compared with `new Date()` / NOW() they flipped at UTC's midnight — the
+   * evening before, in the Americas. A warranty covers its whole expiry day; a service is due once its day begins.
+   */
+  const todayFor = async (companyId: string) => businessToday(await companyTimeZone(db, companyId))
+  const plusDays = (marker: Date, n: number) => new Date(marker.getTime() + n * 86_400_000)
 
   // ---- categories ----
   /**
@@ -147,7 +156,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     return { purchaseDate, warrantyExpiry }
   }
   /** What a read gives back: the columns, plus the words the form asks in. */
-  const shape = (row: any) => {
+  const shape = (row: any, today: Date) => {
     if (!row) return row
     const purchase = row.purchaseDate ? new Date(row.purchaseDate) : null
     const expiry = row.warrantyExpiry ? new Date(row.warrantyExpiry) : null
@@ -161,7 +170,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
       ...row,
       installDate: purchase ? purchase.toISOString() : null,
       warrantyMonths,
-      warrantyActive: expiry ? expiry > new Date() : false,
+      warrantyActive: expiry ? expiry >= today : false,
     }
   }
 
@@ -183,7 +192,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     if (opt.contacts) values.contactId = data.contactId || null
     if (opt.sites) { values.locationId = data.locationId || null; values.siteId = data.siteId || null }
     const [result] = await db.insert(equipment).values(values).returning()
-    return shape(result)
+    return shape(result, await todayFor(companyId))
   }
 
   /**
@@ -220,9 +229,9 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     if (opt.sites && siteId) conditions.push(eq(equipment.siteId, siteId))
     if (categoryId) conditions.push(eq(equipment.categoryId, categoryId))
     if (warrantyExpiring) {
-      const until = new Date(); until.setDate(until.getDate() + WARRANTY_WINDOW_DAYS)
-      conditions.push(gte(equipment.warrantyExpiry, new Date()))
-      conditions.push(lte(equipment.warrantyExpiry, until))
+      const today = await todayFor(companyId)
+      conditions.push(gte(equipment.warrantyExpiry, today))
+      conditions.push(lte(equipment.warrantyExpiry, plusDays(today, WARRANTY_WINDOW_DAYS)))
     }
     if (needsMaintenance) {
       // Maintenance due = the next due date on its service history has passed. A piece of equipment
@@ -231,7 +240,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
         SELECT 1 FROM ${equipmentMaintenance}
         WHERE ${equipmentMaintenance.equipmentId} = ${equipment.id}
           AND ${equipmentMaintenance.nextDueDate} IS NOT NULL
-          AND ${equipmentMaintenance.nextDueDate} <= NOW()
+          AND ${equipmentMaintenance.nextDueDate} < ${plusDays(await todayFor(companyId), 1)}
       )` as any)
     }
     if (search) {
@@ -274,10 +283,11 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
       categoryMap = Object.fromEntries((cats as any[]).map((r) => [r.id, r]))
     }
 
+    const today = await todayFor(companyId)
     const enriched = (data as any[]).map((eq_item) => ({
       // `shape` adds installDate / warrantyMonths / warrantyActive — the words the form asks in, so
       // opening Edit shows the stored values instead of blanks over them.
-      ...shape(eq_item),
+      ...shape(eq_item, today),
       age: eq_item.purchaseDate
         ? Math.floor((Date.now() - new Date(eq_item.purchaseDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
         : null,
@@ -320,7 +330,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
     }
 
     return {
-      ...shape(result),
+      ...shape(result, await todayFor(companyId)),
       category: (categoryResult as any[])[0] || null,
       maintenanceHistory,
       ...(opt.contacts ? { contact: (contactResult as any[])[0] || null } : {}),
@@ -402,7 +412,7 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
 
   // ---- reports & alerts ----
   async function getMaintenanceDue(companyId: string, { days = 30 }: { days?: number } = {}) {
-    const dueDate = new Date(); dueDate.setDate(dueDate.getDate() + days)
+    const dueDate = plusDays(await todayFor(companyId), days)
     const result = await db.execute(sql`
       SELECT e.*, em.next_due_date
       FROM equipment e
@@ -417,11 +427,12 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
   }
 
   async function getWarrantyExpiring(companyId: string, { days = WARRANTY_WINDOW_DAYS }: { days?: number } = {}) {
-    const expiryDate = new Date(); expiryDate.setDate(expiryDate.getDate() + days)
+    const today = await todayFor(companyId)
+    const expiryDate = plusDays(today, days)
     return db.select().from(equipment).where(and(
       eq(equipment.companyId, companyId),
       stillOwned(),
-      gte(equipment.warrantyExpiry, new Date()),
+      gte(equipment.warrantyExpiry, today),
       lte(equipment.warrantyExpiry, expiryDate),
     )).orderBy(asc(equipment.warrantyExpiry), asc(equipment.id))
   }
@@ -454,9 +465,9 @@ export function createEquipmentService(deps: EquipmentServiceDeps) {
    *    (same window, same join) so the tile and the list it corresponds to cannot disagree.
    */
   async function getEquipmentStats(companyId: string) {
-    const now = new Date()
-    const window = new Date(now); window.setDate(window.getDate() + WARRANTY_WINDOW_DAYS)
-    const maintenanceWindow = new Date(now); maintenanceWindow.setDate(maintenanceWindow.getDate() + 30)
+    const now = await todayFor(companyId) // the company's today, a calendar-day marker
+    const window = plusDays(now, WARRANTY_WINDOW_DAYS)
+    const maintenanceWindow = plusDays(now, 30)
     const [[{ value: total }], [{ value: needsRepair }], [{ value: warrantyExpiring }], [{ value: needsMaintenance }]] = await Promise.all([
       db.select({ value: count() }).from(equipment).where(and(eq(equipment.companyId, companyId), stillOwned())),
       db.select({ value: count() }).from(equipment).where(and(eq(equipment.companyId, companyId), eq(equipment.status, 'needs_repair'))),
