@@ -40,6 +40,7 @@ import AttachDocuments from './AttachDocuments'
 import JobMaterials from '../field/JobMaterials'
 import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 import { money } from '@twomiah/tenant-ui/src/money'
+import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
 
 const STATUS_COLORS: Record<string, string> = {
   lead: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -155,6 +156,8 @@ export default function JobDetailPage() {
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [uploading, setUploading] = useState(false)
+  // The open photo in the full-size viewer: its place in the tab's photos.
+  const [viewing, setViewing] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -182,6 +185,11 @@ export default function JobDetailPage() {
 
   useEffect(() => { load() }, [load])
 
+  /** The timeline again, after something that adds to it (a stage move, closing, reopening, a photo). */
+  const reloadTimeline = async () => {
+    try { setTimeline(rowsOf<TimelineEvent>(await api.get(`/api/jobs/${id}/timeline`))) } catch { /* the page keeps what it had */ }
+  }
+
   /** A write's reply is the job row alone: keep what came with the page (the contact, the lists). */
   const merge = (updated: RoofJob) => {
     const { contact: _contact, notes: _notes, ...row } = updated
@@ -193,6 +201,7 @@ export default function JobDetailPage() {
     try {
       merge(await api.post(`/api/jobs/${id}/advance`) as RoofJob)
       toast.success('Stage advanced')
+      reloadTimeline()
     } catch (err) {
       toast.error(errorText(err, 'Failed to advance stage'))
     } finally {
@@ -216,6 +225,7 @@ export default function JobDetailPage() {
       setCloseOpen(false)
       setCloseReason('')
       toast.success(closeStatus === 'lost' ? 'Job closed as lost' : 'Job cancelled')
+      reloadTimeline()
     } catch (err) {
       toast.error(errorText(err, 'Failed to close the job'))
     } finally {
@@ -228,6 +238,7 @@ export default function JobDetailPage() {
     try {
       merge(await api.post(`/api/jobs/${id}/reopen`, { status: 'lead' }) as RoofJob)
       toast.success('Job reopened')
+      reloadTimeline()
     } catch (err) {
       toast.error(errorText(err, 'Failed to reopen the job'))
     } finally {
@@ -285,6 +296,7 @@ export default function JobDetailPage() {
       }
       setPhotos((prev) => [...prev, ...created])
       toast.success(created.length > 1 ? `${created.length} photos uploaded` : 'Photo uploaded')
+      reloadTimeline()
     } catch (err) {
       toast.error(uploadRefusal(err))
     } finally {
@@ -298,7 +310,8 @@ export default function JobDetailPage() {
     setSavingNote(true)
     try {
       const note = await api.post(`/api/jobs/${id}/notes`, { body: noteText }) as JobNote
-      setNotes((prev) => [...prev, note])
+      // Newest first, as the server lists them.
+      setNotes((prev) => [note, ...prev])
       setNoteText('')
       toast.success('Note added')
     } catch (err) {
@@ -355,7 +368,7 @@ export default function JobDetailPage() {
             {isClosed ? (
               <>
                 <span className="text-sm text-gray-600 dark:text-slate-300">
-                  Closed as <span className="font-semibold">{job.status}</span>
+                  Closed as <span className="font-semibold">{formatStatus(job.status)}</span>
                   {job.lostReason ? ` — ${job.lostReason}` : ''}
                 </span>
                 {mayWorkJob && (<button
@@ -429,7 +442,7 @@ export default function JobDetailPage() {
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setCloseOpen(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
               <button onClick={closeJob} disabled={closing} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
-                {closing ? 'Closing…' : `Close as ${closeStatus}`}
+                {closing ? 'Closing…' : `Close as ${formatStatus(closeStatus)}`}
               </button>
             </div>
           </div>
@@ -645,7 +658,7 @@ export default function JobDetailPage() {
                   {PHOTO_TABS.map((tab) => (
                     <button
                       key={tab}
-                      onClick={() => setPhotoTab(tab)}
+                      onClick={() => { setPhotoTab(tab); setViewing(null) }}
                       className={`px-3 py-2 text-sm font-medium border-b-2 capitalize ${
                         photoTab === tab
                           ? 'border-orange-600 text-orange-600 dark:text-orange-200'
@@ -658,13 +671,19 @@ export default function JobDetailPage() {
                 </div>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
                   {filteredPhotos.map((photo, i) => (
-                    <div key={photo.id || i} className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800">
+                    <button
+                      type="button"
+                      key={photo.id || i}
+                      onClick={() => setViewing(i)}
+                      aria-label={`Open ${photo.caption || `${photoTab} photo ${i + 1}`} full size`}
+                      className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                    >
                       <img
-                        src={photo.url || photo.thumbnailUrl || ''}
+                        src={photo.thumbnailUrl || photo.url || ''}
                         alt={photo.caption || `Photo ${i + 1}`}
                         className="w-full h-full object-cover"
                       />
-                    </div>
+                    </button>
                   ))}
                   {filteredPhotos.length === 0 && (
                     <p className="text-sm text-gray-500 dark:text-slate-400 col-span-full">No {photoTab} photos yet</p>
@@ -677,6 +696,13 @@ export default function JobDetailPage() {
                   multiple
                   className="hidden"
                   onChange={(e) => e.target.files && uploadPhotos(e.target.files)}
+                />
+                <PhotoViewer
+                  label={`${formatStatus(photoTab)} photos`}
+                  photos={filteredPhotos.map((p) => ({ id: p.id, src: p.url || p.thumbnailUrl, caption: p.caption }))}
+                  index={viewing}
+                  onIndex={setViewing}
+                  onClose={() => setViewing(null)}
                 />
                 {mayWorkJob && (<button
                   onClick={() => fileInputRef.current?.click()}

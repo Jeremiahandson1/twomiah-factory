@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, rows, errorMessage } from '../lib/http'
 import { formatAgencyDateTime } from '../lib/agencyClock'
 import { useToast } from '../../../../shared'
+import { PhotoViewer } from '@twomiah/tenant-ui/src/files/PhotoViewer'
 
 /** A row of GET /api/time-entries/photos/client/:clientId. */
 interface PhotoMeta {
@@ -32,8 +33,8 @@ export default function VisitPhotoGallery({ clientId, limit = 60 }: { clientId?:
   const toast = useToast()
   const [list, setList] = useState<PhotoMeta[]>([])
   const [loading, setLoading] = useState(true)
-  const [openPhoto, setOpenPhoto] = useState<Photo | null>(null)
-  const [loadingFull, setLoadingFull] = useState(false)
+  // The photo open full size (the shared viewer), by its place in the list; its image is fetched when opened.
+  const [viewing, setViewing] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     if (!clientId) return
@@ -46,17 +47,15 @@ export default function VisitPhotoGallery({ clientId, limit = 60 }: { clientId?:
 
   useEffect(() => { load() }, [load])
 
-  const openLightbox = async (photoMeta: PhotoMeta) => {
-    setLoadingFull(true)
-    setOpenPhoto({ ...photoMeta, imageBase64: null })
+  /** One photo's image (GET /api/time-entries/photo/:id): the list carries metadata only. */
+  const loadImage = async (id: string): Promise<string | null> => {
     try {
-      // The one-photo reply is the photo row: it carries no uploader name, which the list row has.
-      const full: Photo = await api.get(`/api/time-entries/photo/${photoMeta.id}`)
-      setOpenPhoto({ ...photoMeta, ...full, firstName: photoMeta.firstName, lastName: photoMeta.lastName })
+      const full: Photo = await api.get(`/api/time-entries/photo/${id}`)
+      return full.imageBase64 || null
     } catch (e) {
       toast.error('Failed to load photo: ' + errorMessage(e, 'load failed'))
-      setOpenPhoto(null)
-    } finally { setLoadingFull(false) }
+      throw e
+    }
   }
 
   const fmtDate = (t: string | null | undefined) => formatAgencyDateTime(t, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
@@ -73,7 +72,7 @@ export default function VisitPhotoGallery({ clientId, limit = 60 }: { clientId?:
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
         {list.map((p) => (
-          <button key={p.id} onClick={() => openLightbox(p)}
+          <button key={p.id} onClick={() => setViewing(list.indexOf(p))} aria-label={`Open ${p.caption || p.category || 'visit photo'} full size`}
             style={{ padding: 0, border: '1px solid var(--hc-line)', borderRadius: 8, background: 'var(--hc-subtle)', color: 'var(--hc-ink)', cursor: 'pointer', textAlign: 'left', overflow: 'hidden' }}>
             <div style={{ background: DARK_GROUND, height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', color: ON_DARK, fontSize: 28 }}>
               📷
@@ -91,36 +90,14 @@ export default function VisitPhotoGallery({ clientId, limit = 60 }: { clientId?:
         ))}
       </div>
 
-      {openPhoto && (
-        <div onClick={() => setOpenPhoto(null)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 20,
-        }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: '95vw', maxHeight: '95vh', background: 'var(--hc-surface)', color: 'var(--hc-ink)', borderRadius: 8, padding: 12, overflow: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontSize: '0.9rem' }}>
-                <strong>{openPhoto.caption || openPhoto.category || 'Visit photo'}</strong>
-                {' '}<span style={{ ...muted, fontSize: '0.8rem' }}>· {fmtDate(openPhoto.takenAt)}</span>
-              </div>
-              <button onClick={() => setOpenPhoto(null)} aria-label="Close"
-                style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', ...muted }}>×</button>
-            </div>
-            {loadingFull && !openPhoto.imageBase64 ? (
-              <div style={{ width: 600, maxWidth: '85vw', height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', background: DARK_GROUND, color: ON_DARK }}>
-                Loading photo…
-              </div>
-            ) : openPhoto.imageBase64 ? (
-              <img src={openPhoto.imageBase64} alt={openPhoto.caption || ''}
-                style={{ maxWidth: '90vw', maxHeight: '80vh', display: 'block', margin: '0 auto', borderRadius: 4 }} />
-            ) : null}
-            {openPhoto.firstName && (
-              <div style={{ marginTop: 8, fontSize: '0.8rem', ...muted }}>
-                Uploaded by {openPhoto.firstName} {openPhoto.lastName}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <PhotoViewer
+        label="Visit photos"
+        photos={list.map((p) => ({ id: p.id, caption: p.caption || p.category || 'Visit photo', detail: `${fmtDate(p.takenAt)}${p.firstName ? ` · uploaded by ${p.firstName} ${p.lastName || ''}`.trimEnd() : ''}` }))}
+        index={viewing}
+        onIndex={setViewing}
+        onClose={() => setViewing(null)}
+        load={(photo) => loadImage(String(photo.id))}
+      />
     </div>
   )
 }

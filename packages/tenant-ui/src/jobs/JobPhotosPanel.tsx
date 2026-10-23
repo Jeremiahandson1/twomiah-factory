@@ -6,11 +6,12 @@
 //                                                (documents:read / create / delete)
 // Both are photo_capture's on the server, so the page shows this only with it on.
 import { useState, useEffect, useCallback, type ChangeEvent } from 'react'
-import { Camera, X, Trash2 } from 'lucide-react'
+import { Camera, Trash2 } from 'lucide-react'
 import { Button, errMsg } from '../invoicing/ui'
 import type { JobsApi, JobsToast } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { useConfirm } from '../ui/ConfirmProvider'
+import { PhotoViewer } from '../files/PhotoViewer'
 
 export type JobPhotoStore = 'job' | 'library'
 interface Shown { id: string; url: string; thumbnailUrl?: string | null; caption?: string | null }
@@ -111,16 +112,18 @@ export function JobPhotosPanel({ api, toast, jobId, store, label = 'Job' }: {
         </label>
       ))}
 
-      {open && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label="Photo">
-          <div className="flex items-center justify-between p-4">
-            <button type="button" onClick={() => setOpen(null)} className="p-2 text-white hover:text-gray-300" aria-label="Close"><X className="w-6 h-6" /></button>
-            {mayRemove && <button type="button" onClick={() => remove(open)} className="p-2 text-red-400 hover:text-red-300" aria-label="Delete photo"><Trash2 className="w-5 h-5" /></button>}
-          </div>
-          <div className="flex-1 flex items-center justify-center p-4 min-h-0"><img src={open.url} alt={open.caption || ''} className="max-w-full max-h-full object-contain" /></div>
-          {open.caption && <p className="text-white text-center p-4 text-sm">{open.caption}</p>}
-        </div>
-      )}
+      {/* The shared full-size viewer (files/PhotoViewer.tsx): next and previous, the keyboard, a phone's swipe. */}
+      <PhotoViewer
+        label={`${label} photos`}
+        photos={(photos || []).map((p) => ({ id: p.id, src: p.url, caption: p.caption }))}
+        index={open && photos ? Math.max(0, photos.findIndex((p) => p.id === open.id)) : null}
+        onIndex={(i) => setOpen(photos?.[i] ?? null)}
+        onClose={() => setOpen(null)}
+        actions={(p) => {
+          const shown = photos?.find((x) => x.id === p.id)
+          return mayRemove && shown ? <button type="button" onClick={() => remove(shown)} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-red-300 hover:bg-white/20" aria-label="Delete photo"><Trash2 className="w-5 h-5" /></button> : null
+        }}
+      />
     </div>
   )
 }

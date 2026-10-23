@@ -10,7 +10,8 @@
 //   · runDailyStormCheck is NOT scheduled. The template defined it and never called it (no caller anywhere in
 //     templates/crm-roof), so no roofer's storm board has ever been filled by it; starting it is a new behaviour that
 //     writes storm events from a feed whose CSV shape is not verified, and waits for the owner's yes.
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, count, eq, inArray, or } from 'drizzle-orm'
+import { zip5Of } from '../../../data/zip5.ts'
 import { company, contact, job, stormEvent, stormLead } from '../../../db/schema/index.ts'
 import type { CrmDeps } from '../../deps.ts'
 
@@ -27,6 +28,11 @@ export function serviceAreaZips(co: { zip?: string | null; settings?: unknown } 
   if (Array.isArray(settings.serviceAreaZips)) return settings.serviceAreaZips.map((z: unknown) => String(z ?? '').trim()).filter(Boolean)
   const own = String(co?.zip ?? '').trim()
   return own ? [own] : []
+}
+
+/** A storm's zips as five-digit zips (54701-1234 → 54701); anything that is not a zip is dropped. */
+export function zip5s(zips: unknown[]): string[] {
+  return [...new Set(zips.map((z) => /^\s*(\d{5})(?:-\d{4})?\s*$/.exec(String(z ?? ''))?.[1]).filter((z): z is string => !!z))]
 }
 
 export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {}) {
@@ -78,15 +84,33 @@ export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {})
 
   /**
    * Real leads only: the company's OWN contacts in the storm's zips (sourcing net-new owners needs a parcel provider,
-   * not configured), skipping an address that already has a job and a contact already leaded for this storm.
+   * not configured) — every one of them, once per storm, each linked to the contact it is: no second homeowner is made.
+   *
+   * Live test 2026-10-22 (roofing P4.7): a storm for 54701 made a lead but did not match Casey Customer, a client in
+   * 54701. Two rules dropped existing customers: a contact whose address already had a job was skipped — but a storm is
+   * new damage, and the business's own past customers are the first people it calls — and the zip was compared as text,
+   * so a contact saved as 54701-1234 was never in 54701. Now the five-digit zip decides (zip5s), and a customer with a
+   * job is matched and flagged: the lead links their newest job and its note says so.
    */
   async function generateStormLeads(companyId: string, stormEventId: string, zipCodes: string[]) {
-    const existingJobs = await db.select({ address: job.address, zip: job.zip }).from(job)
-      .where(and(eq(job.companyId, companyId), inArray(job.zip, zipCodes)))
-    const existingAddresses = new Set(existingJobs.map((j: any) => `${j.address}|${j.zip}`))
+    const contactsInZips = await contactsInStorm(companyId, zipCodes)
 
-    const contactsInZips = await db.select({ id: contact.id, address: contact.address, city: contact.city, state: contact.state, zip: contact.zip })
-      .from(contact).where(and(eq(contact.companyId, companyId), inArray(contact.zip, zipCodes)))
+    // The jobs those contacts already have — theirs by the job's contact, or at their address — the lead links the
+    // newest, and its note names it.
+    const contactIds = (contactsInZips as any[]).map((c) => c.id)
+    const zips = zip5s(zipCodes)
+    const jobs = contactIds.length
+      ? await db.select({ id: job.id, number: job.number, contactId: job.contactId, address: job.address, zip: job.zip, createdAt: job.createdAt }).from(job)
+        .where(and(eq(job.companyId, companyId), or(inArray(job.contactId, contactIds), inArray(zip5Of(job.zip), zips))))
+      : []
+    const at = (address: unknown, zip: unknown) => `${String(address ?? '').trim().toLowerCase()}|${String(zip ?? '').trim().slice(0, 5)}`
+    const newestFirst = [...(jobs as any[])].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    const jobOf = new Map<string, any>()
+    for (const ct of contactsInZips as any[]) {
+      const theirs = newestFirst.find((j) => j.contactId === ct.id)
+        || (ct.address ? newestFirst.find((j) => !j.contactId && at(j.address, j.zip) === at(ct.address, ct.zip)) : undefined)
+      if (theirs) jobOf.set(ct.id, theirs)
+    }
 
     const priorLeads = await db.select({ contactId: stormLead.contactId }).from(stormLead)
       .where(and(eq(stormLead.companyId, companyId), eq(stormLead.stormEventId, stormEventId)))
@@ -94,28 +118,41 @@ export function createStormData(d: CrmDeps, opts: { fetch?: typeof fetch } = {})
 
     const leads: any[] = []
     for (const ct of contactsInZips as any[]) {
-      if (!ct.address || !ct.zip) continue
       if (alreadyLeaded.has(ct.id)) continue
-      if (existingAddresses.has(`${ct.address}|${ct.zip}`)) continue // already has a job
+      const theirJob = jobOf.get(ct.id)
       leads.push({
-        companyId, stormEventId, contactId: ct.id, address: ct.address, city: ct.city || '', state: ct.state || '', zip: ct.zip,
+        companyId, stormEventId, contactId: ct.id, jobId: theirJob?.id ?? null,
+        address: ct.address || null, city: ct.city || '', state: ct.state || '', zip: ct.zip,
         status: 'new', estimatedDamage: null,
-        notes: 'Existing contact in a storm-affected ZIP — confirm damage on inspection.',
+        notes: theirJob
+          ? `Existing customer — ${theirJob.number ? `job ${theirJob.number}` : 'a job'} on file. Check the roof for new storm damage.`
+          : ct.address
+            ? 'Existing contact in a storm-affected ZIP — confirm damage on inspection.'
+            : 'Existing contact in a storm-affected ZIP, with no street address on file — call to confirm damage.',
       })
     }
     for (let i = 0; i < leads.length; i += 100) await db.insert(stormLead).values(leads.slice(i, i + 100))
 
-    await db.update(stormEvent).set({ leadCount: leads.length, status: 'leads_generated' } as any)
+    // The storm's count is all its leads, not only this run's (a second run after adding a contact said "1 leads").
+    const [{ value: total }] = await db.select({ value: count() }).from(stormLead)
+      .where(and(eq(stormLead.companyId, companyId), eq(stormLead.stormEventId, stormEventId)))
+    await db.update(stormEvent).set({ leadCount: Number(total), status: 'leads_generated' } as any)
       .where(and(eq(stormEvent.id, stormEventId), eq(stormEvent.companyId, companyId)))
     return leads.length
+  }
+
+  /** The company's contacts whose zip is one of the storm's, by the five-digit zip. */
+  async function contactsInStorm(companyId: string, zipCodes: string[]) {
+    const zips = zip5s(zipCodes)
+    if (!zips.length) return []
+    return db.select({ id: contact.id, name: contact.name, address: contact.address, city: contact.city, state: contact.state, zip: contact.zip })
+      .from(contact).where(and(eq(contact.companyId, companyId), inArray(zip5Of(contact.zip), zips)))
   }
 
   async function checkExistingCustomers(companyId: string, stormEventId: string) {
     const [event] = await db.select().from(stormEvent).where(and(eq(stormEvent.id, stormEventId), eq(stormEvent.companyId, companyId))).limit(1)
     if (!event) return []
-    const zipCodes = (event.affectedZipCodes as string[]) || []
-    if (zipCodes.length === 0) return []
-    return db.select().from(contact).where(and(eq(contact.companyId, companyId), inArray(contact.zip, zipCodes)))
+    return contactsInStorm(companyId, (event.affectedZipCodes as string[]) || [])
   }
 
   /** Every company with storm_lead_gen: the last 48 hours from the feed, and leads where it auto-generates. Not scheduled (header). */

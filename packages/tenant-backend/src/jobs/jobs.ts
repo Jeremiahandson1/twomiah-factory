@@ -25,6 +25,7 @@ import { withinHorizon, horizonMessage } from '../dateInput'
 import { sniffType } from '../files/storage'
 import { seriesDays, describeSeriesDays, MAX_SERIES, type SeriesFrequency } from '../time/series'
 import { zipField } from '../address'
+import { itemCodes, withoutItemCodes } from '../invoicing/itemCodes'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
   /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
@@ -877,6 +878,9 @@ export function createJobRoutes(deps: JobDeps) {
     app.post('/:id/invoice', requirePermission('invoices:create'), async (c) => {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
+      // Read before the transaction opens (a pool read inside it deadlocks a one-connection database): the codes the
+      // quote's lines may carry, kept off the invoice (invoicing/itemCodes.ts).
+      const codes = await itemCodes(db, currentUser.companyId)
 
       const outcome = await db.transaction(async (tx: any) => {
         // Scoped to the company, so one tenant cannot lock another's row by guessing an id.
@@ -953,7 +957,7 @@ export function createJobRoutes(deps: JobDeps) {
           )) : []
           if (q && qLines.length) {
             lines = qLines.map((r: any) => ({
-              description: String(r.description || ''),
+              description: withoutItemCodes(r.description || '', codes),
               quantity: Number(r.quantity || 0),
               unitPrice: Number(r.unit_price || 0),
             }))

@@ -120,7 +120,8 @@ export function createStormRoutes(d: CrmDeps, storms: StormData = createStormDat
     ])
     const existingContacts = await db.select({ address: contact.address, zip: contact.zip }).from(contact).where(eq(contact.companyId, companyId))
     const existingSet = new Set(existingContacts.map((r: any) => `${r.address}|${r.zip}`))
-    const data = leads.map((l: any) => ({ ...l, isExistingCustomer: existingSet.has(`${l.address}|${l.zip}`) }))
+    // An existing customer: a lead matched from one of the company's contacts, or at an address one of them has.
+    const data = leads.map((l: any) => ({ ...l, isExistingCustomer: !!l.contactId || existingSet.has(`${l.address}|${l.zip}`) }))
     return list(c, data, { page, limit, total: Number(total) })
   })
 
@@ -154,7 +155,9 @@ export function createStormRoutes(d: CrmDeps, storms: StormData = createStormDat
       const [claimed] = await tx.update(stormLead).set({ status: 'converted' } as any)
         .where(and(eq(stormLead.id, lead.id), eq(stormLead.companyId, companyId), isNull(stormLead.jobId))).returning({ id: stormLead.id })
       if (!claimed) return null
-      const newContact = await insertHomeowner(tx, companyId, {
+      // A lead matched from one of the company's own contacts is that contact's: the job is theirs, and no second
+      // homeowner is made (live test 2026-10-22: storm leads now include existing customers, stormData.ts).
+      const newContact = lead.contactId ? { id: lead.contactId as string } : await insertHomeowner(tx, companyId, {
         name: who.name, phone: who.phone, email: who.email, address: lead.address, city: lead.city, state: lead.state, zip: lead.zip, source: 'storm',
       })
       const newJob = await insertRoofJob(tx, companyId, userId, {
