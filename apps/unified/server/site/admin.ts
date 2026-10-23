@@ -12,7 +12,7 @@
 // it: site:update for content, site:settings for the settings — the same people who, before drafts, changed the live
 // site by saving. Showing or hiding a page or a post (isPublished, status) is its own switch and takes effect at once.
 import { Hono } from 'hono'
-import { and, asc, desc, eq, gte, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull } from 'drizzle-orm'
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -621,6 +621,72 @@ export function createSiteAdmin(deps: { db: any; permissions: any; store: PhotoS
   app.delete('/portfolio/:slug', may('site:delete'), async (c) => {
     const gone = await db.delete(portfolioItem).where(and(eq(portfolioItem.companyId, c.get('user').companyId), eq(portfolioItem.slug, c.req.param('slug')))).returning({ id: portfolioItem.id })
     return gone.length ? done(c) : fail(c, 404, 'Not found')
+  })
+
+  // ── Everything unpublished, and Publish all (owner 2026-10-23, as Wix and Webflow do it) ───────────
+  /** The kinds a draft can be on: the table, its draft fields, its json and NOT NULL columns, and who may publish it. */
+  const DRAFT_KINDS = [
+    { kind: 'page', table: page, fields: PAGE_DRAFT, json: new Set(['sections']), notNull: new Set(['title', 'sections']), permission: 'site:update' },
+    { kind: 'post', table: post, fields: POST_DRAFT, json: new Set<string>(), notNull: new Set(['title', 'body']), permission: 'site:update' },
+    { kind: 'portfolio', table: portfolioItem, fields: PORTFOLIO_DRAFT, json: new Set(['photos']), notNull: new Set(['title', 'body', 'photos']), permission: 'site:update' },
+    { kind: 'settings', table: website, fields: SETTINGS_DRAFT, json: new Set(['nav', 'serviceAreas']), notNull: new Set(['nav', 'serviceAreas', 'contactCtaLabel']), permission: 'site:settings' },
+  ] as const
+
+  /**
+   * Every record with unpublished changes: pages, posts, portfolio work and the settings, each with its name, when it
+   * was saved, and whether this person may publish it (site:update for content, site:settings for the settings).
+   */
+  async function unpublished(c: any) {
+    const companyId = c.get('user').companyId
+    const out: Array<{ kind: string; slug: string; title: string; savedAt: string | null; mayPublish: boolean }> = []
+    for (const k of DRAFT_KINDS) {
+      const t = k.table as any
+      const rows = await db.select({ slug: k.kind === 'settings' ? t.id : t.slug, title: k.kind === 'settings' ? t.id : t.title, draft: t.draft })
+        .from(t).where(and(eq(t.companyId, companyId), isNotNull(t.draft)))
+      const may = await hasPermission(c, k.permission)
+      for (const r of rows) {
+        const d = draftOf(r)
+        if (!d) continue
+        out.push({
+          kind: k.kind, slug: k.kind === 'settings' ? 'site' : r.slug,
+          title: k.kind === 'settings' ? 'Website settings' : String(d.title || r.title),
+          savedAt: typeof d.savedAt === 'string' ? d.savedAt : null, mayPublish: may,
+        })
+      }
+    }
+    return out
+  }
+
+  app.get('/drafts', may('site:read'), async (c) => listAll(c, await unpublished(c)))
+
+  /**
+   * Publish all: every unpublished change this person may publish goes live together, in one transaction — all of them
+   * or none. `items` ([{ kind, slug }]) is the list the screen showed, so nothing saved after it was read is published
+   * unseen; without it, everything there is. What they may not publish (a manager and the settings) stays a draft and
+   * is named in `skipped`. Showing or hiding is not touched: a hidden page published here stays hidden.
+   */
+  app.post('/drafts/publish', may('site:update'), async (c) => {
+    const body = await c.req.json().catch(() => ({})) as { items?: Array<{ kind?: unknown; slug?: unknown }> }
+    const companyId = c.get('user').companyId
+    const wanted = Array.isArray(body.items) ? new Set(body.items.map((i) => String(i?.kind) + '|' + String(i?.slug))) : null
+    const all = await unpublished(c)
+    const chosen = all.filter((i) => !wanted || wanted.has(i.kind + '|' + i.slug))
+    const go = chosen.filter((i) => i.mayPublish)
+    const skipped = chosen.filter((i) => !i.mayPublish).map(({ kind, slug, title }) => ({ kind, slug, title }))
+    if (!go.length) return fail(c, 409, skipped.length ? 'You may not publish these changes.' : 'There are no unpublished changes.', 'nothing_to_publish')
+    const published: Array<{ kind: string; slug: string; title: string }> = []
+    await db.transaction(async (tx: any) => {
+      for (const i of go) {
+        const k = DRAFT_KINDS.find((x) => x.kind === i.kind)!
+        const t = k.table as any
+        const where = i.kind === 'settings'
+          ? and(eq(t.companyId, companyId), isNotNull(t.draft))
+          : and(eq(t.companyId, companyId), eq(t.slug, i.slug), isNotNull(t.draft))
+        const done = await tx.update(t).set({ ...publishSet(t, k.fields, k.json, k.notNull), updatedAt: new Date() }).where(where).returning({ id: t.id })
+        if (done.length) published.push({ kind: i.kind, slug: i.slug, title: i.title })
+      }
+    })
+    return one(c, { published, skipped })
   })
 
   // ── Visits and enquiries, last 30 days against the 30 before ─────────────

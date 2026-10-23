@@ -334,3 +334,74 @@ describe('the live preview', () => {
     } finally { delete process.env.SITE_URL }
   })
 })
+
+describe('everything unpublished, and Publish all', () => {
+  test('the list names every draft — pages, posts, work and settings — and who may publish each', async () => {
+    await as('owner', '/api/site/pages/about', { method: 'PATCH', json: { sections: hero('All-at-once about') } })
+    await as('owner', '/api/site/posts/spring', { method: 'PATCH', json: { body: 'All-at-once post' } })
+    await as('owner', '/api/site/portfolio/oak', { method: 'PATCH', json: { summary: 'All-at-once work' } })
+    await as('owner', '/api/site/settings', { method: 'PATCH', json: { tagline: 'All-at-once tagline' } })
+    const list = (await json(await as('owner', '/api/site/drafts'))).data
+    const keys = list.map((i: any) => i.kind + '|' + i.slug)
+    for (const k of ['page|about', 'post|spring', 'portfolio|oak', 'settings|site']) expect(keys).toContain(k)
+    expect(list.every((i: any) => i.mayPublish)).toBe(true)
+    expect(list.find((i: any) => i.kind === 'settings').title).toBe('Website settings')
+    const managers = (await json(await as('manager', '/api/site/drafts'))).data
+    expect(managers.find((i: any) => i.kind === 'settings').mayPublish).toBe(false)
+    expect(managers.find((i: any) => i.kind === 'page').mayPublish).toBe(true)
+    expect((await as('staff', '/api/site/drafts')).status).toBe(403)
+  })
+
+  test('the page preview can show the whole site as it will be: under the draft settings too', async () => {
+    // The saved state held (no typing), so the frame draws the saved draft.
+    await as('owner', '/api/site/preview/page/about', { method: 'POST', json: {} })
+    const plain = await (await as('owner', '/api/site/preview/page/about')).text()
+    expect(plain).not.toContain('All-at-once tagline')
+    const whole = await (await as('owner', '/api/site/preview/page/about?settings=draft')).text()
+    expect(whole).toContain('All-at-once about')
+    expect(whole).toContain('All-at-once tagline')
+    expect(await pub('/')).not.toContain('All-at-once tagline')
+  })
+
+  test('a manager publishes all they may; the settings stay a draft, named as skipped', async () => {
+    await as('owner', '/api/site/pages/team', { method: 'PATCH', json: { sections: [{ type: 'faq', variant: 'accordion', data: { items: [{ question: 'Manager?', answer: 'Yes.' }] } }] } })
+    const r = await json(await as('manager', '/api/site/drafts/publish', { method: 'POST', json: { items: [{ kind: 'page', slug: 'team' }, { kind: 'settings', slug: 'site' }] } }))
+    expect(r.published.map((i: any) => i.kind + '|' + i.slug)).toEqual(['page|team'])
+    expect(r.skipped.map((i: any) => i.kind)).toEqual(['settings'])
+    expect(await pub('/team')).toContain('Manager?')
+    expect(await pub('/about')).not.toContain('All-at-once about')
+  })
+
+  test('only what the screen listed is published; the rest stays', async () => {
+    const r = await json(await as('owner', '/api/site/drafts/publish', { method: 'POST', json: { items: [{ kind: 'post', slug: 'spring' }] } }))
+    expect(r.published.map((i: any) => i.kind)).toEqual(['post'])
+    expect(await pub('/blog/spring')).toContain('All-at-once post')
+    expect(await pub('/about')).not.toContain('All-at-once about')
+  })
+
+  test('Publish all puts every change on the site together, and leaves nothing unpublished', async () => {
+    const r = await json(await as('owner', '/api/site/drafts/publish', { method: 'POST', json: {} }))
+    expect([...new Set(r.published.map((i: any) => i.kind))].sort()).toEqual(['page', 'portfolio', 'settings'])
+    expect(await pub('/about')).toContain('All-at-once about')
+    expect(await pub('/projects/oak')).toContain('All-at-once work')
+    expect(await pub('/')).toContain('All-at-once tagline')
+    expect((await json(await as('owner', '/api/site/drafts'))).data).toEqual([])
+    expect((await as('owner', '/api/site/drafts/publish', { method: 'POST', json: {} })).status).toBe(409)
+  })
+
+  test('all or none: a publish that fails part-way publishes nothing', async () => {
+    await as('owner', '/api/site/pages/about', { method: 'PATCH', json: { sections: hero('Atomic about') } })
+    await as('owner', '/api/site/settings', { method: 'PATCH', json: { tagline: 'Atomic tagline' } })
+    // The settings' UPDATE fails (a trigger refuses it) after the page's has run: the page's must be undone with it.
+    await t.client.exec(`CREATE OR REPLACE FUNCTION refuse_website() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'refused'; END $$ LANGUAGE plpgsql;
+      CREATE TRIGGER refuse_website BEFORE UPDATE ON website FOR EACH ROW EXECUTE FUNCTION refuse_website();`)
+    const r = await as('owner', '/api/site/drafts/publish', { method: 'POST', json: {} })
+    await t.client.exec(`DROP TRIGGER refuse_website ON website; DROP FUNCTION refuse_website();`)
+    expect(r.status).toBeGreaterThanOrEqual(500)
+    expect(await pub('/about')).not.toContain('Atomic about')
+    const [p] = await t.db.select().from(t.schema.page).where(eq(t.schema.page.slug, 'about'))
+    expect(JSON.stringify(p.draft)).toContain('Atomic about')
+    await t.db.update(t.schema.website).set({ draft: null } as any).where(eq(t.schema.website.companyId, companyId))
+    await as('owner', '/api/site/pages/about/draft', { method: 'DELETE' })
+  })
+})

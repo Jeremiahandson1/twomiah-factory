@@ -3,6 +3,7 @@
 //
 //   POST /api/site/preview/:kind/:slug { data }  holds the editor's current state for this person and this record
 //   GET  /api/site/preview/:kind/:slug           the page, rendered with it — what the editor's frame loads
+//        ?settings=draft                         …under the saved draft settings as well (the whole site as it will be)
 //
 // kind is page, post, portfolio or settings (slug "site": the home page under the draft settings). With nothing held, the
 // GET draws the saved draft, so a person who may only read the site sees what is waiting to be published.
@@ -31,7 +32,7 @@ import type { VerticalSettings } from '../core/vertical.ts'
 import { fail, one } from '../http/reply.ts'
 import { SITE_CSP } from '../http/guards.ts'
 import { loadSiteContext, type SiteContext } from './context.ts'
-import { PAGE_DRAFT, POST_DRAFT, PORTFOLIO_DRAFT, SETTINGS_DRAFT, previewScope, workingOf, type DraftFields, type PreviewOverlay } from './drafts.ts'
+import { PAGE_DRAFT, POST_DRAFT, PORTFOLIO_DRAFT, SETTINGS_DRAFT, previewScope, workingOf, draftOf, type DraftFields, type PreviewOverlay } from './drafts.ts'
 
 export type PreviewKind = 'page' | 'post' | 'portfolio' | 'settings'
 
@@ -121,8 +122,14 @@ export function addPreviewRoutes(app: Hono<any>, may: (p: string) => any, deps: 
     const slug = kind === 'settings' ? 'site' : c.req.param('slug')
     const kept = held.get(keyOf(c, kind, slug))
     if (kept) kept.at = now()
-    const overlay = kept?.overlay ?? await savedOverlay(c, kind, slug)
+    let overlay = kept?.overlay ?? await savedOverlay(c, kind, slug)
     if (!overlay) return fail(c, 404, 'Nothing to preview')
+    // ?settings=draft: the page under the site's saved draft settings too — the whole site as it will be once everything
+    // is published (the editor offers it while the settings have a draft).
+    if (kind !== 'settings' && c.req.query('settings') === 'draft') {
+      const [site] = await deps.db.select().from(website).where(eq(website.companyId, c.get('user').companyId)).limit(1)
+      if (site && draftOf(site)) overlay = { ...overlay, settings: workingOf(site, SETTINGS_DRAFT) }
+    }
     const url = new URL(c.req.url)
     const pathname = KINDS[kind].path(slug)
     // Through the app, as a same-origin frame of this name would ask: on app.<domain> the website half answers such a
