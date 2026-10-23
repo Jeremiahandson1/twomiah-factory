@@ -9,7 +9,18 @@ const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
 // L1 — the portal's money helpers both carry cents (moneyShort used to drop them: "$824.6")
 const common = read('packages/tenant-ui/src/portal/common.tsx')
-if (!/export const money = .*minimumFractionDigits: 2, maximumFractionDigits: 2/.test(common)) fail('portal money() must show cents')
+/**
+ * ONE MONEY FORMATTER (a6b342dfa). Every screen's money now goes through packages/tenant-ui/src/money.ts, so "shows
+ * cents" is a property of THAT file, and of each caller not asking it for fewer digits. Both are checked: the shared
+ * money() defaults to 2 digits and prints exactly `digits` fraction digits; the portal's money() is the shared one with
+ * no digits argument. The old inline toLocaleString form is still accepted where a file keeps its own.
+ */
+const shared = read('packages/tenant-ui/src/money.ts')
+const SHARED_CENTS = /export function money\(n: unknown, digits = 2\): string \{[\s\S]*?toLocaleString\('en-US', \{ minimumFractionDigits: digits, maximumFractionDigits: digits \}\)/.test(shared)
+if (!SHARED_CENTS) fail('the shared money() (packages/tenant-ui/src/money.ts) must default to 2 digits and print exactly that many')
+const portalMoney = /export const money = .*minimumFractionDigits: 2, maximumFractionDigits: 2/.test(common)
+  || (/import \{ money as formatMoney \} from '\.\.\/money'/.test(common) && /export const money = \(n: unknown\) => `\$\{formatMoney\(Number\(n \|\| 0\)\)\}`/.test(common) && SHARED_CENTS)
+if (!portalMoney) fail('portal money() must show cents')
 if (!/export const moneyShort = money\b/.test(common)) fail('portal moneyShort must show cents too (it is money)')
 // L2 — a team rate is money
 const team = read('packages/tenant-ui/src/people/TeamPage.tsx')
@@ -17,7 +28,9 @@ const team = read('packages/tenant-ui/src/people/TeamPage.tsx')
 // toLocaleString with minimumFractionDigits 2, which also groups thousands — so this accepts either
 // formatter and still refuses a bare figure. (T41)
 const TWO_DP = /\$\{Number\(v\)\.(?:toFixed\(2\)|toLocaleString\(undefined, \{ minimumFractionDigits: 2, maximumFractionDigits: 2 \}\))\}\/hr/
-if (!TWO_DP.test(team)) fail('the team Rate column must show 2 decimals')
+// …or the shared money() at its default 2 digits (a6b342dfa), which also puts the sign before the dollar.
+const SHARED_DP = /import \{ money \} from '\.\.\/money'/.test(team) && /\$\{money\(Number\(v\)\)\}\/hr/.test(team) && SHARED_CENTS
+if (!TWO_DP.test(team) && !SHARED_DP) fail('the team Rate column must show 2 decimals')
 // A login account's role is a PERMISSION role, and the Team page printed the stored slug — "field" and "user"
 // on a page whose own Settings › Users calls both of them Staff. One vocabulary, one map. (T14 M10)
 if (!/import \{ ROLE_LABELS \} from '\.\.\/shell\/types'/.test(team)) fail('the Team page must read the shared role vocabulary, not invent a second one')
