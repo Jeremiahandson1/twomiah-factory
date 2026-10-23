@@ -304,7 +304,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
 
   app.get('/status', async (c) => c.json(await qb.getConnectionStatus(user(c).companyId)))
   app.get('/auth-url', touchesTheBooks, async (c) => {
-    try { return c.json({ url: qb.getAuthUrl(user(c).companyId) }) } catch (e: any) { return c.json({ error: e?.message || 'QuickBooks is not configured' }, 503) }
+    try { return c.json({ url: qb.getAuthUrl(user(c).companyId) }) } catch (e: any) { return c.json({ error: e?.message || 'QuickBooks isn’t switched on for your account yet.', code: 'not_configured' }, 503) }
   })
   app.post('/disconnect', touchesTheBooks, async (c) => {
     await qb.disconnect(user(c).companyId)

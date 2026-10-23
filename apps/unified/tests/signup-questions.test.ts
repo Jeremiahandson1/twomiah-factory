@@ -4,7 +4,10 @@
 // dealer, a restaurant, a bar and a shop were asked about a booking system theirs does not have.
 import { describe, test, expect } from 'bun:test'
 import { signupQuestionsFor, signupChoices } from '../../api/src/config/signupQuestions.ts'
-import { takesBookings } from '../../api/src/unified/factory.ts'
+// The Factory's build module, loaded at run time: it reaches the whole Factory (its generator), which this app's
+// type-check (scripts/check-unified-types.ts) would otherwise take in as the app's own files.
+const FACTORY = '../../api/src/unified/factory.ts'
+const { takesBookings } = (await import(FACTORY)) as { takesBookings: (tenant: any) => boolean }
 
 // What the signup pages hide (twomiah-website signup.html ASK_HIDDEN_FOR), written from this rule — checked here so the
 // two cannot drift without a failing test.
