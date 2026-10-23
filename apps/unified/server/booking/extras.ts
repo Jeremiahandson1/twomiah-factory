@@ -27,7 +27,7 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
    * visit that can't be had is listed back, not silently made — the site inserted every visit with no check at all,
    * though its own comment said clashes were marked.
    */
-  async function createSeries(companyId: string, body: Record<string, any>) {
+  async function createSeries(companyId: string, body: Record<string, any>, userId: string | null = null) {
     const svc = await engine.serviceById(companyId, String(body.serviceId || ''))
     if (!svc) throw new BookingError('Choose a service.')
     const frequency: Frequency = body.frequency === 'monthly' ? 'monthly' : 'weekly'
@@ -38,6 +38,10 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
     if (untilDate && !isRealDate(untilDate)) throw new BookingError('The end date isn\'t a real date.')
     if (!occurrencesCount && !untilDate) throw new BookingError('Say how many visits, or until when.')
     const s = await engine.settingsOf(companyId)
+    // The first visit is held like any desk booking — the phone the business asks for, and the window unless staff
+    // tick "Book outside the hours" — before anything is written: the later visits are the series itself and run past
+    // the window by design, so a series must not start where a single booking couldn't.
+    engine.bookingRules(s, { by: 'staff', phone: text(body.phone, 40), zip: text(body.zip, 10), dates: [String(body.date)], outside: body.override === true })
     const tz = engine.tzOf(s)
     const spec = { frequency, intervalCount, firstStartAt: zonedWallTimeToUtc(body.date, body.time, tz), durationMinutes: svc.durationMinutes, timezone: tz, occurrencesCount, untilDate }
     const visits = expandSeries(spec)
@@ -52,7 +56,7 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
     for (const v of visits) {
       const input: BookInput = { service: svc.id, date: v.date, time: body.time, name, email: mail, phone: body.phone, address: body.address, zip: body.zip, notes: body.notes }
       try {
-        const r = await engine.book(companyId, input, { by: 'staff', assignedUserId: body.assignedUserId || null, seriesId: series.id, seriesIndex: v.index, source: 'series', override: body.override === true })
+        const r = await engine.book(companyId, input, { by: 'staff', assignedUserId: body.assignedUserId || null, seriesId: series.id, seriesIndex: v.index, source: 'series', override: body.override === true, userId })
         made.push(r.booking.id)
       } catch (e: any) {
         if (!(e instanceof BookingError)) throw e
@@ -169,8 +173,11 @@ export function createBookingExtras(deps: { db: any; engine: BookingEngine; emai
       .from(booking).leftJoin(bookingService, eq(booking.serviceId, bookingService.id)).where(eq(booking.companyId, companyId)).orderBy(asc(booking.startAt))
     const by = new Map<string, any>()
     for (const r of rows) {
-      const c = by.get(r.email) ?? { email: r.email, name: r.name, phone: r.phone, contactId: r.contactId, bookings: 0, completed: 0, noShows: 0, cancelled: 0, bookedValue: 0, firstVisit: null, lastVisit: null, nextVisit: null }
+      const c = by.get(r.email) ?? { email: r.email, name: r.name, names: [] as string[], phone: r.phone, contactId: r.contactId, bookings: 0, completed: 0, noShows: 0, cancelled: 0, bookedValue: 0, firstVisit: null, lastVisit: null, nextVisit: null }
       c.name = r.name; c.phone = r.phone || c.phone; c.contactId = r.contactId || c.contactId
+      // Everyone who has booked under this email, in the name each typed (a household shares one address): the latest
+      // first, each once. (Field service T24 L1)
+      c.names = [r.name, ...c.names.filter((x: string) => x !== r.name)]
       c.bookings++
       if (r.status === 'completed') { c.completed++; c.bookedValue += n(r.price); c.lastVisit = r.startAt; c.firstVisit ??= r.startAt }
       if (r.status === 'no_show') c.noShows++

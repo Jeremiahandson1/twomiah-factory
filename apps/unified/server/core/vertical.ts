@@ -52,10 +52,11 @@ export interface VerticalSettings {
     /**
      * Where a booking lands besides the booking list. 'practice' is the vet's book: the pet becomes a chart under its
      * owner (found again by the owner and the pet's name) and the booking an appointment for both, in the booking's own
-     * transaction (server/crm/vet/onlineBooking.ts; templates/crm-vet routes/booking.ts appointmentCalendar). Absent:
+     * transaction (server/crm/vet/onlineBooking.ts; templates/crm-vet routes/booking.ts appointmentCalendar). 'chair' is
+     * the salon's: the booking an appointment in The Book (server/crm/salon/onlineBooking.ts; templates/crm-salon). Absent:
      * the booking list only.
      */
-    calendar?: 'practice'
+    calendar?: 'practice' | 'chair'
     /** The public form asks for the pet and refuses a booking without its name (templates/crm-vet requirePet). With calendar 'practice'. */
     requirePet?: boolean
   }

@@ -26,6 +26,7 @@ import { dashboard as homecareDashboard } from './verticals/homecare'
 import { dashboard as roofDashboard } from './verticals/roof'
 import { dashboard as storeDashboard } from './verticals/store'
 import TextingPage from './pages/TextingPage'
+import { ContactBookings } from '../booking/ContactBookings'
 
 const v = verticalScreens
 const client = api as any
@@ -53,7 +54,10 @@ export function Contacts() {
 }
 export function ContactDetail() {
   const { hasFeature, can } = useAuth()
-  return <ContactDetailPage api={client} toast={useToast()} config={{ ...v().contacts, hasFeature, can } as any} />
+  // The contact's bookings, each in the name its booker typed (booking/ContactBookings.tsx) — where the business takes
+  // bookings and the seat may read them, the same gates as the Bookings screen.
+  const panels = hasFeature('online_booking') && can('bookings:read') ? (contactId: string) => <ContactBookings contactId={contactId} /> : undefined
+  return <ContactDetailPage api={client} toast={useToast()} config={{ ...v().contacts, hasFeature, can, panels } as any} />
 }
 /** The job screens pick a unit from the equipment list only where equipment_tracking is on (/api/equipment is its, on the server). */
 const jobsFor = (hasFeature: (f: string) => boolean) => ({ ...v().jobs, hasFeature, equipment: !!(v().jobs as any).equipment && hasFeature('equipment_tracking') })
@@ -110,14 +114,17 @@ export function Schedule() {
   const loadBookings = async (from: string, to: string) => {
     if (!hasFeature('online_booking')) return []
     const r: any = await client.get('/api/booking/bookings', { from, to, limit: 500 })
-    return (r?.data || []).filter((b: any) => b.status !== 'cancelled').map((b: any) => ({
+    // A booking converted into a job is on the board as that job, wherever the job now sits — drawing the booking too
+    // would put one visit up twice (or on two days, once the crew's job was moved). Every other live booking is drawn as
+    // a booking that opens its own page, where "Convert to job" is.
+    return (r?.data || []).filter((b: any) => b.status !== 'cancelled' && !b.job).map((b: any) => ({
       id: b.id, startAt: b.startAt, status: b.status, customerName: b.customerName, serviceName: b.serviceName ?? null,
-      customerAddress: b.customerAddress ?? null, calendarId: null, source: b.source === 'public' ? 'website' as const : 'crm' as const,
+      customerAddress: b.customerAddress ?? null, calendarId: b.job?.id ?? null, source: b.source === 'public' ? 'website' as const : 'crm' as const,
     }))
   }
   // Appointments (test drives, drop-offs, deliveries) where the vertical has them (VerticalScreens.schedule; the RV copy's
   // SchedulePage passed events: true).
-  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, events: !!v().schedule?.events }} />
+  return <SchedulePage api={client} toast={useToast()} config={{ dragDrop: hasFeature('drag_drop_calendar'), loadBookings, bookingHref: (b) => `/crm/bookings/${b.id}`, events: !!v().schedule?.events }} />
 }
 export const Time = () => <TimePage api={client} toast={useToast()} config={v().time as any} />
 export const Expenses = () => <ExpensesPage api={client} toast={useToast()} config={v().expenses as any} />

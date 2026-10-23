@@ -177,8 +177,12 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                       {(job.scheduledTime || job.contact?.name) && <p className="text-gray-500 dark:text-slate-400 truncate">{[job.scheduledTime, job.contact?.name].filter(Boolean).join(' · ')}</p>}
                     </div>
                   ))}
-                  {bookingsFor(day).map((b) => (
-                    <div key={`${b.source}-${b.id}`} className="p-2 rounded text-xs bg-orange-100 border-l-4 border-orange-500 dark:bg-orange-900/30 text-gray-900 dark:text-slate-100" title={`${b.serviceName || 'Booking'} — ${b.customerName}${b.customerAddress ? ' @ ' + b.customerAddress : ''}`}>
+                  {bookingsFor(day).map((b) => {
+                    const href = cfg.bookingHref?.(b) || null
+                    return (
+                    <div key={`${b.source}-${b.id}`}
+                      {...(href ? { role: 'link', tabIndex: 0, 'data-booking-id': b.id, onClick: () => navigate(href), onKeyDown: (e: { key: string }) => { if (e.key === 'Enter') navigate(href) } } : {})}
+                      className={`p-2 rounded text-xs bg-orange-100 border-l-4 border-orange-500 dark:bg-orange-900/30 text-gray-900 dark:text-slate-100${href ? ' cursor-pointer hover:shadow-sm' : ''}`} title={`${b.serviceName || 'Booking'} — ${b.customerName}${b.customerAddress ? ' @ ' + b.customerAddress : ''}${href ? ' · click to open' : ''}`}>
                       {/*
                         The word, not the colour.
 
@@ -197,7 +201,8 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                       </p>
                       <p className="text-gray-600 truncate dark:text-slate-300">{timeOf(b.startAt)}{b.serviceName ? ' · ' + b.serviceName : ''}</p>
                     </div>
-                  ))}
+                    )
+                  })}
                   {eventsFor(day).map((e) => (
                     <div key={e.id} onClick={mayEditEvent ? () => setEditEvent(e) : undefined} title={mayEditEvent ? 'Click to edit or cancel' : undefined} className={`p-2 rounded text-xs ${mayEditEvent ? 'cursor-pointer hover:shadow-sm' : ''} ${e.status === 'cancelled' ? /* No opacity. The strikethrough already says "cancelled", so the dimming was doing redundant work
    and cost the label its readability: gray-500 on gray-50 at 60% renders 2.28:1, against 4.63:1 at

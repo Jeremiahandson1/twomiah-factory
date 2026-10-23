@@ -20,6 +20,8 @@ export interface ScheduleConfig {
    * The unified app has one booking engine for site and CRM; it reads its own bookings here.
    */
   loadBookings?: (from: string, to: string) => Promise<ScheduleBooking[]>
+  /** Where a booking chip opens (the unified app's booking page). Absent: the chip is not a link, as before. */
+  bookingHref?: (b: ScheduleBooking) => string | null
 }
 
 export const DEFAULT_EVENT_TYPES = [
@@ -39,6 +41,7 @@ export function resolveScheduleConfig(c?: ScheduleConfig) {
     jobLabel: cfg.jobLabel || 'Job',
     externalBookings: cfg.externalBookings !== false,
     loadBookings: cfg.loadBookings,
+    bookingHref: cfg.bookingHref,
   }
 }
 

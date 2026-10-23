@@ -40,6 +40,8 @@ export function BookingsPage() {
 
   const clock = settings ? onClock(settings.timezone) : null
   const nameOf = (b: Booking) => (b.assignedUserId ? b.assignedName || 'Someone' : 'Anyone')
+  /** Booked under a name the contact record doesn't carry (one email, a household): say whose record it is on. */
+  const differs = (b: Booking) => !!b.contactName && b.contactName.trim().toLowerCase() !== b.customerName.trim().toLowerCase()
   const q = query.trim().toLowerCase()
   const shown = useMemo(() => (rows || []).filter((b) => (serviceId === 'all' || b.serviceId === serviceId) && (!q || [b.customerName, b.customerEmail, b.customerPhone, b.customerAddress].some((v) => (v || '').toLowerCase().includes(q)))), [rows, serviceId, q])
 
@@ -101,9 +103,11 @@ export function BookingsPage() {
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <span className="font-semibold text-ink">{b.customerName}</span>
                       <StatusPill status={b.status} />
+                      {b.job && <span className="text-xs font-medium text-ink-soft border border-line rounded px-1.5 py-0.5">{b.job.number}</span>}
                       {b.seriesId && <span className="text-xs text-muted inline-flex items-center gap-1"><Repeat className="w-3 h-3" aria-hidden="true" />repeating</span>}
                     </div>
                     <div className="text-sm text-ink-soft">{b.serviceName || 'Service removed'} · {nameOf(b)}</div>
+                    {differs(b) && <div className="text-xs text-muted mt-0.5">On the contact {b.contactName}</div>}
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-muted">
                       <span className="inline-flex items-center gap-1"><Calendar className="w-3 h-3" aria-hidden="true" />{clock.day(b.startAt)}</span>
                       <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" aria-hidden="true" />{clock.time(b.startAt)} – {clock.time(b.endAt)}</span>
@@ -118,7 +122,7 @@ export function BookingsPage() {
         </ul>
       )}
 
-      {creating && settings && <NewBookingDialog services={services.filter((s) => s.active)} people={people} zone={onClock(settings.timezone).zone()} onClose={() => setCreating(false)} onDone={() => { setCreating(false); load() }} />}
+      {creating && settings && <NewBookingDialog services={services.filter((s) => s.active)} people={people} zone={onClock(settings.timezone).zone()} requirePhone={settings.requirePhone} onClose={() => setCreating(false)} onDone={() => { setCreating(false); load() }} />}
     </div>
   )
 }
@@ -145,7 +149,7 @@ function NotBookableYet({ enabled, services, hours }: { enabled: boolean; servic
   )
 }
 
-function NewBookingDialog({ services, people, zone, onClose, onDone }: { services: { id: string; name: string }[]; people: { id: string; name: string }[]; zone?: string; onClose: () => void; onDone: () => void }) {
+function NewBookingDialog({ services, people, zone, requirePhone, onClose, onDone }: { services: { id: string; name: string }[]; people: { id: string; name: string }[]; zone?: string; requirePhone: boolean; onClose: () => void; onDone: () => void }) {
   const navigate = useNavigate()
   const [serviceId, setServiceId] = useState(services[0]?.id || '')
   const [when, setWhen] = useState<PickedTime | null>(null)
@@ -204,7 +208,8 @@ function NewBookingDialog({ services, people, zone, onClose, onDone }: { service
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><label htmlFor="nb-name" className="label">Customer name</label><input id="nb-name" className="input" required value={f.name} onChange={set('name')} /></div>
               <div><label htmlFor="nb-email" className="label">Email</label><input id="nb-email" type="email" className="input" required value={f.email} onChange={set('email')} /></div>
-              <div><label htmlFor="nb-phone" className="label">Phone</label><input id="nb-phone" type="tel" className="input" value={f.phone} onChange={set('phone')} /></div>
+              {/* The business's "Phone number required" holds at the desk too (the server refuses without it). */}
+              <div><label htmlFor="nb-phone" className="label">Phone{requirePhone ? ' (required)' : ''}</label><input id="nb-phone" type="tel" className="input" required={requirePhone} value={f.phone} onChange={set('phone')} /></div>
               <div><label htmlFor="nb-zip" className="label">ZIP</label><input id="nb-zip" className="input" value={f.zip} onChange={set('zip')} /></div>
             </div>
             <div><label htmlFor="nb-address" className="label">Address</label><input id="nb-address" className="input" value={f.address} onChange={set('address')} /></div>

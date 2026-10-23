@@ -1,4 +1,5 @@
 // Shared Contacts pages — the contract between a template and the vendored pages.
+import type { ReactNode } from 'react'
 import type { InvoicingApi, InvoicingToast } from '../invoicing/types'
 
 export type ContactsApi = InvoicingApi
@@ -67,6 +68,11 @@ export interface ContactsConfig {
    * ask", so a template that has not been rewired keeps every control it has today. (T30 M-R1)
    */
   can?: (permission: string) => boolean
+  /**
+   * The app's own panels for this contact, drawn in the main column after the related lists — the unified app's
+   * bookings (each in the name its booker typed). Absent: nothing extra, as before.
+   */
+  panels?: (contactId: string) => ReactNode
 }
 
 export const DEFAULT_CONTACT_TYPES: ContactType[] = [
@@ -108,6 +114,7 @@ export function resolveContactsConfig(c?: ContactsConfig) {
     quickActions: cfg.quickActions || DEFAULT_QUICK_ACTIONS,
     hasFeature: cfg.hasFeature || (() => true),
     can: cfg.can || (() => true),
+    panels: cfg.panels,
   }
 }
 
