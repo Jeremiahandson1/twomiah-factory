@@ -13,6 +13,7 @@ import { createFinancingRoutes, createFinancingPublicRoutes } from '../financing
 import { createFinancingService } from '../financing/service.ts'
 import { createVendorPortalRoutes } from './vendorPortal.ts'
 import { createPricebookPresentRoutes } from './pricebookPresent.ts'
+import { createQuickBooksSyncRoutes } from './quickbooksSyncRoutes.ts'
 
 export function officeMounts(d: CrmDeps): Mount[] {
   const financing = createFinancingService(d)
@@ -29,5 +30,7 @@ export function officeMounts(d: CrmDeps): Mount[] {
     // paths.
     { path: '/api/vendor-portal', access: 'public', feature: 'vendor_portal', router: createVendorPortalRoutes(d) }, // off: the portal and its invite are not there (404)
     { path: '/api/pricebook-present', access: 'public', feature: 'pricebook', router: createPricebookPresentRoutes(d, financing) },
+    // QuickBooks' sync log and Sync Now / Retry (the Integrations card), behind the QuickBooks switch.
+    { path: '/api/qb-sync', access: 'user', feature: 'quickbooks', router: createQuickBooksSyncRoutes(d, d.services.quickbooksSync) },
   ]
 }
