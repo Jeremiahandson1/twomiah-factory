@@ -117,6 +117,20 @@ describe('a general contractor\'s starting site (the contractor retest)', () => 
     expect(menus((await page(s.t, '/')).body).desktop).toContainEqual(['Offers', '/offers'])
   })
 
+  // batch 2: a section that IS a switched-off feature is not shown (render.ts sectionsShown, fix-i), so a page made only
+  // of one has nothing on it — and the menu, which links only pages with something of their own (fix-h), leaves it out.
+  test('a page whose only section is a switched-off feature\'s is not linked; switched on, it is', async () => {
+    expect((await s.as('/api/site/pages', { method: 'POST', json: { slug: 'finance', title: 'Finance' } })).status).toBe(201)
+    await s.t.db.update(s.t.schema.page).set({ isPublished: true, sections: [{ type: 'financing', variant: 'calculator', data: { title: 'Pay over time' } }] } as any).where(eq(s.t.schema.page.slug, 'finance'))
+    const [co] = await s.t.db.select({ enabledFeatures: s.t.schema.company.enabledFeatures }).from(s.t.schema.company).where(eq(s.t.schema.company.id, s.companyId))
+    const features = ((co.enabledFeatures as string[] | null) || []).filter((f) => f !== 'consumer_financing')
+    await s.t.db.update(s.t.schema.company).set({ enabledFeatures: features } as any).where(eq(s.t.schema.company.id, s.companyId))
+    expect(menus((await page(s.t, '/')).body).desktop.map(([l]) => l)).not.toContain('Finance')
+    await s.t.db.update(s.t.schema.company).set({ enabledFeatures: [...features, 'consumer_financing'] } as any).where(eq(s.t.schema.company.id, s.companyId))
+    expect(menus((await page(s.t, '/')).body).desktop).toContainEqual(['Finance', '/finance'])
+    await s.t.db.update(s.t.schema.company).set({ enabledFeatures: features } as any).where(eq(s.t.schema.company.id, s.companyId))
+  })
+
   test('the owner\'s own titles win: a page\'s SEO title, and a home title that says more than the name', async () => {
     await s.as('/api/site/pages/services', { method: 'PATCH', json: { metaTitle: 'Remodeling in Eau Claire | Test Co' } })
     expect(title((await page(s.t, '/services')).body)).toBe('Remodeling in Eau Claire | Test Co')
