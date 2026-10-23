@@ -93,3 +93,18 @@ describe('vet: a vaccination is overdue once its due day is over at the clinic',
     expect(await due()).toEqual({ overdue: 1, soon: 0 })
   })
 })
+
+describe('bar: the bar\'s clock is the company\'s, not a zone left in its saved hours', () => {
+  test('hours saved with the old Chicago default: a Honolulu bar runs on Honolulu', async () => {
+    const { createBarLive } = await import('../server/crm/bar/barLive.ts')
+    const t = await bootTenant({ vertical: 'bar' })
+    const s = await seedOwner(t)
+    await t.db.update(t.schema.company).set({ timezone: 'Pacific/Honolulu' } as any).where(eq(t.schema.company.id, s.company.id))
+    const live = createBarLive(t.db as any)
+    // No hours saved at all: still the company's zone (the empty default carried Chicago and outranked it).
+    expect((await live.hoursFor(s.company.id)).timezone).toBe('Pacific/Honolulu')
+    const week = { fri: [{ open: '10:00', close: '02:00' }] }
+    await t.db.insert(t.schema.barSettings).values({ companyId: s.company.id, hours: { timezone: 'America/Chicago', bar: week, kitchen: week, holidays: [] } } as any)
+    expect((await live.hoursFor(s.company.id)).timezone).toBe('Pacific/Honolulu')
+  })
+})
