@@ -15,7 +15,7 @@
 import { Hono } from 'hono'
 import { eq, and, lte, gte, count, asc, desc, sql, inArray } from 'drizzle-orm'
 import { nextNumber, businessToday } from '../invoicing/money'
-import { companyTimeZone, markerDay } from '../time/businessDay'
+import { companyTimeZone, markerDay, markerDayHasBegun, daysUntilMarker } from '../time/businessDay'
 import { seriesDays } from '../time/series'
 import { addDays } from '../booking/time'
 
@@ -173,32 +173,53 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     return db.delete(agreementPlan).where(and(eq(agreementPlan.id, id), eq(agreementPlan.companyId, companyId)))
   }
 
+  /** Each company's zone, read once per run (an agreement's dates are its business's days). */
+  const zoneCache = () => {
+    const seen = new Map<string, Promise<string>>()
+    return (companyId: string) => { if (!seen.has(companyId)) seen.set(companyId, companyTimeZone(db, companyId)); return seen.get(companyId)! }
+  }
+  /** The company's today as a calendar-day marker — what an end date is compared with in SQL. */
+  const todayMarker = async (companyId: string) => businessToday(await companyTimeZone(db, companyId))
+
   // ---- customer agreements ----
   // Active agreements whose end date has passed: an auto-renew one that ended within RENEWAL_GRACE_DAYS renews for
   // another term of the same length (stays active, keeps billing); anything else expires. Runs before every read
   // that shows status and before each billing run. Each update re-checks "still active and still ended", so two
   // runs at once renew or expire an agreement once. (Landscaping T14 H3: ended 1 June, still Active)
+  //
+  // ON THE COMPANY'S CLOCK (2026-10-22): a term ends when its end day BEGINS at the company's midnight
+  // (time/zoneDay.ts markerDayHasBegun) — it compared the end date with NOW(), which is the end day's UTC midnight, so
+  // a Chicago contract renewed or expired at 7pm the evening before. Candidates are read a day wide (a zone ahead of UTC
+  // starts the day earlier) and each is decided on its own company's clock.
+  //
+  // ONCE, ACROSS THE SWITCH AND ACROSS RUNS: the update claims the row only while it still holds the end date this run
+  // read. A renewal moves the end date a term on, so a second run — or a contract the old UTC rule already renewed
+  // today — no longer matches and is left alone; nothing is renewed (or, below, billed) twice.
   async function settleEndedAgreements(companyId?: string) {
     const now = new Date()
-    const stillEnded = (id: string) => and(eq(serviceAgreement.id, id), eq(serviceAgreement.status, 'active'), sql`${serviceAgreement.endDate} < NOW()`)
-    const ended = await db.select().from(serviceAgreement).where(and(
+    const zones = zoneCache()
+    const stillEnded = (agr: any) => and(eq(serviceAgreement.id, agr.id), eq(serviceAgreement.status, 'active'), eq(serviceAgreement.endDate, agr.endDate))
+    const candidates = await db.select().from(serviceAgreement).where(and(
       companyId ? eq(serviceAgreement.companyId, companyId) : undefined, eq(serviceAgreement.status, 'active'),
-      sql`${serviceAgreement.endDate} IS NOT NULL AND ${serviceAgreement.endDate} < NOW()`,
+      sql`${serviceAgreement.endDate} IS NOT NULL AND ${serviceAgreement.endDate} < NOW() + interval '1 day'`,
     ))
+    const ended: any[] = []
+    for (const agr of candidates) if (markerDayHasBegun(agr.endDate, await zones(agr.companyId), now)) ended.push(agr)
     for (const agr of ended) {
       const end = new Date(agr.endDate)
-      const lapsedDays = (now.getTime() - end.getTime()) / 86400000
+      // Whole days since the end day began, on the company's clock (0 on the end day itself).
+      const lapsedDays = -daysUntilMarker(end, await zones(agr.companyId), now)
       if (agr.renewalType === 'auto' && lapsedDays <= RENEWAL_GRACE_DAYS) {
         const termMonths = agreementTermMonths(agr.startDate, agr.endDate)
         const newEnd = new Date(end); newEnd.setMonth(newEnd.getMonth() + termMonths)
-        const [renewed] = await db.update(serviceAgreement).set({ startDate: end, endDate: newEnd, updatedAt: now }).where(stillEnded(agr.id)).returning()
+        const [renewed] = await db.update(serviceAgreement).set({ startDate: end, endDate: newEnd, updatedAt: now }).where(stillEnded(agr)).returning()
         // An automatic renewal starts a term too: its visits go on the calendar (scheduleTermVisits).
         if (renewed) await scheduleTermVisits(agr.id, agr.companyId).catch((err) => console.error('[agreements] renewal visits not scheduled:', (err as Error).message))
         if (renewed) audit?.log({ action: 'renew', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId: agr.companyId,
           metadata: { automatic: true, termMonths, previousStartDate: agr.startDate, previousEndDate: agr.endDate, newEndDate: newEnd } })
         continue
       }
-      const [expired] = await db.update(serviceAgreement).set({ status: 'expired', updatedAt: now }).where(stillEnded(agr.id)).returning()
+      const [expired] = await db.update(serviceAgreement).set({ status: 'expired', updatedAt: now }).where(stillEnded(agr)).returning()
       if (expired) audit?.log({ action: 'expire', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId: agr.companyId,
         metadata: { automatic: true, endDate: agr.endDate, renewalType: agr.renewalType,
           reason: agr.renewalType === 'auto' ? `ended ${Math.floor(lapsedDays)} days ago — past the ${RENEWAL_GRACE_DAYS}-day automatic renewal window` : 'manual renewal' } })
@@ -226,6 +247,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
    * more can I book", and a visit on next Tuesday's board is already promised.
    */
   async function withRelations(companyId: string, rows: any[]) {
+    const tz = await companyTimeZone(db, companyId)
     const contactIds = [...new Set(rows.map((r) => r.contactId).filter(Boolean))]
     const planIds = [...new Set(rows.map((r) => r.planId).filter(Boolean))]
     const agreementIds = rows.map((r) => r.id).filter(Boolean)
@@ -276,7 +298,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
        * exactly where the tester found it. The stored value is untouched, so a renewal still knows
        * where the schedule was.
        */
-      const ended = r.status !== 'active' || (!!r.endDate && new Date(r.endDate).getTime() < Date.now())
+      const ended = r.status !== 'active' || (!!r.endDate && markerDayHasBegun(r.endDate, tz))
       return {
         ...r,
         // The next visit on the calendar when there is one (the term's visits are jobs), else what the recurrence
@@ -461,9 +483,10 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     if (status) conditions.push(eq(serviceAgreement.status, status))
     if (contactId) conditions.push(eq(serviceAgreement.contactId, contactId))
     if (expiringSoon) {
-      const thirtyDays = new Date(); thirtyDays.setDate(thirtyDays.getDate() + 30)
-      conditions.push(lte(serviceAgreement.endDate, thirtyDays))
-      conditions.push(gte(serviceAgreement.endDate, new Date()))
+      // Ending after today and within 30 days, on the company's calendar.
+      const today = await todayMarker(companyId)
+      conditions.push(lte(serviceAgreement.endDate, new Date(today.getTime() + 30 * 86_400_000)))
+      conditions.push(sql`${serviceAgreement.endDate} > ${today}`)
       conditions.push(eq(serviceAgreement.status, 'active'))
       conditions.push(eq(serviceAgreement.renewalType, 'manual')) // auto-renew agreements don't expire
     }
@@ -598,6 +621,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
    * debuggable without reading the query.
    */
   async function getUpcomingVisits(companyId: string, { days = 30 }: { days?: number } = {}) {
+    const visitsTz = await companyTimeZone(db, companyId)
     const endDate = new Date(); endDate.setDate(endDate.getDate() + days)
     // From the start of TODAY, not from this instant: work due earlier today is still upcoming, and
     // the old query had no lower bound at all, so a visit scheduled in 2024 counted. (T42)
@@ -709,7 +733,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         .filter((a: any) => {
           if (!a.nextServiceDate) return false
           if (a.status !== 'active') return false
-          if (a.endDate && new Date(a.endDate).getTime() < Date.now()) return false
+          if (a.endDate && markerDayHasBegun(a.endDate, visitsTz)) return false
           const due = new Date(a.nextServiceDate).getTime()
           if (!(due >= startDate.getTime() && due <= endDate.getTime())) return false
           const already = (d: Date | string) => new Date(d).toISOString().slice(0, 10) === new Date(a.nextServiceDate).toISOString().slice(0, 10)
@@ -738,10 +762,14 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       eq(serviceAgreement.status, 'active'),
       sql`(${serviceAgreement.nextBillDate} IS NULL OR ${serviceAgreement.nextBillDate} <= NOW())`,
       sql`${serviceAgreement.startDate} <= NOW()`,
-      sql`(${serviceAgreement.endDate} IS NULL OR ${serviceAgreement.endDate} >= NOW())`,
+      // a day wide here; whether the term still runs is decided on each company's clock below
+      sql`(${serviceAgreement.endDate} IS NULL OR ${serviceAgreement.endDate} >= NOW() - interval '1 day')`,
     ]
     if (companyId) conditions.push(eq(serviceAgreement.companyId, companyId))
-    return db.select().from(serviceAgreement).where(and(...conditions))
+    const rows = await db.select().from(serviceAgreement).where(and(...conditions))
+    const zones = zoneCache(), out: any[] = []
+    for (const r of rows) if (!r.endDate || !markerDayHasBegun(r.endDate, await zones(r.companyId))) out.push(r)
+    return out
   }
 
   async function setAgreementAutopay(agreementId: string, companyId: string, { enabled, paymentMethodId }: { enabled: boolean; paymentMethodId?: string | null }) {
@@ -773,6 +801,20 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     // Today on the COMPANY's calendar, read before the transaction: `new Date()` dated an evening run's
     // invoice tomorrow on a UTC server (T59). Net 30 is counted from that day, as it always was meant to be.
     const today = businessToday(await companyTimeZone(db, companyId))
+    /**
+     * BILL A PERIOD ONCE. The period is claimed first — moved on only while it still says what this run read — so two
+     * runs at once, or a run on each side of the clock switch, cannot both invoice it. (2026-10-22)
+     */
+    const billedAt = new Date()
+    const nextBillDate = addInterval(agreement.nextBillDate ? new Date(agreement.nextBillDate) : billedAt, agreement.billingFrequency)
+    const [claimed] = await db.update(serviceAgreement).set({ lastBilledAt: billedAt, nextBillDate, updatedAt: billedAt })
+      .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId),
+        agreement.nextBillDate ? eq(serviceAgreement.nextBillDate, new Date(agreement.nextBillDate)) : sql`${serviceAgreement.nextBillDate} IS NULL`))
+      .returning({ id: serviceAgreement.id })
+    if (!claimed) throw Object.assign(new Error('This period was already billed'), { status: 409, alreadyBilled: true })
+    // An invoice that could not be written hands the period back, so the next run bills it.
+    const release = () => db.update(serviceAgreement).set({ lastBilledAt: agreement.lastBilledAt ?? null, nextBillDate: agreement.nextBillDate ?? null })
+      .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.nextBillDate, nextBillDate)))
     const inv = await db.transaction(async (tx: any) => {
       const number = await nextNumber(tx, invoice, invoice.number, invoice.companyId, companyId, { prefix: 'INV', pad: 5 })
       const [created] = await tx.insert(invoice).values({
@@ -793,13 +835,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         total: String(agreement.amount),
       })
       return created
-    })
-    const billedAt = new Date()
-    await db.update(serviceAgreement).set({
-      lastBilledAt: billedAt,
-      nextBillDate: addInterval(agreement.nextBillDate ? new Date(agreement.nextBillDate) : billedAt, agreement.billingFrequency),
-      updatedAt: billedAt,
-    }).where(eq(serviceAgreement.id, agreementId))
+    }).catch(async (err: unknown) => { await release().catch(() => {}); throw err })
     return inv
   }
 
@@ -818,11 +854,13 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       sql`(${serviceAgreement.renewalNoticeSentFor} IS NULL OR ${serviceAgreement.renewalNoticeSentFor} <> ${serviceAgreement.endDate})`,
     ))
     const fmt = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    const noticeZones = zoneCache()
     for (const agr of due) {
       const end = new Date(agr.endDate)
       const termMonths = agreementTermMonths(agr.startDate, agr.endDate)
       const days = renewalNoticeDays(termMonths)
-      if (!days || end.getTime() - now > days * 86400000) continue
+      const left = daysUntilMarker(end, await noticeZones(agr.companyId))
+      if (!days || left <= 0 || left > days) continue
       const [claimed] = await db.update(serviceAgreement).set({ renewalNoticeSentFor: end }).where(and(
         eq(serviceAgreement.id, agr.id), eq(serviceAgreement.status, 'active'),
         sql`(${serviceAgreement.renewalNoticeSentFor} IS NULL OR ${serviceAgreement.renewalNoticeSentFor} <> ${serviceAgreement.endDate})`,
@@ -875,6 +913,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
           }
         }
       } catch (err: any) {
+        if (err?.alreadyBilled) continue // another run billed this period; nothing to report
         failures.push({ agreementId: agreement.id, error: err?.message || String(err) })
         console.error('[Agreements] Billing failed:', agreement.id, err?.message || err)
       }
@@ -902,11 +941,13 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   // ---- reports ----
   async function getAgreementStats(companyId: string) {
     await settleEndedAgreements(companyId)
-    const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    // On the company's calendar: ending after today and within the next 30 days.
+    const today = await todayMarker(companyId)
+    const thirtyDaysFromNow = new Date(today.getTime() + 30 * 86_400_000)
     // ending in the next 30 days: auto-renew ones will renew; manual ones will expire unless the office renews them
     const endingIn30 = (renewalType: string) => db.select({ value: count() }).from(serviceAgreement).where(and(
       eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'), lte(serviceAgreement.endDate, thirtyDaysFromNow),
-      gte(serviceAgreement.endDate, new Date()), eq(serviceAgreement.renewalType, renewalType),
+      sql`${serviceAgreement.endDate} > ${today}`, eq(serviceAgreement.renewalType, renewalType),
     ))
     const [[{ value: active }], [{ value: expiring }], [{ value: renewing }]] = await Promise.all([
       db.select({ value: count() }).from(serviceAgreement).where(and(eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'))),
@@ -932,10 +973,11 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   async function getExpiringAgreements(companyId: string, daysAhead = 60) {
     await settleEndedAgreements(companyId)
-    const endDate = new Date(); endDate.setDate(endDate.getDate() + daysAhead)
+    const today = await todayMarker(companyId)
+    const endDate = new Date(today.getTime() + daysAhead * 86_400_000)
     return db.select().from(serviceAgreement).where(and(
       eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'),
-      lte(serviceAgreement.endDate, endDate), gte(serviceAgreement.endDate, new Date()), eq(serviceAgreement.renewalType, 'manual'),
+      lte(serviceAgreement.endDate, endDate), sql`${serviceAgreement.endDate} > ${today}`, eq(serviceAgreement.renewalType, 'manual'),
     )).orderBy(asc(serviceAgreement.endDate), asc(serviceAgreement.id))
   }
 

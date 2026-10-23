@@ -78,3 +78,26 @@ describe('2 · "past due" on the screens is the company’s day too (isPastDay)'
     clock.setCompanyTimeZone(undefined)
   })
 })
+
+describe('2 · a booking sits on the company’s day and hour (companyDayKey / companyMinutes)', () => {
+  test('8pm in Honolulu (06:00 UTC the next day) is the 22nd at 20:00 there', () => {
+    clock.setCompanyTimeZone('Pacific/Honolulu')
+    expect(clock.companyDayKey('2026-10-23T06:00:00Z')).toBe('2026-10-22')
+    expect(clock.companyMinutes('2026-10-23T06:00:00Z')).toBe(20 * 60)
+    clock.setCompanyTimeZone(undefined)
+  })
+  test('the schedule fetches a day from the company’s midnight to the next (companyDayStart) — the 8pm booking is inside', () => {
+    clock.setCompanyTimeZone('Pacific/Honolulu')
+    const from = clock.companyDayStart('2026-10-22'), to = clock.companyDayStart('2026-10-23')
+    expect([from.toISOString(), to.toISOString()]).toEqual(['2026-10-22T10:00:00.000Z', '2026-10-23T10:00:00.000Z'])
+    const at = Date.parse('2026-10-23T06:00:00Z')
+    expect(at >= from.getTime() && at < to.getTime()).toBe(true)
+    // A clock-change day: Chicago's 1 November 2026 begins at 05:00Z (CDT), the 2nd at 06:00Z (CST).
+    clock.setCompanyTimeZone('America/Chicago')
+    expect([clock.companyDayStart('2026-11-01').toISOString(), clock.companyDayStart('2026-11-02').toISOString()]).toEqual(['2026-11-01T05:00:00.000Z', '2026-11-02T06:00:00.000Z'])
+    // Ahead of UTC: Auckland's 5 April 2026 begins at 00:00 NZDT (11:00Z on the 4th), though by UTC's midnight the clock had gone back.
+    clock.setCompanyTimeZone('Pacific/Auckland')
+    expect(clock.companyDayStart('2026-04-05').toISOString()).toBe('2026-04-04T11:00:00.000Z')
+    clock.setCompanyTimeZone(undefined)
+  })
+})

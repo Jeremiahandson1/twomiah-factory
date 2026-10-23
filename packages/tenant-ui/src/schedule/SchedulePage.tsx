@@ -13,7 +13,7 @@ import { resolveScheduleConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { localDayKey } from '../time/day'
 import type { SchedulePageProps, ScheduleJob, ScheduleBooking, ScheduleEvent } from './types'
-import { whenTime, companyTodayKey } from '../time/companyClock'
+import { whenTime, companyTodayKey, companyDayKey, companyMinutes, companyDayStart } from '../time/companyClock'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 // This page already asked for the day LOCALLY and was right; the Dispatch Board asked UTC and was not,
@@ -99,7 +99,13 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
     // from both its own week and the week before (fs / salon Sunday service calls vanished). Begin the
     // fetch at UTC midnight of the span's first date to include those; `to` stays the local end so a
     // late-local booking (a real instant) is still fetched. Placement filters by local day.
-    const from = localKey(start) + 'T00:00:00.000Z', to = end.toISOString()
+    // Bookings and appointments are MOMENTS placed on the company's day (companyDayKey), so the window also runs from
+    // the company's midnight on the first day to its midnight after the last: a browser on UTC ended the 22nd at 23:59Z
+    // and never fetched an 8pm Honolulu booking (06:00Z on the 23rd), so the Day view left it out. (2026-10-23)
+    const after = new Date(dayStart(end)); after.setDate(after.getDate() + 1)
+    const markerFrom = localKey(start) + 'T00:00:00.000Z', zoneFrom = companyDayStart(localKey(start)).toISOString()
+    const zoneTo = new Date(companyDayStart(localKey(after)).getTime() - 1).toISOString(), localTo = end.toISOString()
+    const from = markerFrom < zoneFrom ? markerFrom : zoneFrom, to = localTo > zoneTo ? localTo : zoneTo
     const [j, b, x, e] = await Promise.all([
       api.get('/api/jobs', { startDate: from, endDate: to, limit: 500 }).then((r: any) => r?.data || []).catch((err: unknown) => { toast.error(errMsg(err, 'Failed to load jobs')); return [] }),
       cfg.loadBookings ? cfg.loadBookings(from, to).catch(() => []) : api.get('/api/booking', { from, to, limit: 500 }).then((r: any) => (r?.data || []).map((row: any): ScheduleBooking => ({ id: row.id, startAt: row.scheduledDate, status: row.status, customerName: row.customerName, serviceName: row.serviceName, customerAddress: row.customerAddress ?? null, calendarId: row.calendar?.id ?? null, source: 'crm' }))).catch(() => []),
@@ -127,7 +133,9 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
     return m ? Number(m[1]) * 60 + Number(m[2]) : Number.MAX_SAFE_INTEGER
   }
   const byTime = <T,>(at: (x: T) => string | null | undefined) => (a: T, b: T) => MINUTES(at(a)) - MINUTES(at(b))
-  const clockOf = (iso?: string | null) => (iso ? new Date(iso).toTimeString().slice(0, 5) : null)
+  // A booking's or an appointment's time and day are the COMPANY's (time/companyClock.ts), like the jobs beside it: a
+  // browser elsewhere put an 8pm Honolulu booking on the next day's column. (2026-10-22)
+  const clockOf = (iso?: string | null) => { const m = companyMinutes(iso); return Number.isNaN(m) ? null : `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` }
 
   const jobsFor = (d: Date) => jobs
     .filter((j) => j.scheduledDate && String(j.scheduledDate).slice(0, 10) === localKey(d))
@@ -140,13 +148,13 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   // for a deposit — is still drawn. (Field service T23)
   const bookingsFor = (d: Date) => {
     const drawnAsJobs = new Set(jobsFor(d).map((j) => j.id))
-    return bookings.filter((b) => b.startAt && localKey(new Date(b.startAt)) === localKey(d) && b.status !== 'cancelled'
+    return bookings.filter((b) => b.startAt && companyDayKey(b.startAt) === localKey(d) && b.status !== 'cancelled'
       && !(b.calendarId && drawnAsJobs.has(b.calendarId)))
       .slice().sort(byTime((b: any) => clockOf(b.startAt)))
   }
   // Cancelled appointments stay on the calendar (greyed), the way cancelled jobs do — hiding them made
   // a cancel look like the record had vanished.
-  const eventsFor = (d: Date) => events.filter((e) => e.start && localKey(new Date(e.start)) === localKey(d))
+  const eventsFor = (d: Date) => events.filter((e) => e.start && companyDayKey(e.start) === localKey(d))
     .slice().sort(byTime((e: any) => clockOf(e.start)))
   const isToday = (d: Date) => localKey(d) === companyTodayKey()
   /** Back or forward one of whatever is showing: a day, a week, a month. */
@@ -269,7 +277,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
       const jh = Math.floor(m / 60)
       return h === FIRST_HOUR ? jh <= FIRST_HOUR : h === LAST_HOUR ? jh >= LAST_HOUR : jh === h
     })
-    const hourOf = (iso: string) => new Date(iso).getHours()
+    const hourOf = (iso: string) => Math.floor(companyMinutes(iso) / 60)
     const inHourOther = <T,>(list: T[], at: (x: T) => string) => (h: number) => list.filter((x) => { const xh = hourOf(at(x)); return h === FIRST_HOUR ? xh <= FIRST_HOUR : h === LAST_HOUR ? xh >= LAST_HOUR : xh === h })
     const bookingsIn = inHourOther(bookingsFor(currentDate), (b) => b.startAt)
     const eventsIn = inHourOther(eventsFor(currentDate).filter((e) => !e.allDay), (e) => e.start)

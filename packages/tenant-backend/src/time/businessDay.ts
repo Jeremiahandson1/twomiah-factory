@@ -88,7 +88,7 @@ export function companyRowTimeZone(row: any): string {
   }
 }
 
-export { dayMarker, markerDay, storeDateString, storeDayStart, storeDayRange, markerDayIsOver, daysUntilMarker } from './zoneDay'
+export { dayMarker, markerDay, storeDateString, storeDayStart, storeDayRange, markerDayIsOver, markerDayHasBegun, daysUntilMarker } from './zoneDay'
 
 /**
  * A job's own calendar day, as SQL — see rule 2 above. A booking carries a real instant and is read in

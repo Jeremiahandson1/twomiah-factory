@@ -76,6 +76,16 @@ export function markerDayIsOver(marker: Date | string, tz: string, now: number =
   return storeDayRange(tz, day).end.getTime() <= now
 }
 
+/**
+ * Has a CALENDAR-DAY marker's day BEGUN on this zone's clock? An agreement's end date is the first day its term no longer
+ * covers — renewing makes it the next term's start day — so the term has ended once that day begins at the company's
+ * midnight, not UTC's (2026-10-22: a Chicago contract renewed at 7pm the evening before its end day).
+ */
+export function markerDayHasBegun(marker: Date | string, tz: string, now: Date = new Date()): boolean {
+  const day = markerDay(marker instanceof Date ? marker : new Date(marker))
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) && day <= storeDateString(now, tz)
+}
+
 /** Whole days from the company's today to a marker's day (negative once it has passed), on the company's clock. */
 export function daysUntilMarker(marker: Date | string, tz: string, now: Date = new Date()): number {
   const day = markerDay(marker instanceof Date ? marker : new Date(marker))

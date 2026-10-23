@@ -1,6 +1,7 @@
 // Moved from templates/crm-fieldservice/frontend/src/pages/fieldservice/MaintenanceContracts.tsx.
 import { useState, useEffect } from 'react'
 import { formatDate } from '../../date'
+import { daysUntilDay } from '@twomiah/tenant-ui/src/time/companyClock'
 import {
   FileText, Plus, Search, Calendar, DollarSign, Users,
   AlertTriangle, RefreshCw, XCircle, Clock, Loader2,
@@ -246,7 +247,7 @@ export default function MaintenanceContracts() {
               {filteredContracts.map(contract => {
                 const endingSoon =
                   contract.status === 'active' && !!contract.endDate &&
-                  new Date(contract.endDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                  daysUntilDay(contract.endDate) <= 30;
                 const isExpiringSoon = endingSoon && contract.renewalType !== 'auto';
                 const renewsSoon = endingSoon && contract.renewalType === 'auto';
 

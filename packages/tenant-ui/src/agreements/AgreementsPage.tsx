@@ -9,7 +9,7 @@ import type { AgreementsApi, AgreementsPageProps } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { money } from '../invoicing/ui'
-import { whenDate } from '../time/companyClock'
+import { whenDate, daysUntilDay } from '../time/companyClock'
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -565,7 +565,8 @@ function AgreementRow({ agreement, onView, onRenew, onCancel, onChanged }: Agree
   // POST /:id/renew asks agreements:update, and so does the autopay toggle below (PUT /:id/autopay).
   const mayUpdate = useMayWrite('agreements:update');
   const maySeeMoney = useMayWrite('invoices:read'); // see AgreementsPage (T62)
-  const endingSoon = agreement.status === 'active' && new Date(agreement.endDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  // Ends within 30 days on the company's calendar (the server's rule: the term ends as its end day begins).
+  const endingSoon = agreement.status === 'active' && daysUntilDay(agreement.endDate) <= 30;
   const isExpiringSoon = endingSoon && agreement.renewalType !== 'auto'; // auto-renew agreements renew instead
   const renewsSoon = endingSoon && agreement.renewalType === 'auto';
 

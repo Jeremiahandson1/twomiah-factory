@@ -72,3 +72,41 @@ export function momentDate(v: unknown, opts: Intl.DateTimeFormatOptions = {}): s
   const d = asDate(v)
   return d ? d.toLocaleDateString(undefined, { ...opts, timeZone: zone }) : ''
 }
+
+/** Whole days from the company's today to a calendar day (negative once it has passed) — the server's daysUntilMarker. */
+export function daysUntilDay(v: unknown): number {
+  const d = asDate(v)
+  if (!d) return NaN
+  const day = typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : d.toISOString().slice(0, 10)
+  return Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${companyTodayKey()}T00:00:00Z`)) / 86_400_000)
+}
+
+/** A moment's calendar day on the company's clock, YYYY-MM-DD — where a booking or an appointment belongs on a calendar. */
+export function companyDayKey(v: unknown): string {
+  const d = asDate(v)
+  return d ? new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d) : ''
+}
+
+/** A moment's minutes after midnight on the company's clock (for laying a day out by the hour). NaN for nothing. */
+export function companyMinutes(v: unknown): number {
+  const d = asDate(v)
+  if (!d) return NaN
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d)
+  const n = (t: string) => Number(parts.find((p) => p.type === t)?.value)
+  return n('hour') * 60 + n('minute')
+}
+
+/** The moment a calendar day (YYYY-MM-DD) begins on the company's clock — its midnight there, as an instant. A day's
+ *  bookings and appointments are fetched from this to the next day's start, the same days they are placed on. */
+export function companyDayStart(dayKey: string): Date {
+  const [y, m, d] = dayKey.split('-').map(Number)
+  const wall = Date.UTC(y, m - 1, d)
+  const offsetAt = (t: number) => {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(t))
+    const n = (k: string) => Number(p.find((x) => x.type === k)?.value)
+    return Date.UTC(n('year'), n('month') - 1, n('day'), n('hour'), n('minute'), n('second')) - t
+  }
+  let t = wall - offsetAt(wall)
+  t = wall - offsetAt(t) // once more, in case a clock change falls between
+  return new Date(t)
+}
