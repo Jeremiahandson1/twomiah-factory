@@ -21,6 +21,7 @@ import {
 import { api } from '../../../../api'
 import { useConfirm, useMayWrite, usePermissions, useToast, errorText } from '../../../../shared'
 import { formatDate } from '../../../date'
+import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 // ── What the server answers (server/crm/roof/insurance/insurance.ts). Numeric columns arrive as strings. ──────────────
 
@@ -163,7 +164,7 @@ function when(v?: string | null): string {
   if (!v) return ''
   const d = new Date(v)
   if (isNaN(d.getTime())) return ''
-  return `${formatDate(v)} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+  return `${formatDate(v)} ${whenTime(d, { hour: 'numeric', minute: '2-digit' })}`
 }
 
 // A money/qty field being typed into holds a STRING, not a number.

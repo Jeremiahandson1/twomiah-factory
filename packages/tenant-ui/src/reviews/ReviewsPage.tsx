@@ -6,9 +6,11 @@ import { Star, Send, Mail, Phone, CheckCircle, Settings, BarChart3, ExternalLink
 import type { SettingsApi, SettingsToast, ReviewsConfig } from '../settings/integrationsTypes'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { ModuleNotEnabled, featureNotEnabled } from '../ui/ModuleNotEnabled'
+import { momentDate } from '../time/companyClock'
 
 type Tab = 'dashboard' | 'settings'
-const fmt = (v: any) => { if (!v) return '—'; const d = new Date(v); return isNaN(d.getTime()) ? '—' : d.toLocaleDateString() }
+/** When a request went: its day on the company's clock (time/companyClock.ts). */
+const fmt = (v: any) => momentDate(v) || '—'
 
 export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: SettingsToast; config?: ReviewsConfig }) {
   const copy = {

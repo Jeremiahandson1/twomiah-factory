@@ -8,20 +8,15 @@ import type { TasksApi, TasksPageProps } from './types';
 import { useConfirm } from '../ui/ConfirmProvider'
 import { useMayWrite, useKnownPermission } from '../auth/PermissionsContext';
 import { AuthContext } from '../auth/AuthContext';
+import { whenDate } from '../time/companyClock'
+import { isPastDay } from '../invoicing/ui'
 
 // UTC-safe date formatting (carried from the templates' utils/date). Date-only values are stored as
 // UTC midnight; parsing the date part at LOCAL midnight avoids shifting viewers west of UTC a day back.
 function formatDate(value?: string | number | Date | null): string {
-  if (value === null || value === undefined || value === '') return '';
-  let d: Date;
-  if (value instanceof Date) {
-    d = value;
-  } else {
-    const s = String(value);
-    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(s) || /T00:00:00(\.000)?Z?$/.test(s);
-    d = dateOnly ? new Date(s.slice(0, 10) + 'T00:00:00') : new Date(s);
-  }
-  return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+  // A calendar day (YYYY-MM-DD or midnight UTC) as the day it names; a moment on the company's clock, not the reader's
+  // (time/companyClock.ts — the one rule every screen prints a stored time by).
+  return whenDate(value)
 }
 
 interface TaskData {
@@ -98,7 +93,7 @@ export default function TasksPage({ api }: TasksPageProps) {
       // Filter overdue locally
       if (filter === 'overdue') {
         taskList = taskList.filter((t: TaskData) =>
-          t.status !== 'completed' && t.dueDate && new Date(t.dueDate) < new Date()
+          t.status !== 'completed' && t.dueDate && isPastDay(t.dueDate)
         );
       }
 
@@ -298,7 +293,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
   // control is the component that has to ask. Same permission the row's three writes require. (T42)
   const mayWrite = useMayWrite('tasks:update');
   const [showMenu, setShowMenu] = useState<boolean>(false);
-  const isOverdue = task.status !== 'completed' && task.dueDate && new Date(task.dueDate) < new Date();
+  const isOverdue = task.status !== 'completed' && task.dueDate && isPastDay(task.dueDate);
 
   return (
     <div className={`p-4 hover:bg-gray-50 dark:hover:bg-slate-800 ${task.status === 'completed' ? 'opacity-60' : ''}`}>

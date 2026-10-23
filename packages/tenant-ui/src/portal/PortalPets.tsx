@@ -6,6 +6,7 @@ import { useParams } from 'react-router-dom'
 import { PawPrint, Calendar, Syringe, AlertTriangle, ArrowRight } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, formatDate } from './common'
+import { companyTodayKey } from '../time/companyClock'
 
 export interface PortalPet {
   id: string; name: string; species?: string | null; breed?: string | null; sex?: string | null
@@ -27,7 +28,8 @@ const speciesLabel = (s?: string | null) => {
   const v = String(s || '').toLowerCase()
   return v ? v.charAt(0).toUpperCase() + v.slice(1) : 'Pet'
 }
-const isPast = (d?: string | null) => !!d && d <= new Date().toISOString().slice(0, 10)
+// Due on or before today — the company's today, not UTC's (time/companyClock.ts).
+const isPast = (d?: string | null) => !!d && d.slice(0, 10) <= companyTodayKey()
 
 export function PortalPets() {
   const { config, fetch: portalFetch } = usePortal()

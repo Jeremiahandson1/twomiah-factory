@@ -32,6 +32,7 @@ import { formatDate } from '../../../date'
 import { displayName } from '../lib/user'
 import { formatStatus, rowsOf } from './model'
 import type { Crew, Person, RoofJob } from './model'
+import { whenDateTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 const STATUS_COLORS: Record<string, string> = {
   lead: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800',
@@ -691,7 +692,7 @@ export default function JobDetailPage() {
                   <div key={note.id || i} className="bg-gray-50 rounded-lg p-3 dark:bg-slate-900">
                     <p className="text-sm text-gray-900 whitespace-pre-wrap dark:text-slate-100">{note.body}</p>
                     <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-slate-400">
-                      {note.createdAt && <span>{new Date(note.createdAt).toLocaleString()}</span>}
+                      {note.createdAt && <span>{whenDateTime(note.createdAt)}</span>}
                     </div>
                   </div>
                 ))}
@@ -731,7 +732,7 @@ export default function JobDetailPage() {
                       <div>
                         <p className="text-sm text-gray-900 dark:text-slate-100">{event.body}</p>
                         <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                          {event.createdAt ? new Date(event.createdAt).toLocaleString() : ''}
+                          {event.createdAt ? whenDateTime(event.createdAt) : ''}
                         </p>
                       </div>
                     </div>

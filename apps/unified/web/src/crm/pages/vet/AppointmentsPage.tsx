@@ -5,6 +5,7 @@ import { api } from '../../../api'
 import { useMayWrite, useToast } from '../../../shared'
 import OwnerPicker from './OwnerPicker'
 import { fetchStaff, useMayPickStaff, staffName, type StaffMember, APPOINTMENT_TYPES, appointmentTypeLabel } from './vetHelpers'
+import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /** A refusal from the API client: its body rides on `data` ({ error, code }). */
 type Refusal = Error & { data?: { code?: string } }
@@ -63,7 +64,7 @@ function fmtTime(s?: string): string {
   if (!s) return '—';
   const d = new Date(s);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return whenTime(d, { hour: 'numeric', minute: '2-digit' });
 }
 
 function providerName(a: Appointment): string {

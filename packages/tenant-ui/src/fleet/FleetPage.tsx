@@ -9,6 +9,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { FleetApi, FleetPageProps } from './types';
 import { useMayWrite } from '../auth/PermissionsContext';
+import { whenTime, whenDateTime } from '../time/companyClock'
 
 // api + the gps flag are injected once at the page root; child components read them via useFleet().
 /**
@@ -350,7 +351,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProp
       {vehicle.currentLocation && (
         <div className="mt-3 flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
           <MapPin className="w-4 h-4" />
-          <span>Last seen {new Date(vehicle.currentLocation.timestamp).toLocaleTimeString()}</span>
+          <span>Last seen {whenTime(vehicle.currentLocation.timestamp)}</span>
         </div>
       )}
 
@@ -438,7 +439,7 @@ function FleetMap({ vehicles }: FleetMapProps) {
     const pts: [number, number][] = [];
     for (const v of located) {
       const { lat, lng } = v.currentLocation!;
-      const seen = v.currentLocation!.timestamp ? new Date(v.currentLocation!.timestamp).toLocaleString() : 'unknown';
+      const seen = v.currentLocation!.timestamp ? whenDateTime(v.currentLocation!.timestamp) : 'unknown';
       L.circleMarker([lat, lng], { radius: 8, color: '#ea580c', fillColor: '#f97316', fillOpacity: 0.9, weight: 2 })
         .bindPopup(`<strong>${v.name}</strong><br/>${lat.toFixed(5)}, ${lng.toFixed(5)}<br/><span style="color:#64748b">Last seen: ${seen}</span>`)
         .addTo(layer);
@@ -507,7 +508,7 @@ function FleetMap({ vehicles }: FleetMapProps) {
                 <p className="text-sm text-gray-500 dark:text-slate-400">
                   {v.currentLocation!.lat.toFixed(4)}, {v.currentLocation!.lng.toFixed(4)}
                   {v.currentLocation!.timestamp && (
-                    <span className="ml-2 opacity-70">· {new Date(v.currentLocation!.timestamp).toLocaleTimeString()}</span>
+                    <span className="ml-2 opacity-70">· {whenTime(v.currentLocation!.timestamp)}</span>
                   )}
                 </p>
               </div>
@@ -568,10 +569,10 @@ function TripsTab() {
                 {trip.driver ? `${trip.driver.firstName} ${trip.driver.lastName}` : '-'}
               </td>
               <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
-                {new Date(trip.startTime).toLocaleString()}
+                {whenDateTime(trip.startTime)}
               </td>
               <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
-                {trip.endTime ? new Date(trip.endTime).toLocaleString() : 'In Progress'}
+                {trip.endTime ? whenDateTime(trip.endTime) : 'In Progress'}
               </td>
               <td className="px-4 py-3 text-right">{trip.distance?.toFixed(1) || '-'} mi</td>
               <td className="px-4 py-3 text-right">{trip.duration || '-'} min</td>

@@ -19,7 +19,7 @@ import { jobMoneyWithheld, withoutJobMoney } from './jobMoney'
 // totals and the UTC date normalisation cannot drift from invoices, quotes, agreements or visits. (T41)
 import { insertInvoice } from '../invoicing/invoices'
 import { withoutPortalCredential } from '../contacts/contacts'
-import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
+import { companyTimeZone, storeDayRange, jobLocalDay, storeDateString, markerDay } from '../time/businessDay'
 import { checkFilter } from '../listFilter'
 import { withinHorizon, horizonMessage } from '../dateInput'
 import { sniffType } from '../files/storage'
@@ -44,6 +44,16 @@ export interface JobTables { job: any; contact: any; user: any; project?: any; t
   jobSeries?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
 export type JobHook = (ctx: { job: any; companyId: string; userId: string }) => Promise<Record<string, any> | void> | Record<string, any> | void
+/** A job's moments: on the way, on site, done (the vertical's texts, the review request, an agreement's next visit). */
+export interface JobHooks { onStart?: JobHook; onDispatch?: JobHook; onComplete?: JobHook }
+/**
+ * The hook a status runs when a job moves INTO it — one table for every door a status is reached by: the buttons, the
+ * edit form, the Dispatch Board (PUT /:id) and bulk updates (bulk.ts). Staying in a status runs nothing. (2026-10-22)
+ */
+export function jobHookFor(status: string, hooks: JobHooks | undefined): JobHook | undefined {
+  if (!hooks) return undefined
+  return status === 'completed' ? hooks.onComplete : status === 'in_progress' ? hooks.onStart : status === 'dispatched' ? hooks.onDispatch : undefined
+}
 
 export interface JobOptions {
   numbering?: { prefix?: string; pad?: number }
@@ -392,10 +402,18 @@ export function createJobRoutes(deps: JobDeps) {
       ...(branches ? { location: j.locationId ? lm[j.locationId] || null : null } : {}),
     }))
   }
-  const isOverdue = (j: any) => !!(j.scheduledDate && OPEN_JOB_STATUSES.includes(String(j.status)) && new Date(j.scheduledDate).getTime() < Date.now() - 86400000)
+  /**
+   * Overdue: still open and its day is over on the company's clock (2026-10-22). It was "24 hours after midnight UTC of
+   * the day", which is 7pm the next day in Chicago. The job's day is read by the rule jobLocalDay states: a booking's
+   * instant on the company's clock, a day marker as the day it names.
+   */
+  const isOverdue = (j: any, tz: string) => {
+    if (!j.scheduledDate || !OPEN_JOB_STATUSES.includes(String(j.status))) return false
+    const day = j.source === 'online_booking' ? storeDateString(new Date(j.scheduledDate), tz) : markerDay(new Date(j.scheduledDate))
+    return day < storeDateString(new Date(), tz)
+  }
   /** The hook a status runs when a job moves into it — one table for the buttons and the edit (see PUT /:id). */
-  const hookFor = (status: string): JobHook | undefined =>
-    status === 'completed' ? o.onComplete : status === 'in_progress' ? o.onStart : status === 'dispatched' ? o.onDispatch : undefined
+  const hookFor = (status: string): JobHook | undefined => jobHookFor(status, o)
   const runHook = async (hook: JobHook | undefined, job: any, currentUser: any) => {
     if (!hook) return {}
     try { return (await hook({ job, companyId: currentUser.companyId, userId: currentUser.userId })) || {} } catch (err: any) { console.warn('[jobs] hook failed:', err?.message || err); return {} }
@@ -462,7 +480,7 @@ export function createJobRoutes(deps: JobDeps) {
       db.select().from(t.job).where(where).orderBy(...order).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.job).where(where),
     ])
-    const withOverdue = (await withRelations(rows, currentUser.companyId)).map((j) => ({ ...j, isOverdue: isOverdue(j) }))
+    const withOverdue = (await withRelations(rows, currentUser.companyId)).map((j) => ({ ...j, isOverdue: isOverdue(j, tzForOrder) }))
     // What the work is WORTH is not part of reading the schedule. (T41)
     const data = await shapeJobMoney(c, withOverdue)
     return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })

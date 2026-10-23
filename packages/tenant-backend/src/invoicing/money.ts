@@ -211,10 +211,11 @@ export function businessToday(timeZone?: string | null, now: Date = new Date()):
 
 /**
  * The cut-off a SQL query compares a due date against: a day BEFORE today is overdue, today is not. Keeps
- * the filtered list, the stats and Reports on the same rule as isOverdue, which waits for the day to end.
+ * the filtered list, the stats and Reports on the same rule as isOverdue, which waits for the day to end —
+ * on the company's clock when its zone is given (the same day markerDayIsOver ends), else UTC's as before.
  */
-export function overdueCutoff(now: Date = new Date()): Date {
-  return startOfUtcDay(now)
+export function overdueCutoff(now: Date = new Date(), timeZone?: string | null): Date {
+  return businessToday(timeZone, now)
 }
 
 /** Due date = today + payment terms (whole days), on the calendar day boundary in UTC like the rest of the app. */

@@ -12,6 +12,7 @@ import type { SettingsApi, IntegrationsConfig, LeadSourceGuide } from './integra
 import { leadSourceGuides } from '../leads/types'
 import { useConfirm } from '../ui/ConfirmProvider'
 import { CallTrackingSection } from './CallTrackingSettings'
+import { whenDateTime } from '../time/companyClock'
 
 // The guides are the SAME vocabulary the Lead Sources page offers (one list per vertical — the template derives
 // config.leadSources from its leadsConfig). Before: a second, hand-written list here pointed users at a
@@ -110,7 +111,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
           ) : status.quickbooks.connected && (
             <div className="mt-2 text-sm space-y-1">
               <p className="text-green-700 dark:text-green-400 font-medium">Connected{status.quickbooks.companyName ? ` to ${status.quickbooks.companyName}` : ''}</p>
-              {status.quickbooks.lastSync && <p className="text-gray-500 dark:text-slate-400">Last synced: {new Date(status.quickbooks.lastSync).toLocaleString()}</p>}
+              {status.quickbooks.lastSync && <p className="text-gray-500 dark:text-slate-400">Last synced: {whenDateTime(status.quickbooks.lastSync)}</p>}
               <button onClick={qbAutoSync} disabled={saving === 'autosync'} className="flex items-center gap-2 text-gray-700 dark:text-slate-300" data-testid="qb-autosync">
                 {saving === 'autosync' ? <Loader2 className="w-8 h-8 text-gray-400 animate-spin" /> : status.quickbooks.syncEnabled ? <ToggleRight className="w-8 h-8 text-green-500 dark:text-green-300" /> : <ToggleLeft className="w-8 h-8 text-gray-300 dark:text-slate-600" />}
                 <span className="text-sm">Auto-sync new invoices and customers</span>

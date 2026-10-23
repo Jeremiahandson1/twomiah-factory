@@ -8,6 +8,7 @@ import type { WarrantiesApi, WarrantiesPageProps } from './types';
 import { usePrompt } from '../ui/ConfirmProvider'
 import { PageError, errorText } from '../ui/PageError'
 import { useMayWrite } from '../auth/PermissionsContext';
+import { whenDate, companyTodayKey } from '../time/companyClock'
 
 // api is injected once at the page root; child components read it via useWarranties().
 /**
@@ -23,15 +24,9 @@ const useWarranties = () => useContext(WarrantiesCtx);
 
 // UTC-safe date formatting (carried from templates' utils/date).
 function formatDate(value?: string | number | Date | null): string {
-  if (value === null || value === undefined || value === '') return '';
-  let d: Date;
-  if (value instanceof Date) { d = value; }
-  else {
-    const s = String(value);
-    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(s) || /T00:00:00(\.000)?Z?$/.test(s);
-    d = dateOnly ? new Date(s.slice(0, 10) + 'T00:00:00') : new Date(s);
-  }
-  return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+  // A calendar day (YYYY-MM-DD or midnight UTC) as the day it names; a moment on the company's clock, not the reader's
+  // (time/companyClock.ts — the one rule every screen prints a stored time by).
+  return whenDate(value)
 }
 
 interface WarrantyData {
@@ -705,7 +700,7 @@ function NewWarrantyModal({ onSave, onClose }: NewWarrantyModalProps) {
     contactId: '',
     name: '',
     category: '',
-    startDate: new Date().toLocaleDateString('en-CA'),
+    startDate: companyTodayKey(),
     durationMonths: '12',
     coverageDetails: '',
   });

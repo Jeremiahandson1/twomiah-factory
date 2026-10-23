@@ -10,6 +10,7 @@ import { BarChart3, Target, Lightbulb, Beaker, Settings, Loader2, Pause, Play, P
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { AdsApi, AdsToast, AdsConfig, AdsOverview, AdsPlatformState, AdsProfile } from './types'
+import { whenDateTime } from '../time/companyClock'
 
 type Tab = 'overview' | 'campaigns' | 'recommendations' | 'experiments' | 'settings'
 interface Can { update: boolean; admin: boolean }
@@ -17,7 +18,7 @@ interface Can { update: boolean; admin: boolean }
 const usd = (cents: unknown) => '$' + (Number(cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const num = (v: unknown) => Number(v || 0).toLocaleString()
 const pct = (a: unknown, b: unknown) => (Number(b) > 0 ? ((Number(a) / Number(b)) * 100).toFixed(2) + '%' : '-')
-const when = (v?: string | null) => (v ? new Date(v).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '-')
+const when = (v?: string | null) => (v ? whenDateTime(v, { dateStyle: 'medium', timeStyle: 'short' }) : '-')
 const human = (s?: string | null) => (s ? s.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()) : '-')
 const PLATFORM_LABEL: Record<string, string> = { google: 'Google Ads', meta: 'Meta (Facebook / Instagram)', tiktok: 'TikTok Ads', lsa: 'Google Local Services' }
 const card = 'bg-white rounded-xl border border-gray-200 dark:bg-slate-900 dark:border-slate-800'

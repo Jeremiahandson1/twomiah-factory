@@ -10,6 +10,7 @@ import { useAuth } from '../auth/AuthContext'
 import type { PeopleApi, PeopleToast, TimeConfig } from './types'
 import { isManagerRole } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
+import { whenTime } from '../time/companyClock'
 
 interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
 // The person's own date, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this pre-filled
@@ -142,7 +143,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
         <Clock className="w-5 h-5 text-orange-500 dark:text-orange-200" />
         {active ? (
           <>
-            <span className="text-sm text-gray-700 dark:text-slate-200">Clocked in since {new Date(active.clockIn as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{active.job?.title ? ` · ${active.job.title}` : active.project?.name ? ` · ${active.project.name}` : ''}</span>
+            <span className="text-sm text-gray-700 dark:text-slate-200">Clocked in since {whenTime(active.clockIn as string, { hour: '2-digit', minute: '2-digit' })}{active.job?.title ? ` · ${active.job.title}` : active.project?.name ? ` · ${active.project.name}` : ''}</span>
             <span className="font-mono text-lg font-semibold text-gray-900 dark:text-slate-100">{fmtElapsed(now - new Date(active.clockIn as string).getTime())}</span>
             {mayLog && <Button variant="danger" onClick={clockOut} disabled={clockBusy}><Square className="w-4 h-4 mr-2 inline" />Clock Out</Button>}
           </>

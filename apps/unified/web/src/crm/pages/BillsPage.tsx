@@ -7,6 +7,7 @@ import { useToast, useConfirm } from '../../shared'
 import { useAuth } from '../../shared'
 import { DataTable, PageHeader, Button } from '../ui/DataTable'
 import { Modal, ConfirmModal } from '../ui/Modal'
+import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 
 interface BillForm {
   vendorId: string;
@@ -183,7 +184,7 @@ export default function BillsPage() {
   };
 
   const isOverdue = (r: Record<string, unknown>) =>
-    ['open', 'partial'].includes(r.status as string) && r.dueDate && new Date(r.dueDate as string) < new Date();
+    ['open', 'partial'].includes(r.status as string) && r.dueDate && isPastDay(r.dueDate);
 
   const columns = [
     { key: 'number', label: 'Invoice #', render: (v: unknown) => (v as string) || '-' },

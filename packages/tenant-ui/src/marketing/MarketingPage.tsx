@@ -8,6 +8,7 @@ import { Mail, Plus, Send, Users, Edit2, Copy, Trash2, Loader2, FileText, Zap, C
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, controlNoWidthCls } from '../invoicing/ui'
 import { DEFAULT_CONTACT_TYPES } from '../contacts/types'
 import type { MarketingApi, MarketingToast, MarketingConfig } from './types'
+import { whenDateTime } from '../time/companyClock'
 
 interface Stats { totalCampaigns: number; activeSequences: number; activeEnrollments?: number; emailsSent30Days: number; campaignSends30Days?: number; openRate?: number; clickRate?: number; totalOptOuts?: number }
 interface Campaign { id: string; name: string; subject?: string; content?: string; status: string; audienceType?: string; audienceFilter?: any; recipientCount?: number; openCount?: number; clickCount?: number; unsubscribeCount?: number; lastError?: string | null; scheduledDate?: string | null; sentAt?: string | null }
@@ -17,7 +18,7 @@ interface Sequence { id: string; name: string; description?: string | null; trig
 type Tab = 'campaigns' | 'templates' | 'sequences'
 const TEMPLATE_CATEGORIES = ['general', 'followup', 'promotion', 'newsletter', 'reminder']
 const statusCls: Record<string, string> = { sent: 'bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-950/40', scheduled: 'bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-950/40', sending: 'bg-yellow-100 text-yellow-700 dark:text-yellow-300 dark:bg-yellow-950/40', failed: 'bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-950/40', draft: 'bg-gray-100 text-gray-700 dark:text-slate-200 dark:bg-slate-800' }
-const fmtWhen = (v?: string | null) => (v ? new Date(v).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '')
+const fmtWhen = (v?: string | null) => (v ? whenDateTime(v, { dateStyle: 'medium', timeStyle: 'short' }) : '')
 
 export function MarketingPage({ api, toast, config, showCampaigns = true }: { api: MarketingApi; toast: MarketingToast; config?: MarketingConfig; showCampaigns?: boolean }) {
   // Visibility is decided by the template's sidebar/route gates exactly as before this page was shared — the page

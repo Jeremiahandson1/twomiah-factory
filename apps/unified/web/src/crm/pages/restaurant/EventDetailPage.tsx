@@ -10,6 +10,7 @@ import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, prettyType, localDa
 import { fetchStaff, useMayPickStaff, staffName, confirmEventRisks, openPrintable, type StaffMember } from './eventHelpers'
 import { PAYMENT_METHODS, useMayWrite, useConfirm, errorText } from '../../../shared'
 import ClientPicker from './ClientPicker'
+import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 
 /**
  * The event file — GET /api/events/:id returns
@@ -80,7 +81,7 @@ function lineTotal(l: MenuLine): number {
 }
 function isOverdue(p: PaymentLine): boolean {
   if (!p.dueDate || (p.state !== 'unpaid' && p.state !== 'part_paid')) return false;
-  return p.dueDate < localDay();
+  return isPastDay(p.dueDate);
 }
 
 type Tab = 'menu' | 'runsheet' | 'money';

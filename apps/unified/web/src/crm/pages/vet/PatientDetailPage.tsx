@@ -12,6 +12,8 @@ import { ageFromDob, NewPatientModal } from './PatientsPage';
 import { ConfirmDialog } from '../../ui/Modal'
 import { fetchStaff, useMayPickStaff, staffName, openPrintable, type StaffMember } from './vetHelpers'
 import { useAuth } from '../../../shared'
+import { momentDate } from '@twomiah/tenant-ui/src/time/companyClock'
+import { isPastDay } from '@twomiah/tenant-ui/src/invoicing/ui'
 
 /** A refusal from the API client: its status and body ride on the error. */
 type Refusal = Error & { status?: number; data?: { error?: string; code?: string } }
@@ -136,7 +138,7 @@ function fmtDate(s?: string): string {
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
   const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return dateOnly ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : momentDate(d, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 function money(v: number | string | undefined | null): string {
   return `$${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -146,10 +148,7 @@ function ownerName(o?: Owner): string {
   return o.name || [o.firstName, o.lastName].filter(Boolean).join(' ') || o.email || 'Owner';
 }
 function isOverdue(dueDate?: string): boolean {
-  if (!dueDate) return false;
-  const d = new Date(dueDate);
-  if (isNaN(d.getTime())) return false;
-  return d.getTime() < Date.now();
+  return isPastDay(dueDate);
 }
 
 interface PatientDocument {

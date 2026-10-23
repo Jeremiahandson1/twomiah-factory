@@ -10,6 +10,7 @@ import { todayKey as todayStr } from '../../../shared'
 import { stylistNameOf as stylistName } from './staff';
 import { useToast } from '../../../shared'
 import { useConfirm, useMayWrite } from '../../../shared'
+import { whenTime } from '@twomiah/tenant-ui/src/time/companyClock'
 
 /**
  * The book — single-day list over /api/appointments?from=&to=.
@@ -104,7 +105,7 @@ function fmtTime(s?: string): string {
   if (!s) return '—';
   const d = new Date(s);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return whenTime(d, { hour: 'numeric', minute: '2-digit' });
 }
 
 // stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)

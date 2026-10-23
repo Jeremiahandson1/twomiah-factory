@@ -5,21 +5,22 @@
 // Dates: a job's scheduledDate is a calendar date stored at UTC midnight — compare on its date portion,
 // never through local time (fs / events / salon / RV drew jobs a day early). Bookings and appointments
 // hold real instants and are placed in local time.
-import { useState, useEffect, useCallback, type DragEvent } from 'react'
+import { useState, useEffect, useCallback, type DragEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Calendar, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, Plus, Move, X } from 'lucide-react'
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
 import { resolveScheduleConfig } from './types'
 import { useMayWrite } from '../auth/PermissionsContext'
 import { localDayKey } from '../time/day'
 import type { SchedulePageProps, ScheduleJob, ScheduleBooking, ScheduleEvent } from './types'
+import { whenTime, companyTodayKey } from '../time/companyClock'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 // This page already asked for the day LOCALLY and was right; the Dispatch Board asked UTC and was not,
 // which is how the two screens came to disagree about what "today" was. One definition now. (BUG-28)
 const localKey = localDayKey
 const weekOf = (d: Date) => { const s = new Date(d); s.setDate(s.getDate() - s.getDay()); s.setHours(0, 0, 0, 0); const e = new Date(s); e.setDate(e.getDate() + 6); e.setHours(23, 59, 59, 999); return { start: s, end: e } }
-const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+const timeOf = (iso: string) => whenTime(iso, { hour: 'numeric', minute: '2-digit' })
 const jobCls = (status: string) => status === 'completed' ? 'bg-green-50 border-l-2 border-green-500 dark:bg-green-900/20' : status === 'in_progress' ? 'bg-blue-50 border-l-2 border-blue-500 dark:bg-blue-900/20' : status === 'cancelled' ? 'bg-gray-50 border-l-2 border-gray-300 opacity-60 dark:bg-slate-800' : 'bg-gray-50 border-l-2 border-gray-300 dark:bg-slate-800'
 
 /**
@@ -68,12 +69,21 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   const navigate = useNavigate()
   const [view, setViewState] = useState<View>(savedView)
   const setView = (v: View) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v) } catch { /* a private window keeps the default */ } }
-  const [currentDate, setCurrentDate] = useState(new Date())
+  // Today is the company's (time/companyClock.ts), as every report's is: a browser elsewhere opened the board on its own
+  // day, a day off from the jobs it holds. Noon, so the calendar maths below never crosses a midnight.
+  const companyToday = () => new Date(`${companyTodayKey()}T12:00:00`)
+  const [currentDate, setCurrentDate] = useState(companyToday)
   const [jobs, setJobs] = useState<ScheduleJob[]>([])
   const [bookings, setBookings] = useState<ScheduleBooking[]>([])
   const [events, setEvents] = useState<ScheduleEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [dragJob, setDragJob] = useState<ScheduleJob | null>(null)
+  /**
+   * MOVE BY TAP, for a phone. (2026-10-22: a phone has no HTML drag — touch never starts one.)
+   * The card's Move button picks the job up; the next tap on a day (week, month) or an hour (day) puts it there, through
+   * the same save as a drop. Cancel, or a tap on the picked job, puts it down. It works with a mouse just the same.
+   */
+  const [moving, setMoving] = useState<ScheduleJob | null>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const [newFor, setNewFor] = useState<Date | null>(null)
   const [editEvent, setEditEvent] = useState<ScheduleEvent | null>(null)
@@ -138,7 +148,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   // a cancel look like the record had vanished.
   const eventsFor = (d: Date) => events.filter((e) => e.start && localKey(new Date(e.start)) === localKey(d))
     .slice().sort(byTime((e: any) => clockOf(e.start)))
-  const isToday = (d: Date) => localKey(d) === localKey(new Date())
+  const isToday = (d: Date) => localKey(d) === companyTodayKey()
   /** Back or forward one of whatever is showing: a day, a week, a month. */
   const step = (dir: 1 | -1) => {
     const d = new Date(currentDate)
@@ -156,7 +166,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   }
   // Drop a job onto a day → it moves to that day (week and month).
   const dropOnDay = async (day: Date) => {
-    const job = dragJob; setDragJob(null); setDragOverKey(null)
+    const job = dragJob || moving; setDragJob(null); setDragOverKey(null); setMoving(null)
     if (!job) return
     const target = localKey(day)
     if (String(job.scheduledDate || '').slice(0, 10) === target) return
@@ -164,7 +174,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   }
   // Drop a job onto an hour → it starts then, on the day showing (day view). '' takes its time off.
   const dropOnHour = async (hhmm: string) => {
-    const job = dragJob; setDragJob(null); setDragOverKey(null)
+    const job = dragJob || moving; setDragJob(null); setDragOverKey(null); setMoving(null)
     if (!job) return
     const day = localKey(currentDate)
     const sameDay = String(job.scheduledDate || '').slice(0, 10) === day
@@ -175,7 +185,11 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
     onDragOver: (e: DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOverKey(key) },
     onDragLeave: () => { if (dragOverKey === key) setDragOverKey(null) },
     onDrop: (e: DragEvent) => { e.preventDefault(); onDrop() },
+    // A job picked up with Move lands where the next tap is.
+    ...(moving ? { onClick: () => onDrop(), 'data-move-target': key } : {}),
   } : {}
+  /** A day's own buttons (open the day, "+N more") put a picked-up job on that day instead of opening it. */
+  const dayButton = (day: Date) => (e: MouseEvent) => { e.stopPropagation(); if (moving) dropOnDay(day); else openDay(day) }
 
   const jobCard = (job: ScheduleJob, compact = false) => (
     <div
@@ -184,11 +198,23 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
       draggable={dragDrop}
       onDragStart={dragDrop ? (e) => { setDragJob(job); try { e.dataTransfer.setData('text/plain', job.id) } catch { /* older engines */ } e.dataTransfer.effectAllowed = 'move' } : undefined}
       onDragEnd={dragDrop ? () => { setDragJob(null); setDragOverKey(null) } : undefined}
-      onClick={(e) => { e.stopPropagation(); navigate(`/crm/jobs/${job.id}`) }}
+      // While a job is picked up, a tap on a card is a tap on its day or hour (it bubbles to the target); the picked
+      // job itself puts it down.
+      onClick={(e) => { if (moving) { if (moving.id === job.id) { e.stopPropagation(); setMoving(null) } return } e.stopPropagation(); navigate(`/crm/jobs/${job.id}`) }}
       title={dragDrop ? 'Drag to reschedule · click to open' : 'Click to open'}
       className={`${compact ? 'px-1.5 py-0.5' : 'p-2'} rounded text-xs text-gray-900 dark:text-slate-100 ${dragDrop ? 'cursor-move' : 'cursor-pointer'} hover:shadow-sm ${jobCls(job.status)}`}
     >
-      <p className="font-medium truncate">{compact && job.scheduledTime ? `${job.scheduledTime} ` : ''}{job.title}</p>
+      <div className="flex items-start gap-1">
+        <p className="font-medium truncate flex-1 min-w-0">{compact && job.scheduledTime ? `${job.scheduledTime} ` : ''}{job.title}</p>
+        {dragDrop && !moving && (
+          <button type="button" aria-label={`Move ${job.title}`} title="Move — then tap a day or an hour" data-move-job={job.id}
+            onClick={(e) => { e.stopPropagation(); setMoving(job) }}
+            className={`shrink-0 rounded text-gray-600 hover:bg-white/70 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white ${compact ? 'p-0.5' : 'p-1 -m-0.5'}`}>
+            <Move className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
+          </button>
+        )}
+        {moving?.id === job.id && <span className="shrink-0 rounded bg-orange-500 px-1 text-[10px] font-semibold text-white">Moving</span>}
+      </div>
       {!compact && (job.scheduledTime || job.contact?.name) && <p className="text-gray-500 dark:text-slate-400 truncate">{[job.scheduledTime, job.contact?.name].filter(Boolean).join(' · ')}</p>}
     </div>
   )
@@ -231,7 +257,8 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
       ? currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
       : `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
   const unit = view === 'day' ? 'day' : view === 'week' ? 'week' : 'month'
-  const hint = view === 'day' ? `Drag a ${cfg.jobLabel.toLowerCase()} to another hour to change its time.` : `Drag a ${cfg.jobLabel.toLowerCase()} to another day to reschedule it.`
+  // Drag with a mouse; on a phone (no drag there) the Move button on a job, then a tap where it goes.
+  const hint = view === 'day' ? `Drag a ${cfg.jobLabel.toLowerCase()} to another hour, or tap its Move button and then an hour, to change its time.` : `Drag a ${cfg.jobLabel.toLowerCase()} to another day, or tap its Move button and then a day, to reschedule it.`
 
   // ── Day: the hours down the page ─────────────────────────────────────────────────────────────────
   const dayBody = () => {
@@ -255,7 +282,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
           <div className="flex-1 min-w-0 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 min-h-[36px]">
             {untimed.map((j) => jobCard(j))}
             {allDay.map((e) => eventCard(e))}
-            {untimed.length === 0 && allDay.length === 0 && <p className="text-[11px] text-gray-500 dark:text-slate-400 self-center select-none">{dragDrop ? `Drop a ${cfg.jobLabel.toLowerCase()} here to take its time off` : 'Nothing without a time'}</p>}
+            {untimed.length === 0 && allDay.length === 0 && <p className="text-[11px] text-gray-500 dark:text-slate-400 self-center select-none">{moving ? 'Tap here to take its time off' : dragDrop ? `Drop a ${cfg.jobLabel.toLowerCase()} here to take its time off` : 'Nothing without a time'}</p>}
           </div>
         </div>
         {hours.map((h) => {
@@ -289,7 +316,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
             {...dropProps(key, () => dropOnDay(day))}
             className={`bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden transition ${isToday(day) ? 'ring-2 ring-orange-500' : ''} ${dragOverKey === key ? 'ring-2 ring-orange-400 bg-orange-50/40' : ''}`}
           >
-            <button type="button" onClick={() => openDay(day)} title="Open this day" className={`w-full px-3 py-2 text-center border-b dark:border-slate-800 ${isToday(day) ? 'bg-orange-500 text-white' : 'bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
+            <button type="button" onClick={dayButton(day)} title={moving ? 'Move it here' : 'Open this day'} className={`w-full px-3 py-2 text-center border-b dark:border-slate-800 ${isToday(day) ? 'bg-orange-500 text-white' : 'bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
               <p className="text-xs font-medium">{WEEKDAYS[day.getDay()]}</p>
               <p className="text-lg font-bold">{day.getDate()}</p>
             </button>
@@ -329,12 +356,12 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
               {...dropProps(key, () => dropOnDay(day))}
               className={`min-h-[96px] rounded-md p-1 transition ${inMonth ? 'bg-white dark:bg-slate-900' : 'bg-gray-50 dark:bg-slate-900/40'} shadow-sm ${isToday(day) ? 'ring-2 ring-orange-500' : ''} ${dragOverKey === key ? 'ring-2 ring-orange-400 bg-orange-50/40' : ''}`}
             >
-              <button type="button" onClick={() => openDay(day)} title="Open this day" className={`mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-semibold ${isToday(day) ? 'bg-orange-500 text-white' : inMonth ? 'text-gray-900 hover:bg-gray-100 dark:text-slate-100 dark:hover:bg-slate-800' : 'text-gray-500 dark:text-slate-400'}`}>{day.getDate()}</button>
+              <button type="button" onClick={dayButton(day)} title={moving ? 'Move it here' : 'Open this day'} className={`mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-semibold ${isToday(day) ? 'bg-orange-500 text-white' : inMonth ? 'text-gray-900 hover:bg-gray-100 dark:text-slate-100 dark:hover:bg-slate-800' : 'text-gray-500 dark:text-slate-400'}`}>{day.getDate()}</button>
               {/* Below md a cell is too narrow for titles: it says how many, and opens the day. */}
-              {items.length > 0 && <button type="button" onClick={() => openDay(day)} className="md:hidden block w-full rounded bg-gray-100 px-1 text-[10px] font-medium text-gray-800 dark:bg-slate-800 dark:text-slate-200">{items.length}</button>}
+              {items.length > 0 && <button type="button" onClick={dayButton(day)} className="md:hidden block w-full rounded bg-gray-100 px-1 text-[10px] font-medium text-gray-800 dark:bg-slate-800 dark:text-slate-200">{items.length}</button>}
               <div className="hidden md:block space-y-1">
                 {shown.map((it) => it.k === 'j' ? jobCard(it.j, true) : it.k === 'b' ? bookingCard(it.b, true) : eventCard(it.e, true))}
-                {more > 0 && <button type="button" onClick={() => openDay(day)} className="w-full text-left text-[11px] font-medium text-gray-600 hover:underline dark:text-slate-300">+{more} more</button>}
+                {more > 0 && <button type="button" onClick={dayButton(day)} className="w-full text-left text-[11px] font-medium text-gray-600 hover:underline dark:text-slate-300">+{more} more</button>}
               </div>
             </div>
           )
@@ -360,7 +387,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
           <button type="button" onClick={() => step(-1)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg" aria-label={`Previous ${unit}`}><ChevronLeft className="w-5 h-5" /></button>
           <span className="font-medium text-gray-900 dark:text-slate-100" data-testid="schedule-title">{title}</span>
           <button type="button" onClick={() => step(1)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg" aria-label={`Next ${unit}`}><ChevronRight className="w-5 h-5" /></button>
-          <button type="button" onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800">Today</button>
+          <button type="button" onClick={() => setCurrentDate(companyToday())} className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-700 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800">Today</button>
         </div>
       </div>
 
@@ -370,6 +397,12 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         {cfg.events && <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-indigo-300" />Appointment</span>}
       </div>
 
+      {moving && (
+        <div role="status" data-testid="move-banner" className="sticky top-0 z-20 mb-3 flex items-center justify-between gap-3 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-900 shadow-sm dark:border-orange-500/50 dark:bg-orange-950/60 dark:text-orange-100">
+          <span className="min-w-0"><span className="font-semibold">Moving “{moving.title}”</span> — tap {view === 'day' ? 'an hour' : 'a day'} to put it there{view === 'day' ? ' (or "No time set")' : ''}.</span>
+          <button type="button" onClick={() => setMoving(null)} className="shrink-0 inline-flex items-center gap-1 rounded border border-orange-300 px-2 py-1 text-orange-900 hover:bg-orange-100 dark:border-orange-500/50 dark:text-orange-100 dark:hover:bg-orange-900/40"><X className="w-3.5 h-3.5" />Cancel</button>
+        </div>
+      )}
       {loading ? (
         <div className="flex justify-center py-12" aria-busy="true"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
       ) : view === 'day' ? dayBody() : view === 'month' ? monthBody() : weekBody()}
