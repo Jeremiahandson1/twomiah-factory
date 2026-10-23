@@ -1,6 +1,6 @@
 // Moved from templates/crm/frontend/src/components/features/AIReceptionistPage.tsx.
 import React, { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Phone, MessageSquare, Bot, Edit2, Trash2, Check, PhoneIncoming, VoicemailIcon, Zap, Loader2 } from 'lucide-react'
 import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, StatusBadge, EmptyState, ConfirmDialog, Tabs, TabsList, TabsTrigger, TabsContent } from '../ui'
 import { PageError, errorText, ModuleNotEnabled, featureNotEnabled, usePermissions, CallTrackingSettings } from '../../shared'
@@ -144,6 +144,10 @@ function ReceptionistSetup({ enabled, hasRules }: { enabled: boolean; hasRules: 
     </section>
   )
 }
+
+/** The zone by the name an owner uses (Settings › Company's own list); any other as itself. */
+const ZONE_NAMES: Record<string, string> = { 'America/New_York': 'Eastern', 'America/Chicago': 'Central', 'America/Denver': 'Mountain', 'America/Phoenix': 'Arizona', 'America/Los_Angeles': 'Pacific', 'America/Anchorage': 'Alaska', 'Pacific/Honolulu': 'Hawaii' }
+const zoneWords = (z?: string) => (z ? ZONE_NAMES[z] || z.replace(/_/g, ' ') : '')
 
 interface AISettings {
   isEnabled: boolean;
@@ -377,14 +381,11 @@ export function AIReceptionistPage() {
               <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Business Hours Start</label><Input type="time" value={settings.businessHoursStart || '09:00'} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ businessHoursStart: e.target.value })} disabled={!mayEdit} /></div>
               <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Business Hours End</label><Input type="time" value={settings.businessHoursEnd || '17:00'} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ businessHoursEnd: e.target.value })} disabled={!mayEdit} /></div>
             </div>
+            {/* ONE CLOCK: after hours is judged on the business's time zone, set once under Settings › Company (coordinator
+                10/23); the receptionist kept one of its own, defaulting to Chicago. */}
             <div>
-              <label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Timezone</label>
-              <Select value={settings.timezone || 'America/Chicago'} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateSettings({ timezone: e.target.value })} disabled={!mayEdit} options={[
-                { value: 'America/New_York', label: 'Eastern' },
-                { value: 'America/Chicago', label: 'Central' },
-                { value: 'America/Denver', label: 'Mountain' },
-                { value: 'America/Los_Angeles', label: 'Pacific' },
-              ]} />
+              <span className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Time zone</span>
+              <p className="text-sm text-slate-900 dark:text-white">{zoneWords(settings.timezone)} — your business&rsquo;s time zone. <Link to="/crm/settings" className="font-medium text-brand-700 hover:underline dark:text-brand-200">Change it in Settings › Company</Link></p>
             </div>
             <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Default Greeting</label><Textarea value={settings.greetingText || ''} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateSettings({ greetingText: e.target.value })} disabled={!mayEdit} placeholder="Hi, thanks for calling! We're currently away but will get back to you soon." rows={3} /></div>
             <div><label className="block text-sm text-slate-600 dark:text-slate-400 mb-1">Forwarding Number</label><Input value={settings.forwardingNumber || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateSettings({ forwardingNumber: e.target.value })} disabled={!mayEdit} placeholder="(555) 123-4567" /></div>

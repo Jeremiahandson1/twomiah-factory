@@ -9,6 +9,7 @@ import { eq, and, desc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { aiReceptionistRule, aiReceptionistSettings, clients, company, contact } from '../../db/schema/index.ts'
 import * as q from '../../data/aiReceptionist.ts'
+import { companyRowTimeZone } from '@twomiah/tenant-backend'
 import { clientByPhone } from '../../data/calltracking.ts'
 import type { CrmDeps } from '../deps.ts'
 
@@ -17,7 +18,8 @@ import type { CrmDeps } from '../deps.ts'
  * companyId, id or createdAt cannot move the row to another tenant or rewrite its history. (10/16)
  */
 export const RULE_FIELDS = ['name', 'trigger', 'channel', 'messageTemplate', 'delayMinutes', 'isActive', 'keywordMatch'] as const
-export const SETTINGS_FIELDS = ['isEnabled', 'businessHoursStart', 'businessHoursEnd', 'timezone', 'greetingText', 'forwardingNumber'] as const
+// No 'timezone': the receptionist keeps time on the business's one clock (Settings › Company), read in getSettings.
+export const SETTINGS_FIELDS = ['isEnabled', 'businessHoursStart', 'businessHoursEnd', 'greetingText', 'forwardingNumber'] as const
 function allowedOnly<K extends string>(data: unknown, keys: readonly K[]): Partial<Record<K, any>> {
   const src = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>
   const out: Partial<Record<K, any>> = {}
@@ -90,12 +92,24 @@ export function createAiReceptionistService(d: CrmDeps) {
   }
 
   // ── Settings ──
+  /**
+   * ONE CLOCK: "after hours" is judged on the business's own time zone (company.timezone, else its state's —
+   * companyRowTimeZone), the one Settings › Company sets. The receptionist kept a zone of its own, defaulting to Chicago
+   * whatever the business (coordinator 10/23). Its column is no longer read; migration 0022 moved a saved one onto a
+   * company that had none.
+   */
+  async function clockOf(companyId: string): Promise<string> {
+    const [co] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)
+    return companyRowTimeZone(co)
+  }
+
   async function getSettings(companyId: string) {
+    const timezone = await clockOf(companyId)
     const [settings] = await db.select().from(aiReceptionistSettings).where(eq(aiReceptionistSettings.companyId, companyId)).limit(1)
     if (!settings) {
-      return { companyId, isEnabled: false, businessHoursStart: '09:00', businessHoursEnd: '17:00', timezone: 'America/Chicago', greetingText: null, forwardingNumber: null }
+      return { companyId, isEnabled: false, businessHoursStart: '09:00', businessHoursEnd: '17:00', timezone, greetingText: null, forwardingNumber: null }
     }
-    return settings
+    return { ...settings, timezone }
   }
 
   async function upsertSettings(companyId: string, data: Partial<{ isEnabled: boolean; businessHoursStart: string; businessHoursEnd: string; timezone: string; greetingText: string; forwardingNumber: string }>) {
@@ -105,18 +119,17 @@ export function createAiReceptionistService(d: CrmDeps) {
         .set({ ...allowedOnly(data, SETTINGS_FIELDS), updatedAt: new Date() })
         .where(eq(aiReceptionistSettings.companyId, companyId))
         .returning()
-      return updated
+      return { ...updated, timezone: await clockOf(companyId) }
     }
     const [created] = await db.insert(aiReceptionistSettings).values({
       companyId,
       isEnabled: data.isEnabled ?? false,
       businessHoursStart: data.businessHoursStart || '09:00',
       businessHoursEnd: data.businessHoursEnd || '17:00',
-      timezone: data.timezone || 'America/Chicago',
       greetingText: data.greetingText,
       forwardingNumber: data.forwardingNumber,
     }).returning()
-    return created
+    return { ...created, timezone: await clockOf(companyId) }
   }
 
   // ── OpenAI ──

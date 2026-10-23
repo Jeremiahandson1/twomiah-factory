@@ -21,11 +21,20 @@ async function provisioned(takesBookings?: boolean) {
   return t
 }
 
+/** The zone the owner's Booking settings answer with, signed in as the provisioned owner. */
+async function settingsZone(t: any): Promise<string> {
+  const token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@hudson.example', password: 'Owner-pass-1-long' } })).json()).accessToken
+  const r = await t.call('/api/booking/settings', { headers: { Authorization: `Bearer ${token}` } })
+  return ((await r.json()) as any).timezone
+}
+
 describe('provisioning a business that takes bookings', () => {
   test('weekday hours 9–5, one 30-minute Consultation, on the business’s own clock — and /book offers days', async () => {
     const t = await provisioned(true)
     const [s] = await t.db.select().from(t.schema.bookingSettings)
-    expect(s).toMatchObject({ enabled: true, timezone: 'America/New_York' })
+    expect(s).toMatchObject({ enabled: true })
+    // On the business's own clock: the one the company was provisioned with, which Bookings reads (one clock).
+    expect(await settingsZone(t)).toBe('America/New_York')
     const hours = (await t.db.select().from(t.schema.bookingHours)).map((h: any) => [h.dayOfWeek, h.startMinute, h.endMinute, h.userId])
     expect(hours.sort()).toEqual([1, 2, 3, 4, 5].map((d) => [d, 540, 1020, null]))
     const svc = await t.db.select().from(t.schema.bookingService)
@@ -44,7 +53,6 @@ describe('provisioning a business that takes bookings', () => {
     expect(await t.db.select().from(t.schema.bookingService)).toEqual([])
     expect(await t.db.select().from(t.schema.bookingHours)).toEqual([])
     await t.call('/api/book/services')
-    const [s] = await t.db.select().from(t.schema.bookingSettings)
-    expect(s.timezone).toBe('America/New_York')
+    expect(await settingsZone(t)).toBe('America/New_York')
   })
 })

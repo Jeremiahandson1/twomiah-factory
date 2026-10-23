@@ -568,7 +568,8 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
     const patch: Record<string, any> = {}
     if (body.hours !== undefined) {
       const why = hoursRefusal(body.hours); if (why) return bad(c, why)
-      const h: HoursConfig = { timezone: body.hours.timezone || undefined, bar: body.hours.bar || {}, kitchen: body.hours.kitchen || {}, holidays: body.hours.holidays || [] }
+      // No zone of its own: the bar keeps time on the company's (barLive.ts hoursFor).
+      const h: HoursConfig = { bar: body.hours.bar || {}, kitchen: body.hours.kitchen || {}, holidays: body.hours.holidays || [] }
       patch.hours = h
     }
     if (body.speakeasyPassword !== undefined) {
@@ -655,7 +656,7 @@ export function createBarRoutes(d: CrmDeps, bar: BarServices) {
         counts.events++
       }
       if (body.hours !== undefined) {
-        const h = { timezone: body.hours.timezone || undefined, bar: body.hours.bar || {}, kitchen: body.hours.kitchen || {}, holidays: body.hours.holidays || [] }
+        const h = { bar: body.hours.bar || {}, kitchen: body.hours.kitchen || {}, holidays: body.hours.holidays || [] }
         const [hit] = await tx.select({ id: barSettings.id }).from(barSettings).where(eq(barSettings.companyId, companyId)).limit(1)
         if (hit) await tx.update(barSettings).set({ hours: h, updatedAt: new Date() }).where(eq(barSettings.id, hit.id))
         else await tx.insert(barSettings).values({ companyId, hours: h })

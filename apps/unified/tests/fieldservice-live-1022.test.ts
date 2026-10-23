@@ -20,7 +20,8 @@ beforeAll(async () => {
   const s = await seedOwner(t)
   token = (await (await t.call('/api/auth/login', { method: 'POST', json: { email: 'owner@test.example', password: s.password } })).json()).accessToken
   // Branches and projects aren't field service's own switches; the shared schemas behind them are still under test here.
-  await t.db.update(t.schema.company).set({ enabledFeatures: ['online_booking', 'contacts', 'jobs', 'team', 'invoices', 'recurring_jobs', 'gps_tracking', 'multi_location', 'projects'] }).where(eq(t.schema.company.id, s.company.id))
+  // One clock (coordinator 10/23): the business's zone, set in Settings › Company, is the one Bookings keeps time on.
+  await t.db.update(t.schema.company).set({ timezone: TZ, enabledFeatures: ['online_booking', 'contacts', 'jobs', 'team', 'invoices', 'recurring_jobs', 'gps_tracking', 'multi_location', 'projects'] } as any).where(eq(t.schema.company.id, s.company.id))
   expect((await as('/api/booking/settings', { method: 'PATCH', json: { timezone: TZ, enabled: true, maxDaysOut: 30, leadTimeMinutes: 60, requirePhone: true } })).status).toBe(200)
   expect((await as('/api/booking/services', { method: 'POST', json: { name: 'Furnace Check', durationMinutes: 60, slotStepMinutes: 60 } })).status).toBe(201)
   expect((await as('/api/booking/hours', { method: 'PUT', json: { hours: [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dayOfWeek: d, start: '09:00', end: '17:00' })) } })).status).toBe(200)

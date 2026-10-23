@@ -34,6 +34,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { Query } from './schema.ts'
 import type { MoveStep } from './copy.ts'
+import { companyRowTimeZone } from '@twomiah/tenant-backend'
 
 /** One file the old site served, by the address its pages used ('/media/photos/x.jpg', '/images/logo.svg'). */
 export interface SiteFile { body: Uint8Array; contentType: string }
@@ -476,11 +477,20 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
         const active = rules.filter((r) => bool(r.is_active))
         const anySite = active.length > 0 || rows('booking_services').length > 0
         let bs = (await write(`SELECT * FROM booking_settings WHERE company_id = $1`, [companyId])).rows[0]
+        // ONE CLOCK: bookings keep time on the company's zone (booking/engine.ts settingsOf). A company with no zone of its
+        // own takes the site's, which its hours were kept in; one that has a different zone is said, never changed.
+        const [co] = (await write(`SELECT timezone, state, settings FROM company WHERE id = $1`, [companyId])).rows
+        let clock = companyRowTimeZone(co)
+        if (anySite && co && !(typeof co.timezone === 'string' && co.timezone.trim())) {
+          await write(`UPDATE company SET timezone = $1 WHERE id = $2`, [tz, companyId])
+          clock = tz
+          out.push(`the company's time zone set to the site's, ${tz}`)
+        }
         if (!bs && anySite) {
-          await write(`INSERT INTO booking_settings (id, company_id, timezone) VALUES ($1, $2, $3)`, [crypto.randomUUID(), companyId, tz])
+          await write(`INSERT INTO booking_settings (id, company_id) VALUES ($1, $2)`, [crypto.randomUUID(), companyId])
           gain('booking_settings')
           bs = (await write(`SELECT * FROM booking_settings WHERE company_id = $1`, [companyId])).rows[0]
-          out.push(`booking settings made (zone ${tz})`)
+          out.push(`booking settings made (on the company's zone, ${clock})`)
         }
         if (bs) {
           const set: string[] = [], params: unknown[] = [], replaced: string[] = []
@@ -498,7 +508,7 @@ export function siteMoveSteps(o: Omit<SiteMoveOptions, 'write'>): SiteMove {
           if (s.booking_ical_feed_token) take('ical_feed_token', s.booking_ical_feed_token)
           if (set.length) { params.push(bs.id); await write(`UPDATE booking_settings SET ${set.join(', ')} WHERE id = $${params.length}`, params) }
           if (set.length) out.push(`the site's ${set.length} booking setting(s)${replaced.length ? ` (replacing the CRM widget's ${replaced.join(', ')})` : ''}`)
-          if (active.length && bs.timezone !== tz) out.push(`the booking zone is ${bs.timezone} but the site kept its hours in ${tz} — the owner checks the hours in Bookings › Settings`)
+          if (active.length && clock !== tz) out.push(`the company's time zone is ${clock} but the site kept its hours in ${tz} — the owner checks the hours in Bookings › Settings`)
         }
 
         const unmatchedUser = new Set<string>()

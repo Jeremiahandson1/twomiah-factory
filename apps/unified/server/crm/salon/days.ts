@@ -6,12 +6,8 @@
 // Chicago enrolment was recorded as starting TOMORROW, billed for tomorrow's period, and had its renewal anniversary
 // shifted a day forever after. (Salon T25 N2)
 //
-// The zone is the one the shop set for its booking calendar. A business that never opened Booking has none, and
-// America/Chicago is the fleet's fallback there too.
-import { eq } from 'drizzle-orm'
-import { bookingSettings } from '../../db/schema/index.ts'
-
-export const DEFAULT_TZ = 'America/Chicago'
+// The zone is the business's one clock (Settings › Company; companyTimeZone: its own, else its state's).
+import { companyTimeZone } from '@twomiah/tenant-backend'
 
 /** `d` as YYYY-MM-DD on `tz`'s calendar. Falls back to the UTC day if the zone name is not recognised. */
 export function calendarDateIn(d: Date, tz: string): string {
@@ -59,11 +55,12 @@ export const shiftDays = (day: string, delta: number) => {
 
 /** The shop's clock: its zone, its today, and the windows its dashboard counts in. */
 export function createSalonClock(db: any) {
-  /** The shop's timezone, or the fleet default when Booking was never set up. */
+  /**
+   * The shop's clock: the business's one time zone (Settings › Company — company.timezone, else its state's). It read the
+   * booking settings' own zone, a second setting that could disagree with the reports' (coordinator 10/23: one clock).
+   */
   async function salonTimezone(companyId: string): Promise<string> {
-    const [bs] = await db.select({ timezone: bookingSettings.timezone }).from(bookingSettings)
-      .where(eq(bookingSettings.companyId, companyId)).limit(1)
-    return bs?.timezone || DEFAULT_TZ
+    return companyTimeZone(db, companyId)
   }
 
   /** Today, on the calendar the people in this salon are looking at. */

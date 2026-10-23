@@ -24,6 +24,8 @@ async function bookingTenant(vertical: string) {
   // The owner's own switch, for every vertical: the registry offers online_booking to crm-vet (the live vet CRM had it on).
   const features = vertical === 'vet' ? ['online_booking', 'appointment_scheduling', 'patient_records'] : ['online_booking']
   expect((await as('/api/company/features', { method: 'PUT', json: { features } })).status).toBe(200)
+  // One clock (coordinator 10/23): the business's zone, set in Settings › Company, is the one Bookings keeps time on.
+  await t.db.update(t.schema.company).set({ timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, seeded.company.id))
   expect((await as('/api/booking/settings', { method: 'PATCH', json: { timezone: 'America/Chicago', leadTimeMinutes: 60, maxDaysOut: 30 } })).status).toBe(200)
   const svc = await as('/api/booking/services', { method: 'POST', json: { name: 'Wellness exam', durationMinutes: 30, price: 65, slotStepMinutes: 30 } })
   expect(svc.status).toBe(201)

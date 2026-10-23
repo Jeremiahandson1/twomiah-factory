@@ -3,7 +3,7 @@
 // owner's (services, switches, areas, words, feed, webhooks, bans) are behind bookings:settings; hours and days off,
 // the running of the book, behind bookings:update — as on the server.
 import { useEffect, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Plus, Trash2, Edit3, X, Copy, ExternalLink, RefreshCw, CalendarCheck } from 'lucide-react'
 import { api } from '../api'
 import { PageError, useConfirm, useKnownPermission, useMayWrite, useToast } from '../shared'
@@ -11,7 +11,9 @@ import { useBookingBasics, dollars, minutesWords, dateWords, type BookingSetting
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-const ZONES = (() => { try { return (Intl as any).supportedValuesOf('timeZone') as string[] } catch { return ['America/New_York', 'America/Chicago', 'America/Denver', 'America/Phoenix', 'America/Los_Angeles', 'America/Anchorage', 'Pacific/Honolulu'] } })()
+/** The business's one clock, by the name an owner uses (Settings › Company's own list); any other zone as itself. */
+const ZONE_NAMES: Record<string, string> = { 'America/New_York': 'Eastern', 'America/Chicago': 'Central', 'America/Denver': 'Mountain', 'America/Phoenix': 'Arizona', 'America/Los_Angeles': 'Pacific', 'America/Anchorage': 'Alaska', 'Pacific/Honolulu': 'Hawaii' }
+const zoneWords = (z: string) => ZONE_NAMES[z] || z.replace(/_/g, ' ')
 
 function Section({ title, intro, children }: { title: string; intro?: string; children: React.ReactNode }) {
   return (
@@ -66,7 +68,7 @@ function useSaver(onSaved: () => void) {
 
 function General({ settings, onSaved }: { settings: BookingSettings; onSaved: () => void }) {
   const [f, setF] = useState(() => ({
-    enabled: settings.enabled, timezone: settings.timezone, leadTimeMinutes: String(settings.leadTimeMinutes), maxDaysOut: String(settings.maxDaysOut),
+    enabled: settings.enabled, leadTimeMinutes: String(settings.leadTimeMinutes), maxDaysOut: String(settings.maxDaysOut),
     driveTimeMinutes: String(settings.driveTimeMinutes), selfServiceCutoffMinutes: String(settings.selfServiceCutoffMinutes),
     requireAddress: settings.requireAddress === null ? '' : String(settings.requireAddress), requirePhone: settings.requirePhone, notifyEmail: settings.notifyEmail,
   }))
@@ -81,7 +83,9 @@ function General({ settings, onSaved }: { settings: BookingSettings; onSaved: ()
       <form onSubmit={submit} className="space-y-4">
         <label className="flex items-center gap-2 text-sm text-ink"><input type="checkbox" checked={f.enabled} onChange={(e) => setF((x) => ({ ...x, enabled: e.target.checked }))} />Customers can book online</label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label htmlFor="bs-tz" className="label">Time zone</label><select id="bs-tz" className="input" value={f.timezone} onChange={set('timezone')}>{ZONES.map((z) => <option key={z} value={z}>{z.replace(/_/g, ' ')}</option>)}</select></div>
+          {/* ONE CLOCK: bookings keep time on the business's time zone, set once under Settings › Company (coordinator
+              10/23). This was a second zone of its own that could disagree with the reports'. */}
+          <div><span className="label">Time zone</span><div id="bs-tz" className="text-sm text-ink py-2"><p>{zoneWords(settings.timezone)} — your business&rsquo;s time zone.</p><Link to="/crm/settings" className="inline-block whitespace-nowrap text-brand-700 hover:underline dark:text-brand-200">Change it in Settings › Company</Link></div></div>
           <div><label htmlFor="bs-lead" className="label">Notice needed (minutes)</label><input id="bs-lead" type="number" min={0} className="input" value={f.leadTimeMinutes} onChange={set('leadTimeMinutes')} /><p className="text-xs text-muted mt-1">{Number(f.leadTimeMinutes) ? `Nothing sooner than ${minutesWords(Number(f.leadTimeMinutes))} from now.` : 'Right up to the start.'}</p></div>
           <div><label htmlFor="bs-max" className="label">How far ahead (days)</label><input id="bs-max" type="number" min={1} max={365} className="input" value={f.maxDaysOut} onChange={set('maxDaysOut')} /></div>
           <div><label htmlFor="bs-drive" className="label">Travel between jobs (minutes)</label><input id="bs-drive" type="number" min={0} className="input" value={f.driveTimeMinutes} onChange={set('driveTimeMinutes')} /></div>

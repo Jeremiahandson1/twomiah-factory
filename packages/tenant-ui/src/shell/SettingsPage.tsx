@@ -466,7 +466,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                 ))}
               </div>
               {showZone && (
-                <Field label="Time zone" hint="Your hours, reports, invoices and timesheets count days on this clock. Online bookings keep their own under Booking settings.">
+                <Field label="Time zone" hint="The one clock for your business: your hours, reports, invoices, timesheets, online bookings and the AI Receptionist all keep time on it.">
                   <select aria-label="Time zone" value={zone} onChange={(e) => setZone(e.target.value)} className={inputCls}>
                     <option value="">From your state{!zone && (company?.effectiveTimezone || company?.timeZone) ? ` (${zoneName(company.effectiveTimezone || company.timeZone)})` : ''}</option>
                     {US_ZONES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}

@@ -34,6 +34,8 @@ beforeAll(async () => {
   const s = await seedOwner(t)
   companyId = s.company.id
   ownerId = s.owner.id
+  // One clock (coordinator 10/23): the business's zone, set in Settings › Company, is the one Bookings keeps time on.
+  await t.db.update(t.schema.company).set({ timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, companyId))
   const e = engine()
   await e.updateSettings(companyId, { timezone: 'America/Chicago', leadTimeMinutes: 120, maxDaysOut: 14 })
   // Monday–Friday 9–12 and 13–17 for "anyone".
@@ -44,7 +46,9 @@ beforeAll(async () => {
 describe('settings', () => {
   test('garbage is refused, not turned into a default', async () => {
     expect((await refusal(engine().updateSettings(companyId, { leadTimeMinutes: 'abc' })))?.message).toContain('must be a number')
-    expect((await refusal(engine().updateSettings(companyId, { timezone: 'Mars/Olympus' })))?.message).toContain('not recognised')
+    // A zone of its own is refused in words — the business's is set under Settings › Company.
+    expect((await refusal(engine().updateSettings(companyId, { timezone: 'Mars/Olympus' })))?.message).toContain('Settings › Company')
+    expect((await refusal(engine().updateSettings(companyId, { timezone: 'America/New_York' })))?.message).toContain('Settings › Company')
     expect((await refusal(engine().updateSettings(companyId, { reviewLink: 'http://x.example' })))?.message).toContain('https')
   })
 })

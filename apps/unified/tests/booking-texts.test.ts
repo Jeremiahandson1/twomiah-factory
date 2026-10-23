@@ -30,7 +30,8 @@ beforeAll(async () => {
   t = await bootTenant()
   const s = await seedOwner(t)
   companyId = s.company.id
-  await t.db.update(t.schema.company).set({ name: 'Acme Remodeling' }).where(eq(t.schema.company.id, companyId))
+  // One clock (coordinator 10/23): the business's zone, set in Settings › Company, is the one Bookings keeps time on.
+  await t.db.update(t.schema.company).set({ name: 'Acme Remodeling', timezone: 'America/Chicago' } as any).where(eq(t.schema.company.id, companyId))
   const webhooks = createBookingWebhooks({ db: t.db, logger: quiet })
   const happen = createHappenings({ db: t.db, email: t.services.email, logger: quiet, webhooks, texts })
   engine = createBookingEngine({ db: t.db, requireAddressDefault: false, now: () => clock, onHappening: (h) => happen(h) })
