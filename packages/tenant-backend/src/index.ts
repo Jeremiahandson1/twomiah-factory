@@ -85,8 +85,8 @@ export { seriesDays, describeSeriesDays, addMonthsClamped, MAX_SERIES, type Seri
 export { createReportingRoutes, createReportingService, parseRange, ReportError } from './reporting/reporting'
 export type { ReportingDeps, ReportingOptions, ReportingTables, ReportingService, DateRange } from './reporting/reporting'
 export { createJobsDashboardRoutes } from './reporting/jobsDashboard'
-export { countNewLeads, NEW_LEAD_DAYS } from './reporting/newLeads'
-export type { NewLeads } from './reporting/newLeads'
+export { countNewLeads, listNewLeads } from './reporting/newLeads'
+export type { NewLeads, NewLeadRow } from './reporting/newLeads'
 export type { JobsDashboardDeps, JobsDashboardTables } from './reporting/jobsDashboard'
 
 // Files — private R2 storage + documents (with version history / markups) + photos, one implementation for every CRM.

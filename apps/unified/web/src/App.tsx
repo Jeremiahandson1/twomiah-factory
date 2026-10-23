@@ -6,7 +6,7 @@ import { AuthProvider, ConfirmProvider, ErrorBoundary, InlineValidity, Permissio
 import { api } from './api'
 import {
   HOME, Shell, Home, Login, ForgotPassword, ResetPassword, Settings, FeaturesSettings, MyAccount, Billing, EmailAliases,
-  LeadInbox, AuditLog, Paywall,
+  LeadInbox, NewLeads, AuditLog, Paywall,
 } from './screens'
 import { PhotoPickerProvider } from './site/contexts/PhotoPickerContext'
 import { PhotoPickerModal } from './site/components/PhotoPickerModal'
@@ -212,6 +212,7 @@ export default function App() {
                       <Route path="bookings/series/:id" element={<BookingSeriesPage />} />
                       <Route path="bookings/:id" element={<BookingDetailPage />} />
                       <Route path="leads" element={<LeadInbox />} />
+                      <Route path="new-leads" element={<NewLeads />} />
                       <Route path="audit" element={<AuditLog />} />
                       <Route path="account" element={<MyAccount />} />
                       <Route path="settings" element={<Settings />} />

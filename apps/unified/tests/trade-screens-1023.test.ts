@@ -16,7 +16,7 @@ import { describe, test, expect, beforeAll } from 'bun:test'
 import { eq } from 'drizzle-orm'
 import { bootTenant } from './harness.ts'
 import { loadVertical } from '../server/core/vertical.ts'
-import { getFeaturesForTemplate, mayBeGivenWork as serverMayBeGivenWork, NOT_GIVEN_WORK_ROLES as SERVER_WORKLESS, planPaysPerson, NEW_LEAD_DAYS } from '@twomiah/tenant-backend'
+import { getFeaturesForTemplate, mayBeGivenWork as serverMayBeGivenWork, NOT_GIVEN_WORK_ROLES as SERVER_WORKLESS, planPaysPerson } from '@twomiah/tenant-backend'
 import { resolveContactsConfig, defaultQuickActions, customersOnly, SECTION_FEATURES, quickActionFeature } from '../../../packages/tenant-ui/src/contacts/types.ts'
 import { mayBeGivenWork as screenMayBeGivenWork, NOT_GIVEN_WORK_ROLES as SCREEN_WORKLESS } from '../../../packages/tenant-ui/src/people/work.ts'
 import { nextBillOf } from '../../../packages/tenant-ui/src/agreements/types.ts'
@@ -275,35 +275,56 @@ describe('13. a job, quote or invoice made under a project is for the project\'s
   })
 })
 
-describe('7. new leads: every enquiry nobody has acted on, wherever it waits', () => {
+describe('7. new leads: every enquiry nobody has acted on, wherever it waits — and one list of exactly those', () => {
   const stats = async () => body(await as('ownerA', 'GET', '/api/dashboard/stats'))
-  test('an inbox enquiry, a lead typed in on Contacts; quoting one takes it off; an old one is not new', async () => {
-    const start = await stats()
-    expect(start.newLeads).toBe(0)
-    // A website enquiry in the Lead Inbox.
-    await t.db.insert(t.schema.lead).values({ companyId: ids.coA, sourcePlatform: 'website', homeownerName: 'Web Walt', status: 'new', receivedAt: new Date() } as any)
-    // A lead the owner typed in.
+  const list = async () => body(await as('ownerA', 'GET', '/api/dashboard/new-leads'))
+  const names = async () => (await list()).data.map((r: any) => r.name).sort()
+  test('inbox enquiries at New and lead contacts with nothing done; no time window; imports left out; the list is the count', async () => {
+    expect((await stats()).newLeads).toBe(0)
+    // A website enquiry in the Lead Inbox; one already dismissed and one converted do not count.
+    await t.db.insert(t.schema.lead).values([
+      { companyId: ids.coA, sourcePlatform: 'website', homeownerName: 'Web Walt', status: 'new', receivedAt: new Date() },
+      { companyId: ids.coA, sourcePlatform: 'website', homeownerName: 'Dismissed Dora', status: 'dismissed', receivedAt: new Date() },
+      { companyId: ids.coA, sourcePlatform: 'website', homeownerName: 'Contacted Carl', status: 'contacted', receivedAt: new Date() },
+    ] as any)
+    // A lead the owner typed in, and one from long ago — no window: nobody has answered either.
     const typed = await body(await as('ownerA', 'POST', '/api/contacts', { name: 'Phone Phil', type: 'lead' }))
+    await t.db.insert(t.schema.contact).values({ companyId: ids.coA, name: 'Old Olga', type: 'lead', createdAt: new Date(Date.now() - 400 * 86400000) } as any)
+    // Imported or moved over: left out, however they were marked.
+    await t.db.insert(t.schema.contact).values([
+      { companyId: ids.coA, name: 'Moved Mo', type: 'lead', source: 'jobber_migration' },
+      { companyId: ids.coA, name: 'Invoice Ivy', type: 'lead', source: 'import' },
+    ] as any)
+    const csv = new FormData()
+    csv.append('file', new File(['name,email,type\nCsv Cara,cara@example.com,lead\n'], 'leads.csv', { type: 'text/csv' }))
+    const imp = await t.call('/api/import/contacts', { method: 'POST', body: csv, headers: { Authorization: `Bearer ${tokens.ownerA}` } })
+    expect(imp.status).toBe(200)
+    const [cara] = await t.db.select().from(t.schema.contact).where(eq(t.schema.contact.name, 'Csv Cara'))
+    expect({ type: cara?.type, imported: !!(cara?.customFields as any)?.importedAt }).toEqual({ type: 'lead', imported: true })
+    // A client is not a lead.
+    await body(await as('ownerA', 'POST', '/api/contacts', { name: 'Client Clem', type: 'client' }))
+
     let s = await stats()
-    expect(s.newLeads).toBe(2)
-    expect(s.newLeadsFrom).toEqual({ inbox: 1, contacts: 1 })
-    // Quoting the typed-in lead takes it off.
+    expect(s.newLeads).toBe(3)
+    expect(s.newLeadsFrom).toEqual({ inbox: 1, contacts: 2 })
+    // The one list the tile opens: exactly the rows counted.
+    let l = await list()
+    expect(l.pagination.total).toBe(3)
+    expect(await names()).toEqual(['Old Olga', 'Phone Phil', 'Web Walt'])
+    expect(l.data.find((r: any) => r.name === 'Web Walt').kind).toBe('enquiry')
+    expect(l.data.find((r: any) => r.name === 'Phone Phil')).toMatchObject({ kind: 'contact', id: typed.id })
+    // Quoting the typed-in lead takes it off both.
     await as('ownerA', 'POST', '/api/quotes', { name: 'Fence', contactId: typed.id, lineItems: [{ description: 'Fence', quantity: 1, unitPrice: 900 }] })
-    s = await stats()
-    expect(s.newLeadsFrom).toEqual({ inbox: 1, contacts: 0 })
-    // A lead from two months ago with nothing done is not new.
-    await t.db.insert(t.schema.contact).values({ companyId: ids.coA, name: 'Old Olga', type: 'lead', createdAt: new Date(Date.now() - (NEW_LEAD_DAYS + 30) * 86400000) } as any)
-    expect((await stats()).newLeads).toBe(1)
-    // Without the Lead Inbox the typed-in leads still count (a website enquiry is saved as one then).
-    await t.db.update(t.schema.company).set({ enabledFeatures: FEATURES.filter((f) => f !== 'lead_inbox') } as any).where(eq(t.schema.company.id, ids.coA))
-    await body(await as('ownerA', 'POST', '/api/contacts', { name: 'Form Fran', type: 'lead' }))
-    try {
-      // The feature list is cached for a moment; the count reads it fresh enough for this check either way.
-      const off = await stats()
-      expect(off.newLeadsFrom.contacts).toBe(1)
-    } finally {
-      await t.db.update(t.schema.company).set({ enabledFeatures: FEATURES } as any).where(eq(t.schema.company.id, ids.coA))
-    }
+    expect((await stats()).newLeads).toBe(2)
+    expect(await names()).toEqual(['Old Olga', 'Web Walt'])
+    // Converting the old lead into a client takes it off; so does marking the enquiry contacted.
+    await as('ownerA', 'POST', `/api/contacts/${(await list()).data.find((r: any) => r.name === 'Old Olga').id}/convert`)
+    const walt = (await list()).data.find((r: any) => r.name === 'Web Walt')
+    await as('ownerA', 'PUT', `/api/leads/${walt.id}/status`, { status: 'contacted' })
+    expect((await stats()).newLeads).toBe(0)
+    expect((await list()).data).toEqual([])
+    // Another company's caller sees only its own.
+    expect((await body(await as('ownerB', 'GET', '/api/dashboard/new-leads'))).pagination.total).toBe(0)
   })
 })
 

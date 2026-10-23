@@ -23,10 +23,10 @@
 //     roofing's invoice kept a `balance` column; the same invoices count (issued: not draft, void or paid; something owed).
 import { Hono } from 'hono'
 import { and, count, eq, gte, inArray, lt, notInArray } from 'drizzle-orm'
-import { companyTimeZone, invoiceBalance, storeDayRange, countNewLeads } from '@twomiah/tenant-backend'
+import { companyTimeZone, invoiceBalance, storeDayRange, countNewLeads, listNewLeads } from '@twomiah/tenant-backend'
 import { contact, invoice, job, lead, quote } from '../../../db/schema/index.ts'
 import type { AppEnv } from '../../../http/env.ts'
-import { one } from '../../../http/reply.ts'
+import { one, fail } from '../../../http/reply.ts'
 import type { CrmDeps } from '../../deps.ts'
 import { canSeeWith } from '../../deps.ts'
 import { TERMINAL_STATUSES } from '../validation.ts'
@@ -43,6 +43,15 @@ export function createRoofDashboardRoutes(d: CrmDeps) {
   const may = async (u: any, permission: string) => { try { return !!(await canSee(u?.role, permission, u?.userId)) } catch { return true } }
   const n = (rows: any[]) => Number(rows?.[0]?.value ?? 0)
   const r2 = (v: number) => Math.round(v * 100) / 100
+
+  // The rows the count counts, as one list (tenant-backend reporting/newLeads.ts) — the jobs dashboard's GET /new-leads.
+  app.get('/new-leads', async (c) => {
+    const u = c.get('user')
+    if (!(await may(u, 'contacts:read'))) return fail(c, 403, 'Permission denied', 'forbidden')
+    const features = await safe(() => d.features.enabledFeaturesFor(u.companyId), [] as string[])
+    const limit = Number(c.req.query('limit')) || undefined
+    return one(c, await listNewLeads(db, { lead, contact, quote, job, invoice }, u.companyId, { inbox: features.includes('lead_inbox'), limit }))
+  })
 
   app.get('/stats', async (c) => {
     const u = c.get('user')

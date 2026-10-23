@@ -5,7 +5,7 @@ import { Hono } from 'hono'
 import { eq, and, gte, lt, count, desc, inArray, sql, asc } from 'drizzle-orm'
 import { companyTimeZone, storeDayRange, jobLocalDay, markerDayIsOver } from '../time/businessDay'
 import { invoiceBalance } from '../invoicing/money'
-import { countNewLeads, type NewLeads } from './newLeads'
+import { countNewLeads, listNewLeads, type NewLeads } from './newLeads'
 
 export interface JobsDashboardTables { contact: any; project: any; job: any; quote: any; invoice: any; lead?: any }
 export interface JobsDashboardDeps {
@@ -69,6 +69,24 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
   app.use('*', deps.authenticate)
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => { try { return await fn() } catch { return fallback } }
 
+  /**
+   * The rows "New leads" counts — inbox enquiries at new and lead contacts nobody has acted on (./newLeads.ts, the same
+   * conditions as the count) — as one list, the one the tile opens. contacts:read, as the count. Not wired with
+   * featuresFor (a template's copy): not offered.
+   */
+  app.get('/new-leads', async (c) => {
+    const companyId = ((c as any).get('user') as any).companyId
+    let status = 200
+    let body: Record<string, unknown>
+    if (!deps.featuresFor) { status = 404; body = { error: 'Not found' } }
+    else if (!(await maySee(c, 'contacts:read'))) { status = 403; body = { error: 'Permission denied', required: 'contacts:read' } }
+    else {
+      const features = await safe(() => deps.featuresFor!(companyId), [] as string[])
+      body = await listNewLeads(db, t, companyId, { inbox: features.includes('lead_inbox'), limit: Number(c.req.query('limit')) || undefined })
+    }
+    return c.json(body, status as any)
+  })
+
   app.get('/stats', async (c) => {
     const companyId = (c.get('user') as any).companyId
     // The store's day, not the server's. setHours(0,0,0,0) is UTC midnight on Render, so this board
@@ -105,8 +123,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
      * absent, the same rule the money keys follow. `contacts` stays in the response: the mobile app reads it.
      */
     // Since 2026-10-23 also the lead contacts nobody has acted on yet, and for a business without the inbox too
-    // (./newLeads.ts — the landscaper's 0 beside the contractor's 1). `newLeadsFrom` says where they wait, so the tile
-    // opens the right page.
+    // (./newLeads.ts — the landscaper's 0 beside the contractor's 1). The tile opens GET /new-leads: those same rows.
     let leads: NewLeads | null = null
     if (deps.featuresFor && (await maySee(c, 'contacts:read'))) {
       const features = await safe(() => deps.featuresFor!(companyId), [] as string[])
