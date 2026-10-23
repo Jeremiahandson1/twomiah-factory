@@ -11,6 +11,9 @@
 // The rule is the pairing, not the colour: if the TEXT on a surface switches in dark mode, the SURFACE
 // has to switch too. Sweeping for that shape turned up a fourth on Reminders, a page the report did not
 // reach — an overdue row painted bg-red-50 with cells at dark:text-slate-100.
+//
+// It also holds the Salon T23 instant-date rule (an upload's day is read from the instant, never sliced off UTC). That
+// rule now reads the instant on the BUSINESS's clock, not the reader's — see "WHOSE CLOCK" below (10438fd8c).
 //   bun scripts/check-salon-dark-surfaces.ts
 import { readFileSync } from 'node:fs'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
@@ -113,9 +116,19 @@ if (offenders.length) fail(`a card or panel is painted light with no dark counte
 
 // A timestamp is not a named day. dateOnly() takes the first ten characters, which is the UTC day — right
 // for a due date, wrong for an upload at 20:18 that then listed as tomorrow. (Salon T23)
+//
+// WHOSE CLOCK — THE RULE CHANGED ON PURPOSE (10438fd8c, 2026-10-22). This check first demanded the READER's clock
+// (`new Date(v).toLocaleDateString()`), because the only other option then was the UTC slice. The product rule is now
+// that a business's times print on the BUSINESS's clock, as every figure the server reports does: an owner reading
+// from a trip, or a tester's UTC cloud browser, saw an 8:30 PM Chicago upload as the next day on the reader's clock.
+// So instantDay must READ THE INSTANT (never slice it) on the company's clock — momentDate() in
+// packages/tenant-ui/src/time/companyClock.ts, toLocaleDateString with timeZone: the company zone (the browser's only
+// before a session names it). The UTC slice and the reader's bare clock both fail.
 {
   const ui = read('packages/tenant-ui/src/invoicing/ui.tsx')
-  if (!/export const instantDay = \(v: unknown\) => \(v \? new Date\(String\(v\)\)\.toLocaleDateString\(\) : '-'\)/.test(ui)) fail('there must be a formatter that reads an INSTANT on the reader\'s clock')
+  const clock = read('packages/tenant-ui/src/time/companyClock.ts')
+  const momentOnCompanyClock = /export function momentDate\(v: unknown, opts: Intl\.DateTimeFormatOptions = \{\}\): string \{\n\s*const d = asDate\(v\)\n\s*return d \? d\.toLocaleDateString\(undefined, \{ \.\.\.opts, timeZone: zone \}\) : ''\n\}/.test(clock)
+  if (!/export const instantDay = \(v: unknown\) => momentDate\(v\) \|\| '-'/.test(ui) || !/import \{[^}]*\bmomentDate\b[^}]*\} from '\.\.\/time\/companyClock'/.test(ui) || !momentOnCompanyClock) fail('there must be a formatter that reads an INSTANT on the business\'s clock (instantDay → companyClock momentDate)')
   if (!/export const dateOnly = /.test(ui)) fail('…and dateOnly must stay for values that genuinely name a day')
   const docs = read('packages/tenant-ui/src/files/DocumentsPage.tsx')
   if (/dateOnly\(v\)/.test(docs) || /dateOnly\(m\.updatedAt\)/.test(docs)) fail('the Documents list must not slice the UTC date off a timestamp — that is how an upload showed tomorrow')
